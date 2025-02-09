@@ -72,8 +72,8 @@ export async function POST(req: Request) {
               headers: { 'Content-Type': 'application/json' }
             }
           );
-        }
-      } catch (error) {
+            }
+          } catch (error) {
         return new Response(
           JSON.stringify({ 
             error: 'Failed to check session',
@@ -102,7 +102,7 @@ export async function POST(req: Request) {
 
         if (sessionError) throw sessionError;
         sessionId = session.id;
-      } catch (error) {
+          } catch (error) {
         return new Response(
           JSON.stringify({ 
             error: 'Failed to create session',
@@ -135,11 +135,11 @@ export async function POST(req: Request) {
     const lastUserMessage = messages[messages.length - 1];
     if (lastUserMessage.role === 'user') {
       await supabase.from('messages').insert([{
-        id: Date.now().toString(),
+                id: Date.now().toString(),
         content: lastUserMessage.content,
         role: 'user',
-        created_at: new Date().toISOString(),
-        model,
+                created_at: new Date().toISOString(),
+                model,
         host: provider,
         chat_session_id: sessionId  // 추가
       }]);
@@ -163,11 +163,11 @@ export async function POST(req: Request) {
     const assistantMessageId = Date.now().toString();
     await supabase.from('messages').insert([{
       id: assistantMessageId,
-      role: 'assistant',
+                role: 'assistant',
       content: '',
       reasoning: '',
-      created_at: new Date().toISOString(),
-      model,
+                created_at: new Date().toISOString(),
+                model,
       host: provider,
       chat_session_id: sessionId  // 추가
     }]);
@@ -183,13 +183,11 @@ export async function POST(req: Request) {
           let finalContent = '';
           let finalReasoning = '';
 
-          // steps 배열의 첫 번째 항목에서 text와 reasoning 추출
           if (completion.steps?.[0]) {
             const step = completion.steps[0];
             finalContent = step.text || '';
             finalReasoning = step.reasoning || '';
           } else {
-            // steps가 없는 경우 text 사용
             finalContent = completion.text || '';
           }
 
@@ -200,7 +198,7 @@ export async function POST(req: Request) {
           });
 
           const { error: updateError } = await supabase
-            .from('messages')
+                .from('messages')
             .update({ 
               content: finalContent,
               reasoning: finalReasoning
@@ -217,7 +215,7 @@ export async function POST(req: Request) {
     });
 
     return result.toDataStreamResponse({
-      sendReasoning: true,  // 이 옵션이 활성화되어 있는지 확인
+      sendReasoning: true,  // reasoning 스트리밍 활성화
     });
 
   } catch (error) {

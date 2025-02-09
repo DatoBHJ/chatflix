@@ -13,17 +13,33 @@ export function Sidebar() {
   useEffect(() => {
     loadChats()
 
+    // 실시간 업데이트를 위한 채널 설정
     const chatChannel = supabase
       .channel('chat-updates')
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: '*',  // INSERT, UPDATE, DELETE 모두 감지
           schema: 'public',
           table: 'chat_sessions'
         },
-        () => {
-          loadChats()
+        async (payload) => {
+          console.log('Chat session change:', payload);
+          // 변경 즉시 채팅 목록 새로고침
+          await loadChats()
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',  // INSERT, UPDATE, DELETE 모두 감지
+          schema: 'public',
+          table: 'messages'
+        },
+        async (payload) => {
+          console.log('Message change:', payload);
+          // 메시지 변경 즉시 채팅 목록 새로고침
+          await loadChats()
         }
       )
       .subscribe()
@@ -34,30 +50,27 @@ export function Sidebar() {
   }, [])
 
   async function loadChats() {
-    const { data: sessions, error: sessionsError } = await supabase
-      .from('chat_sessions')
-      .select('*')
-      .order('created_at', { ascending: false })
+    try {
+      // 세션을 최신 수정 시간 순으로 정렬
+      const { data: sessions, error: sessionsError } = await supabase
+        .from('chat_sessions')
+        .select('*, messages:messages(*, created_at)')  // messages 테이블과 join
+        .order('created_at', { ascending: false })
 
-    if (sessionsError) {
-      console.error('Error loading chat sessions:', sessionsError)
-      return
-    }
+      if (sessionsError) {
+        console.error('Error loading chat sessions:', sessionsError)
+        return
+      }
 
-    const chatsWithMessages = await Promise.all(
-      sessions.map(async (session) => {
-        const { data: messages, error: messagesError } = await supabase
-          .from('messages')
-          .select('*')
-          .eq('chat_session_id', session.id)
-          .order('created_at', { ascending: true })
+      const chatsWithMessages = sessions.map(session => {
+        const messages = session.messages || []
+        // 가장 최근 메시지 시간을 기준으로 정렬
+        const lastMessageTime = messages.length > 0 
+          ? Math.max(...messages.map((m: { created_at: string | number | Date }) => new Date(m.created_at).getTime()))
+          : new Date(session.created_at).getTime()
 
-        if (messagesError) {
-          console.error('Error loading messages:', messagesError)
-          return null
-        }
-
-        const firstUserMessage = messages.find(m => m.role === 'user')
+        // 첫 번째 사용자 메시지를 제목으로 사용
+        const firstUserMessage = messages.find((m: { role: string }) => m.role === 'user')
         const title = firstUserMessage?.content || 'New Chat'
 
         return {
@@ -65,17 +78,45 @@ export function Sidebar() {
           title: title,
           messages: messages,
           created_at: session.created_at,
+          lastMessageTime: lastMessageTime,  // 정렬을 위한 추가 필드
           lastMessage: messages[messages.length - 1]?.content
         }
       })
-    )
 
-    setChats(chatsWithMessages.filter(Boolean) as Chat[])
+      // 마지막 메시지 시간 기준으로 정렬
+      chatsWithMessages.sort((a, b) => b.lastMessageTime - a.lastMessageTime)
+
+      console.log('Updated chats:', chatsWithMessages)
+      setChats(chatsWithMessages)
+    } catch (error) {
+      console.error('Error in loadChats:', error)
+    }
   }
 
-  const handleNewChat = () => {
-    router.push('/chat')
-  }
+  const handleNewChat = async () => {
+    try {
+      const { data: session, error: sessionError } = await supabase
+        .from('chat_sessions')
+        .insert([{
+          id: Date.now().toString(),
+          title: 'New Chat'
+        }])
+        .select()
+        .single();
+
+      if (sessionError) {
+        console.error('Failed to create session:', sessionError);
+        return;
+      }
+
+      if (session) {
+        await loadChats()  // 새 채팅 생성 즉시 목록 업데이트
+        router.push(`/chat/${session.id}`);
+      }
+    } catch (error) {
+      console.error('Error creating new chat:', error)
+    }
+  };
 
   const handleDeleteChat = async (chatId: string, e: React.MouseEvent) => {
     e.stopPropagation() // Prevent chat selection event
@@ -140,7 +181,7 @@ export function Sidebar() {
       <div className="p-4">
         <div className="flex gap-2 mb-4">
           <button
-            onClick={() => router.push('/chat')}
+            onClick={handleNewChat}
             className="flex-1 p-3 bg-[var(--accent)] rounded hover:opacity-80"
           >
             New Chat

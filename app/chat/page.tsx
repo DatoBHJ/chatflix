@@ -18,48 +18,24 @@ export default function NewChat() {
       model: currentModel,
     },
     onFinish: async (message) => {
-      console.log('Message finished:', message);
-      console.log('Current messages:', messages);  // 현재 메시지 상태 확인
-      
       // 첫 메시지가 완료되면 새 세션 생성 및 리다이렉트
-      if (messages.length === 1) {
+      if (messages.length === 0) {  // 첫 메시지인 경우만 체크
         try {
-          // 먼저 세션이 이미 존재하는지 확인
-          const { data: existingSession } = await supabase
-            .from('chat_sessions')
-            .select()
-            .eq('title', messages[0].content)
-            .single();
-
-          if (existingSession) {
-            console.log('Existing session found:', existingSession);
-            router.push(`/chat/${existingSession.id}`);
-            return;
-          }
-
-          // 새 세션 생성
           const { data: session, error: sessionError } = await supabase
             .from('chat_sessions')
             .insert([{
               id: Date.now().toString(),
-              title: messages[0].content
+              title: message.content
             }])
             .select()
             .single();
 
-          console.log('Created session:', session);
-          console.log('Session error:', sessionError);
-
-          if (sessionError) {
-            console.error('Failed to create session:', sessionError);
-            return;
-          }
-
           if (session) {
+            // 세션이 생성되면 즉시 해당 URL로 이동
             router.push(`/chat/${session.id}`);
           }
         } catch (error) {
-          console.error('Error handling session:', error);
+          console.error('Error creating session:', error);
         }
       }
     }

@@ -27,7 +27,105 @@ export default function Chat({ params }: PageProps) {
       chatId,
     },
     id: chatId,
-  })
+    onFinish: async (message) => {
+      // 메시지가 완료되면 전체 대화 내용을 다시 로드
+      const { data: updatedMessages, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('chat_session_id', chatId)
+        .order('created_at', { ascending: true });
+
+      if (!error && updatedMessages) {
+        const convertedMessages = updatedMessages.map(msg => {
+          const baseMessage = {
+            id: msg.id,
+            content: msg.content,
+            role: msg.role as 'user' | 'assistant' | 'system',
+            createdAt: new Date(msg.created_at),
+          };
+
+          if (msg.role === 'assistant' && msg.reasoning) {
+            return {
+              ...baseMessage,
+              parts: [
+                {
+                  type: 'reasoning' as const,
+                  reasoning: msg.reasoning
+                },
+                {
+                  type: 'text' as const,
+                  text: msg.content
+                }
+              ]
+            };
+          }
+
+          return baseMessage;
+        }) as Message[];
+
+        setMessages(convertedMessages);
+      }
+    }
+  });
+
+  // 실시간 업데이트 구독
+  useEffect(() => {
+    const channel = supabase
+      .channel('chat-messages')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+          filter: `chat_session_id=eq.${chatId}`
+        },
+        async (payload) => {
+          // 메시지가 업데이트되면 전체 대화 내용을 다시 로드
+          const { data: messages, error } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('chat_session_id', chatId)
+            .order('created_at', { ascending: true });
+
+          if (!error && messages) {
+            const convertedMessages = messages.map(msg => {
+              const baseMessage = {
+                id: msg.id,
+                content: msg.content,
+                role: msg.role as 'user' | 'assistant' | 'system',
+                createdAt: new Date(msg.created_at),
+              };
+
+              if (msg.role === 'assistant' && msg.reasoning) {
+                return {
+                  ...baseMessage,
+                  parts: [
+                    {
+                      type: 'reasoning' as const,
+                      reasoning: msg.reasoning
+                    },
+                    {
+                      type: 'text' as const,
+                      text: msg.content
+                    }
+                  ]
+                };
+              }
+
+              return baseMessage;
+            }) as Message[];
+
+            setMessages(convertedMessages);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [chatId, setMessages]);
 
   useEffect(() => {
     async function loadChat() {
@@ -72,22 +170,33 @@ export default function Chat({ params }: PageProps) {
         }
 
         if (messages) {
-          const convertedMessages = messages.map(msg => ({
-            id: msg.id,
-            content: msg.content,
-            role: msg.role as 'user' | 'assistant' | 'system',
-            createdAt: new Date(msg.created_at),
-            parts: msg.reasoning ? [
-              {
-                type: 'reasoning' as const,
-                reasoning: msg.reasoning
-              },
-              {
-                type: 'text' as const,
-                text: msg.content
-              }
-            ] : undefined
-          })) as Message[];
+          const convertedMessages = messages.map(msg => {
+            const baseMessage = {
+              id: msg.id,
+              content: msg.content,
+              role: msg.role as 'user' | 'assistant' | 'system',
+              createdAt: new Date(msg.created_at),
+            };
+
+            // assistant 메시지이고 reasoning이 있는 경우에만 parts 추가
+            if (msg.role === 'assistant' && msg.reasoning) {
+              return {
+                ...baseMessage,
+                parts: [
+                  {
+                    type: 'reasoning' as const,
+                    reasoning: msg.reasoning
+                  },
+                  {
+                    type: 'text' as const,
+                    text: msg.content
+                  }
+                ]
+              };
+            }
+
+            return baseMessage;
+          }) as Message[];
 
           console.log('Converted messages:', convertedMessages);
           setMessages(convertedMessages);
@@ -145,23 +254,25 @@ export default function Chat({ params }: PageProps) {
                       : 'bg-[var(--background)] border border-[var(--accent)]'
                   }`}>
                     {message.parts ? (
-                      message.parts.map((part, index) => {
-                        if (part.type === 'reasoning') {
-                          return (
-                            <div key={index} className="bg-[var(--accent)] bg-opacity-30 p-2 mb-2">
-                              <div className="text-sm opacity-70">Reasoning:</div>
-                              {part.reasoning}
-                            </div>
-                          );
-                        }
-                        if (part.type === 'text') {
-                          return (
-                            <div key={index} className="whitespace-pre-wrap">
-                              {part.text}
-                            </div>
-                          );
-                        }
-                      })
+                      <>
+                        {message.parts.map((part, index) => {
+                          if (part.type === 'reasoning') {
+                            return (
+                              <div key={index} className="bg-[var(--accent)] bg-opacity-30 p-2 mb-2">
+                                <div className="text-sm opacity-70">Reasoning:</div>
+                                <div className="whitespace-pre-wrap">{part.reasoning}</div>
+                              </div>
+                            );
+                          }
+                          if (part.type === 'text') {
+                            return (
+                              <div key={index} className="whitespace-pre-wrap">
+                                {part.text}
+                              </div>
+                            );
+                          }
+                        })}
+                      </>
                     ) : (
                       <div className="whitespace-pre-wrap">{message.content}</div>
                     )}
