@@ -1,101 +1,165 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import { useChat } from 'ai/react'
+import { useState } from 'react'
+import { IconRefresh, IconStop } from './components/icons'
+import { Message } from 'ai'
+
+export default function Page() {
+  const [currentModel, setCurrentModel] = useState('deepseek-reasoner')
+  const [nextModel, setNextModel] = useState(currentModel)  // 다음 메시지에 사용할 모델
+
+  const { messages, input, handleInputChange, handleSubmit, isLoading, stop, reload, setMessages } = useChat({
+    api: '/api/chat',
+    body: {
+      model: currentModel,
+    },
+    streamProtocol: 'data',
+    initialMessages: [
+      {
+        id: 'system-1',
+        role: 'system',
+        content: 'You are a helpful assistant.',
+      },
+    ],
+  })
+
+  const handleStop = (e: React.MouseEvent) => {
+    e.preventDefault()
+    stop()
+  }
+
+  const handleReload = (messageId: string) => async (e: React.MouseEvent) => {
+    e.preventDefault()
+    
+    const messageIndex = messages.findIndex(m => m.id === messageId)
+    if (messageIndex === -1) return
+    
+    const previousMessages = messages.slice(0, messageIndex)
+    const lastUserMessage = messages
+      .slice(0, messageIndex + 1)
+      .reverse()
+      .find(m => m.role === 'user')
+    
+    if (lastUserMessage) {
+      setMessages(previousMessages)
+      await reload({
+        body: {
+          messages: [...previousMessages, lastUserMessage],
+          model: currentModel,
+        }
+      })
+    }
+  }
+
+  const handleModelSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setCurrentModel(nextModel)
+    await handleSubmit(e, {
+      body: {
+        model: nextModel
+      }
+    })
+  }
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <main className="h-full flex flex-col">
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-2xl mx-auto w-full">
+          <div className="space-y-6 p-4 pb-32">
+            {messages.map((message) => (
+              <div key={message.id} className="group">
+                <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[85%] p-4 ${
+                    message.role === 'user' 
+                      ? 'bg-[var(--accent)]' 
+                      : 'bg-[var(--background)] border border-[var(--accent)]'
+                  }`}>
+                    {message.parts?.map((part, index) => {
+                      if (part.type === 'reasoning') {
+                        return (
+                          <div key={index} className="bg-[var(--accent)] bg-opacity-30 p-2 mb-2">
+                            <div className="text-sm opacity-70">Reasoning:</div>
+                            {part.reasoning}
+                          </div>
+                        );
+                      }
+                      if (part.type === 'text') {
+                        return (
+                          <div key={index} className="whitespace-pre-wrap">
+                            {part.text}
+                          </div>
+                        );
+                      }
+                    })}
+                  </div>
+                </div>
+                {message.role === 'assistant' && (
+                  <div className="flex justify-start pl-4 mt-1">
+                    <button 
+                      onClick={handleReload(message.id)}
+                      className="text-xs opacity-50 hover:opacity-100 transition-opacity flex items-center gap-1"
+                    >
+                      <IconRefresh className="w-3 h-3" />
+                      <span>Regenerate response</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)] to-transparent pt-6 pb-4">
+        <div className="max-w-2xl mx-auto w-full px-4">
+          <form onSubmit={handleModelSubmit} className="flex flex-col gap-4">
+            {/* 모델 선택 드롭다운 - 입력창 위에 표시 */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs opacity-70">Using:</span>
+              <select
+                value={nextModel}
+                onChange={(e) => setNextModel(e.target.value)}
+                className="text-xs bg-transparent border-none focus:outline-none hover:opacity-100 opacity-70"
+              >
+                <option value="deepseek-reasoner">DeepSeek Reasoner</option>
+                <option value="deepseek-chat">DeepSeek Chat</option>
+                <option value="deepseek-ai/DeepSeek-R1">DeepSeek R1 (Together)</option>
+                <option value="deepseek-ai/DeepSeek-V3">DeepSeek V3 (Together)</option>
+                <option value="DeepSeek r1 distill llama 70b">DeepSeek R1 (Groq)</option>
+                <option value="claude-3-5-sonnet-latest">Claude 3.5 Sonnet</option>
+              </select>
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                value={input}
+                onChange={handleInputChange}
+                placeholder="Type your message..."
+                className="yeezy-input flex-1 text-lg"
+              />
+              {isLoading ? (
+                <button 
+                  onClick={handleStop} 
+                  type="button"
+                  className="yeezy-button flex items-center gap-2"
+                >
+                  <IconStop />
+                  <span>Stop</span>
+                </button>
+              ) : (
+                <button 
+                  type="submit" 
+                  className="yeezy-button"
+                  disabled={isLoading}
+                >
+                  Send
+                </button>
+              )}
+            </div>
+          </form>
+        </div>
+      </div>
+    </main>
+  )
 }
