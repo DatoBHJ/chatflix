@@ -80,12 +80,21 @@ export function Sidebar() {
   return (
     <div className="w-64 h-full bg-[var(--background)] border-r border-[var(--accent)]">
       <div className="p-4">
-        <button
-          onClick={handleNewChat}
-          className="w-full p-3 mb-4 bg-[var(--accent)] rounded hover:opacity-80"
-        >
-          New Chat
-        </button>
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => router.push('/chat')}
+            className="flex-1 p-3 bg-[var(--accent)] rounded hover:opacity-80"
+          >
+            New Chat
+          </button>
+          <button
+            onClick={() => router.push('/')}
+            className="p-3 bg-[var(--accent)] rounded hover:opacity-80"
+            title="Home"
+          >
+            🏠
+          </button>
+        </div>
         
         <div className="space-y-2">
           {chats.map((chat) => (
