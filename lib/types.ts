@@ -3,6 +3,17 @@ import { Message as AIMessage } from 'ai'
 export interface ChatRequest {
   messages: AIMessage[];
   model: string;
+  chatId?: string;
+}
+
+export interface TextUIPart {
+  type: 'text';
+  text: string;
+}
+
+export interface ReasoningUIPart {
+  type: 'reasoning';
+  reasoning: string;
 }
 
 export interface MessagePart {
@@ -24,6 +35,12 @@ export interface CompletionResult {
   parts?: MessagePart[];
 }
 
+export interface ChatSession {
+  id: string;
+  title: string;
+  created_at: string;
+}
+
 export interface DatabaseMessage {
   id: string
   content: string
@@ -32,6 +49,7 @@ export interface DatabaseMessage {
   created_at: string
   model: string
   host: string
+  chat_session_id: string
 }
 
 export interface ModelConfig {
@@ -40,4 +58,12 @@ export interface ModelConfig {
   apiKey: string
   temperature: number
   maxTokens: number
+}
+
+export interface Chat {
+  id: string;
+  title: string;
+  messages: DatabaseMessage[];
+  lastMessage?: string;
+  created_at: string;
 } 

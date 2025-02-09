@@ -1,10 +1,9 @@
 import { Message, streamText } from 'ai';
-import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { providers } from '@/lib/providers'
 import { ChatRequest, MessagePart, CompletionResult } from '@/lib/types'
 
-export const runtime = 'edge';
+export const runtime = 'nodejs'  // Node.js 런타임 사용
 
 // 메시지 형식을 정규화하는 함수
 function normalizeMessages(messages: Message[], targetModel: string) {
@@ -41,21 +40,96 @@ function normalizeMessages(messages: Message[], targetModel: string) {
   });
 }
 
+// 모델 이름에서 provider 이름을 추출하는 함수
+function getProviderFromModel(model: string): string {
+  const selectedModel = providers.languageModel(model);
+  
+  // providers.ts에서 이미 모델별 provider를 관리하고 있으므로
+  // 해당 정보를 활용
+  return selectedModel?.provider || 'Unknown Provider';
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log('Received request body:', body);
+    const { messages, model, chatId }: ChatRequest = body;
     
-    const { messages, model }: ChatRequest = body;
-    
+    // chatId가 있는 경우 해당 세션이 존재하는지 확인
+    if (chatId) {
+      console.log('Checking session:', chatId);
+      try {
+        const { data: existingSession, error: sessionError } = await supabase
+          .from('chat_sessions')
+          .select()
+          .eq('id', chatId)
+          .single();
+
+        if (sessionError || !existingSession) {
+          return new Response(
+            JSON.stringify({ error: 'Chat session not found' }),
+            { 
+              status: 404,
+              headers: { 'Content-Type': 'application/json' }
+            }
+          );
+        }
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Failed to check session',
+            details: error instanceof Error ? error.message : undefined
+          }),
+          { 
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        );
+      }
+    }
+
+    // 새로운 대화인 경우 세션 생성
+    let sessionId = chatId;
+    if (!sessionId) {
+      try {
+        const { data: session, error: sessionError } = await supabase
+          .from('chat_sessions')
+          .insert([{ 
+            id: Date.now().toString(),
+            title: messages[messages.length - 1]?.content || 'New Chat'
+          }])
+          .select()
+          .single();
+
+        if (sessionError) throw sessionError;
+        sessionId = session.id;
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Failed to create session',
+            details: error instanceof Error ? error.message : undefined
+          }),
+          { 
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        );
+      }
+    }
+
     // 메시지 유효성 검사
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       console.log('Invalid messages:', messages);
-      return NextResponse.json(
-        { error: 'Invalid messages format' },
-        { status: 400 }
+      return new Response(
+        JSON.stringify({ error: 'Invalid messages format' }),
+        { 
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        }
       );
     }
+
+    // provider 이름 가져오기
+    const provider = getProviderFromModel(model);
 
     // 1. 새로운 사용자 메시지 저장
     const lastUserMessage = messages[messages.length - 1];
@@ -66,13 +140,20 @@ export async function POST(req: Request) {
         role: 'user',
         created_at: new Date().toISOString(),
         model,
-        host: model
+        host: provider,
+        chat_session_id: sessionId  // 추가
       }]);
     }
 
     const selectedModel = providers.languageModel(model);
     if (!selectedModel) {
-      return NextResponse.json({ error: 'Invalid model' }, { status: 400 });
+      return new Response(
+        JSON.stringify({ error: 'Invalid model' }),
+        { 
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
     }
 
     // 메시지 형식 정규화
@@ -84,10 +165,11 @@ export async function POST(req: Request) {
       id: assistantMessageId,
       role: 'assistant',
       content: '',
-      reasoning: '',  // 초기 reasoning 필드
+      reasoning: '',
       created_at: new Date().toISOString(),
       model,
-      host: model
+      host: provider,
+      chat_session_id: sessionId  // 추가
     }]);
 
     // 3. 스트리밍 응답 설정
@@ -97,30 +179,40 @@ export async function POST(req: Request) {
       temperature: 0.7,
       maxTokens: 1000,
       onFinish: async (completion: CompletionResult) => {
-        let finalContent = '';
-        let finalReasoning = '';
+        try {
+          let finalContent = '';
+          let finalReasoning = '';
 
-        console.log('Completion:', completion);
+          // steps 배열의 첫 번째 항목에서 text와 reasoning 추출
+          if (completion.steps?.[0]) {
+            const step = completion.steps[0];
+            finalContent = step.text || '';
+            finalReasoning = step.reasoning || '';
+          } else {
+            // steps가 없는 경우 text 사용
+            finalContent = completion.text || '';
+          }
 
-        // steps 배열의 첫 번째 항목에서 text와 reasoning 추출
-        if (completion.steps?.[0]) {
-          const step = completion.steps[0];
-          finalContent = step.text || '';
-          finalReasoning = step.reasoning || '';
-        } else {
-          // steps가 없는 경우 text 사용
-          finalContent = completion.text || '';
-        }
-
-        console.log('Final content:', finalContent);
-        console.log('Final reasoning:', finalReasoning);
-
-        await supabase.from('messages')
-          .update({ 
+          console.log('Updating message:', {
+            id: assistantMessageId,
             content: finalContent,
             reasoning: finalReasoning
-          })
-          .eq('id', assistantMessageId);
+          });
+
+          const { error: updateError } = await supabase
+            .from('messages')
+            .update({ 
+              content: finalContent,
+              reasoning: finalReasoning
+            })
+            .eq('id', assistantMessageId);
+
+          if (updateError) {
+            console.error('Failed to update message:', updateError);
+          }
+        } catch (error) {
+          console.error('Error in onFinish:', error);
+        }
       }
     });
 
@@ -129,10 +221,15 @@ export async function POST(req: Request) {
     });
 
   } catch (error) {
-    console.error('API Error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error occurred' },
-      { status: 500 }
+    return new Response(
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        details: error instanceof Error ? error.stack : undefined
+      }),
+      { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      }
     );
   }
 } 
