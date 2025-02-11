@@ -2,11 +2,13 @@
 
 import { useChat } from 'ai/react'
 import { Message } from 'ai'
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, use, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { IconRefresh, IconStop } from '../../components/icons'
+import { IconRefresh } from '../../components/icons'
 import { supabase } from '@/lib/supabase'
 import { DatabaseMessage } from '@/lib/types'
+import { ModelSelector } from '../../components/ModelSelector'
+import { ChatInput } from '../../components/ChatInput'
 
 interface PageProps {
   params: Promise<{
@@ -14,11 +16,69 @@ interface PageProps {
   }>;
 }
 
+// 메시지 변환 함수를 컴포넌트 외부로 이동
+const convertMessage = (msg: DatabaseMessage): Message => {
+  const baseMessage = {
+    id: msg.id,
+    content: msg.content,
+    role: msg.role as 'user' | 'assistant' | 'system',
+    createdAt: new Date(msg.created_at),
+  };
+
+  if (msg.role === 'assistant' && msg.reasoning) {
+    return {
+      ...baseMessage,
+      parts: [
+        {
+          type: 'reasoning' as const,
+          reasoning: msg.reasoning
+        },
+        {
+          type: 'text' as const,
+          text: msg.content
+        }
+      ]
+    };
+  }
+
+  return baseMessage;
+};
+
 export default function Chat({ params }: PageProps) {
   const { id: chatId } = use(params)
   const router = useRouter()
   const [currentModel, setCurrentModel] = useState('deepseek-reasoner')
   const [nextModel, setNextModel] = useState(currentModel)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [])
+
+  // 메시지가 업데이트될 때마다 스크롤
+  useEffect(() => {
+    scrollToBottom()
+  }, [scrollToBottom])
+
+  // 세션 로드 시 저장된 모델 정보 불러오기
+  useEffect(() => {
+    async function loadSessionModel() {
+      const { data: session, error } = await supabase
+        .from('chat_sessions')
+        .select('current_model')
+        .eq('id', chatId)
+        .single();
+
+      if (session?.current_model) {
+        setCurrentModel(session.current_model);
+        setNextModel(session.current_model);
+      }
+    }
+
+    loadSessionModel();
+  }, [chatId]);
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, stop, setMessages, reload } = useChat({
     api: '/api/chat',
@@ -28,47 +88,12 @@ export default function Chat({ params }: PageProps) {
     },
     id: chatId,
     onFinish: async (message) => {
-      // 메시지가 완료되면 전체 대화 내용을 다시 로드
-      const { data: updatedMessages, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('chat_session_id', chatId)
-        .order('created_at', { ascending: true });
-
-      if (!error && updatedMessages) {
-        const convertedMessages = updatedMessages.map(msg => {
-          const baseMessage = {
-            id: msg.id,
-            content: msg.content,
-            role: msg.role as 'user' | 'assistant' | 'system',
-            createdAt: new Date(msg.created_at),
-          };
-
-          if (msg.role === 'assistant' && msg.reasoning) {
-            return {
-              ...baseMessage,
-              parts: [
-                {
-                  type: 'reasoning' as const,
-                  reasoning: msg.reasoning
-                },
-                {
-                  type: 'text' as const,
-                  text: msg.content
-                }
-              ]
-            };
-          }
-
-          return baseMessage;
-        }) as Message[];
-
-        setMessages(convertedMessages);
-      }
+      // 스트리밍 완료 후 최종 메시지만 표시하기 위해 DB에서 다시 불러오지 않음
+      // 스트리밍된 메시지가 이미 UI에 표시되어 있음
     }
   });
 
-  // 실시간 업데이트 구독
+  // 실시간 업데이트 구독 최적화
   useEffect(() => {
     const channel = supabase
       .channel('chat-messages')
@@ -81,42 +106,20 @@ export default function Chat({ params }: PageProps) {
           filter: `chat_session_id=eq.${chatId}`
         },
         async (payload) => {
-          // 메시지가 업데이트되면 전체 대화 내용을 다시 로드
-          const { data: messages, error } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('chat_session_id', chatId)
-            .order('created_at', { ascending: true });
+          // INSERT나 UPDATE된 메시지만 처리
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const { data: message, error } = await supabase
+              .from('messages')
+              .select('*')
+              .eq('id', payload.new.id)
+              .single();
 
-          if (!error && messages) {
-            const convertedMessages = messages.map(msg => {
-              const baseMessage = {
-                id: msg.id,
-                content: msg.content,
-                role: msg.role as 'user' | 'assistant' | 'system',
-                createdAt: new Date(msg.created_at),
-              };
-
-              if (msg.role === 'assistant' && msg.reasoning) {
-                return {
-                  ...baseMessage,
-                  parts: [
-                    {
-                      type: 'reasoning' as const,
-                      reasoning: msg.reasoning
-                    },
-                    {
-                      type: 'text' as const,
-                      text: msg.content
-                    }
-                  ]
-                };
-              }
-
-              return baseMessage;
-            }) as Message[];
-
-            setMessages(convertedMessages);
+            if (!error && message) {
+              setMessages(prevMessages => {
+                const otherMessages = prevMessages.filter(m => m.id !== message.id);
+                return [...otherMessages, convertMessage(message)];
+              });
+            }
           }
         }
       )
@@ -210,35 +213,83 @@ export default function Chat({ params }: PageProps) {
     loadChat();
   }, [chatId, router, setMessages]);
 
-  const handleModelSubmit = async (e: React.FormEvent) => {
+  // 모델 변경 핸들러 메모이제이션
+  const handleModelSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
-    setCurrentModel(nextModel)
-    await handleSubmit(e)
-  }
+    
+    if (nextModel !== currentModel) {
+      try {
+        await supabase
+          .from('chat_sessions')
+          .update({ current_model: nextModel })
+          .eq('id', chatId);
+        
+        setCurrentModel(nextModel);
+      } catch (error) {
+        console.error('Failed to update model:', error);
+      }
+    }
 
-  const handleReload = (messageId: string) => async (e: React.MouseEvent) => {
+    await handleSubmit(e, {
+      body: {
+        model: nextModel,
+        chatId
+      }
+    });
+  }, [nextModel, currentModel, chatId, handleSubmit, setCurrentModel]);
+
+  // 재생성 핸들러 메모이제이션
+  const handleReload = useCallback((messageId: string) => async (e: React.MouseEvent) => {
     e.preventDefault()
     
     const messageIndex = messages.findIndex(m => m.id === messageId)
     if (messageIndex === -1) return
     
+    // 선택한 AI 답변 이전의 메시지들만 유지
     const previousMessages = messages.slice(0, messageIndex)
-    const lastUserMessage = messages
+    
+    // 해당 AI 답변에 대한 사용자 메시지 찾기
+    const targetUserMessage = messages
       .slice(0, messageIndex + 1)
       .reverse()
       .find(m => m.role === 'user')
     
-    if (lastUserMessage) {
+    if (targetUserMessage) {
+      // UI에서 메시지 즉시 제거
       setMessages(previousMessages)
-      await reload({
-        body: {
-          messages: [...previousMessages, lastUserMessage],
-          model: currentModel,
-          chatId,  // 업데이트된 chatId 사용
-        }
-      })
+
+      try {
+        // 데이터베이스에서 선택한 메시지 이후의 모든 메시지 삭제
+        const messagesToDelete = messages
+          .slice(messageIndex)
+          .map(m => m.id)
+
+        await supabase
+          .from('messages')
+          .delete()
+          .in('id', messagesToDelete)
+
+        // 새로운 메시지 생성 요청
+        await reload({
+          body: {
+            messages: [...previousMessages, {
+              id: targetUserMessage.id,
+              content: targetUserMessage.content,
+              role: targetUserMessage.role,
+              createdAt: targetUserMessage.createdAt
+            }],
+            model: currentModel,
+            chatId,
+            isRegeneration: true
+          }
+        })
+      } catch (error) {
+        console.error('Error handling reload:', error)
+        // 에러 발생 시 원래 메시지 상태로 복구
+        setMessages(messages)
+      }
     }
-  }
+  }, [messages, setMessages, currentModel, chatId, reload]);
 
   return (
     <main className="flex-1 relative h-full">
@@ -246,7 +297,7 @@ export default function Chat({ params }: PageProps) {
         <div className="max-w-2xl mx-auto w-full">
           <div className="space-y-6 p-4 pb-32">
             {messages.map((message) => (
-              <div key={message.id} className="group">
+              <div key={message.id} className="group animate-fade-in">
                 <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[85%] p-4 ${
                     message.role === 'user' 
@@ -291,56 +342,27 @@ export default function Chat({ params }: PageProps) {
                 )}
               </div>
             ))}
+            <div ref={messagesEndRef} />
           </div>
         </div>
       </div>
 
       <div className="fixed bottom-0 left-64 right-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)] to-transparent pt-6 pb-4">
         <div className="max-w-2xl mx-auto w-full px-4">
-          <form onSubmit={handleModelSubmit} className="flex flex-col gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs opacity-70">Using:</span>
-              <select
-                value={nextModel}
-                onChange={(e) => setNextModel(e.target.value)}
-                className="text-xs bg-transparent border-none focus:outline-none hover:opacity-100 opacity-70"
-              >
-                <option value="deepseek-reasoner">DeepSeek Reasoner</option>
-                <option value="deepseek-chat">DeepSeek Chat</option>
-                <option value="deepseek-ai/DeepSeek-R1">DeepSeek R1 (Together)</option>
-                <option value="deepseek-ai/DeepSeek-V3">DeepSeek V3 (Together)</option>
-                <option value="DeepSeek r1 distill llama 70b">DeepSeek R1 (Groq)</option>
-                <option value="claude-3-5-sonnet-latest">Claude 3.5 Sonnet</option>
-              </select>
-            </div>
-
-            <div className="flex gap-2">
-              <input
-                value={input}
-                onChange={handleInputChange}
-                placeholder="Type your message..."
-                className="yeezy-input flex-1 text-lg"
-              />
-              {isLoading ? (
-                <button 
-                  onClick={(e) => { e.preventDefault(); stop() }} 
-                  type="button"
-                  className="yeezy-button flex items-center gap-2"
-                >
-                  <IconStop />
-                  <span>Stop</span>
-                </button>
-              ) : (
-                <button 
-                  type="submit" 
-                  className="yeezy-button"
-                  disabled={isLoading}
-                >
-                  Send
-                </button>
-              )}
-            </div>
-          </form>
+          <div className="flex flex-col gap-4">
+            <ModelSelector
+              currentModel={currentModel}
+              nextModel={nextModel}
+              setNextModel={setNextModel}
+            />
+            <ChatInput
+              input={input}
+              handleInputChange={handleInputChange}
+              handleSubmit={handleModelSubmit}
+              isLoading={isLoading}
+              stop={stop}
+            />
+          </div>
         </div>
       </div>
     </main>

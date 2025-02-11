@@ -6,34 +6,61 @@ import { ChatRequest, MessagePart, CompletionResult } from '@/lib/types'
 export const runtime = 'nodejs'  // Node.js 런타임 사용
 
 // 메시지 형식을 정규화하는 함수
-function normalizeMessages(messages: Message[], targetModel: string) {
+function normalizeMessages(messages: Message[]): Message[] {
   return messages.map(msg => {
-    // assistant 메시지만 처리
     if (msg.role === 'assistant') {
-      // content가 비어있고 parts가 있는 경우 (중단된 DeepSeek 응답)
-      if (!msg.content && msg.parts) {
-        // parts에서 텍스트만 추출하여 content로 변환
+      if (msg.parts) {
         const textParts = msg.parts
           .filter(part => part.type === 'text')
           .map(part => part.text)
           .join('\n');
         
-        // reasoning이 있는 경우 (DeepSeek -> 다른 모델)
         const reasoningParts = msg.parts
           .filter(part => part.type === 'reasoning')
           .map(part => part.reasoning)
           .join('\n');
 
-        // 최종 content 생성
-        const content = [
-          reasoningParts && `Reasoning: ${reasoningParts}`,
-          textParts
-        ].filter(Boolean).join('\n\n');
+        const reasoning = reasoningParts && reasoningParts !== textParts ? reasoningParts : null;
 
         return {
           ...msg,
-          content: content || "Incomplete response",  // 빈 응답 방지
+          content: textParts || msg.content || "Incomplete response",
+          parts: reasoning ? [
+            {
+              type: 'reasoning' as const,
+              reasoning
+            },
+            {
+              type: 'text' as const,
+              text: textParts || msg.content || "Incomplete response"
+            }
+          ] : undefined
         };
+      }
+
+      if (msg.content) {
+        const reasoningMatch = msg.content.match(/<think>([\s\S]*?)<\/think>/);
+        if (reasoningMatch) {
+          const reasoning = reasoningMatch[1].trim();
+          const content = msg.content.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+          
+          if (reasoning && reasoning !== content) {
+            return {
+              ...msg,
+              content: content || "Incomplete response",
+              parts: [
+                {
+                  type: 'reasoning' as const,
+                  reasoning
+                },
+                {
+                  type: 'text' as const,
+                  text: content || "Incomplete response"
+                }
+              ]
+            };
+          }
+        }
       }
     }
     return msg;
@@ -52,7 +79,7 @@ function getProviderFromModel(model: string): string {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { messages, model, chatId }: ChatRequest = body;
+    const { messages, model, chatId, isRegeneration }: ChatRequest = body;
     
     // chatId가 있는 경우 해당 세션이 존재하는지 확인
     if (chatId) {
@@ -72,40 +99,11 @@ export async function POST(req: Request) {
               headers: { 'Content-Type': 'application/json' }
             }
           );
-            }
-          } catch (error) {
+        }
+      } catch (error) {
         return new Response(
           JSON.stringify({ 
             error: 'Failed to check session',
-            details: error instanceof Error ? error.message : undefined
-          }),
-          { 
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
-          }
-        );
-      }
-    }
-
-    // 새로운 대화인 경우 세션 생성
-    let sessionId = chatId;
-    if (!sessionId) {
-      try {
-        const { data: session, error: sessionError } = await supabase
-          .from('chat_sessions')
-          .insert([{ 
-            id: Date.now().toString(),
-            title: messages[messages.length - 1]?.content || 'New Chat'
-          }])
-          .select()
-          .single();
-
-        if (sessionError) throw sessionError;
-        sessionId = session.id;
-          } catch (error) {
-        return new Response(
-          JSON.stringify({ 
-            error: 'Failed to create session',
             details: error instanceof Error ? error.message : undefined
           }),
           { 
@@ -131,17 +129,17 @@ export async function POST(req: Request) {
     // provider 이름 가져오기
     const provider = getProviderFromModel(model);
 
-    // 1. 새로운 사용자 메시지 저장
+    // 재생성이 아닌 경우에만 사용자 메시지 저장
     const lastUserMessage = messages[messages.length - 1];
-    if (lastUserMessage.role === 'user') {
+    if (lastUserMessage.role === 'user' && !isRegeneration) {
       await supabase.from('messages').insert([{
-                id: Date.now().toString(),
+        id: Date.now().toString(),
         content: lastUserMessage.content,
         role: 'user',
-                created_at: new Date().toISOString(),
-                model,
+        created_at: new Date().toISOString(),
+        model,
         host: provider,
-        chat_session_id: sessionId  // 추가
+        chat_session_id: chatId
       }]);
     }
 
@@ -157,22 +155,26 @@ export async function POST(req: Request) {
     }
 
     // 메시지 형식 정규화
-    const normalizedMessages = normalizeMessages(messages, model);
+    const normalizedMessages = normalizeMessages(messages);
 
-    // 2. AI 응답을 위한 초기 레코드 생성
+    // AI 응답을 위한 초기 레코드 생성
     const assistantMessageId = Date.now().toString();
-    await supabase.from('messages').insert([{
-      id: assistantMessageId,
-                role: 'assistant',
-      content: '',
-      reasoning: '',
-                created_at: new Date().toISOString(),
-                model,
-      host: provider,
-      chat_session_id: sessionId  // 추가
-    }]);
+    
+    // 재생성 시에는 새 메시지를 생성하지 않고 기존 메시지를 업데이트
+    if (!isRegeneration) {
+      await supabase.from('messages').insert([{
+        id: assistantMessageId,
+        role: 'assistant',
+        content: '',
+        reasoning: '',
+        created_at: new Date().toISOString(),
+        model,
+        host: provider,
+        chat_session_id: chatId
+      }]);
+    }
 
-    // 3. 스트리밍 응답 설정
+    // 스트리밍 응답 설정
     const result = streamText({
       model: selectedModel,
       messages: normalizedMessages,
@@ -187,23 +189,43 @@ export async function POST(req: Request) {
             const step = completion.steps[0];
             finalContent = step.text || '';
             finalReasoning = step.reasoning || '';
+          } else if (completion.parts) {
+            const textParts = completion.parts
+              .filter(part => part.type === 'text')
+              .map(part => part.text)
+              .join('\n');
+            
+            const reasoningParts = completion.parts
+              .filter(part => part.type === 'reasoning')
+              .map(part => part.reasoning)
+              .join('\n');
+
+            finalContent = textParts || completion.text || '';
+            finalReasoning = reasoningParts || '';
           } else {
             finalContent = completion.text || '';
+            const reasoningMatch = finalContent.match(/<think>(.*?)<\/think>/s);
+            if (reasoningMatch) {
+              finalReasoning = reasoningMatch[1].trim();
+              finalContent = finalContent.replace(/<think>.*?<\/think>/s, '').trim();
+            }
           }
 
-          console.log('Updating message:', {
+          // reasoning과 content가 동일한 경우 reasoning을 저장하지 않음
+          const messageData = {
             id: assistantMessageId,
             content: finalContent,
-            reasoning: finalReasoning
-          });
+            reasoning: finalReasoning && finalReasoning !== finalContent ? finalReasoning : null,
+            role: 'assistant',
+            created_at: new Date().toISOString(),
+            model,
+            host: provider,
+            chat_session_id: chatId
+          };
 
           const { error: updateError } = await supabase
-                .from('messages')
-            .update({ 
-              content: finalContent,
-              reasoning: finalReasoning
-            })
-            .eq('id', assistantMessageId);
+            .from('messages')
+            .upsert(messageData);
 
           if (updateError) {
             console.error('Failed to update message:', updateError);
@@ -215,7 +237,12 @@ export async function POST(req: Request) {
     });
 
     return result.toDataStreamResponse({
-      sendReasoning: true,  // reasoning 스트리밍 활성화
+      sendReasoning: true,
+      getErrorMessage: error => {
+        if (error instanceof Error) return error.message;
+        if (typeof error === 'string') return error;
+        return 'An error occurred while processing your request';
+      }
     });
 
   } catch (error) {

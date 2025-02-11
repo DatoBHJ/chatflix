@@ -1,28 +1,34 @@
 import { Message as AIMessage } from 'ai'
 
+// API 요청 타입
 export interface ChatRequest {
   messages: AIMessage[];
   model: string;
   chatId?: string;
+  isRegeneration?: boolean;  // 재생성 요청인지 여부
 }
 
-export interface TextUIPart {
+// UI 메시지 파트 타입
+export type MessagePartType = 'text' | 'reasoning';
+
+export interface BaseMessagePart {
+  type: MessagePartType;
+}
+
+export interface TextMessagePart extends BaseMessagePart {
   type: 'text';
   text: string;
 }
 
-export interface ReasoningUIPart {
+export interface ReasoningMessagePart extends BaseMessagePart {
   type: 'reasoning';
   reasoning: string;
 }
 
-export interface MessagePart {
-  type: 'text' | 'reasoning';
-  text?: string;
-  reasoning?: string;
-}
+export type MessagePart = TextMessagePart | ReasoningMessagePart;
 
-interface Step {
+// 완료 결과 타입
+export interface CompletionStep {
   stepType: string;
   text: string;
   reasoning?: string;
@@ -31,25 +37,33 @@ interface Step {
 
 export interface CompletionResult {
   text: string;
-  steps?: Step[];
+  steps?: CompletionStep[];
   parts?: MessagePart[];
 }
 
+// 데이터베이스 타입
 export interface ChatSession {
   id: string;
   title: string;
   created_at: string;
+  current_model?: string;
 }
 
 export interface DatabaseMessage {
-  id: string
-  content: string
-  reasoning?: string
-  role: 'user' | 'assistant'
-  created_at: string
-  model: string
-  host: string
-  chat_session_id: string
+  id: string;
+  content: string;
+  reasoning?: string;
+  role: 'user' | 'assistant';
+  created_at: string;
+  model: string;
+  host: string;
+  chat_session_id: string;
+}
+
+// UI 타입
+export interface Chat extends ChatSession {
+  messages: DatabaseMessage[];
+  lastMessage?: string;
 }
 
 export interface ModelConfig {
@@ -58,12 +72,4 @@ export interface ModelConfig {
   apiKey: string
   temperature: number
   maxTokens: number
-}
-
-export interface Chat {
-  id: string;
-  title: string;
-  messages: DatabaseMessage[];
-  lastMessage?: string;
-  created_at: string;
 } 

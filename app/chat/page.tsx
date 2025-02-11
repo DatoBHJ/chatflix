@@ -3,9 +3,9 @@
 import { useChat } from 'ai/react'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { IconRefresh, IconStop } from '../components/icons'
-import { Message } from 'ai'
 import { supabase } from '@/lib/supabase'
+import { ModelSelector } from '../components/ModelSelector'
+import { ChatInput } from '../components/ChatInput'
 
 export default function NewChat() {
   const router = useRouter()
@@ -71,50 +71,20 @@ export default function NewChat() {
 
       <div className="fixed bottom-0 left-64 right-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)] to-transparent pt-6 pb-4">
         <div className="max-w-2xl mx-auto w-full px-4">
-          <form onSubmit={handleModelSubmit} className="flex flex-col gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs opacity-70">Using:</span>
-              <select
-                value={nextModel}
-                onChange={(e) => setNextModel(e.target.value)}
-                className="text-xs bg-transparent border-none focus:outline-none hover:opacity-100 opacity-70"
-              >
-                <option value="deepseek-reasoner">DeepSeek Reasoner</option>
-                <option value="deepseek-chat">DeepSeek Chat</option>
-                <option value="deepseek-ai/DeepSeek-R1">DeepSeek R1 (Together)</option>
-                <option value="deepseek-ai/DeepSeek-V3">DeepSeek V3 (Together)</option>
-                <option value="DeepSeek r1 distill llama 70b">DeepSeek R1 (Groq)</option>
-                <option value="claude-3-5-sonnet-latest">Claude 3.5 Sonnet</option>
-              </select>
-            </div>
-
-            <div className="flex gap-2">
-              <input
-                value={input}
-                onChange={handleInputChange}
-                placeholder="Type your message..."
-                className="yeezy-input flex-1 text-lg"
-              />
-              {isLoading ? (
-                <button 
-                  onClick={(e) => { e.preventDefault(); stop() }} 
-                  type="button"
-                  className="yeezy-button flex items-center gap-2"
-                >
-                  <IconStop />
-                  <span>Stop</span>
-                </button>
-              ) : (
-                <button 
-                  type="submit" 
-                  className="yeezy-button"
-                  disabled={isLoading}
-                >
-                  Send
-                </button>
-              )}
-            </div>
-          </form>
+          <div className="flex flex-col gap-4">
+            <ModelSelector
+              currentModel={currentModel}
+              nextModel={nextModel}
+              setNextModel={setNextModel}
+            />
+            <ChatInput
+              input={input}
+              handleInputChange={handleInputChange}
+              handleSubmit={handleModelSubmit}
+              isLoading={isLoading}
+              stop={stop}
+            />
+          </div>
         </div>
       </div>
     </main>

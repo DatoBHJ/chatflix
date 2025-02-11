@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 import './globals.css'
+import RootLayoutClient from './RootLayoutClient'
 
 export const metadata: Metadata = {
   title: 'DeepSeek Chat',
@@ -14,9 +15,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)]">
+        <RootLayoutClient>
           {children}
-        </div>
+        </RootLayoutClient>
       </body>
     </html>
   )
