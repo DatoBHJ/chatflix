@@ -30,25 +30,25 @@ body {
 
 @layer components {
   .yeezy-input {
-    @apply bg-transparent border border-[var(--accent)] rounded-none px-6 py-4 w-full 
-           focus:outline-none focus:border-[var(--foreground)] transition-colors
-           text-lg placeholder:text-[var(--muted)];
+    @apply bg-transparent border-0 rounded-none pr-8 py-5 w-full 
+           focus:outline-none focus:ring-0 transition-colors
+           text-lg placeholder:text-[var(--muted)] placeholder:opacity-50;
   }
 
   .yeezy-button {
-    @apply bg-[var(--foreground)] text-[var(--background)] rounded-none px-8 py-4
-           hover:opacity-90 transition-opacity font-medium text-sm uppercase tracking-wider
+    @apply bg-transparent text-[var(--foreground)] rounded-none px-8 py-4
+           hover:opacity-90 transition-all font-medium text-sm uppercase tracking-wider
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .yeezy-sidebar-item {
-    @apply p-4 hover:bg-[var(--accent)] transition-colors cursor-pointer
-           border-b border-[var(--accent)] text-sm;
+    @apply p-6 hover:bg-[var(--accent)] transition-colors cursor-pointer
+           text-sm mb-1;
   }
 
   .yeezy-model-selector {
     @apply bg-transparent text-sm uppercase tracking-wide
-           focus:outline-none cursor-pointer py-2
+           focus:outline-none cursor-pointer py-2 px-6
            hover:text-[var(--foreground)] transition-colors;
   }
 }

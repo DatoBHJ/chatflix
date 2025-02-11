@@ -177,20 +177,20 @@ export function Sidebar() {
   }
 
   return (
-    <div className="w-64 h-full bg-[var(--background)] border-r border-[var(--accent)]">
+    <div className="w-80 h-full bg-[var(--background)] border-r border-[var(--accent)]">
       <div className="h-full flex flex-col">
         {/* Top Section with Padding for Menu Button */}
-        <div className="pt-24 px-4 pb-4 border-b border-[var(--accent)]">
+        <div className="pt-24 px-6 pb-6 border-b border-[var(--accent)]">
           <div className="flex gap-2">
             <button
               onClick={handleNewChat}
-              className="flex-1 yeezy-button"
+              className="flex-1 yeezy-button bg-[var(--accent)]"
             >
               New Chat
             </button>
             <button
               onClick={() => router.push('/')}
-              className="yeezy-button px-4"
+              className="w-14 h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
               title="Home"
             >
               H
@@ -200,17 +200,19 @@ export function Sidebar() {
 
         {/* Chat List Section */}
         <div className="flex-1 overflow-y-auto">
-          <div className="p-4">
+          <div className="p-6">
             {chats.length > 0 && (
-              <button
-                onClick={handleDeleteAllChats}
-                className="w-full py-3 mb-8 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors uppercase tracking-wider"
-              >
-                Delete All Chats
-              </button>
+              <div className="mb-8">
+                <button
+                  onClick={handleDeleteAllChats}
+                  className="w-full py-3 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors uppercase tracking-wider"
+                >
+                  Delete All Chats
+                </button>
+              </div>
             )}
             
-            <div className="space-y-px">
+            <div className="space-y-1">
               {chats.map((chat) => (
                 <div
                   key={chat.id}
@@ -220,13 +222,13 @@ export function Sidebar() {
                   onClick={() => router.push(`/chat/${chat.id}`)}
                 >
                   <div className="flex justify-between items-start gap-4">
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 space-y-2">
                       <div className="font-medium truncate">{chat.title}</div>
-                      <div className="text-[var(--muted)] text-xs truncate mt-2">
+                      <div className="text-[var(--muted)] text-xs truncate">
                         {new Date(chat.created_at).toLocaleDateString()}
                       </div>
                       {chat.messages[0] && (
-                        <div className="text-[var(--muted)] text-xs mt-1 uppercase">
+                        <div className="text-[var(--muted)] text-xs uppercase">
                           {chat.messages[0].host}
                         </div>
                       )}
