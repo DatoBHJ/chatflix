@@ -9,7 +9,7 @@ import { ChatInput } from './components/ChatInput'
 
 export default function Home() {
   const router = useRouter()
-  const [currentModel, setCurrentModel] = useState('deepseek-reasoner')
+  const [currentModel, setCurrentModel] = useState('claude-3-5-sonnet-latest')
   const [nextModel, setNextModel] = useState(currentModel)
   const [isSubmitting, setIsSubmitting] = useState(false)
 

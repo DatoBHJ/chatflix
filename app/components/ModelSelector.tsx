@@ -17,12 +17,12 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled 
         className="yeezy-model-selector text-[var(--muted)]"
         disabled={disabled}
       >
+        <option value="claude-3-5-sonnet-latest">Claude 3.5 Sonnet</option>
         <option value="deepseek-reasoner">DeepSeek Reasoner</option>
         <option value="deepseek-chat">DeepSeek Chat</option>
         <option value="deepseek-ai/DeepSeek-R1">DeepSeek R1 (Together)</option>
         <option value="deepseek-ai/DeepSeek-V3">DeepSeek V3 (Together)</option>
         <option value="DeepSeek r1 distill llama 70b">DeepSeek R1 (Groq)</option>
-        <option value="claude-3-5-sonnet-latest">Claude 3.5 Sonnet</option>
       </select>
     </div>
   );
