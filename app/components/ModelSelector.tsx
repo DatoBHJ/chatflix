@@ -9,12 +9,12 @@ interface ModelSelectorProps {
 
 export function ModelSelector({ currentModel, nextModel, setNextModel, disabled }: ModelSelectorProps) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs opacity-70">Using:</span>
+    <div className="flex items-center gap-4">
+      <span className="text-xs uppercase tracking-wider text-[var(--muted)]">Model</span>
       <select
         value={nextModel}
         onChange={(e) => setNextModel(e.target.value)}
-        className="text-xs bg-transparent border-none focus:outline-none hover:opacity-100 opacity-70"
+        className="yeezy-model-selector text-[var(--muted)]"
         disabled={disabled}
       >
         <option value="deepseek-reasoner">DeepSeek Reasoner</option>

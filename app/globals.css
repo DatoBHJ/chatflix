@@ -1,11 +1,16 @@
+/* Import highlight.js theme */
+@import 'highlight.js/styles/github-dark.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --background: #000000;
+  --background: #111111;
   --foreground: #ffffff;
-  --accent: #333333;
+  --accent: #222222;
+  --muted: #666666;
+  --font-sans: "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -19,23 +24,39 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
 @layer components {
   .yeezy-input {
-    @apply bg-[var(--background)] border border-[var(--accent)] rounded p-3 focus:outline-none focus:ring-1 focus:ring-[var(--accent)];
+    @apply bg-transparent border border-[var(--accent)] rounded-none px-6 py-4 w-full 
+           focus:outline-none focus:border-[var(--foreground)] transition-colors
+           text-lg placeholder:text-[var(--muted)];
   }
 
   .yeezy-button {
-    @apply bg-[var(--accent)] rounded px-4 py-3 hover:opacity-80 transition-opacity;
+    @apply bg-[var(--foreground)] text-[var(--background)] rounded-none px-8 py-4
+           hover:opacity-90 transition-opacity font-medium text-sm uppercase tracking-wider
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .yeezy-sidebar-item {
+    @apply p-4 hover:bg-[var(--accent)] transition-colors cursor-pointer
+           border-b border-[var(--accent)] text-sm;
+  }
+
+  .yeezy-model-selector {
+    @apply bg-transparent text-sm uppercase tracking-wide
+           focus:outline-none cursor-pointer py-2
+           hover:text-[var(--foreground)] transition-colors;
   }
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -44,5 +65,192 @@ body {
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.3s ease-out forwards;
+  animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Message Container Styles */
+.messages-container {
+  @apply max-w-3xl mx-auto w-full px-4;
+}
+
+.message-group {
+  @apply py-6 first:pt-4 last:pb-4 border-b border-[var(--accent)];
+}
+
+.message-group:last-child {
+  @apply border-b-0;
+}
+
+/* Message Role Indicators */
+.message-role {
+  @apply text-xs uppercase tracking-wider text-[var(--muted)] mb-2 px-6;
+}
+
+/* Message Styles */
+.message-user {
+  @apply bg-[var(--foreground)] text-[var(--background)] p-6 rounded-none max-w-[85%] ml-auto;
+}
+
+.message-assistant {
+  @apply bg-[var(--accent)] text-[var(--foreground)] p-6 rounded-none max-w-[85%];
+}
+
+.message-content {
+  @apply text-base leading-relaxed;
+}
+
+.message-reasoning {
+  @apply bg-[color:var(--accent)] bg-opacity-50 p-4 mb-4 text-sm border-l-2 border-[var(--muted)];
+}
+
+/* Code Block Styles */
+.message-code {
+  @apply font-mono text-sm bg-black/50 p-4 my-4 overflow-x-auto rounded relative;
+}
+
+.message-code:hover .message-code-copy {
+  @apply opacity-100;
+}
+
+.message-code-header {
+  @apply flex items-center justify-between text-xs text-[var(--muted)] uppercase tracking-wider mb-2 pb-2;
+  border-bottom: 1px solid rgba(102, 102, 102, 0.2);
+}
+
+.message-code pre {
+  @apply p-0 m-0 overflow-x-auto;
+}
+
+.message-code code {
+  @apply text-[var(--foreground)] block;
+}
+
+/* Syntax Highlighting Overrides */
+.hljs {
+  @apply bg-transparent p-0;
+}
+
+/* Markdown Content Styles */
+.message-content {
+  @apply space-y-4;
+}
+
+.message-content > *:first-child {
+  @apply mt-0;
+}
+
+.message-content > *:last-child {
+  @apply mb-0;
+}
+
+/* Headings */
+.message-content h1 {
+  @apply text-2xl font-semibold mt-6 mb-4;
+}
+
+.message-content h2 {
+  @apply text-xl font-semibold mt-6 mb-3;
+}
+
+.message-content h3 {
+  @apply text-lg font-semibold mt-5 mb-2;
+}
+
+/* Inline Code Styles */
+.message-content code:not(.message-code code) {
+  @apply font-mono text-sm bg-black/30 px-1.5 py-0.5 rounded;
+}
+
+/* List Styles */
+.message-content ul {
+  @apply list-disc list-inside space-y-2 my-4;
+}
+
+.message-content ol {
+  @apply list-decimal list-inside space-y-2 my-4;
+}
+
+.message-content li > ul,
+.message-content li > ol {
+  @apply ml-4 mt-2;
+}
+
+/* Link Styles */
+.message-content a {
+  @apply text-blue-400 hover:underline decoration-blue-400/50 transition-colors;
+}
+
+/* Paragraph Spacing */
+.message-content p {
+  @apply my-3;
+}
+
+/* Table Styles */
+.message-content table {
+  @apply w-full my-4 border-collapse text-sm;
+}
+
+.message-content th,
+.message-content td {
+  @apply border border-[var(--accent)] p-2;
+}
+
+.message-content th {
+  @apply bg-[var(--accent)] font-medium text-[var(--muted)] uppercase tracking-wider;
+}
+
+/* Blockquote Styles */
+.message-content blockquote {
+  @apply border-l-4 border-[var(--muted)] pl-4 my-4 italic text-[var(--muted)];
+}
+
+/* Horizontal Rule */
+.message-content hr {
+  @apply my-6 border-t border-[var(--accent)];
+}
+
+/* Image Styles */
+.message-content img {
+  @apply max-w-full h-auto my-4 rounded;
+}
+
+/* Emphasis */
+.message-content strong {
+  @apply font-semibold;
+}
+
+.message-content em {
+  @apply italic;
+}
+
+/* Definition Lists */
+.message-content dl {
+  @apply my-4;
+}
+
+.message-content dt {
+  @apply font-semibold;
+}
+
+.message-content dd {
+  @apply ml-4 mb-2;
+}
+
+/* Keyboard, Subscript, Superscript */
+.message-content kbd,
+.message-content sub,
+.message-content sup {
+  @apply inline-block px-1.5 py-0.5 text-xs border border-[var(--accent)] rounded;
+}
+
+/* Task Lists */
+.message-content input[type="checkbox"] {
+  @apply mr-2;
+}
+
+/* Code Copy Button */
+.message-code-copy {
+  @apply absolute top-2 right-2 p-1.5 text-xs bg-[var(--accent)] 
+         hover:bg-[var(--foreground)] hover:text-[var(--background)]
+         transition-colors opacity-0 group-hover:opacity-100;
 }

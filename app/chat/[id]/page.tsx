@@ -4,6 +4,11 @@ import { useChat } from 'ai/react'
 import { Message } from 'ai'
 import { useState, useEffect, use, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
+import rehypeHighlight from 'rehype-highlight'
 import { IconRefresh } from '../../components/icons'
 import { supabase } from '@/lib/supabase'
 import { DatabaseMessage } from '@/lib/types'
@@ -43,6 +48,71 @@ const convertMessage = (msg: DatabaseMessage): Message => {
 
   return baseMessage;
 };
+
+function MarkdownContent({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      className="message-content"
+      remarkPlugins={[remarkGfm]}
+      rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeHighlight]}
+      components={{
+        p: ({ children }) => <p className="my-3">{children}</p>,
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+            {children}
+          </a>
+        ),
+        code: ({ className, children, ...props }: any) => {
+          const match = /language-(\w+)/.exec(className || '');
+          const isInline = !match;
+          
+          if (isInline) {
+            return (
+              <code className="font-mono text-sm bg-black/30 px-1.5 py-0.5 rounded" {...props}>
+                {children}
+              </code>
+            );
+          }
+          
+          return (
+            <div className="message-code group relative">
+              <div className="message-code-header">
+                <span>{match[1]}</span>
+              </div>
+              <pre className="p-0 m-0">
+                <code className={className} {...props}>
+                  {children}
+                </code>
+              </pre>
+              <button
+                onClick={() => navigator.clipboard.writeText(String(children))}
+                className="message-code-copy"
+                title="Copy code"
+              >
+                Copy
+              </button>
+            </div>
+          );
+        },
+        table: ({ children }) => (
+          <div className="overflow-x-auto my-4">
+            <table className="w-full border-collapse">{children}</table>
+          </div>
+        ),
+        th: ({ children }) => (
+          <th className="bg-[var(--accent)] font-medium text-[var(--muted)] uppercase tracking-wider p-2 border border-[var(--accent)]">
+            {children}
+          </th>
+        ),
+        td: ({ children }) => (
+          <td className="p-2 border border-[var(--accent)]">{children}</td>
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}
 
 export default function Chat({ params }: PageProps) {
   const { id: chatId } = use(params)
@@ -293,63 +363,60 @@ export default function Chat({ params }: PageProps) {
 
   return (
     <main className="flex-1 relative h-full">
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto w-full">
-          <div className="space-y-6 p-4 pb-32">
-            {messages.map((message) => (
-              <div key={message.id} className="group animate-fade-in">
-                <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] p-4 ${
-                    message.role === 'user' 
-                      ? 'bg-[var(--accent)]' 
-                      : 'bg-[var(--background)] border border-[var(--accent)]'
-                  }`}>
-                    {message.parts ? (
-                      <>
-                        {message.parts.map((part, index) => {
-                          if (part.type === 'reasoning') {
-                            return (
-                              <div key={index} className="bg-[var(--accent)] bg-opacity-30 p-2 mb-2">
-                                <div className="text-sm opacity-70">Reasoning:</div>
-                                <div className="whitespace-pre-wrap">{part.reasoning}</div>
-                              </div>
-                            );
-                          }
-                          if (part.type === 'text') {
-                            return (
-                              <div key={index} className="whitespace-pre-wrap">
-                                {part.text}
-                              </div>
-                            );
-                          }
-                        })}
-                      </>
-                    ) : (
-                      <div className="whitespace-pre-wrap">{message.content}</div>
-                    )}
-                  </div>
-                </div>
-                {message.role === 'assistant' && (
-                  <div className="flex justify-start pl-4 mt-1">
-                    <button 
-                      onClick={handleReload(message.id)}
-                      className="text-xs opacity-50 hover:opacity-100 transition-opacity flex items-center gap-1"
-                    >
-                      <IconRefresh className="w-3 h-3" />
-                      <span>Regenerate response</span>
-                    </button>
-                  </div>
-                )}
+      <div className="flex-1 overflow-y-auto pb-40">
+        <div className="messages-container py-4">
+          {messages.map((message, i) => (
+            <div key={message.id} className="message-group group animate-fade-in">
+              <div className="message-role">
+                {message.role === 'assistant' ? 'AI Assistant' : 'You'}
               </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
+              <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={message.role === 'user' ? 'message-user' : 'message-assistant'}>
+                  {message.parts ? (
+                    <>
+                      {message.parts.map((part, index) => {
+                        if (part.type === 'reasoning') {
+                          return (
+                            <div key={index} className="message-reasoning">
+                              <div className="text-[var(--muted)] uppercase tracking-wider text-xs mb-2">Reasoning</div>
+                              <MarkdownContent content={part.reasoning} />
+                            </div>
+                          );
+                        }
+                        if (part.type === 'text') {
+                          return (
+                            <div key={index}>
+                              <MarkdownContent content={part.text} />
+                            </div>
+                          );
+                        }
+                      })}
+                    </>
+                  ) : (
+                    <MarkdownContent content={message.content} />
+                  )}
+                </div>
+              </div>
+              {message.role === 'assistant' && (
+                <div className="flex justify-start pl-4 mt-2">
+                  <button 
+                    onClick={handleReload(message.id)}
+                    className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2 uppercase tracking-wider"
+                  >
+                    <IconRefresh className="w-3 h-3" />
+                    <span>Regenerate</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+          <div ref={messagesEndRef} className="h-px" />
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-64 right-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)] to-transparent pt-6 pb-4">
+      <div className="fixed bottom-0 left-64 right-0 bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-8 pb-6">
         <div className="max-w-2xl mx-auto w-full px-4">
-          <div className="flex flex-col gap-4">
+          <div className="">
             <ModelSelector
               currentModel={currentModel}
               nextModel={nextModel}

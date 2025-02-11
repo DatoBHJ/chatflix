@@ -80,32 +80,29 @@ export default function Home() {
   }
 
   return (
-    <main className="flex-1 flex flex-col">
-      <div className="flex-1 flex items-center justify-center">
-        <div className="max-w-2xl text-center">
-          <h1 className="text-4xl font-bold mb-4">Welcome GOAT</h1>
+    <main className="flex-1 flex flex-col items-center justify-center relative px-8">
+      <div className="w-full max-w-2xl space-y-16">
+        <div className="text-center space-y-4 mt-44">
+          <h1 className="text-6xl font-bold tracking-tighter">Welcome GOAT</h1>
+          <p className="text-[var(--muted)] uppercase tracking-wider">Minimal. Powerful. Intelligent.</p>
         </div>
-      </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)] to-transparent pt-6 pb-4">
-        <div className="max-w-2xl mx-auto w-full px-4">
-          <div className="flex flex-col gap-4">
-            <ModelSelector
-              currentModel={currentModel}
-              nextModel={nextModel}
-              setNextModel={setNextModel}
-              disabled={isSubmitting}
-            />
-            <ChatInput
-              input={input}
-              handleInputChange={handleInputChange}
-              handleSubmit={handleModelSubmit}
-              isLoading={isLoading}
-              stop={stop}
-              disabled={isSubmitting}
-              placeholder="How can I help you today?"
-            />
-          </div>
+        <div className="w-full space-y-6">
+          <ModelSelector
+            currentModel={currentModel}
+            nextModel={nextModel}
+            setNextModel={setNextModel}
+            disabled={isSubmitting}
+          />
+          <ChatInput
+            input={input}
+            handleInputChange={handleInputChange}
+            handleSubmit={handleModelSubmit}
+            isLoading={isLoading}
+            stop={stop}
+            disabled={isSubmitting}
+            placeholder="Message..."
+          />
         </div>
       </div>
     </main>

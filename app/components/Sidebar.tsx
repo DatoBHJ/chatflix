@@ -178,65 +178,71 @@ export function Sidebar() {
 
   return (
     <div className="w-64 h-full bg-[var(--background)] border-r border-[var(--accent)]">
-      <div className="p-4">
-        <div className="flex gap-2 mb-4">
-          <button
-            onClick={handleNewChat}
-            className="flex-1 p-3 bg-[var(--accent)] rounded hover:opacity-80"
-          >
-            New Chat
-          </button>
-          <button
-            onClick={() => router.push('/')}
-            className="p-3 bg-[var(--accent)] rounded hover:opacity-80"
-            title="Home"
-          >
-            🏠
-          </button>
+      <div className="h-full flex flex-col">
+        {/* Top Section with Padding for Menu Button */}
+        <div className="pt-24 px-4 pb-4 border-b border-[var(--accent)]">
+          <div className="flex gap-2">
+            <button
+              onClick={handleNewChat}
+              className="flex-1 yeezy-button"
+            >
+              New Chat
+            </button>
+            <button
+              onClick={() => router.push('/')}
+              className="yeezy-button px-4"
+              title="Home"
+            >
+              H
+            </button>
+          </div>
         </div>
 
-        {chats.length > 0 && (
-          <button
-            onClick={handleDeleteAllChats}
-            className="w-full p-2 mb-4 text-sm text-red-500 hover:text-red-400 transition-colors"
-          >
-            Delete All Chats
-          </button>
-        )}
-        
-        <div className="space-y-2">
-          {chats.map((chat) => (
-            <div
-              key={chat.id}
-              className={`group p-3 rounded cursor-pointer ${
-                pathname === `/chat/${chat.id}`
-                  ? 'bg-[var(--accent)]' 
-                  : 'hover:bg-[var(--accent)]'
-              }`}
-              onClick={() => router.push(`/chat/${chat.id}`)}
-            >
-              <div className="flex justify-between items-start">
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{chat.title}</div>
-                  <div className="text-xs opacity-50 truncate mt-1">
-                    {new Date(chat.created_at).toLocaleDateString()}
-                  </div>
-                  {chat.messages[0] && (
-                    <div className="text-xs opacity-50 mt-1">
-                      {chat.messages[0].host}
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={(e) => handleDeleteChat(chat.id, e)}
-                  className="opacity-0 group-hover:opacity-100 ml-2 p-1 text-red-500 hover:text-red-400 transition-opacity"
-                  title="Delete chat"
+        {/* Chat List Section */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-4">
+            {chats.length > 0 && (
+              <button
+                onClick={handleDeleteAllChats}
+                className="w-full py-3 mb-8 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors uppercase tracking-wider"
+              >
+                Delete All Chats
+              </button>
+            )}
+            
+            <div className="space-y-px">
+              {chats.map((chat) => (
+                <div
+                  key={chat.id}
+                  className={`group yeezy-sidebar-item ${
+                    pathname === `/chat/${chat.id}` ? 'bg-[var(--accent)]' : ''
+                  }`}
+                  onClick={() => router.push(`/chat/${chat.id}`)}
                 >
-                  🗑️
-                </button>
-              </div>
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{chat.title}</div>
+                      <div className="text-[var(--muted)] text-xs truncate mt-2">
+                        {new Date(chat.created_at).toLocaleDateString()}
+                      </div>
+                      {chat.messages[0] && (
+                        <div className="text-[var(--muted)] text-xs mt-1 uppercase">
+                          {chat.messages[0].host}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={(e) => handleDeleteChat(chat.id, e)}
+                      className="opacity-0 group-hover:opacity-100 text-[var(--muted)] hover:text-[var(--foreground)] transition-all"
+                      title="Delete chat"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
       </div>
     </div>
