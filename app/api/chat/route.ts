@@ -132,15 +132,27 @@ export async function POST(req: Request) {
     // 재생성이 아닌 경우에만 사용자 메시지 저장
     const lastUserMessage = messages[messages.length - 1];
     if (lastUserMessage.role === 'user' && !isRegeneration) {
-      await supabase.from('messages').insert([{
-        id: Date.now().toString(),
-        content: lastUserMessage.content,
-        role: 'user',
-        created_at: new Date().toISOString(),
-        model,
-        host: provider,
-        chat_session_id: chatId
-      }]);
+      // 해당 메시지가 이미 존재하는지 확인
+      const { data: existingMessage } = await supabase
+        .from('messages')
+        .select('id')
+        .eq('chat_session_id', chatId)
+        .eq('content', lastUserMessage.content)
+        .eq('role', 'user')
+        .single();
+
+      // 메시지가 존재하지 않는 경우에만 저장
+      if (!existingMessage) {
+        await supabase.from('messages').insert([{
+          id: Date.now().toString(),
+          content: lastUserMessage.content,
+          role: 'user',
+          created_at: new Date().toISOString(),
+          model,
+          host: 'user',  // 항상 'user'로 설정
+          chat_session_id: chatId
+        }]);
+      }
     }
 
     const selectedModel = providers.languageModel(model);
