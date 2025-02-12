@@ -64,6 +64,8 @@ export interface DatabaseMessage {
 export interface Chat extends ChatSession {
   messages: DatabaseMessage[];
   lastMessage?: string;
+  lastMessageTime?: number;
+  current_model?: string;
 }
 
 export interface ModelConfig {

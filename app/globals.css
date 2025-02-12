@@ -30,26 +30,27 @@ body {
 
 @layer components {
   .yeezy-input {
-    @apply bg-transparent border-0 rounded-none pr-8 py-5 w-full 
+    @apply bg-transparent border-0 rounded-none pr-8 py-4 sm:py-5 w-full 
            focus:outline-none focus:ring-0 transition-colors
-           text-lg placeholder:text-[var(--muted)] placeholder:opacity-50;
+           text-base sm:text-lg placeholder:text-[var(--muted)] placeholder:opacity-50;
   }
 
   .yeezy-button {
-    @apply bg-transparent text-[var(--foreground)] rounded-none px-8 py-4
-           hover:opacity-90 transition-all font-medium text-sm uppercase tracking-wider
+    @apply bg-transparent text-[var(--foreground)] rounded-none px-6 sm:px-8 py-3 sm:py-4
+           hover:bg-[var(--foreground)] hover:text-[var(--background)] transition-all 
+           font-medium text-sm uppercase tracking-wider
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .yeezy-sidebar-item {
-    @apply p-6 hover:bg-[var(--accent)] transition-colors cursor-pointer
+    @apply p-4 sm:p-6 hover:bg-[var(--accent)] transition-colors cursor-pointer
            text-sm mb-1;
   }
 
   .yeezy-model-selector {
-    @apply bg-transparent text-sm uppercase tracking-wide
-           focus:outline-none cursor-pointer py-2 px-6
-           hover:text-[var(--foreground)] transition-colors;
+    @apply bg-transparent text-sm uppercase tracking-wide w-full
+           focus:outline-none cursor-pointer py-2 px-4 sm:px-6
+          transition-colors;
   }
 }
 
@@ -74,7 +75,7 @@ body {
 }
 
 .message-group {
-  @apply py-6 first:pt-4 last:pb-4 border-b border-[var(--accent)];
+  @apply py-6 first:pt-4 last:pb-4 ;
 }
 
 .message-group:last-child {
@@ -88,11 +89,13 @@ body {
 
 /* Message Styles */
 .message-user {
-  @apply bg-[var(--foreground)] text-[var(--background)] p-6 rounded-none max-w-[85%] ml-auto;
+  @apply bg-[var(--foreground)] text-[var(--background)] p-6 rounded-none max-w-[85%] ml-auto
+         hover:opacity-95 transition-opacity;
 }
 
 .message-assistant {
-  @apply bg-[var(--accent)] text-[var(--foreground)] p-6 rounded-none max-w-[85%];
+  @apply bg-[var(--accent)] text-[var(--foreground)] p-6 rounded-none max-w-[85%]
+         hover:opacity-95 transition-opacity;
 }
 
 .message-content {
@@ -100,12 +103,12 @@ body {
 }
 
 .message-reasoning {
-  @apply bg-[color:var(--accent)] bg-opacity-50 p-4 mb-4 text-sm border-l-2 border-[var(--muted)];
+  @apply bg-black/20 p-4 mb-4 text-sm;
 }
 
 /* Code Block Styles */
 .message-code {
-  @apply font-mono text-sm bg-black/50 p-4 my-4 overflow-x-auto rounded relative;
+  @apply font-mono text-sm bg-black/30 p-4 my-4 overflow-x-auto;
 }
 
 .message-code:hover .message-code-copy {
@@ -113,8 +116,8 @@ body {
 }
 
 .message-code-header {
-  @apply flex items-center justify-between text-xs text-[var(--muted)] uppercase tracking-wider mb-2 pb-2;
-  border-bottom: 1px solid rgba(102, 102, 102, 0.2);
+  @apply flex items-center justify-between text-xs text-[var(--muted)] uppercase tracking-wider mb-2 pb-2
+         bg-black/20;
 }
 
 .message-code pre {

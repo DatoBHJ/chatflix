@@ -30,6 +30,19 @@ export default function Home() {
       // Generate session ID immediately
       const sessionId = Date.now().toString();
       
+      // Create new chat object for immediate UI update
+      const newChat = {
+        id: sessionId,
+        title: input.trim(),
+        messages: [],
+        created_at: new Date().toISOString(),
+        lastMessageTime: Date.now(),
+        current_model: nextModel
+      };
+
+      // Emit event for sidebar update
+      window.dispatchEvent(new CustomEvent('chatCreated', { detail: newChat }));
+      
       // Create session with initial message
       const { error: sessionError } = await supabase
         .from('chat_sessions')
@@ -56,27 +69,30 @@ export default function Home() {
   }
 
   return (
-    <main className="flex-1 flex flex-col items-center justify-center relative px-8">
-      <div className="w-full max-w-2xl space-y-16">
-        <div className="text-center space-y-4 mt-44">
-        </div>
-
-        <div className="w-full space-y-6">
-          <ModelSelector
-            currentModel={currentModel}
-            nextModel={nextModel}
-            setNextModel={setNextModel}
-            disabled={isSubmitting}
-          />
-          <ChatInput
-            input={input}
-            handleInputChange={handleInputChange}
-            handleSubmit={handleModelSubmit}
-            isLoading={isLoading}
-            stop={stop}
-            disabled={isSubmitting}
-            placeholder="Message..."
-          />
+    <main className="flex-1 flex flex-col min-h-screen">
+      <div className="flex-1 flex flex-col items-center justify-center -mt-16 sm:-mt-32">
+        <div className="w-full max-w-2xl px-10 sm:px-8">
+          {/* <div className="mb-12 sm:mb-16 text-left sm:text-center">
+            <h1 className="text-2xl sm:text-2xl font-light mb-3 uppercase tracking-wider">Chat is this real?</h1>
+            <p className="text-[var(--muted)] text-sm sm:text-sm tracking-wide">Chat with multiple AI models</p>
+          </div> */}
+          <div className="space-y-0">
+            <ModelSelector
+              currentModel={currentModel}
+              nextModel={nextModel}
+              setNextModel={setNextModel}
+              disabled={isSubmitting}
+            />
+            <ChatInput
+              input={input}
+              handleInputChange={handleInputChange}
+              handleSubmit={handleModelSubmit}
+              isLoading={isLoading}
+              stop={stop}
+              disabled={isSubmitting}
+              placeholder="chat is this real?"
+            />
+          </div>
         </div>
       </div>
     </main>

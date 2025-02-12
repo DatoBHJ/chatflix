@@ -369,10 +369,10 @@ export default function Chat({ params }: PageProps) {
   return (
     <main className="flex-1 relative h-full">
       <div className="flex-1 overflow-y-auto pb-40">
-        <div className="messages-container py-4">
+        <div className="messages-container py-4 max-w-2xl mx-auto px-4">
           {messages.map((message, i) => (
             <div key={message.id} className="message-group group animate-fade-in">
-              <div className="message-role">
+              <div className={`message-role ${message.role === 'user' ? 'text-right' : ''}`}>
                 {message.role === 'assistant' ? 'AI Assistant' : 'You'}
               </div>
               <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -419,9 +419,9 @@ export default function Chat({ params }: PageProps) {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-64 right-0 bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-8 pb-6">
-        <div className="max-w-2xl mx-auto w-full px-4">
-          <div className="">
+      <div className="fixed inset-x-0 bottom-0 z-10">
+        <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-8 pb-6">
+          <div className="max-w-2xl mx-auto pl-8 relative">
             <ModelSelector
               currentModel={currentModel}
               nextModel={nextModel}

@@ -44,8 +44,16 @@ export function Sidebar() {
       )
       .subscribe()
 
+    // Add event listener for new chat creation
+    const handleChatCreated = (event: CustomEvent<Chat>) => {
+      setChats(prevChats => [event.detail, ...prevChats]);
+    };
+
+    window.addEventListener('chatCreated', handleChatCreated as EventListener);
+
     return () => {
       supabase.removeChannel(chatChannel)
+      window.removeEventListener('chatCreated', handleChatCreated as EventListener);
     }
   }, [])
 
@@ -158,10 +166,10 @@ export function Sidebar() {
         <div className="pt-24 px-6 pb-6 border-b border-[var(--accent)]">
           <button
             onClick={() => router.push('/')}
-            className="w-14 h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
+            className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
             title="Home"
           >
-            H
+            new chat
           </button>
         </div>
 
