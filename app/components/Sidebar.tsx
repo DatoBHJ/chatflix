@@ -204,7 +204,7 @@ export function Sidebar() {
                       </div>
                       {chat.messages[0] && (
                         <div className="text-[var(--muted)] text-xs uppercase">
-                          {chat.messages[0].host}
+                          {chat.messages[1].host}
                         </div>
                       )}
                     </div>

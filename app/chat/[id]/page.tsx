@@ -114,6 +114,42 @@ function MarkdownContent({ content }: { content: string }) {
   );
 }
 
+// Add this component for the reasoning section
+function ReasoningSection({ content }: { content: string }) {
+  const [isExpanded, setIsExpanded] = useState(true);  // 기본값을 true로 변경하여 스트리밍 시 보이도록 함
+
+  return (
+    <div className="message-reasoning">
+      <div 
+        className="message-reasoning-header"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <svg 
+          className={`message-reasoning-icon ${isExpanded ? 'expanded' : ''}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+        <span>Reasoning</span>
+      </div>
+      <div 
+        className={`message-reasoning-content ${isExpanded ? 'expanded' : ''}`}
+        style={{ 
+          maxHeight: isExpanded ? '1000px' : '0',
+          marginTop: isExpanded ? '0.5rem' : '0'
+        }}
+      >
+        <MarkdownContent content={content} />
+      </div>
+    </div>
+  );
+}
+
 export default function Chat({ params }: PageProps) {
   const { id: chatId } = use(params)
   const router = useRouter()
@@ -382,10 +418,7 @@ export default function Chat({ params }: PageProps) {
                       {message.parts.map((part, index) => {
                         if (part.type === 'reasoning') {
                           return (
-                            <div key={index} className="message-reasoning">
-                              <div className="text-[var(--muted)] uppercase tracking-wider text-xs mb-2">Reasoning</div>
-                              <MarkdownContent content={part.reasoning} />
-                            </div>
+                            <ReasoningSection key={index} content={part.reasoning} />
                           );
                         }
                         if (part.type === 'text') {
