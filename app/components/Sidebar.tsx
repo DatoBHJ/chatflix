@@ -93,31 +93,6 @@ export function Sidebar() {
     }
   }
 
-  const handleNewChat = async () => {
-    try {
-      const { data: session, error: sessionError } = await supabase
-        .from('chat_sessions')
-        .insert([{
-          id: Date.now().toString(),
-          title: 'New Chat'
-        }])
-        .select()
-        .single();
-
-      if (sessionError) {
-        console.error('Failed to create session:', sessionError);
-        return;
-      }
-
-      if (session) {
-        await loadChats()  // 새 채팅 생성 즉시 목록 업데이트
-        router.push(`/chat/${session.id}`);
-      }
-    } catch (error) {
-      console.error('Error creating new chat:', error)
-    }
-  };
-
   const handleDeleteChat = async (chatId: string, e: React.MouseEvent) => {
     e.stopPropagation() // Prevent chat selection event
     
@@ -136,9 +111,9 @@ export function Sidebar() {
         .delete()
         .eq('id', chatId)
 
-      // 현재 삭제된 채팅을 보고 있었다면 /chat으로 리다이렉트
+      // 현재 삭제된 채팅을 보고 있었다면 홈페이지로 리다이렉트
       if (pathname === `/chat/${chatId}`) {
-        router.push('/chat')
+        router.push('/')
       }
 
       // 채팅 목록 새로고침
@@ -165,8 +140,8 @@ export function Sidebar() {
         .delete()
         .neq('id', '0') // 모든 세션 삭제
 
-      // /chat으로 리다이렉트
-      router.push('/chat')
+      // 홈페이지로 리다이렉트
+      router.push('/')
 
       // 채팅 목록 새로고침
       loadChats()
@@ -181,21 +156,13 @@ export function Sidebar() {
       <div className="h-full flex flex-col">
         {/* Top Section with Padding for Menu Button */}
         <div className="pt-24 px-6 pb-6 border-b border-[var(--accent)]">
-          <div className="flex gap-2">
-            <button
-              onClick={handleNewChat}
-              className="flex-1 yeezy-button bg-[var(--accent)]"
-            >
-              New Chat
-            </button>
-            <button
-              onClick={() => router.push('/')}
-              className="w-14 h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
-              title="Home"
-            >
-              H
-            </button>
-          </div>
+          <button
+            onClick={() => router.push('/')}
+            className="w-14 h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
+            title="Home"
+          >
+            H
+          </button>
         </div>
 
         {/* Chat List Section */}

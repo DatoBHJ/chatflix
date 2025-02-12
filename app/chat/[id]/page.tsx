@@ -117,9 +117,21 @@ function MarkdownContent({ content }: { content: string }) {
 export default function Chat({ params }: PageProps) {
   const { id: chatId } = use(params)
   const router = useRouter()
-  const [currentModel, setCurrentModel] = useState('deepseek-reasoner')
+  const [currentModel, setCurrentModel] = useState('claude-3-5-sonnet-latest')
   const [nextModel, setNextModel] = useState(currentModel)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [isInitialized, setIsInitialized] = useState(false)
+  const initialMessageSentRef = useRef(false)
+
+  const { messages, input, handleInputChange, handleSubmit, isLoading, stop, setMessages, reload } = useChat({
+    api: '/api/chat',
+    body: {
+      model: currentModel,
+      chatId,
+    },
+    id: chatId,
+    initialMessages: [],
+  });
 
   const scrollToBottom = useCallback(() => {
     if (messagesEndRef.current) {
@@ -132,39 +144,115 @@ export default function Chat({ params }: PageProps) {
     scrollToBottom()
   }, [scrollToBottom])
 
-  // 세션 로드 시 저장된 모델 정보 불러오기
+  // 초기 데이터 로드
   useEffect(() => {
-    async function loadSessionModel() {
-      const { data: session, error } = await supabase
-        .from('chat_sessions')
-        .select('current_model')
-        .eq('id', chatId)
-        .single();
+    let isMounted = true;
 
-      if (session?.current_model) {
-        setCurrentModel(session.current_model);
-        setNextModel(session.current_model);
+    async function initialize() {
+      if (initialMessageSentRef.current) return;
+      
+      try {
+        // 1. 세션 확인 및 모델 정보 로드
+        const { data: session, error: sessionError } = await supabase
+          .from('chat_sessions')
+          .select('current_model, initial_message')
+          .eq('id', chatId)
+          .single();
+
+        if (sessionError || !session) {
+          console.error('Session error:', sessionError);
+          router.push('/');
+          return;
+        }
+
+        if (session.current_model && isMounted) {
+          setCurrentModel(session.current_model);
+          setNextModel(session.current_model);
+        }
+
+        // 2. 기존 메시지 로드
+        const { data: existingMessages, error: messagesError } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('chat_session_id', chatId)
+          .order('created_at', { ascending: true });
+
+        if (messagesError) {
+          console.error('Failed to load messages:', messagesError);
+          return;
+        }
+
+        if (existingMessages && existingMessages.length > 0 && isMounted) {
+          // 기존 메시지가 있는 경우
+          setMessages(existingMessages.map(convertMessage));
+          setIsInitialized(true);
+        } else if (session.initial_message && isMounted) {
+          // 초기 메시지만 있는 경우
+          const messageId = Date.now().toString();
+          
+          // 사용자 메시지 저장
+          const { error: insertError } = await supabase.from('messages').insert([{
+            id: messageId,
+            content: session.initial_message,
+            role: 'user',
+            created_at: new Date().toISOString(),
+            model: session.current_model,
+            host: 'user',
+            chat_session_id: chatId
+          }]);
+
+          if (insertError) {
+            console.error('Failed to insert message:', insertError);
+            return;
+          }
+
+          // UI에 메시지 추가
+          setMessages([{
+            id: messageId,
+            content: session.initial_message,
+            role: 'user',
+            createdAt: new Date()
+          }]);
+
+          initialMessageSentRef.current = true;
+          setIsInitialized(true);
+
+          // AI 응답 요청 시작
+          if (isMounted) {
+            // handleSubmit 대신 직접 API 요청
+            reload({
+              body: {
+                model: session.current_model,
+                chatId,
+                messages: [{
+                  id: messageId,
+                  content: session.initial_message,
+                  role: 'user',
+                  createdAt: new Date()
+                }]
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error in initialization:', error);
+        if (isMounted) {
+          router.push('/');
+        }
       }
     }
 
-    loadSessionModel();
+    initialize();
+
+    return () => {
+      isMounted = false;
+    };
   }, [chatId]);
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, stop, setMessages, reload } = useChat({
-    api: '/api/chat',
-    body: {
-      model: currentModel,
-      chatId,
-    },
-    id: chatId,
-    onFinish: async (message) => {
-      // 스트리밍 완료 후 최종 메시지만 표시하기 위해 DB에서 다시 불러오지 않음
-      // 스트리밍된 메시지가 이미 UI에 표시되어 있음
-    }
-  });
-
-  // 실시간 업데이트 구독 최적화
+  // 실시간 업데이트 구독 (초기화 완료 후에만)
   useEffect(() => {
+    if (!isInitialized) return;
+
     const channel = supabase
       .channel('chat-messages')
       .on(
@@ -176,7 +264,6 @@ export default function Chat({ params }: PageProps) {
           filter: `chat_session_id=eq.${chatId}`
         },
         async (payload) => {
-          // INSERT나 UPDATE된 메시지만 처리
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             const { data: message, error } = await supabase
               .from('messages')
@@ -187,7 +274,8 @@ export default function Chat({ params }: PageProps) {
             if (!error && message) {
               setMessages(prevMessages => {
                 const otherMessages = prevMessages.filter(m => m.id !== message.id);
-                return [...otherMessages, convertMessage(message)];
+                const convertedMessage = convertMessage(message);
+                return [...otherMessages, convertedMessage];
               });
             }
           }
@@ -198,90 +286,7 @@ export default function Chat({ params }: PageProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [chatId, setMessages]);
-
-  useEffect(() => {
-    async function loadChat() {
-      console.log('Loading chat session:', chatId);
-      
-      try {
-        // 세션 확인
-        const { data: session, error: sessionError } = await supabase
-          .from('chat_sessions')
-          .select()
-          .eq('id', chatId)
-          .single();
-
-        console.log('Session data:', session);
-        console.log('Session error:', sessionError);
-
-        if (sessionError) {
-          console.error('Session error:', sessionError);
-          router.push('/chat');
-          return;
-        }
-
-        if (!session) {
-          console.error('Session not found');
-          router.push('/chat');
-          return;
-        }
-
-        // 메시지 로드
-        const { data: messages, error: messagesError } = await supabase
-          .from('messages')
-          .select('*')
-          .eq('chat_session_id', chatId)
-          .order('created_at', { ascending: true });
-
-        console.log('Messages data:', messages);
-        console.log('Messages error:', messagesError);
-
-        if (messagesError) {
-          console.error('Failed to load messages:', messagesError);
-          return;
-        }
-
-        if (messages) {
-          const convertedMessages = messages.map(msg => {
-            const baseMessage = {
-              id: msg.id,
-              content: msg.content,
-              role: msg.role as 'user' | 'assistant' | 'system',
-              createdAt: new Date(msg.created_at),
-            };
-
-            // assistant 메시지이고 reasoning이 있는 경우에만 parts 추가
-            if (msg.role === 'assistant' && msg.reasoning) {
-              return {
-                ...baseMessage,
-                parts: [
-                  {
-                    type: 'reasoning' as const,
-                    reasoning: msg.reasoning
-                  },
-                  {
-                    type: 'text' as const,
-                    text: msg.content
-                  }
-                ]
-              };
-            }
-
-            return baseMessage;
-          }) as Message[];
-
-          console.log('Converted messages:', convertedMessages);
-          setMessages(convertedMessages);
-        }
-      } catch (error) {
-        console.error('Unexpected error:', error);
-        router.push('/chat');
-      }
-    }
-
-    loadChat();
-  }, [chatId, router, setMessages]);
+  }, [chatId, setMessages, isInitialized]);
 
   // 모델 변경 핸들러 메모이제이션
   const handleModelSubmit = useCallback(async (e: React.FormEvent) => {
