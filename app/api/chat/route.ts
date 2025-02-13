@@ -163,7 +163,13 @@ export async function POST(req: Request) {
         // 스트리밍 응답 설정
         const result = streamText({
           model: selectedModel,
-          messages: normalizedMessages,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a helpful AI assistant. Always format your responses in markdown. Use appropriate markdown syntax for code blocks, lists, tables, and other formatting elements.'
+            },
+            ...normalizedMessages
+          ],
           temperature: 0.7,
           maxTokens: 1000,
           experimental_transform: smoothStream({

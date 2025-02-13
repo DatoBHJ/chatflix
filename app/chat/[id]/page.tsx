@@ -207,6 +207,7 @@ export default function Chat({ params }: PageProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [isInitialized, setIsInitialized] = useState(false)
   const initialMessageSentRef = useRef(false)
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, stop, setMessages, reload } = useChat({
     api: '/api/chat',
@@ -451,6 +452,24 @@ export default function Chat({ params }: PageProps) {
     }
   }, [messages, setMessages, currentModel, chatId, reload]);
 
+  const handleCopyMessage = async (message: Message) => {
+    let textToCopy = '';
+    if (message.parts) {
+      textToCopy = message.parts
+        .filter(part => part.type === 'text')
+        .map(part => (part as { text: string }).text)
+        .join('\n');
+    } else {
+      textToCopy = message.content;
+    }
+    
+    await navigator.clipboard.writeText(textToCopy);
+    setCopiedMessageId(message.id);
+    setTimeout(() => {
+      setCopiedMessageId(null);
+    }, 2000);
+  };
+
   return (
     <main className="flex-1 relative h-full">
       <div className="flex-1 overflow-y-auto pb-40">
@@ -485,13 +504,23 @@ export default function Chat({ params }: PageProps) {
                 </div>
               </div>
               {message.role === 'assistant' && (
-                <div className="flex justify-start pl-4 mt-2">
+                <div className="flex justify-start pl-4 mt-2 gap-4">
                   <button 
                     onClick={handleReload(message.id)}
                     className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2 uppercase tracking-wider"
                   >
                     <IconRefresh className="w-3 h-3" />
                     <span>Regenerate</span>
+                  </button>
+                  <button
+                    onClick={() => handleCopyMessage(message)}
+                    className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2 uppercase tracking-wider"
+                  >
+                    {copiedMessageId === message.id ? (
+                      <span className="">Copied</span>
+                    ) : (
+                      <span>Copy</span>
+                    )}
                   </button>
                 </div>
               )}
