@@ -1,29 +1,142 @@
-import { Dispatch, SetStateAction } from 'react';
+import { Dispatch, SetStateAction, useState, useRef, useEffect } from 'react';
+
+interface ModelOption {
+  id: string;
+  name: string;
+  description: string;
+}
 
 interface ModelSelectorProps {
   currentModel: string;
   nextModel: string;
   setNextModel: Dispatch<SetStateAction<string>>;
   disabled?: boolean;
+  position?: 'top' | 'bottom';
 }
 
-export function ModelSelector({ currentModel, nextModel, setNextModel, disabled }: ModelSelectorProps) {
+const MODEL_OPTIONS: ModelOption[] = [
+  {
+    id: 'claude-3-5-sonnet-latest',
+    name: 'Claude 3.5 Sonnet',
+    description: 'Most versatile. Best for coding, analysis, and complex tasks.'
+  },
+  {
+    id: 'deepseek-reasoner',
+    name: 'DeepSeek Reasoner',
+    description: 'Shows step-by-step reasoning. Great for math and problem-solving.'
+  },
+  {
+    id: 'deepseek-chat',
+    name: 'DeepSeek Chat',
+    description: 'Fast and efficient. Perfect for casual conversations.'
+  },
+  {
+    id: 'deepseek-ai/DeepSeek-R1',
+    name: 'DeepSeek R1 (Together)',
+    description: 'Advanced reasoning model. Excels at math and coding tasks.'
+  },
+  {
+    id: 'deepseek-ai/DeepSeek-V3',
+    name: 'DeepSeek V3 (Together)',
+    description: 'Efficient and cost-effective. Good for general use.'
+  },
+  {
+    id: 'DeepSeek r1 distill llama 70b',
+    name: 'DeepSeek R1 (Groq)',
+    description: 'High-speed version. Optimized for quick responses.'
+  }
+];
+
+export function ModelSelector({ currentModel, nextModel, setNextModel, disabled, position = 'bottom' }: ModelSelectorProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if mobile on mount and window resize
+  useEffect(() => {
+    const checkIfMobile = () => {
+      setIsMobile(window.innerWidth < 640); // sm breakpoint
+    };
+    
+    checkIfMobile();
+    window.addEventListener('resize', checkIfMobile);
+    return () => window.removeEventListener('resize', checkIfMobile);
+  }, []);
+
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
-    <div className="flex items-center gap-4">
-      <span className="text-xs uppercase tracking-wider text-[var(--muted)]">Model</span>
-      <select
-        value={nextModel}
-        onChange={(e) => setNextModel(e.target.value)}
-        className="yeezy-model-selector text-[var(--muted)]"
-        disabled={disabled}
-      >
-        <option value="claude-3-5-sonnet-latest">Claude 3.5 Sonnet</option>
-        <option value="deepseek-reasoner">DeepSeek Reasoner</option>
-        <option value="deepseek-chat">DeepSeek Chat</option>
-        <option value="deepseek-ai/DeepSeek-R1">DeepSeek R1 (Together)</option>
-        <option value="deepseek-ai/DeepSeek-V3">DeepSeek V3 (Together)</option>
-        <option value="DeepSeek r1 distill llama 70b">DeepSeek R1 (Groq)</option>
-      </select>
+    <div className="relative" ref={containerRef}>
+      <div className="flex items-center gap-4">
+        <span className="text-xs uppercase tracking-wider text-[var(--muted)]">Model</span>
+        <div className={`relative ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+          <button
+            onClick={() => !disabled && setIsOpen(!isOpen)}
+            className={`yeezy-model-selector text-[var(--muted)] ${isOpen ? 'text-[var(--foreground)]' : ''}`}
+            disabled={disabled}
+            aria-expanded={isOpen}
+            aria-haspopup="listbox"
+          >
+            {MODEL_OPTIONS.find(option => option.id === nextModel)?.name || nextModel}
+          </button>
+          {isOpen && !disabled && (
+            <div 
+              className={`
+                ${isMobile 
+                  ? 'fixed inset-x-0 bottom-0 w-full max-h-[80vh] overflow-y-auto rounded-t-lg' 
+                  : `absolute ${position === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'} left-0 w-[280px]`}
+                bg-[var(--background)] border border-[var(--accent)] shadow-lg z-50
+                animate-fade-in
+              `}
+              role="listbox"
+            >
+              {isMobile && (
+                <div className="sticky top-0 flex items-center justify-between p-3 bg-[var(--background)] border-b border-[var(--accent)]">
+                  <span className="text-sm font-medium">Select Model</span>
+                  <button 
+                    onClick={() => setIsOpen(false)}
+                    className="text-[var(--muted)] hover:text-[var(--foreground)]"
+                  >
+                    Close
+                  </button>
+                </div>
+              )}
+              {MODEL_OPTIONS.map(option => (
+                <div 
+                  key={option.id}
+                  className={`p-3 ${!isMobile ? 'border-b border-[var(--accent)]' : ''} last:border-b-0
+                             ${option.id === nextModel ? 'bg-[var(--accent)]' : ''}
+                             hover:bg-[var(--accent)] transition-colors cursor-pointer
+                             ${isMobile ? 'p-4' : ''}`}
+                  onClick={() => {
+                    setNextModel(option.id);
+                    setIsOpen(false);
+                  }}
+                  role="option"
+                  aria-selected={option.id === nextModel}
+                >
+                  <div className={`text-sm font-medium mb-1 ${isMobile ? 'text-base' : ''}`}>
+                    {option.name}
+                  </div>
+                  <div className={`text-xs text-[var(--muted)] ${isMobile ? 'text-sm' : ''}`}>
+                    {option.description}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 } 

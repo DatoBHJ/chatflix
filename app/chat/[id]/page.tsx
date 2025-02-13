@@ -50,21 +50,37 @@ const convertMessage = (msg: DatabaseMessage): Message => {
 };
 
 function MarkdownContent({ content }: { content: string }) {
+  const [copied, setCopied] = useState<{[key: string]: boolean}>({});
+
+  const handleCopy = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(prev => ({ ...prev, [text]: true }));
+    setTimeout(() => {
+      setCopied(prev => ({ ...prev, [text]: false }));
+    }, 2000);
+  };
+
   return (
     <ReactMarkdown
       className="message-content"
       remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeHighlight]}
       components={{
-        p: ({ children }) => <p className="my-3">{children}</p>,
+        p: ({ children }) => <p className="my-3 leading-relaxed">{children}</p>,
         a: ({ href, children }) => (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+          <a 
+            href={href} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-[var(--foreground)] border-b border-[var(--muted)] hover:border-[var(--foreground)] transition-colors"
+          >
             {children}
           </a>
         ),
         code: ({ className, children, ...props }: any) => {
           const match = /language-(\w+)/.exec(className || '');
           const isInline = !match;
+          const codeText = String(children).replace(/\n$/, '');
           
           if (isInline) {
             return (
@@ -75,37 +91,70 @@ function MarkdownContent({ content }: { content: string }) {
           }
           
           return (
-            <div className="message-code group relative">
-              <div className="message-code-header">
-                <span>{match[1]}</span>
+            <div className="message-code group relative my-6">
+              <div className="message-code-header flex items-center justify-between px-4 py-2">
+                <span className="text-xs uppercase tracking-wider text-[var(--muted)]">
+                  {match?.[1] || 'text'}
+                </span>
+                <button
+                  onClick={() => handleCopy(codeText)}
+                  className="text-xs uppercase tracking-wider px-2 py-1 
+                           text-[var(--muted)] hover:text-[var(--foreground)] 
+                           transition-colors flex items-center gap-1"
+                >
+                  {copied[codeText] ? (
+                    <>
+                      <span className="text-green-500">Copied</span>
+                    </>
+                  ) : (
+                    <>Copy</>
+                  )}
+                </button>
               </div>
-              <pre className="p-0 m-0">
+              <pre className="overflow-x-auto p-4 m-0 bg-black/20">
                 <code className={className} {...props}>
                   {children}
                 </code>
               </pre>
-              <button
-                onClick={() => navigator.clipboard.writeText(String(children))}
-                className="message-code-copy"
-                title="Copy code"
-              >
-                Copy
-              </button>
             </div>
           );
         },
         table: ({ children }) => (
-          <div className="overflow-x-auto my-4">
+          <div className="overflow-x-auto my-6">
             <table className="w-full border-collapse">{children}</table>
           </div>
         ),
         th: ({ children }) => (
-          <th className="bg-[var(--accent)] font-medium text-[var(--muted)] uppercase tracking-wider p-2 border border-[var(--accent)]">
+          <th className="bg-[var(--accent)] font-medium text-[var(--muted)] uppercase tracking-wider p-3 border border-[var(--accent)]">
             {children}
           </th>
         ),
         td: ({ children }) => (
-          <td className="p-2 border border-[var(--accent)]">{children}</td>
+          <td className="p-3 border border-[var(--accent)]">{children}</td>
+        ),
+        blockquote: ({ children }) => (
+          <blockquote className="border-l-2 border-[var(--muted)] pl-4 my-6 text-[var(--muted)] italic">
+            {children}
+          </blockquote>
+        ),
+        ul: ({ children }) => (
+          <ul className="list-disc list-inside space-y-2 my-4 ml-4">
+            {children}
+          </ul>
+        ),
+        ol: ({ children }) => (
+          <ol className="list-decimal list-inside space-y-2 my-4 ml-4">
+            {children}
+          </ol>
+        ),
+        h1: ({ children }) => (
+          <h1 className="text-2xl font-bold mt-8 mb-4">{children}</h1>
+        ),
+        h2: ({ children }) => (
+          <h2 className="text-xl font-bold mt-6 mb-3">{children}</h2>
+        ),
+        h3: ({ children }) => (
+          <h3 className="text-lg font-bold mt-5 mb-2">{children}</h3>
         ),
       }}
     >
@@ -459,6 +508,7 @@ export default function Chat({ params }: PageProps) {
               currentModel={currentModel}
               nextModel={nextModel}
               setNextModel={setNextModel}
+              position="top"
             />
             <ChatInput
               input={input}

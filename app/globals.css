@@ -11,6 +11,7 @@
   --accent: #222222;
   --muted: #666666;
   --font-sans: "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
+  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -26,6 +27,7 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.015em;
 }
 
 @layer components {
@@ -50,7 +52,36 @@ body {
   .yeezy-model-selector {
     @apply bg-transparent text-sm uppercase tracking-wide w-full
            focus:outline-none cursor-pointer py-2 px-4 sm:px-6
-          transition-colors;
+           transition-colors relative;
+    position: relative;
+    padding-right: 2.5rem;
+  }
+
+  .yeezy-model-selector::after {
+    content: '';
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1em;
+    height: 1em;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23666666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    transition: transform 0.2s;
+  }
+
+  .yeezy-model-selector:hover {
+    @apply text-[var(--foreground)];
+  }
+
+  .yeezy-model-selector:hover::after {
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  }
+
+  .yeezy-model-selector:disabled {
+    @apply opacity-50 cursor-not-allowed;
   }
 }
 
@@ -75,7 +106,7 @@ body {
 }
 
 .message-group {
-  @apply py-6 first:pt-4 last:pb-4 ;
+  @apply py-8 first:pt-4 last:pb-4;
 }
 
 .message-group:last-child {
@@ -84,52 +115,28 @@ body {
 
 /* Message Role Indicators */
 .message-role {
-  @apply text-xs uppercase tracking-wider text-[var(--muted)] mb-2 px-6;
+  @apply text-xs uppercase tracking-wider text-[var(--muted)] mb-3 px-6;
 }
 
 /* Message Styles */
 .message-user {
   @apply bg-[var(--foreground)] text-[var(--background)] p-6 rounded-none max-w-[85%] ml-auto
-         hover:opacity-95 transition-opacity;
+         hover:opacity-95 transition-[var(--transition)];
 }
 
 .message-assistant {
   @apply bg-[var(--accent)] text-[var(--foreground)] p-6 rounded-none max-w-[85%]
-         hover:opacity-95 transition-opacity;
+         hover:opacity-95 transition-[var(--transition)];
 }
 
 .message-content {
   @apply text-base leading-relaxed;
 }
 
-.message-reasoning {
-  @apply bg-black/20 p-4 mb-4 text-sm;
-}
-
-.message-reasoning-header {
-  @apply flex items-center gap-2 text-xs uppercase tracking-wider text-[var(--muted)] 
-         cursor-pointer hover:text-[var(--foreground)] transition-colors;
-}
-
-.message-reasoning-content {
-  @apply overflow-hidden transition-all duration-300 ease-in-out;
-}
-
-.message-reasoning-content.expanded {
-  @apply opacity-100;
-}
-
-.message-reasoning-icon {
-  @apply w-3 h-3 transition-transform duration-300;
-}
-
-.message-reasoning-icon.expanded {
-  @apply rotate-180;
-}
-
 /* Code Block Styles */
 .message-code {
-  @apply font-mono text-sm bg-black/30 p-4 my-4 overflow-x-auto;
+  @apply font-mono text-sm bg-black/20 rounded-none overflow-hidden;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .message-code:hover .message-code-copy {
@@ -137,12 +144,11 @@ body {
 }
 
 .message-code-header {
-  @apply flex items-center justify-between text-xs text-[var(--muted)] uppercase tracking-wider mb-2 pb-2
-         bg-black/20;
+  @apply bg-black/30 border-b border-black/10;
 }
 
 .message-code pre {
-  @apply p-0 m-0 overflow-x-auto;
+  @apply m-0 overflow-x-auto;
 }
 
 .message-code code {
@@ -277,4 +283,38 @@ body {
   @apply absolute top-2 right-2 p-1.5 text-xs bg-[var(--accent)] 
          hover:bg-[var(--foreground)] hover:text-[var(--background)]
          transition-colors opacity-0 group-hover:opacity-100;
+}
+
+/* Reasoning Section Styles */
+.message-reasoning {
+  @apply bg-black/20 p-4 mb-4 text-sm border-l-2 border-[var(--muted)];
+}
+
+.message-reasoning-header {
+  @apply flex items-center gap-2 text-xs uppercase tracking-wider text-[var(--muted)] 
+         cursor-pointer hover:text-[var(--foreground)] transition-[var(--transition)];
+}
+
+.message-reasoning-content {
+  @apply overflow-hidden transition-[var(--transition)];
+}
+
+.message-reasoning-content.expanded {
+  @apply opacity-100;
+}
+
+.message-reasoning-icon {
+  @apply w-3 h-3 transition-transform duration-300;
+}
+
+.message-reasoning-icon.expanded {
+  @apply rotate-180;
+}
+
+/* Model Selector Dropdown */
+.model-selector-dropdown,
+.model-selector-dropdown.visible,
+.model-selector-option,
+.model-selector-option.selected {
+  display: none;
 }
