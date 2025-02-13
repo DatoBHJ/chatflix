@@ -202,7 +202,7 @@ export function Sidebar() {
                       <div className="text-[var(--muted)] text-xs truncate">
                         {new Date(chat.created_at).toLocaleDateString()}
                       </div>
-                      {chat.messages[0] && (
+                      {chat.messages[1] && (
                         <div className="text-[var(--muted)] text-xs uppercase">
                           {chat.messages[1].host}
                         </div>
