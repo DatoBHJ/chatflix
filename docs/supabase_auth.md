@@ -60,26 +60,45 @@ What does the \`cookies\` object do?
 Do I need to create a new client for every route?
 
 utils/supabase/client.ts
+import { createBrowserClient } from '@supabase/ssr'
 
+export function createClient() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
 utils/supabase/server.ts
 
-`
-_10
-import { createBrowserClient } from '@supabase/ssr'
-_10
-_10
-export function createClient() {
-_10
-return createBrowserClient(
-_10
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+
+export async function createClient() {
+  const cookieStore = await cookies()
+
+  return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-_10
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-_10
-)
-_10
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+      },
+    }
+  )
 }
-`
 
 4
 
@@ -109,46 +128,92 @@ It's safe to trust `getUser()` because it sends a request to the Supabase Auth s
 
 middleware.ts
 
-utils/supabase/middleware.ts
-
-`
-_19
 import { type NextRequest } from 'next/server'
-_19
 import { updateSession } from '@/utils/supabase/middleware'
-_19
-_19
+
 export async function middleware(request: NextRequest) {
-_19
-return await updateSession(request)
-_19
+  return await updateSession(request)
 }
-_19
-_19
+
 export const config = {
-_19
-matcher: [\
-_19\
-    /*\
-_19\
-     * Match all request paths except for the ones starting with:\
-_19\
-     * - _next/static (static files)\
-_19\
-     * - _next/image (image optimization files)\
-_19\
-     * - favicon.ico (favicon file)\
-_19\
-     * Feel free to modify this pattern to include more paths.\
-_19\
-     */\
-_19\
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',\
-_19\
-],
-_19
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * Feel free to modify this pattern to include more paths.
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 }
-`
+
+utils/supabase/middleware.ts
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
+
+export async function updateSession(request: NextRequest) {
+  let supabaseResponse = NextResponse.next({
+    request,
+  })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({
+            request,
+          })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+
+  // Do not run code between createServerClient and
+  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
+  // issues with users being randomly logged out.
+
+  // IMPORTANT: DO NOT REMOVE auth.getUser()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (
+    !user &&
+    !request.nextUrl.pathname.startsWith('/login') &&
+    !request.nextUrl.pathname.startsWith('/auth')
+  ) {
+    // no user, potentially respond by redirecting the user to the login page
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    return NextResponse.redirect(url)
+  }
+
+  // IMPORTANT: You *must* return the supabaseResponse object as it is.
+  // If you're creating a new response object with NextResponse.next() make sure to:
+  // 1. Pass the request in it, like so:
+  //    const myNewResponse = NextResponse.next({ request })
+  // 2. Copy over the cookies, like so:
+  //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
+  // 3. Change the myNewResponse object to fit your needs, but avoid changing
+  //    the cookies!
+  // 4. Finally:
+  //    return myNewResponse
+  // If this is not done, you may be causing the browser and server to go out
+  // of sync and terminate the user's session prematurely!
+
+  return supabaseResponse
+}
 
 5
 
@@ -164,39 +229,76 @@ See the Next.js docs to learn more about [opting out of data caching](https://ne
 
 app/login/page.tsx
 
+import { login, signup } from './actions'
+
+export default function LoginPage() {
+  return (
+    <form>
+      <label htmlFor="email">Email:</label>
+      <input id="email" name="email" type="email" required />
+      <label htmlFor="password">Password:</label>
+      <input id="password" name="password" type="password" required />
+      <button formAction={login}>Log in</button>
+      <button formAction={signup}>Sign up</button>
+    </form>
+  )
+}
+
 app/login/actions.ts
 
-app/error/page.tsx
+'use server'
 
-`
-_14
-import { login, signup } from './actions'
-_14
-_14
-export default function LoginPage() {
-_14
-return (
-_14
-    <form>
-_14
-      <label htmlFor="email">Email:</label>
-_14
-      <input id="email" name="email" type="email" required />
-_14
-      <label htmlFor="password">Password:</label>
-_14
-      <input id="password" name="password" type="password" required />
-_14
-      <button formAction={login}>Log in</button>
-_14
-      <button formAction={signup}>Sign up</button>
-_14
-    </form>
-_14
-)
-_14
+import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
+
+import { createClient } from '@/utils/supabase/server'
+
+export async function login(formData: FormData) {
+  const supabase = await createClient()
+
+  // type-casting here for convenience
+  // in practice, you should validate your inputs
+  const data = {
+    email: formData.get('email') as string,
+    password: formData.get('password') as string,
+  }
+
+  const { error } = await supabase.auth.signInWithPassword(data)
+
+  if (error) {
+    redirect('/error')
+  }
+
+  revalidatePath('/', 'layout')
+  redirect('/')
 }
-`
+
+export async function signup(formData: FormData) {
+  const supabase = await createClient()
+
+  // type-casting here for convenience
+  // in practice, you should validate your inputs
+  const data = {
+    email: formData.get('email') as string,
+    password: formData.get('password') as string,
+  }
+
+  const { error } = await supabase.auth.signUp(data)
+
+  if (error) {
+    redirect('/error')
+  }
+
+  revalidatePath('/', 'layout')
+  redirect('/')
+}
+
+app/error/page.tsx
+'use client'
+
+export default function ErrorPage() {
+  return <p>Sorry, something went wrong</p>
+}
 
 6
 
@@ -218,59 +320,34 @@ Since this is a Router Handler, use the Supabase client from `@/utils/supabase/s
 
 app/auth/confirm/route.ts
 
-`
-_28
 import { type EmailOtpType } from '@supabase/supabase-js'
-_28
 import { type NextRequest } from 'next/server'
-_28
-_28
+
 import { createClient } from '@/utils/supabase/server'
-_28
 import { redirect } from 'next/navigation'
-_28
-_28
+
 export async function GET(request: NextRequest) {
-_28
-const { searchParams } = new URL(request.url)
-_28
-const token_hash = searchParams.get('token_hash')
-_28
-const type = searchParams.get('type') as EmailOtpType | null
-_28
-const next = searchParams.get('next') ?? '/'
-_28
-_28
-if (token_hash && type) {
-_28
+  const { searchParams } = new URL(request.url)
+  const token_hash = searchParams.get('token_hash')
+  const type = searchParams.get('type') as EmailOtpType | null
+  const next = searchParams.get('next') ?? '/'
+
+  if (token_hash && type) {
     const supabase = await createClient()
-_28
-_28
+
     const { error } = await supabase.auth.verifyOtp({
-_28
       type,
-_28
       token_hash,
-_28
     })
-_28
     if (!error) {
-_28
       // redirect user to specified redirect URL or root of app
-_28
       redirect(next)
-_28
     }
-_28
+  }
+
+  // redirect the user to an error page with some instructions
+  redirect('/error')
 }
-_28
-_28
-// redirect the user to an error page with some instructions
-_28
-redirect('/error')
-_28
-}
-`
 
 8
 
@@ -292,32 +369,20 @@ It's safe to trust `getUser()` because it sends a request to the Supabase Auth s
 
 app/private/page.tsx
 
-`
-_14
 import { redirect } from 'next/navigation'
-_14
-_14
+
 import { createClient } from '@/utils/supabase/server'
-_14
-_14
+
 export default async function PrivatePage() {
-_14
-const supabase = await createClient()
-_14
-_14
-const { data, error } = await supabase.auth.getUser()
-_14
-if (error || !data?.user) {
-_14
+  const supabase = await createClient()
+
+  const { data, error } = await supabase.auth.getUser()
+  if (error || !data?.user) {
     redirect('/login')
-_14
+  }
+
+  return <p>Hello {data.user.email}</p>
 }
-_14
-_14
-return <p>Hello {data.user.email}</p>
-_14
-}
-`
 
 ## Congratulations [\#](https://supabase.com/docs/guides/auth/server-side/nextjs\#congratulations)
 

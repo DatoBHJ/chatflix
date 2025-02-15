@@ -10,7 +10,7 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeHighlight from 'rehype-highlight'
 import { IconRefresh } from '../../components/icons'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase/client'
 import { DatabaseMessage } from '@/lib/types'
 import { ModelSelector } from '../../components/ModelSelector'
 import { ChatInput } from '../../components/ChatInput'
@@ -208,6 +208,21 @@ export default function Chat({ params }: PageProps) {
   const [isInitialized, setIsInitialized] = useState(false)
   const initialMessageSentRef = useRef(false)
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
+  const [user, setUser] = useState<any>(null)
+  const supabase = createClient()
+
+  // Add user authentication check
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/login')
+        return
+      }
+      setUser(user)
+    }
+    getUser()
+  }, [supabase.auth, router])
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, stop, setMessages, reload } = useChat({
     api: '/api/chat',
@@ -235,7 +250,7 @@ export default function Chat({ params }: PageProps) {
     let isMounted = true;
 
     async function initialize() {
-      if (initialMessageSentRef.current) return;
+      if (initialMessageSentRef.current || !user) return;
       
       try {
         // 1. 세션 확인 및 모델 정보 로드
@@ -243,10 +258,17 @@ export default function Chat({ params }: PageProps) {
           .from('chat_sessions')
           .select('current_model, initial_message')
           .eq('id', chatId)
+          .eq('user_id', user.id)
           .single();
 
-        if (sessionError || !session) {
+        if (sessionError) {
           console.error('Session error:', sessionError);
+          router.push('/');
+          return;
+        }
+
+        if (!session) {
+          console.error('Session not found');
           router.push('/');
           return;
         }
@@ -261,6 +283,7 @@ export default function Chat({ params }: PageProps) {
           .from('messages')
           .select('*')
           .eq('chat_session_id', chatId)
+          .eq('user_id', user.id)
           .order('created_at', { ascending: true });
 
         if (messagesError) {
@@ -284,7 +307,8 @@ export default function Chat({ params }: PageProps) {
             created_at: new Date().toISOString(),
             model: session.current_model,
             host: 'user',
-            chat_session_id: chatId
+            chat_session_id: chatId,
+            user_id: user.id
           }]);
 
           if (insertError) {
@@ -305,7 +329,6 @@ export default function Chat({ params }: PageProps) {
 
           // AI 응답 요청 시작
           if (isMounted) {
-            // handleSubmit 대신 직접 API 요청
             reload({
               body: {
                 model: session.current_model,
@@ -333,11 +356,11 @@ export default function Chat({ params }: PageProps) {
     return () => {
       isMounted = false;
     };
-  }, [chatId]);
+  }, [chatId, user]);
 
   // 실시간 업데이트 구독 (초기화 완료 후에만)
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!isInitialized || !user) return;
 
     const channel = supabase
       .channel('chat-messages')
@@ -347,7 +370,7 @@ export default function Chat({ params }: PageProps) {
           event: '*',
           schema: 'public',
           table: 'messages',
-          filter: `chat_session_id=eq.${chatId}`
+          filter: `chat_session_id=eq.${chatId} AND user_id=eq.${user.id}`
         },
         async (payload) => {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
@@ -355,6 +378,7 @@ export default function Chat({ params }: PageProps) {
               .from('messages')
               .select('*')
               .eq('id', payload.new.id)
+              .eq('user_id', user.id)
               .single();
 
             if (!error && message) {

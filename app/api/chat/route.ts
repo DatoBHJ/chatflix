@@ -1,5 +1,5 @@
-import { Message, streamText, createDataStreamResponse, smoothStream, DataStreamWriter } from 'ai';
-import { supabase } from '@/lib/supabase'
+import { Message, streamText, createDataStreamResponse, smoothStream } from 'ai';
+import { createClient } from '@/utils/supabase/server'
 import { providers } from '@/lib/providers'
 import { ChatRequest, MessagePart, CompletionResult } from '@/lib/types'
 
@@ -80,6 +80,14 @@ export async function POST(req: Request) {
   return createDataStreamResponse({
     execute: async (dataStream) => {
       try {
+        const supabase = await createClient()
+        
+        // Get the current user
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        if (userError || !user) {
+          throw new Error('Unauthorized')
+        }
+
         const body = await req.json();
         const { messages, model, chatId, isRegeneration }: ChatRequest = body;
         
@@ -91,6 +99,7 @@ export async function POST(req: Request) {
               .from('chat_sessions')
               .select()
               .eq('id', chatId)
+              .eq('user_id', user.id)
               .single();
 
             if (sessionError || !existingSession) {
@@ -119,6 +128,7 @@ export async function POST(req: Request) {
             .eq('chat_session_id', chatId)
             .eq('content', lastUserMessage.content)
             .eq('role', 'user')
+            .eq('user_id', user.id)
             .single();
 
           // 메시지가 존재하지 않는 경우에만 저장
@@ -129,8 +139,9 @@ export async function POST(req: Request) {
               role: 'user',
               created_at: new Date().toISOString(),
               model,
-              host: 'user',  // 항상 'user'로 설정
-              chat_session_id: chatId
+              host: 'user',
+              chat_session_id: chatId,
+              user_id: user.id
             }]);
           }
         }
@@ -156,7 +167,8 @@ export async function POST(req: Request) {
             created_at: new Date().toISOString(),
             model,
             host: provider,
-            chat_session_id: chatId
+            chat_session_id: chatId,
+            user_id: user.id
           }]);
         }
 
@@ -216,7 +228,8 @@ export async function POST(req: Request) {
                 created_at: new Date().toISOString(),
                 model,
                 host: provider,
-                chat_session_id: chatId
+                chat_session_id: chatId,
+                user_id: user.id
               };
 
               const { error: updateError } = await supabase

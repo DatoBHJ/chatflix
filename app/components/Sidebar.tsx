@@ -2,16 +2,25 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase/client'
 import { DatabaseMessage, Chat } from '@/lib/types'
 
-export function Sidebar() {
+interface SidebarProps {
+  user: any;  // You might want to define a proper User type
+}
+
+export function Sidebar({ user }: SidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const [chats, setChats] = useState<Chat[]>([])
+  const supabase = createClient()
 
   useEffect(() => {
-    loadChats()
+    if (user) {
+      loadChats()
+    } else {
+      setChats([])
+    }
 
     // 실시간 업데이트를 위한 채널 설정
     const chatChannel = supabase
@@ -19,50 +28,44 @@ export function Sidebar() {
       .on(
         'postgres_changes',
         {
-          event: '*',  // INSERT, UPDATE, DELETE 모두 감지
+          event: '*',
           schema: 'public',
-          table: 'chat_sessions'
+          table: 'chat_sessions',
+          filter: `user_id=eq.${user?.id}`
         },
         async (payload) => {
-          console.log('Chat session change:', payload);
-          // 변경 즉시 채팅 목록 새로고침
+          console.log('Chat session change:', payload)
           await loadChats()
         }
       )
       .on(
         'postgres_changes',
         {
-          event: '*',  // INSERT, UPDATE, DELETE 모두 감지
+          event: '*',
           schema: 'public',
-          table: 'messages'
+          table: 'messages',
+          filter: `user_id=eq.${user?.id}`
         },
         async (payload) => {
-          console.log('Message change:', payload);
-          // 메시지 변경 즉시 채팅 목록 새로고침
+          console.log('Message change:', payload)
           await loadChats()
         }
       )
       .subscribe()
 
-    // Add event listener for new chat creation
-    const handleChatCreated = (event: CustomEvent<Chat>) => {
-      setChats(prevChats => [event.detail, ...prevChats]);
-    };
-
-    window.addEventListener('chatCreated', handleChatCreated as EventListener);
-
     return () => {
       supabase.removeChannel(chatChannel)
-      window.removeEventListener('chatCreated', handleChatCreated as EventListener);
     }
-  }, [])
+  }, [user])
 
   async function loadChats() {
+    if (!user) return;
+
     try {
-      // 세션을 최신 수정 시간 순으로 정렬
       const { data: sessions, error: sessionsError } = await supabase
         .from('chat_sessions')
-        .select('*, messages:messages(*, created_at)')  // messages 테이블과 join
+        .select('*, messages:messages(*)')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
       if (sessionsError) {
@@ -72,12 +75,10 @@ export function Sidebar() {
 
       const chatsWithMessages = sessions.map(session => {
         const messages = session.messages || []
-        // 가장 최근 메시지 시간을 기준으로 정렬
         const lastMessageTime = messages.length > 0 
           ? Math.max(...messages.map((m: { created_at: string | number | Date }) => new Date(m.created_at).getTime()))
           : new Date(session.created_at).getTime()
 
-        // 첫 번째 사용자 메시지를 제목으로 사용
         const firstUserMessage = messages.find((m: { role: string }) => m.role === 'user')
         const title = firstUserMessage?.content || 'New Chat'
 
@@ -86,45 +87,46 @@ export function Sidebar() {
           title: title,
           messages: messages,
           created_at: session.created_at,
-          lastMessageTime: lastMessageTime,  // 정렬을 위한 추가 필드
+          lastMessageTime: lastMessageTime,
           lastMessage: messages[messages.length - 1]?.content
         }
       })
 
-      // 마지막 메시지 시간 기준으로 정렬
       chatsWithMessages.sort((a, b) => b.lastMessageTime - a.lastMessageTime)
-
-      console.log('Updated chats:', chatsWithMessages)
       setChats(chatsWithMessages)
     } catch (error) {
       console.error('Error in loadChats:', error)
     }
   }
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    setChats([])
+    router.push('/login')
+  }
+
   const handleDeleteChat = async (chatId: string, e: React.MouseEvent) => {
-    e.stopPropagation() // Prevent chat selection event
+    e.stopPropagation()
     
     if (!confirm('Do you want to delete this chat?')) return
 
     try {
-      // 먼저 메시지 삭제
       await supabase
         .from('messages')
         .delete()
         .eq('chat_session_id', chatId)
+        .eq('user_id', user.id)
 
-      // 그 다음 세션 삭제
       await supabase
         .from('chat_sessions')
         .delete()
         .eq('id', chatId)
+        .eq('user_id', user.id)
 
-      // 현재 삭제된 채팅을 보고 있었다면 홈페이지로 리다이렉트
       if (pathname === `/chat/${chatId}`) {
         router.push('/')
       }
 
-      // 채팅 목록 새로고침
       loadChats()
     } catch (error) {
       console.error('Failed to delete chat:', error)
@@ -136,22 +138,17 @@ export function Sidebar() {
     if (!confirm('Do you want to delete all chats? This action cannot be undone.')) return
 
     try {
-      // 먼저 모든 메시지 삭제
       await supabase
         .from('messages')
         .delete()
-        .neq('id', '0') // 모든 메시지 삭제
+        .eq('user_id', user.id)
 
-      // 그 다음 모든 세션 삭제
       await supabase
         .from('chat_sessions')
         .delete()
-        .neq('id', '0') // 모든 세션 삭제
+        .eq('user_id', user.id)
 
-      // 홈페이지로 리다이렉트
       router.push('/')
-
-      // 채팅 목록 새로고침
       loadChats()
     } catch (error) {
       console.error('Failed to delete all chats:', error)
@@ -159,15 +156,19 @@ export function Sidebar() {
     }
   }
 
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="w-80 h-full bg-[var(--background)] border-r border-[var(--accent)]">
       <div className="h-full flex flex-col">
-        {/* Top Section with Padding for Menu Button */}
+        {/* Top Section - New Chat Button */}
         <div className="pt-24 px-6 pb-6 border-b border-[var(--accent)]">
           <button
             onClick={() => router.push('/')}
             className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
-            title="Home"
+            title="New Chat"
           >
             new chat
           </button>
@@ -220,6 +221,20 @@ export function Sidebar() {
               ))}
             </div>
           </div>
+        </div>
+
+        {/* Bottom Section - User Info & Sign Out */}
+        <div className="mt-auto px-6 py-6 border-t border-[var(--accent)]">
+          <div className="text-xs text-center text-[var(--muted)] mb-4 uppercase tracking-wider">
+            {user.email}
+          </div>
+          <button
+            onClick={handleSignOut}
+            className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
+            title="Sign Out"
+          >
+            sign out
+          </button>
         </div>
       </div>
     </div>

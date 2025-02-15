@@ -2,8 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { useChat } from 'ai/react'
-import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useState, useEffect } from 'react'
+import { createClient } from '@/utils/supabase/client'
 import { ModelSelector } from './components/ModelSelector'
 import { ChatInput } from './components/ChatInput'
 
@@ -12,6 +12,20 @@ export default function Home() {
   const [currentModel, setCurrentModel] = useState('claude-3-5-sonnet-latest')
   const [nextModel, setNextModel] = useState(currentModel)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [user, setUser] = useState<any>(null)
+  const supabase = createClient()
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/login')
+        return
+      }
+      setUser(user)
+    }
+    getUser()
+  }, [supabase.auth, router])
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, stop } = useChat({
     api: '/api/chat',
@@ -23,7 +37,7 @@ export default function Home() {
   const handleModelSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (isSubmitting || !input.trim()) return
+    if (isSubmitting || !input.trim() || !user) return
     setIsSubmitting(true)
 
     try {
@@ -37,12 +51,10 @@ export default function Home() {
         messages: [],
         created_at: new Date().toISOString(),
         lastMessageTime: Date.now(),
-        current_model: nextModel
+        current_model: nextModel,
+        user_id: user.id
       };
 
-      // Emit event for sidebar update
-      window.dispatchEvent(new CustomEvent('chatCreated', { detail: newChat }));
-      
       // Create session with initial message
       const { error: sessionError } = await supabase
         .from('chat_sessions')
@@ -50,7 +62,8 @@ export default function Home() {
           id: sessionId,
           title: input.trim(),
           current_model: nextModel,
-          initial_message: input.trim()  // Save initial message
+          initial_message: input.trim(),
+          user_id: user.id
         }]);
 
       if (sessionError) {
@@ -66,6 +79,10 @@ export default function Home() {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (!user) {
+    return <div className="flex h-screen items-center justify-center">Loading...</div>
   }
 
   return (
