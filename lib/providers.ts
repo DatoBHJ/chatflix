@@ -33,12 +33,19 @@ const togetherDeepSeekR1WithReasoning = wrapLanguageModel({
   middleware: extractReasoningMiddleware({ tagName: 'think' })
 });
 
+// Together.ai의 DeepSeek R1 Distill Llama 70B free 모델에 reasoning 기능 추가
+const togetherDeepSeekR1DistillWithReasoning = wrapLanguageModel({
+  model: together('deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free'),
+  middleware: extractReasoningMiddleware({ tagName: 'think' })
+});
+
 // 모든 모델을 하나의 customProvider로 통합
 export const providers = customProvider({
   languageModels: {
     'deepseek-reasoner': deepseek('deepseek-reasoner'),
     'deepseek-chat': deepseek('deepseek-chat'),
     'deepseek-ai/DeepSeek-R1': togetherDeepSeekR1WithReasoning,
+    'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free': togetherDeepSeekR1DistillWithReasoning,
     'deepseek-ai/DeepSeek-V3': together('deepseek-ai/DeepSeek-V3'),
     'DeepSeek r1 distill llama 70b': groqDeepSeekWithReasoning,
     'claude-3-5-sonnet-latest': anthropic('claude-3-sonnet-20240229'),
