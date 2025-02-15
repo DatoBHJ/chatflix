@@ -166,7 +166,7 @@ export async function POST(req: Request) {
           messages: [
             {
               role: 'system',
-              content: 'You are a helpful AI assistant. Always format your responses in markdown. Use appropriate markdown syntax for code blocks, lists, tables, and other formatting elements.'
+              content: 'You are a helpful AI assistant. Use appropriate markdown syntax for code blocks, lists, tables, and other formatting elements.'
             },
             ...normalizedMessages
           ],
