@@ -164,7 +164,7 @@ export function Sidebar({ user }: SidebarProps) {
     <div className="w-80 h-full bg-[var(--background)] border-r border-[var(--accent)]">
       <div className="h-full flex flex-col">
         {/* Top Section - New Chat Button */}
-        <div className="pt-24 px-6 pb-6 border-b border-[var(--accent)]">
+        <div className="pt-12 px-6 pb-6 border-b border-[var(--accent)]">
           <button
             onClick={() => router.push('/')}
             className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
@@ -181,7 +181,7 @@ export function Sidebar({ user }: SidebarProps) {
               <div className="mb-8">
                 <button
                   onClick={handleDeleteAllChats}
-                  className="w-full py-3 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors uppercase tracking-wider"
+                  className="w-full py-3 text-xs text-red-500 hover:text-red-700 transition-colors uppercase tracking-wider"
                 >
                   Delete All Chats
                 </button>
@@ -200,14 +200,33 @@ export function Sidebar({ user }: SidebarProps) {
                   <div className="flex justify-between items-start gap-4">
                     <div className="flex-1 min-w-0 space-y-2">
                       <div className="font-medium truncate">{chat.title}</div>
-                      <div className="text-[var(--muted)] text-xs truncate">
-                        {new Date(chat.created_at).toLocaleDateString()}
-                      </div>
-                      {chat.messages[1] && (
+                      {chat.messages.length > 0 && chat.messages[chat.messages.length - 1].host && (
                         <div className="text-[var(--muted)] text-xs uppercase">
-                          {chat.messages[1].host}
+                          {chat.messages[chat.messages.length - 1].host.split('.')[0]}
                         </div>
                       )}
+                      <div className="text-[var(--muted)] text-xs truncate">
+                        {(() => {
+                          const date = new Date(chat.lastMessageTime || chat.created_at);
+                          const now = new Date();
+                          const isToday = date.toDateString() === now.toDateString();
+                          const isThisYear = date.getFullYear() === now.getFullYear();
+                          
+                          const time = date.toLocaleTimeString('en-US', { 
+                            hour: 'numeric', 
+                            minute: '2-digit',
+                            hour12: true 
+                          });
+                          
+                          if (isToday) {
+                            return time;
+                          } else if (isThisYear) {
+                            return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${time}`;
+                          } else {
+                            return `${date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })} ${time}`;
+                          }
+                        })()}
+                      </div>
                     </div>
                     <button
                       onClick={(e) => handleDeleteChat(chat.id, e)}
@@ -224,10 +243,10 @@ export function Sidebar({ user }: SidebarProps) {
         </div>
 
         {/* Bottom Section - User Info & Sign Out */}
-        <div className="mt-auto px-6 py-6 border-t border-[var(--accent)]">
-          <div className="text-xs text-center text-[var(--muted)] mb-4 uppercase tracking-wider">
+        <div className="mt-auto px-6 py-6 ">
+          {/* <div className="text-xs text-center text-[var(--muted)] mb-4 uppercase tracking-wider">
             {user.email}
-          </div>
+          </div> */}
           <button
             onClick={handleSignOut}
             className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"

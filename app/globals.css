@@ -9,7 +9,7 @@
   --background: #111111;
   --foreground: #ffffff;
   --accent: #222222;
-  --muted: #666666;
+  --muted: #999999;
   --font-sans: "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
   --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -40,7 +40,7 @@ body {
   .yeezy-button {
     @apply bg-transparent text-[var(--foreground)] rounded-none px-6 sm:px-8 py-3 sm:py-4
            hover:bg-[var(--foreground)] hover:text-[var(--background)] transition-all 
-           font-medium text-sm uppercase tracking-wider
+           font-medium text-sm sm:text-base uppercase tracking-wider
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
@@ -50,7 +50,7 @@ body {
   }
 
   .yeezy-model-selector {
-    @apply bg-transparent text-sm uppercase tracking-wide w-full
+    @apply bg-transparent text-xs sm:text-sm uppercase tracking-wide w-full
            focus:outline-none cursor-pointer py-2 px-4 sm:px-6
            transition-colors relative;
     position: relative;
@@ -120,12 +120,12 @@ body {
 
 /* Message Styles */
 .message-user {
-  @apply bg-[var(--foreground)] text-[var(--background)] p-6 rounded-none max-w-[85%] ml-auto
+  @apply bg-[var(--foreground)] text-[var(--background)] p-6 rounded-none max-w-full ml-auto
          hover:opacity-95 transition-[var(--transition)];
 }
 
 .message-assistant {
-  @apply bg-[var(--accent)] text-[var(--foreground)] p-6 rounded-none max-w-[85%]
+  @apply bg-[var(--accent)] text-[var(--foreground)] p-6 rounded-none max-w-full
          hover:opacity-95 transition-[var(--transition)];
 }
 
@@ -287,7 +287,7 @@ body {
 
 /* Reasoning Section Styles */
 .message-reasoning {
-  @apply bg-black/20 p-4 mb-4 text-sm border-l-2 border-[var(--muted)];
+  @apply bg-black/20 p-4 mb-4 text-sm ;
 }
 
 .message-reasoning-header {

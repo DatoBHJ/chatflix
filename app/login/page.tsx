@@ -44,7 +44,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-[var(--background)]">
       <div className="w-full max-w-sm mx-auto px-8 -mt-32">
         <div className="mb-16 text-center">
-          <h1 className="text-2xl font-light uppercase tracking-wider mb-2">DeepSeek Chat</h1>
+          <h1 className="text-2xl font-light uppercase tracking-wider mb-2">Chat</h1>
           <p className="text-xs text-[var(--muted)] uppercase tracking-wider">Sign in or create an account</p>
         </div>
         <form className="space-y-6">

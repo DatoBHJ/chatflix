@@ -14,7 +14,7 @@ interface ModelSelectorProps {
   position?: 'top' | 'bottom';
 }
 
-const MODEL_OPTIONS: ModelOption[] = [
+export const MODEL_OPTIONS: ModelOption[] = [
   {
     id: 'claude-3-5-sonnet-latest',
     name: 'Claude 3.5 Sonnet',
@@ -83,7 +83,7 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
   return (
     <div className="relative" ref={containerRef}>
       <div className="flex items-center gap-4">
-        <span className="text-xs uppercase tracking-wider text-[var(--muted)]">Model</span>
+        <span className="text-xs sm:text-sm uppercase tracking-wider text-[var(--muted)]">Model</span>
         <div className={`relative ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
           <button
             onClick={() => !disabled && setIsOpen(!isOpen)}
@@ -130,10 +130,10 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
                   role="option"
                   aria-selected={option.id === nextModel}
                 >
-                  <div className={`text-sm font-medium mb-1 ${isMobile ? 'text-base' : ''}`}>
+                  <div className={`text-sm sm:text-base font-medium mb-1 ${isMobile ? 'text-base' : ''}`}>
                     {option.name}
                   </div>
-                  <div className={`text-xs text-[var(--muted)] ${isMobile ? 'text-sm' : ''}`}>
+                  <div className={`text-xs sm:text-sm text-[var(--muted)] ${isMobile ? 'text-sm' : ''}`}>
                     {option.description}
                   </div>
                 </div>

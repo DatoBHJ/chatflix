@@ -89,10 +89,6 @@ export default function Home() {
     <main className="flex-1 flex flex-col min-h-screen">
       <div className="flex-1 flex flex-col items-center justify-center -mt-16 sm:-mt-32">
         <div className="w-full max-w-2xl px-10 sm:px-8">
-          {/* <div className="mb-12 sm:mb-16 text-left sm:text-center">
-            <h1 className="text-2xl sm:text-2xl font-light mb-3 uppercase tracking-wider">Chat is this real?</h1>
-            <p className="text-[var(--muted)] text-sm sm:text-sm tracking-wide">Chat with multiple AI models</p>
-          </div> */}
           <div className="space-y-0">
             <ModelSelector
               currentModel={currentModel}
@@ -107,7 +103,7 @@ export default function Home() {
               isLoading={isLoading}
               stop={stop}
               disabled={isSubmitting}
-              placeholder="chat is this real?"
+              placeholder="Chat is this real?"
             />
           </div>
         </div>

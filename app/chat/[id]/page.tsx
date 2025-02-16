@@ -14,6 +14,7 @@ import { createClient } from '@/utils/supabase/client'
 import { DatabaseMessage } from '@/lib/types'
 import { ModelSelector } from '../../components/ModelSelector'
 import { ChatInput } from '../../components/ChatInput'
+import { MODEL_OPTIONS } from '../../components/ModelSelector'
 
 interface PageProps {
   params: Promise<{
@@ -21,13 +22,18 @@ interface PageProps {
   }>;
 }
 
+interface ExtendedMessage extends Message {
+  model?: string;
+}
+
 // 메시지 변환 함수를 컴포넌트 외부로 이동
-const convertMessage = (msg: DatabaseMessage): Message => {
+const convertMessage = (msg: DatabaseMessage): ExtendedMessage => {
   const baseMessage = {
     id: msg.id,
     content: msg.content,
     role: msg.role as 'user' | 'assistant' | 'system',
     createdAt: new Date(msg.created_at),
+    model: msg.model
   };
 
   if (msg.role === 'assistant' && msg.reasoning) {
@@ -232,6 +238,17 @@ export default function Chat({ params }: PageProps) {
     },
     id: chatId,
     initialMessages: [],
+    onResponse: (response) => {
+      // Add model information as soon as the message is created
+      setMessages(prevMessages => {
+        const updatedMessages = [...prevMessages];
+        const lastMessage = updatedMessages[updatedMessages.length - 1];
+        if (lastMessage && lastMessage.role === 'assistant') {
+          (lastMessage as ExtendedMessage).model = currentModel;
+        }
+        return updatedMessages;
+      });
+    }
   });
 
   const scrollToBottom = useCallback(() => {
@@ -385,6 +402,10 @@ export default function Chat({ params }: PageProps) {
               setMessages(prevMessages => {
                 const otherMessages = prevMessages.filter(m => m.id !== message.id);
                 const convertedMessage = convertMessage(message);
+                // Ensure model information is preserved
+                if (convertedMessage.role === 'assistant') {
+                  (convertedMessage as ExtendedMessage).model = message.model;
+                }
                 return [...otherMessages, convertedMessage];
               });
             }
@@ -467,7 +488,17 @@ export default function Chat({ params }: PageProps) {
             chatId,
             isRegeneration: true
           }
-        })
+        });
+
+        // 모델 정보를 즉시 업데이트
+        setMessages(prevMessages => {
+          const updatedMessages = [...prevMessages];
+          const lastMessage = updatedMessages[updatedMessages.length - 1];
+          if (lastMessage && lastMessage.role === 'assistant') {
+            (lastMessage as ExtendedMessage).model = currentModel;
+          }
+          return updatedMessages;
+        });
       } catch (error) {
         console.error('Error handling reload:', error)
         // 에러 발생 시 원래 메시지 상태로 복구
@@ -546,6 +577,9 @@ export default function Chat({ params }: PageProps) {
                       <span>Copy</span>
                     )}
                   </button>
+                  <div className="text-xs text-[var(--muted)] uppercase tracking-wider">
+                    {MODEL_OPTIONS.find(option => option.id === currentModel)?.name || currentModel}
+                  </div>
                 </div>
               )}
             </div>
