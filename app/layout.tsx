@@ -3,7 +3,7 @@ import './globals.css'
 import RootLayoutClient from './RootLayoutClient'
 
 export const metadata: Metadata = {
-  title: 'DeepSeek Chat',
+  title: 'chatflix.app',
   description: 'Chat with multiple AI models',
 }
 
