@@ -18,37 +18,37 @@ export const MODEL_OPTIONS: ModelOption[] = [
   {
     id: 'claude-3-5-sonnet-latest',
     name: 'Claude 3.5 Sonnet',
-    description: 'Most versatile. Best for coding, analysis, and complex tasks.'
+    description: 'GOAT'
   },
-  {
-    id: 'deepseek-reasoner',
-    name: 'DeepSeek Reasoner',
-    description: 'Shows step-by-step reasoning. Great for math and problem-solving.'
-  },
-  {
-    id: 'deepseek-chat',
-    name: 'DeepSeek Chat',
-    description: 'Fast and efficient. Perfect for casual conversations.'
-  },
+  // {
+  //   id: 'deepseek-reasoner',
+  //   name: 'DeepSeek Reasoner',
+  //   description: 'Shows step-by-step reasoning. Great for math and problem-solving.'
+  // },
+  // {
+  //   id: 'deepseek-chat',
+  //   name: 'DeepSeek Chat',
+  //   description: 'Fast and efficient. Perfect for casual conversations.'
+  // },
   {
     id: 'deepseek-ai/DeepSeek-R1',
-    name: 'DeepSeek R1 (Together)',
-    description: 'Advanced reasoning model. Excels at math and coding tasks.'
+    name: 'DeepSeek R1',
+    description: 'DeepSeek R1 by together.ai.\n Advanced reasoning model.'
   },
-  {
-    id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free',
-    name: 'DeepSeek R1 Distill 70B (Free)',
-    description: 'Free version of DeepSeek R1. Good for general use and coding.'
-  },
+  // {
+  //   id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free',
+  //   name: 'DeepSeek R1 Distill 70B (Free)',
+  //   description: 'Free version of DeepSeek R1. Good for general use and coding.'
+  // },
   {
     id: 'deepseek-ai/DeepSeek-V3',
-    name: 'DeepSeek V3 (Together)',
-    description: 'Efficient and cost-effective. Good for general use.'
+    name: 'DeepSeek V3',
+    description: 'DeepSeek V3 by together.ai.\n Good for general use.'
   },
   {
     id: 'DeepSeek r1 distill llama 70b',
-    name: 'DeepSeek R1 (Groq)',
-    description: 'High-speed version. Optimized for quick responses.'
+    name: 'DeepSeek R1 distill llama 70b',
+    description: 'DeepSeek R1 distill llama 70b by groq.\n High-speed reasoning model.'
   }
 ];
 
@@ -133,7 +133,7 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
                   <div className={`text-sm sm:text-base font-medium mb-1 ${isMobile ? 'text-base' : ''}`}>
                     {option.name}
                   </div>
-                  <div className={`text-xs sm:text-sm text-[var(--muted)] ${isMobile ? 'text-sm' : ''}`}>
+                  <div className={`text-xs text-[var(--muted)] whitespace-pre-line ${isMobile ? 'text-sm' : ''}`}>
                     {option.description}
                   </div>
                 </div>
