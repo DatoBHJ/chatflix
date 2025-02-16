@@ -654,14 +654,10 @@ export default function Chat({ params }: PageProps) {
                   <button 
                     onClick={handleReload(message.id)}
                     disabled={isRegenerating}
-                    className={`text-xs ${
-                      isRegenerating 
-                        ? 'text-[var(--muted)] cursor-not-allowed' 
-                        : 'text-[var(--muted)] hover:text-[var(--foreground)]'
-                    } transition-colors flex items-center gap-2 uppercase tracking-wider`}
+                    className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2 uppercase tracking-wider"
                   >
-                    <IconRefresh className={`w-3 h-3 ${isRegenerating ? 'animate-spin' : ''}`} />
-                    <span>{isRegenerating ? 'Regenerating...' : 'Regenerate'}</span>
+                    <IconRefresh className="w-3 h-3" />
+                    <span>Regenerate</span>
                   </button>
                   <button
                     onClick={() => handleCopyMessage(message)}
