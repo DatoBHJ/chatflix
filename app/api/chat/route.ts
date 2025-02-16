@@ -89,7 +89,7 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json();
-        const { messages, model, chatId, isRegeneration }: ChatRequest = body;
+        const { messages, model, chatId, isRegeneration, existingMessageId }: ChatRequest = body;
         
         // chatId가 있는 경우 해당 세션이 존재하는지 확인
         if (chatId) {
@@ -118,31 +118,66 @@ export async function POST(req: Request) {
         // provider 이름 가져오기
         const provider = getProviderFromModel(model);
 
+        // 현재 채팅의 마지막 시퀀스 번호 가져오기
+        const { data: lastMessage, error: sequenceError } = await supabase
+          .from('messages')
+          .select('sequence_number')
+          .eq('chat_session_id', chatId)
+          .eq('user_id', user.id)
+          .order('sequence_number', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        // 다음 시퀀스 번호 계산 (let으로 변경)
+        let nextSequence = (lastMessage?.sequence_number || 0) + 1;
+
         // 재생성이 아닌 경우에만 사용자 메시지 저장
         const lastUserMessage = messages[messages.length - 1];
         if (lastUserMessage.role === 'user' && !isRegeneration) {
           // 해당 메시지가 이미 존재하는지 확인
           const { data: existingMessage } = await supabase
             .from('messages')
-            .select('id')
+            .select('id, sequence_number')
             .eq('chat_session_id', chatId)
             .eq('content', lastUserMessage.content)
             .eq('role', 'user')
             .eq('user_id', user.id)
-            .single();
+            .maybeSingle();
 
           // 메시지가 존재하지 않는 경우에만 저장
           if (!existingMessage) {
-            await supabase.from('messages').insert([{
-              id: Date.now().toString(),
+            // 현재 최대 시퀀스 번호 다시 확인
+            const { data: currentMax } = await supabase
+              .from('messages')
+              .select('sequence_number')
+              .eq('chat_session_id', chatId)
+              .eq('user_id', user.id)
+              .order('sequence_number', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            const userMessageSequence = (currentMax?.sequence_number || 0) + 1;
+            
+            const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            const { error: insertError } = await supabase.from('messages').insert([{
+              id: messageId,
               content: lastUserMessage.content,
               role: 'user',
               created_at: new Date().toISOString(),
               model,
               host: 'user',
               chat_session_id: chatId,
-              user_id: user.id
+              user_id: user.id,
+              sequence_number: userMessageSequence
             }]);
+
+            if (insertError) {
+              console.error('Failed to insert user message:', insertError);
+              throw new Error('Failed to insert user message');
+            }
+
+            // AI 메시지를 위한 시퀀스 번호 업데이트
+            nextSequence = userMessageSequence + 1;
           }
         }
 
@@ -154,12 +189,26 @@ export async function POST(req: Request) {
         // 메시지 형식 정규화
         const normalizedMessages = normalizeMessages(messages);
 
-        // AI 응답을 위한 초기 레코드 생성
-        const assistantMessageId = Date.now().toString();
+        // AI 응답을 위한 메시지 ID 설정 (재생성 시 기존 ID 사용)
+        const assistantMessageId = isRegeneration && existingMessageId 
+          ? existingMessageId 
+          : `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         
-        // 재생성 시에는 새 메시지를 생성하지 않고 기존 메시지를 업데이트
+        // 재생성이 아닐 때만 새 메시지를 생성
         if (!isRegeneration) {
-          await supabase.from('messages').insert([{
+          // 현재 최대 시퀀스 번호 다시 확인
+          const { data: currentMax } = await supabase
+            .from('messages')
+            .select('sequence_number')
+            .eq('chat_session_id', chatId)
+            .eq('user_id', user.id)
+            .order('sequence_number', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          const assistantSequence = (currentMax?.sequence_number || 0) + 1;
+
+          const { error: insertError } = await supabase.from('messages').insert([{
             id: assistantMessageId,
             role: 'assistant',
             content: '',
@@ -168,10 +217,35 @@ export async function POST(req: Request) {
             model,
             host: provider,
             chat_session_id: chatId,
-            user_id: user.id
+            user_id: user.id,
+            sequence_number: assistantSequence
           }]);
+
+          if (insertError) {
+            console.error('Failed to insert assistant message:', insertError);
+            throw new Error('Failed to insert assistant message');
+          }
+        } else {
+          // 재생성 시에는 즉시 빈 내용으로 업데이트 (시퀀스 번호는 유지)
+          const { error: immediateUpdateError } = await supabase
+            .from('messages')
+            .update({
+              content: '',
+              reasoning: '',
+              model,
+              host: provider,
+              created_at: new Date().toISOString()
+            })
+            .eq('id', assistantMessageId)
+            .eq('user_id', user.id);
+
+          if (immediateUpdateError) {
+            console.error('Failed to update message immediately:', immediateUpdateError);
+          }
         }
 
+        // console.log(normalizedMessages, 'normalizedMessages','\n');
+        console.log('normalizedMessages:', JSON.stringify(normalizedMessages, null, 2));
         // 스트리밍 응답 설정
         const result = streamText({
           model: selectedModel,
@@ -185,8 +259,8 @@ export async function POST(req: Request) {
           temperature: 0.7,
           maxTokens: 1000,
           experimental_transform: smoothStream({
-            chunking: 'word',
-            delayInMs: 15,
+            // chunking: 'word',
+            // delayInMs: 15,
           }),
           onFinish: async (completion: CompletionResult) => {
             try {
@@ -229,12 +303,34 @@ export async function POST(req: Request) {
                 model,
                 host: provider,
                 chat_session_id: chatId,
-                user_id: user.id
+                user_id: user.id,
+                sequence_number: isRegeneration ? lastMessage?.sequence_number : nextSequence + 1
               };
 
-              const { error: updateError } = await supabase
-                .from('messages')
-                .upsert(messageData);
+              // 재생성 시에는 update, 아닐 때는 upsert 사용
+              const { error: updateError } = isRegeneration
+                ? await supabase
+                    .from('messages')
+                    .update({
+                      content: finalContent,
+                      reasoning: finalReasoning && finalReasoning !== finalContent ? finalReasoning : null,
+                      model,
+                      host: provider,
+                      created_at: new Date().toISOString()
+                    })
+                    .eq('id', assistantMessageId)
+                    .eq('user_id', user.id)
+                : await supabase
+                    .from('messages')
+                    .update({
+                      content: finalContent,
+                      reasoning: finalReasoning && finalReasoning !== finalContent ? finalReasoning : null,
+                      model,
+                      host: provider,
+                      created_at: new Date().toISOString()
+                    })
+                    .eq('id', assistantMessageId)
+                    .eq('user_id', user.id);
 
               if (updateError) {
                 console.error('Failed to update message:', updateError);

@@ -2,12 +2,17 @@ import './globals.css'
 import RootLayoutClient from './RootLayoutClient'
 import { PWAInstallPrompt } from './components/PWAInstallPrompt'
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: '#000000',
+}
+
 export const metadata = {
   title: 'Chatflix.app',
   description: 'AI Chat Application',
   manifest: '/manifest.json',
-  themeColor: '#000000',
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',

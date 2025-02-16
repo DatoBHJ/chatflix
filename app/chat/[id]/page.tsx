@@ -216,6 +216,7 @@ export default function Chat({ params }: PageProps) {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
   const [user, setUser] = useState<any>(null)
   const supabase = createClient()
+  const [isRegenerating, setIsRegenerating] = useState(false)
 
   // Add user authentication check
   useEffect(() => {
@@ -295,13 +296,13 @@ export default function Chat({ params }: PageProps) {
           setNextModel(session.current_model);
         }
 
-        // 2. 기존 메시지 로드
+        // 2. 기존 메시지 로드 (시퀀스 번호로 정렬)
         const { data: existingMessages, error: messagesError } = await supabase
           .from('messages')
           .select('*')
           .eq('chat_session_id', chatId)
           .eq('user_id', user.id)
-          .order('created_at', { ascending: true });
+          .order('sequence_number', { ascending: true });
 
         if (messagesError) {
           console.error('Failed to load messages:', messagesError);
@@ -310,11 +311,18 @@ export default function Chat({ params }: PageProps) {
 
         if (existingMessages && existingMessages.length > 0 && isMounted) {
           // 기존 메시지가 있는 경우
-          setMessages(existingMessages.map(convertMessage));
+          const sortedMessages = existingMessages
+            .map(convertMessage)
+            .sort((a: any, b: any) => {
+              const seqA = (a as any).sequence_number || 0;
+              const seqB = (b as any).sequence_number || 0;
+              return seqA - seqB;
+            });
+          setMessages(sortedMessages);
           setIsInitialized(true);
         } else if (session.initial_message && isMounted) {
           // 초기 메시지만 있는 경우
-          const messageId = Date.now().toString();
+          const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           
           // 사용자 메시지 저장
           const { error: insertError } = await supabase.from('messages').insert([{
@@ -375,7 +383,7 @@ export default function Chat({ params }: PageProps) {
     };
   }, [chatId, user]);
 
-  // 실시간 업데이트 구독 (초기화 완료 후에만)
+  // 실시간 업데이트 구독
   useEffect(() => {
     if (!isInitialized || !user) return;
 
@@ -391,22 +399,70 @@ export default function Chat({ params }: PageProps) {
         },
         async (payload) => {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            const { data: message, error } = await supabase
+            // 모든 메시지를 다시 로드하여 시퀀스 순서 보장
+            const { data: allMessages, error } = await supabase
               .from('messages')
               .select('*')
-              .eq('id', payload.new.id)
+              .eq('chat_session_id', chatId)
               .eq('user_id', user.id)
-              .single();
+              .order('sequence_number', { ascending: true });
 
-            if (!error && message) {
-              setMessages(prevMessages => {
-                const otherMessages = prevMessages.filter(m => m.id !== message.id);
-                const convertedMessage = convertMessage(message);
-                // Ensure model information is preserved
-                if (convertedMessage.role === 'assistant') {
-                  (convertedMessage as ExtendedMessage).model = message.model;
+            if (!error && allMessages) {
+              // 시퀀스 번호의 연속성 검사
+              const hasSequenceGap = allMessages.some((msg, index) => {
+                if (index === 0) return false;
+                const prevSeq = allMessages[index - 1].sequence_number;
+                const currentSeq = msg.sequence_number;
+                return currentSeq - prevSeq > 1;
+              });
+
+              if (hasSequenceGap) {
+                console.error('Sequence number gap detected, removing last message');
+                // 마지막 메시지 삭제
+                const lastMessage = allMessages[allMessages.length - 1];
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  await supabase
+                    .from('messages')
+                    .delete()
+                    .eq('id', lastMessage.id)
+                    .eq('user_id', user.id);
+                
+                  // 마지막 메시지를 제외한 메시지들만 UI에 표시
+                  const validMessages = allMessages.slice(0, -1);
+                  setMessages(prevMessages => {
+                    const convertedMessages = validMessages.map(msg => {
+                      const convertedMsg = convertMessage(msg);
+                      if (convertedMsg.role === 'assistant') {
+                        (convertedMsg as ExtendedMessage).model = msg.model;
+                      }
+                      return convertedMsg;
+                    });
+
+                    return convertedMessages.sort((a: any, b: any) => {
+                      const seqA = (a as any).sequence_number || 0;
+                      const seqB = (b as any).sequence_number || 0;
+                      return seqA - seqB;
+                    });
+                  });
+                  return;
                 }
-                return [...otherMessages, convertedMessage];
+              }
+
+              // 시퀀스 번호가 정상인 경우 기존 로직 실행
+              setMessages(prevMessages => {
+                const convertedMessages = allMessages.map(msg => {
+                  const convertedMsg = convertMessage(msg);
+                  if (convertedMsg.role === 'assistant') {
+                    (convertedMsg as ExtendedMessage).model = msg.model;
+                  }
+                  return convertedMsg;
+                });
+
+                return convertedMessages.sort((a: any, b: any) => {
+                  const seqA = (a as any).sequence_number || 0;
+                  const seqB = (b as any).sequence_number || 0;
+                  return seqA - seqB;
+                });
               });
             }
           }
@@ -444,68 +500,103 @@ export default function Chat({ params }: PageProps) {
     });
   }, [nextModel, currentModel, chatId, handleSubmit, setCurrentModel]);
 
-  // 재생성 핸들러 메모이제이션
+  // 재생성 핸들러
   const handleReload = useCallback((messageId: string) => async (e: React.MouseEvent) => {
     e.preventDefault()
     
-    const messageIndex = messages.findIndex(m => m.id === messageId)
-    if (messageIndex === -1) return
-    
-    // 선택한 AI 답변 이전의 메시지들만 유지
-    const previousMessages = messages.slice(0, messageIndex)
-    
-    // 해당 AI 답변에 대한 사용자 메시지 찾기
-    const targetUserMessage = messages
-      .slice(0, messageIndex + 1)
-      .reverse()
-      .find(m => m.role === 'user')
-    
-    if (targetUserMessage) {
-      // UI에서 메시지 즉시 제거
-      setMessages(previousMessages)
+    try {
+      setIsRegenerating(true);
+      
+      // 메시지 ID 유효성 검사
+      if (!messageId || typeof messageId !== 'string') {
+        console.error('Invalid message ID');
+        return;
+      }
+      
+      const messageIndex = messages.findIndex(m => m.id === messageId)
+      if (messageIndex === -1) {
+        console.error('Message not found in current messages');
+        return;
+      }
+
+      const currentMessage = messages[messageIndex];
+      if (!currentMessage) {
+        console.error('Current message not found');
+        return;
+      }
+      
+      // 이전 사용자 메시지 찾기
+      const targetUserMessage = messages
+        .slice(0, messageIndex)
+        .reverse()
+        .find(m => m.role === 'user')
+      
+      if (!targetUserMessage) {
+        console.error('Previous user message not found');
+        return;
+      }
 
       try {
-        // 데이터베이스에서 선택한 메시지 이후의 모든 메시지 삭제
-        const messagesToDelete = messages
-          .slice(messageIndex)
-          .map(m => m.id)
+        // 1. 현재 메시지 인덱스까지의 모든 메시지의 시퀀스 번호 가져오기
+        const { data: validMessages, error: messagesError } = await supabase
+          .from('messages')
+          .select('sequence_number')
+          .eq('chat_session_id', chatId)
+          .eq('user_id', user.id)
+          .order('sequence_number', { ascending: true })
+          .limit(messageIndex);
 
-        await supabase
+        if (messagesError) {
+          console.error('Messages error:', messagesError);
+          throw new Error('Failed to get messages');
+        }
+
+        // 2. 마지막으로 저장된 메시지의 시퀀스 번호 이후의 메시지들 삭제
+        const lastSequenceNumber = validMessages && validMessages.length > 0
+          ? validMessages[validMessages.length - 1].sequence_number
+          : 0;
+
+        const { error: deleteError } = await supabase
           .from('messages')
           .delete()
-          .in('id', messagesToDelete)
+          .eq('chat_session_id', chatId)
+          .eq('user_id', user.id)
+          .gt('sequence_number', lastSequenceNumber);
 
-        // 새로운 메시지 생성 요청
+        if (deleteError) {
+          throw new Error('Failed to delete messages: ' + deleteError.message);
+        }
+
+        // 3. UI 업데이트 - 현재 메시지 이전까지만 유지
+        const updatedMessages = messages.slice(0, messageIndex);
+        setMessages(updatedMessages);
+
+        // 4. 새로운 메시지 생성 요청
         await reload({
           body: {
-            messages: [...previousMessages, {
+            messages: [...updatedMessages, {
               id: targetUserMessage.id,
               content: targetUserMessage.content,
               role: targetUserMessage.role,
               createdAt: targetUserMessage.createdAt
             }],
             model: currentModel,
-            chatId,
-            isRegeneration: true
+            chatId
           }
         });
 
-        // 모델 정보를 즉시 업데이트
-        setMessages(prevMessages => {
-          const updatedMessages = [...prevMessages];
-          const lastMessage = updatedMessages[updatedMessages.length - 1];
-          if (lastMessage && lastMessage.role === 'assistant') {
-            (lastMessage as ExtendedMessage).model = currentModel;
-          }
-          return updatedMessages;
-        });
       } catch (error) {
-        console.error('Error handling reload:', error)
+        console.error('Error in regeneration:', error);
         // 에러 발생 시 원래 메시지 상태로 복구
-        setMessages(messages)
+        setMessages(messages);
+        throw error;
       }
+    } catch (error) {
+      console.error('Regeneration failed:', error);
+    } finally {
+      setIsRegenerating(false);
     }
-  }, [messages, setMessages, currentModel, chatId, reload]);
+  }, [messages, setMessages, currentModel, chatId, reload, user?.id, supabase]);
 
   const handleCopyMessage = async (message: Message) => {
     let textToCopy = '';
@@ -562,10 +653,15 @@ export default function Chat({ params }: PageProps) {
                 <div className="flex justify-start pl-4 mt-2 gap-4">
                   <button 
                     onClick={handleReload(message.id)}
-                    className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2 uppercase tracking-wider"
+                    disabled={isRegenerating}
+                    className={`text-xs ${
+                      isRegenerating 
+                        ? 'text-[var(--muted)] cursor-not-allowed' 
+                        : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+                    } transition-colors flex items-center gap-2 uppercase tracking-wider`}
                   >
-                    <IconRefresh className="w-3 h-3" />
-                    <span>Regenerate</span>
+                    <IconRefresh className={`w-3 h-3 ${isRegenerating ? 'animate-spin' : ''}`} />
+                    <span>{isRegenerating ? 'Regenerating...' : 'Regenerate'}</span>
                   </button>
                   <button
                     onClick={() => handleCopyMessage(message)}

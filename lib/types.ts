@@ -6,6 +6,7 @@ export interface ChatRequest {
   model: string;
   chatId?: string;
   isRegeneration?: boolean;  // 재생성 요청인지 여부
+  existingMessageId?: string;  // 재생성시 기존 메시지 ID
 }
 
 // UI 메시지 파트 타입
@@ -36,6 +37,7 @@ export interface CompletionStep {
 }
 
 export interface CompletionResult {
+  finishReason: string;
   text: string;
   steps?: CompletionStep[];
   parts?: MessagePart[];

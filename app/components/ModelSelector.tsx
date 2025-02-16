@@ -35,11 +35,11 @@ export const MODEL_OPTIONS: ModelOption[] = [
     name: 'DeepSeek R1',
     description: 'DeepSeek R1 by together.ai.\n Advanced reasoning model.'
   },
-  // {
-  //   id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free',
-  //   name: 'DeepSeek R1 Distill 70B (Free)',
-  //   description: 'Free version of DeepSeek R1. Good for general use and coding.'
-  // },
+  {
+    id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free',
+    name: 'DeepSeek R1 Distill 70B (Free)',
+    description: 'Free version of DeepSeek R1. Good for general use and coding.'
+  },
   {
     id: 'deepseek-ai/DeepSeek-V3',
     name: 'DeepSeek V3',

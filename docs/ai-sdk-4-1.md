@@ -157,7 +157,7 @@ const result = streamText({
 
   prompt,
 
-  experimental_transform: smoothStream(),
+  transform: smoothStream(),
 
 });
 ```

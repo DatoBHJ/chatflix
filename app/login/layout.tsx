@@ -1,4 +1,3 @@
-// 채팅 레이아웃 (사이드바 포함)
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
@@ -6,7 +5,7 @@ export const viewport = {
   themeColor: '#000000',
 }
 
-export default function ChatLayout({
+export default function LoginLayout({
   children,
 }: {
   children: React.ReactNode
