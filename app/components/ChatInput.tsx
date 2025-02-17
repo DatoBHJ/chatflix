@@ -21,29 +21,44 @@ export function ChatInput({
   placeholder = "Type your message..."
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Auto-resize textarea
   useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = 'auto';
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`; // Max height: 200px
+      // Adjust max height based on screen size
+      const isMobile = window.innerWidth <= 768;
+      const maxHeight = isMobile ? 120 : 200; // Smaller max height on mobile
+      textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+    }
+  }, [input]);
+
+  // Scroll to bottom when textarea grows
+  useEffect(() => {
+    const form = formRef.current;
+    if (form) {
+      form.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
   }, [input]);
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2">
+    <form ref={formRef} onSubmit={handleSubmit} className="flex gap-2 sticky bottom-0 bg-transparent p-1 md:p-0">
       <textarea
         ref={textareaRef}
         value={input}
         onChange={handleInputChange}
         placeholder={placeholder}
         rows={1}
-        className={`yeezy-input flex-1 text-lg transition-opacity duration-200 resize-none overflow-y-auto
+        className={`yeezy-input flex-1 text-base md:text-lg transition-opacity duration-200 resize-none overflow-y-auto
           ${isLoading ? 'opacity-50' : 'opacity-100'}`}
         disabled={disabled || isLoading}
         autoFocus
-        style={{ minHeight: '44px', maxHeight: '200px' }}
+        style={{ 
+          minHeight: '44px',
+          maxHeight: window.innerWidth <= 768 ? '120px' : '200px'
+        }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -60,7 +75,7 @@ export function ChatInput({
           className="yeezy-button flex items-center gap-2 bg-red-500 hover:bg-red-600 transition-colors"
         >
           <IconStop />
-          <span>Stop</span>
+          <span className="hidden md:inline">Stop</span>
         </button>
       ) : (
         <button 
@@ -70,7 +85,7 @@ export function ChatInput({
           }`}
           disabled={disabled || isLoading || !input.trim()}
         >
-          Send
+          <span>↑</span>
         </button>
       )}
     </form>

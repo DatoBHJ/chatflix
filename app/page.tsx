@@ -88,7 +88,7 @@ export default function Home() {
   return (
     <main className="flex-1 flex flex-col min-h-screen">
       <div className="flex-1 flex flex-col items-center justify-center -mt-16 sm:-mt-32">
-        <div className="w-full max-w-2xl px-10 sm:px-8">
+        <div className="w-full max-w-2xl pl-9 sm:px-8">
           <div className="space-y-0">
             <ModelSelector
               currentModel={currentModel}

@@ -82,7 +82,7 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
 
   return (
     <div className="relative" ref={containerRef}>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 pl-1 sm:pl-0">
         <span className="text-xs sm:text-sm uppercase tracking-wider text-[var(--muted)]">Model</span>
         <div className={`relative ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
           <button
