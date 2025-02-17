@@ -620,6 +620,68 @@ export default function Chat({ params }: PageProps) {
     }, 2000);
   };
 
+  // 중단 핸들러 추가
+  const handleStop = useCallback(async () => {
+    // 먼저 스트리밍을 중단
+    stop();
+
+    // 현재 메시지 상태 가져오기
+    const currentMessages = messages;
+    const lastMessage = currentMessages[currentMessages.length - 1];
+    
+    if (lastMessage && lastMessage.role === 'assistant') {
+      try {
+        // 메시지 ID 가져오기
+        const { data: messageData, error: messageError } = await supabase
+          .from('messages')
+          .select('id')
+          .eq('chat_session_id', chatId)
+          .eq('user_id', user.id)
+          .eq('role', 'assistant')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (messageError) {
+          console.error('Failed to get message ID:', messageError);
+          return;
+        }
+
+        // 현재까지의 내용을 데이터베이스에 저장
+        const { error: updateError } = await supabase
+          .from('messages')
+          .update({
+            content: lastMessage.content || 'Response interrupted',
+            reasoning: lastMessage.parts?.find(part => part.type === 'reasoning')?.reasoning || null,
+            model: currentModel,
+            created_at: new Date().toISOString()
+          })
+          .eq('id', messageData.id)
+          .eq('user_id', user.id);
+
+        if (updateError) {
+          console.error('Failed to update message on stop:', updateError);
+        }
+
+        // UI 메시지 업데이트
+        setMessages(prevMessages => {
+          const updatedMessages = [...prevMessages];
+          const lastIndex = updatedMessages.length - 1;
+          if (lastIndex >= 0 && updatedMessages[lastIndex].role === 'assistant') {
+            updatedMessages[lastIndex] = {
+              ...updatedMessages[lastIndex],
+              content: lastMessage.content || 'Response interrupted',
+              parts: lastMessage.parts || undefined
+            };
+          }
+          return updatedMessages;
+        });
+      } catch (error) {
+        console.error('Error saving stopped message:', error);
+      }
+    }
+  }, [stop, messages, currentModel, chatId, user?.id, supabase, setMessages]);
+
   return (
     <main className="flex-1 relative h-full">
       <div className="flex-1 overflow-y-auto pb-40">
@@ -699,7 +761,7 @@ export default function Chat({ params }: PageProps) {
               handleInputChange={handleInputChange}
               handleSubmit={handleModelSubmit}
               isLoading={isLoading}
-              stop={stop}
+              stop={handleStop}
               user={user}
             />
           </div>
