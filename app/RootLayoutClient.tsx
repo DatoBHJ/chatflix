@@ -59,7 +59,7 @@ export default function RootLayoutClient({
       {/* Sidebar Toggle Button - Only show when user is authenticated */}
       <button
         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="fixed top-8 left-4 z-50 w-8 h-8 flex items-center justify-center hover:bg-[var(--foreground)] hover:text-[var(--background)] transition-colors"
+        className="fixed top-8 left-4 z-40 w-8 h-8 flex items-center justify-center hover:bg-[var(--foreground)] hover:text-[var(--background)] transition-colors"
         title={isSidebarOpen ? "Close menu" : "Open menu"}
       >
         {isSidebarOpen ? '×' : '≡'}
