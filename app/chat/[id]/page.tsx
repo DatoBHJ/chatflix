@@ -243,9 +243,13 @@ export default function Chat({ params }: PageProps) {
       // Add model information as soon as the message is created
       setMessages(prevMessages => {
         const updatedMessages = [...prevMessages];
-        const lastMessage = updatedMessages[updatedMessages.length - 1];
-        if (lastMessage && lastMessage.role === 'assistant') {
-          (lastMessage as ExtendedMessage).model = currentModel;
+        // 마지막 메시지부터 역순으로 검색하여 모델이 없는 첫 번째 assistant 메시지를 찾음
+        for (let i = updatedMessages.length - 1; i >= 0; i--) {
+          const message = updatedMessages[i];
+          if (message.role === 'assistant' && !(message as ExtendedMessage).model) {
+            (message as ExtendedMessage).model = currentModel;
+            break; // 첫 번째 메시지를 찾은 후 즉시 종료
+          }
         }
         return updatedMessages;
       });
@@ -670,7 +674,8 @@ export default function Chat({ params }: PageProps) {
                     )}
                   </button>
                   <div className="text-xs text-[var(--muted)] uppercase tracking-wider">
-                    {MODEL_OPTIONS.find(option => option.id === currentModel)?.name || currentModel}
+                    {MODEL_OPTIONS.find(option => option.id === ((message as ExtendedMessage).model || currentModel))?.name || 
+                     ((message as ExtendedMessage).model || currentModel)}
                   </div>
                 </div>
               )}

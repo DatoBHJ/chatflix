@@ -214,7 +214,7 @@ export async function POST(req: Request) {
             content: '',
             reasoning: '',
             created_at: new Date().toISOString(),
-            model,
+            model, // 현재 선택된 모델 사용
             host: provider,
             chat_session_id: chatId,
             user_id: user.id,
@@ -232,7 +232,7 @@ export async function POST(req: Request) {
             .update({
               content: '',
               reasoning: '',
-              model,
+              model, // 현재 선택된 모델 사용
               host: provider,
               created_at: new Date().toISOString()
             })
@@ -300,7 +300,7 @@ export async function POST(req: Request) {
                 reasoning: finalReasoning && finalReasoning !== finalContent ? finalReasoning : null,
                 role: 'assistant',
                 created_at: new Date().toISOString(),
-                model,
+                model, // 현재 선택된 모델 사용
                 host: provider,
                 chat_session_id: chatId,
                 user_id: user.id,
@@ -314,7 +314,7 @@ export async function POST(req: Request) {
                     .update({
                       content: finalContent,
                       reasoning: finalReasoning && finalReasoning !== finalContent ? finalReasoning : null,
-                      model,
+                      model, // 현재 선택된 모델 사용
                       host: provider,
                       created_at: new Date().toISOString()
                     })
@@ -325,7 +325,7 @@ export async function POST(req: Request) {
                     .update({
                       content: finalContent,
                       reasoning: finalReasoning && finalReasoning !== finalContent ? finalReasoning : null,
-                      model,
+                      model, // 현재 선택된 모델 사용
                       host: provider,
                       created_at: new Date().toISOString()
                     })
