@@ -2,6 +2,7 @@ import { Message, streamText, createDataStreamResponse, smoothStream } from 'ai'
 import { createClient } from '@/utils/supabase/server'
 import { providers } from '@/lib/providers'
 import { ChatRequest, MessagePart, CompletionResult } from '@/lib/types'
+// import { ratelimit } from '@/lib/ratelimit'
 
 export const runtime = 'edge'  // Edge Runtime 사용
 export const maxDuration = 300 // 최대 실행 시간 300초로 설정
@@ -88,6 +89,25 @@ export async function POST(req: Request) {
         if (userError || !user) {
           throw new Error('Unauthorized')
         }
+
+        // // Apply rate limiting
+        // const { success, reset, remaining } = await ratelimit.limit(user.id)
+        
+        // if (!success) {
+        //   const now = Date.now()
+        //   const retryAfter = Math.floor((reset - now) / 1000)
+          
+        //   dataStream.writeMessageAnnotation({
+        //     type: 'error',
+        //     data: {
+        //       message: `Rate limit exceeded. Please try again in ${retryAfter} seconds.`,
+        //       code: 429,
+        //       retryAfter,
+        //       remaining
+        //     }
+        //   })
+        //   return
+        // }
 
         // Get user's system prompt
         const { data: systemPromptData, error: systemPromptError } = await supabase
