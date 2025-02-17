@@ -86,7 +86,16 @@ function MarkdownContent({ content }: { content: string }) {
         code: ({ className, children, ...props }: any) => {
           const match = /language-(\w+)/.exec(className || '');
           const isInline = !match;
-          const codeText = String(children).replace(/\n$/, '');
+          
+          // Improved text extraction function to handle nested structures
+          const extractText = (node: any): string => {
+            if (typeof node === 'string') return node;
+            if (Array.isArray(node)) return node.map(extractText).join('');
+            if (node?.props?.children) return extractText(node.props.children);
+            return String(node || '');
+          };
+          
+          const codeText = extractText(children);
           
           if (isInline) {
             return (
