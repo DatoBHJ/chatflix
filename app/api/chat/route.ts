@@ -3,7 +3,8 @@ import { createClient } from '@/utils/supabase/server'
 import { providers } from '@/lib/providers'
 import { ChatRequest, MessagePart, CompletionResult } from '@/lib/types'
 
-export const runtime = 'nodejs'  // Node.js 런타임 사용
+export const runtime = 'edge'  // Edge Runtime 사용
+export const maxDuration = 300 // 최대 실행 시간 300초로 설정
 
 // 메시지 형식을 정규화하는 함수
 function normalizeMessages(messages: Message[]): Message[] {
