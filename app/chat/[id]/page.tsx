@@ -106,16 +106,16 @@ function MarkdownContent({ content }: { content: string }) {
           }
           
           return (
-            <div className="message-code group relative my-6">
+            <div className="message-code group relative my-6 max-w-full">
               <div className="message-code-header flex items-center justify-between px-4 py-2">
-                <span className="text-xs uppercase tracking-wider text-[var(--muted)]">
+                <span className="text-xs uppercase tracking-wider text-[var(--muted)] break-all">
                   {match?.[1] || 'text'}
                 </span>
                 <button
                   onClick={() => handleCopy(codeText)}
                   className="text-xs uppercase tracking-wider px-2 py-1 
                            text-[var(--muted)] hover:text-[var(--foreground)] 
-                           transition-colors flex items-center gap-1"
+                           transition-colors flex items-center gap-1 whitespace-nowrap ml-2"
                 >
                   {copied[codeText] ? (
                     <>
@@ -126,8 +126,8 @@ function MarkdownContent({ content }: { content: string }) {
                   )}
                 </button>
               </div>
-              <pre className="overflow-x-auto p-4 m-0 bg-black/20">
-                <code className={className} {...props}>
+              <pre className="overflow-x-auto p-4 m-0 bg-black/20 max-w-full">
+                <code className={`${className} break-words whitespace-pre-wrap`} {...props}>
                   {children}
                 </code>
               </pre>
@@ -694,7 +694,7 @@ export default function Chat({ params }: PageProps) {
   return (
     <main className="flex-1 relative h-full">
       <div className="flex-1 overflow-y-auto pb-40">
-        <div className="messages-container py-4 max-w-2xl mx-auto px-4">
+        <div className="messages-container py-4 max-w-2xl mx-auto px-4 w-full">
           {messages.map((message, i) => (
             <div key={message.id} className="message-group group animate-fade-in">
               <div className={`message-role ${message.role === 'user' ? 'text-right' : ''}`}>
@@ -756,9 +756,9 @@ export default function Chat({ params }: PageProps) {
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-10">
-        <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-8 pb-6">
-          <div className="max-w-2xl mx-auto pl-8 relative">
+      <div className="fixed inset-x-0 bottom-0 z-10 w-full">
+        <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-8 pb-6 w-full">
+          <div className="max-w-2xl mx-auto px-4 sm:px-8 relative w-full">
             <ModelSelector
               currentModel={currentModel}
               nextModel={nextModel}
