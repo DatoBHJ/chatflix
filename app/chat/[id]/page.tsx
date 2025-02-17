@@ -700,6 +700,7 @@ export default function Chat({ params }: PageProps) {
               handleSubmit={handleModelSubmit}
               isLoading={isLoading}
               stop={stop}
+              user={user}
             />
           </div>
         </div>

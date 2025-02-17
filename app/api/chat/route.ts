@@ -128,6 +128,45 @@ export async function POST(req: Request) {
           throw new Error('Invalid messages format');
         }
 
+        // Check for prompt shortcuts in the last user message
+        const lastUserMessage = messages[messages.length - 1];
+        if (lastUserMessage.role === 'user') {
+          const content = lastUserMessage.content;
+          const match = content.match(/@(\w+)/);
+          
+          if (match) {
+            const shortcutName = match[1];
+            const { data: shortcutData, error: shortcutError } = await supabase
+              .from('prompt_shortcuts')
+              .select('content')
+              .eq('user_id', user.id)
+              .eq('name', shortcutName)
+              .single();
+
+            if (!shortcutError && shortcutData) {
+              // Replace @shortcutName with the actual prompt content
+              const updatedContent = content.replace(
+                new RegExp(`@${shortcutName}\\s*`), 
+                shortcutData.content + ' '
+              );
+              lastUserMessage.content = updatedContent;
+
+              // Update parts if they exist
+              if (lastUserMessage.parts) {
+                lastUserMessage.parts = lastUserMessage.parts.map(part => {
+                  if (part.type === 'text') {
+                    return {
+                      ...part,
+                      text: updatedContent
+                    };
+                  }
+                  return part;
+                });
+              }
+            }
+          }
+        }
+
         // provider 이름 가져오기
         const provider = getProviderFromModel(model);
 
@@ -145,7 +184,6 @@ export async function POST(req: Request) {
         let nextSequence = (lastMessage?.sequence_number || 0) + 1;
 
         // 재생성이 아닌 경우에만 사용자 메시지 저장
-        const lastUserMessage = messages[messages.length - 1];
         if (lastUserMessage.role === 'user' && !isRegeneration) {
           // 해당 메시지가 이미 존재하는지 확인
           const { data: existingMessage } = await supabase

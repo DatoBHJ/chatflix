@@ -76,33 +76,56 @@ export function SystemPromptDialog({ isOpen, onClose, user }: SystemPromptDialog
 
   return (
     <div 
-      className="fixed inset-0 bg-black/95 flex items-start justify-center z-50 p-4 sm:items-center"
+      className="fixed inset-0 bg-black/95 flex items-start justify-center z-50 overflow-hidden"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="w-full max-w-2xl bg-transparent">
-        <div className="p-4 sm:p-6">
-          <h2 className="text-xs sm:text-sm uppercase tracking-wider text-[var(--muted)] mt-28 mb-4">System Prompt</h2>
+      <div className="w-full max-w-2xl bg-transparent h-full flex flex-col">
+        {/* Fixed Header */}
+        <div className="pt-12 px-6 pb-6 border-b border-[var(--accent)]">
+          <h2 className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors">System Prompt</h2>
+        </div>
 
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            className="w-full h-[50vh] sm:h-64 p-4 bg-[var(--accent)] text-sm 
-                     focus:outline-none placeholder:text-[var(--muted)] 
-                     placeholder:uppercase placeholder:text-xs resize-none"
-            placeholder="Enter system prompt..."
-            spellCheck={false}
-          />
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-6">
+            {/* Usage guide */}
+            <div className="mb-8">
+              <div className="space-y-1 text-xs tracking-wide">
+                <div className="flex items-baseline gap-3">
+                  <span className="text-[var(--muted)]">01</span>
+                  <span>Edit your system prompt</span>
+                </div>
+                <div className="flex items-baseline gap-3">
+                  <span className="text-[var(--muted)]">02</span>
+                  <span>Save to apply changes immediately</span>
+                </div>
+              </div>
+            </div>
 
-          <button
-            onClick={handleSave}
-            className="w-full mt-4 p-4 text-xs uppercase tracking-wider 
-                     bg-[var(--foreground)] text-[var(--background)] 
-                     hover:opacity-90 transition-opacity"
-          >
-            Save
-          </button>
+            {/* Prompt Editor */}
+            <div className="space-y-1">
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                className="w-full h-[50vh] sm:h-64 p-4 bg-[var(--accent)] text-sm 
+                         focus:outline-none placeholder:text-[var(--muted)] 
+                         placeholder:uppercase placeholder:text-xs resize-none"
+                placeholder="Enter system prompt..."
+                spellCheck={false}
+              />
+
+              <button
+                onClick={handleSave}
+                className="w-full p-4 text-xs uppercase tracking-wider 
+                         bg-[var(--foreground)] text-[var(--background)] 
+                         hover:opacity-90 transition-opacity"
+              >
+                Save
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

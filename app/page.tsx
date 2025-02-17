@@ -104,6 +104,7 @@ export default function Home() {
               stop={stop}
               disabled={isSubmitting}
               placeholder="Chat is this real?"
+              user={user}
             />
           </div>
         </div>
