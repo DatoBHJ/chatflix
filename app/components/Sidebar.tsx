@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { DatabaseMessage, Chat } from '@/lib/types'
+import { MODEL_OPTIONS } from './ModelSelector'
 
 interface SidebarProps {
   user: any;  // You might want to define a proper User type
@@ -200,9 +201,10 @@ export function Sidebar({ user }: SidebarProps) {
                   <div className="flex justify-between items-start gap-4">
                     <div className="flex-1 min-w-0 space-y-2">
                       <div className="font-medium truncate">{chat.title}</div>
-                      {chat.messages.length > 0 && chat.messages[chat.messages.length - 1].host && (
+                      {chat.messages.length > 0 && chat.messages[chat.messages.length - 1].model && (
                         <div className="text-[var(--muted)] text-xs uppercase">
-                          {chat.messages[chat.messages.length - 1].host.split('.')[0]}
+                          {MODEL_OPTIONS.find(option => option.id === chat.messages[chat.messages.length - 1].model)?.name || 
+                           chat.messages[chat.messages.length - 1].model.split('.')[0]}
                         </div>
                       )}
                       <div className="text-[var(--muted)] text-xs truncate">
