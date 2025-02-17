@@ -1,9 +1,9 @@
-import { FormEvent } from 'react';
+import { FormEvent, useEffect, useRef } from 'react';
 import { IconStop } from './icons';
 
 interface ChatInputProps {
   input: string;
-  handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleSubmit: (e: FormEvent<HTMLFormElement>) => void;
   isLoading: boolean;
   stop: () => void;
@@ -20,17 +20,30 @@ export function ChatInput({
   disabled,
   placeholder = "Type your message..."
 }: ChatInputProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`; // Max height: 200px
+    }
+  }, [input]);
+
   return (
     <form onSubmit={handleSubmit} className="flex gap-2">
-      <input
+      <textarea
+        ref={textareaRef}
         value={input}
         onChange={handleInputChange}
         placeholder={placeholder}
-        className={`yeezy-input flex-1 text-lg transition-opacity duration-200 ${
-          isLoading ? 'opacity-50' : 'opacity-100'
-        }`}
+        rows={1}
+        className={`yeezy-input flex-1 text-lg transition-opacity duration-200 resize-none overflow-y-auto
+          ${isLoading ? 'opacity-50' : 'opacity-100'}`}
         disabled={disabled || isLoading}
         autoFocus
+        style={{ minHeight: '44px', maxHeight: '200px' }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
