@@ -724,7 +724,7 @@ export default function Chat({ params }: PageProps) {
                   )}
                 </div>
               </div>
-              {message.role === 'assistant' && (
+              {message.role === 'assistant' ? (
                 <div className="flex justify-start pl-4 mt-2 gap-4">
                   <button 
                     onClick={handleReload(message.id)}
@@ -748,6 +748,19 @@ export default function Chat({ params }: PageProps) {
                     {MODEL_OPTIONS.find(option => option.id === ((message as ExtendedMessage).model || currentModel))?.name || 
                      ((message as ExtendedMessage).model || currentModel)}
                   </div>
+                </div>
+              ) : (
+                <div className="flex justify-end pr-4 mt-2 gap-4">
+                  <button
+                    onClick={() => handleCopyMessage(message)}
+                    className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2 uppercase tracking-wider"
+                  >
+                    {copiedMessageId === message.id ? (
+                      <span className="">Copied</span>
+                    ) : (
+                      <span>Copy</span>
+                    )}
+                  </button>
                 </div>
               )}
             </div>

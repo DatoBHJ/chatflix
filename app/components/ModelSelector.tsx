@@ -16,9 +16,34 @@ interface ModelSelectorProps {
 
 export const MODEL_OPTIONS: ModelOption[] = [
   {
+    id: 'chatgpt-4o-latest',
+    name: 'ChatGPT-4o Latest',
+    description: 'Latest version of GPT-4o used in ChatGPT'
+    // description: 'Latest version of GPT-4o used in ChatGPT.\nHigh intelligence, versatile model with 128K context window.'
+  },
+  {
+    id: 'gpt-4o',
+    name: 'GPT-4o',
+    description: 'GPT-4o'
+    // description: 'Versatile, high-intelligence flagship model.\nAccepts both text and image inputs with 128K context window.'
+  },
+  {
+    id: 'o1',
+    name: 'o1',
+    description: 'Advanced reasoning model by OpenAI'
+    // description: 'Advanced reasoning model with 200K context window.\nExcels at complex, multi-step tasks with chain-of-thought reasoning.'
+  },
+  {
+    id: 'o3-mini',
+    name: 'o3-mini',
+    description: 'Latest small reasoning model by OpenAI'
+    // description: 'Latest small reasoning model with high intelligence.\nExcels at science, math, and coding tasks with 200K context window.'
+  },
+  {
     id: 'claude-3-5-sonnet-latest',
     name: 'Claude 3.5 Sonnet',
     description: 'GOAT'
+    // description: 'GOAT model by Anthropic'
   },
   // {
   //   id: 'deepseek-reasoner',
@@ -33,22 +58,22 @@ export const MODEL_OPTIONS: ModelOption[] = [
   {
     id: 'deepseek-ai/DeepSeek-R1',
     name: 'DeepSeek R1',
-    description: 'DeepSeek R1 by together.ai.\n Advanced reasoning model.'
+    description: 'Advanced reasoning model by DeepSeek hosted by Together.ai'
   },
-  {
-    id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free',
-    name: 'DeepSeek R1 Distill 70B (Free)',
-    description: 'Free version of DeepSeek R1. Good for general use and coding.'
-  },
+  // {
+  //   id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free',
+  //   name: 'DeepSeek R1 Distill 70B (Free)',
+  //   description: 'Free version of DeepSeek R1. Good for general use and coding.'
+  // },
   {
     id: 'deepseek-ai/DeepSeek-V3',
     name: 'DeepSeek V3',
-    description: 'DeepSeek V3 by together.ai.\n Good for general use.'
+    description: 'DeepSeek V3 by DeepSeek hosted by Together.ai'
   },
   {
     id: 'DeepSeek r1 distill llama 70b',
     name: 'DeepSeek R1 distill llama 70b',
-    description: 'DeepSeek R1 distill llama 70b by groq.\n High-speed reasoning model.'
+    description: 'High-speed reasoning model by DeepSeek hosted by Groq'
   }
 ];
 
