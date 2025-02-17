@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { DatabaseMessage, Chat } from '@/lib/types'
 import { MODEL_OPTIONS } from './ModelSelector'
+import { SystemPromptDialog } from './SystemPromptDialog'
 
 interface SidebarProps {
   user: any;  // You might want to define a proper User type
@@ -15,6 +16,8 @@ export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname()
   const [chats, setChats] = useState<Chat[]>([])
   const supabase = createClient()
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isSystemPromptOpen, setIsSystemPromptOpen] = useState(false)
 
   useEffect(() => {
     if (user) {
@@ -58,6 +61,19 @@ export function Sidebar({ user }: SidebarProps) {
       supabase.removeChannel(chatChannel)
     }
   }, [user])
+
+  // Add click outside handler
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as HTMLElement;
+      if (isMenuOpen && !target.closest('.menu-container')) {
+        setIsMenuOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isMenuOpen]);
 
   async function loadChats() {
     if (!user) return;
@@ -244,19 +260,44 @@ export function Sidebar({ user }: SidebarProps) {
           </div>
         </div>
 
-        {/* Bottom Section - User Info & Sign Out */}
-        <div className="mt-auto px-6 py-6 ">
-          {/* <div className="text-xs text-center text-[var(--muted)] mb-4 uppercase tracking-wider">
-            {user.email}
-          </div> */}
+        {/* Bottom Section - Menu */}
+        <div className="mt-auto px-6 py-6 relative menu-container">
           <button
-            onClick={handleSignOut}
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
             className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
-            title="Sign Out"
+            title="Menu"
           >
-            sign out
+            menu
           </button>
+
+          {/* Menu Popover */}
+          {isMenuOpen && (
+            <div className="absolute bottom-full left-6 right-6 mb-2 bg-[var(--background)] border border-[var(--accent)] rounded-lg overflow-hidden">
+              <button
+                onClick={() => {
+                  setIsSystemPromptOpen(true)
+                  setIsMenuOpen(false)
+                }}
+                className="w-full px-4 py-3 text-sm text-left hover:bg-[var(--accent)] transition-colors uppercase tracking-wider"
+              >
+                Edit System Prompt
+              </button>
+              <button
+                onClick={handleSignOut}
+                className="w-full px-4 py-3 text-sm text-left hover:bg-[var(--accent)] transition-colors uppercase tracking-wider"
+              >
+                Sign Out
+              </button>
+            </div>
+          )}
         </div>
+
+        {/* System Prompt Dialog */}
+        <SystemPromptDialog
+          isOpen={isSystemPromptOpen}
+          onClose={() => setIsSystemPromptOpen(false)}
+          user={user}
+        />
       </div>
     </div>
   )

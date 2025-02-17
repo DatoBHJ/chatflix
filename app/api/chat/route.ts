@@ -88,6 +88,19 @@ export async function POST(req: Request) {
           throw new Error('Unauthorized')
         }
 
+        // Get user's system prompt
+        const { data: systemPromptData, error: systemPromptError } = await supabase
+          .from('system_prompts')
+          .select('content')
+          .eq('user_id', user.id)
+          .single()
+
+        if (systemPromptError) {
+          console.error('Error fetching system prompt:', systemPromptError)
+        }
+
+        const systemPrompt = systemPromptData?.content || 'You are a helpful AI assistant. Use appropriate markdown syntax for code blocks, lists, tables, and other formatting elements.'
+
         const body = await req.json();
         const { messages, model, chatId, isRegeneration, existingMessageId }: ChatRequest = body;
         
@@ -252,7 +265,7 @@ export async function POST(req: Request) {
           messages: [
             {
               role: 'system',
-              content: 'You are a helpful AI assistant. Use appropriate markdown syntax for code blocks, lists, tables, and other formatting elements.'
+              content: systemPrompt
             },
             ...normalizedMessages
           ],
