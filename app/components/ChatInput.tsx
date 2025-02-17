@@ -182,12 +182,12 @@ export function ChatInput({
               <button
                 key={shortcut.id}
                 onClick={() => handleShortcutSelect(shortcut)}
-                className={`w-full px-3 py-2 text-left hover:bg-[var(--accent)] transition-colors
+                className={`w-full px-4 py-3 text-left hover:bg-[var(--accent)] transition-colors
                          ${index === selectedIndex ? 'bg-[var(--accent)]' : ''}`}
               >
-                <div className="flex items-baseline gap-2 truncate">
-                  <span className="text-[var(--muted)] shrink-0">@{shortcut.name}</span>
-                  <span className="text-xs text-[var(--muted)] truncate">{shortcut.content}</span>
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium tracking-wide">@{shortcut.name}</span>
+                  <span className="text-xs text-[var(--muted)] line-clamp-1">{shortcut.content}</span>
                 </div>
               </button>
             ))}

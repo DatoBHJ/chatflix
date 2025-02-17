@@ -92,14 +92,20 @@ export function SystemPromptDialog({ isOpen, onClose, user }: SystemPromptDialog
           <div className="p-6">
             {/* Usage guide */}
             <div className="mb-8">
-              <div className="space-y-1 text-xs tracking-wide">
+              <div className="text-xs tracking-wide space-y-4">
                 <div className="flex items-baseline gap-3">
                   <span className="text-[var(--muted)]">01</span>
-                  <span>Edit your system prompt</span>
+                  <div className="space-y-1">
+                    <span>Set your system prompt</span>
+                    <div className="text-[10px] text-[var(--muted)]">Define the AI's behavior and capabilities</div>
+                  </div>
                 </div>
                 <div className="flex items-baseline gap-3">
                   <span className="text-[var(--muted)]">02</span>
-                  <span>Save to apply changes immediately</span>
+                  <div className="space-y-1">
+                    <span>Click save to apply changes</span>
+                    <div className="text-[10px] text-[var(--muted)]">Changes will affect both new and existing chats</div>
+                  </div>
                 </div>
               </div>
             </div>

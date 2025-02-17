@@ -19,13 +19,31 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
   const [shortcuts, setShortcuts] = useState<PromptShortcut[]>([])
   const [newName, setNewName] = useState('')
   const [newContent, setNewContent] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
     if (isOpen && user) {
       loadShortcuts()
+      // Reset editing state when dialog opens
+      setEditingId(null)
+      setNewName('')
+      setNewContent('')
     }
   }, [isOpen, user])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (openMenuId && !(event.target as Element).closest('.menu-container')) {
+        setOpenMenuId(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [openMenuId])
 
   async function loadShortcuts() {
     try {
@@ -46,23 +64,52 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
     if (!newName.trim() || !newContent.trim()) return
 
     try {
-      const { error } = await supabase
-        .from('prompt_shortcuts')
-        .insert({
-          id: `ps-${Date.now()}`,
-          name: newName.trim(),
-          content: newContent.trim(),
-          user_id: user.id
-        })
+      if (editingId) {
+        // Update existing shortcut
+        const { error } = await supabase
+          .from('prompt_shortcuts')
+          .update({
+            name: newName.trim(),
+            content: newContent.trim(),
+          })
+          .eq('id', editingId)
+          .eq('user_id', user.id)
 
-      if (error) throw error
+        if (error) throw error
+      } else {
+        // Add new shortcut
+        const { error } = await supabase
+          .from('prompt_shortcuts')
+          .insert({
+            id: `ps-${Date.now()}`,
+            name: newName.trim(),
+            content: newContent.trim(),
+            user_id: user.id
+          })
+
+        if (error) throw error
+      }
       
       setNewName('')
       setNewContent('')
+      setEditingId(null)
       loadShortcuts()
     } catch (error) {
-      console.error('Error adding shortcut:', error)
+      console.error('Error saving shortcut:', error)
     }
+  }
+
+  function handleEdit(shortcut: PromptShortcut) {
+    setEditingId(shortcut.id)
+    setNewName(shortcut.name)
+    setNewContent(shortcut.content)
+    setOpenMenuId(null)
+  }
+
+  function handleCancel() {
+    setEditingId(null)
+    setNewName('')
+    setNewContent('')
   }
 
   async function handleDelete(id: string) {
@@ -74,6 +121,7 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
         .eq('user_id', user.id)
 
       if (error) throw error
+      setOpenMenuId(null)
       loadShortcuts()
     } catch (error) {
       console.error('Error deleting shortcut:', error)
@@ -100,41 +148,64 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
           <div className="p-6">
             {/* Usage guide */}
             <div className="mb-8">
-              <div className="space-y-1 text-xs tracking-wide">
+              <div className="text-xs tracking-wide space-y-4">
+                {/* <div className="text-[var(--muted)] uppercase tracking-[0.2em] mb-2">How to create shortcuts</div> */}
                 <div className="flex items-baseline gap-3">
                   <span className="text-[var(--muted)]">01</span>
-                  <span>Add shortcut with name + prompt</span>
+                  <div className="space-y-1">
+                    <span>Name your shortcut</span>
+                    <div className="text-[10px] text-[var(--muted)]">This will be your command trigger in chat</div>
+                  </div>
                 </div>
                 <div className="flex items-baseline gap-3">
                   <span className="text-[var(--muted)]">02</span>
-                  <span>Type <span className="text-[10px] tracking-[0.2em] uppercase">@name</span> in chat</span>
+                  <div className="space-y-1">
+                    <span>Write your prompt template</span>
+                    <div className="text-[10px] text-[var(--muted)] space-y-1">
+                      <div>Your custom instruction for the AI to follow</div>
+                      <div>Use <span className="bg-[var(--accent)] px-2 py-0.5">@nameofshortcut</span> to activate</div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Add new shortcut */}
             <div className="space-y-1 mb-8">
+              <div className="text-[10px] tracking-[0.2em] uppercase text-white/70 pl-1">shortcut name</div>
               <input
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="Shortcut name (e.g. translate)"
+                placeholder="e.g. summarize"
                 className="w-full p-4 bg-[var(--accent)] text-sm focus:outline-none"
               />
+              <div className="text-[10px] tracking-[0.2em] uppercase text-white/70 pl-1 mt-4">shortcut content</div>
               <textarea
                 value={newContent}
                 onChange={(e) => setNewContent(e.target.value)}
-                placeholder="Prompt content (e.g. Translate this text to Korean:)"
+                placeholder="e.g. Provide a concise summary of the given text: "
                 className="w-full h-24 p-4 bg-[var(--accent)] text-sm focus:outline-none resize-none"
               />
-              <button
-                onClick={handleAdd}
-                disabled={!newName.trim() || !newContent.trim()}
-                className="w-full p-4 text-xs uppercase tracking-wider bg-[var(--foreground)] text-[var(--background)] 
-                         hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
-                Add Shortcut
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAdd}
+                  disabled={!newName.trim() || !newContent.trim()}
+                  className="flex-1 p-4 text-xs uppercase tracking-wider bg-[var(--foreground)] text-[var(--background)] 
+                           hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  {editingId ? 'Save Changes' : 'Add Shortcut'}
+                </button>
+                {editingId && (
+                  <button
+                    onClick={handleCancel}
+                    className="w-32 p-4 text-xs uppercase tracking-wider bg-[var(--accent)] 
+                             hover:opacity-90 transition-opacity"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Shortcuts list */}
@@ -145,12 +216,40 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
                     <div className="text-sm font-medium">@{shortcut.name}</div>
                     <div className="text-xs text-[var(--muted)] mt-1 break-words">{shortcut.content}</div>
                   </div>
-                  <button
-                    onClick={() => handleDelete(shortcut.id)}
-                    className="opacity-0 group-hover:opacity-100 text-[var(--muted)] hover:text-[var(--foreground)] transition-all"
-                  >
-                    ×
-                  </button>
+                  <div className="relative menu-container">
+                    <button
+                      onClick={() => setOpenMenuId(openMenuId === shortcut.id ? null : shortcut.id)}
+                      className="w-6 h-6 flex items-center justify-center text-[var(--muted)] hover:text-[var(--foreground)] transition-colors text-xs"
+                      aria-label="Menu"
+                    >
+                      •••
+                    </button>
+                    <div 
+                      className={`
+                        absolute right-0 mt-1 
+                        ${openMenuId === shortcut.id ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-1'}
+                        transition-all duration-150 ease-out z-10
+                      `}
+                    >
+                      <div className="min-w-[110px] py-0.5 bg-[var(--background)] border border-[var(--accent)] backdrop-blur-md">
+                        <button
+                          onClick={() => handleEdit(shortcut)}
+                          className="w-full px-3 py-1.5 text-[11px] tracking-wide hover:bg-[var(--accent)]/50 transition-colors flex items-center justify-between group/btn"
+                        >
+                          <span>Edit</span>
+                          <span className="text-[var(--muted)] group-hover/btn:text-[var(--foreground)] transition-colors scale-x-[-1]">✎</span>
+                        </button>
+                        <div className="h-px bg-[var(--accent)]/20"></div>
+                        <button
+                          onClick={() => handleDelete(shortcut.id)}
+                          className="w-full px-3 py-1.5 text-[11px] tracking-wide text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-colors flex items-center justify-between group/btn"
+                        >
+                          <span>Delete</span>
+                          <span className="opacity-0 group-hover/btn:opacity-100 transition-opacity">×</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
