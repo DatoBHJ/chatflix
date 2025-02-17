@@ -176,18 +176,22 @@ export function ChatInput({
 
       {/* Shortcuts Popup */}
       {showShortcuts && shortcuts.length > 0 && (
-        <div className="absolute bottom-full left-0 right-0 mb-2 bg-[var(--background)] border border-[var(--accent)]">
-          {shortcuts.map((shortcut, index) => (
-            <button
-              key={shortcut.id}
-              onClick={() => handleShortcutSelect(shortcut)}
-              className={`w-full px-4 py-2 text-left hover:bg-[var(--accent)] transition-colors
-                       ${index === selectedIndex ? 'bg-[var(--accent)]' : ''}`}
-            >
-              <span className="text-[var(--muted)]">@{shortcut.name}</span>
-              <span className="ml-2 text-xs text-[var(--muted)]">{shortcut.content}</span>
-            </button>
-          ))}
+        <div className="absolute bottom-full left-0 right-0 mb-2 px-2">
+          <div className="w-[calc(100vw-32px)] max-w-[280px] sm:max-w-md bg-[var(--background)] border border-[var(--accent)]">
+            {shortcuts.map((shortcut, index) => (
+              <button
+                key={shortcut.id}
+                onClick={() => handleShortcutSelect(shortcut)}
+                className={`w-full px-3 py-2 text-left hover:bg-[var(--accent)] transition-colors
+                         ${index === selectedIndex ? 'bg-[var(--accent)]' : ''}`}
+              >
+                <div className="flex items-baseline gap-2 truncate">
+                  <span className="text-[var(--muted)] shrink-0">@{shortcut.name}</span>
+                  <span className="text-xs text-[var(--muted)] truncate">{shortcut.content}</span>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
