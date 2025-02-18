@@ -66,13 +66,50 @@ function MarkdownContent({ content }: { content: string }) {
     }, 2000);
   };
 
+  // Add mention styling function
+  const styleMentions = (text: string) => {
+    // 수정된 정규식: 특수문자도 포함하도록 변경
+    const mentionRegex = /@([\w?!.]+)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = mentionRegex.exec(text)) !== null) {
+      // Add text before mention
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      
+      // Add styled mention
+      parts.push(
+        <span key={match.index} className="mention-tag">
+          {match[0]}
+        </span>
+      );
+      
+      lastIndex = match.index + match[0].length;
+    }
+    
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+    
+    return parts;
+  };
+
   return (
     <ReactMarkdown
       className="message-content"
       remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeHighlight]}
       components={{
-        p: ({ children }) => <p className="my-3 leading-relaxed">{children}</p>,
+        p: ({ children }) => {
+          if (typeof children === 'string') {
+            return <p className="my-3 leading-relaxed">{styleMentions(children)}</p>;
+          }
+          return <p className="my-3 leading-relaxed">{children}</p>;
+        },
         a: ({ href, children }) => (
           <a 
             href={href} 

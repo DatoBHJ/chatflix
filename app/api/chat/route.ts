@@ -153,7 +153,8 @@ export async function POST(req: Request) {
         const lastUserMessage = messages[messages.length - 1];
         if (lastUserMessage.role === 'user') {
           const content = lastUserMessage.content;
-          const match = content.match(/@(\w+)/);
+          // 수정된 정규식: 특수문자도 포함하도록 변경
+          const match = content.match(/@([\w?]+)/);
           
           if (match) {
             const shortcutName = match[1];
@@ -165,11 +166,10 @@ export async function POST(req: Request) {
               .single();
 
             if (!shortcutError && shortcutData) {
-              // Replace @shortcutName with the actual prompt content
-              const updatedContent = content.replace(
-                new RegExp(`@${shortcutName}\\s*`), 
-                shortcutData.content + ' '
-              );
+              // 숏컷 내용을 먼저 위치시키고, 나머지 텍스트를 뒤에 붙임
+              const remainingText = content.replace(new RegExp(`@${shortcutName}\\s*`), '').trim();
+              const updatedContent = `${shortcutData.content} ${remainingText}`;
+              
               lastUserMessage.content = updatedContent;
 
               // Update parts if they exist

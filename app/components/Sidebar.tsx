@@ -207,7 +207,7 @@ export function Sidebar({ user }: SidebarProps) {
               </div>
             )}
             
-            <div className="space-y-1">
+            <div className="space-y-10">
               {chats.map((chat) => (
                 <div
                   key={chat.id}

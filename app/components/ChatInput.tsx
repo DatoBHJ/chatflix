@@ -29,47 +29,42 @@ export function ChatInput({
   placeholder = "Type your message...",
   user
 }: ChatInputProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [shortcuts, setShortcuts] = useState<PromptShortcut[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [mentionStartPosition, setMentionStartPosition] = useState<number | null>(null);
   const supabase = createClient();
 
-  // Auto-resize textarea
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-      // Adjust max height based on screen size
-      const isMobile = window.innerWidth <= 768;
-      const maxHeight = isMobile ? 120 : 200; // Smaller max height on mobile
-      textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
-    }
-  }, [input]);
-
-  // Scroll to bottom when textarea grows
-  useEffect(() => {
-    const form = formRef.current;
-    if (form) {
-      form.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }
-  }, [input]);
-
   // Handle input change with shortcut detection
-  const handleInputWithShortcuts = async (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value;
-    handleInputChange(e);
+  const handleInputWithShortcuts = async () => {
+    if (!inputRef.current) return;
+    
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount) return;
+    
+    const range = selection.getRangeAt(0);
+    const content = inputRef.current.textContent || '';
+    
+    // Simulate the onChange event for parent component
+    const event = {
+      target: { value: content }
+    } as React.ChangeEvent<HTMLTextAreaElement>;
+    handleInputChange(event);
 
-    // Check for @ symbol
-    const lastAtSymbol = newValue.lastIndexOf('@');
+    // Find the last @ symbol before cursor
+    const cursorPosition = range.startOffset;
+    const textBeforeCursor = content.substring(0, cursorPosition);
+    const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
+
     if (lastAtSymbol !== -1) {
-      const afterAt = newValue.slice(lastAtSymbol + 1);
+      const afterAt = content.slice(lastAtSymbol + 1);
       const spaceAfterAt = afterAt.indexOf(' ');
       
       if (spaceAfterAt === -1) {
-        // Search for shortcuts
+        setMentionStartPosition(lastAtSymbol);
         setSearchTerm(afterAt);
         const { data, error } = await supabase.rpc('search_prompt_shortcuts', {
           p_user_id: user.id,
@@ -82,31 +77,59 @@ export function ChatInput({
         }
       } else {
         setShowShortcuts(false);
+        setMentionStartPosition(null);
       }
     } else {
       setShowShortcuts(false);
+      setMentionStartPosition(null);
     }
   };
 
   // Handle shortcut selection
   const handleShortcutSelect = (shortcut: PromptShortcut) => {
-    if (textareaRef.current) {
-      const currentValue = textareaRef.current.value;
-      const lastAtSymbol = currentValue.lastIndexOf('@');
-      const newValue = currentValue.slice(0, lastAtSymbol) + shortcut.content + ' ';
-      
-      const event = {
-        target: { value: newValue }
-      } as React.ChangeEvent<HTMLTextAreaElement>;
-      
-      handleInputChange(event);
-      setShowShortcuts(false);
-      textareaRef.current.focus();
+    if (!inputRef.current || mentionStartPosition === null) return;
+    
+    const content = inputRef.current.textContent || '';
+    const beforeMention = content.slice(0, mentionStartPosition);
+    const afterMention = content.slice(mentionStartPosition).split(' ').slice(1).join(' ');
+    
+    // Create mention span
+    const mentionSpan = document.createElement('span');
+    mentionSpan.className = 'mention-tag';
+    mentionSpan.contentEditable = 'false';
+    mentionSpan.dataset.shortcutId = shortcut.id;
+    mentionSpan.textContent = `@${shortcut.name}`;
+    
+    // Clear and update content
+    inputRef.current.innerHTML = '';
+    if (beforeMention) {
+      inputRef.current.appendChild(document.createTextNode(beforeMention));
     }
+    inputRef.current.appendChild(mentionSpan);
+    if (afterMention) {
+      inputRef.current.appendChild(document.createTextNode(' ' + afterMention));
+    }
+    
+    // Update parent component
+    const event = {
+      target: { value: `${beforeMention}${shortcut.content}${afterMention ? ' ' + afterMention : ''}` }
+    } as React.ChangeEvent<HTMLTextAreaElement>;
+    handleInputChange(event);
+    
+    setShowShortcuts(false);
+    setMentionStartPosition(null);
+    
+    // Move cursor to end
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(inputRef.current);
+    range.collapse(false);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
   };
 
   // Handle keyboard navigation
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (showShortcuts && shortcuts.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -122,8 +145,12 @@ export function ChatInput({
       }
     } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!isLoading && input.trim()) {
-        handleSubmit(e as any);
+      const content = inputRef.current?.textContent || '';
+      if (!isLoading && content.trim()) {
+        const event = {
+          preventDefault: () => {},
+        } as FormEvent<HTMLFormElement>;
+        handleSubmit(event);
       }
     }
   };
@@ -136,21 +163,19 @@ export function ChatInput({
   return (
     <div className="relative">
       <form ref={formRef} onSubmit={handleSubmit} className="flex gap-2 sticky bottom-0 bg-transparent p-1 md:p-0">
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={handleInputWithShortcuts}
+        <div
+          ref={inputRef}
+          contentEditable
+          onInput={handleInputWithShortcuts}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          rows={1}
-          className={`yeezy-input flex-1 text-base md:text-lg transition-opacity duration-200 resize-none overflow-y-auto
+          className={`yeezy-input flex-1 text-base md:text-lg transition-opacity duration-200 overflow-y-auto whitespace-pre-wrap
             ${isLoading ? 'opacity-50' : 'opacity-100'}`}
-          disabled={disabled || isLoading}
-          autoFocus
           style={{ 
             minHeight: '44px',
             maxHeight: window.innerWidth <= 768 ? '120px' : '200px'
           }}
+          data-placeholder={placeholder}
+          suppressContentEditableWarning
         />
         {isLoading ? (
           <button 
@@ -165,9 +190,9 @@ export function ChatInput({
           <button 
             type="submit" 
             className={`text-start transition-opacity duration-200 ${
-              !input.trim() ? 'opacity-50 cursor-not-allowed' : 'opacity-100'
+              !(inputRef.current?.textContent || '').trim() ? 'opacity-50 cursor-not-allowed' : 'opacity-100'
             }`}
-            disabled={disabled || isLoading || !input.trim()}
+            disabled={disabled || isLoading || !(inputRef.current?.textContent || '').trim()}
           >
             <span>↑</span>
           </button>

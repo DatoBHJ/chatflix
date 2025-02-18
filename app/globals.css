@@ -354,3 +354,31 @@ body {
 .model-selector-option.selected {
   display: none;
 }
+
+/* Mention styles */
+.yeezy-input {
+  outline: none;
+}
+
+.yeezy-input[contenteditable="true"]:empty:before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.mention-tag {
+  display: inline-block;
+  background-color: rgba(59, 130, 246, 0.15);
+  color: rgb(96, 165, 250);
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+  margin: 0 1px;
+  font-weight: 500;
+  cursor: default;
+  user-select: none;
+}
+
+.mention-tag:hover {
+  background-color: rgba(59, 130, 246, 0.25);
+  color: rgb(147, 197, 253);
+}
