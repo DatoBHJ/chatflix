@@ -319,6 +319,9 @@ export async function POST(req: Request) {
         // console.log(normalizedMessages, 'normalizedMessages','\n');
         console.log('normalizedMessages:', JSON.stringify(normalizedMessages, null, 2));
         // 스트리밍 응답 설정
+        const abortController = new AbortController();
+        let isStreamFinished = false;
+        
         const result = streamText({
           model: selectedModel,
           messages: [
@@ -335,6 +338,12 @@ export async function POST(req: Request) {
             // delayInMs: 15,
           }),
           onFinish: async (completion: CompletionResult) => {
+            // If the stream was aborted or already finished, don't update the message
+            if (abortController.signal.aborted || isStreamFinished) {
+              return;
+            }
+            isStreamFinished = true;
+
             try {
               let finalContent = '';
               let finalReasoning = '';
@@ -364,20 +373,6 @@ export async function POST(req: Request) {
                   finalContent = finalContent.replace(/<think>.*?<\/think>/s, '').trim();
                 }
               }
-
-              // reasoning과 content가 동일한 경우 reasoning을 저장하지 않음
-              const messageData = {
-                id: assistantMessageId,
-                content: finalContent,
-                reasoning: finalReasoning && finalReasoning !== finalContent ? finalReasoning : null,
-                role: 'assistant',
-                created_at: new Date().toISOString(),
-                model, // 현재 선택된 모델 사용
-                host: provider,
-                chat_session_id: chatId,
-                user_id: user.id,
-                sequence_number: isRegeneration ? lastMessage?.sequence_number : nextSequence + 1
-              };
 
               // 재생성 시에는 update, 아닐 때는 upsert 사용
               const { error: updateError } = isRegeneration
@@ -414,9 +409,17 @@ export async function POST(req: Request) {
         });
 
         // Merge the result into the data stream
-        return result.mergeIntoDataStream(dataStream, {
+        const stream = result.mergeIntoDataStream(dataStream, {
           sendReasoning: true
         });
+
+        // Listen for abort signal
+        req.signal.addEventListener('abort', () => {
+          abortController.abort();
+          isStreamFinished = true;  // Prevent any further updates
+        });
+
+        return stream;
 
       } catch (error) {
         // Handle any errors that occurred during execution

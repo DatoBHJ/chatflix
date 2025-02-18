@@ -31,6 +31,7 @@ export function ChatInput({
 }: ChatInputProps) {
   const inputRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const isSubmittingRef = useRef(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [shortcuts, setShortcuts] = useState<PromptShortcut[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -47,7 +48,7 @@ export function ChatInput({
 
   // Handle input change with shortcut detection
   const handleInputWithShortcuts = async () => {
-    if (!inputRef.current) return;
+    if (!inputRef.current || isSubmittingRef.current) return;
     
     const selection = window.getSelection();
     if (!selection || !selection.rangeCount) return;
@@ -158,6 +159,68 @@ export function ChatInput({
     }
   };
 
+  const clearInput = () => {
+    if (inputRef.current) {
+      // Clear the content
+      inputRef.current.innerHTML = '';
+      inputRef.current.textContent = '';
+      
+      // Reset the selection
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(inputRef.current);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      
+      // Force blur and refocus to ensure clean state
+      inputRef.current.blur();
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
+    }
+  };
+
+  const handleMessageSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    
+    if (isSubmittingRef.current || isLoading) return;
+    
+    const content = inputRef.current?.textContent || '';
+    if (!content.trim()) return;
+
+    try {
+      isSubmittingRef.current = true;
+
+      // Store the content before clearing
+      const messageContent = content.trim();
+
+      // Clear input using the new method
+      clearInput();
+
+      // Update parent state
+      const event = {
+        target: { value: '' }
+      } as React.ChangeEvent<HTMLTextAreaElement>;
+      handleInputChange(event);
+
+      // Create a new submit event with the stored content
+      const submitEvent = {
+        preventDefault: () => {},
+        target: {
+          value: messageContent
+        }
+      } as unknown as FormEvent<HTMLFormElement>;
+
+      // Submit the form with the stored content
+      await handleSubmit(submitEvent);
+    } finally {
+      isSubmittingRef.current = false;
+      // Ensure input is cleared even after submission
+      clearInput();
+    }
+  };
+
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (showShortcuts && shortcuts.length > 0) {
@@ -173,36 +236,12 @@ export function ChatInput({
       } else if (e.key === 'Escape') {
         setShowShortcuts(false);
       }
-    } else if (e.key === 'Backspace') {
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        const startContainer = range.startContainer;
-        
-        // Check if we're about to delete a mention-tag
-        if (startContainer.nodeType === Node.TEXT_NODE && 
-            startContainer.textContent === ' ' && 
-            (startContainer.previousSibling as Element)?.classList?.contains('mention-tag')) {
-          e.preventDefault();
-          // Remove the entire wrapper
-          const wrapper = startContainer.parentElement;
-          if (wrapper?.classList.contains('mention-wrapper')) {
-            wrapper.remove();
-          }
-        }
-      }
     } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      const content = inputRef.current?.textContent || '';
-      if (!isLoading && content.trim()) {
-        const event = {
-          preventDefault: () => {},
-        } as FormEvent<HTMLFormElement>;
-        handleSubmit(event);
-        // Clear input after submission
-        if (inputRef.current) {
-          inputRef.current.innerHTML = '';
-        }
+      if (!isSubmittingRef.current && !isLoading) {
+        formRef.current?.dispatchEvent(
+          new Event('submit', { cancelable: true, bubbles: true })
+        );
       }
     }
   };
@@ -214,13 +253,11 @@ export function ChatInput({
 
   return (
     <div className="relative">
-      <form ref={formRef} onSubmit={(e) => {
-        handleSubmit(e);
-        // Clear input after submission
-        if (inputRef.current) {
-          inputRef.current.innerHTML = '';
-        }
-      }} className="flex gap-2 sticky bottom-0 bg-transparent p-1 md:p-0">
+      <form 
+        ref={formRef} 
+        onSubmit={handleMessageSubmit} 
+        className="flex gap-2 sticky bottom-0 bg-transparent p-1 md:p-0"
+      >
         <div
           ref={inputRef}
           contentEditable
