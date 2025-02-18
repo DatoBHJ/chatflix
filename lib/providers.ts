@@ -5,6 +5,7 @@ import { createGroq } from '@ai-sdk/groq';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createXai } from '@ai-sdk/xai';
 
 // 각 프로바이더 생성
 
@@ -30,6 +31,10 @@ const openai = createOpenAI({
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY || '',
+});
+
+const xai = createXai({
+  apiKey: process.env.XAI_API_KEY || '',
 });
 
 // Groq의 DeepSeek 모델에 reasoning 기능 추가
@@ -67,6 +72,7 @@ export const providers = customProvider({
     'llama-3.3-70b-versatile': groq('llama-3.3-70b-versatile'),
     'gemini-2.0-flash': google('gemini-2.0-flash'),
     'gemini-1.5-pro': google('gemini-1.5-pro'),
+    'grok-2-latest': xai('grok-2-latest'),
   }
 });
 
