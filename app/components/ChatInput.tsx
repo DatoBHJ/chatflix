@@ -38,6 +38,13 @@ export function ChatInput({
   const [mentionStartPosition, setMentionStartPosition] = useState<number | null>(null);
   const supabase = createClient();
 
+  // Add autofocus effect
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, []);
+
   // Handle input change with shortcut detection
   const handleInputWithShortcuts = async () => {
     if (!inputRef.current) return;

@@ -71,7 +71,7 @@ export default function RootLayoutClient({
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <Sidebar user={user} />
+        <Sidebar user={user} onClose={() => setIsSidebarOpen(false)} />
       </div>
 
       {/* Main Content */}

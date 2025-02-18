@@ -68,8 +68,8 @@ function MarkdownContent({ content }: { content: string }) {
 
   // Add mention styling function
   const styleMentions = (text: string) => {
-    // 수정된 정규식: 특수문자도 포함하도록 변경
-    const mentionRegex = /@([\w?!.]+)/g;
+    // 확장된 정규식: 더 많은 특수문자 포함
+    const mentionRegex = /@([\w?!.,_\-+=@#$%^&*()<>{}\[\]|/\\~`]+)/g;
     const parts = [];
     let lastIndex = 0;
     let match;
@@ -808,7 +808,7 @@ export default function Chat({ params }: PageProps) {
 
       <div className="fixed inset-x-0 bottom-0 z-10 w-full">
         <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-8 pb-6 w-full">
-          <div className="max-w-2xl mx-auto w-full px-4 sm:px-14 relative flex flex-col items-center">
+          <div className="max-w-2xl mx-auto w-full px-10 sm:px-14 relative flex flex-col items-center">
             <div className="w-full max-w-[calc(100vw-2rem)]">
               <ModelSelector
                 currentModel={currentModel}

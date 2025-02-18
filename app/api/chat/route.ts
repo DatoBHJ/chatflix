@@ -153,8 +153,8 @@ export async function POST(req: Request) {
         const lastUserMessage = messages[messages.length - 1];
         if (lastUserMessage.role === 'user') {
           const content = lastUserMessage.content;
-          // 수정된 정규식: 특수문자도 포함하도록 변경
-          const match = content.match(/@([\w?]+)/);
+          // 확장된 정규식: 더 많은 특수문자 포함
+          const match = content.match(/@([\w?!.,_\-+=@#$%^&*()<>{}\[\]|/\\~`]+)/);
           
           if (match) {
             const shortcutName = match[1];

@@ -10,9 +10,10 @@ import { PromptShortcutsDialog } from './PromptShortcutsDialog'
 
 interface SidebarProps {
   user: any;  // You might want to define a proper User type
+  onClose?: () => void;  // Add onClose prop
 }
 
-export function Sidebar({ user }: SidebarProps) {
+export function Sidebar({ user, onClose }: SidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const [chats, setChats] = useState<Chat[]>([])
@@ -185,7 +186,10 @@ export function Sidebar({ user }: SidebarProps) {
         {/* Top Section - New Chat Button */}
         <div className="pt-12 px-6 pb-6 border-b border-[var(--accent)]">
           <button
-            onClick={() => router.push('/')}
+            onClick={() => {
+              router.push('/')
+              onClose?.()  // Call onClose when new chat is clicked
+            }}
             className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
             title="New Chat"
           >
@@ -214,7 +218,10 @@ export function Sidebar({ user }: SidebarProps) {
                   className={`group yeezy-sidebar-item ${
                     pathname === `/chat/${chat.id}` ? 'bg-[var(--accent)]' : ''
                   }`}
-                  onClick={() => router.push(`/chat/${chat.id}`)}
+                  onClick={() => {
+                    router.push(`/chat/${chat.id}`)
+                    onClose?.()  // Call onClose when chat is clicked
+                  }}
                 >
                   <div className="flex justify-between items-start gap-4">
                     <div className="flex-1 min-w-0 space-y-2">
