@@ -4,8 +4,10 @@ import { createTogetherAI } from '@ai-sdk/togetherai';
 import { createGroq } from '@ai-sdk/groq';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 
 // 각 프로바이더 생성
+
 const deepseek = createDeepSeek({
   apiKey: process.env.DEEPSEEK_API_KEY || '',
 });
@@ -24,6 +26,10 @@ const anthropic = createAnthropic({
 
 const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY || '',
+});
+
+const google = createGoogleGenerativeAI({
+  apiKey: process.env.GEMINI_API_KEY || '',
 });
 
 // Groq의 DeepSeek 모델에 reasoning 기능 추가
@@ -58,6 +64,9 @@ export const providers = customProvider({
     'deepseek-ai/DeepSeek-V3': together('deepseek-ai/DeepSeek-V3'),
     'DeepSeek r1 distill llama 70b': groqDeepSeekWithReasoning,
     'claude-3-5-sonnet-latest': anthropic('claude-3-sonnet-20240229'),
+    'llama-3.3-70b-versatile': groq('llama-3.3-70b-versatile'),
+    'gemini-2.0-flash': google('gemini-2.0-flash'),
+    'gemini-1.5-pro': google('gemini-1.5-pro'),
   }
 });
 

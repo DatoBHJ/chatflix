@@ -21,12 +21,12 @@ export const MODEL_OPTIONS: ModelOption[] = [
     description: 'Latest version of GPT-4o used in ChatGPT'
     // description: 'Latest version of GPT-4o used in ChatGPT.\nHigh intelligence, versatile model with 128K context window.'
   },
-  {
-    id: 'gpt-4o',
-    name: 'GPT-4o',
-    description: 'GPT-4o'
-    // description: 'Versatile, high-intelligence flagship model.\nAccepts both text and image inputs with 128K context window.'
-  },
+  // {
+  //   id: 'gpt-4o',
+  //   name: 'GPT-4o',
+  //   description: 'GPT-4o'
+  //   // description: 'Versatile, high-intelligence flagship model.\nAccepts both text and image inputs with 128K context window.'
+  // },
   {
     id: 'o1',
     name: 'o1',
@@ -60,20 +60,35 @@ export const MODEL_OPTIONS: ModelOption[] = [
     name: 'DeepSeek R1',
     description: 'Advanced reasoning model by DeepSeek hosted by Together.ai'
   },
-  // {
-  //   id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free',
-  //   name: 'DeepSeek R1 Distill 70B (Free)',
-  //   description: 'Free version of DeepSeek R1. Good for general use and coding.'
-  // },
+  {
+    id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free',
+    name: 'DeepSeek R1 distill llama 70b',
+    description: 'High-speed reasoning model by DeepSeek hosted by Together.ai'
+  },
   {
     id: 'deepseek-ai/DeepSeek-V3',
     name: 'DeepSeek V3',
     description: 'DeepSeek V3 by DeepSeek hosted by Together.ai'
   },
+  // {
+  //   id: 'DeepSeek r1 distill llama 70b',
+  //   name: 'DeepSeek R1 distill llama 70b',
+  //   description: 'High-speed reasoning model by DeepSeek hosted by Groq'
+  // },
   {
-    id: 'DeepSeek r1 distill llama 70b',
-    name: 'DeepSeek R1 distill llama 70b',
-    description: 'High-speed reasoning model by DeepSeek hosted by Groq'
+    id: 'llama-3.3-70b-versatile',
+    name: 'Llama 3.3 70B',
+    description: 'Llama 3.3 70B by Meta hosted by Groq'
+  },
+  {
+    id: 'gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    description: 'Google\'s most capable multi-modal model, with 1m context window'
+  },
+  {
+    id: 'gemini-1.5-pro',
+    name: 'Gemini 1.5 Pro',
+    description: 'Google\'s highest intelligence Gemini 1.5 series model, with 2m context window'
   }
 ];
 
