@@ -12,6 +12,7 @@ interface SystemPromptDialogProps {
 export function SystemPromptDialog({ isOpen, onClose, user }: SystemPromptDialogProps) {
   const [prompt, setPrompt] = useState('')
   const [promptId, setPromptId] = useState<string | null>(null)
+  const [isResetting, setIsResetting] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -72,6 +73,29 @@ export function SystemPromptDialog({ isOpen, onClose, user }: SystemPromptDialog
     }
   }
 
+  async function handleReset() {
+    if (!promptId) {
+      console.error('No prompt ID found')
+      return
+    }
+
+    try {
+      setIsResetting(true)
+      const { data, error } = await supabase
+        .rpc('reset_system_prompt', {
+          p_user_id: user.id
+        })
+
+      if (error) throw error
+      
+      setPrompt(data)
+    } catch (error) {
+      console.error('Error resetting system prompt:', error)
+    } finally {
+      setIsResetting(false)
+    }
+  }
+
   if (!isOpen) return null
 
   return (
@@ -122,14 +146,25 @@ export function SystemPromptDialog({ isOpen, onClose, user }: SystemPromptDialog
                 spellCheck={false}
               />
 
-              <button
-                onClick={handleSave}
-                className="w-full p-4 text-xs uppercase tracking-wider 
-                         bg-[var(--foreground)] text-[var(--background)] 
-                         hover:opacity-90 transition-opacity"
-              >
-                Save
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSave}
+                  className="flex-1 p-4 text-xs uppercase tracking-wider 
+                           bg-[var(--foreground)] text-[var(--background)] 
+                           hover:opacity-90 transition-opacity"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={handleReset}
+                  disabled={isResetting}
+                  className="w-32 p-4 text-xs uppercase tracking-wider 
+                           bg-[var(--accent)] hover:opacity-90 transition-opacity
+                           disabled:opacity-50"
+                >
+                  Reset
+                </button>
+              </div>
             </div>
           </div>
         </div>
