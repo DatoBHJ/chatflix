@@ -28,6 +28,7 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   letter-spacing: -0.015em;
+  overflow-x: hidden;
 }
 
 @layer components {
@@ -102,11 +103,11 @@ body {
 
 /* Message Container Styles */
 .messages-container {
-  @apply max-w-3xl mx-auto w-full px-4;
+  @apply max-w-2xl mx-auto w-full px-8 sm:px-4 overflow-hidden pt-10;
 }
 
 .message-group {
-  @apply py-8 first:pt-4 last:pb-4;
+  @apply py-8 first:pt-4 last:pb-4 max-w-[calc(100vw-2rem)] overflow-hidden mx-auto;
 }
 
 .message-group:last-child {
@@ -115,10 +116,14 @@ body {
 
 /* Message Role Indicators */
 .message-role {
-  @apply text-xs uppercase tracking-wider text-[var(--muted)] mb-3 px-6;
+  @apply text-xs uppercase tracking-wider text-[var(--muted)] mb-3 px-1;
 }
 
 /* Message Styles */
+.message-user, .message-assistant {
+  @apply max-w-[calc(100vw-2rem)] overflow-hidden;
+}
+
 .message-user {
   @apply bg-[var(--foreground)] text-[var(--background)] p-6 rounded-none max-w-full ml-auto
          hover:opacity-95 transition-[var(--transition)];
@@ -130,13 +135,14 @@ body {
 }
 
 .message-content {
-  @apply text-base leading-relaxed;
+  @apply text-base leading-relaxed break-words break-all overflow-hidden;
 }
 
 /* Code Block Styles */
 .message-code {
-  @apply font-mono text-sm bg-black/20 rounded-none overflow-hidden;
+  @apply font-mono text-sm bg-black/20 rounded-none overflow-hidden max-w-full;
   box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  width: 100%;
 }
 
 .message-code:hover .message-code-copy {
@@ -144,15 +150,45 @@ body {
 }
 
 .message-code-header {
-  @apply bg-black/30 border-b border-black/10;
+  @apply bg-black/30 border-b border-black/10 flex items-center justify-between;
+  width: 100%;
 }
 
 .message-code pre {
-  @apply m-0 overflow-x-auto;
+  @apply m-0 overflow-x-auto max-w-full;
+  width: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) transparent;
+}
+
+.message-code pre::-webkit-scrollbar {
+  height: 4px;
+}
+
+.message-code pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.message-code pre::-webkit-scrollbar-thumb {
+  background-color: var(--accent);
+  border-radius: 2px;
 }
 
 .message-code code {
-  @apply text-[var(--foreground)] block;
+  @apply text-[var(--foreground)] block break-words whitespace-pre-wrap px-4;
+  width: fit-content;
+  min-width: 100%;
+}
+
+/* Special handling for non-language-specified code blocks */
+.message-code:not([class*="language-"]) code {
+  @apply whitespace-pre-wrap break-words;
+}
+
+/* Ensure inline code doesn't cause overflow */
+.message-content p code {
+  @apply break-words whitespace-normal;
+  max-width: 100%;
 }
 
 /* Syntax Highlighting Overrides */

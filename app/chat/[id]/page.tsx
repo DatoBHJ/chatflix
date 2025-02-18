@@ -694,7 +694,7 @@ export default function Chat({ params }: PageProps) {
   return (
     <main className="flex-1 relative h-full">
       <div className="flex-1 overflow-y-auto pb-40">
-        <div className="messages-container py-4 max-w-2xl mx-auto px-4 w-full">
+        <div className="messages-container py-4 max-w-2xl ">
           {messages.map((message, i) => (
             <div key={message.id} className="message-group group animate-fade-in">
               <div className={`message-role ${message.role === 'user' ? 'text-right' : ''}`}>
@@ -725,7 +725,7 @@ export default function Chat({ params }: PageProps) {
                 </div>
               </div>
               {message.role === 'assistant' ? (
-                <div className="flex justify-start pl-4 mt-2 gap-4">
+                <div className="flex justify-start pl-2 mt-2 gap-4">
                   <button 
                     onClick={handleReload(message.id)}
                     disabled={isRegenerating}
@@ -750,7 +750,7 @@ export default function Chat({ params }: PageProps) {
                   </div>
                 </div>
               ) : (
-                <div className="flex justify-end pr-4 mt-2 gap-4">
+                <div className="flex justify-end pr-1 mt-2 gap-4">
                   <button
                     onClick={() => handleCopyMessage(message)}
                     className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2 uppercase tracking-wider"
@@ -771,21 +771,23 @@ export default function Chat({ params }: PageProps) {
 
       <div className="fixed inset-x-0 bottom-0 z-10 w-full">
         <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-8 pb-6 w-full">
-          <div className="max-w-2xl mx-auto px-4 sm:px-8 relative w-full">
-            <ModelSelector
-              currentModel={currentModel}
-              nextModel={nextModel}
-              setNextModel={setNextModel}
-              position="top"
-            />
-            <ChatInput
-              input={input}
-              handleInputChange={handleInputChange}
-              handleSubmit={handleModelSubmit}
-              isLoading={isLoading}
-              stop={handleStop}
-              user={user}
-            />
+          <div className="max-w-2xl mx-auto w-full px-4 sm:px-14 relative flex flex-col items-center">
+            <div className="w-full max-w-[calc(100vw-2rem)]">
+              <ModelSelector
+                currentModel={currentModel}
+                nextModel={nextModel}
+                setNextModel={setNextModel}
+                position="top"
+              />
+              <ChatInput
+                input={input}
+                handleInputChange={handleInputChange}
+                handleSubmit={handleModelSubmit}
+                isLoading={isLoading}
+                stop={handleStop}
+                user={user}
+              />
+            </div>
           </div>
         </div>
       </div>

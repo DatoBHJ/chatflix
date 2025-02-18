@@ -164,7 +164,7 @@ export function ChatInput({
         ) : (
           <button 
             type="submit" 
-            className={`yeezy-button transition-opacity duration-200 ${
+            className={`text-start transition-opacity duration-200 ${
               !input.trim() ? 'opacity-50 cursor-not-allowed' : 'opacity-100'
             }`}
             disabled={disabled || isLoading || !input.trim()}

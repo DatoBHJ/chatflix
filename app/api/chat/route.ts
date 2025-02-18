@@ -120,7 +120,7 @@ export async function POST(req: Request) {
           console.error('Error fetching system prompt:', systemPromptError)
         }
 
-        const systemPrompt = systemPromptData?.content || 'You are a helpful AI assistant. Use appropriate markdown syntax for code blocks, lists, tables, and other formatting elements.'
+        const systemPrompt = systemPromptData?.content || 'You are a helpful AI assistant. When sharing code or command examples, always specify a language for code blocks (e.g., ```javascript, ```python, ```bash, ```text for plain text). Use appropriate markdown syntax for code blocks, lists, tables, and other formatting elements.'
 
         const body = await req.json();
         const { messages, model, chatId, isRegeneration, existingMessageId }: ChatRequest = body;

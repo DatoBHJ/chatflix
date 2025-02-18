@@ -55,7 +55,7 @@ export default function RootLayoutClient({
   }
 
   return (
-    <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)]">
+    <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)] overflow-x-hidden">
       {/* Sidebar Toggle Button - Only show when user is authenticated */}
       <button
         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
