@@ -284,21 +284,21 @@ export function Sidebar({ user, onClose }: SidebarProps) {
             <div className="absolute bottom-full left-6 right-6 mb-2 bg-[var(--background)] border border-[var(--accent)] rounded-lg overflow-hidden">
               <button
                 onClick={() => {
-                  setIsSystemPromptOpen(true)
-                  setIsMenuOpen(false)
-                }}
-                className="w-full px-4 py-3 text-sm text-left hover:bg-[var(--accent)] transition-colors uppercase tracking-wider"
-              >
-                Edit System Prompt
-              </button>
-              <button
-                onClick={() => {
                   setIsPromptShortcutsOpen(true)
                   setIsMenuOpen(false)
                 }}
                 className="w-full px-4 py-3 text-sm text-left hover:bg-[var(--accent)] transition-colors uppercase tracking-wider"
               >
                 Manage Shortcuts
+              </button>
+              <button
+                onClick={() => {
+                  setIsSystemPromptOpen(true)
+                  setIsMenuOpen(false)
+                }}
+                className="w-full px-4 py-3 text-sm text-left hover:bg-[var(--accent)] transition-colors uppercase tracking-wider"
+              >
+                Edit System Prompt
               </button>
               <button
                 onClick={handleSignOut}

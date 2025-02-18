@@ -64,12 +64,14 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
     if (!newName.trim() || !newContent.trim()) return
 
     try {
+      const formattedName = newName.trim().replace(/\s+/g, '_')
+
       if (editingId) {
         // Update existing shortcut
         const { error } = await supabase
           .from('prompt_shortcuts')
           .update({
-            name: newName.trim(),
+            name: formattedName,
             content: newContent.trim(),
           })
           .eq('id', editingId)
@@ -82,7 +84,7 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
           .from('prompt_shortcuts')
           .insert({
             id: `ps-${Date.now()}`,
-            name: newName.trim(),
+            name: formattedName,
             content: newContent.trim(),
             user_id: user.id
           })
@@ -176,7 +178,7 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
               <input
                 type="text"
                 value={newName}
-                onChange={(e) => setNewName(e.target.value)}
+                onChange={(e) => setNewName(e.target.value.replace(/\s+/g, '_'))}
                 placeholder="e.g. summarize"
                 className="w-full p-4 bg-[var(--accent)] text-sm focus:outline-none"
               />
