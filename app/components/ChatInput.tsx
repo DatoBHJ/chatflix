@@ -100,6 +100,10 @@ export function ChatInput({
     const beforeMention = content.slice(0, mentionStartPosition);
     const afterMention = content.slice(mentionStartPosition).split(' ').slice(1).join(' ');
     
+    // Create wrapper span for better control
+    const wrapperSpan = document.createElement('span');
+    wrapperSpan.className = 'mention-wrapper';
+    
     // Create mention span
     const mentionSpan = document.createElement('span');
     mentionSpan.className = 'mention-tag';
@@ -107,17 +111,30 @@ export function ChatInput({
     mentionSpan.dataset.shortcutId = shortcut.id;
     mentionSpan.textContent = `@${shortcut.name}`;
     
-    // Clear and update content
-    inputRef.current.innerHTML = '';
+    // Create space span
+    const spaceSpan = document.createElement('span');
+    spaceSpan.className = 'mention-space';
+    spaceSpan.contentEditable = 'true';
+    spaceSpan.textContent = ' ';
+    
+    // Assemble the wrapper
+    wrapperSpan.appendChild(mentionSpan);
+    wrapperSpan.appendChild(spaceSpan);
+    
+    // Create a temporary container
+    const tempDiv = document.createElement('div');
+    
+    // Add content in sequence
     if (beforeMention) {
-      inputRef.current.appendChild(document.createTextNode(beforeMention));
+      tempDiv.appendChild(document.createTextNode(beforeMention));
     }
-    inputRef.current.appendChild(mentionSpan);
-    // Always add a space after the mention
-    inputRef.current.appendChild(document.createTextNode(' '));
+    tempDiv.appendChild(wrapperSpan);
     if (afterMention) {
-      inputRef.current.appendChild(document.createTextNode(afterMention));
+      tempDiv.appendChild(document.createTextNode(afterMention));
     }
+    
+    // Update content all at once
+    inputRef.current.innerHTML = tempDiv.innerHTML;
     
     // Update parent component
     const event = {
@@ -128,13 +145,17 @@ export function ChatInput({
     setShowShortcuts(false);
     setMentionStartPosition(null);
     
-    // Move cursor after the space
+    // Set cursor position after the mention
     const selection = window.getSelection();
     const range = document.createRange();
-    range.setStartAfter(mentionSpan.nextSibling as Node);
-    range.collapse(true);
-    selection?.removeAllRanges();
-    selection?.addRange(range);
+    const spaceSpans = inputRef.current.getElementsByClassName('mention-space');
+    if (spaceSpans.length > 0) {
+      const lastSpaceSpan = spaceSpans[spaceSpans.length - 1];
+      range.selectNodeContents(lastSpaceSpan);
+      range.collapse(false);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
   };
 
   // Handle keyboard navigation
@@ -151,6 +172,24 @@ export function ChatInput({
         handleShortcutSelect(shortcuts[selectedIndex]);
       } else if (e.key === 'Escape') {
         setShowShortcuts(false);
+      }
+    } else if (e.key === 'Backspace') {
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const startContainer = range.startContainer;
+        
+        // Check if we're about to delete a mention-tag
+        if (startContainer.nodeType === Node.TEXT_NODE && 
+            startContainer.textContent === ' ' && 
+            (startContainer.previousSibling as Element)?.classList?.contains('mention-tag')) {
+          e.preventDefault();
+          // Remove the entire wrapper
+          const wrapper = startContainer.parentElement;
+          if (wrapper?.classList.contains('mention-wrapper')) {
+            wrapper.remove();
+          }
+        }
       }
     } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();

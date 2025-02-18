@@ -123,7 +123,7 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
             <div 
               className={`
                 ${isMobile 
-                  ? 'fixed inset-x-0 bottom-0 w-full max-h-[80vh] overflow-y-auto rounded-t-lg' 
+                  ? 'fixed inset-x-0 bottom-0 w-full max-h-[80vh] overflow-y-auto rounded-t-lg pb-6' 
                   : `absolute ${position === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'} left-0 w-[280px]`}
                 bg-[var(--background)] border border-[var(--accent)] shadow-lg z-50
                 animate-fade-in
