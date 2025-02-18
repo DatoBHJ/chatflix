@@ -113,24 +113,26 @@ export function ChatInput({
       inputRef.current.appendChild(document.createTextNode(beforeMention));
     }
     inputRef.current.appendChild(mentionSpan);
+    // Always add a space after the mention
+    inputRef.current.appendChild(document.createTextNode(' '));
     if (afterMention) {
-      inputRef.current.appendChild(document.createTextNode(' ' + afterMention));
+      inputRef.current.appendChild(document.createTextNode(afterMention));
     }
     
     // Update parent component
     const event = {
-      target: { value: `${beforeMention}${shortcut.content}${afterMention ? ' ' + afterMention : ''}` }
+      target: { value: `${beforeMention}${shortcut.content}${afterMention ? ' ' + afterMention : ' '}` }
     } as React.ChangeEvent<HTMLTextAreaElement>;
     handleInputChange(event);
     
     setShowShortcuts(false);
     setMentionStartPosition(null);
     
-    // Move cursor to end
+    // Move cursor after the space
     const selection = window.getSelection();
     const range = document.createRange();
-    range.selectNodeContents(inputRef.current);
-    range.collapse(false);
+    range.setStartAfter(mentionSpan.nextSibling as Node);
+    range.collapse(true);
     selection?.removeAllRanges();
     selection?.addRange(range);
   };
@@ -158,6 +160,10 @@ export function ChatInput({
           preventDefault: () => {},
         } as FormEvent<HTMLFormElement>;
         handleSubmit(event);
+        // Clear input after submission
+        if (inputRef.current) {
+          inputRef.current.innerHTML = '';
+        }
       }
     }
   };
@@ -169,7 +175,13 @@ export function ChatInput({
 
   return (
     <div className="relative">
-      <form ref={formRef} onSubmit={handleSubmit} className="flex gap-2 sticky bottom-0 bg-transparent p-1 md:p-0">
+      <form ref={formRef} onSubmit={(e) => {
+        handleSubmit(e);
+        // Clear input after submission
+        if (inputRef.current) {
+          inputRef.current.innerHTML = '';
+        }
+      }} className="flex gap-2 sticky bottom-0 bg-transparent p-1 md:p-0">
         <div
           ref={inputRef}
           contentEditable
