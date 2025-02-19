@@ -108,6 +108,7 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   // Check if mobile on mount and window resize
   useEffect(() => {
@@ -140,6 +141,19 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
     }
   }, [isOpen]);
 
+  // Handle keyboard visibility
+  useEffect(() => {
+    if (!isMobile) return;
+
+    const handleResize = () => {
+      const isKeyboardVisible = window.visualViewport?.height! < window.innerHeight;
+      setKeyboardVisible(isKeyboardVisible);
+    };
+
+    window.visualViewport?.addEventListener('resize', handleResize);
+    return () => window.visualViewport?.removeEventListener('resize', handleResize);
+  }, [isMobile]);
+
   // Filter models based on search query
   const filteredModels = MODEL_OPTIONS.filter(option => 
     option.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -164,12 +178,21 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
             <div 
               className={`
                 ${isMobile 
-                  ? 'fixed inset-x-0 bottom-0 w-full max-h-[80vh] overflow-y-auto rounded-t-lg pb-6' 
+                  ? `fixed inset-x-0 w-full overflow-y-auto rounded-t-lg pb-6
+                     ${keyboardVisible 
+                       ? 'bottom-[30vh] max-h-[40vh]' 
+                       : 'bottom-0 max-h-[80vh]'}`
                   : `absolute ${position === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'} left-0 w-[280px] max-h-[400px] overflow-y-auto`}
                 bg-[var(--background)] border border-[var(--accent)] shadow-lg z-50
                 animate-fade-in
               `}
               role="listbox"
+              style={{
+                ...(keyboardVisible && {
+                  position: 'fixed',
+                  bottom: `${window.visualViewport?.height! * 0.3}px`
+                })
+              }}
             >
               {isMobile && (
                 <div className="sticky top-0 flex items-center justify-between px-4 py-3 bg-[var(--background)]">
