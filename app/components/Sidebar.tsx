@@ -7,6 +7,7 @@ import { DatabaseMessage, Chat } from '@/lib/types'
 import { MODEL_OPTIONS } from './ModelSelector'
 import { SystemPromptDialog } from './SystemPromptDialog'
 import { PromptShortcutsDialog } from './PromptShortcutsDialog'
+import { ThemeToggle } from './ThemeToggle'
 
 interface SidebarProps {
   user: any;  // You might want to define a proper User type
@@ -188,7 +189,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
           <button
             onClick={() => {
               router.push('/')
-              onClose?.()  // Call onClose when new chat is clicked
+              onClose?.()
             }}
             className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
             title="New Chat"
@@ -220,7 +221,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
                   }`}
                   onClick={() => {
                     router.push(`/chat/${chat.id}`)
-                    onClose?.()  // Call onClose when chat is clicked
+                    onClose?.()
                   }}
                 >
                   <div className="flex justify-between items-start gap-4">
@@ -269,55 +270,58 @@ export function Sidebar({ user, onClose }: SidebarProps) {
           </div>
         </div>
 
-        {/* Bottom Section - Menu */}
-        <div className="mt-auto px-6 py-6 relative menu-container">
-          <button
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
-            title="Menu"
-          >
-            menu
-          </button>
+        {/* Bottom Section */}
+        <div className="mt-auto">
+          {/* Menu Section */}
+          <div className="px-6 py-6 relative menu-container">
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
+              title="Menu"
+            >
+              menu
+            </button>
 
-          {/* Menu Popover */}
-          {isMenuOpen && (
-            <div className="absolute bottom-full left-6 right-6 mb-2 bg-[var(--background)] border border-[var(--accent)] rounded-lg overflow-hidden">
-              <button
-                onClick={() => {
-                  setIsPromptShortcutsOpen(true)
-                  setIsMenuOpen(false)
-                }}
-                className="w-full px-4 py-3 text-sm text-left hover:bg-[var(--accent)] transition-colors uppercase tracking-wider"
-              >
-                Manage Shortcuts
-              </button>
-              <button
-                onClick={() => {
-                  setIsSystemPromptOpen(true)
-                  setIsMenuOpen(false)
-                }}
-                className="w-full px-4 py-3 text-sm text-left hover:bg-[var(--accent)] transition-colors uppercase tracking-wider"
-              >
-                Edit System Prompt
-              </button>
-              <button
-                onClick={handleSignOut}
-                className="w-full px-4 py-3 text-sm text-left hover:bg-[var(--accent)] transition-colors uppercase tracking-wider"
-              >
-                Sign Out
-              </button>
-            </div>
-          )}
+            {/* Menu Popover */}
+            {isMenuOpen && (
+              <div className="absolute bottom-full left-6 right-6 mb-2 bg-[var(--background)] border border-[var(--accent)] rounded-lg overflow-hidden">
+                <button
+                  onClick={() => {
+                    setIsPromptShortcutsOpen(true)
+                    setIsMenuOpen(false)
+                  }}
+                  className="w-full px-4 py-3 text-sm text-left hover:bg-[var(--accent)] transition-colors uppercase tracking-wider"
+                >
+                  Manage Shortcuts
+                </button>
+                <button
+                  onClick={() => {
+                    setIsSystemPromptOpen(true)
+                    setIsMenuOpen(false)
+                  }}
+                  className="w-full px-4 py-3 text-sm text-left hover:bg-[var(--accent)] transition-colors uppercase tracking-wider"
+                >
+                  Edit System Prompt
+                </button>
+                <ThemeToggle />
+                <button
+                  onClick={handleSignOut}
+                  className="w-full px-4 py-3 text-sm text-left hover:bg-[var(--accent)] transition-colors uppercase tracking-wider"
+                >
+                  Sign Out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* System Prompt Dialog */}
+        {/* Dialogs */}
         <SystemPromptDialog
           isOpen={isSystemPromptOpen}
           onClose={() => setIsSystemPromptOpen(false)}
           user={user}
         />
 
-        {/* Prompt Shortcuts Dialog */}
         <PromptShortcutsDialog
           isOpen={isPromptShortcutsOpen}
           onClose={() => setIsPromptShortcutsOpen(false)}

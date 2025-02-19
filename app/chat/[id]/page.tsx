@@ -124,7 +124,6 @@ function MarkdownContent({ content }: { content: string }) {
           const match = /language-(\w+)/.exec(className || '');
           const isInline = !match;
           
-          // Improved text extraction function to handle nested structures
           const extractText = (node: any): string => {
             if (typeof node === 'string') return node;
             if (Array.isArray(node)) return node.map(extractText).join('');
@@ -136,7 +135,7 @@ function MarkdownContent({ content }: { content: string }) {
           
           if (isInline) {
             return (
-              <code className="font-mono text-sm bg-black/30 px-1.5 py-0.5 rounded" {...props}>
+              <code className="font-mono text-sm bg-[var(--inline-code-bg)] text-[var(--inline-code-text)] px-1.5 py-0.5 rounded" {...props}>
                 {children}
               </code>
             );
@@ -163,7 +162,7 @@ function MarkdownContent({ content }: { content: string }) {
                   )}
                 </button>
               </div>
-              <pre className="overflow-x-auto p-4 m-0 bg-black/20 max-w-full">
+              <pre className="overflow-x-auto p-4 m-0 bg-[var(--code-bg)] text-[var(--code-text)] max-w-full">
                 <code className={`${className} break-words whitespace-pre-wrap`} {...props}>
                   {children}
                 </code>

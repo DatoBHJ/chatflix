@@ -134,12 +134,12 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
 
   return (
     <div 
-      className="fixed inset-0 bg-black/95 flex items-start justify-center z-50 overflow-hidden"
+      className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 overflow-hidden backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="w-full max-w-2xl bg-transparent h-full flex flex-col">
+      <div className="w-full max-w-2xl bg-[var(--background)] h-full flex flex-col shadow-xl">
         {/* Fixed Header */}
         <div className="pt-12 px-6 pb-6 border-b border-[var(--accent)]">
           <h2 className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors">Prompt Shortcuts</h2>
@@ -151,7 +151,6 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
             {/* Usage guide */}
             <div className="mb-8">
               <div className="text-xs tracking-wide space-y-4">
-                {/* <div className="text-[var(--muted)] uppercase tracking-[0.2em] mb-2">How to create shortcuts</div> */}
                 <div className="flex items-baseline gap-3">
                   <span className="text-[var(--muted)]">01</span>
                   <div className="space-y-1">
@@ -174,20 +173,20 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
 
             {/* Add new shortcut */}
             <div className="space-y-1 mb-8">
-              <div className="text-[10px] tracking-[0.2em] uppercase text-white/70 pl-1">shortcut name</div>
+              <div className="text-[10px] tracking-[0.2em] uppercase text-[var(--muted)] pl-1">shortcut name</div>
               <input
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value.replace(/\s+/g, '_'))}
                 placeholder="e.g. summarize"
-                className="w-full p-4 bg-[var(--accent)] text-sm focus:outline-none"
+                className="w-full p-4 bg-[var(--accent)] text-[var(--foreground)] focus:outline-none placeholder:text-[var(--muted)]"
               />
-              <div className="text-[10px] tracking-[0.2em] uppercase text-white/70 pl-1 mt-4">shortcut content</div>
+              <div className="text-[10px] tracking-[0.2em] uppercase text-[var(--muted)] pl-1 mt-4">shortcut content</div>
               <textarea
                 value={newContent}
                 onChange={(e) => setNewContent(e.target.value)}
                 placeholder="e.g. Provide a concise summary of the given text: "
-                className="w-full h-24 p-4 bg-[var(--accent)] text-sm focus:outline-none resize-none"
+                className="w-full h-24 p-4 bg-[var(--accent)] text-[var(--foreground)] focus:outline-none resize-none placeholder:text-[var(--muted)]"
               />
               <div className="flex gap-2">
                 <button
@@ -236,12 +235,12 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
                       <div className="min-w-[110px] py-0.5 bg-[var(--background)] border border-[var(--accent)] backdrop-blur-md">
                         <button
                           onClick={() => handleEdit(shortcut)}
-                          className="w-full px-3 py-1.5 text-[11px] tracking-wide hover:bg-[var(--accent)]/50 transition-colors flex items-center justify-between group/btn"
+                          className="w-full px-3 py-1.5 text-[11px] tracking-wide hover:bg-[var(--accent)] transition-colors flex items-center justify-between group/btn"
                         >
                           <span>Edit</span>
                           <span className="text-[var(--muted)] group-hover/btn:text-[var(--foreground)] transition-colors scale-x-[-1]">✎</span>
                         </button>
-                        <div className="h-px bg-[var(--accent)]/20"></div>
+                        <div className="h-px bg-[var(--accent)]"></div>
                         <button
                           onClick={() => handleDelete(shortcut.id)}
                           className="w-full px-3 py-1.5 text-[11px] tracking-wide text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-colors flex items-center justify-between group/btn"

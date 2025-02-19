@@ -6,20 +6,76 @@
 @tailwind utilities;
 
 :root {
-  --background: #111111;
-  --foreground: #ffffff;
-  --accent: #222222;
-  --muted: #999999;
+  /* Light theme variables */
+  --background-light: #ffffff;
+  --foreground-light: #111111;
+  --accent-light: #f5f5f5;
+  --muted-light: #666666;
+  --code-bg-light: #f8f9fa;
+  --code-text-light: #374151;
+  --inline-code-bg-light: #f3f4f6;
+  --inline-code-text-light: #374151;
+
+  /* Dark theme variables */
+  --background-dark: #0a0a0a;
+  --foreground-dark: #e5e5e5;
+  --accent-dark: #262626;
+  --muted-dark: #999999;
+  --code-bg-dark: #1a1a1a;
+  --code-text-dark: #e5e5e5;
+  --inline-code-bg-dark: #2a2a2a;
+  --inline-code-text-dark: #e5e5e5;
+
+  /* Default to light theme */
+  --background: var(--background-light);
+  --foreground: var(--foreground-light);
+  --accent: var(--accent-light);
+  --muted: var(--muted-light);
+  --code-bg: var(--code-bg-light);
+  --code-text: var(--code-text-light);
+  --inline-code-bg: var(--inline-code-bg-light);
+  --inline-code-text: var(--inline-code-text-light);
+
   --font-sans: "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
   --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* System preference based theme switching */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #e5e5e5;
-    --accent: #262626;
+  :root[data-theme="system"] {
+    --background: var(--background-dark);
+    --foreground: var(--foreground-dark);
+    --accent: var(--accent-dark);
+    --muted: var(--muted-dark);
+    --code-bg: var(--code-bg-dark);
+    --code-text: var(--code-text-dark);
+    --inline-code-bg: var(--inline-code-bg-dark);
+    --inline-code-text: var(--inline-code-text-dark);
   }
+}
+
+/* Manual dark theme */
+:root[data-theme="dark"] {
+  --background: var(--background-dark);
+  --foreground: var(--foreground-dark);
+  --accent: var(--accent-dark);
+  --muted: var(--muted-dark);
+  --code-bg: var(--code-bg-dark);
+  --code-text: var(--code-text-dark);
+  --inline-code-bg: var(--inline-code-bg-dark);
+  --inline-code-text: var(--inline-code-text-dark);
+}
+
+/* Manual light theme */
+:root[data-theme="light"] {
+  --background: var(--background-light);
+  --foreground: var(--foreground-light);
+  --accent: var(--accent-light);
+  --muted: var(--muted-light);
+  --code-bg: var(--code-bg-light);
+  --code-text: var(--code-text-light);
+  --inline-code-bg: var(--inline-code-bg-light);
+  --inline-code-text: var(--inline-code-text-light);
 }
 
 body {
@@ -116,7 +172,8 @@ body {
 
 /* Message Role Indicators */
 .message-role {
-  @apply text-xs uppercase tracking-wider text-[var(--muted)] mb-3 px-1;
+  @apply text-xs uppercase tracking-wider mb-3 px-1;
+  color: var(--muted);
 }
 
 /* Message Styles */
@@ -127,22 +184,26 @@ body {
 .message-user {
   @apply bg-[var(--foreground)] text-[var(--background)] p-6 rounded-none max-w-full ml-auto
          hover:opacity-95 transition-[var(--transition)];
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .message-assistant {
-  @apply bg-[var(--accent)] text-[var(--foreground)] p-6 rounded-none max-w-full
+  @apply p-6 rounded-none max-w-full
          hover:opacity-95 transition-[var(--transition)];
+  background-color: var(--accent);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .message-content {
-  @apply text-base leading-relaxed break-words break-all overflow-hidden;
+  @apply space-y-4;
 }
 
 /* Code Block Styles */
 .message-code {
-  @apply font-mono text-sm bg-black/20 rounded-none overflow-hidden max-w-full;
+  @apply font-mono text-sm rounded-none overflow-hidden max-w-full;
+  background-color: var(--code-bg);
+  color: var(--code-text);
   box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-  width: 100%;
 }
 
 .message-code:hover .message-code-copy {
@@ -150,15 +211,15 @@ body {
 }
 
 .message-code-header {
-  @apply bg-black/30 border-b border-black/10 flex items-center justify-between;
-  width: 100%;
+  @apply border-b flex items-center justify-between;
+  background-color: color-mix(in srgb, var(--code-bg) 95%, var(--foreground) 5%);
+  border-color: var(--accent);
 }
 
 .message-code pre {
   @apply m-0 overflow-x-auto max-w-full;
-  width: 100%;
-  scrollbar-width: thin;
-  scrollbar-color: var(--accent) transparent;
+  background-color: var(--code-bg);
+  color: var(--code-text);
 }
 
 .message-code pre::-webkit-scrollbar {
@@ -191,14 +252,52 @@ body {
   max-width: 100%;
 }
 
-/* Syntax Highlighting Overrides */
-.hljs {
-  @apply bg-transparent p-0;
+/* Syntax Highlighting Overrides for Light Mode */
+:root[data-theme="light"] .hljs {
+  color: var(--code-text-light);
+  background: transparent;
+}
+
+:root[data-theme="light"] .hljs-keyword,
+:root[data-theme="light"] .hljs-selector-tag {
+  color: #9333ea;
+}
+
+:root[data-theme="light"] .hljs-string {
+  color: #16a34a;
+}
+
+:root[data-theme="light"] .hljs-title,
+:root[data-theme="light"] .hljs-title.class_,
+:root[data-theme="light"] .hljs-title.function_ {
+  color: #0369a1;
+}
+
+:root[data-theme="light"] .hljs-attr,
+:root[data-theme="light"] .hljs-variable,
+:root[data-theme="light"] .hljs-template-variable {
+  color: #ea580c;
+}
+
+:root[data-theme="light"] .hljs-comment,
+:root[data-theme="light"] .hljs-quote {
+  color: #6b7280;
+  font-style: italic;
+}
+
+:root[data-theme="light"] .hljs-meta {
+  color: #4f46e5;
+}
+
+:root[data-theme="light"] .hljs-number {
+  color: #0891b2;
 }
 
 /* Markdown Content Styles */
-.message-content {
-  @apply space-y-4;
+.message-content code:not(.message-code code) {
+  @apply font-mono text-sm px-1.5 py-0.5 rounded;
+  background-color: var(--inline-code-bg);
+  color: var(--inline-code-text);
 }
 
 .message-content > *:first-child {
@@ -220,11 +319,6 @@ body {
 
 .message-content h3 {
   @apply text-lg font-semibold mt-5 mb-2;
-}
-
-/* Inline Code Styles */
-.message-content code:not(.message-code code) {
-  @apply font-mono text-sm bg-black/30 px-1.5 py-0.5 rounded;
 }
 
 /* List Styles */
@@ -323,16 +417,20 @@ body {
 
 /* Reasoning Section Styles */
 .message-reasoning {
-  @apply bg-black/20 p-4 mb-4 text-sm ;
+  @apply mb-4 text-sm;
+  background-color: color-mix(in srgb, var(--background) 95%, var(--foreground) 5%);
+  border: 1px solid var(--accent);
 }
 
 .message-reasoning-header {
-  @apply flex items-center gap-2 text-xs uppercase tracking-wider text-[var(--muted)] 
-         cursor-pointer hover:text-[var(--foreground)] transition-[var(--transition)];
+  @apply flex items-center gap-2 text-xs uppercase tracking-wider cursor-pointer 
+         hover:text-[var(--foreground)] transition-[var(--transition)] p-3;
+  color: var(--muted);
+  border-bottom: 1px solid var(--accent);
 }
 
 .message-reasoning-content {
-  @apply overflow-hidden transition-[var(--transition)];
+  @apply overflow-hidden transition-[var(--transition)] px-3 py-2;
 }
 
 .message-reasoning-content.expanded {
@@ -369,17 +467,16 @@ body {
 
 .mention-tag {
   display: inline-block;
-  background-color: rgba(59, 130, 246, 0.15);
-  color: rgb(96, 165, 250);
   padding: 0.1em 0.3em;
-  border-radius: 4px;
   margin: 0 1px;
   font-weight: 500;
   cursor: default;
   user-select: none;
+  background-color: color-mix(in srgb, var(--accent) 50%, var(--background) 50%);
+  color: var(--foreground);
+  border-radius: 4px;
 }
 
 .mention-tag:hover {
-  background-color: rgba(59, 130, 246, 0.25);
-  color: rgb(147, 197, 253);
+  background-color: var(--accent);
 }
