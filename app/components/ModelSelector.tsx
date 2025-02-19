@@ -104,11 +104,8 @@ export const MODEL_OPTIONS: ModelOption[] = [
 
 export function ModelSelector({ currentModel, nextModel, setNextModel, disabled, position = 'bottom' }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const [isMobile, setIsMobile] = useState(false);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   // Check if mobile on mount and window resize
   useEffect(() => {
@@ -126,39 +123,12 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
     function handleClickOutside(event: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
-        setSearchQuery(''); // Reset search when closing
       }
     }
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  // Focus search input when dropdown opens
-  useEffect(() => {
-    if (isOpen && searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  }, [isOpen]);
-
-  // Handle keyboard visibility
-  useEffect(() => {
-    if (!isMobile) return;
-
-    const handleResize = () => {
-      const isKeyboardVisible = window.visualViewport?.height! < window.innerHeight;
-      setKeyboardVisible(isKeyboardVisible);
-    };
-
-    window.visualViewport?.addEventListener('resize', handleResize);
-    return () => window.visualViewport?.removeEventListener('resize', handleResize);
-  }, [isMobile]);
-
-  // Filter models based on search query
-  const filteredModels = MODEL_OPTIONS.filter(option => 
-    option.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    option.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   return (
     <div className="relative" ref={containerRef}>
@@ -178,76 +148,46 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
             <div 
               className={`
                 ${isMobile 
-                  ? `fixed inset-x-0 w-full overflow-y-auto rounded-t-lg pb-6
-                     ${keyboardVisible 
-                       ? 'bottom-[30vh] max-h-[40vh]' 
-                       : 'bottom-0 max-h-[80vh]'}`
+                  ? 'fixed inset-x-0 bottom-0 w-full max-h-[80vh] overflow-y-auto rounded-t-lg pb-6' 
                   : `absolute ${position === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'} left-0 w-[280px] max-h-[400px] overflow-y-auto`}
                 bg-[var(--background)] border border-[var(--accent)] shadow-lg z-50
                 animate-fade-in
               `}
               role="listbox"
-              style={{
-                ...(keyboardVisible && {
-                  position: 'fixed',
-                  bottom: `${window.visualViewport?.height! * 0.3}px`
-                })
-              }}
             >
               {isMobile && (
                 <div className="sticky top-0 flex items-center justify-between px-4 py-3 bg-[var(--background)]">
                   <span className="text-xs uppercase tracking-wider">Select Model</span>
                   <button 
-                    onClick={() => {
-                      setIsOpen(false);
-                      setSearchQuery('');
-                    }}
+                    onClick={() => setIsOpen(false)}
                     className="text-[var(--muted)] hover:text-[var(--foreground)] text-xs uppercase tracking-wider"
                   >
                     Close
                   </button>
                 </div>
               )}
-              <div className="sticky top-0 bg-[var(--background)]">
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="search"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full px-4 py-3 text-xs uppercase tracking-wider bg-transparent
-                           text-[var(--foreground)] placeholder-[var(--muted)]
-                           focus:outline-none"
-                />
-              </div>
-              {filteredModels.length === 0 ? (
-                <div className="px-4 py-3 text-xs uppercase tracking-wider text-[var(--muted)]">
-                  No models found
-                </div>
-              ) : (
-                filteredModels.map(option => (
-                  <div 
-                    key={option.id}
-                    className={`p-3 ${!isMobile ? 'border-b border-[var(--accent)]' : ''} last:border-b-0
-                               ${option.id === nextModel ? 'bg-[var(--accent)]' : ''}
-                               hover:bg-[var(--accent)] transition-colors cursor-pointer
-                               ${isMobile ? 'p-4' : ''}`}
-                    onClick={() => {
-                      setNextModel(option.id);
-                      setIsOpen(false);
-                    }}
-                    role="option"
-                    aria-selected={option.id === nextModel}
-                  >
-                    <div className={`text-sm sm:text-base font-medium mb-1 ${isMobile ? 'text-base' : ''}`}>
-                      {option.name}
-                    </div>
-                    <div className={`text-xs text-[var(--muted)] whitespace-pre-line ${isMobile ? 'text-sm' : ''}`}>
-                      {option.description}
-                    </div>
+              {MODEL_OPTIONS.map(option => (
+                <div 
+                  key={option.id}
+                  className={`p-3 ${!isMobile ? 'border-b border-[var(--accent)]' : ''} last:border-b-0
+                             ${option.id === nextModel ? 'bg-[var(--accent)]' : ''}
+                             hover:bg-[var(--accent)] transition-colors cursor-pointer
+                             ${isMobile ? 'p-4' : ''}`}
+                  onClick={() => {
+                    setNextModel(option.id);
+                    setIsOpen(false);
+                  }}
+                  role="option"
+                  aria-selected={option.id === nextModel}
+                >
+                  <div className={`text-sm sm:text-base font-medium mb-1 ${isMobile ? 'text-base' : ''}`}>
+                    {option.name}
                   </div>
-                ))
-              )}
+                  <div className={`text-xs text-[var(--muted)] whitespace-pre-line ${isMobile ? 'text-sm' : ''}`}>
+                    {option.description}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
