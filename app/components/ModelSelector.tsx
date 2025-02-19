@@ -180,7 +180,7 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
                   role="option"
                   aria-selected={option.id === nextModel}
                 >
-                  <div className={`text-sm sm:text-base font-medium mb-1 ${isMobile ? 'text-base' : ''}`}>
+                  <div className={`text-sm sm:text-base font-normal mb-1 ${isMobile ? 'text-base' : ''}`}>
                     {option.name}
                   </div>
                   <div className={`text-xs text-[var(--muted)] whitespace-pre-line ${isMobile ? 'text-sm' : ''}`}>
