@@ -307,7 +307,8 @@ export default function Chat({ params }: PageProps) {
       const errorResponse = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: 'Rate limit reached. Please try again later.',
+        content: 'Rate limit reached. Please try other models.',
+        // content: 'Rate limit reached. Please try again later.',
         createdAt: new Date(),
         model: currentModel
       } as ExtendedMessage;

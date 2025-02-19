@@ -2,7 +2,7 @@ import { Message, streamText, createDataStreamResponse, smoothStream } from 'ai'
 import { createClient } from '@/utils/supabase/server'
 import { providers } from '@/lib/providers'
 import { ChatRequest, CompletionResult } from '@/lib/types'
-import { ratelimit } from '@/lib/ratelimit'
+import { getRateLimiter } from '@/lib/ratelimit'
 
 export const runtime = 'edge'  // Edge Runtime 사용
 export const maxDuration = 300 // 최대 실행 시간 300초로 설정
@@ -90,8 +90,16 @@ export async function POST(req: Request) {
           throw new Error('Unauthorized')
         }
 
-        // Apply rate limiting
-        const { success, reset, remaining } = await ratelimit.limit(user.id)
+        const body = await req.json();
+        const { messages, model, chatId, isRegeneration, existingMessageId }: ChatRequest = body;
+
+        // Get model-specific rate limiter
+        const modelRateLimiter = getRateLimiter(model);
+        
+        // Apply rate limiting with model-specific limits
+        const { success, reset, remaining } = await modelRateLimiter.limit(
+          `${user.id}:${model}` // Include model in the key to track per-model limits
+        );
         
         if (!success) {
           const now = Date.now()
@@ -99,7 +107,7 @@ export async function POST(req: Request) {
           
           throw new Error(JSON.stringify({
             type: 'rate_limit',
-            message: `Rate limit exceeded. Please try again in ${retryAfter} seconds.`,
+            message: `Rate limit exceeded for ${model}. Please try again in ${retryAfter} seconds.`,
             retryAfter
           }));
         }
@@ -117,9 +125,6 @@ export async function POST(req: Request) {
 
         const systemPrompt = systemPromptData?.content || 'You are a helpful AI assistant. When sharing code or command examples, always specify a language for code blocks (e.g., ```javascript, ```python, ```bash, ```text for plain text). Use appropriate markdown syntax for code blocks, lists, tables, and other formatting elements.'
 
-        const body = await req.json();
-        const { messages, model, chatId, isRegeneration, existingMessageId }: ChatRequest = body;
-        
         // chatId가 있는 경우 해당 세션이 존재하는지 확인
         if (chatId) {
           console.log('Checking session:', chatId);
