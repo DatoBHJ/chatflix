@@ -1,8 +1,8 @@
 import { Message, streamText, createDataStreamResponse, smoothStream } from 'ai';
 import { createClient } from '@/utils/supabase/server'
 import { providers } from '@/lib/providers'
-import { ChatRequest, MessagePart, CompletionResult } from '@/lib/types'
-// import { ratelimit } from '@/lib/ratelimit'
+import { ChatRequest, CompletionResult } from '@/lib/types'
+import { ratelimit } from '@/lib/ratelimit'
 
 export const runtime = 'edge'  // Edge Runtime 사용
 export const maxDuration = 300 // 최대 실행 시간 300초로 설정
@@ -90,24 +90,19 @@ export async function POST(req: Request) {
           throw new Error('Unauthorized')
         }
 
-        // // Apply rate limiting
-        // const { success, reset, remaining } = await ratelimit.limit(user.id)
+        // Apply rate limiting
+        const { success, reset, remaining } = await ratelimit.limit(user.id)
         
-        // if (!success) {
-        //   const now = Date.now()
-        //   const retryAfter = Math.floor((reset - now) / 1000)
+        if (!success) {
+          const now = Date.now()
+          const retryAfter = Math.floor((reset - now) / 1000)
           
-        //   dataStream.writeMessageAnnotation({
-        //     type: 'error',
-        //     data: {
-        //       message: `Rate limit exceeded. Please try again in ${retryAfter} seconds.`,
-        //       code: 429,
-        //       retryAfter,
-        //       remaining
-        //     }
-        //   })
-        //   return
-        // }
+          throw new Error(JSON.stringify({
+            type: 'rate_limit',
+            message: `Rate limit exceeded. Please try again in ${retryAfter} seconds.`,
+            retryAfter
+          }));
+        }
 
         // Get user's system prompt
         const { data: systemPromptData, error: systemPromptError } = await supabase
@@ -424,6 +419,19 @@ export async function POST(req: Request) {
       } catch (error) {
         // Handle any errors that occurred during execution
         if (error instanceof Error) {
+          try {
+            // Try to parse the error message as JSON
+            const errorData = JSON.parse(error.message);
+            if (errorData.type === 'rate_limit') {
+              dataStream.write(`0:${errorData.message}\n`);
+              dataStream.write(`e:{"finishReason":"error"}\n`);
+              return;
+            }
+          } catch (e) {
+            // If parsing fails, treat it as a regular error
+          }
+          
+          // Handle other errors as before
           dataStream.writeMessageAnnotation({
             type: 'error',
             data: { message: error.message }

@@ -286,6 +286,8 @@ export default function Chat({ params }: PageProps) {
     id: chatId,
     initialMessages: [],
     onResponse: (response) => {
+      console.log('[Client] Response received:', response);
+      
       // Add model information as soon as the message is created
       setMessages(prevMessages => {
         const updatedMessages = [...prevMessages];
@@ -299,6 +301,18 @@ export default function Chat({ params }: PageProps) {
         }
         return updatedMessages;
       });
+    },
+    onError: (error: Error & { data?: string }) => {
+      // Add error message as AI response
+      const errorResponse = {
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: 'Rate limit reached. Please try again later.',
+        createdAt: new Date(),
+        model: currentModel
+      } as ExtendedMessage;
+
+      setMessages(prevMessages => [...prevMessages, errorResponse]);
     }
   });
 
