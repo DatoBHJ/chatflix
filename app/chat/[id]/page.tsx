@@ -155,7 +155,7 @@ function MarkdownContent({ content }: { content: string }) {
                 >
                   {copied[codeText] ? (
                     <>
-                      <span className="text-green-500">Copied</span>
+                      <span className="">Copied</span>
                     </>
                   ) : (
                     <>Copy</>
@@ -163,9 +163,9 @@ function MarkdownContent({ content }: { content: string }) {
                 </button>
               </div>
               <pre className="overflow-x-auto p-4 m-0 bg-[var(--code-bg)] text-[var(--code-text)] max-w-full">
-                <code className={`${className} break-words whitespace-pre-wrap`} {...props}>
+                {/* <code className={`${className} break-words whitespace-pre-wrap`} {...props}> */}
                   {children}
-                </code>
+                {/* </code> */}
               </pre>
             </div>
           );
