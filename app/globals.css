@@ -178,7 +178,10 @@ body {
 
 /* Message Styles */
 .message-user, .message-assistant {
-  @apply max-w-[calc(100vw-2rem)] overflow-hidden;
+  @apply rounded-lg p-4 my-2;
+  max-width: calc(100% - 2rem);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .message-user {
@@ -195,15 +198,17 @@ body {
 }
 
 .message-content {
-  @apply space-y-4;
+  @apply text-sm leading-relaxed;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
 }
 
 /* Code Block Styles */
 .message-code {
-  @apply font-mono text-sm rounded-none overflow-hidden max-w-full;
-  background-color: var(--code-bg);
-  color: var(--code-text);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  @apply rounded-lg;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
 }
 
 .message-code:hover .message-code-copy {
@@ -217,9 +222,10 @@ body {
 }
 
 .message-code pre {
-  @apply m-0 overflow-x-auto max-w-full;
-  background-color: var(--code-bg);
-  color: var(--code-text);
+  @apply rounded-lg;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 .message-code pre::-webkit-scrollbar {
@@ -236,9 +242,9 @@ body {
 }
 
 .message-code code {
-  @apply text-[var(--foreground)] block break-words whitespace-pre-wrap px-4;
-  width: fit-content;
-  min-width: 100%;
+  @apply font-mono text-sm;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 /* Special handling for non-language-specified code blocks */

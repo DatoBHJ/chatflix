@@ -142,7 +142,7 @@ function MarkdownContent({ content }: { content: string }) {
           }
           
           return (
-            <div className="message-code group relative my-6 max-w-full">
+            <div className="message-code group relative my-6 max-w-full overflow-hidden">
               <div className="message-code-header flex items-center justify-between px-4 py-2">
                 <span className="text-xs uppercase tracking-wider text-[var(--muted)] break-all">
                   {match?.[1] || 'text'}
@@ -162,7 +162,7 @@ function MarkdownContent({ content }: { content: string }) {
                   )}
                 </button>
               </div>
-              <pre className="overflow-x-auto p-4 m-0 bg-[var(--code-bg)] text-[var(--code-text)] max-w-full">
+              <pre className="overflow-x-auto p-4 m-0 bg-[var(--code-bg)] text-[var(--code-text)] max-w-full whitespace-pre-wrap break-all">
                 {/* <code className={`${className} break-words whitespace-pre-wrap`} {...props}> */}
                   {children}
                 {/* </code> */}
@@ -752,14 +752,14 @@ export default function Chat({ params }: PageProps) {
   return (
     <main className="flex-1 relative h-full">
       <div className="flex-1 overflow-y-auto pb-40">
-        <div className="messages-container py-4 max-w-2xl ">
+        <div className="messages-container py-4 max-w-2xl mx-auto px-4 sm:px-6 w-full">
           {messages.map((message, i) => (
-            <div key={message.id} className="message-group group animate-fade-in">
+            <div key={message.id} className="message-group group animate-fade-in overflow-hidden">
               <div className={`message-role ${message.role === 'user' ? 'text-right' : ''}`}>
                 {message.role === 'assistant' ? 'AI Assistant' : 'You'}
               </div>
               <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={message.role === 'user' ? 'message-user' : 'message-assistant'}>
+                <div className={`${message.role === 'user' ? 'message-user' : 'message-assistant'} max-w-full overflow-x-auto`}>
                   {message.parts ? (
                     <>
                       {message.parts.map((part, index) => {
