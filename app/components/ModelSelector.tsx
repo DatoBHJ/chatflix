@@ -22,6 +22,16 @@ export const MODEL_OPTIONS: ModelOption[] = [
     // description: 'GOAT model by Anthropic'
   },
   {
+    id: 'deepseek-reasoner',
+    name: 'DeepSeek R1',
+    description: 'The best open source reasoning model in 2025'
+  },
+  {
+    id: 'deepseek-chat',
+    name: 'DeepSeek V3',
+    description: 'The best open source non-reasoning model in 2025'
+  },
+  {
     id: 'chatgpt-4o-latest',
     name: 'ChatGPT-4o',
     description: 'Latest version of GPT-4o used in ChatGPT'
@@ -44,16 +54,6 @@ export const MODEL_OPTIONS: ModelOption[] = [
     name: 'o3-mini',
     description: 'Latest small reasoning model by OpenAI'
     // description: 'Latest small reasoning model with high intelligence.\nExcels at science, math, and coding tasks with 200K context window.'
-  },
-  {
-    id: 'deepseek-reasoner',
-    name: 'DeepSeek R1',
-    description: 'The best open source reasoning model in 2025'
-  },
-  {
-    id: 'deepseek-chat',
-    name: 'DeepSeek V3',
-    description: 'The best open source non-reasoning model in 2025'
   },
   {
     id: 'gemini-2.0-flash',
