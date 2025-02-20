@@ -316,7 +316,6 @@ export async function POST(req: Request) {
           }
         }
 
-        // console.log(normalizedMessages, 'normalizedMessages','\n');
         console.log('normalizedMessages:', JSON.stringify(normalizedMessages, null, 2));
         // 스트리밍 응답 설정
         const abortController = new AbortController();

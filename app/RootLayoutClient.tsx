@@ -59,7 +59,7 @@ export default function RootLayoutClient({
       {/* Sidebar Toggle Button - Only show when user is authenticated */}
       <button
         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="fixed top-8 left-4 z-40 w-8 h-8 flex items-center justify-center hover:bg-[var(--foreground)] hover:text-[var(--background)] transition-colors"
+        className="fixed top-8 left-4 z-40 w-8 h-8 flex items-center justify-center"
         title={isSidebarOpen ? "Close menu" : "Open menu"}
       >
         {isSidebarOpen ? '×' : '≡'}
@@ -82,7 +82,8 @@ export default function RootLayoutClient({
       {/* Overlay when sidebar is open */}
       {isSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity z-30"
+          className="fixed inset-0 backdrop-blur-sm transition-all duration-300 ease-in-out z-30"
+          style={{ backgroundColor: 'var(--overlay)' }}
           onClick={() => setIsSidebarOpen(false)}
         />
       )}

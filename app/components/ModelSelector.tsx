@@ -16,8 +16,14 @@ interface ModelSelectorProps {
 
 export const MODEL_OPTIONS: ModelOption[] = [
   {
+    id: 'claude-3-5-sonnet-latest',
+    name: 'Claude 3.5 Sonnet',
+    description: 'GOAT'
+    // description: 'GOAT model by Anthropic'
+  },
+  {
     id: 'chatgpt-4o-latest',
-    name: 'ChatGPT-4o Latest',
+    name: 'ChatGPT-4o',
     description: 'Latest version of GPT-4o used in ChatGPT'
     // description: 'Latest version of GPT-4o used in ChatGPT.\nHigh intelligence, versatile model with 128K context window.'
   },
@@ -40,36 +46,40 @@ export const MODEL_OPTIONS: ModelOption[] = [
     // description: 'Latest small reasoning model with high intelligence.\nExcels at science, math, and coding tasks with 200K context window.'
   },
   {
-    id: 'claude-3-5-sonnet-latest',
-    name: 'Claude 3.5 Sonnet',
-    description: 'GOAT'
-    // description: 'GOAT model by Anthropic'
-  },
-  // {
-  //   id: 'deepseek-reasoner',
-  //   name: 'DeepSeek Reasoner',
-  //   description: 'Shows step-by-step reasoning. Great for math and problem-solving.'
-  // },
-  // {
-  //   id: 'deepseek-chat',
-  //   name: 'DeepSeek Chat',
-  //   description: 'Fast and efficient. Perfect for casual conversations.'
-  // },
-  {
-    id: 'deepseek-ai/DeepSeek-R1',
+    id: 'deepseek-reasoner',
     name: 'DeepSeek R1',
-    description: 'Advanced reasoning model by DeepSeek, via Together.ai'
-  },  
-  {
-    id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free',
-    name: 'DeepSeek R1 distill llama 70b',
-    description: 'High-speed reasoning model, via Together.ai'
+    description: 'The best open source reasoning model in 2025'
   },
   {
-    id: 'deepseek-ai/DeepSeek-V3',
+    id: 'deepseek-chat',
     name: 'DeepSeek V3',
-    description: 'DeepSeek V3 via Together.ai'
+    description: 'The best open source non-reasoning model in 2025'
   },
+  {
+    id: 'gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    description: 'Latest multimodal model with 1m context window by Google'
+  },
+  {
+    id: 'grok-2-latest',
+    name: 'Grok 2',
+    description: 'Grok 2 by xAI'
+  },
+  // {
+  //   id: 'deepseek-ai/DeepSeek-R1',
+  //   name: 'DeepSeek R1',
+  //   description: 'Advanced reasoning model by DeepSeek, via Together.ai'
+  // },  
+  // {
+  //   id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free',
+  //   name: 'DeepSeek R1 distill llama 70b',
+  //   description: 'High-speed reasoning model, via Together.ai'
+  // },
+  // {
+  //   id: 'deepseek-ai/DeepSeek-V3',
+  //   name: 'DeepSeek V3',
+  //   description: 'DeepSeek V3 via Together.ai'
+  // },
   // {
   //   id: 'DeepSeek r1 distill llama 70b',
   //   name: 'DeepSeek R1 distill llama 70b',
@@ -78,23 +88,13 @@ export const MODEL_OPTIONS: ModelOption[] = [
   {
     id: 'llama-3.3-70b-versatile',
     name: 'Llama 3.3 70B',
-    description: 'Lightning-fast Llama 3.3 70B via Groq'
+    description: 'The best super-fast non-reasoning model in 2025 by Meta via Groq.'
   },
-  {
-    id: 'gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    description: 'Google\'s most capable multi-modal model, with 1m context window'
-  },
-  {
-    id: 'gemini-1.5-pro',
-    name: 'Gemini 1.5 Pro',
-    description: 'Google\'s highest intelligence Gemini 1.5 series model, with 2m context window'
-  },
-  {
-    id: 'grok-2-latest',
-    name: 'Grok 2 Latest',
-    description: 'Grok 2 by xAI'
-  },
+  // {
+  //   id: 'gemini-1.5-pro',
+  //   name: 'Gemini 1.5 Pro',
+  //   description: 'Best performing Gemini 1.5 series model by Google'
+  // },
   // {
   //   id: 'grok-2-vision-latest',
   //   name: 'Grok 2 Vision Latest',
@@ -133,11 +133,11 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
   return (
     <div className="relative" ref={containerRef}>
       <div className="flex items-center gap-4 pl-1 sm:pl-0">
-        <span className="text-xs sm:text-sm uppercase tracking-wider text-[var(--muted)]">Model</span>
+        {/* <span className="text-sm sm:text-base uppercase tracking-wider text-[var(--muted)]">Model</span> */}
         <div className={`relative ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
           <button
             onClick={() => !disabled && setIsOpen(!isOpen)}
-            className={`yeezy-model-selector text-[var(--muted)] ${isOpen ? 'text-[var(--foreground)]' : ''}`}
+            className={`yeezy-model-selector text-[var(--muted)] hover:text-[var(--foreground)] ${isOpen ? 'text-[var(--foreground)]' : ''}`}
             disabled={disabled}
             aria-expanded={isOpen}
             aria-haspopup="listbox"
@@ -156,38 +156,44 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
               role="listbox"
             >
               {isMobile && (
-                <div className="sticky top-0 flex items-center justify-between px-4 py-3 bg-[var(--background)]">
-                  <span className="text-xs uppercase tracking-wider">Select Model</span>
-                  <button 
-                    onClick={() => setIsOpen(false)}
-                    className="text-[var(--muted)] hover:text-[var(--foreground)] text-xs uppercase tracking-wider"
-                  >
-                    Close
-                  </button>
+                <div className="sticky top-0 z-10 backdrop-blur-md bg-[var(--background)]/95 ">
+                  <div className="flex items-center justify-between px-6 py-4">
+                    <span className="text-xs uppercase tracking-[0.2em]">Select Model</span>
+                    <button 
+                      onClick={() => setIsOpen(false)}
+                      className="text-[var(--muted)] hover:text-[var(--foreground)] text-xs uppercase tracking-[0.2em]"
+                    >
+                      Close
+                    </button>
+                  </div>
                 </div>
               )}
-              {MODEL_OPTIONS.map(option => (
-                <div 
-                  key={option.id}
-                  className={`p-3 ${!isMobile ? 'border-b border-[var(--accent)]' : ''} last:border-b-0
-                             ${option.id === nextModel ? 'bg-[var(--accent)]' : ''}
-                             hover:bg-[var(--accent)] transition-colors cursor-pointer
-                             ${isMobile ? 'p-4' : ''}`}
-                  onClick={() => {
-                    setNextModel(option.id);
-                    setIsOpen(false);
-                  }}
-                  role="option"
-                  aria-selected={option.id === nextModel}
-                >
-                  <div className={`text-sm sm:text-base font-normal mb-1 ${isMobile ? 'text-base' : ''}`}>
-                    {option.name}
+              <div className="pt-2">
+                {MODEL_OPTIONS.map(option => (
+                  <div 
+                    key={option.id}
+                    className={`px-6 py-5 ${!isMobile ? 'border-b border-[var(--accent)]' : ''} last:border-b-0
+                               ${option.id === nextModel ? 'bg-[var(--accent)]' : ''}
+                               hover:bg-[var(--accent)] transition-all cursor-pointer
+                               ${isMobile ? 'p-6' : ''}`}
+                    onClick={() => {
+                      setNextModel(option.id);
+                      setIsOpen(false);
+                    }}
+                    role="option"
+                    aria-selected={option.id === nextModel}
+                  >
+                    <div className={`text-sm sm:text-base uppercase tracking-[0.1em] mb-2
+                                   ${option.id === nextModel ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}>
+                      {option.name}
+                    </div>
+                    <div className={`text-xs tracking-wide
+                                   ${option.id === nextModel ? 'text-[var(--muted)]' : 'text-[var(--muted)] opacity-60'}`}>
+                      {option.description}
+                    </div>
                   </div>
-                  <div className={`text-xs text-[var(--muted)] whitespace-pre-line ${isMobile ? 'text-sm' : ''}`}>
-                    {option.description}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>

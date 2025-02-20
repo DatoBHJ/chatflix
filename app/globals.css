@@ -15,6 +15,7 @@
   --code-text-light: #374151;
   --inline-code-bg-light: #f3f4f6;
   --inline-code-text-light: #374151;
+  --overlay-light: rgba(0, 0, 0, 0.1);
 
   /* Dark theme variables */
   --background-dark: #0a0a0a;
@@ -25,6 +26,7 @@
   --code-text-dark: #e5e5e5;
   --inline-code-bg-dark: #2a2a2a;
   --inline-code-text-dark: #e5e5e5;
+  --overlay-dark: rgba(0, 0, 0, 0.8);
 
   /* Default to light theme */
   --background: var(--background-light);
@@ -35,6 +37,7 @@
   --code-text: var(--code-text-light);
   --inline-code-bg: var(--inline-code-bg-light);
   --inline-code-text: var(--inline-code-text-light);
+  --overlay: var(--overlay-light);
 
   --font-sans: "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
   --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -51,6 +54,7 @@
     --code-text: var(--code-text-dark);
     --inline-code-bg: var(--inline-code-bg-dark);
     --inline-code-text: var(--inline-code-text-dark);
+    --overlay: var(--overlay-dark);
   }
 }
 
@@ -64,6 +68,7 @@
   --code-text: var(--code-text-dark);
   --inline-code-bg: var(--inline-code-bg-dark);
   --inline-code-text: var(--inline-code-text-dark);
+  --overlay: var(--overlay-dark);
 }
 
 /* Manual light theme */
@@ -76,6 +81,7 @@
   --code-text: var(--code-text-light);
   --inline-code-bg: var(--inline-code-bg-light);
   --inline-code-text: var(--inline-code-text-light);
+  --overlay: var(--overlay-light);
 }
 
 body {
@@ -107,8 +113,8 @@ body {
   }
 
   .yeezy-model-selector {
-    @apply bg-transparent text-xs sm:text-sm uppercase tracking-wide w-full
-           focus:outline-none cursor-pointer py-2 px-4 sm:px-6
+    @apply bg-transparent text-sm sm:text-base uppercase tracking-wide w-full
+           focus:outline-none cursor-pointer py-2 px-0
            transition-colors relative;
     position: relative;
     padding-right: 2.5rem;

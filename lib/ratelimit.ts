@@ -40,7 +40,9 @@ const modelRateLimitCategories: { [key: string]: keyof typeof rateLimits } = {
   'deepseek-ai/DeepSeek-V3': 'mid', // 1.25 per 1m 
   'llama-3.3-70b-versatile': 'low', //0.7 per 1m
   'gemini-2.0-flash': 'low', // free / 0.25 per 1m (input : 0.1 / output : 0.4)
-  'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free': 'low' // free
+  'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free': 'low', // free
+  'deepseek-reasoner': 'low', // free
+  'deepseek-chat': 'low', // free
 };
 
 // Create rate limiters for each category
