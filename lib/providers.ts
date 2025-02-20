@@ -58,21 +58,21 @@ const togetherDeepSeekR1DistillWithReasoning = wrapLanguageModel({
 // 모든 모델을 하나의 customProvider로 통합
 export const providers = customProvider({
   languageModels: {
-    'chatgpt-4o-latest': openai('gpt-4-0125-preview'),
-    'gpt-4o': openai('gpt-4-0125-preview'),
-    'o1': openai('gpt-4-0125-preview'),
-    'o3-mini': openai('gpt-4-0125-preview'),
-    'deepseek-reasoner': deepseek('deepseek-reasoner'),
-    'deepseek-chat': deepseek('deepseek-chat'),
-    'deepseek-ai/DeepSeek-R1': togetherDeepSeekR1WithReasoning,
-    'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free': togetherDeepSeekR1DistillWithReasoning,
-    'deepseek-ai/DeepSeek-V3': together('deepseek-ai/DeepSeek-V3'),
-    'DeepSeek r1 distill llama 70b': groqDeepSeekWithReasoning,
-    'claude-3-5-sonnet-latest': anthropic('claude-3-sonnet-20240229'),
-    'llama-3.3-70b-versatile': groq('llama-3.3-70b-versatile'),
-    'gemini-2.0-flash': google('gemini-2.0-flash'),
-    'gemini-1.5-pro': google('gemini-1.5-pro'),
-    'grok-2-latest': xai('grok-2-latest'),
+    'chatgpt-4o-latest': openai('gpt-4-0125-preview'), // vision support
+    'gpt-4o': openai('gpt-4-0125-preview'), // vision support
+    'o1': openai('gpt-4-0125-preview'), // vision support
+    'o3-mini': openai('gpt-4-0125-preview'), // vision support
+    'deepseek-reasoner': deepseek('deepseek-reasoner'), // non-vision support
+    'deepseek-chat': deepseek('deepseek-chat'), // non-vision support
+    'deepseek-ai/DeepSeek-R1': togetherDeepSeekR1WithReasoning, // non-vision support
+    'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free': togetherDeepSeekR1DistillWithReasoning, // non-vision support
+    'deepseek-ai/DeepSeek-V3': together('deepseek-ai/DeepSeek-V3'), // non-vision support
+    'DeepSeek r1 distill llama 70b': groqDeepSeekWithReasoning, // non-vision support
+    'claude-3-5-sonnet-latest': anthropic('claude-3-sonnet-20240229'), // vision support
+    'llama-3.3-70b-versatile': groq('llama-3.3-70b-versatile'), // non-vision support
+    'gemini-2.0-flash': google('gemini-2.0-flash'), // vision support
+    'gemini-1.5-pro': google('gemini-1.5-pro'), // vision support
+    'grok-2-latest': xai('grok-2-latest'), // vision support
   }
 });
 

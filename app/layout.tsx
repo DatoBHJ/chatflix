@@ -20,9 +20,9 @@ export const metadata = {
     title: 'Chatflix.app',
   },
   icons: {
-    icon: '/icon-512x512.png',
-    shortcut: '/icon-192x192.png',
-    apple: '/icon-512x512.png',
+    icon: '/favicon.ico',
+    shortcut: '/android-chrome-192x192.png',
+    apple: '/apple-touch-icon.png',
   },
 }
 
