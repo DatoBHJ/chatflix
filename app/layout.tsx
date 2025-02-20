@@ -1,6 +1,7 @@
 import './globals.css'
 import RootLayoutClient from './RootLayoutClient'
 import { PWAInstallPrompt } from './components/PWAInstallPrompt'
+import { Analytics } from '@vercel/analytics/react'
 
 export const viewport = {
   width: 'device-width',
@@ -55,6 +56,7 @@ export default function RootLayout({
         <RootLayoutClient>
           {children}
           <PWAInstallPrompt />
+          <Analytics />
         </RootLayoutClient>
       </body>
     </html>
