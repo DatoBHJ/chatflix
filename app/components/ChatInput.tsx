@@ -296,21 +296,23 @@ export function ChatInput({
 
       {/* Shortcuts Popup */}
       {showShortcuts && shortcuts.length > 0 && (
-        <div className="absolute bottom-full left-0 right-0 mb-2 px-2">
-          <div className="w-[calc(100vw-32px)] max-w-[280px] sm:max-w-md bg-[var(--background)] border border-[var(--accent)]">
-            {shortcuts.map((shortcut, index) => (
-              <button
-                key={shortcut.id}
-                onClick={() => handleShortcutSelect(shortcut)}
-                className={`w-full px-4 py-3 text-left hover:bg-[var(--accent)] transition-colors
-                         ${index === selectedIndex ? 'bg-[var(--accent)]' : ''}`}
-              >
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm font-medium tracking-wide">@{shortcut.name}</span>
-                  <span className="text-xs text-[var(--muted)] line-clamp-1">{shortcut.content}</span>
-                </div>
-              </button>
-            ))}
+        <div className="absolute bottom-full left-0 right-0 mb-2">
+          <div className="w-[calc(100vw-32px)] max-w-[280px] sm:max-w-md bg-[var(--background)] border border-[var(--accent)] max-h-[35vh] overflow-y-auto">
+            <div className="divide-y divide-[var(--accent)]">
+              {shortcuts.map((shortcut, index) => (
+                <button
+                  key={shortcut.id}
+                  onClick={() => handleShortcutSelect(shortcut)}
+                  className={`w-full px-4 py-3 text-left hover:bg-[var(--accent)] transition-colors
+                           ${index === selectedIndex ? 'bg-[var(--accent)]' : ''}`}
+                >
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm font-medium tracking-wide">@{shortcut.name}</span>
+                    <span className="text-xs text-[var(--muted)] line-clamp-1">{shortcut.content}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
