@@ -183,7 +183,7 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
                     role="option"
                     aria-selected={option.id === nextModel}
                   >
-                    <div className={`text-sm sm:text-base uppercase tracking-[0.1em] mb-2
+                    <div className={`text-base uppercase tracking-[0.1em] mb-2
                                    ${option.id === nextModel ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}>
                       {option.name}
                     </div>
