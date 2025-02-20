@@ -484,11 +484,21 @@ body {
   font-weight: 500;
   cursor: default;
   user-select: none;
-  background-color: color-mix(in srgb, var(--accent) 50%, var(--background) 50%);
-  color: var(--foreground);
-  border-radius: 4px;
+  background-color: rgba(220, 38, 38, 0.1);  /* light red background */
+  color: rgb(239, 68, 68);  /* red text */
+  border-radius: 0;
 }
 
 .mention-tag:hover {
-  background-color: var(--accent);
+  background-color: rgba(220, 38, 38, 0.15);  /* slightly darker red on hover */
+}
+
+/* Dark theme adjustment for mention tag */
+:root[data-theme="dark"] .mention-tag {
+  background-color: rgba(248, 113, 113, 0.15);  /* darker red background */
+  color: rgb(248, 113, 113);  /* lighter red text */
+}
+
+:root[data-theme="dark"] .mention-tag:hover {
+  background-color: rgba(248, 113, 113, 0.2);  /* slightly darker red on hover */
 }
