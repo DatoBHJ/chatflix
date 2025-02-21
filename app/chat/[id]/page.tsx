@@ -812,7 +812,7 @@ export default function Chat({ params }: PageProps) {
                 </div>
               </div>
               {message.role === 'assistant' ? (
-                <div className="flex justify-start pl-0 mt-2 gap-4">
+                <div className="flex justify-start pl-1 mt-2 gap-4">
                   <button 
                     onClick={handleReload(message.id)}
                     disabled={isRegenerating}
