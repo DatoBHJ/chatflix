@@ -455,6 +455,7 @@ body {
   scroll-behavior: smooth;
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
+  color: var(--muted);
   mask-image: linear-gradient(
     to bottom,
     transparent,
