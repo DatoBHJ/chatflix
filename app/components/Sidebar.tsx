@@ -6,7 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 import { DatabaseMessage, Chat } from '@/lib/types'
 import { MODEL_OPTIONS } from './ModelSelector'
 import { SystemPromptDialog } from './SystemPromptDialog'
-import { PromptShortcutsDialog } from './PromptShortcutsDialog'
+import { PromptShortcutsDialog, openShortcutsDialog } from './PromptShortcutsDialog'
 import { ThemeToggle } from './ThemeToggle'
 
 interface SidebarProps {
@@ -21,7 +21,6 @@ export function Sidebar({ user, onClose }: SidebarProps) {
   const supabase = createClient()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isSystemPromptOpen, setIsSystemPromptOpen] = useState(false)
-  const [isPromptShortcutsOpen, setIsPromptShortcutsOpen] = useState(false)
 
   useEffect(() => {
     if (user) {
@@ -287,7 +286,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
               <div className="absolute bottom-full left-6 right-6 mb-2 bg-[var(--background)] border border-[var(--accent)] rounded-lg overflow-hidden">
                 <button
                   onClick={() => {
-                    setIsPromptShortcutsOpen(true)
+                    openShortcutsDialog()
                     setIsMenuOpen(false)
                   }}
                   className="w-full px-4 py-3 text-sm text-left hover:bg-[var(--accent)] transition-colors uppercase tracking-wider"
@@ -319,12 +318,6 @@ export function Sidebar({ user, onClose }: SidebarProps) {
         <SystemPromptDialog
           isOpen={isSystemPromptOpen}
           onClose={() => setIsSystemPromptOpen(false)}
-          user={user}
-        />
-
-        <PromptShortcutsDialog
-          isOpen={isPromptShortcutsOpen}
-          onClose={() => setIsPromptShortcutsOpen(false)}
           user={user}
         />
       </div>

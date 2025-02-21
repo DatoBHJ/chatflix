@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { IconStop } from './icons';
 import { createClient } from '@/utils/supabase/client';
+import { openShortcutsDialog } from './PromptShortcutsDialog'
 
 interface PromptShortcut {
   id: string;
@@ -26,7 +27,7 @@ export function ChatInput({
   isLoading,
   stop,
   disabled,
-  placeholder = "Type your message...",
+  placeholder = "Type @ for shortcuts ...",
   user
 }: ChatInputProps) {
   const inputRef = useRef<HTMLDivElement>(null);
@@ -310,23 +311,50 @@ export function ChatInput({
       </form>
 
       {/* Shortcuts Popup */}
-      {showShortcuts && shortcuts.length > 0 && (
+      {showShortcuts && (
         <div className="absolute bottom-full left-0 right-0 mb-2">
-          <div className="w-[calc(100vw-32px)] max-w-[280px] sm:max-w-md bg-[var(--background)] border border-[var(--accent)] max-h-[35vh] overflow-y-auto">
-            <div className="divide-y divide-[var(--accent)]">
-              {shortcuts.map((shortcut, index) => (
-                <button
-                  key={shortcut.id}
-                  onClick={() => handleShortcutSelect(shortcut)}
-                  className={`w-full px-4 py-3 text-left hover:bg-[var(--accent)] transition-colors
-                           ${index === selectedIndex ? 'bg-[var(--accent)]' : ''}`}
-                >
-                  <div className="flex flex-col gap-1">
-                    <span className="text-sm font-medium tracking-wide">@{shortcut.name}</span>
-                    <span className="text-xs text-[var(--muted)] line-clamp-1">{shortcut.content}</span>
+          <div className="w-[calc(100vw-32px)] max-w-[280px] sm:max-w-md bg-[var(--background)] border border-[var(--accent)]">
+            {/* Customize shortcuts button - Fixed at top */}
+            <button
+              onClick={() => {
+                setShowShortcuts(false)
+                openShortcutsDialog()
+              }}
+              className="w-full px-4 py-3 text-left hover:bg-[var(--accent)] transition-colors group border-b border-[var(--accent)]"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs tracking-wide text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors">
+                  CUSTOMIZE SHORTCUTS
+                </span>
+                <span className="text-xs text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors">
+                  ⚡
+                </span>
+              </div>
+            </button>
+
+            {/* Scrollable shortcuts list */}
+            <div className="max-h-[35vh] overflow-y-auto">
+              <div className="divide-y divide-[var(--accent)]">
+                {shortcuts.length > 0 ? (
+                  shortcuts.map((shortcut, index) => (
+                    <button
+                      key={shortcut.id}
+                      onClick={() => handleShortcutSelect(shortcut)}
+                      className={`w-full px-4 py-3 text-left hover:bg-[var(--accent)] transition-colors
+                               ${index === selectedIndex ? 'bg-[var(--accent)]' : ''}`}
+                    >
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm font-medium tracking-wide">@{shortcut.name}</span>
+                        <span className="text-xs text-[var(--muted)] line-clamp-1">{shortcut.content}</span>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-4 py-3 text-sm text-[var(--muted)]">
+                    No shortcuts found
                   </div>
-                </button>
-              ))}
+                )}
+              </div>
             </div>
           </div>
         </div>

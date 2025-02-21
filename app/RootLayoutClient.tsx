@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
+import { PromptShortcutsDialog } from './components/PromptShortcutsDialog'
 
 export default function RootLayoutClient({
   children,
@@ -87,6 +88,8 @@ export default function RootLayoutClient({
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
+
+      {user && <PromptShortcutsDialog user={user} />}
     </div>
   )
 } 

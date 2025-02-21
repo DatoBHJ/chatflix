@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { defaultPromptShortcuts } from '../lib/defaultPromptShortcuts'
 
 interface PromptShortcut {
   id: string
@@ -9,19 +10,44 @@ interface PromptShortcut {
   content: string
 }
 
-interface PromptShortcutsDialogProps {
-  isOpen: boolean
-  onClose: () => void
-  user: any
+// Add global event handler
+const OPEN_SHORTCUTS_DIALOG_EVENT = 'open-shortcuts-dialog'
+
+// Add custom scrollbar styles
+const scrollbarHideStyles = `
+  .hide-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;     /* Firefox */
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;             /* Chrome, Safari and Opera */
+  }
+`
+
+export function openShortcutsDialog() {
+  document.dispatchEvent(new CustomEvent(OPEN_SHORTCUTS_DIALOG_EVENT))
 }
 
-export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcutsDialogProps) {
+export function PromptShortcutsDialog({ user }: { user: any }) {
+  const [isOpen, setIsOpen] = useState(false)
   const [shortcuts, setShortcuts] = useState<PromptShortcut[]>([])
   const [newName, setNewName] = useState('')
   const [newContent, setNewContent] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const supabase = createClient()
+
+  // Listen for global open event
+  useEffect(() => {
+    const handleOpenDialog = () => {
+      if (user) {
+        setIsOpen(true)
+      }
+    }
+
+    document.addEventListener(OPEN_SHORTCUTS_DIALOG_EVENT, handleOpenDialog)
+    return () => document.removeEventListener(OPEN_SHORTCUTS_DIALOG_EVENT, handleOpenDialog)
+  }, [user])
 
   useEffect(() => {
     if (isOpen && user) {
@@ -54,7 +80,25 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
         .order('name')
 
       if (error) throw error
-      setShortcuts(data || [])
+      
+      // If user has no shortcuts, add default ones
+      if (!data || data.length === 0) {
+        const defaultShortcutsWithIds = defaultPromptShortcuts.map((shortcut: { name: any; content: any }) => ({
+          id: `ps-${Date.now()}-${shortcut.name}`,
+          name: shortcut.name,
+          content: shortcut.content,
+          user_id: user.id
+        }))
+
+        const { error: insertError } = await supabase
+          .from('prompt_shortcuts')
+          .insert(defaultShortcutsWithIds)
+
+        if (insertError) throw insertError
+        setShortcuts(defaultShortcutsWithIds)
+      } else {
+        setShortcuts(data)
+      }
     } catch (error) {
       console.error('Error loading shortcuts:', error)
     }
@@ -130,15 +174,17 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
     }
   }
 
-  if (!isOpen) return null
+  if (!user) return null
 
   return (
     <div 
-      className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 overflow-hidden backdrop-blur-sm"
+      className={`fixed inset-0 bg-black/50 flex items-start justify-center z-[100] overflow-hidden backdrop-blur-sm
+                ${isOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+        if (e.target === e.currentTarget) setIsOpen(false)
       }}
     >
+      <style>{scrollbarHideStyles}</style>
       <div className="w-full max-w-2xl bg-[var(--background)] h-full flex flex-col shadow-xl">
         {/* Fixed Header */}
         <div className="pt-12 px-6 pb-6 border-b border-[var(--accent)]">
@@ -146,7 +192,7 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto hide-scrollbar">
           <div className="p-6">
             {/* Usage guide */}
             <div className="mb-8">
@@ -172,7 +218,7 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
             </div>
 
             {/* Add new shortcut */}
-            <div className="space-y-1 mb-8">
+            <div className="space-y-1 mb-2">
               <div className="text-[10px] tracking-[0.2em] uppercase text-[var(--muted)] pl-1">shortcut name</div>
               <input
                 type="text"
@@ -208,6 +254,16 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
                 )}
               </div>
             </div>
+
+            {/* Done button */}
+            <button
+              onClick={() => setIsOpen(false)}
+              className="w-full mb-8 p-4 text-xs uppercase tracking-wider 
+                       bg-[var(--foreground)] text-[var(--background)] 
+                       hover:opacity-90 transition-opacity"
+            >
+              Done
+            </button>
 
             {/* Shortcuts list */}
             <div className="space-y-1">
@@ -254,15 +310,6 @@ export function PromptShortcutsDialog({ isOpen, onClose, user }: PromptShortcuts
                 </div>
               ))}
             </div>
-
-            <button
-              onClick={onClose}
-              className="w-full mt-8 p-4 text-xs uppercase tracking-wider 
-                       bg-[var(--foreground)] text-[var(--background)] 
-                       hover:opacity-90 transition-opacity"
-            >
-              Done
-            </button>
           </div>
         </div>
       </div>

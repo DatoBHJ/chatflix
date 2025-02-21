@@ -26,6 +26,28 @@ export const metadata = {
   },
 }
 
+function ThemeInitScript() {
+  return (
+    <script
+      dangerouslySetInnerHTML={{
+        __html: `
+          (function() {
+            function getInitialTheme() {
+              const savedTheme = localStorage.getItem('theme');
+              if (savedTheme) return savedTheme;
+              
+              return 'system';
+            }
+            
+            const theme = getInitialTheme();
+            document.documentElement.setAttribute('data-theme', theme);
+          })();
+        `,
+      }}
+    />
+  )
+}
+
 export default function RootLayout({
   children,
 }: {
@@ -34,23 +56,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                function getInitialTheme() {
-                  const savedTheme = localStorage.getItem('theme');
-                  if (savedTheme) return savedTheme;
-                  
-                  return 'system';
-                }
-                
-                const theme = getInitialTheme();
-                document.documentElement.setAttribute('data-theme', theme);
-              })();
-            `,
-          }}
-        />
+        <ThemeInitScript />
       </head>
       <body>
         <RootLayoutClient>

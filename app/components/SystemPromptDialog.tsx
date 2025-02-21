@@ -11,6 +11,7 @@ interface SystemPromptDialogProps {
 
 export function SystemPromptDialog({ isOpen, onClose, user }: SystemPromptDialogProps) {
   const [prompt, setPrompt] = useState('')
+  const [originalPrompt, setOriginalPrompt] = useState('')
   const [promptId, setPromptId] = useState<string | null>(null)
   const [isResetting, setIsResetting] = useState(false)
   const supabase = createClient()
@@ -46,6 +47,7 @@ export function SystemPromptDialog({ isOpen, onClose, user }: SystemPromptDialog
 
       setPromptId(data.id)
       setPrompt(data.content || '')
+      setOriginalPrompt(data.content || '')
     } catch (error) {
       console.error('Error loading system prompt:', error)
     }
@@ -67,6 +69,7 @@ export function SystemPromptDialog({ isOpen, onClose, user }: SystemPromptDialog
         .eq('user_id', user.id)
 
       if (error) throw error
+      setOriginalPrompt(prompt)
       onClose()
     } catch (error) {
       console.error('Error saving system prompt:', error)
@@ -89,6 +92,7 @@ export function SystemPromptDialog({ isOpen, onClose, user }: SystemPromptDialog
       if (error) throw error
       
       setPrompt(data)
+      setOriginalPrompt(data)
     } catch (error) {
       console.error('Error resetting system prompt:', error)
     } finally {
@@ -135,7 +139,7 @@ export function SystemPromptDialog({ isOpen, onClose, user }: SystemPromptDialog
             </div>
 
             {/* Prompt Editor */}
-            <div className="space-y-1">
+            <div className="space-y-1 mb-2">
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
@@ -149,11 +153,12 @@ export function SystemPromptDialog({ isOpen, onClose, user }: SystemPromptDialog
               <div className="flex gap-2">
                 <button
                   onClick={handleSave}
+                  disabled={prompt.trim() === originalPrompt.trim()}
                   className="flex-1 p-4 text-xs uppercase tracking-wider 
                            bg-[var(--foreground)] text-[var(--background)]
-                           hover:opacity-90 transition-opacity"
+                           hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
-                  Save
+                  Save Changes
                 </button>
                 <button
                   onClick={handleReset}
@@ -166,6 +171,16 @@ export function SystemPromptDialog({ isOpen, onClose, user }: SystemPromptDialog
                 </button>
               </div>
             </div>
+
+            {/* Done button */}
+            <button
+              onClick={onClose}
+              className="w-full mb-8 p-4 text-xs uppercase tracking-wider 
+                       bg-[var(--foreground)] text-[var(--background)] 
+                       hover:opacity-90 transition-opacity"
+            >
+              Done
+            </button>
           </div>
         </div>
       </div>
