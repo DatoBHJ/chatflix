@@ -138,9 +138,9 @@ export function ChatInput({
     // Update content all at once
     inputRef.current.innerHTML = tempDiv.innerHTML;
     
-    // Update parent component
+    // Update parent component with original shortcut format
     const event = {
-      target: { value: `${beforeMention}${shortcut.content}${afterMention ? ' ' + afterMention : ' '}` }
+      target: { value: `${beforeMention}@${shortcut.name}${afterMention ? ' ' + afterMention : ' '}` }
     } as React.ChangeEvent<HTMLTextAreaElement>;
     handleInputChange(event);
     
