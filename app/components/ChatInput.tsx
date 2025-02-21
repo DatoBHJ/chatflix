@@ -161,9 +161,18 @@ export function ChatInput({
 
   const clearInput = () => {
     if (inputRef.current) {
-      // Clear the content
+      // Clear all content and children
+      while (inputRef.current.firstChild) {
+        inputRef.current.removeChild(inputRef.current.firstChild);
+      }
       inputRef.current.innerHTML = '';
       inputRef.current.textContent = '';
+      
+      // Ensure parent state is updated
+      const event = {
+        target: { value: '' }
+      } as React.ChangeEvent<HTMLTextAreaElement>;
+      handleInputChange(event);
       
       // Reset the selection
       const selection = window.getSelection();
@@ -173,11 +182,17 @@ export function ChatInput({
       selection?.removeAllRanges();
       selection?.addRange(range);
       
-      // Force blur and refocus to ensure clean state
+      // Force a clean state through blur/focus cycle
       inputRef.current.blur();
-      requestAnimationFrame(() => {
-        inputRef.current?.focus();
-      });
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          // Double check content is cleared
+          if (inputRef.current.textContent) {
+            inputRef.current.textContent = '';
+          }
+        }
+      }, 0);
     }
   };
 
