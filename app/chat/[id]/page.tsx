@@ -24,6 +24,8 @@ interface PageProps {
 
 interface ExtendedMessage extends Message {
   model?: string;
+  isEditing?: boolean;
+  sequence_number?: number;
 }
 
 // 메시지 변환 함수를 컴포넌트 외부로 이동
@@ -291,6 +293,8 @@ export default function Chat({ params }: PageProps) {
   const [user, setUser] = useState<any>(null)
   const supabase = createClient()
   const [isRegenerating, setIsRegenerating] = useState(false)
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState('');
 
   // Add user authentication check
   useEffect(() => {
@@ -778,6 +782,101 @@ export default function Chat({ params }: PageProps) {
     }
   }, [stop, messages, currentModel, chatId, user?.id, supabase, setMessages]);
 
+  const handleEditStart = (message: Message) => {
+    setEditingMessageId(message.id);
+    setEditingContent(message.content);
+  };
+
+  const handleEditCancel = () => {
+    setEditingMessageId(null);
+    setEditingContent('');
+  };
+
+  const handleEditSave = async (messageId: string) => {
+    try {
+      // 현재 메시지의 인덱스 찾기
+      const messageIndex = messages.findIndex(msg => msg.id === messageId);
+      if (messageIndex === -1) return;
+
+      const currentMessage = messages[messageIndex];
+
+      // 먼저 UI 업데이트 (즉각적인 반응을 위해)
+      const updatedMessages = messages.slice(0, messageIndex + 1).map(msg =>
+        msg.id === messageId
+          ? {
+              ...msg,
+              content: editingContent,
+              parts: msg.parts ? [
+                ...msg.parts.map(part => 
+                  part.type === 'text' 
+                    ? { ...part, text: editingContent }
+                    : part
+                )
+              ] : undefined
+            }
+          : msg
+      );
+      setMessages(updatedMessages);
+
+      // 편집 모드 종료 (UI 업데이트 후 즉시)
+      setEditingMessageId(null);
+      setEditingContent('');
+
+      // 데이터베이스 업데이트
+      const { data: dbMessage, error: seqError } = await supabase
+        .from('messages')
+        .select('sequence_number')
+        .eq('id', messageId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (seqError) {
+        console.error('Failed to get message sequence:', seqError);
+        return;
+      }
+
+      // 메시지 내용 업데이트
+      const { error } = await supabase
+        .from('messages')
+        .update({
+          content: editingContent,
+          is_edited: true,
+          edited_at: new Date().toISOString()
+        })
+        .eq('id', messageId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // 편집된 메시지 이후의 메시지 삭제
+      const { error: deleteError } = await supabase
+        .from('messages')
+        .delete()
+        .eq('chat_session_id', chatId)
+        .eq('user_id', user.id)
+        .gt('sequence_number', dbMessage.sequence_number);
+
+      if (deleteError) {
+        console.error('Failed to delete subsequent messages:', deleteError);
+        return;
+      }
+
+      // AI에 새로운 응답 요청
+      await reload({
+        body: {
+          messages: updatedMessages,
+          model: currentModel,
+          chatId
+        }
+      });
+    } catch (error) {
+      console.error('Failed to update message:', error);
+      // 에러 발생 시 편집 모드로 되돌리기
+      setEditingMessageId(messageId);
+      setEditingContent(messages.find(msg => msg.id === messageId)?.content || '');
+    }
+  };
+
   return (
     <main className="flex-1 relative h-full">
       <div className="flex-1 overflow-y-auto pb-32">
@@ -788,26 +887,77 @@ export default function Chat({ params }: PageProps) {
                 {message.role === 'assistant' ? 'Chatflix.app' : 'You'}
               </div>
               <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`${message.role === 'user' ? 'message-user' : 'message-assistant'} max-w-full overflow-x-auto`}>
-                  {message.parts ? (
-                    <>
-                      {message.parts.map((part, index) => {
-                        if (part.type === 'reasoning') {
-                          return (
-                            <ReasoningSection key={index} content={part.reasoning} />
-                          );
-                        }
-                        if (part.type === 'text') {
-                          return (
-                            <div key={index}>
-                              <MarkdownContent content={part.text} />
-                            </div>
-                          );
-                        }
-                      })}
-                    </>
+                <div className={`${message.role === 'user' ? 'message-user' : 'message-assistant'} max-w-full overflow-x-auto ${
+                  editingMessageId === message.id ? 'w-full' : ''
+                }`}>
+                  {editingMessageId === message.id ? (
+                    <div className="flex flex-col gap-2 w-full">
+                      <textarea
+                        value={editingContent}
+                        onChange={(e) => {
+                          setEditingContent(e.target.value);
+                          // 자동 높이 조절
+                          e.target.style.height = 'auto';
+                          e.target.style.height = `${e.target.scrollHeight}px`;
+                        }}
+                        onFocus={(e) => {
+                          // 포커스 시 자동 높이 조절
+                          e.target.style.height = 'auto';
+                          e.target.style.height = `${e.target.scrollHeight}px`;
+                        }}
+                        className="w-full min-h-[100px] p-4 
+                                 bg-[var(--foreground)] text-[var(--background)]
+                                 resize-none overflow-hidden transition-all duration-200
+                                 focus:outline-none border-none outline-none ring-0
+                                 placeholder-[var(--background-80)]"
+                        style={{
+                          height: 'auto',
+                          minHeight: '100px',
+                          caretColor: 'var(--background)'
+                        }}
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          onClick={() => handleEditCancel()}
+                          className="px-4 py-2 text-sm
+                                   bg-[var(--foreground)] text-[var(--background)]
+                                   hover:opacity-80 transition-opacity duration-200"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => handleEditSave(message.id)}
+                          className="px-4 py-2 text-sm
+                                   bg-[var(--foreground)] text-[var(--background)]
+                                   hover:opacity-80 transition-opacity duration-200"
+                        >
+                          Send
+                        </button>
+                      </div>
+                    </div>
                   ) : (
-                    <MarkdownContent content={message.content} />
+                    <>
+                      {message.parts ? (
+                        <>
+                          {message.parts.map((part, index) => {
+                            if (part.type === 'reasoning') {
+                              return (
+                                <ReasoningSection key={index} content={part.reasoning} />
+                              );
+                            }
+                            if (part.type === 'text') {
+                              return (
+                                <div key={index}>
+                                  <MarkdownContent content={part.text} />
+                                </div>
+                              );
+                            }
+                          })}
+                        </>
+                      ) : (
+                        <MarkdownContent content={message.content} />
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -843,6 +993,16 @@ export default function Chat({ params }: PageProps) {
                 </div>
               ) : (
                 <div className="flex justify-end pr-1 mt-2 gap-4">
+                  <button
+                    onClick={() => handleEditStart(message)}
+                    className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2"
+                    title="Edit message"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                  </button>
                   <button
                     onClick={() => handleCopyMessage(message)}
                     className={`text-xs hover:text-[var(--foreground)] transition-colors flex items-center gap-2 ${

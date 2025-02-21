@@ -139,6 +139,24 @@ export async function POST(req: Request) {
             if (sessionError || !existingSession) {
               throw new Error('Chat session not found');
             }
+
+            // 세션의 모든 메시지를 가져와서 편집된 내용 반영
+            const { data: sessionMessages, error: messagesError } = await supabase
+              .from('messages')
+              .select('*')
+              .eq('chat_session_id', chatId)
+              .eq('user_id', user.id)
+              .order('sequence_number', { ascending: true });
+
+            if (!messagesError && sessionMessages) {
+              // 편집된 메시지로 messages 배열 업데이트
+              messages.forEach((msg, index) => {
+                const dbMessage = sessionMessages.find(dbMsg => dbMsg.id === msg.id);
+                if (dbMessage && dbMessage.is_edited) {
+                  messages[index].content = dbMessage.content;
+                }
+              });
+            }
           } catch (error) {
             throw new Error('Failed to check session: ' + (error instanceof Error ? error.message : 'Unknown error'));
           }

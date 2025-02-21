@@ -22,7 +22,7 @@ const rateLimits = {
     window: '60 m'
   },
   high: {
-    requests: 30, //15 
+    requests: 300, //15 
     window: '60 m'
   },
   superHigh: {

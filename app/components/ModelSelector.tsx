@@ -32,22 +32,22 @@ export const MODEL_OPTIONS: ModelOption[] = [
     description: 'The best open source reasoning model in 2025 via Together.ai'
     // description: 'Advanced reasoning model by DeepSeek, via Together.ai'
   }, 
-  {
-    id: 'deepseek-chat',
-    name: 'DeepSeek V3',
-    description: 'The best open source non-reasoning model in 2025'
-  }, 
+  // {
+  //   id: 'deepseek-chat',
+  //   name: 'DeepSeek V3',
+  //   description: 'The best open source non-reasoning model in 2025'
+  // }, 
   // {
   //   id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free',
   //   name: 'DeepSeek R1 distill llama 70b',
   //   description: 'High-speed reasoning model, via Together.ai'
   // },
-  // {
-  //   id: 'deepseek-ai/DeepSeek-V3',
-  //   name: 'DeepSeek V3',
-  //   description: 'The best open source non-reasoning model in 2025'
-  //   // description: 'DeepSeek V3 via Together.ai'
-  // },
+  {
+    id: 'deepseek-ai/DeepSeek-V3',
+    name: 'DeepSeek V3',
+    description: 'The best open source non-reasoning model in 2025'
+    // description: 'DeepSeek V3 via Together.ai'
+  },
   {
     id: 'chatgpt-4o-latest',
     name: 'ChatGPT-4o',
