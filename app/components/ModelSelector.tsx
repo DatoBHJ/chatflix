@@ -29,7 +29,7 @@ export const MODEL_OPTIONS: ModelOption[] = [
   {
     id: 'deepseek-ai/DeepSeek-R1',
     name: 'DeepSeek R1',
-    description: 'The best open source reasoning model in 2025'
+    description: 'The best open source reasoning model in 2025 via Together.ai'
     // description: 'Advanced reasoning model by DeepSeek, via Together.ai'
   }, 
   {

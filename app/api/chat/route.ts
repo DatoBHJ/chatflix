@@ -144,53 +144,6 @@ export async function POST(req: Request) {
           }
         }
 
-        // 메시지 유효성 검사
-        if (!messages || !Array.isArray(messages) || messages.length === 0) {
-          throw new Error('Invalid messages format');
-        }
-
-        // Check for prompt shortcuts in the last user message
-        const lastUserMessage = messages[messages.length - 1];
-        if (lastUserMessage.role === 'user') {
-          const content = lastUserMessage.content;
-          // 확장된 정규식: 더 많은 특수문자 포함
-          const match = content.match(/@([\w?!.,_\-+=@#$%^&*()<>{}\[\]|/\\~`]+)/);
-          
-          if (match) {
-            const shortcutName = match[1];
-            const { data: shortcutData, error: shortcutError } = await supabase
-              .from('prompt_shortcuts')
-              .select('content')
-              .eq('user_id', user.id)
-              .eq('name', shortcutName)
-              .single();
-
-            if (!shortcutError && shortcutData) {
-              // 숏컷 내용을 먼저 위치시키고, 나머지 텍스트를 뒤에 붙임
-              const remainingText = content.replace(new RegExp(`@${shortcutName}\\s*`), '').trim();
-              const updatedContent = `${shortcutData.content} ${remainingText}`;
-              
-              lastUserMessage.content = updatedContent;
-
-              // Update parts if they exist
-              if (lastUserMessage.parts) {
-                lastUserMessage.parts = lastUserMessage.parts.map(part => {
-                  if (part.type === 'text') {
-                    return {
-                      ...part,
-                      text: updatedContent
-                    };
-                  }
-                  return part;
-                });
-              }
-            }
-          }
-        }
-
-        // provider 이름 가져오기
-        const provider = getProviderFromModel(model);
-
         // 현재 채팅의 마지막 시퀀스 번호 가져오기
         const { data: lastMessage, error: sequenceError } = await supabase
           .from('messages')
@@ -201,8 +154,15 @@ export async function POST(req: Request) {
           .limit(1)
           .maybeSingle();
 
-        // 다음 시퀀스 번호 계산 (let으로 변경)
+        // 다음 시퀀스 번호 계산
         let nextSequence = (lastMessage?.sequence_number || 0) + 1;
+
+        // 메시지 유효성 검사
+        if (!messages || !Array.isArray(messages) || messages.length === 0) {
+          throw new Error('Invalid messages format');
+        }
+
+        const lastUserMessage = messages[messages.length - 1];
 
         // 재생성이 아닌 경우에만 사용자 메시지 저장
         if (lastUserMessage.role === 'user' && !isRegeneration) {
@@ -253,13 +213,48 @@ export async function POST(req: Request) {
           }
         }
 
-        const selectedModel = providers.languageModel(model);
-        if (!selectedModel) {
-          throw new Error('Invalid model');
+        // AI 처리를 위한 메시지 배열 복사
+        let processMessages = [...messages];
+        const lastProcessMessage = processMessages[processMessages.length - 1];
+
+        // Check for prompt shortcuts and expand them for AI processing only
+        if (lastProcessMessage.role === 'user') {
+          const content = lastProcessMessage.content;
+          const match = content.match(/@([\w?!.,_\-+=@#$%^&*()<>{}\[\]|/\\~`]+)/);
+          
+          if (match) {
+            const shortcutName = match[1];
+            const { data: shortcutData, error: shortcutError } = await supabase
+              .from('prompt_shortcuts')
+              .select('content')
+              .eq('user_id', user.id)
+              .eq('name', shortcutName)
+              .single();
+
+            if (!shortcutError && shortcutData) {
+              const remainingText = content.replace(new RegExp(`@${shortcutName}\\s*`), '').trim();
+              const updatedContent = `${shortcutData.content} ${remainingText}`;
+              
+              // Update the processing message only
+              lastProcessMessage.content = updatedContent;
+
+              if (lastProcessMessage.parts) {
+                lastProcessMessage.parts = lastProcessMessage.parts.map(part => {
+                  if (part.type === 'text') {
+                    return {
+                      ...part,
+                      text: updatedContent
+                    };
+                  }
+                  return part;
+                });
+              }
+            }
+          }
         }
 
-        // 메시지 형식 정규화
-        const normalizedMessages = normalizeMessages(messages);
+        // provider 이름 가져오기
+        const provider = getProviderFromModel(model);
 
         // AI 응답을 위한 메시지 ID 설정 (재생성 시 기존 ID 사용)
         const assistantMessageId = isRegeneration && existingMessageId 
@@ -316,19 +311,19 @@ export async function POST(req: Request) {
           }
         }
 
-        console.log('normalizedMessages:', JSON.stringify(normalizedMessages, null, 2));
+        console.log('normalizedMessages:', JSON.stringify(processMessages, null, 2));
         // 스트리밍 응답 설정
         const abortController = new AbortController();
         let isStreamFinished = false;
         
         const result = streamText({
-          model: selectedModel,
+          model: providers.languageModel(model),
           messages: [
             {
               role: 'system',
               content: systemPrompt
             },
-            ...normalizedMessages
+            ...processMessages
           ],
           temperature: 0.7,
           maxTokens: 4000,

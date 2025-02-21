@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { defaultPromptShortcuts } from '../lib/defaultPromptShortcuts'
 
@@ -35,7 +35,16 @@ export function PromptShortcutsDialog({ user }: { user: any }) {
   const [newContent, setNewContent] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const supabase = createClient()
+
+  // Add auto-height adjustment effect
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
+    }
+  }, [newContent])
 
   // Listen for global open event
   useEffect(() => {
@@ -150,6 +159,14 @@ export function PromptShortcutsDialog({ user }: { user: any }) {
     setNewName(shortcut.name)
     setNewContent(shortcut.content)
     setOpenMenuId(null)
+    
+    // Add height adjustment on next tick after state updates
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto'
+        textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
+      }
+    }, 0)
   }
 
   function handleCancel() {
@@ -229,10 +246,11 @@ export function PromptShortcutsDialog({ user }: { user: any }) {
               />
               <div className="text-[10px] tracking-[0.2em] uppercase text-[var(--muted)] pl-1 mt-4">shortcut content</div>
               <textarea
+                ref={textareaRef}
                 value={newContent}
                 onChange={(e) => setNewContent(e.target.value)}
                 placeholder="e.g. Provide a concise summary of the given text: "
-                className="w-full h-24 p-4 bg-[var(--accent)] text-[var(--foreground)] focus:outline-none resize-none placeholder:text-[var(--muted)]"
+                className="w-full min-h-[96px] p-4 bg-[var(--accent)] text-[var(--foreground)] focus:outline-none resize-none placeholder:text-[var(--muted)]"
               />
               <div className="flex gap-2">
                 <button
