@@ -21,16 +21,33 @@ export const MODEL_OPTIONS: ModelOption[] = [
     description: 'GOAT'
     // description: 'GOAT model by Anthropic'
   },
+  // {
+  //   id: 'deepseek-reasoner',
+  //   name: 'DeepSeek R1',
+  //   description: 'The best open source reasoning model in 2025'
+  // },
   {
-    id: 'deepseek-reasoner',
+    id: 'deepseek-ai/DeepSeek-R1',
     name: 'DeepSeek R1',
     description: 'The best open source reasoning model in 2025'
-  },
+    // description: 'Advanced reasoning model by DeepSeek, via Together.ai'
+  }, 
   {
     id: 'deepseek-chat',
     name: 'DeepSeek V3',
     description: 'The best open source non-reasoning model in 2025'
-  },
+  }, 
+  // {
+  //   id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free',
+  //   name: 'DeepSeek R1 distill llama 70b',
+  //   description: 'High-speed reasoning model, via Together.ai'
+  // },
+  // {
+  //   id: 'deepseek-ai/DeepSeek-V3',
+  //   name: 'DeepSeek V3',
+  //   description: 'The best open source non-reasoning model in 2025'
+  //   // description: 'DeepSeek V3 via Together.ai'
+  // },
   {
     id: 'chatgpt-4o-latest',
     name: 'ChatGPT-4o',
@@ -58,37 +75,17 @@ export const MODEL_OPTIONS: ModelOption[] = [
   {
     id: 'gemini-2.0-flash',
     name: 'Gemini 2.0 Flash',
-    description: 'Latest multimodal model with 1m context window by Google'
+    description: 'Latest model with 1m context window by Google'
   },
   {
     id: 'grok-2-latest',
     name: 'Grok 2',
     description: 'Grok 2 by xAI'
   },
-  // {
-  //   id: 'deepseek-ai/DeepSeek-R1',
-  //   name: 'DeepSeek R1',
-  //   description: 'Advanced reasoning model by DeepSeek, via Together.ai'
-  // },  
-  // {
-  //   id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free',
-  //   name: 'DeepSeek R1 distill llama 70b',
-  //   description: 'High-speed reasoning model, via Together.ai'
-  // },
-  // {
-  //   id: 'deepseek-ai/DeepSeek-V3',
-  //   name: 'DeepSeek V3',
-  //   description: 'DeepSeek V3 via Together.ai'
-  // },
-  // {
-  //   id: 'DeepSeek r1 distill llama 70b',
-  //   name: 'DeepSeek R1 distill llama 70b',
-  //   description: 'High-speed reasoning model by DeepSeek hosted by Groq'
-  // },
   {
     id: 'llama-3.3-70b-versatile',
     name: 'Llama 3.3 70B',
-    description: 'The best super-fast non-reasoning model in 2025 by Meta via Groq.'
+    description: 'The highest-performing lightning-fast model for general tasks by Meta via Groq'
   },
   // {
   //   id: 'gemini-1.5-pro',

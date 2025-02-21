@@ -200,7 +200,9 @@ body {
   @apply p-6 rounded-none max-w-full
          hover:opacity-95 transition-[var(--transition)];
   background-color: var(--accent);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  /* box-shadow: 0 1px 2px rgba(0,0,0,0.1); */
+  /* border-bottom: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent); */
+
 }
 
 .message-content {
@@ -429,20 +431,72 @@ body {
 
 /* Reasoning Section Styles */
 .message-reasoning {
-  @apply mb-4 text-sm;
-  background-color: color-mix(in srgb, var(--background) 95%, var(--foreground) 5%);
-  border: 1px solid var(--accent);
+  @apply mb-8 text-sm relative rounded-lg;
+  /* background-color: color-mix(in srgb, var(--background) 95%, var(--foreground) 5%); */
+  background-color: var(--accent);
+
+  /* border: 1px solid color-mix(in srgb, var(--foreground) 15%, transparent); */
 }
 
 .message-reasoning-header {
-  @apply flex items-center gap-2 text-xs uppercase tracking-wider cursor-pointer 
-         hover:text-[var(--foreground)] transition-[var(--transition)] p-3;
+  @apply flex items-center justify-between gap-2 text-xs uppercase tracking-wider cursor-pointer 
+         hover:text-[var(--foreground)] transition-[var(--transition)] p-6;
   color: var(--muted);
-  border-bottom: 1px solid var(--accent);
+  /* border-bottom: 1px solid color-mix(in srgb, var(--foreground) 15%, transparent); */
+  position: relative;
+  z-index: 2;
+  /* background-color: color-mix(in srgb, var(--background) 98%, var(--foreground) 2%); */
 }
 
 .message-reasoning-content {
-  @apply overflow-hidden transition-[var(--transition)] px-3 py-2;
+  @apply overflow-y-auto px-3 py-2 relative;
+  max-height: 300px;
+  transition: all 0.3s ease;
+  scroll-behavior: smooth;
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 10px,
+    black calc(100% - 10px),
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 10px,
+    black calc(100% - 10px),
+    transparent
+  );
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.message-reasoning-content::-webkit-scrollbar {
+  display: none;
+}
+
+/* Add smooth scrolling animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message-reasoning-content > * {
+  animation: fadeInUp 0.3s ease-out forwards;
+}
+
+.message-reasoning-content:not(.expanded) {
+  @apply overflow-hidden;
+  max-height: 0;
+  padding: 0;
+  opacity: 0;
 }
 
 .message-reasoning-content.expanded {

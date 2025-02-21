@@ -9,7 +9,7 @@ import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeHighlight from 'rehype-highlight'
-import { IconRefresh } from '../../components/icons'
+import { IconRefresh, IconCopy, IconCheck } from '../../components/icons'
 import { createClient } from '@/utils/supabase/client'
 import { DatabaseMessage } from '@/lib/types'
 import { ModelSelector } from '../../components/ModelSelector'
@@ -216,7 +216,34 @@ function MarkdownContent({ content }: { content: string }) {
 
 // Add this component for the reasoning section
 function ReasoningSection({ content }: { content: string }) {
-  const [isExpanded, setIsExpanded] = useState(true);  // 기본값을 true로 변경하여 스트리밍 시 보이도록 함
+  const [isExpanded, setIsExpanded] = useState(true);
+  const contentRef = useRef<HTMLDivElement>(null);
+  
+  // 컨텐츠가 변경될 때마다 자동 스크롤
+  useEffect(() => {
+    if (contentRef.current && isExpanded) {
+      const scrollContainer = contentRef.current;
+      const scrollHeight = scrollContainer.scrollHeight;
+      
+      // 부드러운 스크롤 애니메이션
+      const startScroll = () => {
+        const currentScroll = scrollContainer.scrollTop;
+        const targetScroll = scrollHeight - scrollContainer.clientHeight;
+        const distance = targetScroll - currentScroll;
+        
+        if (distance > 0) {
+          // 현재 위치에서 목표 위치까지 부드럽게 스크롤
+          scrollContainer.scrollTo({
+            top: targetScroll,
+            behavior: 'smooth'
+          });
+        }
+      };
+
+      // 스크롤 시작
+      startScroll();
+    }
+  }, [content, isExpanded]); // content가 변경될 때마다 실행
 
   return (
     <div className="message-reasoning">
@@ -224,6 +251,7 @@ function ReasoningSection({ content }: { content: string }) {
         className="message-reasoning-header"
         onClick={() => setIsExpanded(!isExpanded)}
       >
+        <span>Thinking</span>
         <svg 
           className={`message-reasoning-icon ${isExpanded ? 'expanded' : ''}`}
           viewBox="0 0 24 24"
@@ -235,13 +263,14 @@ function ReasoningSection({ content }: { content: string }) {
         >
           <polyline points="6 9 12 15 18 9"></polyline>
         </svg>
-        <span>Reasoning</span>
       </div>
       <div 
+        ref={contentRef}
         className={`message-reasoning-content ${isExpanded ? 'expanded' : ''}`}
         style={{ 
-          maxHeight: isExpanded ? '1000px' : '0',
-          marginTop: isExpanded ? '0.5rem' : '0'
+          height: isExpanded ? 'auto' : '0',
+          marginTop: isExpanded ? '0.5rem' : '0',
+          opacity: isExpanded ? 1 : 0
         }}
       >
         <MarkdownContent content={content} />
@@ -751,12 +780,12 @@ export default function Chat({ params }: PageProps) {
 
   return (
     <main className="flex-1 relative h-full">
-      <div className="flex-1 overflow-y-auto pb-40">
+      <div className="flex-1 overflow-y-auto pb-32">
         <div className="messages-container py-4 max-w-2xl mx-auto px-4 sm:px-6 w-full">
           {messages.map((message, i) => (
             <div key={message.id} className="message-group group animate-fade-in overflow-hidden">
               <div className={`message-role ${message.role === 'user' ? 'text-right' : ''}`}>
-                {message.role === 'assistant' ? 'AI Assistant' : 'You'}
+                {message.role === 'assistant' ? 'Chatflix.app' : 'You'}
               </div>
               <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`${message.role === 'user' ? 'message-user' : 'message-assistant'} max-w-full overflow-x-auto`}>
@@ -783,23 +812,28 @@ export default function Chat({ params }: PageProps) {
                 </div>
               </div>
               {message.role === 'assistant' ? (
-                <div className="flex justify-start pl-2 mt-2 gap-4">
+                <div className="flex justify-start pl-0 mt-2 gap-4">
                   <button 
                     onClick={handleReload(message.id)}
                     disabled={isRegenerating}
-                    className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2 uppercase tracking-wider"
+                    className={`text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2 ${
+                      isRegenerating ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                    title="Regenerate response"
                   >
-                    <IconRefresh className="w-3 h-3" />
-                    <span>Regenerate</span>
+                    <IconRefresh className={`w-3 h-3 ${isRegenerating ? 'animate-spin' : ''}`} />
                   </button>
                   <button
                     onClick={() => handleCopyMessage(message)}
-                    className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2 uppercase tracking-wider"
+                    className={`text-xs hover:text-[var(--foreground)] transition-colors flex items-center gap-2 ${
+                      copiedMessageId === message.id ? 'text-green-500' : 'text-[var(--muted)]'
+                    }`}
+                    title={copiedMessageId === message.id ? "Copied!" : "Copy message"}
                   >
                     {copiedMessageId === message.id ? (
-                      <span className="">Copied</span>
+                      <IconCheck className="w-3 h-3" />
                     ) : (
-                      <span>Copy</span>
+                      <IconCopy className="w-3 h-3" />
                     )}
                   </button>
                   <div className="text-xs text-[var(--muted)] uppercase tracking-wider">
@@ -811,12 +845,15 @@ export default function Chat({ params }: PageProps) {
                 <div className="flex justify-end pr-1 mt-2 gap-4">
                   <button
                     onClick={() => handleCopyMessage(message)}
-                    className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2 uppercase tracking-wider"
+                    className={`text-xs hover:text-[var(--foreground)] transition-colors flex items-center gap-2 ${
+                      copiedMessageId === message.id ? 'text-green-500' : 'text-[var(--muted)]'
+                    }`}
+                    title={copiedMessageId === message.id ? "Copied!" : "Copy message"}
                   >
                     {copiedMessageId === message.id ? (
-                      <span className="">Copied</span>
+                      <IconCheck className="w-3 h-3" />
                     ) : (
-                      <span>Copy</span>
+                      <IconCopy className="w-3 h-3" />
                     )}
                   </button>
                 </div>
