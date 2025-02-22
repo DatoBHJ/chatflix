@@ -54,33 +54,66 @@ export function AccountDialog({ user, isOpen, onClose }: AccountDialogProps) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-[var(--background)] w-full max-w-[280px] mx-4">
-        <div className="px-6 py-4 flex justify-between items-center">
-          <div className="text-xs text-[var(--muted)] uppercase tracking-wider truncate">
-            {user.email}
-          </div>
-          <button
-            onClick={onClose}
-            className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors ml-4 text-xs"
-          >
-            ×
-          </button>
+    <div 
+      className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 overflow-hidden backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className="w-full max-w-2xl bg-[var(--background)] h-full flex flex-col shadow-xl">
+        {/* Fixed Header */}
+        <div className="pt-12 px-6 pb-6 border-b border-[var(--accent)]">
+          <h2 className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors">Account Settings</h2>
         </div>
-        <div className="p-6 space-y-3">
-          <button
-            onClick={handleSignOut}
-            className="w-full h-[46px] flex items-center justify-center text-xs uppercase tracking-wider text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-          >
-            Sign Out
-          </button>
-          <button
-            onClick={handleDeleteAccount}
-            disabled={isDeleting}
-            className="w-full h-[46px] flex items-center justify-center text-xs uppercase tracking-wider text-[var(--muted)] hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isDeleting ? '...' : 'Delete Account'}
-          </button>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-6">
+            {/* User Info */}
+            <div className="mb-8">
+              <div className="space-y-6">
+                <div className="space-y-1">
+                  <div className="text-xs uppercase tracking-wider text-[var(--muted)] pb-4">Account</div>
+                  <div className="text-sm">{user.email}</div>
+                </div>
+                <div className="h-[1px] bg-[var(--accent)]" />
+                <div className="space-y-1">
+                  <div className="text-xs uppercase tracking-wider text-[var(--muted)]">Actions</div>
+                  {/* <div className="text-[10px] text-[var(--muted)]">
+                    Manage your account settings and data
+                  </div> */}
+                </div>
+              </div>
+            </div>
+
+            {/* Account Actions */}
+            <div className="space-y-2">
+              <button
+                onClick={handleSignOut}
+                className="w-full p-4 text-xs uppercase tracking-wider bg-[var(--accent)] hover:opacity-90 transition-opacity"
+              >
+                Sign Out
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={isDeleting}
+                className="w-full p-4 text-xs uppercase tracking-wider text-red-500 bg-red-500/10 
+                         hover:bg-red-500/20 transition-colors disabled:opacity-50"
+              >
+                {isDeleting ? '...' : 'Delete Account'}
+              </button>
+            </div>
+
+            {/* Done button */}
+            <button
+              onClick={onClose}
+              className="w-full mt-8 p-4 text-xs uppercase tracking-wider 
+                       bg-[var(--foreground)] text-[var(--background)] 
+                       hover:opacity-90 transition-opacity"
+            >
+              Done
+            </button>
+          </div>
         </div>
       </div>
     </div>

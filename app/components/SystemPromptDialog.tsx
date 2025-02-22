@@ -139,7 +139,7 @@ export function SystemPromptDialog({ isOpen, onClose, user }: SystemPromptDialog
             </div>
 
             {/* Prompt Editor */}
-            <div className="space-y-1 mb-2">
+            <div className="space-y-2">
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
@@ -175,7 +175,7 @@ export function SystemPromptDialog({ isOpen, onClose, user }: SystemPromptDialog
             {/* Done button */}
             <button
               onClick={onClose}
-              className="w-full mb-8 p-4 text-xs uppercase tracking-wider 
+              className="w-full mt-4 p-4 text-xs uppercase tracking-wider 
                        bg-[var(--foreground)] text-[var(--background)] 
                        hover:opacity-90 transition-opacity"
             >

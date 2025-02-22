@@ -12,7 +12,7 @@ export default function About() {
         onSidebarToggle={() => {}}
       />
       
-      <div className="flex-1 overflow-y-auto pt-24">
+      <div className="flex-1 overflow-y-auto pt-24 sm:pt-40">
         <div className="max-w-2xl mx-auto px-6">
           <div className="space-y-20">
             {/* Introduction */}

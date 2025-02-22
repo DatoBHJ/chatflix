@@ -24,5 +24,6 @@ app/chat/[id]/page.tsx (837:17) @ handleEditSave
   840 |
 Show ignored frames)
 --- 
+
 - 사용자 인풋 편집 기능 추가
 - 생성된 답변의 모델을 바로 바꿔서 재생성할 수 있는 기능 추가
