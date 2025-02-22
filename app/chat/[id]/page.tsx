@@ -15,6 +15,8 @@ import { DatabaseMessage } from '@/lib/types'
 import { ModelSelector } from '../../components/ModelSelector'
 import { ChatInput } from '../../components/ChatInput'
 import { MODEL_OPTIONS } from '../../components/ModelSelector'
+import { Header } from '../../components/Header'
+import { Sidebar } from '../../components/Sidebar'
 
 interface PageProps {
   params: Promise<{
@@ -295,6 +297,7 @@ export default function Chat({ params }: PageProps) {
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   // Add user authentication check
   useEffect(() => {
@@ -879,7 +882,19 @@ export default function Chat({ params }: PageProps) {
 
   return (
     <main className="flex-1 relative h-full">
-      <div className="flex-1 overflow-y-auto pb-32">
+      <Header onSidebarOpen={() => setIsSidebarOpen(true)} />
+      {isSidebarOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+          <div className="fixed left-0 top-0 h-full z-50">
+            <Sidebar user={user} onClose={() => setIsSidebarOpen(false)} />
+          </div>
+        </>
+      )}
+      <div className="flex-1 overflow-y-auto pb-32 pt-16">
         <div className="messages-container py-4 max-w-2xl mx-auto px-4 sm:px-6 w-full">
           {messages.map((message, i) => (
             <div key={message.id} className="message-group group animate-fade-in overflow-hidden">

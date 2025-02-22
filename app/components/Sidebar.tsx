@@ -177,10 +177,10 @@ export function Sidebar({ user, onClose }: SidebarProps) {
   }
 
   return (
-    <div className="w-80 h-full bg-[var(--background)] border-r border-[var(--accent)]">
+    <div className="w-80 h-full bg-[var(--background)]">
       <div className="h-full flex flex-col">
         {/* Top Section - New Chat Button */}
-        <div className="pt-12 px-6 pb-6 border-b border-[var(--accent)]">
+        <div className="pt-12 px-6 pb-6" style={{ borderBottom: '1px solid var(--subtle-divider)' }}>
           <button
             onClick={() => {
               router.push('/')
@@ -279,7 +279,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
 
             {/* Menu Popover */}
             {isMenuOpen && (
-              <div className="absolute bottom-full left-6 right-6 mb-2 bg-[var(--background)] border border-[var(--accent)] rounded-lg overflow-hidden">
+              <div className="absolute bottom-full left-6 right-6 bg-[var(--background)] rounded-lg overflow-hidden">
                 <button
                   onClick={() => {
                     openShortcutsDialog()
@@ -298,18 +298,19 @@ export function Sidebar({ user, onClose }: SidebarProps) {
                 >
                   Edit System Prompt
                 </button>
-                <ThemeToggle />
                 <button
                   onClick={() => {
                     setIsAccountOpen(true)
                     setIsMenuOpen(false)
                   }}
-                  className="w-full px-4 py-3 text-sm flex items-center justify-between hover:bg-[var(--accent)] transition-colors"
+                  className="w-full px-4 py-3 text-sm flex items-center justify-between hover:bg-[var(--accent)] transition-colors group"
                 >
                   <span className="text-xs text-[var(--muted)] uppercase tracking-wider truncate">
                     {user.email}
                   </span>
-                  <span className="text-[var(--muted)] ml-2">⚙️</span>
+                  <span className="text-[var(--muted)] ml-2 text-xs tracking-wider group-hover:text-[var(--foreground)] transition-colors">
+                    +
+                  </span>
                 </button>
               </div>
             )}

@@ -57,15 +57,6 @@ export default function RootLayoutClient({
 
   return (
     <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)] overflow-x-hidden">
-      {/* Sidebar Toggle Button - Only show when user is authenticated */}
-      <button
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="fixed top-8 left-4 z-40 w-8 h-8 flex items-center justify-center"
-        title={isSidebarOpen ? "Close menu" : "Open menu"}
-      >
-        {isSidebarOpen ? '×' : '≡'}
-      </button>
-
       {/* Sidebar with transition - Only show when user is authenticated */}
       <div 
         className={`fixed left-0 top-0 h-full transition-transform duration-300 ease-in-out z-40 ${

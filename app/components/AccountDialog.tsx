@@ -55,31 +55,31 @@ export function AccountDialog({ user, isOpen, onClose }: AccountDialogProps) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-[var(--background)] border border-[var(--accent)] w-full max-w-[280px] mx-4">
-        <div className="border-b border-[var(--accent)] px-6 py-4 flex justify-between items-center">
+      <div className="bg-[var(--background)] w-full max-w-[280px] mx-4">
+        <div className="px-6 py-4 flex justify-between items-center">
           <div className="text-xs text-[var(--muted)] uppercase tracking-wider truncate">
             {user.email}
           </div>
           <button
             onClick={onClose}
-            className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors ml-4"
+            className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors ml-4 text-xs"
           >
             ×
           </button>
         </div>
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-3">
           <button
             onClick={handleSignOut}
-            className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider border border-[var(--accent)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--foreground)] transition-colors"
+            className="w-full h-[46px] flex items-center justify-center text-xs uppercase tracking-wider text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
           >
             Sign Out
           </button>
           <button
             onClick={handleDeleteAccount}
             disabled={isDeleting}
-            className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider border border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full h-[46px] flex items-center justify-center text-xs uppercase tracking-wider text-[var(--muted)] hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isDeleting ? 'Deleting...' : 'Delete Account'}
+            {isDeleting ? '...' : 'Delete Account'}
           </button>
         </div>
       </div>

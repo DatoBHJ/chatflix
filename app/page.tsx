@@ -6,6 +6,8 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { ModelSelector } from './components/ModelSelector'
 import { ChatInput } from './components/ChatInput'
+import { Header } from './components/Header'
+import { Sidebar } from './components/Sidebar'
 
 export default function Home() {
   const router = useRouter()
@@ -13,6 +15,7 @@ export default function Home() {
   const [nextModel, setNextModel] = useState(currentModel)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [user, setUser] = useState<any>(null)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -87,7 +90,19 @@ export default function Home() {
 
   return (
     <main className="flex-1 flex flex-col min-h-screen">
-      <div className="flex-1 flex flex-col items-center justify-center -mt-16 sm:-mt-32">
+      <Header onSidebarOpen={() => setIsSidebarOpen(true)} />
+      {isSidebarOpen && (
+        <>
+          <div className="fixed left-0 top-0 h-full z-50">
+            <Sidebar user={user} onClose={() => setIsSidebarOpen(false)} />
+          </div>
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        </>
+      )}
+      <div className="flex-1 flex flex-col items-center justify-center pt-16">
         <div className="w-full max-w-2xl px-10 sm:px-8">
           <div className="space-y-0">
             {/* <h1 className="pl-1 sm:pl-0 text-xs sm:text-base uppercase tracking-wider mb-0 text-[var(--muted)] text-start font-extralight">chatflix.app</h1> */}

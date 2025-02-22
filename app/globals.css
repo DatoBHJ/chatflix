@@ -16,6 +16,7 @@
   --inline-code-bg-light: #f3f4f6;
   --inline-code-text-light: #374151;
   --overlay-light: rgba(0, 0, 0, 0.1);
+  --subtle-divider-light: color-mix(in srgb, var(--foreground-light) 8%, transparent);
 
   /* Dark theme variables */
   --background-dark: #0a0a0a;
@@ -27,6 +28,7 @@
   --inline-code-bg-dark: #2a2a2a;
   --inline-code-text-dark: #e5e5e5;
   --overlay-dark: rgba(0, 0, 0, 0.8);
+  --subtle-divider-dark: color-mix(in srgb, var(--foreground-dark) 8%, transparent);
 
   /* Default to light theme */
   --background: var(--background-light);
@@ -38,6 +40,7 @@
   --inline-code-bg: var(--inline-code-bg-light);
   --inline-code-text: var(--inline-code-text-light);
   --overlay: var(--overlay-light);
+  --subtle-divider: var(--subtle-divider-light);
 
   --font-sans: "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
   --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -55,6 +58,7 @@
     --inline-code-bg: var(--inline-code-bg-dark);
     --inline-code-text: var(--inline-code-text-dark);
     --overlay: var(--overlay-dark);
+    --subtle-divider: var(--subtle-divider-dark);
   }
 }
 
@@ -69,6 +73,7 @@
   --inline-code-bg: var(--inline-code-bg-dark);
   --inline-code-text: var(--inline-code-text-dark);
   --overlay: var(--overlay-dark);
+  --subtle-divider: var(--subtle-divider-dark);
 }
 
 /* Manual light theme */
@@ -82,6 +87,7 @@
   --inline-code-bg: var(--inline-code-bg-light);
   --inline-code-text: var(--inline-code-text-light);
   --overlay: var(--overlay-light);
+  --subtle-divider: var(--subtle-divider-light);
 }
 
 body {
