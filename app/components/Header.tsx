@@ -7,12 +7,6 @@ export interface HeaderProps {
 export function Header({ onSidebarOpen }: HeaderProps) {
   return (
     <header className="fixed top-0 left-0 right-0 z-30">
-      {/* <div 
-        className="absolute inset-0"
-        style={{ 
-          background: 'linear-gradient(to bottom, var(--background) 50%, transparent)',
-        }}
-      /> */}
       <div className="relative flex justify-between items-center px-6 py-6">
         <button
           onClick={onSidebarOpen}
