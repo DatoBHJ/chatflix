@@ -72,7 +72,7 @@ export default function About() {
               </a>
               
               <div className="text-xs text-[var(--muted)] tracking-wider">
-                © 2024 CHATFLIX.APP
+                © 2025 CHATFLIX.APP
               </div>
             </div>
           </div>
