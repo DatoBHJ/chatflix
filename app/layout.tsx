@@ -48,19 +48,19 @@ export const metadata = {
     type: 'website',
     locale: 'en_US',
     url: 'https://chatflix.app',
-    title: 'Chatflix.app - Minimalist AI Chat Interface',
+    title: 'Chatflix.app - Chat Is This Real?',
     description: 'Experience seamless AI conversations with multiple language models. Chatflix.app offers a minimalist interface focused on simplicity and efficiency.',
     siteName: 'Chatflix.app',
     images: [{
       url: '/social-preview.png',
       width: 1200,
       height: 630,
-      alt: 'Chatflix.app - Minimalist AI Chat Interface'
+      alt: 'Chatflix.app - Chat Is This Real?'
     }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Chatflix.app - Minimalist AI Chat Interface',
+    title: 'Chatflix.app - Chat Is This Real?',
     description: 'Experience seamless AI conversations with multiple language models.',
     images: ['/social-preview.png'],
   },
