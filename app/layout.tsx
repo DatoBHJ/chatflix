@@ -13,7 +13,7 @@ export const viewport = {
 export const metadata = {
   metadataBase: new URL('https://chatflix.app'),
   title: {
-    default: 'Chatflix.app - Minimalist AI Chat Interface',
+    default: 'Chatflix.app',
     template: '%s | Chatflix.app'
   },
   description: 'Experience seamless AI conversations with multiple language models. Chatflix.app offers a minimalist interface focused on simplicity and efficiency for natural language interactions, custom prompts, and efficient chat management.',
@@ -29,9 +29,9 @@ export const metadata = {
     'minimalist chat interface',
     'efficient chat management'
   ],
-  authors: [{ name: 'Chatflix Team' }],
-  creator: 'Chatflix.app',
-  publisher: 'Chatflix.app',
+  authors: [{ name: 'DatoBHJ' }],
+  creator: 'DatoBHJ',
+  publisher: 'DatoBHJ',
   manifest: '/manifest.json',
   robots: {
     index: true,
