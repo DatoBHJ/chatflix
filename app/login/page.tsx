@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
+import { GoogleSignIn } from '../components/GoogleSignIn'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -102,6 +103,17 @@ export default function LoginPage() {
                   Sign in
                 </button>
               </div>
+            </div>
+            <div className="relative py-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-[var(--accent)]"></div>
+              </div>
+              <div className="relative flex justify-center">
+                <span className="bg-[var(--background)] px-4 text-xs uppercase text-[var(--muted)]">Or continue with</span>
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <GoogleSignIn />
             </div>
           </form>
         </div>
