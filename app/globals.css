@@ -563,3 +563,13 @@ body {
 :root[data-theme="dark"] .mention-tag:hover {
   background-color: rgba(248, 113, 113, 0.2);  /* slightly darker red on hover */
 }
+
+/* Sidebar Styles */
+.sidebar-scroll {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari, Opera */
+}

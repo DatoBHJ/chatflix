@@ -198,7 +198,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
         </div>
 
         {/* Chat List Section */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto sidebar-scroll">
           <div className="p-6">
             {chats.length > 0 && (
               <div className="mb-8">
