@@ -7,6 +7,7 @@ interface PromptShortcut {
   id: string;
   name: string;
   content: string;
+  created_at: string;
 }
 
 interface ChatInputProps {
@@ -32,6 +33,7 @@ export function ChatInput({
 }: ChatInputProps) {
   const inputRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const shortcutsListRef = useRef<HTMLDivElement>(null);
   const isSubmittingRef = useRef(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [shortcuts, setShortcuts] = useState<PromptShortcut[]>([]);
@@ -237,15 +239,44 @@ export function ChatInput({
     }
   };
 
+  // 스크롤 함수 추가
+  const scrollToItem = (index: number) => {
+    if (!shortcutsListRef.current) return;
+    
+    const listElement = shortcutsListRef.current;
+    const items = listElement.getElementsByTagName('button');
+    if (!items[index]) return;
+
+    const item = items[index];
+    const itemRect = item.getBoundingClientRect();
+    const listRect = listElement.getBoundingClientRect();
+
+    if (itemRect.bottom > listRect.bottom) {
+      // 아래로 스크롤이 필요한 경우
+      listElement.scrollTop += itemRect.bottom - listRect.bottom;
+    } else if (itemRect.top < listRect.top) {
+      // 위로 스크롤이 필요한 경우
+      listElement.scrollTop -= listRect.top - itemRect.top;
+    }
+  };
+
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (showShortcuts && shortcuts.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedIndex((prev) => (prev + 1) % shortcuts.length);
+        setSelectedIndex((prev) => {
+          const newIndex = (prev + 1) % shortcuts.length;
+          scrollToItem(newIndex);
+          return newIndex;
+        });
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setSelectedIndex((prev) => (prev - 1 + shortcuts.length) % shortcuts.length);
+        setSelectedIndex((prev) => {
+          const newIndex = (prev - 1 + shortcuts.length) % shortcuts.length;
+          scrollToItem(newIndex);
+          return newIndex;
+        });
       } else if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleShortcutSelect(shortcuts[selectedIndex]);
@@ -336,7 +367,10 @@ export function ChatInput({
             </button>
 
             {/* Scrollable shortcuts list */}
-            <div className="max-h-[30vh] overflow-y-auto">
+            <div 
+              ref={shortcutsListRef}
+              className="max-h-[30vh] overflow-y-auto"
+            >
               <div className="divide-y divide-[var(--accent)]">
                 {shortcuts.length > 0 ? (
                   shortcuts.map((shortcut, index) => (
