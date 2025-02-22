@@ -321,27 +321,29 @@ export function ChatInput({
                 setShowShortcuts(false)
                 openShortcutsDialog()
               }}
-              className="w-full px-4 py-3 text-left hover:bg-[var(--accent)] transition-colors group border-b border-[var(--accent)]"
+              className="w-full p-6 text-left hover:bg-[var(--accent)] transition-colors group border-b border-[var(--accent)]"
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs tracking-wide text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors">
-                  CUSTOMIZE SHORTCUTS
-                </span>
-                <span className="text-xs text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors">
-                  ⚡
-                </span>
+                <div className="flex items-center gap-3">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                  </svg>
+                  <span className="text-xs tracking-wide text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors">
+                    CUSTOMIZE SHORTCUTS
+                  </span>
+                </div>
               </div>
             </button>
 
             {/* Scrollable shortcuts list */}
-            <div className="max-h-[35vh] overflow-y-auto">
+            <div className="max-h-[30vh] overflow-y-auto">
               <div className="divide-y divide-[var(--accent)]">
                 {shortcuts.length > 0 ? (
                   shortcuts.map((shortcut, index) => (
                     <button
                       key={shortcut.id}
                       onClick={() => handleShortcutSelect(shortcut)}
-                      className={`w-full px-4 py-3 text-left hover:bg-[var(--accent)] transition-colors
+                      className={`w-full p-6 text-left hover:bg-[var(--accent)] transition-colors
                                ${index === selectedIndex ? 'bg-[var(--accent)]' : ''}`}
                     >
                       <div className="flex flex-col gap-1">
