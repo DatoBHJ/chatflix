@@ -272,18 +272,19 @@ export function ChatInput({
       <form 
         ref={formRef} 
         onSubmit={handleMessageSubmit} 
-        className="flex gap-2 sticky bottom-0 bg-transparent p-1 md:p-0"
+        className="flex gap-2 sticky bottom-0 bg-transparent p-1 md:p-0 items-center"
       >
         <div
           ref={inputRef}
           contentEditable
           onInput={handleInputWithShortcuts}
           onKeyDown={handleKeyDown}
-          className={`yeezy-input flex-1 text-base md:text-lg transition-opacity duration-200 overflow-y-auto whitespace-pre-wrap
+          className={`yeezy-input flex-1 transition-opacity duration-200 overflow-y-auto whitespace-pre-wrap
             ${isLoading ? 'opacity-50' : 'opacity-100'}`}
           style={{ 
             minHeight: '44px',
-            maxHeight: window.innerWidth <= 768 ? '120px' : '200px'
+            maxHeight: window.innerWidth <= 768 ? '120px' : '200px',
+            lineHeight: '1.5'
           }}
           data-placeholder={placeholder}
           suppressContentEditableWarning
@@ -292,7 +293,7 @@ export function ChatInput({
           <button 
             onClick={(e) => { e.preventDefault(); stop(); }} 
             type="button"
-            className="yeezy-button flex items-center gap-2 bg-red-500 hover:bg-red-600 transition-colors"
+            className="yeezy-button flex items-center gap-2 bg-red-500 hover:bg-red-600 transition-colors h-[44px]"
           >
             <IconStop />
             <span className="hidden md:inline">Stop</span>
@@ -300,12 +301,12 @@ export function ChatInput({
         ) : (
           <button 
             type="submit" 
-            className={`text-start transition-opacity duration-200 ${
+            className={`flex items-center justify-end transition-opacity duration-200 h-[44px] pl-2 ${
               !(inputRef.current?.textContent || '').trim() ? 'opacity-50 cursor-not-allowed' : 'opacity-100'
             }`}
             disabled={disabled || isLoading || !(inputRef.current?.textContent || '').trim()}
           >
-            <span>↑</span>
+            <span className="flex items-center leading-none">↑</span>
           </button>
         )}
       </form>

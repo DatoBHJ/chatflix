@@ -101,9 +101,9 @@ body {
 
 @layer components {
   .yeezy-input {
-    @apply bg-transparent border-0 rounded-none pr-8 py-0 sm:py-4 w-full 
+    @apply bg-transparent border-0 rounded-none pr-8 py-3 sm:py-4 w-full 
            focus:outline-none focus:ring-0 transition-colors
-           text-base sm:text-lg;
+           text-base sm:text-lg flex items-center min-h-[44px];
   }
 
   .yeezy-button {

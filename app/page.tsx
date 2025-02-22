@@ -114,7 +114,7 @@ export default function Home() {
         onClick={() => setIsSidebarOpen(false)}
       />
 
-      <div className="flex-1 flex flex-col items-center justify-center pt-16">
+      <div className="flex-1 flex flex-col items-center justify-center">
         <div className="w-full max-w-2xl px-10 sm:px-8">
           <div className="space-y-0">
             {/* <h1 className="pl-1 sm:pl-0 text-xs sm:text-base uppercase tracking-wider mb-0 text-[var(--muted)] text-start font-extralight">chatflix.app</h1> */}
