@@ -86,7 +86,7 @@ export function PromptShortcutsDialog({ user }: { user: any }) {
         .from('prompt_shortcuts')
         .select('*')
         .eq('user_id', user.id)
-        .order('name')
+        .order('created_at', { ascending: false })
 
       if (error) throw error
       

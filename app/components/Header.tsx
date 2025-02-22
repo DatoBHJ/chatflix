@@ -42,7 +42,7 @@ export function Header({ isSidebarOpen, onSidebarToggle, showBackButton }: Heade
           )}
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-5">
           <button
             onClick={() => router.push('/about')}
             className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
