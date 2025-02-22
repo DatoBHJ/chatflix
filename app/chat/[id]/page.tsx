@@ -882,18 +882,30 @@ export default function Chat({ params }: PageProps) {
 
   return (
     <main className="flex-1 relative h-full">
-      <Header onSidebarOpen={() => setIsSidebarOpen(true)} />
-      {isSidebarOpen && (
-        <>
-          <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-40"
-            onClick={() => setIsSidebarOpen(false)}
-          />
-          <div className="fixed left-0 top-0 h-full z-50">
-            <Sidebar user={user} onClose={() => setIsSidebarOpen(false)} />
-          </div>
-        </>
-      )}
+      <Header 
+        isSidebarOpen={isSidebarOpen}
+        onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+      />
+      
+      {/* Sidebar with improved transition */}
+      <div 
+        className={`fixed left-0 top-0 h-full transform transition-all duration-300 ease-in-out z-50 ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <Sidebar user={user} onClose={() => setIsSidebarOpen(false)} />
+      </div>
+
+      {/* Overlay with improved transition */}
+      <div
+        className={`fixed inset-0 backdrop-blur-[1px] bg-black transition-all duration-200 ease-in-out z-40 ${
+          isSidebarOpen 
+            ? 'opacity-40 pointer-events-auto' 
+            : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={() => setIsSidebarOpen(false)}
+      />
+
       <div className="flex-1 overflow-y-auto pb-32 pt-16">
         <div className="messages-container py-4 max-w-2xl mx-auto px-4 sm:px-6 w-full">
           {messages.map((message, i) => (

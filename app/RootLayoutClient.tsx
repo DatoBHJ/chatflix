@@ -5,6 +5,7 @@ import { Sidebar } from './components/Sidebar'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 import { PromptShortcutsDialog } from './components/PromptShortcutsDialog'
+import { Header } from './components/Header'
 
 export default function RootLayoutClient({
   children,
@@ -16,6 +17,10 @@ export default function RootLayoutClient({
   const [user, setUser] = useState<any>(null)
   const router = useRouter()
   const supabase = createClient()
+
+  const toggleSidebar = () => {
+    setIsSidebarOpen(prev => !prev)
+  }
 
   useEffect(() => {
     const getUser = async () => {
@@ -57,10 +62,15 @@ export default function RootLayoutClient({
 
   return (
     <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)] overflow-x-hidden">
-      {/* Sidebar with transition - Only show when user is authenticated */}
+      <Header 
+        isSidebarOpen={isSidebarOpen}
+        onSidebarToggle={toggleSidebar}
+      />
+      
+      {/* Sidebar with improved transition */}
       <div 
-        className={`fixed left-0 top-0 h-full transition-transform duration-300 ease-in-out z-40 ${
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed left-0 top-0 h-full transform transition-all duration-300 ease-out z-40 ${
+          isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'
         }`}
       >
         <Sidebar user={user} onClose={() => setIsSidebarOpen(false)} />
@@ -71,14 +81,15 @@ export default function RootLayoutClient({
         {children}
       </div>
 
-      {/* Overlay when sidebar is open */}
-      {isSidebarOpen && (
-        <div
-          className="fixed inset-0 backdrop-blur-sm transition-all duration-300 ease-in-out z-30"
-          style={{ backgroundColor: 'var(--overlay)' }}
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
+      {/* Overlay with improved transition */}
+      <div
+        className={`fixed inset-0 backdrop-blur-[1px] bg-black transition-all duration-300 ease-out z-30 ${
+          isSidebarOpen 
+            ? 'opacity-30 pointer-events-auto' 
+            : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={() => setIsSidebarOpen(false)}
+      />
 
       {user && <PromptShortcutsDialog user={user} />}
     </div>
