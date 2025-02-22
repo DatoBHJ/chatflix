@@ -8,6 +8,7 @@ import { MODEL_OPTIONS } from './ModelSelector'
 import { SystemPromptDialog } from './SystemPromptDialog'
 import { PromptShortcutsDialog, openShortcutsDialog } from './PromptShortcutsDialog'
 import { ThemeToggle } from './ThemeToggle'
+import { AccountDialog } from './AccountDialog'
 
 interface SidebarProps {
   user: any;  // You might want to define a proper User type
@@ -21,6 +22,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
   const supabase = createClient()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isSystemPromptOpen, setIsSystemPromptOpen] = useState(false)
+  const [isAccountOpen, setIsAccountOpen] = useState(false)
 
   useEffect(() => {
     if (user) {
@@ -117,12 +119,6 @@ export function Sidebar({ user, onClose }: SidebarProps) {
     } catch (error) {
       console.error('Error in loadChats:', error)
     }
-  }
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    setChats([])
-    router.push('/login')
   }
 
   const handleDeleteChat = async (chatId: string, e: React.MouseEvent) => {
@@ -304,10 +300,16 @@ export function Sidebar({ user, onClose }: SidebarProps) {
                 </button>
                 <ThemeToggle />
                 <button
-                  onClick={handleSignOut}
-                  className="w-full px-4 py-3 text-sm text-left hover:bg-[var(--accent)] transition-colors uppercase tracking-wider"
+                  onClick={() => {
+                    setIsAccountOpen(true)
+                    setIsMenuOpen(false)
+                  }}
+                  className="w-full px-4 py-3 text-sm flex items-center justify-between hover:bg-[var(--accent)] transition-colors"
                 >
-                  Sign Out
+                  <span className="text-xs text-[var(--muted)] uppercase tracking-wider truncate">
+                    {user.email}
+                  </span>
+                  <span className="text-[var(--muted)] ml-2">⚙️</span>
                 </button>
               </div>
             )}
@@ -318,6 +320,11 @@ export function Sidebar({ user, onClose }: SidebarProps) {
         <SystemPromptDialog
           isOpen={isSystemPromptOpen}
           onClose={() => setIsSystemPromptOpen(false)}
+          user={user}
+        />
+        <AccountDialog
+          isOpen={isAccountOpen}
+          onClose={() => setIsAccountOpen(false)}
           user={user}
         />
       </div>
