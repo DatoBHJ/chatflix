@@ -7,14 +7,8 @@ export interface HeaderProps {
 
 export function Header({ isSidebarOpen, onSidebarToggle }: HeaderProps) {
   return (
-    <header className="fixed top-0 left-0 right-0 z-50">
-      {/* <div 
-        className="absolute inset-0"
-        style={{ 
-          background: 'linear-gradient(to bottom, var(--background) 50%, transparent)',
-        }}
-      /> */}
-      <div className="relative flex justify-between items-center px-6 py-6">
+    <header className="fixed top-0 left-0 right-0 z-40 bg-[var(--background)]">
+      <div className="flex justify-between items-center px-6 py-6">
         <button
           onClick={onSidebarToggle}
           className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
