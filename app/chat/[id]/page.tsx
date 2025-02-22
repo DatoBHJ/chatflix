@@ -63,11 +63,20 @@ function MarkdownContent({ content }: { content: string }) {
   const [copied, setCopied] = useState<{[key: string]: boolean}>({});
 
   const handleCopy = async (text: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopied(prev => ({ ...prev, [text]: true }));
-    setTimeout(() => {
-      setCopied(prev => ({ ...prev, [text]: false }));
-    }, 2000);
+    try {
+      // Clean up the text before copying
+      const cleanText = typeof text === 'string' 
+        ? text.replace(/\u200B/g, '').trim() // Remove zero-width spaces
+        : '';
+        
+      await navigator.clipboard.writeText(cleanText);
+      setCopied(prev => ({ ...prev, [text]: true }));
+      setTimeout(() => {
+        setCopied(prev => ({ ...prev, [text]: false }));
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy code:', error);
+    }
   };
 
   // Add mention styling function
@@ -102,6 +111,13 @@ function MarkdownContent({ content }: { content: string }) {
     return parts;
   };
 
+  const extractText = (node: any): string => {
+    if (typeof node === 'string') return node;
+    if (Array.isArray(node)) return node.map(extractText).join('');
+    if (node?.props?.children) return extractText(node.props.children);
+    return '';
+  };
+
   return (
     <ReactMarkdown
       className="message-content"
@@ -127,13 +143,6 @@ function MarkdownContent({ content }: { content: string }) {
         code: ({ className, children, ...props }: any) => {
           const match = /language-(\w+)/.exec(className || '');
           const isInline = !match;
-          
-          const extractText = (node: any): string => {
-            if (typeof node === 'string') return node;
-            if (Array.isArray(node)) return node.map(extractText).join('');
-            if (node?.props?.children) return extractText(node.props.children);
-            return String(node || '');
-          };
           
           const codeText = extractText(children);
           
@@ -700,20 +709,31 @@ export default function Chat({ params }: PageProps) {
 
   const handleCopyMessage = async (message: Message) => {
     let textToCopy = '';
-    if (message.parts) {
-      textToCopy = message.parts
-        .filter(part => part.type === 'text')
-        .map(part => (part as { text: string }).text)
-        .join('\n');
-    } else {
-      textToCopy = message.content;
-    }
     
-    await navigator.clipboard.writeText(textToCopy);
-    setCopiedMessageId(message.id);
-    setTimeout(() => {
-      setCopiedMessageId(null);
-    }, 2000);
+    try {
+      if (message.parts) {
+        // Handle messages with parts (reasoning + text)
+        textToCopy = message.parts
+          .filter(part => part.type === 'text')
+          .map(part => {
+            const textPart = part as { text: string };
+            return typeof textPart.text === 'string' ? textPart.text : '';
+          })
+          .join('\n')
+          .trim();
+      } else {
+        // Handle regular messages
+        textToCopy = typeof message.content === 'string' ? message.content : '';
+      }
+
+      await navigator.clipboard.writeText(textToCopy);
+      setCopiedMessageId(message.id);
+      setTimeout(() => {
+        setCopiedMessageId(null);
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy message:', error);
+    }
   };
 
   // 중단 핸들러 추가
