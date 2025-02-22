@@ -186,10 +186,14 @@ export function Sidebar({ user, onClose }: SidebarProps) {
               router.push('/')
               onClose?.()
             }}
-            className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
+            className="w-full h-[46px] flex items-center justify-center gap-3 text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
             title="New Chat"
           >
-            new chat
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span>new chat</span>
           </button>
         </div>
 
@@ -200,9 +204,16 @@ export function Sidebar({ user, onClose }: SidebarProps) {
               <div className="mb-8">
                 <button
                   onClick={handleDeleteAllChats}
-                  className="w-full py-3 text-xs text-red-500 hover:text-red-700 transition-colors uppercase tracking-wider"
+                  className="w-full py-3 text-xs flex items-center justify-center gap-2 text-red-500 hover:text-red-700 transition-colors uppercase tracking-wider"
                 >
-                  Delete All Chats
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M3 6h18" />
+                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                    <line x1="10" y1="11" x2="10" y2="17" />
+                    <line x1="14" y1="11" x2="14" y2="17" />
+                  </svg>
+                  <span>Delete All Chats</span>
                 </button>
               </div>
             )}
@@ -267,53 +278,41 @@ export function Sidebar({ user, onClose }: SidebarProps) {
 
         {/* Bottom Section */}
         <div className="mt-auto">
-          {/* Menu Section */}
-          <div className="px-6 py-6 relative menu-container">
+          <div className="px-6 pt-6 pb-10 flex flex-col gap-2">
             <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
-              title="Menu"
+              onClick={() => openShortcutsDialog()}
+              className="w-full px-4 py-3 text-sm flex items-center gap-3 hover:bg-[var(--accent)] transition-colors"
+              title="Manage Shortcuts"
             >
-              menu
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+              </svg>
+              <span className="text-xs uppercase tracking-wider">Shortcuts</span>
             </button>
-
-            {/* Menu Popover */}
-            {isMenuOpen && (
-              <div className="absolute bottom-full left-6 right-6 bg-[var(--background)] rounded-lg overflow-hidden">
-                <button
-                  onClick={() => {
-                    openShortcutsDialog()
-                    setIsMenuOpen(false)
-                  }}
-                  className="w-full px-4 py-3 text-sm text-left hover:bg-[var(--accent)] transition-colors uppercase tracking-wider"
-                >
-                  Manage Shortcuts
-                </button>
-                <button
-                  onClick={() => {
-                    setIsSystemPromptOpen(true)
-                    setIsMenuOpen(false)
-                  }}
-                  className="w-full px-4 py-3 text-sm text-left hover:bg-[var(--accent)] transition-colors uppercase tracking-wider"
-                >
-                  Edit System Prompt
-                </button>
-                <button
-                  onClick={() => {
-                    setIsAccountOpen(true)
-                    setIsMenuOpen(false)
-                  }}
-                  className="w-full px-4 py-3 text-sm flex items-center justify-between hover:bg-[var(--accent)] transition-colors group"
-                >
-                  <span className="text-xs text-[var(--muted)] uppercase tracking-wider truncate">
-                    {user.email}
-                  </span>
-                  <span className="text-[var(--muted)] ml-2 text-xs tracking-wider group-hover:text-[var(--foreground)] transition-colors">
-                    +
-                  </span>
-                </button>
-              </div>
-            )}
+            <button
+              onClick={() => setIsSystemPromptOpen(true)}
+              className="w-full px-4 py-3 text-sm flex items-center gap-3 hover:bg-[var(--accent)] transition-colors"
+              title="Edit System Prompt"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+              </svg>
+              <span className="text-xs uppercase tracking-wider">System Prompt</span>
+            </button>
+            <button
+              onClick={() => setIsAccountOpen(true)}
+              className="w-full px-4 py-3 text-sm flex items-center gap-3 hover:bg-[var(--accent)] transition-colors group"
+              title="Account Settings"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              <span className="text-xs uppercase tracking-wider truncate">
+                {user.email}
+              </span>
+            </button>
           </div>
         </div>
 
