@@ -293,15 +293,15 @@ export function ChatInput({
           <button 
             onClick={(e) => { e.preventDefault(); stop(); }} 
             type="button"
-            className="yeezy-button flex items-center gap-2 bg-red-500 hover:bg-red-600 transition-colors h-[44px]"
+            className="yeezy-button flex items-center justify-center bg-red-500 hover:bg-red-600 px-4 h-[44px]"
           >
-            <IconStop />
-            <span className="hidden md:inline">Stop</span>
+            <IconStop className="w-4 h-4 mr-2" />
+            <span className="text-xs uppercase tracking-wider">Stop</span>
           </button>
         ) : (
           <button 
             type="submit" 
-            className={`flex items-center justify-end transition-opacity duration-200 h-[44px] pl-2 ${
+            className={`flex items-center justify-end transition-opacity duration-200 h-[44px] w-[44px] ${
               !(inputRef.current?.textContent || '').trim() ? 'opacity-50 cursor-not-allowed' : 'opacity-100'
             }`}
             disabled={disabled || isLoading || !(inputRef.current?.textContent || '').trim()}
