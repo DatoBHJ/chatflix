@@ -528,9 +528,9 @@ export function ChatInput({
         vertical-align: baseline !important;
         padding: 1px 4px;
         margin: 0 1px;
-        border-radius: 3px;
-        background: var(--accent);
-        color: var(--foreground);
+        border-radius: 0;
+        background-color: rgba(239, 68, 68, 0.1);
+        color: rgb(239, 68, 68);
         font-weight: 500;
         user-select: none;
       }

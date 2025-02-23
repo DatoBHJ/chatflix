@@ -160,6 +160,12 @@ export function PromptShortcutsDialog({ user }: { user: any }) {
     setNewContent(shortcut.content)
     setOpenMenuId(null)
     
+    // Scroll to top of the dialog content
+    const dialogContent = document.querySelector('.hide-scrollbar')
+    if (dialogContent) {
+      dialogContent.scrollTop = 0
+    }
+    
     // Add height adjustment on next tick after state updates
     setTimeout(() => {
       if (textareaRef.current) {

@@ -555,13 +555,13 @@ body {
   font-weight: 500;
   cursor: default;
   user-select: none;
-  background-color: rgba(220, 38, 38, 0.1);  /* light red background */
+  background-color: rgba(239, 68, 68, 0.1);  /* light red background */
   color: rgb(239, 68, 68);  /* red text */
   border-radius: 0;
 }
 
 .mention-tag:hover {
-  background-color: rgba(220, 38, 38, 0.15);  /* slightly darker red on hover */
+  background-color: rgba(239, 68, 68, 0.15);  /* slightly darker red on hover */
 }
 
 /* Dark theme adjustment for mention tag */
