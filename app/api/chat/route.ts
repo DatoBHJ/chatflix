@@ -32,6 +32,15 @@ export async function POST(req: Request) {
         const body = await req.json();
         const { messages, model, chatId, isRegeneration, existingMessageId }: ChatRequest = body;
 
+        console.log('[Debug] API Request:', {
+          userId: user.id,
+          model,
+          chatId,
+          isRegeneration,
+          existingMessageId,
+          messageCount: messages.length
+        });
+
         // Get model-specific rate limiter
         const modelRateLimiter = getRateLimiter(model);
         
@@ -66,7 +75,7 @@ export async function POST(req: Request) {
 
         // chatId가 있는 경우 해당 세션이 존재하는지 확인
         if (chatId) {
-          console.log('Checking session:', chatId);
+          console.log('[Debug] Checking session:', chatId);
           try {
             const { data: existingSession, error: sessionError } = await supabase
               .from('chat_sessions')
@@ -87,12 +96,21 @@ export async function POST(req: Request) {
               .eq('user_id', user.id)
               .order('sequence_number', { ascending: true });
 
+            console.log('[Debug] Session messages:', {
+              messageCount: sessionMessages?.length,
+              hasError: !!messagesError
+            });
+
             if (!messagesError && sessionMessages) {
               // 편집된 메시지로 messages 배열 업데이트
               messages.forEach((msg, index) => {
                 const dbMessage = sessionMessages.find(dbMsg => dbMsg.id === msg.id);
                 if (dbMessage && dbMessage.is_edited) {
                   messages[index].content = dbMessage.content;
+                  console.log('[Debug] Updated edited message:', {
+                    messageId: dbMessage.id,
+                    content: dbMessage.content
+                  });
                 }
               });
             }
@@ -120,6 +138,10 @@ export async function POST(req: Request) {
         }
 
         const lastUserMessage = messages[messages.length - 1];
+        console.log('[Debug] Last user message:', {
+          content: lastUserMessage.content,
+          role: lastUserMessage.role
+        });
 
         // 재생성이 아닌 경우에만 사용자 메시지 저장
         if (lastUserMessage.role === 'user' && !isRegeneration) {
@@ -165,6 +187,11 @@ export async function POST(req: Request) {
               throw new Error('Failed to insert user message');
             }
 
+            console.log('[Debug] Inserted user message:', {
+              messageId,
+              sequence: userMessageSequence
+            });
+
             // AI 메시지를 위한 시퀀스 번호 업데이트
             nextSequence = userMessageSequence + 1;
           }
@@ -177,22 +204,31 @@ export async function POST(req: Request) {
         // Check for prompt shortcuts and expand them for AI processing only
         if (lastProcessMessage.role === 'user') {
           const content = lastProcessMessage.content;
-          const match = content.match(/@([\w?!.,_\-+=@#$%^&*()<>{}\[\]|/\\~`]+)/);
           
-          if (match) {
-            const shortcutName = match[1];
-            const { data: shortcutData, error: shortcutError } = await supabase
-              .from('prompt_shortcuts')
-              .select('content')
-              .eq('user_id', user.id)
-              .eq('name', shortcutName)
-              .single();
-
-            if (!shortcutError && shortcutData) {
-              const remainingText = content.replace(new RegExp(`@${shortcutName}\\s*`), '').trim();
-              const updatedContent = `${shortcutData.content} ${remainingText}`;
+          // Try to parse JSON mention data
+          try {
+            const jsonMatch = content.match(/\{"displayName":"[^"]+","promptContent":"[^"]+"}/g);
+            
+            console.log('[Debug] JSON mention detection:', {
+              content,
+              hasMatch: !!jsonMatch,
+              matches: jsonMatch
+            });
+            
+            if (jsonMatch) {
+              let updatedContent = content;
               
-              // Update the processing message only
+              for (const match of jsonMatch) {
+                const mentionData = JSON.parse(match);
+                updatedContent = updatedContent.replace(match, mentionData.promptContent);
+              }
+              
+              console.log('[Debug] JSON mention expansion:', {
+                originalContent: content,
+                updatedContent
+              });
+              
+              // Update the processing message
               lastProcessMessage.content = updatedContent;
 
               if (lastProcessMessage.parts) {
@@ -206,7 +242,60 @@ export async function POST(req: Request) {
                   return part;
                 });
               }
+            } else {
+              // Legacy @ mention handling as fallback
+              const match = content.match(/@([\w?!.,_\-+=@#$%^&*()<>{}\[\]|/\\~`]+)/);
+              
+              console.log('[Debug] Legacy mention detection:', {
+                content,
+                hasMatch: !!match,
+                matchValue: match ? match[1] : null
+              });
+              
+              if (match) {
+                const shortcutName = match[1];
+                const { data: shortcutData, error: shortcutError } = await supabase
+                  .from('prompt_shortcuts')
+                  .select('content')
+                  .eq('user_id', user.id)
+                  .eq('name', shortcutName)
+                  .single();
+
+                console.log('[Debug] Legacy shortcut lookup:', {
+                  shortcutName,
+                  hasData: !!shortcutData,
+                  error: shortcutError
+                });
+
+                if (!shortcutError && shortcutData) {
+                  const remainingText = content.replace(new RegExp(`@${shortcutName}\\s*`), '').trim();
+                  const updatedContent = `${shortcutData.content} ${remainingText}`;
+                  
+                  console.log('[Debug] Legacy shortcut expansion:', {
+                    originalContent: content,
+                    remainingText,
+                    updatedContent
+                  });
+                  
+                  // Update the processing message only
+                  lastProcessMessage.content = updatedContent;
+
+                  if (lastProcessMessage.parts) {
+                    lastProcessMessage.parts = lastProcessMessage.parts.map(part => {
+                      if (part.type === 'text') {
+                        return {
+                          ...part,
+                          text: updatedContent
+                        };
+                      }
+                      return part;
+                    });
+                  }
+                }
+              }
             }
+          } catch (error) {
+            console.error('[Debug] Error processing mentions:', error);
           }
         }
 
@@ -249,6 +338,11 @@ export async function POST(req: Request) {
             console.error('Failed to insert assistant message:', insertError);
             throw new Error('Failed to insert assistant message');
           }
+
+          console.log('[Debug] Created assistant message:', {
+            messageId: assistantMessageId,
+            sequence: assistantSequence
+          });
         } else {
           // 재생성 시에는 즉시 빈 내용으로 업데이트 (시퀀스 번호는 유지)
           const { error: immediateUpdateError } = await supabase
@@ -323,6 +417,12 @@ export async function POST(req: Request) {
                   finalContent = finalContent.replace(/<think>.*?<\/think>/s, '').trim();
                 }
               }
+
+              console.log('[Debug] Stream completion:', {
+                messageId: assistantMessageId,
+                contentLength: finalContent.length,
+                hasReasoning: !!finalReasoning
+              });
 
               // 재생성 시에는 update, 아닐 때는 upsert 사용
               const { error: updateError } = isRegeneration

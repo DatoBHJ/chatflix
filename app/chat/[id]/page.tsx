@@ -81,26 +81,47 @@ function MarkdownContent({ content }: { content: string }) {
 
   // Add mention styling function
   const styleMentions = (text: string) => {
-    // 확장된 정규식: 더 많은 특수문자 포함
-    const mentionRegex = /@([\w?!.,_\-+=@#$%^&*()<>{}\[\]|/\\~`]+)/g;
+    // JSON 멘션 데이터를 찾기 위한 정규식
+    const jsonMentionRegex = /\{"displayName":"([^"]+)","promptContent":"[^"]+"}/g;
+    // 일반 @ 멘션을 찾기 위한 정규식
+    const legacyMentionRegex = /@([\w?!.,_\-+=@#$%^&*()<>{}\[\]|/\\~`]+)/g;
+    
     const parts = [];
     let lastIndex = 0;
     let match;
 
-    while ((match = mentionRegex.exec(text)) !== null) {
+    // 먼저 JSON 형식의 멘션 처리
+    while ((match = jsonMentionRegex.exec(text)) !== null) {
       // Add text before mention
       if (match.index > lastIndex) {
         parts.push(text.slice(lastIndex, match.index));
       }
       
-      // Add styled mention
+      // Add styled mention with only the display name
       parts.push(
         <span key={match.index} className="mention-tag">
-          {match[0]}
+          @{match[1]}
         </span>
       );
       
       lastIndex = match.index + match[0].length;
+    }
+
+    // JSON 멘션이 없는 경우 레거시 @ 멘션 처리
+    if (lastIndex === 0) {
+      while ((match = legacyMentionRegex.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+          parts.push(text.slice(lastIndex, match.index));
+        }
+        
+        parts.push(
+          <span key={match.index} className="mention-tag">
+            {match[0]}
+          </span>
+        );
+        
+        lastIndex = match.index + match[0].length;
+      }
     }
     
     // Add remaining text
@@ -108,7 +129,7 @@ function MarkdownContent({ content }: { content: string }) {
       parts.push(text.slice(lastIndex));
     }
     
-    return parts;
+    return parts.length > 0 ? parts : text;
   };
 
   const extractText = (node: any): string => {
