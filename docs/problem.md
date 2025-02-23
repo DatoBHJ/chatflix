@@ -1,6 +1,7 @@
 - lemon squish
 - 모델 스위칭 에러
 - 이미지 인풋
+- rate limit 확인
 
 ---
 

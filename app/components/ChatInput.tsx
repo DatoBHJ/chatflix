@@ -59,6 +59,12 @@ export function ChatInput({
     const range = selection.getRangeAt(0);
     const content = inputRef.current.textContent || '';
     
+    // Check if input is empty and clear it completely
+    if (!content.trim()) {
+      inputRef.current.innerHTML = '';
+      return;
+    }
+    
     // Simulate the onChange event for parent component
     const event = {
       target: { value: content }
@@ -164,12 +170,8 @@ export function ChatInput({
 
   const clearInput = () => {
     if (inputRef.current) {
-      // Clear all content and children
-      while (inputRef.current.firstChild) {
-        inputRef.current.removeChild(inputRef.current.firstChild);
-      }
+      // Clear all content including empty nodes
       inputRef.current.innerHTML = '';
-      inputRef.current.textContent = '';
       
       // Ensure parent state is updated
       const event = {
@@ -177,25 +179,8 @@ export function ChatInput({
       } as React.ChangeEvent<HTMLTextAreaElement>;
       handleInputChange(event);
       
-      // Reset the selection
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(inputRef.current);
-      range.collapse(true);
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      
-      // Force a clean state through blur/focus cycle
-      inputRef.current.blur();
-      setTimeout(() => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-          // Double check content is cleared
-          if (inputRef.current.textContent) {
-            inputRef.current.textContent = '';
-          }
-        }
-      }, 0);
+      // Focus the input
+      inputRef.current.focus();
     }
   };
 

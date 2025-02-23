@@ -1,4 +1,4 @@
-import { Message, streamText, createDataStreamResponse, smoothStream } from 'ai';
+import { streamText, createDataStreamResponse, smoothStream } from 'ai';
 import { createClient } from '@/utils/supabase/server'
 import { providers } from '@/lib/providers'
 import { ChatRequest, CompletionResult } from '@/lib/types'
@@ -7,67 +7,6 @@ import { getRateLimiter } from '@/lib/ratelimit'
 export const runtime = 'edge'  // Edge Runtime 사용
 export const maxDuration = 300 // 최대 실행 시간 300초로 설정
 
-// 메시지 형식을 정규화하는 함수
-function normalizeMessages(messages: Message[]): Message[] {
-  return messages.map(msg => {
-    if (msg.role === 'assistant') {
-      if (msg.parts) {
-        const textParts = msg.parts
-          .filter(part => part.type === 'text')
-          .map(part => part.text)
-          .join('\n');
-        
-        const reasoningParts = msg.parts
-          .filter(part => part.type === 'reasoning')
-          .map(part => part.reasoning)
-          .join('\n');
-
-        const reasoning = reasoningParts && reasoningParts !== textParts ? reasoningParts : null;
-
-        return {
-          ...msg,
-          content: textParts || msg.content || "Incomplete response",
-          parts: reasoning ? [
-            {
-              type: 'reasoning' as const,
-              reasoning
-            },
-            {
-              type: 'text' as const,
-              text: textParts || msg.content || "Incomplete response"
-            }
-          ] : undefined
-        };
-      }
-
-      if (msg.content) {
-        const reasoningMatch = msg.content.match(/<think>([\s\S]*?)<\/think>/);
-        if (reasoningMatch) {
-          const reasoning = reasoningMatch[1].trim();
-          const content = msg.content.replace(/<think>[\s\S]*?<\/think>/, '').trim();
-          
-          if (reasoning && reasoning !== content) {
-            return {
-              ...msg,
-              content: content || "Incomplete response",
-              parts: [
-                {
-                  type: 'reasoning' as const,
-                  reasoning
-                },
-                {
-                  type: 'text' as const,
-                  text: content || "Incomplete response"
-                }
-              ]
-            };
-          }
-        }
-      }
-    }
-    return msg;
-  });
-}
 
 // 모델 이름에서 provider 이름을 추출하는 함수
 function getProviderFromModel(model: string): string {
@@ -329,7 +268,6 @@ export async function POST(req: Request) {
           }
         }
 
-        console.log('normalizedMessages:', JSON.stringify(processMessages, null, 2));
         // 스트리밍 응답 설정
         const abortController = new AbortController();
         let isStreamFinished = false;

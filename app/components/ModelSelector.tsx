@@ -29,7 +29,7 @@ export const MODEL_OPTIONS: ModelOption[] = [
   {
     id: 'deepseek-ai/DeepSeek-R1',
     name: 'DeepSeek R1',
-    description: 'The best open source reasoning model in 2025 via Together.ai'
+    description: 'The best open source reasoning model by DeepSeek via Together.ai'
     // description: 'Advanced reasoning model by DeepSeek, via Together.ai'
   }, 
   // {
@@ -45,7 +45,7 @@ export const MODEL_OPTIONS: ModelOption[] = [
   {
     id: 'deepseek-ai/DeepSeek-V3',
     name: 'DeepSeek V3',
-    description: 'The best open source non-reasoning model in 2025'
+    description: 'The best open source non-reasoning model by DeepSeek via Together.ai'
     // description: 'DeepSeek V3 via Together.ai'
   },
   {
@@ -85,7 +85,7 @@ export const MODEL_OPTIONS: ModelOption[] = [
   {
     id: 'llama-3.3-70b-versatile',
     name: 'Llama 3.3 70B',
-    description: 'The highest-performing lightning-fast model for general tasks by Meta via Groq'
+    description: 'Llama 3.3 70B by Meta via Groq'
   },
   // {
   //   id: 'gemini-1.5-pro',
@@ -145,8 +145,8 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
             <div 
               className={`
                 ${isMobile 
-                  ? 'fixed inset-x-0 bottom-0 w-full max-h-[80vh] overflow-y-auto rounded-t-lg pb-6' 
-                  : `absolute ${position === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'} left-0 w-[280px] max-h-[400px] overflow-y-auto`}
+                  ? 'fixed inset-x-0 bottom-0 w-full max-h-[80vh] overflow-y-auto rounded-t-lg pb-6 model-selector-scroll' 
+                  : `absolute ${position === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'} left-0 w-[280px] max-h-[400px] overflow-y-auto model-selector-scroll`}
                 bg-[var(--background)] border border-[var(--accent)] shadow-lg z-50
                 animate-fade-in
               `}
