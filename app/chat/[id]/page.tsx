@@ -838,13 +838,34 @@ export default function Chat({ params }: PageProps) {
 
   const handleEditSave = async (messageId: string) => {
     try {
-      // 현재 메시지의 인덱스 찾기
+      // 1. 먼저 메시지가 DB에 존재하는지 확인
+      const { data: existingMessage, error: checkError } = await supabase
+        .from('messages')
+        .select('id, sequence_number, content')
+        .eq('id', messageId)
+        .eq('user_id', user.id)
+        .single();
+
+      // 메시지가 없거나 에러가 발생한 경우
+      if (checkError || !existingMessage) {
+        console.error('Message not found in database:', checkError);
+        // UI 메시지만 업데이트
+        const messageIndex = messages.findIndex(msg => msg.id === messageId);
+        if (messageIndex !== -1) {
+          const updatedMessages = [...messages];
+          updatedMessages[messageIndex] = {
+            ...updatedMessages[messageIndex],
+            content: editingContent
+          };
+          setMessages(updatedMessages);
+        }
+        setEditingMessageId(null);
+        setEditingContent('');
+        return;
+      }
+
+      // 2. UI 업데이트
       const messageIndex = messages.findIndex(msg => msg.id === messageId);
-      if (messageIndex === -1) return;
-
-      const currentMessage = messages[messageIndex];
-
-      // 먼저 UI 업데이트 (즉각적인 반응을 위해)
       const updatedMessages = messages.slice(0, messageIndex + 1).map(msg =>
         msg.id === messageId
           ? {
@@ -862,25 +883,12 @@ export default function Chat({ params }: PageProps) {
       );
       setMessages(updatedMessages);
 
-      // 편집 모드 종료 (UI 업데이트 후 즉시)
+      // 3. 편집 모드 종료
       setEditingMessageId(null);
       setEditingContent('');
 
-      // 데이터베이스 업데이트
-      const { data: dbMessage, error: seqError } = await supabase
-        .from('messages')
-        .select('sequence_number')
-        .eq('id', messageId)
-        .eq('user_id', user.id)
-        .single();
-
-      if (seqError) {
-        console.error('Failed to get message sequence:', seqError);
-        return;
-      }
-
-      // 메시지 내용 업데이트
-      const { error } = await supabase
+      // 4. DB 업데이트 - 이미 시퀀스 번호를 알고 있음
+      const { error: updateError } = await supabase
         .from('messages')
         .update({
           content: editingContent,
@@ -890,22 +898,22 @@ export default function Chat({ params }: PageProps) {
         .eq('id', messageId)
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
-      // 편집된 메시지 이후의 메시지 삭제
+      // 5. 후속 메시지 삭제
       const { error: deleteError } = await supabase
         .from('messages')
         .delete()
         .eq('chat_session_id', chatId)
         .eq('user_id', user.id)
-        .gt('sequence_number', dbMessage.sequence_number);
+        .gt('sequence_number', existingMessage.sequence_number);
 
       if (deleteError) {
         console.error('Failed to delete subsequent messages:', deleteError);
         return;
       }
 
-      // AI에 새로운 응답 요청
+      // 6. AI에 새로운 응답 요청
       await reload({
         body: {
           messages: updatedMessages,
@@ -913,9 +921,9 @@ export default function Chat({ params }: PageProps) {
           chatId
         }
       });
+
     } catch (error) {
       console.error('Failed to update message:', error);
-      // 에러 발생 시 편집 모드로 되돌리기
       setEditingMessageId(messageId);
       setEditingContent(messages.find(msg => msg.id === messageId)?.content || '');
     }
