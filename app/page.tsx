@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useChat } from 'ai/react'
+import { useChat } from '@ai-sdk/react';
 import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { ModelSelector } from './components/ModelSelector'

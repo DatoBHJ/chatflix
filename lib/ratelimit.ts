@@ -14,55 +14,122 @@ export const redis = new Redis({
 // Define rate limits for different model categories
 const rateLimits = {
   low: {
-    requests: 100, // 50 
+    requests: 100,
     window: '60 m'
   },
   mid: {
-    requests: 60, // 30 
+    requests: 60,
     window: '60 m'
   },
   high: {
-    requests: 30, //15 
+    requests: 30,
     window: '60 m'
   },
   superHigh: {
-    requests: 15, // 7.5
+    requests: 15,
     window: '60 m'
   }
 } as const;
 
-// Map models to their rate limit categories (sorted by price per 1m)
-const modelRateLimitCategories: { [key: string]: keyof typeof rateLimits } = {
-  'o1': 'superHigh', // 37.5 per 1m (input : 15 / output : 60)
-  'chatgpt-4o-latest': 'high', // 10 per 1m (input : 5 / output : 15)
-  'claude-3-5-sonnet-latest': 'high', // 9 per 1m (input : 3 / output : 15)
-  'deepseek-ai/DeepSeek-R1': 'high', // 7 per 1m 
-  'grok-2-latest': 'high', // 6 per 1m (input : 2 / output : 10)
-  'gemini-1.5-pro': 'mid', // free / 4.5 per 1m (input : 2 / output : 7)
-  'o3-mini': 'low', // 2.75 per 1m (input : 1.1 / output : 4.4)
-  'deepseek-ai/DeepSeek-V3': 'mid', // 1.25 per 1m 
-  'llama-3.3-70b-versatile': 'low', //0.7 per 1m
-  'gemini-2.0-flash': 'low', // free / 0.25 per 1m (input : 0.1 / output : 0.4)
-  'deepseek-reasoner': 'low', // free
-  'deepseek-chat': 'low', // free
+// Model configuration with rate limits and pricing info
+interface ModelConfig {
+  category: keyof typeof rateLimits;
+  pricePerMillion: number;
+  inputPrice?: number;
+  outputPrice?: number;
+}
+
+const modelConfigs: { [key: string]: ModelConfig } = {
+  'o1': {
+    category: 'superHigh',
+    pricePerMillion: 37.5,
+    inputPrice: 15,
+    outputPrice: 60
+  },
+  'chatgpt-4o-latest': {
+    category: 'high',
+    pricePerMillion: 10,
+    inputPrice: 5,
+    outputPrice: 15
+  },
+  'claude-3-5-sonnet-latest': {
+    category: 'high',
+    pricePerMillion: 9,
+    inputPrice: 3,
+    outputPrice: 15
+  },
+  'deepseek-ai/DeepSeek-R1': {
+    category: 'high',
+    pricePerMillion: 7
+  },
+  'grok-2-latest': {
+    category: 'high',
+    pricePerMillion: 6,
+    inputPrice: 2,
+    outputPrice: 10
+  },
+  'gemini-1.5-pro': {
+    category: 'mid',
+    pricePerMillion: 4.5,
+    inputPrice: 2,
+    outputPrice: 7
+  },
+  'o3-mini': {
+    category: 'low',
+    pricePerMillion: 2.75,
+    inputPrice: 1.1,
+    outputPrice: 4.4
+  },
+  'deepseek-ai/DeepSeek-V3': {
+    category: 'mid',
+    pricePerMillion: 1.25
+  },
+  'llama-3.3-70b-versatile': {
+    category: 'low',
+    pricePerMillion: 0.7
+  },
+  'gemini-2.0-flash': {
+    category: 'low',
+    pricePerMillion: 0.25,
+    inputPrice: 0.1,
+    outputPrice: 0.4
+  },
+  'deepseek-reasoner': {
+    category: 'low',
+    pricePerMillion: 0
+  },
+  'deepseek-chat': {
+    category: 'low',
+    pricePerMillion: 0
+  }
 };
 
-// Create rate limiters for each category
-const rateLimiters = Object.entries(rateLimits).reduce((acc, [category, limit]) => {
-  acc[category] = new Ratelimit({
+// Create individual rate limiters for each model
+const modelRateLimiters = Object.entries(modelConfigs).reduce((acc, [model, config]) => {
+  const limit = rateLimits[config.category];
+  acc[model] = new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(limit.requests, limit.window),
     analytics: true,
-    prefix: `ratelimit:${category}`,
+    prefix: `ratelimit:model:${model}`, // Model-specific prefix
   });
   return acc;
 }, {} as { [key: string]: Ratelimit });
 
 // Function to get rate limiter for a specific model
 export function getRateLimiter(model: string): Ratelimit {
-  const category = modelRateLimitCategories[model] || 'low';
-  return rateLimiters[category];
+  if (!modelRateLimiters[model]) {
+    // For unknown models, create a new rate limiter with 'low' category limits
+    const limit = rateLimits.low;
+    modelRateLimiters[model] = new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(limit.requests, limit.window),
+      analytics: true,
+      prefix: `ratelimit:model:${model}`,
+    });
+  }
+  return modelRateLimiters[model];
 }
 
 // Default rate limiter (for backward compatibility)
-export const ratelimit = rateLimiters.low; 
+export const ratelimit = getRateLimiter('default');

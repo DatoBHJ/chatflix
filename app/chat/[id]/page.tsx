@@ -1,6 +1,6 @@
 'use client'
 
-import { useChat } from 'ai/react'
+import { useChat } from '@ai-sdk/react';
 import { Message } from 'ai'
 import { useState, useEffect, use, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'

@@ -58,10 +58,10 @@ const togetherDeepSeekR1DistillWithReasoning = wrapLanguageModel({
 // 모든 모델을 하나의 customProvider로 통합
 export const providers = customProvider({
   languageModels: {
-    'chatgpt-4o-latest': openai('gpt-4-0125-preview'), // vision support
-    'gpt-4o': openai('gpt-4-0125-preview'), // vision support
-    'o1': openai('gpt-4-0125-preview'), // vision support
-    'o3-mini': openai('gpt-4-0125-preview'), // vision support
+    'chatgpt-4o-latest': openai('chatgpt-4o-latest'), // vision support
+    'gpt-4o': openai('gpt-4o'), // vision support
+    'o1': openai('o1'), // vision support
+    'o3-mini': openai('o3-mini'), // vision support
     'deepseek-reasoner': deepseek('deepseek-reasoner'), // non-vision support
     'deepseek-chat': deepseek('deepseek-chat'), // non-vision support
     'deepseek-ai/DeepSeek-R1': togetherDeepSeekR1WithReasoning, // non-vision support
@@ -72,7 +72,7 @@ export const providers = customProvider({
     'llama-3.3-70b-versatile': groq('llama-3.3-70b-versatile'), // non-vision support
     'gemini-2.0-flash': google('gemini-2.0-flash'), // vision support
     'gemini-1.5-pro': google('gemini-1.5-pro'), // vision support
-    'grok-2-latest': xai('grok-2-latest'), // vision support
+    'grok-2-latest': xai('grok-2-latest'), // non-vision support
   }
 });
 

@@ -1,14 +1,5 @@
 # AI SDK 4.1 Complete Documentation
 
-## Table of Contents
-- [Overview](#overview)
-- [Chatbot Implementation](#chatbot-implementation)
-- [Request Configuration](#request-configuration)
-- [Stream Management](#stream-management)
-- [Custom Provider](#custom-provider)
-- [Anthropic Integration](#anthropic-integration)
-- [Advanced Features](#advanced-features)
-
 ## Overview
 
 The AI SDK 4.1 provides comprehensive tools for building AI-powered applications. This documentation covers all essential components and features of the SDK.
