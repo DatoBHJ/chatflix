@@ -4,7 +4,7 @@
 
 import { useChat } from '@ai-sdk/react';
 import { Message } from 'ai'
-import { useState, useEffect, use, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, use, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { IconRefresh, IconCopy, IconCheck } from '../../components/icons'
 import { createClient } from '@/utils/supabase/client'

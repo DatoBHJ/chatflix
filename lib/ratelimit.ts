@@ -118,6 +118,17 @@ const modelRateLimiters = Object.entries(modelConfigs).reduce((acc, [model, conf
 
 // Function to get rate limiter for a specific model
 export function getRateLimiter(model: string): Ratelimit {
+  // Development environment check
+  if (process.env.NODE_ENV === 'development' && process.env.DISABLE_RATE_LIMIT === 'true') {
+    // Return a mock rate limiter that always succeeds
+    return new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(99999, '1 h'), // Effectively unlimited
+      analytics: false,
+      prefix: `ratelimit:model:${model}`,
+    });
+  }
+
   if (!modelRateLimiters[model]) {
     // For unknown models, create a new rate limiter with 'low' category limits
     const limit = rateLimits.low;

@@ -1,15 +1,13 @@
 import { Message as AIMessage } from 'ai'
 
-// API 요청 타입
 export interface ChatRequest {
   messages: AIMessage[];
   model: string;
   chatId?: string;
-  isRegeneration?: boolean;  // 재생성 요청인지 여부
-  existingMessageId?: string;  // 재생성시 기존 메시지 ID
+  isRegeneration?: boolean; 
+  existingMessageId?: string;  
 }
 
-// UI 메시지 파트 타입
 export type MessagePartType = 'text' | 'reasoning';
 
 export interface BaseMessagePart {
@@ -28,7 +26,6 @@ export interface ReasoningMessagePart extends BaseMessagePart {
 
 export type MessagePart = TextMessagePart | ReasoningMessagePart;
 
-// 완료 결과 타입
 export interface CompletionStep {
   stepType: string;
   text: string;
