@@ -48,6 +48,12 @@ export interface ChatSession {
   current_model?: string;
 }
 
+export interface Attachment {
+  name?: string;
+  contentType?: string;
+  url: string;
+}
+
 export interface DatabaseMessage {
   id: string;
   content: string;
@@ -57,6 +63,8 @@ export interface DatabaseMessage {
   model: string;
   host: string;
   chat_session_id: string;
+  attachments?: Attachment[];
+  experimental_attachments?: Attachment[];
 }
 
 // UI 타입

@@ -10,18 +10,19 @@ import { IconRefresh, IconCopy, IconCheck } from '../../components/icons'
 import { createClient } from '@/utils/supabase/client'
 import { ModelSelector } from '../../components/ModelSelector'
 import { ChatInput } from '../../components/ChatInput'
-import { MODEL_OPTIONS } from '../../components/ModelSelector'
 import { Header } from '../../components/Header'
 import { Sidebar } from '../../components/Sidebar'
 import { MarkdownContent } from '../../components/MarkdownContent'
 import { ReasoningSection } from '../../components/ReasoningSection'
-import { convertMessage } from './utils'
+import { convertMessage, uploadImage } from './utils'
 import { PageProps, ExtendedMessage } from './types'
+import { Attachment } from '@/lib/types'
+import { getModelById } from '@/lib/models/config'
 
 export default function Chat({ params }: PageProps) {
   const { id: chatId } = use(params)
   const router = useRouter()
-  const [currentModel, setCurrentModel] = useState('claude-3-5-sonnet-latest')
+  const [currentModel, setCurrentModel] = useState('claude-3-7-sonnet-latest')
   const [nextModel, setNextModel] = useState(currentModel)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [isInitialized, setIsInitialized] = useState(false)
@@ -33,23 +34,26 @@ export default function Chat({ params }: PageProps) {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState('')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [files, setFiles] = useState<FileList | undefined>(undefined);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [existingMessages, setExistingMessages] = useState<Message[]>([]);
 
   // Chat hook configuration
   const { messages, input, handleInputChange, handleSubmit, isLoading, stop, setMessages, reload } = useChat({
     api: '/api/chat',
     body: {
-      model: currentModel,
+      model: nextModel,
       chatId,
     },
     id: chatId,
-    initialMessages: [],
+    initialMessages: existingMessages,
     onResponse: (response) => {
       setMessages(prevMessages => {
         const updatedMessages = [...prevMessages];
         for (let i = updatedMessages.length - 1; i >= 0; i--) {
           const message = updatedMessages[i];
           if (message.role === 'assistant' && !(message as ExtendedMessage).model) {
-            (message as ExtendedMessage).model = currentModel;
+            (message as ExtendedMessage).model = nextModel;
             break;
           }
         }
@@ -60,9 +64,9 @@ export default function Chat({ params }: PageProps) {
       const errorResponse = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: 'Rate limit reached. Please try other models.',
+        content: error.message,
         createdAt: new Date(),
-        model: currentModel
+        model: nextModel
       } as ExtendedMessage;
 
       setMessages(prevMessages => [...prevMessages, errorResponse]);
@@ -139,8 +143,20 @@ export default function Chat({ params }: PageProps) {
               const seqB = (b as any).sequence_number || 0;
               return seqA - seqB;
             });
+          setExistingMessages(sortedMessages);
           setMessages(sortedMessages);
           setIsInitialized(true);
+
+          // If there's only one message (the initial message), trigger AI response
+          if (sortedMessages.length === 1 && sortedMessages[0].role === 'user') {
+            reload({
+              body: {
+                model: session.current_model || currentModel,
+                chatId,
+                messages: sortedMessages
+              }
+            });
+          }
         } else if (session.initial_message && isMounted) {
           const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           
@@ -250,30 +266,91 @@ export default function Chat({ params }: PageProps) {
     };
   }, [chatId, setMessages, isInitialized]);
 
-  // Message handlers
-  const handleModelSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault()
+  // Add handleModelChange function
+  const handleModelChange = async (newModel: string) => {
+    try {
+      const { error: sessionError } = await supabase
+        .from('chat_sessions')
+        .update({ current_model: newModel })
+        .eq('id', chatId);
+
+      if (sessionError) {
+        console.error('Failed to update model:', sessionError);
+        return false;
+      }
+
+      setCurrentModel(newModel);
+      setNextModel(newModel);
+      return true;
+    } catch (error) {
+      console.error('Failed to update model:', error);
+      return false;
+    }
+  };
+
+  // Update handleModelSubmit
+  const handleModelSubmit = useCallback(async (e: React.FormEvent, files?: FileList) => {
+    e.preventDefault();
     
+    // Handle model change first if needed
     if (nextModel !== currentModel) {
-      try {
-        await supabase
-          .from('chat_sessions')
-          .update({ current_model: nextModel })
-          .eq('id', chatId);
-        
-        setCurrentModel(nextModel);
-      } catch (error) {
-        console.error('Failed to update model:', error);
+      const success = await handleModelChange(nextModel);
+      if (!success) {
+        console.error('Failed to update model. Aborting message submission.');
+        return;
       }
     }
 
+    // Handle image uploads
+    let attachments: Attachment[] = [];
+    if (files?.length) {
+      try {
+        const uploadPromises = Array.from(files).map(file => uploadImage(file));
+        attachments = await Promise.all(uploadPromises);
+        console.log('[Debug] Uploaded attachments:', attachments);
+      } catch (error) {
+        console.error('Failed to upload images:', error);
+        return;
+      }
+    }
+
+    // Prepare message content
+    const messageContent = [];
+    if (input.trim()) {
+      messageContent.push({
+        type: 'text',
+        text: input.trim()
+      });
+    }
+    
+    if (attachments.length > 0) {
+      attachments.forEach(attachment => {
+        if (attachment.contentType?.startsWith('image/')) {
+          messageContent.push({
+            type: 'image',
+            image: attachment.url
+          });
+        }
+      });
+    }
+
+    // Send the message with attachments
     await handleSubmit(e, {
       body: {
         model: nextModel,
-        chatId
-      }
+        chatId,
+        messages: [
+          ...messages,
+          {
+            role: 'user',
+            content: messageContent.length === 1 ? messageContent[0].text : messageContent
+          }
+        ]
+      },
+      experimental_attachments: attachments.length > 0 ? attachments : undefined
     });
-  }, [nextModel, currentModel, chatId, handleSubmit]);
+
+  }, [nextModel, currentModel, chatId, handleSubmit, input, messages]);
 
   const handleReload = useCallback((messageId: string) => async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -549,6 +626,20 @@ export default function Chat({ params }: PageProps) {
                     </div>
                   ) : (
                     <>
+                      {message.experimental_attachments && message.experimental_attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {message.experimental_attachments
+                            .filter(attachment => attachment.contentType?.startsWith('image/'))
+                            .map((attachment, index) => (
+                              <img
+                                key={`${message.id}-${index}`}
+                                src={attachment.url}
+                                alt={attachment.name || `Image ${index + 1}`}
+                                className="max-w-[200px] max-h-[200px] rounded-lg object-cover"
+                              />
+                            ))}
+                        </div>
+                      )}
                       {message.parts ? (
                         <>
                           {message.parts.map((part, index) => {
@@ -593,7 +684,7 @@ export default function Chat({ params }: PageProps) {
                     )}
                   </button>
                   <div className="text-xs text-[var(--muted)] uppercase tracking-wider">
-                    {MODEL_OPTIONS.find(option => option.id === ((message as ExtendedMessage).model || currentModel))?.name || 
+                    {getModelById((message as ExtendedMessage).model || currentModel)?.name || 
                      ((message as ExtendedMessage).model || currentModel)}
                   </div>
                 </div>
@@ -632,7 +723,7 @@ export default function Chat({ params }: PageProps) {
 
       <div className="fixed inset-x-0 bottom-0 z-10 w-full">
         <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-8 pb-6 w-full">
-          <div className="max-w-2xl mx-auto w-full px-10 pl-13 relative flex flex-col items-center">
+          <div className="max-w-2xl mx-auto w-full px-6 sm:px-8 relative flex flex-col items-center">
             <div className="w-full max-w-[calc(100vw-2rem)]">
               <ModelSelector
                 currentModel={currentModel}
@@ -647,6 +738,7 @@ export default function Chat({ params }: PageProps) {
                 isLoading={isLoading}
                 stop={handleStop}
                 user={user}
+                modelId={nextModel}
               />
             </div>
           </div>

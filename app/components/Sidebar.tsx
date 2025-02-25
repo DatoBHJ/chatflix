@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { DatabaseMessage, Chat } from '@/lib/types'
-import { MODEL_OPTIONS } from './ModelSelector'
 import { SystemPromptDialog } from './SystemPromptDialog'
 import { PromptShortcutsDialog, openShortcutsDialog } from './PromptShortcutsDialog'
 import { ThemeToggle } from './ThemeToggle'
 import { AccountDialog } from './AccountDialog'
+import { deleteChat } from '@/app/chat/[id]/utils'
+import { getModelById } from '@/lib/models/config'
 
 interface SidebarProps {
   user: any;  // You might want to define a proper User type
@@ -127,17 +128,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
     if (!confirm('Do you want to delete this chat?')) return
 
     try {
-      await supabase
-        .from('messages')
-        .delete()
-        .eq('chat_session_id', chatId)
-        .eq('user_id', user.id)
-
-      await supabase
-        .from('chat_sessions')
-        .delete()
-        .eq('id', chatId)
-        .eq('user_id', user.id)
+      await deleteChat(chatId);
 
       if (pathname === `/chat/${chatId}`) {
         router.push('/')
@@ -154,15 +145,16 @@ export function Sidebar({ user, onClose }: SidebarProps) {
     if (!confirm('Do you want to delete all chats? This action cannot be undone.')) return
 
     try {
-      await supabase
-        .from('messages')
-        .delete()
-        .eq('user_id', user.id)
-
-      await supabase
+      // Get all chat sessions
+      const { data: sessions } = await supabase
         .from('chat_sessions')
-        .delete()
-        .eq('user_id', user.id)
+        .select('id')
+        .eq('user_id', user.id);
+
+      if (sessions) {
+        // Delete each chat session and its associated files
+        await Promise.all(sessions.map(session => deleteChat(session.id)));
+      }
 
       router.push('/')
       loadChats()
@@ -235,7 +227,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
                       <div className="font-medium truncate">{chat.title}</div>
                       {chat.messages.length > 0 && chat.messages[chat.messages.length - 1].model && (
                         <div className="text-[var(--muted)] text-xs uppercase">
-                          {MODEL_OPTIONS.find(option => option.id === chat.messages[chat.messages.length - 1].model)?.name || 
+                          {getModelById(chat.messages[chat.messages.length - 1].model)?.name || 
                            chat.messages[chat.messages.length - 1].model.split('.')[0]}
                         </div>
                       )}

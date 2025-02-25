@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { IconStop } from './icons';
 import { createClient } from '@/utils/supabase/client';
 import { openShortcutsDialog } from './PromptShortcutsDialog'
+// import { PromptShortcut } from '@/types';
 
 interface PromptShortcut {
   id: string;
@@ -9,16 +10,18 @@ interface PromptShortcut {
   content: string;
   created_at: string;
 }
+import { getModelById } from '@/lib/models/config';
 
 interface ChatInputProps {
   input: string;
   handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  handleSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  handleSubmit: (e: FormEvent<HTMLFormElement>, files?: FileList) => void;
   isLoading: boolean;
   stop: () => void;
   disabled?: boolean;
   placeholder?: string;
   user: any;
+  modelId: string;
 }
 
 export function ChatInput({
@@ -29,10 +32,12 @@ export function ChatInput({
   stop,
   disabled,
   placeholder = "Type @ for shortcuts ...",
-  user
+  user,
+  modelId
 }: ChatInputProps) {
   const inputRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const shortcutsListRef = useRef<HTMLDivElement>(null);
   const isSubmittingRef = useRef(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -40,14 +45,30 @@ export function ChatInput({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [mentionStartPosition, setMentionStartPosition] = useState<number | null>(null);
+  const [files, setFiles] = useState<FileList | undefined>(undefined);
+  const [dragActive, setDragActive] = useState(false);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [isFocused, setIsFocused] = useState(false);
   const supabase = createClient();
+  
+  // Add check for vision support
+  const modelConfig = getModelById(modelId);
+  const supportsVision = modelConfig?.supportsVision ?? false;
 
-  // Add autofocus effect
+  // Add autofocus effect on initial render
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
     }
   }, []);
+
+  // Add focus effect when model changes
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+      setIsFocused(true);
+    }
+  }, [modelId]);
 
   // Add paste event handler
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
@@ -450,8 +471,19 @@ export function ChatInput({
         }
       } as unknown as FormEvent<HTMLFormElement>;
 
-      // Submit the form with the stored content
-      await handleSubmit(submitEvent);
+      // Submit the form with the stored content and files
+      await handleSubmit(submitEvent, files);
+      
+      // Reset files after submission
+      setFiles(undefined);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      // Clear preview URLs
+      previewUrls.forEach(url => URL.revokeObjectURL(url));
+      setPreviewUrls([]);
+
     } finally {
       isSubmittingRef.current = false;
       // Ensure input is cleared even after submission
@@ -528,11 +560,234 @@ export function ChatInput({
         vertical-align: baseline !important;
         padding: 1px 4px;
         margin: 0 1px;
-        border-radius: 0;
         background-color: rgba(239, 68, 68, 0.1);
         color: rgb(239, 68, 68);
         font-weight: 500;
         user-select: none;
+      }
+
+      .futuristic-input {
+        position: relative;
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        background: transparent;
+        outline: none !important;
+      }
+      
+      .futuristic-input:focus,
+      .futuristic-input:focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+      }
+
+      .futuristic-input::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 1px;
+        background: linear-gradient(to right, transparent, var(--muted), transparent);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+
+      .futuristic-input.focused::after {
+        opacity: 0.5;
+      }
+
+      .futuristic-button {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s ease;
+      }
+
+      .futuristic-button:before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        background: rgba(255, 255, 255, 0.05);
+        transform: translate(-50%, -50%);
+        transition: width 0.6s ease, height 0.6s ease;
+      }
+
+      .futuristic-button:hover:before {
+        width: 120%;
+        height: 120%;
+      }
+
+      .image-preview-container {
+        backdrop-filter: blur(12px);
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        z-index: 30;
+      }
+      
+      .image-preview-scroll {
+        overflow-x: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--muted) transparent;
+      }
+      
+      .image-preview-scroll::-webkit-scrollbar {
+        height: 4px;
+      }
+      
+      .image-preview-scroll::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      
+      .image-preview-scroll::-webkit-scrollbar-thumb {
+        background: var(--muted);
+        border-radius: 4px;
+        opacity: 0.5;
+      }
+
+      .image-preview-item {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      }
+      
+      .image-preview-item:hover {
+        transform: scale(1.03);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+      }
+
+      .preview-img {
+        transition: all 0.3s ease;
+        filter: contrast(1.05);
+      }
+
+      .image-preview-item:hover .preview-img {
+        filter: contrast(1.1) brightness(1.05);
+      }
+
+      .remove-image-btn {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transform: translateY(-6px);
+        transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+        backdrop-filter: blur(4px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 14px;
+        z-index: 10;
+      }
+
+      .image-preview-item:hover .remove-image-btn {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .preview-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to top, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0) 50%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+
+      .image-preview-item:hover .preview-overlay {
+        opacity: 1;
+      }
+
+      .drag-upload-overlay {
+        backdrop-filter: blur(12px);
+        background: rgba(var(--background-rgb), 0.65);
+        border: 1px dashed rgba(var(--foreground-rgb), 0.15);
+        border-radius: 12px;
+      }
+
+      .drag-upload-icon {
+        background: rgba(var(--accent-rgb), 0.1);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px;
+        transition: all 0.3s ease;
+      }
+
+      .drag-upload-text {
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        color: var(--foreground);
+        opacity: 0.8;
+      }
+
+      /* Placeholder implementation */
+      .yeezy-input:empty:before {
+        content: attr(data-placeholder);
+        color: var(--muted);
+        opacity: 0.7;
+        pointer-events: none;
+      }
+      
+      .input-container {
+        padding-left: 1px;
+        padding-right: 1px;
+      }
+      
+      @media (max-width: 640px) {
+        .input-container {
+          padding-left: 1px;
+          padding-right: 1px;
+        }
+      }
+
+      .upload-button {
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+      }
+
+      .upload-button-indicator {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--accent);
+        bottom: 8px;
+        right: 8px;
+        opacity: 0;
+        transform: scale(0);
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        box-shadow: 0 0 8px var(--accent);
+      }
+
+      .upload-button-active .upload-button-indicator {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      .upload-icon {
+        transition: all 0.3s ease;
+      }
+
+      .upload-button:hover .upload-icon {
+        transform: scale(1.1);
+        opacity: 0.9;
       }
     `;
     document.head.appendChild(style);
@@ -541,90 +796,229 @@ export function ChatInput({
     };
   }, []);
 
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFiles(e.dataTransfer.files);
+    }
+  };
+
+  const handleFiles = (files: FileList) => {
+    setFiles(files);
+    // Create preview URLs for the images
+    const urls = Array.from(files).map(file => URL.createObjectURL(file));
+    setPreviewUrls(prev => [...prev, ...urls]);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      handleFiles(e.target.files);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    URL.revokeObjectURL(previewUrls[index]);
+    setPreviewUrls(prev => prev.filter((_, i) => i !== index));
+    
+    if (files) {
+      const newFiles = Array.from(files).filter((_, i) => i !== index);
+      const dataTransfer = new DataTransfer();
+      newFiles.forEach(file => dataTransfer.items.add(file));
+      setFiles(dataTransfer.files);
+    }
+  };
+
+  // Cleanup preview URLs on unmount
+  useEffect(() => {
+    return () => {
+      previewUrls.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, []);
+
   return (
     <div className="relative">
       <form 
         ref={formRef} 
         onSubmit={handleMessageSubmit} 
-        className="flex gap-2 sticky bottom-0 bg-transparent p-1 md:p-0 items-center"
+        className="flex flex-col gap-2 sticky bottom-0 bg-transparent p-1 md:p-0"
+        onDragEnter={handleDrag}
       >
-        <div
-          ref={inputRef}
-          contentEditable
-          onInput={handleInputWithShortcuts}
-          onPaste={handlePaste}
-          onKeyDown={handleKeyDown}
-          className={`yeezy-input flex-1 transition-opacity duration-200 overflow-y-auto whitespace-pre-wrap
-            ${isLoading ? 'opacity-50' : 'opacity-100'}`}
-          style={{ 
-            minHeight: '44px',
-            maxHeight: window.innerWidth <= 768 ? '120px' : '200px',
-            lineHeight: '1.5',
-            wordBreak: 'break-word',
-            overflowWrap: 'break-word'
-          }}
-          data-placeholder={placeholder}
-          suppressContentEditableWarning
-        />
-        {isLoading ? (
-          <button 
-            onClick={(e) => { e.preventDefault(); stop(); }} 
-            type="button"
-            className="yeezy-button flex items-center justify-center bg-red-500 hover:bg-red-600 px-4 h-[44px]"
-          >
-            <IconStop className="w-4 h-4 mr-2" />
-            <span className="text-xs uppercase tracking-wider">Stop</span>
-          </button>
-        ) : (
-          <button 
-            type="submit" 
-            className={`flex items-center justify-end transition-opacity duration-200 h-[44px] w-[44px] ${
-              !(inputRef.current?.textContent || '').trim() ? 'opacity-50 cursor-not-allowed' : 'opacity-100'
-            }`}
-            disabled={disabled || isLoading || !(inputRef.current?.textContent || '').trim()}
-          >
-            <span className="flex items-center leading-none">↑</span>
-          </button>
-        )}
-      </form>
-
-      {/* Shortcuts Popup */}
-      {showShortcuts && (
-        <div className="absolute bottom-full left-0 right-0 mb-2">
-          <div className="w-[calc(100vw-32px)] max-w-[280px] sm:max-w-md bg-[var(--background)] border border-[var(--accent)]">
-            {/* Customize shortcuts button - Fixed at top */}
-            <button
-              onClick={() => {
-                setShowShortcuts(false)
-                openShortcutsDialog()
-              }}
-              className="w-full p-6 text-left hover:bg-[var(--accent)] transition-colors group border-b border-[var(--accent)]"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors">
-                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                  </svg>
-                  <span className="text-xs tracking-wide text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors">
-                    CUSTOMIZE SHORTCUTS
-                  </span>
+        {/* Image Preview Section - Updated positioning and styling */}
+        {previewUrls.length > 0 && (
+          <div className="absolute bottom-full right-0 mb-4 bg-[var(--background)]/80 image-preview-container p-4 max-w-[80%] max-h-[200px] ml-auto">
+            <div className="flex gap-4 image-preview-scroll" style={{ maxWidth: '100%' }}>
+              {previewUrls.map((url, index) => (
+                <div key={url} className="relative group image-preview-item flex-shrink-0">
+                  <div className="preview-overlay"></div>
+                  <img
+                    src={url}
+                    alt={`Preview ${index + 1}`}
+                    className="w-24 h-24 object-cover preview-img"
+                  />
+                  <button
+                    onClick={() => removeImage(index)}
+                    className="remove-image-btn"
+                    type="button"
+                    aria-label="Remove image"
+                  >
+                    ×
+                  </button>
                 </div>
-              </div>
-            </button>
+              ))}
+            </div>
+          </div>
+        )}
 
-            {/* Scrollable shortcuts list */}
-            <div 
-              ref={shortcutsListRef}
-              className="max-h-[30vh] overflow-y-auto"
-            >
-              <div className="divide-y divide-[var(--accent)]">
+        {/* Drag & Drop Zone */}
+        <div 
+          className={`relative transition-all duration-300 ${dragActive ? 'scale-[1.01]' : ''}`}
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+        >
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleFileSelect}
+            ref={fileInputRef}
+            className="hidden"
+            multiple
+          />
+          
+          <div className="flex gap-0 items-center input-container py-2">
+            {supportsVision && (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className={`upload-button futuristic-button w-10 h-10 flex items-center justify-center transition-all hover:bg-[var(--accent)]/20 ${files?.length ? 'upload-button-active' : ''}`}
+                title="Upload images"
+              >
+                <div className="upload-button-indicator"></div>
+                {files?.length ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="upload-icon opacity-80">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="upload-icon opacity-50 hover:opacity-80 transition-opacity">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                )}
+              </button>
+            )}
+
+            <div
+              ref={inputRef}
+              contentEditable
+              onInput={handleInputWithShortcuts}
+              onPaste={handlePaste}
+              onKeyDown={handleKeyDown}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              className={`yeezy-input futuristic-input flex-1 transition-all duration-300 py-2 px-2
+                ${isFocused ? 'focused' : 'bg-transparent'}`}
+              style={{ 
+                minHeight: '44px',
+                maxHeight: window.innerWidth <= 768 ? '120px' : '200px',
+                lineHeight: '1.5',
+                wordBreak: 'break-word',
+                overflowWrap: 'break-word'
+              }}
+              data-placeholder={placeholder}
+              suppressContentEditableWarning
+            />
+
+            {isLoading ? (
+              <button 
+                onClick={(e) => { e.preventDefault(); stop(); }} 
+                type="button"
+                className="futuristic-button w-10 h-10 flex items-center justify-center transition-all hover:bg-[var(--accent)]/30"
+                aria-label="Stop generation"
+              >
+                <span className="text-red-500 flex items-center justify-center w-3 h-3">■</span>
+              </button>
+            ) : (
+              <button 
+                type="submit" 
+                className={`futuristic-button w-10 h-10 flex items-center justify-center transition-all hover:bg-[var(--accent)]/30
+                  ${!(inputRef.current?.textContent || '').trim() && !files?.length ? 'opacity-40' : 'opacity-100'}`}
+                disabled={disabled || isLoading || (!(inputRef.current?.textContent || '').trim() && !files?.length)}
+                aria-label="Send message"
+              >
+                <span className="flex items-center justify-center leading-none">↑</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Drag & Drop Overlay */}
+        {dragActive && (
+          <div 
+            className="absolute inset-0 drag-upload-overlay
+                     flex items-center justify-center transition-all duration-300"
+          >
+            <div className="flex flex-col items-center gap-3 transform transition-transform duration-300 scale-100 hover:scale-105">
+              <div className="drag-upload-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+              </div>
+              <span className="drag-upload-text">Release to upload</span>
+            </div>
+          </div>
+        )}
+
+        {/* Shortcuts Popup - Added higher z-index */}
+        {showShortcuts && (
+          <div className="absolute bottom-full left-0 right-0 mb-2 z-40">
+            <div className="bg-[var(--background)]/90 backdrop-blur-md overflow-hidden shadow-lg transition-all duration-300">
+              {/* Customize shortcuts button */}
+              <button
+                onClick={() => {
+                  setShowShortcuts(false)
+                  openShortcutsDialog()
+                }}
+                className="w-full p-4 text-left hover:bg-[var(--accent)]/30 transition-colors group"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors">
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                    </svg>
+                    <span className="text-xs tracking-wide text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors">
+                      CUSTOMIZE SHORTCUTS
+                    </span>
+                  </div>
+                </div>
+              </button>
+
+              {/* Scrollable shortcuts list */}
+              <div 
+                ref={shortcutsListRef}
+                className="max-h-[30vh] overflow-y-auto"
+              >
                 {shortcuts.length > 0 ? (
                   shortcuts.map((shortcut, index) => (
                     <button
                       key={shortcut.id}
                       onClick={() => handleShortcutSelect(shortcut)}
-                      className={`w-full p-6 text-left hover:bg-[var(--accent)] transition-colors
-                               ${index === selectedIndex ? 'bg-[var(--accent)]' : ''}`}
+                      className={`w-full p-4 text-left transition-colors
+                               ${index === selectedIndex ? 'bg-[var(--accent)]/30' : 'hover:bg-[var(--accent)]/10'}`}
                     >
                       <div className="flex flex-col gap-1">
                         <span className="text-sm font-medium tracking-wide">@{shortcut.name}</span>
@@ -640,8 +1034,8 @@ export function ChatInput({
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </form>
     </div>
   );
 } 

@@ -1,4 +1,4 @@
-import { customProvider, wrapLanguageModel, extractReasoningMiddleware } from 'ai';
+import { customProvider, wrapLanguageModel, extractReasoningMiddleware, LanguageModelV1 } from 'ai';
 import { createDeepSeek } from '@ai-sdk/deepseek';
 import { createTogetherAI } from '@ai-sdk/togetherai';
 import { createGroq } from '@ai-sdk/groq';
@@ -6,9 +6,9 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createXai } from '@ai-sdk/xai';
+import { MODEL_CONFIGS, ModelConfig } from './models/config';
 
-// 각 프로바이더 생성
-
+// Create provider instances
 const deepseek = createDeepSeek({
   apiKey: process.env.DEEPSEEK_API_KEY || '',
 });
@@ -37,43 +37,62 @@ const xai = createXai({
   apiKey: process.env.XAI_API_KEY || '',
 });
 
-// Groq의 DeepSeek 모델에 reasoning 기능 추가
-const groqDeepSeekWithReasoning = wrapLanguageModel({
-  model: groq('deepseek-r1-distill-llama-70b'),
-  middleware: extractReasoningMiddleware({ tagName: 'think' })
-});
+// Create provider mapping with proper types
+type ProviderFunction = (modelId: string) => LanguageModelV1;
+const providerMap: Record<ModelConfig['provider'], ProviderFunction> = {
+  openai,
+  anthropic,
+  google,
+  deepseek,
+  together,
+  groq,
+  xai
+};
 
-// Together.ai의 DeepSeek 모델에 reasoning 기능 추가
-const togetherDeepSeekR1WithReasoning = wrapLanguageModel({
-  model: together('deepseek-ai/DeepSeek-R1'),
-  middleware: extractReasoningMiddleware({ tagName: 'think' })
-});
-
-// Together.ai의 DeepSeek R1 Distill Llama 70B free 모델에 reasoning 기능 추가
-const togetherDeepSeekR1DistillWithReasoning = wrapLanguageModel({
-  model: together('deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free'),
-  middleware: extractReasoningMiddleware({ tagName: 'think' })
-});
-
-// 모든 모델을 하나의 customProvider로 통합
-export const providers = customProvider({
-  languageModels: {
-    'chatgpt-4o-latest': openai('chatgpt-4o-latest'), // vision support
-    'gpt-4o': openai('gpt-4o'), // vision support
-    'o1': openai('o1'), // vision support
-    'o3-mini': openai('o3-mini'), // vision support
-    'deepseek-reasoner': deepseek('deepseek-reasoner'), // non-vision support
-    'deepseek-chat': deepseek('deepseek-chat'), // non-vision support
-    'deepseek-ai/DeepSeek-R1': togetherDeepSeekR1WithReasoning, // non-vision support
-    'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free': togetherDeepSeekR1DistillWithReasoning, // non-vision support
-    'deepseek-ai/DeepSeek-V3': together('deepseek-ai/DeepSeek-V3'), // non-vision support
-    'DeepSeek r1 distill llama 70b': groqDeepSeekWithReasoning, // non-vision support
-    'claude-3-5-sonnet-latest': anthropic('claude-3-sonnet-20240229'), // vision support
-    'llama-3.3-70b-versatile': groq('llama-3.3-70b-versatile'), // non-vision support
-    'gemini-2.0-flash': google('gemini-2.0-flash'), // vision support
-    'gemini-1.5-pro': google('gemini-1.5-pro'), // vision support
-    'grok-2-latest': xai('grok-2-latest'), // non-vision support
+// Helper function to create a model with reasoning middleware
+function createReasoningModel(config: ModelConfig): LanguageModelV1 {
+  if (!config.reasoning?.enabled) {
+    throw new Error(`Model ${config.id} is not configured for reasoning`);
   }
+
+  const provider = providerMap[config.reasoning.provider || config.provider];
+  if (!provider) {
+    throw new Error(`Provider not found for model ${config.id}`);
+  }
+
+  return wrapLanguageModel({
+    model: provider(config.reasoning.baseModelId || config.id),
+    middleware: extractReasoningMiddleware({ 
+      tagName: config.reasoning.tagName || 'think'
+    })
+  });
+}
+
+// Create language models configuration from MODEL_CONFIGS
+const languageModels = MODEL_CONFIGS.reduce<Record<string, LanguageModelV1>>((acc, model) => {
+  if (!model.isEnabled) return acc;
+
+  try {
+    // If model has reasoning enabled, create a reasoning model
+    if (model.reasoning?.enabled) {
+      acc[model.id] = createReasoningModel(model);
+    } else {
+      // Use standard provider
+      const provider = providerMap[model.provider];
+      if (provider) {
+        acc[model.id] = provider(model.id);
+      }
+    }
+  } catch (error) {
+    console.error(`Failed to initialize model ${model.id}:`, error);
+  }
+  
+  return acc;
+}, {});
+
+// Export providers
+export const providers = customProvider({
+  languageModels
 });
 
 export type Provider = typeof providers; 

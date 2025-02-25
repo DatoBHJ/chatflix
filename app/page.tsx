@@ -8,10 +8,12 @@ import { ModelSelector } from './components/ModelSelector'
 import { ChatInput } from './components/ChatInput'
 import { Header } from './components/Header'
 import { Sidebar } from './components/Sidebar'
+import { uploadImage } from '@/app/chat/[id]/utils'
+import { Attachment } from '@/lib/types'
 
 export default function Home() {
   const router = useRouter()
-  const [currentModel, setCurrentModel] = useState('claude-3-5-sonnet-latest')
+  const [currentModel, setCurrentModel] = useState('claude-3-7-sonnet-latest')
   const [nextModel, setNextModel] = useState(currentModel)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [user, setUser] = useState<any>(null)
@@ -37,7 +39,7 @@ export default function Home() {
     }
   })
 
-  const handleModelSubmit = async (e: React.FormEvent) => {
+  const handleModelSubmit = async (e: React.FormEvent, files?: FileList) => {
     e.preventDefault()
     
     if (isSubmitting || !input.trim() || !user) return
@@ -47,16 +49,18 @@ export default function Home() {
       // Generate session ID immediately
       const sessionId = Date.now().toString();
       
-      // // Create new chat object for immediate UI update
-      // const newChat = {
-      //   id: sessionId,
-      //   title: input.trim(),
-      //   messages: [],
-      //   created_at: new Date().toISOString(),
-      //   lastMessageTime: Date.now(),
-      //   current_model: nextModel,
-      //   user_id: user.id
-      // };
+      // Upload files first if they exist
+      let attachments: Attachment[] = [];
+      if (files?.length) {
+        try {
+          const uploadPromises = Array.from(files).map(file => uploadImage(file));
+          attachments = await Promise.all(uploadPromises);
+          console.log('[Debug] Uploaded attachments:', attachments);
+        } catch (error) {
+          console.error('Failed to upload images:', error);
+          return;
+        }
+      }
 
       // Create session with initial message
       const { error: sessionError } = await supabase
@@ -71,6 +75,27 @@ export default function Home() {
 
       if (sessionError) {
         console.error('Failed to create session:', sessionError);
+        return;
+      }
+
+      // Save initial message with attachments
+      const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const { error: messageError } = await supabase
+        .from('messages')
+        .insert([{
+          id: messageId,
+          content: input.trim(),
+          role: 'user',
+          created_at: new Date().toISOString(),
+          model: nextModel,
+          host: 'user',
+          chat_session_id: sessionId,
+          user_id: user.id,
+          experimental_attachments: attachments
+        }]);
+
+      if (messageError) {
+        console.error('Failed to save message:', messageError);
         return;
       }
 
@@ -115,9 +140,9 @@ export default function Home() {
       />
 
       <div className="flex-1 flex flex-col items-center justify-center">
-        <div className="w-full max-w-2xl px-10 sm:px-8 pb-2 sm:pb-14">
+        <div className="w-full max-w-2xl px-6 sm:px-8 pb-2 sm:pb-14">
           <div className="space-y-0">
-            {/* <h1 className="pl-1 sm:pl-0 text-xs sm:text-base uppercase tracking-wider mb-0 text-[var(--muted)] text-start font-extralight">chatflix.app</h1> */}
+            {/* <h1 className="text-xs sm:text-base uppercase tracking-wider mb-0 text-[var(--muted)] text-start font-extralight">chatflix.app</h1> */}
             <ModelSelector
               currentModel={currentModel}
               nextModel={nextModel}
@@ -133,8 +158,9 @@ export default function Home() {
               disabled={isSubmitting}
               placeholder="Chat is this real?"
               user={user}
+              modelId={nextModel}
             />
-            {/* <h1 className="pl-1 sm:pl-0 text-xs sm:text-base uppercase tracking-wider text-[var(--muted)] text-start font-extralight">chatflix.app</h1> */}
+            {/* <h1 className="text-xs sm:text-base uppercase tracking-wider text-[var(--muted)] text-start font-extralight">chatflix.app</h1> */}
 
           </div>
         </div>
