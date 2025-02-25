@@ -1,4 +1,4 @@
-import { customProvider, wrapLanguageModel, extractReasoningMiddleware, LanguageModelV1 } from 'ai';
+import { customProvider, wrapLanguageModel, extractReasoningMiddleware, LanguageModelV1, LanguageModelV1Middleware } from 'ai';
 import { createDeepSeek } from '@ai-sdk/deepseek';
 import { createTogetherAI } from '@ai-sdk/togetherai';
 import { createGroq } from '@ai-sdk/groq';
@@ -60,6 +60,14 @@ function createReasoningModel(config: ModelConfig): LanguageModelV1 {
     throw new Error(`Provider not found for model ${config.id}`);
   }
 
+  // For Anthropic thinking models
+  if (config.reasoning.provider === 'anthropic') {
+    return provider(config.reasoning.baseModelId || config.id);
+    // Note: the thinking options will be directly set in the API route
+    // This matches the official documentation approach
+  }
+
+  // For other providers (DeepSeek, etc.)
   return wrapLanguageModel({
     model: provider(config.reasoning.baseModelId || config.id),
     middleware: extractReasoningMiddleware({ 

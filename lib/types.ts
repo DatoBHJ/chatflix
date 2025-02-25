@@ -6,6 +6,7 @@ export interface ChatRequest {
   chatId?: string;
   isRegeneration?: boolean; 
   existingMessageId?: string;  
+  isReasoningEnabled?: boolean;
 }
 
 export type MessagePartType = 'text' | 'reasoning';

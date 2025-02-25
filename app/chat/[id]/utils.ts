@@ -79,7 +79,13 @@ export const convertMessage = (msg: DatabaseMessage): ExtendedMessage => {
       parts: [
         {
           type: 'reasoning' as const,
-          reasoning: msg.reasoning
+          reasoning: msg.reasoning,
+          details: [
+            {
+              type: 'text',
+              text: msg.reasoning
+            }
+          ]
         },
         {
           type: 'text' as const,

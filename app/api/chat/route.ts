@@ -13,9 +13,15 @@ import { Message, TextPart } from 'ai';
 
 type MessageRole = 'system' | 'user' | 'assistant';
 
+interface ReasoningDetail {
+  type: 'text' | 'redacted';
+  text?: string;
+}
+
 interface ReasoningPart {
   type: 'reasoning';
   reasoning: string;
+  details?: ReasoningDetail[];
 }
 
 type MessagePart = TextPart | ReasoningPart;
@@ -343,10 +349,23 @@ const handleStreamCompletion = async (
       .map(part => part.text)
       .join('\n');
     
-    finalReasoning = completion.parts
-      .filter(part => part.type === 'reasoning')
-      .map(part => part.reasoning)
-      .join('\n');
+    // Extract reasoning from parts
+    const reasoningParts = completion.parts.filter(part => part.type === 'reasoning') as any[];
+    
+    if (reasoningParts.length > 0) {
+      // First use reasoning property if available
+      finalReasoning = reasoningParts.map(part => part.reasoning).join('\n');
+      
+      // If no direct reasoning, try to extract from details
+      if (!finalReasoning && reasoningParts.some(part => part.details)) {
+        finalReasoning = reasoningParts
+          .flatMap(part => 
+            part.details?.filter((detail: any) => detail.type === 'text')
+              .map((detail: any) => detail.text) || []
+          )
+          .join('\n');
+      }
+    }
   } else {
     finalContent = completion.text || '';
     const reasoningMatch = finalContent.match(/<think>(.*?)<\/think>/s);
@@ -544,7 +563,7 @@ export async function POST(req: Request) {
           throw new Error('Unauthorized');
         }
 
-        const { messages, model, chatId, isRegeneration, existingMessageId }: ChatRequest = await req.json();
+        const { messages, model, chatId, isRegeneration, existingMessageId, isReasoningEnabled = true }: ChatRequest & { isReasoningEnabled?: boolean } = await req.json();
 
         if (!messages || !Array.isArray(messages) || messages.length === 0) {
           throw new Error('Invalid messages format');
@@ -596,6 +615,21 @@ export async function POST(req: Request) {
         const abortController = new AbortController();
         let isStreamFinished = false;
 
+        // Check if the model supports reasoning
+        const modelConfig = getModelById(model);
+        const supportsReasoning = modelConfig?.reasoning?.enabled || false;
+
+        // Prepare provider options
+        const providerOptions: any = {};
+        if (supportsReasoning) {
+          providerOptions.anthropic = {
+            thinking: {
+              type: isReasoningEnabled ? 'enabled' : 'disabled',
+              budgetTokens: modelConfig?.reasoning?.budgetTokens || 12000
+            }
+          };
+        }
+
         const result = streamText({
           model: providers.languageModel(model),
           messages: [
@@ -604,6 +638,7 @@ export async function POST(req: Request) {
           ],
           temperature: 0.7,
           maxTokens: 4000,
+          providerOptions,
           experimental_transform: smoothStream({}),
           onFinish: async (completion: CompletionResult) => {
             if (abortController.signal.aborted || isStreamFinished) return;

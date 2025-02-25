@@ -17,17 +17,18 @@ export interface ModelConfig {
   isEnabled: boolean;
   reasoning?: {
     enabled: boolean;
-    provider?: 'groq' | 'together';  // 실제 모델을 제공하는 프로바이더
+    provider?: 'groq' | 'together' | 'anthropic';  // 실제 모델을 제공하는 프로바이더
     baseModelId?: string;  // 기본 모델 ID (예: deepseek-r1-distill-llama-70b)
     tagName?: string;  // reasoning 추출에 사용할 태그
+    budgetTokens?: number; // Anthropic의 thinking 토큰 수 제한
   };
 }
 
 export const MODEL_CONFIGS: ModelConfig[] = [
   {
-    id: 'claude-3-7-sonnet-latest',
-    name: 'Claude 3.7 Sonnet',
-    description: "Anthropic's most intelligent model yet. The first hybrid reasoning model on the market.",
+    id: 'claude-3-7-sonnet-20250219',
+    name: 'Claude 3.7 Sonnet (Thinking)',
+    description: "Anthropic's most intelligent model yet with extended thinking capability.",
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
@@ -40,11 +41,17 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       inputPrice: 3,
       outputPrice: 15
     },
-    isEnabled: true
+    isEnabled: true,
+    reasoning: {
+      enabled: true,
+      provider: 'anthropic',
+      baseModelId: 'claude-3-7-sonnet-20250219',
+      budgetTokens: 12000
+    }
   },
   {
-    id: 'claude-3-5-sonnet-latest',
-    name: 'Claude 3.5 Sonnet',
+    id: 'claude-3-7-sonnet-latest',
+    name: 'Claude 3.7 Sonnet',
     description: 'GOAT',
     provider: 'anthropic',
     supportsVision: true,
