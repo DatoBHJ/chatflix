@@ -14,7 +14,7 @@ import { Header } from '../../components/Header'
 import { Sidebar } from '../../components/Sidebar'
 import { MarkdownContent } from '../../components/MarkdownContent'
 import { ReasoningSection } from '../../components/ReasoningSection'
-import { convertMessage, uploadImage } from './utils'
+import { convertMessage, uploadFile } from './utils'
 import { PageProps, ExtendedMessage } from './types'
 import { Attachment } from '@/lib/types'
 import { getModelById } from '@/lib/models/config'
@@ -37,6 +37,83 @@ export default function Chat({ params }: PageProps) {
   const [files, setFiles] = useState<FileList | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [existingMessages, setExistingMessages] = useState<Message[]>([]);
+
+  // 파일 미리보기 스타일 추가
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .file-preview-item {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        background: var(--accent);
+        width: 160px;
+        height: 100px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+      }
+      
+      .file-preview-item:hover {
+        transform: scale(1.03);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+      }
+      
+      .file-preview-item .file-icon {
+        font-size: 24px;
+        margin-bottom: 8px;
+        opacity: 0.8;
+      }
+      
+      .file-preview-item .file-name {
+        font-size: 12px;
+        max-width: 140px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        opacity: 0.9;
+      }
+      
+      .file-preview-item .file-size {
+        font-size: 10px;
+        opacity: 0.7;
+        margin-top: 4px;
+      }
+
+      .image-preview-item {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      }
+      
+      .image-preview-item:hover {
+        transform: scale(1.03);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+      }
+
+      .file-type-badge {
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        backdrop-filter: blur(4px);
+        z-index: 5;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
   // Chat hook configuration
   const { messages, input, handleInputChange, handleSubmit, isLoading, stop, setMessages, reload } = useChat({
@@ -301,15 +378,15 @@ export default function Chat({ params }: PageProps) {
       }
     }
 
-    // Handle image uploads
+    // Upload files first if they exist
     let attachments: Attachment[] = [];
     if (files?.length) {
       try {
-        const uploadPromises = Array.from(files).map(file => uploadImage(file));
+        const uploadPromises = Array.from(files).map(file => uploadFile(file));
         attachments = await Promise.all(uploadPromises);
         console.log('[Debug] Uploaded attachments:', attachments);
       } catch (error) {
-        console.error('Failed to upload images:', error);
+        console.error('Failed to upload files:', error);
         return;
       }
     }
@@ -628,16 +705,77 @@ export default function Chat({ params }: PageProps) {
                     <>
                       {message.experimental_attachments && message.experimental_attachments.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-2">
-                          {message.experimental_attachments
-                            .filter(attachment => attachment.contentType?.startsWith('image/'))
-                            .map((attachment, index) => (
-                              <img
-                                key={`${message.id}-${index}`}
-                                src={attachment.url}
-                                alt={attachment.name || `Image ${index + 1}`}
-                                className="max-w-[200px] max-h-[200px] rounded-lg object-cover"
-                              />
-                            ))}
+                          {message.experimental_attachments.map((attachment, index) => {
+                            // 파일 타입 결정 로직
+                            const isImage = attachment.contentType?.startsWith('image/') || false;
+                            const isPdf = attachment.contentType === 'application/pdf' || 
+                                         (attachment.name && attachment.name.toLowerCase().endsWith('.pdf'));
+                            const isCode = attachment.contentType?.includes('text') || 
+                                         (attachment.name && /\.(js|jsx|ts|tsx|html|css|json|md|py|java|c|cpp|cs|go|rb|php|swift|kt|rs)$/i.test(attachment.name));
+                            
+                            // 파일 타입 배지 텍스트
+                            const getTypeBadge = () => {
+                              if (isImage && attachment.contentType) {
+                                return attachment.contentType.split('/')[1].toUpperCase();
+                              }
+                              if (attachment.name) {
+                                const ext = attachment.name.split('.').pop();
+                                return ext ? ext.toUpperCase() : 'FILE';
+                              }
+                              return 'FILE';
+                            };
+                            
+                            return isImage ? (
+                              // 이미지 파일 표시
+                              <div key={`${message.id}-${index}`} className="relative group image-preview-item">
+                                <span className="file-type-badge">
+                                  {getTypeBadge()}
+                                </span>
+                                <img
+                                  src={attachment.url}
+                                  alt={attachment.name || `Image ${index + 1}`}
+                                  className="max-w-[200px] max-h-[200px] rounded-lg object-cover"
+                                />
+                              </div>
+                            ) : (
+                              // 비이미지 파일 표시
+                              <div key={`${message.id}-${index}`} className="relative group file-preview-item">
+                                <span className="file-type-badge">
+                                  {getTypeBadge()}
+                                </span>
+                                <div className="file-icon">
+                                  {isCode ? (
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <polyline points="16 18 22 12 16 6"></polyline>
+                                      <polyline points="8 6 2 12 8 18"></polyline>
+                                    </svg>
+                                  ) : isPdf ? (
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                      <polyline points="14 2 14 8 20 8"></polyline>
+                                      <line x1="16" y1="13" x2="8" y2="13"></line>
+                                      <line x1="16" y1="17" x2="8" y2="17"></line>
+                                      <polyline points="10 9 9 9 8 9"></polyline>
+                                    </svg>
+                                  ) : (
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                                      <polyline points="13 2 13 9 20 9"></polyline>
+                                    </svg>
+                                  )}
+                                </div>
+                                <div className="file-name">{attachment.name || `File ${index + 1}`}</div>
+                                <a 
+                                  href={attachment.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-[var(--accent)] hover:underline mt-1 block"
+                                >
+                                  Download
+                                </a>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                       {message.parts ? (

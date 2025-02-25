@@ -8,7 +8,7 @@ import { ModelSelector } from './components/ModelSelector'
 import { ChatInput } from './components/ChatInput'
 import { Header } from './components/Header'
 import { Sidebar } from './components/Sidebar'
-import { uploadImage } from '@/app/chat/[id]/utils'
+import { uploadFile } from '@/app/chat/[id]/utils'
 import { Attachment } from '@/lib/types'
 
 export default function Home() {
@@ -53,11 +53,11 @@ export default function Home() {
       let attachments: Attachment[] = [];
       if (files?.length) {
         try {
-          const uploadPromises = Array.from(files).map(file => uploadImage(file));
+          const uploadPromises = Array.from(files).map(file => uploadFile(file));
           attachments = await Promise.all(uploadPromises);
           console.log('[Debug] Uploaded attachments:', attachments);
         } catch (error) {
-          console.error('Failed to upload images:', error);
+          console.error('Failed to upload files:', error);
           return;
         }
       }
@@ -140,7 +140,7 @@ export default function Home() {
       />
 
       <div className="flex-1 flex flex-col items-center justify-center">
-        <div className="w-full max-w-2xl px-6 sm:px-8 pb-2 sm:pb-14">
+        <div className="w-full max-w-2xl px-6 sm:px-8 pb-12 sm:pb-32">
           <div className="space-y-0">
             {/* <h1 className="text-xs sm:text-base uppercase tracking-wider mb-0 text-[var(--muted)] text-start font-extralight">chatflix.app</h1> */}
             <ModelSelector

@@ -2,7 +2,7 @@ import { DatabaseMessage } from '@/lib/types';
 import { ExtendedMessage } from './types';
 import { createClient } from '@/utils/supabase/client';
 
-export const uploadImage = async (file: File) => {
+export const uploadFile = async (file: File) => {
   const supabase = createClient();
   
   // Generate unique file name
@@ -28,13 +28,33 @@ export const uploadImage = async (file: File) => {
     throw new Error('Failed to create signed URL');
   }
 
+  // Determine file type category for UI display
+  let fileType: 'image' | 'code' | 'pdf' | 'file' = 'file';
+  if (file.type.startsWith('image/')) {
+    fileType = 'image';
+  } else if (file.type.includes('text') || 
+             fileExt === 'js' || fileExt === 'jsx' || fileExt === 'ts' || fileExt === 'tsx' || 
+             fileExt === 'html' || fileExt === 'css' || fileExt === 'json' || 
+             fileExt === 'md' || fileExt === 'py' || fileExt === 'java' || 
+             fileExt === 'c' || fileExt === 'cpp' || fileExt === 'cs' || 
+             fileExt === 'go' || fileExt === 'rb' || fileExt === 'php' || 
+             fileExt === 'swift' || fileExt === 'kt' || fileExt === 'rs') {
+    fileType = 'code';
+  } else if (fileExt === 'pdf') {
+    fileType = 'pdf';
+  }
+
   return {
     name: file.name,
     contentType: file.type,
     url: signedData.signedUrl,
-    path: filePath // Store the actual storage path for later use
+    path: filePath, // Store the actual storage path for later use
+    fileType // Add file type category for UI handling
   };
 };
+
+// Keep backward compatibility
+export const uploadImage = uploadFile;
 
 export const convertMessage = (msg: DatabaseMessage): ExtendedMessage => {
   const baseMessage = {

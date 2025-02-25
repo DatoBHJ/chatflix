@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState, ReactNode } from 'react';
 import { IconStop } from './icons';
 import { createClient } from '@/utils/supabase/client';
 import { openShortcutsDialog } from './PromptShortcutsDialog'
@@ -49,6 +49,7 @@ export function ChatInput({
   const [dragActive, setDragActive] = useState(false);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [isFocused, setIsFocused] = useState(false);
+  const [isThemeChanging, setIsThemeChanging] = useState(false);
   const supabase = createClient();
   
   // Add check for vision support
@@ -69,6 +70,49 @@ export function ChatInput({
       setIsFocused(true);
     }
   }, [modelId]);
+
+  // Add theme change detection
+  useEffect(() => {
+    // Function to detect theme changes
+    const detectThemeChange = () => {
+      // Briefly trigger the input focus animation
+      setIsThemeChanging(true);
+      
+      // Reset after animation completes
+      setTimeout(() => {
+        setIsThemeChanging(false);
+      }, 500); // Animation duration + small buffer
+    };
+
+    // Create a MutationObserver to watch for theme changes
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (
+          mutation.type === 'attributes' && 
+          (mutation.attributeName === 'class' || mutation.attributeName === 'data-theme')
+        ) {
+          detectThemeChange();
+          break;
+        }
+      }
+    });
+
+    // Start observing document.documentElement for class or data-theme changes
+    observer.observe(document.documentElement, { 
+      attributes: true,
+      attributeFilter: ['class', 'data-theme']
+    });
+
+    // Also observe body for class changes (some themes apply changes here)
+    observer.observe(document.body, { 
+      attributes: true,
+      attributeFilter: ['class']
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   // Add paste event handler
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
@@ -580,20 +624,34 @@ export function ChatInput({
         background: transparent !important;
       }
 
-      .futuristic-input::after {
+      .futuristic-input::after,
+      .futuristic-input.theme-changing::after {
         content: "";
         position: absolute;
         bottom: 0;
         left: 0;
         width: 100%;
-        height: 1px;
-        background: linear-gradient(to right, transparent, var(--muted), transparent);
+        height: 2px;
+        background: linear-gradient(to right, var(--muted), transparent);
         opacity: 0;
+        transform-origin: left center;
+        transform: scaleX(0.95) scaleY(0.8) translateY(-0.5px);
         transition: opacity 0.3s ease;
       }
 
-      .futuristic-input.focused::after {
-        opacity: 0.5;
+      .futuristic-input.focused::after,
+      .futuristic-input.theme-changing::after {
+        opacity: 0.7;
+        animation: pencilStroke 0.4s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+      }
+      
+      @keyframes pencilStroke {
+        0% {
+          transform: scaleX(0) scaleY(0.8) translateY(-0.5px);
+        }
+        100% {
+          transform: scaleX(0.95) scaleY(0.8) translateY(-0.5px);
+        }
       }
 
       .futuristic-button {
@@ -648,6 +706,47 @@ export function ChatInput({
         opacity: 0.5;
       }
 
+      .file-preview-item {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        background: var(--accent);
+        width: 160px;
+        height: 100px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+      }
+      
+      .file-preview-item:hover {
+        transform: scale(1.03);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+      }
+      
+      .file-preview-item .file-icon {
+        font-size: 24px;
+        margin-bottom: 8px;
+        opacity: 0.8;
+      }
+      
+      .file-preview-item .file-name {
+        font-size: 12px;
+        max-width: 140px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        opacity: 0.9;
+      }
+      
+      .file-preview-item .file-size {
+        font-size: 10px;
+        opacity: 0.7;
+        margin-top: 4px;
+      }
+
       .image-preview-item {
         position: relative;
         overflow: hidden;
@@ -670,7 +769,7 @@ export function ChatInput({
         filter: contrast(1.1) brightness(1.05);
       }
 
-      .remove-image-btn {
+      .remove-file-btn {
         position: absolute;
         top: 6px;
         right: 6px;
@@ -691,7 +790,8 @@ export function ChatInput({
         z-index: 10;
       }
 
-      .image-preview-item:hover .remove-image-btn {
+      .file-preview-item:hover .remove-file-btn,
+      .image-preview-item:hover .remove-file-btn {
         opacity: 1;
         transform: translateY(0);
       }
@@ -789,6 +889,42 @@ export function ChatInput({
         transform: scale(1.1);
         opacity: 0.9;
       }
+      
+      .code-preview {
+        background: var(--code-bg);
+        color: var(--code-text);
+        font-family: monospace;
+        font-size: 12px;
+        padding: 8px;
+        border-radius: 6px;
+        max-height: 80px;
+        overflow: hidden;
+        position: relative;
+        width: 100%;
+      }
+      
+      .code-preview::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 24px;
+        background: linear-gradient(to bottom, transparent, var(--code-bg));
+      }
+      
+      .file-type-badge {
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        backdrop-filter: blur(4px);
+        z-index: 5;
+      }
     `;
     document.head.appendChild(style);
     return () => {
@@ -818,9 +954,12 @@ export function ChatInput({
 
   const handleFiles = (files: FileList) => {
     setFiles(files);
-    // Create preview URLs for the images
-    const urls = Array.from(files).map(file => URL.createObjectURL(file));
-    setPreviewUrls(prev => [...prev, ...urls]);
+    // Create preview URLs for the files
+    const urls = Array.from(files).map(file => {
+      const url = URL.createObjectURL(file);
+      return { url, file };
+    });
+    setPreviewUrls(prev => [...prev, ...urls.map(item => item.url)]);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -841,6 +980,101 @@ export function ChatInput({
     }
   };
 
+  // Format file size
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  // Get file icon based on file type
+  const getFileIcon = (file: File): ReactNode => {
+    const fileType = file.type;
+    const fileName = file.name.toLowerCase();
+    const fileExt = fileName.split('.').pop() || '';
+    
+    // Code files
+    if (fileType.includes('text') || 
+        ['js', 'jsx', 'ts', 'tsx', 'html', 'css', 'json', 'md', 'py', 'java', 
+         'c', 'cpp', 'cs', 'go', 'rb', 'php', 'swift', 'kt', 'rs'].includes(fileExt)) {
+      return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="16 18 22 12 16 6"></polyline>
+          <polyline points="8 6 2 12 8 18"></polyline>
+        </svg>
+      );
+    }
+    
+    // PDF files
+    if (fileType === 'application/pdf' || fileExt === 'pdf') {
+      return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
+      );
+    }
+    
+    // Default file icon
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+        <polyline points="13 2 13 9 20 9"></polyline>
+      </svg>
+    );
+  };
+
+  // Get file type badge text
+  const getFileTypeBadge = (file: File): string => {
+    const fileType = file.type;
+    const fileName = file.name.toLowerCase();
+    const fileExt = fileName.split('.').pop() || '';
+    
+    if (fileType.startsWith('image/')) {
+      return fileType.split('/')[1].toUpperCase();
+    }
+    
+    if (fileExt) {
+      return fileExt.toUpperCase();
+    }
+    
+    return 'FILE';
+  };
+
+  // Check if file is an image
+  const isImageFile = (file: File): boolean => {
+    return file.type.startsWith('image/');
+  };
+
+  // Check if file is a text/code file
+  const isTextFile = (file: File): boolean => {
+    const fileType = file.type;
+    const fileName = file.name.toLowerCase();
+    const fileExt = fileName.split('.').pop() || '';
+    
+    return fileType.includes('text') || 
+           ['js', 'jsx', 'ts', 'tsx', 'html', 'css', 'json', 'md', 'py', 'java', 
+            'c', 'cpp', 'cs', 'go', 'rb', 'php', 'swift', 'kt', 'rs'].includes(fileExt);
+  };
+
+  // Read text file content for preview
+  const readTextFileContent = async (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string || '';
+        // Return first few lines
+        const lines = content.split('\n').slice(0, 10).join('\n');
+        resolve(lines);
+      };
+      reader.onerror = () => resolve('Error reading file');
+      reader.readAsText(file);
+    });
+  };
+
   // Cleanup preview URLs on unmount
   useEffect(() => {
     return () => {
@@ -856,27 +1090,49 @@ export function ChatInput({
         className="flex flex-col gap-2 sticky bottom-0 bg-transparent p-1 md:p-0"
         onDragEnter={handleDrag}
       >
-        {/* Image Preview Section - Updated positioning and styling */}
-        {previewUrls.length > 0 && (
+        {/* File Preview Section - Updated for all file types */}
+        {files && files.length > 0 && (
           <div className="absolute bottom-full right-0 mb-4 bg-[var(--background)]/80 image-preview-container p-4 max-w-[80%] max-h-[200px] ml-auto">
             <div className="flex gap-4 image-preview-scroll" style={{ maxWidth: '100%' }}>
-              {previewUrls.map((url, index) => (
-                <div key={url} className="relative group image-preview-item flex-shrink-0">
-                  <div className="preview-overlay"></div>
-                  <img
-                    src={url}
-                    alt={`Preview ${index + 1}`}
-                    className="w-24 h-24 object-cover preview-img"
-                  />
-                  <button
-                    onClick={() => removeImage(index)}
-                    className="remove-image-btn"
-                    type="button"
-                    aria-label="Remove image"
-                  >
-                    ×
-                  </button>
-                </div>
+              {Array.from(files).map((file, index) => (
+                isImageFile(file) ? (
+                  // Image preview
+                  <div key={`file-${index}`} className="relative group image-preview-item flex-shrink-0">
+                    <div className="preview-overlay"></div>
+                    <span className="file-type-badge">{getFileTypeBadge(file)}</span>
+                    <img
+                      src={previewUrls[index]}
+                      alt={`Preview ${file.name}`}
+                      className="w-24 h-24 object-cover preview-img"
+                    />
+                    <button
+                      onClick={() => removeImage(index)}
+                      className="remove-file-btn"
+                      type="button"
+                      aria-label="Remove file"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  // Non-image file preview
+                  <div key={`file-${index}`} className="relative group file-preview-item flex-shrink-0">
+                    <span className="file-type-badge">{getFileTypeBadge(file)}</span>
+                    <div className="file-icon">
+                      {getFileIcon(file)}
+                    </div>
+                    <div className="file-name">{file.name}</div>
+                    <div className="file-size">{formatFileSize(file.size)}</div>
+                    <button
+                      onClick={() => removeImage(index)}
+                      className="remove-file-btn"
+                      type="button"
+                      aria-label="Remove file"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )
               ))}
             </div>
           </div>
@@ -892,7 +1148,7 @@ export function ChatInput({
         >
           <input
             type="file"
-            accept="image/*"
+            accept="*/*" // Accept all file types
             onChange={handleFileSelect}
             ref={fileInputRef}
             className="hidden"
@@ -900,25 +1156,24 @@ export function ChatInput({
           />
           
           <div className="flex gap-0 items-center input-container py-2">
-            {supportsVision && (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className={`upload-button futuristic-button w-10 h-10 flex items-center justify-center transition-all hover:bg-[var(--accent)]/20 ${files?.length ? 'upload-button-active' : ''}`}
-                title="Upload images"
-              >
-                <div className="upload-button-indicator"></div>
-                {files?.length ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="upload-icon opacity-80">
-                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                  </svg>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="upload-icon opacity-50 hover:opacity-80 transition-opacity">
-                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                  </svg>
-                )}
-              </button>
-            )}
+            {/* File upload button - Updated for all file types */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className={`upload-button futuristic-button w-10 h-10 flex items-center justify-center transition-all hover:bg-[var(--accent)]/20 ${files?.length ? 'upload-button-active' : ''}`}
+              title="Upload files"
+            >
+              <div className="upload-button-indicator"></div>
+              {files?.length ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="upload-icon opacity-80">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="upload-icon opacity-50 hover:opacity-80 transition-opacity">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              )}
+            </button>
 
             <div
               ref={inputRef}
@@ -929,7 +1184,9 @@ export function ChatInput({
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
               className={`yeezy-input futuristic-input flex-1 transition-all duration-300 py-2 px-2
-                ${isFocused ? 'focused' : 'bg-transparent'}`}
+                ${isFocused ? 'focused' : ''}
+                ${isThemeChanging ? 'theme-changing' : ''}
+                ${!isFocused && !isThemeChanging ? 'bg-transparent' : ''}`}
               style={{ 
                 minHeight: '44px',
                 maxHeight: window.innerWidth <= 768 ? '120px' : '200px',
@@ -964,7 +1221,7 @@ export function ChatInput({
           </div>
         </div>
 
-        {/* Drag & Drop Overlay */}
+        {/* Drag & Drop Overlay - Updated for all file types */}
         {dragActive && (
           <div 
             className="absolute inset-0 drag-upload-overlay
@@ -978,7 +1235,7 @@ export function ChatInput({
                   <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
               </div>
-              <span className="drag-upload-text">Release to upload</span>
+              <span className="drag-upload-text">Drop files here</span>
             </div>
           </div>
         )}

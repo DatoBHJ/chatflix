@@ -52,6 +52,8 @@ export interface Attachment {
   name?: string;
   contentType?: string;
   url: string;
+  path?: string;
+  fileType?: 'image' | 'code' | 'pdf' | 'file';
 }
 
 export interface DatabaseMessage {
