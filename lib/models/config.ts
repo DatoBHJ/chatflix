@@ -89,50 +89,6 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       tagName: 'think'
     }
   },
-  // {
-  //   id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free',
-  //   name: 'DeepSeek R1 Distill',
-  //   description: 'Free version of DeepSeek R1 via Together.ai',
-  //   provider: 'together',
-  //   supportsVision: false,
-  //   rateLimit: {
-  //     category: 'mid',
-  //     requests: 60,
-  //     window: '60 m'
-  //   },
-  //   pricing: {
-  //     pricePerMillion: 1.25
-  //   },
-  //   isEnabled: true,
-  //   reasoning: {
-  //     enabled: true,
-  //     provider: 'together',
-  //     baseModelId: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free',
-  //     tagName: 'think'
-  //   }
-  // },
-  // {
-  //   id: 'deepseek-r1-distill-llama-70b',
-  //   name: 'DeepSeek R1 Distill (Groq)',
-  //   description: 'DeepSeek R1 Distill via Groq',
-  //   provider: 'groq',
-  //   supportsVision: false,
-  //   rateLimit: {
-  //     category: 'low',
-  //     requests: 100,
-  //     window: '60 m'
-  //   },
-  //   pricing: {
-  //     pricePerMillion: 0.7
-  //   },
-  //   isEnabled: true,
-  //   reasoning: {
-  //     enabled: true,
-  //     provider: 'groq',
-  //     baseModelId: 'deepseek-r1-distill-llama-70b',
-  //     tagName: 'think'
-  //   }
-  // },
   {
     id: 'deepseek-ai/DeepSeek-V3',
     name: 'DeepSeek V3',

@@ -672,25 +672,13 @@ export async function POST(req: Request) {
           try {
             const errorData = JSON.parse(error.message);
             if (errorData.type === 'rate_limit') {
-              dataStream.write(`0:${errorData.message}\n`);
-              dataStream.write(`e:{"finishReason":"error","error":${JSON.stringify(errorData)}}\n`);
+              console.log('[Debug] Rate limit error:', errorData);
+              dataStream.write(errorData.message);
               return;
             }
           } catch (e) {
             // If parsing fails, treat it as a regular error
           }
-          
-          const errorDetails = {
-            type: 'error',
-            data: {
-              message: error.message,
-              name: error.name,
-              stack: process.env.NODE_ENV === 'development' ? error.stack || null : null,
-              details: error instanceof Error ? JSON.stringify((error as any).details) || null : null
-            }
-          };
-          
-          dataStream.writeMessageAnnotation(errorDetails);
         } else {
           dataStream.writeMessageAnnotation({
             type: 'error',

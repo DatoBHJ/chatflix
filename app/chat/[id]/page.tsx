@@ -109,12 +109,12 @@ export default function Chat({ params }: PageProps) {
     `;
     document.head.appendChild(style);
     return () => {
-      document.head.removeChild(style);
     };
   }, []);
 
   // Chat hook configuration
   const { messages, input, handleInputChange, handleSubmit, isLoading, stop, setMessages, reload } = useChat({
+    // streamProtocol: 'text',
     api: '/api/chat',
     body: {
       model: nextModel,
@@ -136,31 +136,16 @@ export default function Chat({ params }: PageProps) {
       });
     },
     onError: (error: Error & { data?: string }) => {
+      console.log('[Debug] Error:', error);
       let errorMessage = error.message;
-      let errorDetails = '';
 
-      try {
-        if (error.data) {
-          const errorData = JSON.parse(error.data);
-          if (errorData.data) {
-            errorMessage = errorData.data.message || error.message;
-            if (errorData.data.details) {
-              errorDetails = `\n\nDetails:\n\`\`\`\n${errorData.data.details}\n\`\`\``;
-            }
-            if (process.env.NODE_ENV === 'development' && errorData.data.stack) {
-              errorDetails += `\n\nStack trace:\n\`\`\`\n${errorData.data.stack}\n\`\`\``;
-            }
-          }
-        }
-      } catch (e) {
-        // If parsing fails, use the original error message
-      }
-
+      console.log('[Debug] Error message:', errorMessage);  
+      
       const errorResponse = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: `rate limit reached, please try again later`,
-        // content: `⚠️ Error: ${errorMessage}${errorDetails}`,
+        content: `⚠️ Error: rate limit reached, please try again later`,
+        // content: `⚠️ Error: ${errorMessage}`,
         createdAt: new Date(),
         model: nextModel
       } as ExtendedMessage;
@@ -577,16 +562,20 @@ export default function Chat({ params }: PageProps) {
     setEditingContent('');
   };
 
+  // Add generateMessageId function
+  const generateMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
   const handleEditSave = async (messageId: string) => {
     try {
-      const { data: existingMessage } = await supabase
+      // 수정된 쿼리: AND 조건을 사용하여 단일 쿼리로 처리
+      const { data: existingMessage, error: queryError } = await supabase
         .from('messages')
-        .select('id, sequence_number')
-        .eq('id', messageId)
-        .eq('user_id', user.id)
+        .select('id, sequence_number, chat_session_id')
+        .match({ id: messageId, user_id: user.id, chat_session_id: chatId })
         .single();
 
-      if (!existingMessage) {
+      if (queryError || !existingMessage) {
+        console.error('Error fetching message:', queryError);
         const messageIndex = messages.findIndex(msg => msg.id === messageId);
         if (messageIndex !== -1) {
           setMessages(messages.map(msg =>
@@ -598,7 +587,30 @@ export default function Chat({ params }: PageProps) {
         return;
       }
 
+      // Update the message in the database
+      const { error: updateError } = await supabase
+        .from('messages')
+        .update({
+          content: editingContent,
+          is_edited: true,
+          edited_at: new Date().toISOString()
+        })
+        .match({ 
+          id: messageId, 
+          user_id: user.id,
+          chat_session_id: chatId 
+        });
+
+      if (updateError) {
+        console.error('Error updating message:', updateError);
+        throw updateError;
+      }
+
+      // Find the message index and update local state
       const messageIndex = messages.findIndex(msg => msg.id === messageId);
+      if (messageIndex === -1) return;
+
+      // Create updated messages array with edited message
       const updatedMessages = messages.slice(0, messageIndex + 1).map(msg =>
         msg.id === messageId
           ? {
@@ -610,39 +622,60 @@ export default function Chat({ params }: PageProps) {
             }
           : msg
       );
-      setMessages(updatedMessages);
 
+      // Update local state
+      setMessages(updatedMessages);
       setEditingMessageId(null);
       setEditingContent('');
 
-      await supabase
-        .from('messages')
-        .update({
-          content: editingContent,
-          is_edited: true,
-          edited_at: new Date().toISOString()
-        })
-        .eq('id', messageId)
-        .eq('user_id', user.id);
-
-      await supabase
+      // Delete subsequent messages
+      const { error: deleteError } = await supabase
         .from('messages')
         .delete()
-        .eq('chat_session_id', chatId)
-        .eq('user_id', user.id)
+        .match({ chat_session_id: chatId, user_id: user.id })
         .gt('sequence_number', existingMessage.sequence_number);
 
+      if (deleteError) {
+        console.error('Error deleting subsequent messages:', deleteError);
+      }
+
+      // Generate new message ID for AI response
+      const assistantMessageId = generateMessageId();
+
+      // Create a placeholder for the assistant message
+      const { error: insertError } = await supabase
+        .from('messages')
+        .insert([{
+          id: assistantMessageId,
+          role: 'assistant',
+          content: '',
+          created_at: new Date().toISOString(),
+          model: currentModel,
+          host: 'assistant',
+          chat_session_id: chatId,
+          user_id: user.id,
+          sequence_number: existingMessage.sequence_number + 1
+        }]);
+
+      if (insertError) {
+        console.error('Error creating assistant message:', insertError);
+        throw insertError;
+      }
+
+      // Trigger AI response with updated messages
       await reload({
         body: {
           messages: updatedMessages,
           model: currentModel,
-          chatId
+          chatId,
+          isRegeneration: true,
+          existingMessageId: assistantMessageId
         }
       });
     } catch (error) {
       console.error('Failed to update message:', error);
-      setEditingMessageId(messageId);
-      setEditingContent(messages.find(msg => msg.id === messageId)?.content || '');
+      setEditingMessageId(null);
+      setEditingContent('');
     }
   };
 

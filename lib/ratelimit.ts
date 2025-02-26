@@ -37,30 +37,19 @@ const modelRateLimiters = MODEL_CONFIGS.reduce((acc, model) => {
 
 // Function to get rate limiter for a specific model
 export function getRateLimiter(model: string): Ratelimit {
-  // Development environment check
-  if (process.env.NODE_ENV === 'development' && process.env.DISABLE_RATE_LIMIT === 'true') {
-    // Return a mock rate limiter that always succeeds
-    return new Ratelimit({
-      redis,
-      limiter: Ratelimit.slidingWindow(99999, '1 h'), // Effectively unlimited
-      analytics: false,
-      prefix: `ratelimit:model:${model}`,
-    });
+  if (!model) {
+    throw new Error('Model parameter is required');
   }
 
   const modelConfig = getModelById(model);
   if (!modelConfig) {
-    // For unknown models, create a new rate limiter with 'low' category limits
-    return new Ratelimit({
-      redis,
-      limiter: Ratelimit.slidingWindow(100, '60 m'), // Default to low category limits
-      analytics: true,
-      prefix: `ratelimit:model:${model}`,
-    });
+    throw new Error(`Model ${model} not found in configuration`);
   }
 
-  return modelRateLimiters[model];
-}
+  const rateLimiter = modelRateLimiters[model];
+  if (!rateLimiter) {
+    throw new Error(`Rate limiter not initialized for model ${model}`);
+  }
 
-// Default rate limiter (for backward compatibility)
-export const ratelimit = getRateLimiter('default');
+  return rateLimiter;
+}
