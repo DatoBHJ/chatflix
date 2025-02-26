@@ -673,21 +673,31 @@ export async function POST(req: Request) {
             const errorData = JSON.parse(error.message);
             if (errorData.type === 'rate_limit') {
               dataStream.write(`0:${errorData.message}\n`);
-              dataStream.write(`e:{"finishReason":"error"}\n`);
+              dataStream.write(`e:{"finishReason":"error","error":${JSON.stringify(errorData)}}\n`);
               return;
             }
           } catch (e) {
             // If parsing fails, treat it as a regular error
           }
           
-          dataStream.writeMessageAnnotation({
+          const errorDetails = {
             type: 'error',
-            data: { message: error.message }
-          });
+            data: {
+              message: error.message,
+              name: error.name,
+              stack: process.env.NODE_ENV === 'development' ? error.stack || null : null,
+              details: error instanceof Error ? JSON.stringify((error as any).details) || null : null
+            }
+          };
+          
+          dataStream.writeMessageAnnotation(errorDetails);
         } else {
           dataStream.writeMessageAnnotation({
             type: 'error',
-            data: { message: 'An unknown error occurred' }
+            data: {
+              message: 'An unknown error occurred',
+              details: error ? JSON.stringify(error) : null
+            }
           });
         }
       }

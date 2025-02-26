@@ -34,8 +34,6 @@ export default function Chat({ params }: PageProps) {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState('')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  const [files, setFiles] = useState<FileList | undefined>(undefined);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [existingMessages, setExistingMessages] = useState<Message[]>([]);
 
   // 파일 미리보기 스타일 추가
@@ -138,11 +136,31 @@ export default function Chat({ params }: PageProps) {
       });
     },
     onError: (error: Error & { data?: string }) => {
+      let errorMessage = error.message;
+      let errorDetails = '';
+
+      try {
+        if (error.data) {
+          const errorData = JSON.parse(error.data);
+          if (errorData.data) {
+            errorMessage = errorData.data.message || error.message;
+            if (errorData.data.details) {
+              errorDetails = `\n\nDetails:\n\`\`\`\n${errorData.data.details}\n\`\`\``;
+            }
+            if (process.env.NODE_ENV === 'development' && errorData.data.stack) {
+              errorDetails += `\n\nStack trace:\n\`\`\`\n${errorData.data.stack}\n\`\`\``;
+            }
+          }
+        }
+      } catch (e) {
+        // If parsing fails, use the original error message
+      }
+
       const errorResponse = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: "rate limit reached, please try again later",
-        // content: error.message,
+        content: `rate limit reached, please try again later`,
+        // content: `⚠️ Error: ${errorMessage}${errorDetails}`,
         createdAt: new Date(),
         model: nextModel
       } as ExtendedMessage;

@@ -45,7 +45,8 @@ export function ChatInput({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [mentionStartPosition, setMentionStartPosition] = useState<number | null>(null);
-  const [files, setFiles] = useState<FileList | undefined>(undefined);
+  const [files, setFiles] = useState<File[]>([]);
+  const [fileMap, setFileMap] = useState<Map<string, { file: File, url: string }>>(new Map());
   const [dragActive, setDragActive] = useState(false);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [isFocused, setIsFocused] = useState(false);
@@ -490,7 +491,7 @@ export function ChatInput({
     if (isSubmittingRef.current || isLoading) return;
     
     const content = inputRef.current?.textContent || '';
-    if (!content.trim()) return;
+    if (!content.trim() && files.length === 0) return;
 
     try {
       isSubmittingRef.current = true;
@@ -515,18 +516,24 @@ export function ChatInput({
         }
       } as unknown as FormEvent<HTMLFormElement>;
 
+      // Convert File[] to FileList for submission
+      const dataTransfer = new DataTransfer();
+      files.forEach(file => {
+        dataTransfer.items.add(file);
+      });
+
       // Submit the form with the stored content and files
-      await handleSubmit(submitEvent, files);
+      await handleSubmit(submitEvent, dataTransfer.files);
       
       // Reset files after submission
-      setFiles(undefined);
+      setFiles([]);
+      setFileMap(new Map());
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
       
       // Clear preview URLs
-      previewUrls.forEach(url => URL.revokeObjectURL(url));
-      setPreviewUrls([]);
+      fileMap.forEach(({ url }) => URL.revokeObjectURL(url));
 
     } finally {
       isSubmittingRef.current = false;
@@ -810,27 +817,51 @@ export function ChatInput({
 
       .drag-upload-overlay {
         backdrop-filter: blur(12px);
-        background: rgba(var(--background-rgb), 0.65);
-        border: 1px dashed rgba(var(--foreground-rgb), 0.15);
+        background: rgba(var(--background-rgb), 0.85);
+        border: 2px dashed rgba(var(--foreground-rgb), 0.2);
         border-radius: 12px;
+        box-shadow: 0 0 0 6px rgba(var(--background-rgb), 0.5);
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+
+      @keyframes pulse {
+        0%, 100% {
+          border-color: rgba(var(--foreground-rgb), 0.2);
+          box-shadow: 0 0 0 6px rgba(var(--background-rgb), 0.5);
+        }
+        50% {
+          border-color: rgba(var(--foreground-rgb), 0.4);
+          box-shadow: 0 0 0 12px rgba(var(--background-rgb), 0.3);
+        }
       }
 
       .drag-upload-icon {
-        background: rgba(var(--accent-rgb), 0.1);
+        background: rgba(var(--accent-rgb), 0.15);
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 12px;
+        padding: 16px;
         transition: all 0.3s ease;
+        animation: bounce 1s infinite;
+      }
+
+      @keyframes bounce {
+        0%, 100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-6px);
+        }
       }
 
       .drag-upload-text {
-        font-size: 14px;
+        font-size: 16px;
         font-weight: 500;
         letter-spacing: 0.02em;
         color: var(--foreground);
-        opacity: 0.8;
+        opacity: 0.9;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
       }
 
       /* Placeholder implementation */
@@ -925,6 +956,19 @@ export function ChatInput({
         backdrop-filter: blur(4px);
         z-index: 5;
       }
+
+      .drag-target-active {
+        position: relative;
+        z-index: 40;
+      }
+
+      .drag-target-active::before {
+        content: '';
+        position: absolute;
+        inset: -20px;
+        background: transparent;
+        z-index: 30;
+      }
     `;
     document.head.appendChild(style);
     return () => {
@@ -932,14 +976,29 @@ export function ChatInput({
     };
   }, []);
 
+  // Update handleDrag to be more reliable
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
+    
+    // Check if the drag contains files
+    if (e.dataTransfer.types.includes('Files')) {
+      if (e.type === "dragenter" || e.type === "dragover") {
+        setDragActive(true);
+      }
     }
+  };
+
+  // Add new dragLeave handler
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Only deactivate if we're leaving the form element
+    if (e.currentTarget.contains(e.relatedTarget as Node)) {
+      return;
+    }
+    setDragActive(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -952,33 +1011,60 @@ export function ChatInput({
     }
   };
 
-  const handleFiles = (files: FileList) => {
-    setFiles(files);
-    // Create preview URLs for the files
-    const urls = Array.from(files).map(file => {
-      const url = URL.createObjectURL(file);
-      return { url, file };
-    });
-    setPreviewUrls(prev => [...prev, ...urls.map(item => item.url)]);
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      handleFiles(e.target.files);
-    }
-  };
-
-  const removeImage = (index: number) => {
-    URL.revokeObjectURL(previewUrls[index]);
-    setPreviewUrls(prev => prev.filter((_, i) => i !== index));
+  const handleFiles = (newFiles: FileList) => {
+    // Convert FileList to Array and create new file entries
+    const newFileArray = Array.from(newFiles);
     
-    if (files) {
-      const newFiles = Array.from(files).filter((_, i) => i !== index);
-      const dataTransfer = new DataTransfer();
-      newFiles.forEach(file => dataTransfer.items.add(file));
-      setFiles(dataTransfer.files);
-    }
+    // Create new file entries
+    const newFileEntries = newFileArray.map(file => {
+      const url = URL.createObjectURL(file);
+      return [file.name, { file, url }] as [string, { file: File, url: string }];
+    });
+
+    // Update file map with new entries
+    setFileMap(prevMap => {
+      const newMap = new Map(prevMap);
+      newFileEntries.forEach(([name, data]) => {
+        // If file with same name exists, revoke its old URL
+        if (prevMap.has(name)) {
+          URL.revokeObjectURL(prevMap.get(name)!.url);
+        }
+        newMap.set(name, data);
+      });
+      return newMap;
+    });
+
+    // Update files array
+    setFiles(prevFiles => {
+      const existingNames = new Set(prevFiles.map(f => f.name));
+      const uniqueNewFiles = newFileArray.filter(file => !existingNames.has(file.name));
+      return [...prevFiles, ...uniqueNewFiles];
+    });
   };
+
+  const removeFile = (fileToRemove: File) => {
+    // Remove from fileMap and revoke URL
+    setFileMap(prevMap => {
+      const newMap = new Map(prevMap);
+      const fileData = newMap.get(fileToRemove.name);
+      if (fileData) {
+        URL.revokeObjectURL(fileData.url);
+        newMap.delete(fileToRemove.name);
+      }
+      return newMap;
+    });
+
+    // Remove from files array
+    setFiles(prevFiles => prevFiles.filter(file => file !== fileToRemove));
+  };
+
+  // Cleanup URLs on unmount
+  useEffect(() => {
+    return () => {
+      // Cleanup all URLs
+      fileMap.forEach(({ url }) => URL.revokeObjectURL(url));
+    };
+  }, []);
 
   // Format file size
   const formatFileSize = (bytes: number): string => {
@@ -1075,38 +1161,38 @@ export function ChatInput({
     });
   };
 
-  // Cleanup preview URLs on unmount
-  useEffect(() => {
-    return () => {
-      previewUrls.forEach(url => URL.revokeObjectURL(url));
-    };
-  }, []);
-
   return (
     <div className="relative">
       <form 
         ref={formRef} 
         onSubmit={handleMessageSubmit} 
-        className="flex flex-col gap-2 sticky bottom-0 bg-transparent p-1 md:p-0"
+        className={`flex flex-col gap-2 sticky bottom-0 bg-transparent p-1 md:p-0
+          ${dragActive ? 'drag-target-active' : ''}`}
         onDragEnter={handleDrag}
+        onDragOver={handleDrag}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
         {/* File Preview Section - Updated for all file types */}
-        {files && files.length > 0 && (
+        {files.length > 0 && (
           <div className="absolute bottom-full right-0 mb-4 bg-[var(--background)]/80 image-preview-container p-4 max-w-[80%] max-h-[200px] ml-auto">
             <div className="flex gap-4 image-preview-scroll" style={{ maxWidth: '100%' }}>
-              {Array.from(files).map((file, index) => (
-                isImageFile(file) ? (
+              {files.map((file) => {
+                const fileData = fileMap.get(file.name);
+                if (!fileData) return null;
+
+                return isImageFile(file) ? (
                   // Image preview
-                  <div key={`file-${index}`} className="relative group image-preview-item flex-shrink-0">
+                  <div key={file.name} className="relative group image-preview-item flex-shrink-0">
                     <div className="preview-overlay"></div>
                     <span className="file-type-badge">{getFileTypeBadge(file)}</span>
                     <img
-                      src={previewUrls[index]}
+                      src={fileData.url}
                       alt={`Preview ${file.name}`}
                       className="w-24 h-24 object-cover preview-img"
                     />
                     <button
-                      onClick={() => removeImage(index)}
+                      onClick={() => removeFile(file)}
                       className="remove-file-btn"
                       type="button"
                       aria-label="Remove file"
@@ -1116,7 +1202,7 @@ export function ChatInput({
                   </div>
                 ) : (
                   // Non-image file preview
-                  <div key={`file-${index}`} className="relative group file-preview-item flex-shrink-0">
+                  <div key={file.name} className="relative group file-preview-item flex-shrink-0">
                     <span className="file-type-badge">{getFileTypeBadge(file)}</span>
                     <div className="file-icon">
                       {getFileIcon(file)}
@@ -1124,7 +1210,7 @@ export function ChatInput({
                     <div className="file-name">{file.name}</div>
                     <div className="file-size">{formatFileSize(file.size)}</div>
                     <button
-                      onClick={() => removeImage(index)}
+                      onClick={() => removeFile(file)}
                       className="remove-file-btn"
                       type="button"
                       aria-label="Remove file"
@@ -1132,8 +1218,8 @@ export function ChatInput({
                       ×
                     </button>
                   </div>
-                )
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -1142,14 +1228,18 @@ export function ChatInput({
         <div 
           className={`relative transition-all duration-300 ${dragActive ? 'scale-[1.01]' : ''}`}
           onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
+          onDragLeave={handleDragLeave}
           onDragOver={handleDrag}
           onDrop={handleDrop}
         >
           <input
             type="file"
             accept="*/*" // Accept all file types
-            onChange={handleFileSelect}
+            onChange={(e) => {
+              if (e.target.files) {
+                handleFiles(e.target.files);
+              }
+            }}
             ref={fileInputRef}
             className="hidden"
             multiple
@@ -1160,11 +1250,11 @@ export function ChatInput({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className={`upload-button futuristic-button w-10 h-10 flex items-center justify-center transition-all hover:bg-[var(--accent)]/20 ${files?.length ? 'upload-button-active' : ''}`}
+              className={`upload-button futuristic-button w-10 h-10 flex items-center justify-center transition-all hover:bg-[var(--accent)]/20 ${files.length ? 'upload-button-active' : ''}`}
               title="Upload files"
             >
               <div className="upload-button-indicator"></div>
-              {files?.length ? (
+              {files.length ? (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="upload-icon opacity-80">
                   <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                 </svg>
@@ -1210,9 +1300,8 @@ export function ChatInput({
             ) : (
               <button 
                 type="submit" 
-                className={`futuristic-button w-10 h-10 flex items-center justify-center transition-all hover:bg-[var(--accent)]/30
-                  ${!(inputRef.current?.textContent || '').trim() && !files?.length ? 'opacity-40' : 'opacity-100'}`}
-                disabled={disabled || isLoading || (!(inputRef.current?.textContent || '').trim() && !files?.length)}
+                className={`futuristic-button w-10 h-10 flex items-center justify-center transition-all hover:bg-[var(--accent)]/30`}
+                disabled={disabled || isLoading}
                 aria-label="Send message"
               >
                 <span className="flex items-center justify-center leading-none">↑</span>
@@ -1225,7 +1314,7 @@ export function ChatInput({
         {dragActive && (
           <div 
             className="absolute inset-0 drag-upload-overlay
-                     flex items-center justify-center transition-all duration-300"
+                     flex items-center justify-center transition-all duration-300 z-50"
           >
             <div className="flex flex-col items-center gap-3 transform transition-transform duration-300 scale-100 hover:scale-105">
               <div className="drag-upload-icon">
