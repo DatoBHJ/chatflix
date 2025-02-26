@@ -57,7 +57,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     supportsVision: true,
     rateLimit: {
       category: 'high',
-      requests: 1,
+      requests: 30,
       window: '60 m'
     },
     pricing: {
