@@ -48,19 +48,19 @@ export const metadata = {
     type: 'website',
     locale: 'en_US',
     url: 'https://chatflix.app',
-    title: 'Chatflix.app - Chat Is This Real?',
+    title: 'Chatflix.app - the Netflix of chatbots',
     description: 'Experience seamless AI conversations with multiple language models. Chatflix.app offers a minimalist interface focused on simplicity and efficiency.',
     siteName: 'Chatflix.app',
     images: [{
       url: 'https://chatflix.app/social-preview.png?v=2',
       width: 1200,
       height: 630,
-      alt: 'Chatflix.app - Chat Is This Real?'
+      alt: 'Chatflix.app - the Netflix of chatbots'
     }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Chatflix.app - Chat Is This Real?',
+    title: 'Chatflix.app - the Netflix of chatbots',
     description: 'Experience seamless AI conversations with multiple language models.',
     images: ['https://chatflix.app/social-preview.png?v=2'],
   },
