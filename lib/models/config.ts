@@ -17,10 +17,10 @@ export interface ModelConfig {
   isEnabled: boolean;
   reasoning?: {
     enabled: boolean;
-    provider?: 'groq' | 'together' | 'anthropic';  // 실제 모델을 제공하는 프로바이더
-    baseModelId?: string;  // 기본 모델 ID (예: deepseek-r1-distill-llama-70b)
-    tagName?: string;  // reasoning 추출에 사용할 태그
-    budgetTokens?: number; // Anthropic의 thinking 토큰 수 제한
+    provider?: 'groq' | 'together' | 'anthropic';  
+    baseModelId?: string; 
+    tagName?: string; 
+    budgetTokens?: number;
   };
 }
 
