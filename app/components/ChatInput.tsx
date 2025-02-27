@@ -7,7 +7,11 @@ interface PromptShortcut {
   name: string;
   content: string;
   created_at: string;
+  // 새 필드 추가: 검색 결과 관련 정보
+  match_type?: string;
+  highlight_ranges?: Array<{start: number, end: number}>;
 }
+
 import { getModelById } from '@/lib/models/config';
 
 interface ChatInputProps {
@@ -43,17 +47,25 @@ export function ChatInput({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [mentionStartPosition, setMentionStartPosition] = useState<number | null>(null);
+  const [mentionEndPosition, setMentionEndPosition] = useState<number | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [fileMap, setFileMap] = useState<Map<string, { file: File, url: string }>>(new Map());
   const [dragActive, setDragActive] = useState(false);
-  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [isFocused, setIsFocused] = useState(false);
   const [isThemeChanging, setIsThemeChanging] = useState(false);
+  const [lastTypedChar, setLastTypedChar] = useState<string | null>(null);
+  const [mentionQueryActive, setMentionQueryActive] = useState(false);
   const supabase = createClient();
   
-  // Add check for vision support
+  // 타이핑 디바운스 설정
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // 모델 설정
   const modelConfig = getModelById(modelId);
   const supportsVision = modelConfig?.supportsVision ?? false;
+
+  // 추가: 멘션 감지를 위한 정규식
+  const mentionRegex = /@(\w*)$/;
 
   // Add autofocus effect on initial render
   useEffect(() => {
@@ -183,287 +195,219 @@ export function ChatInput({
     }, 0);
   };
   
-  // Helper function to get cursor position
-  const getCursorPosition = (element: HTMLElement): number => {
-    const selection = window.getSelection();
-    if (!selection?.rangeCount) return 0;
+ // 커서 위치 얻기 함수
+ const getCursorPosition = (element: HTMLElement): number => {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return 0;
+  
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.setEnd(selection.anchorNode!, selection.anchorOffset);
+  return range.toString().length;
+};
+
+  
+ // 커서 위치 설정 함수
+ const setCursorPosition = (element: HTMLElement, position: number) => {
+  const range = document.createRange();
+  const selection = window.getSelection();
+  
+  // 텍스트 노드와 오프셋 찾기
+  let currentPos = 0;
+  let targetNode: Node | null = null;
+  let targetOffset = 0;
+  
+  const walker = document.createTreeWalker(
+    element,
+    NodeFilter.SHOW_TEXT,
+    null
+  );
+  
+  let node: Node | null = walker.nextNode();
+  while (node) {
+    const nodeLength = node.textContent?.length || 0;
+    if (currentPos + nodeLength >= position) {
+      targetNode = node;
+      targetOffset = position - currentPos;
+      break;
+    }
+    currentPos += nodeLength;
+    node = walker.nextNode();
+  }
+  
+  if (targetNode) {
+    range.setStart(targetNode, targetOffset);
+    range.setEnd(targetNode, targetOffset);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+};
+
+
+// 사용자 입력 모니터링 및 멘션 감지
+const handleInputWithShortcuts = async () => {
+  if (!inputRef.current || isSubmittingRef.current) return;
+  
+  // 디바운스 설정 (타이핑 시 실시간 검색이 너무 자주 일어나지 않도록)
+  if (debounceTimerRef.current) {
+    clearTimeout(debounceTimerRef.current);
+  }
+  
+  // 현재 입력 상태 가져오기
+  const selection = window.getSelection();
+  if (!selection || !selection.rangeCount) return;
+  
+  // 컨텐츠 정규화
+  inputRef.current.normalize();
+  
+  const cursorPosition = getCursorPosition(inputRef.current);
+  const content = inputRef.current.textContent || '';
+  
+  // 부모 컴포넌트 상태 업데이트
+  const event = {
+    target: { value: content }
+  } as React.ChangeEvent<HTMLTextAreaElement>;
+  handleInputChange(event);
+  
+  // 커서 위치까지의 텍스트 추출
+  const textBeforeCursor = content.substring(0, cursorPosition);
+  
+  // 멘션 패턴 감지 (@단어)
+  const mentionMatch = textBeforeCursor.match(mentionRegex);
+  
+  if (mentionMatch) {
+    // 멘션 쿼리 상태 활성화
+    setMentionQueryActive(true);
     
-    const range = document.createRange();
-    range.selectNodeContents(element);
-    range.setEnd(selection.anchorNode!, selection.anchorOffset);
-    return range.toString().length;
+    // 멘션 시작 위치 (@ 기호 위치) 저장
+    const mentionStartPos = textBeforeCursor.lastIndexOf('@');
+    setMentionStartPosition(mentionStartPos);
+    
+    // 검색어 추출 (@ 다음 텍스트)
+    const query = mentionMatch[1] || '';
+    setSearchTerm(query);
+    
+    // 디바운스 적용하여 검색 실행
+    debounceTimerRef.current = setTimeout(async () => {
+      // 숏컷 검색 API 호출
+      const { data, error } = await supabase.rpc('search_prompt_shortcuts', {
+        p_user_id: user.id,
+        p_search_term: query
+      });
+      
+      if (error) {
+        console.error('Error searching shortcuts:', error);
+        return;
+      }
+      
+      // 검색 결과 업데이트 및 표시
+      setShortcuts(data || []);
+      setShowShortcuts(true);
+      setSelectedIndex(0); // 첫 번째 항목 선택
+    }, 100); // 100ms 디바운스
+  } else {
+    // 멘션 패턴이 없으면 팝업 닫기
+    closeShortcutsPopup();
+  }
+};
+// 멘션 팝업 닫기 함수
+const closeShortcutsPopup = () => {
+  setShowShortcuts(false);
+  setMentionStartPosition(null);
+  setMentionEndPosition(null);
+  setMentionQueryActive(false);
+  
+  if (debounceTimerRef.current) {
+    clearTimeout(debounceTimerRef.current);
+  }
+};
+ // 숏컷 선택 처리 개선
+ const handleShortcutSelect = (shortcut: PromptShortcut) => {
+  if (!inputRef.current || mentionStartPosition === null) return;
+  
+  // 현재 컨텐츠와 커서 상태 가져오기
+  const content = inputRef.current.textContent || '';
+  const beforeMention = content.slice(0, mentionStartPosition);
+  const afterMention = content.slice(mentionQueryActive ? getCursorPosition(inputRef.current) : mentionStartPosition);
+  
+  // 멘션 삽입 전 DOM 상태 저장
+  const range = document.createRange();
+  const selection = window.getSelection();
+  
+  // 멘션 태그 생성 (트위터 스타일)
+  const mentionTag = document.createElement('span');
+  mentionTag.className = 'mention-tag-wrapper';
+  
+  // 멘션 데이터 저장
+  const mentionData = {
+    id: shortcut.id,
+    name: shortcut.name,
+    content: shortcut.content
   };
   
-  // Helper function to set cursor position
-  const setCursorPosition = (element: HTMLElement, position: number) => {
-    const range = document.createRange();
-    const selection = window.getSelection();
+  // 멘션 내부 구조 생성
+  const mentionInner = document.createElement('span');
+  mentionInner.className = 'mention-tag';
+  mentionInner.contentEditable = 'false';
+  mentionInner.dataset.shortcutId = shortcut.id;
+  mentionInner.dataset.mentionData = JSON.stringify(mentionData);
+  mentionInner.textContent = `@${shortcut.name}`;
+  
+  // 멘션 태그에 추가
+  mentionTag.appendChild(mentionInner);
+  
+  // 새 컨텐츠 구성
+  inputRef.current.innerHTML = '';
+  
+  // 멘션 이전 텍스트 추가
+  if (beforeMention) {
+    inputRef.current.appendChild(document.createTextNode(beforeMention));
+  }
+  
+  // 멘션 태그 추가
+  inputRef.current.appendChild(mentionTag);
+  
+  // 공백 추가 (멘션 후 띄어쓰기)
+  inputRef.current.appendChild(document.createTextNode(' '));
+  
+  // 나머지 텍스트 추가
+  if (afterMention && !mentionQueryActive) {
+    inputRef.current.appendChild(document.createTextNode(afterMention));
+  }
+  
+  // 부모 컴포넌트 상태 업데이트
+  const updatedText = inputRef.current.textContent || '';
+  handleInputChange({
+    target: { value: updatedText }
+  } as React.ChangeEvent<HTMLTextAreaElement>);
+  
+  // 커서 위치 조정 (멘션 태그 뒤로)
+  requestAnimationFrame(() => {
+    if (!inputRef.current) return;
     
-    // Find the text node and offset
-    let currentPos = 0;
-    let targetNode: Node | null = null;
-    let targetOffset = 0;
-    
-    const walk = document.createTreeWalker(
-      element,
-      NodeFilter.SHOW_TEXT,
-      null
-    );
-    
-    let node: Node | null = walk.nextNode();
-    while (node) {
-      const nodeLength = node.textContent?.length || 0;
-      if (currentPos + nodeLength >= position) {
-        targetNode = node;
-        targetOffset = position - currentPos;
-        break;
+    // 멘션 태그 다음 노드 찾기
+    const mentionElement = inputRef.current.querySelector('.mention-tag-wrapper');
+    if (mentionElement && mentionElement.nextSibling) {
+      const nextNode = mentionElement.nextSibling;
+      if (nextNode.nodeType === Node.TEXT_NODE) {
+        // 텍스트 노드면 커서를 텍스트 시작 위치에 설정
+        range.setStart(nextNode, 1); // 공백 다음으로 이동
+        range.collapse(true);
+        
+        // 새 선택 영역 적용
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        
+        // 입력 필드에 포커스 유지
+        inputRef.current.focus();
       }
-      currentPos += nodeLength;
-      node = walk.nextNode();
     }
-    
-    if (targetNode) {
-      range.setStart(targetNode, targetOffset);
-      range.setEnd(targetNode, targetOffset);
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-    }
-  };
+  });
+  
+  // 팝업 닫기
+  closeShortcutsPopup();
+};
 
-  // Modify handleInputWithShortcuts to handle mentions more reliably
-  const handleInputWithShortcuts = async () => {
-    if (!inputRef.current || isSubmittingRef.current) return;
-    
-    const selection = window.getSelection();
-    if (!selection || !selection.rangeCount) return;
-    
-    // Normalize content first
-    inputRef.current.normalize();
-    
-    const cursorPosition = getCursorPosition(inputRef.current);
-    const content = inputRef.current.textContent || '';
-    
-    console.log('[Debug] handleInputWithShortcuts:', {
-      cursorPosition,
-      content,
-      mentionStartPosition,
-      showShortcuts
-    });
-    
-    // Clean up any unwanted characters
-    if (content.includes('\u200B')) {
-      inputRef.current.textContent = content.replace(/\u200B/g, '');
-    }
-    
-    // Check if input is empty and clear it completely
-    if (!content.trim()) {
-      inputRef.current.innerHTML = '';
-      return;
-    }
-    
-    // Simulate the onChange event for parent component
-    const event = {
-      target: { value: content }
-    } as React.ChangeEvent<HTMLTextAreaElement>;
-    handleInputChange(event);
-    
-    // Find the last @ symbol before cursor
-    const textBeforeCursor = content.substring(0, cursorPosition);
-    const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
-    
-    console.log('[Debug] Mention detection:', {
-      textBeforeCursor,
-      lastAtSymbol,
-      hasAtSymbol: lastAtSymbol !== -1
-    });
-    
-    if (lastAtSymbol !== -1) {
-      // Check if cursor is inside or right after a mention tag
-      const range = selection.getRangeAt(0);
-      const mentionTags = inputRef.current.getElementsByClassName('mention-tag');
-      let isInsideMention = false;
-      
-      for (const tag of mentionTags) {
-        if (tag.contains(range.startContainer) || 
-            tag.contains(range.endContainer) ||
-            (tag.compareDocumentPosition(range.startContainer) & Node.DOCUMENT_POSITION_FOLLOWING) &&
-            (tag.compareDocumentPosition(range.endContainer) & Node.DOCUMENT_POSITION_PRECEDING)) {
-          isInsideMention = true;
-          break;
-        }
-      }
-      
-      console.log('[Debug] Mention tag check:', {
-        mentionTagsCount: mentionTags.length,
-        isInsideMention,
-        rangeStart: range.startContainer.textContent,
-        rangeEnd: range.endContainer.textContent
-      });
-      
-      if (!isInsideMention) {
-        const afterAt = content.slice(lastAtSymbol + 1);
-        const spaceAfterAt = afterAt.indexOf(' ');
-        const searchText = spaceAfterAt === -1 ? afterAt : afterAt.substring(0, spaceAfterAt);
-        
-        // Check if we're actually typing a new mention
-        const textBetweenAtAndCursor = content.slice(lastAtSymbol, cursorPosition);
-        const hasMentionInBetween = textBetweenAtAndCursor.includes('@') && 
-                                  textBetweenAtAndCursor.length > textBetweenAtAndCursor.lastIndexOf('@') + 1;
-        
-        console.log('[Debug] Search text analysis:', {
-          afterAt,
-          spaceAfterAt,
-          searchText,
-          textBetweenAtAndCursor,
-          hasMentionInBetween
-        });
-        
-        if (!hasMentionInBetween && (spaceAfterAt === -1 || searchText.trim())) {
-          setMentionStartPosition(lastAtSymbol);
-          setSearchTerm(searchText.trim());
-          const { data, error } = await supabase.rpc('search_prompt_shortcuts', {
-            p_user_id: user.id,
-            p_search_term: searchText.trim()
-          });
-          
-          console.log('[Debug] Supabase search result:', {
-            searchTerm: searchText.trim(),
-            hasData: !!data,
-            dataLength: data?.length,
-            error
-          });
-          
-          setShortcuts(data || []);
-          setShowShortcuts(true);
-          return;
-        }
-      }
-    }
-    
-    setShowShortcuts(false);
-    setMentionStartPosition(null);
-  };
-
-  // Handle shortcut selection
-  const handleShortcutSelect = (shortcut: PromptShortcut) => {
-    console.log('[Debug] handleShortcutSelect:', {
-      shortcut,
-      mentionStartPosition,
-      hasInputRef: !!inputRef.current
-    });
-    
-    if (!inputRef.current || mentionStartPosition === null) return;
-    
-    const content = inputRef.current.textContent || '';
-    const beforeMention = content.slice(0, mentionStartPosition);
-    const afterMention = content.slice(mentionStartPosition).split(' ').slice(1).join(' ');
-    
-    console.log('[Debug] Content analysis:', {
-      content,
-      beforeMention,
-      afterMention,
-      mentionStartPosition
-    });
-    
-    // Create mention data as JSON
-    const mentionData = {
-      displayName: shortcut.name,
-      promptContent: shortcut.content
-    };
-    
-    // Create mention span
-    const mentionSpan = document.createElement('span');
-    mentionSpan.className = 'mention-tag';
-    mentionSpan.contentEditable = 'false';
-    mentionSpan.dataset.shortcutId = shortcut.id;
-    mentionSpan.dataset.mentionData = JSON.stringify(mentionData);
-    mentionSpan.textContent = `@${shortcut.name}`;
-    mentionSpan.style.display = 'inline';
-    mentionSpan.style.whiteSpace = 'normal';
-    
-    // Create container for new content
-    const container = document.createElement('span');
-    container.style.whiteSpace = 'pre-wrap';
-    container.style.display = 'inline';
-    
-    // Add content before mention
-    if (beforeMention) {
-      container.appendChild(document.createTextNode(beforeMention));
-    }
-    
-    // Add mention
-    container.appendChild(mentionSpan);
-    
-    // Add space after mention
-    container.appendChild(document.createTextNode(' '));
-    
-    // Add remaining content
-    if (afterMention) {
-      container.appendChild(document.createTextNode(afterMention));
-    }
-    
-    // Update content
-    inputRef.current.innerHTML = '';
-    inputRef.current.appendChild(container);
-    
-    console.log('[Debug] DOM update:', {
-      containerHTML: container.innerHTML,
-      inputHTML: inputRef.current.innerHTML,
-      mentionSpanCount: inputRef.current.getElementsByClassName('mention-tag').length,
-      mentionData
-    });
-    
-    // Update parent component with JSON data
-    const event = {
-      target: { value: `${beforeMention}${JSON.stringify(mentionData)}${afterMention ? ' ' + afterMention : ' '}` }
-    } as React.ChangeEvent<HTMLTextAreaElement>;
-    handleInputChange(event);
-    
-    setShowShortcuts(false);
-    setMentionStartPosition(null);
-    
-    // Set cursor position after the mention and space
-    requestAnimationFrame(() => {
-      if (!inputRef.current) return;
-      
-      const selection = window.getSelection();
-      if (!selection) return;
-      
-      const range = document.createRange();
-      const textNodes = Array.from(inputRef.current.childNodes)
-        .filter(node => node.nodeType === Node.TEXT_NODE);
-      
-      // Find the text node after the mention span
-      const mentionSpans = inputRef.current.getElementsByClassName('mention-tag');
-      
-      console.log('[Debug] Cursor positioning:', {
-        textNodesCount: textNodes.length,
-        mentionSpansCount: mentionSpans.length,
-        hasSelection: !!selection
-      });
-      
-      if (mentionSpans.length > 0) {
-        const lastMention = mentionSpans[mentionSpans.length - 1];
-        const nextNode = lastMention.nextSibling;
-        
-        console.log('[Debug] Next node:', {
-          hasNextNode: !!nextNode,
-          nextNodeType: nextNode?.nodeType,
-          nextNodeContent: nextNode?.textContent
-        });
-        
-        if (nextNode && nextNode.nodeType === Node.TEXT_NODE) {
-          range.setStart(nextNode, 1); // Position after the space
-          range.setEnd(nextNode, 1);
-          selection.removeAllRanges();
-          selection.addRange(range);
-        }
-      }
-      
-      // Ensure input maintains focus
-      inputRef.current.focus();
-    });
-  };
 
   const clearInput = () => {
     if (inputRef.current) {
@@ -538,7 +482,7 @@ export function ChatInput({
     }
   };
 
-  // 스크롤 함수 추가
+  // 스크롤 함수 개선 - 부드러운 스크롤 지원
   const scrollToItem = (index: number) => {
     if (!shortcutsListRef.current) return;
     
@@ -550,47 +494,84 @@ export function ChatInput({
     const itemRect = item.getBoundingClientRect();
     const listRect = listElement.getBoundingClientRect();
 
+    // 스크롤 필요 여부 계산
     if (itemRect.bottom > listRect.bottom) {
-      // 아래로 스크롤이 필요한 경우
-      listElement.scrollTop += itemRect.bottom - listRect.bottom;
+      // 아래로 스크롤 필요
+      const scrollDistance = itemRect.bottom - listRect.bottom;
+      listElement.scrollBy({ 
+        top: scrollDistance + 8, // 여유 공간 추가
+        behavior: 'smooth'       // 부드러운 스크롤
+      });
     } else if (itemRect.top < listRect.top) {
-      // 위로 스크롤이 필요한 경우
-      listElement.scrollTop -= listRect.top - itemRect.top;
+      // 위로 스크롤 필요
+      const scrollDistance = listRect.top - itemRect.top;
+      listElement.scrollBy({ 
+        top: -scrollDistance - 8, // 여유 공간 추가
+        behavior: 'smooth'        // 부드러운 스크롤
+      });
     }
   };
 
-  // Handle keyboard navigation
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (showShortcuts && shortcuts.length > 0) {
-      if (e.key === 'ArrowDown') {
+ // 키보드 네비게이션 개선
+ const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+  // 숏컷 목록이 열려있고 항목이 있는 경우
+  if (showShortcuts && shortcuts.length > 0) {
+    switch (e.key) {
+      case 'ArrowDown':
         e.preventDefault();
         setSelectedIndex((prev) => {
           const newIndex = (prev + 1) % shortcuts.length;
+          // 부드러운 스크롤로 선택 항목 표시
           scrollToItem(newIndex);
           return newIndex;
         });
-      } else if (e.key === 'ArrowUp') {
+        break;
+        
+      case 'ArrowUp':
         e.preventDefault();
         setSelectedIndex((prev) => {
           const newIndex = (prev - 1 + shortcuts.length) % shortcuts.length;
+          // 부드러운 스크롤로 선택 항목 표시
           scrollToItem(newIndex);
           return newIndex;
         });
-      } else if (e.key === 'Enter' && !e.shiftKey) {
+        break;
+        
+      case 'Enter':
+        // 시프트 키와 함께 누르지 않은 경우에만 숏컷 선택
+        if (!e.shiftKey) {
+          e.preventDefault();
+          handleShortcutSelect(shortcuts[selectedIndex]);
+        }
+        break;
+        
+      case 'Escape':
+        // ESC로 팝업 닫기
+        e.preventDefault();
+        closeShortcutsPopup();
+        break;
+        
+      case 'Tab':
+        // 탭으로 선택 후 닫기
         e.preventDefault();
         handleShortcutSelect(shortcuts[selectedIndex]);
-      } else if (e.key === 'Escape') {
-        setShowShortcuts(false);
-      }
-    } else if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      if (!isSubmittingRef.current && !isLoading) {
-        formRef.current?.dispatchEvent(
-          new Event('submit', { cancelable: true, bubbles: true })
-        );
-      }
+        break;
+        
+      default:
+        // 다른 키는 기본 동작 유지
+        setLastTypedChar(e.key);
+        break;
     }
-  };
+  } else if (e.key === 'Enter' && !e.shiftKey) {
+    // 숏컷 목록이 닫혀있는 경우 엔터로 메시지 제출
+    e.preventDefault();
+    if (!isSubmittingRef.current && !isLoading) {
+      formRef.current?.dispatchEvent(
+        new Event('submit', { cancelable: true, bubbles: true })
+      );
+    }
+  }
+};
 
   // Reset selected index when shortcuts change
   useEffect(() => {
@@ -601,24 +582,151 @@ export function ChatInput({
   useEffect(() => {
     const style = document.createElement('style');
     style.textContent = `
+      /* 멘션 태그 스타일 개선 */
+      .mention-tag-wrapper {
+        display: inline-block;
+        position: relative;
+        margin: 0 2px;
+        white-space: nowrap;
+      }
+      
       .mention-tag {
-        display: inline !important;
-        white-space: normal !important;
-        vertical-align: baseline !important;
-        padding: 1px 4px;
-        margin: 0 1px;
-        background-color: rgba(239, 68, 68, 0.1);
+        display: inline-flex !important;
+        align-items: center;
+        white-space: nowrap !important;
+        padding: 1px 6px 1px 4px;
+        margin: 0;
+        border-radius: 4px;
+        background-color: rgba(239, 68, 68, 0.15);
         color: rgb(239, 68, 68);
         font-weight: 500;
         user-select: none;
+        transition: all 0.2s ease;
+        position: relative;
+        z-index: 1;
       }
-
+      
+      .mention-tag::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(to right, rgba(239, 68, 68, 0.15), transparent);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        border-radius: 4px;
+        z-index: -1;
+      }
+      
+      .mention-tag:hover {
+        background-color: rgba(239, 68, 68, 0.25);
+      }
+      
+      .mention-tag:hover::before {
+        opacity: 0.6;
+        animation: shimmer 1.5s infinite;
+      }
+      
+      @keyframes shimmer {
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(100%);
+        }
+      }
+      
+      /* 검색 결과 스타일 개선 */
+      .shortcut-item {
+        width: 100%;
+        padding: 8px 12px;
+        text-align: left;
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
+      }
+      
+      .shortcut-item.selected {
+        background: rgba(var(--accent-rgb), 0.3);
+      }
+      
+      .shortcut-item:hover {
+        background: rgba(var(--accent-rgb), 0.2);
+      }
+      
+      .shortcut-item .highlight {
+        color: var(--foreground);
+        font-weight: 500;
+        position: relative;
+      }
+      
+      .shortcut-item .highlight::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background: rgba(var(--accent-rgb), 0.5);
+      }
+      
+      .shortcut-item.selected .indicator {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: var(--foreground);
+        animation: fadeIn 0.2s ease-out;
+      }
+      
+      .shortcuts-container {
+        max-height: 300px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(var(--foreground-rgb), 0.2) transparent;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(var(--foreground-rgb), 0.1);
+        animation: slideDown 0.2s ease-out;
+        transform-origin: top center;
+      }
+      
+      .shortcuts-container::-webkit-scrollbar {
+        width: 4px;
+      }
+      
+      .shortcuts-container::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      
+      .shortcuts-container::-webkit-scrollbar-thumb {
+        background: rgba(var(--foreground-rgb), 0.2);
+        border-radius: 4px;
+      }
+      
+      @keyframes slideDown {
+        from {
+          opacity: 0;
+          transform: translateY(-10px) scale(0.98);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+      
+      /* 기존 스타일 유지 */
       .futuristic-input {
         position: relative;
         transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
         background: transparent;
         outline: none !important;
       }
+      
       
       .futuristic-input:focus,
       .futuristic-input:focus-visible {
@@ -1173,6 +1281,142 @@ export function ChatInput({
     });
   };
 
+   // 수정된 숏컷 팝업 UI - 하이라이팅, 애니메이션 추가
+   const renderShortcutsPopup = () => {
+    if (!showShortcuts) return null;
+    
+    return (
+      <div className="absolute bottom-full left-0 right-0 mb-2 z-40">
+        <div className="bg-[var(--background)]/95 backdrop-blur-xl shortcuts-container">
+          {/* 커스터마이징 버튼 */}
+          <button
+            onClick={() => {
+              closeShortcutsPopup();
+              openShortcutsDialog();
+            }}
+            className="w-full px-4 py-3 text-left transition-all duration-300 group relative overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-[var(--accent)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="flex items-center justify-between relative">
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded-md bg-[var(--accent)]/10 flex items-center justify-center group-hover:bg-[var(--accent)]/20 transition-all duration-300 group-hover:scale-110">
+                  <svg 
+                    width="14" 
+                    height="14" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    strokeWidth="1.5" 
+                    strokeLinecap="round" 
+                    className="text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors transform -rotate-12 group-hover:rotate-0 duration-300"
+                  >
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                  </svg>
+                </div>
+                <div className="flex flex-col items-start gap-0.5">
+                  <span className="text-xs tracking-wide text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors font-medium">
+                    CUSTOMIZE SHORTCUTS
+                  </span>
+                  <span className="text-[10px] text-[var(--muted)]/70 group-hover:text-[var(--muted)] transition-colors">
+                    Add or modify your custom prompts
+                  </span>
+                </div>
+              </div>
+              <div className="opacity-0 transform translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+                <svg 
+                  width="16" 
+                  height="16" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="1.5" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  className="text-[var(--muted)]"
+                >
+                  <path d="M5 12h14" />
+                  <path d="m12 5 7 7-7 7" />
+                </svg>
+              </div>
+            </div>
+          </button>
+          
+          {/* 스크롤 가능한 숏컷 목록 */}
+          <div 
+            ref={shortcutsListRef}
+            className="max-h-60 overflow-y-auto"
+          >
+            {shortcuts.length > 0 ? (
+              shortcuts.map((shortcut, index) => {
+                // 이름 하이라이팅 처리
+                const name = shortcut.name;
+                const highlightRanges = shortcut.highlight_ranges || [];
+                
+                // 하이라이트된 이름 생성
+                let highlightedName;
+                
+                if (highlightRanges.length > 0 && searchTerm) {
+                  // DB에서 전달받은 하이라이트 범위 사용
+                  const parts: React.ReactNode[] = [];
+                  let lastEnd = 0;
+                  
+                  highlightRanges.forEach(range => {
+                    // 하이라이트 전 텍스트
+                    if (range.start > lastEnd) {
+                      parts.push(name.substring(lastEnd, range.start));
+                    }
+                    
+                    // 하이라이트된 부분
+                    parts.push(
+                      <span key={`${range.start}-${range.end}`} className="highlight">
+                        {name.substring(range.start, range.end)}
+                      </span>
+                    );
+                    
+                    lastEnd = range.end;
+                  });
+                  
+                  // 남은 부분
+                  if (lastEnd < name.length) {
+                    parts.push(name.substring(lastEnd));
+                  }
+                  
+                  highlightedName = <>{parts}</>;
+                } else {
+                  // 기본 이름 표시
+                  highlightedName = name;
+                }
+                
+                return (
+                  <button
+                    key={shortcut.id}
+                    onClick={() => handleShortcutSelect(shortcut)}
+                    className={`shortcut-item ${index === selectedIndex ? 'selected' : ''}`}
+                  >
+                    {index === selectedIndex && <div className="indicator" />}
+                    <div className="flex flex-col gap-1">
+                      <span className="text-sm font-medium tracking-wide">
+                        @{highlightedName}
+                      </span>
+                      <span className="text-xs line-clamp-2 text-[var(--muted)]">
+                        {shortcut.content.substring(0, 80)}{shortcut.content.length > 80 ? '...' : ''}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })
+            ) : (
+              <div className="px-4 py-3 text-sm text-[var(--muted)] text-center">
+                No shortcuts found
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+
   return (
     <div className="relative">
       <form 
@@ -1342,99 +1586,7 @@ export function ChatInput({
         )}
 
         {/* Shortcuts Popup - Added higher z-index */}
-        {showShortcuts && (
-          <div className="absolute bottom-full left-0 right-0 mb-2 z-40">
-            <div className="bg-[var(--background)]/90 backdrop-blur-md overflow-hidden shadow-lg transition-all duration-300">
-              {/* Customize shortcuts button */}
-              <button
-                onClick={() => {
-                  setShowShortcuts(false)
-                  openShortcutsDialog()
-                }}
-                className="w-full px-4 py-3 text-left transition-all duration-300 group relative overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-[var(--accent)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <div className="flex items-center justify-between relative">
-                  <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-md bg-[var(--accent)]/10 flex items-center justify-center group-hover:bg-[var(--accent)]/20 transition-all duration-300 group-hover:scale-110">
-                      <svg 
-                        width="14" 
-                        height="14" 
-                        viewBox="0 0 24 24" 
-                        fill="none" 
-                        stroke="currentColor" 
-                        strokeWidth="1.5" 
-                        strokeLinecap="round" 
-                        className="text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors transform -rotate-12 group-hover:rotate-0 duration-300"
-                      >
-                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                      </svg>
-                    </div>
-                    <div className="flex flex-col items-start gap-0.5">
-                      <span className="text-xs tracking-wide text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors font-medium">
-                        CUSTOMIZE SHORTCUTS
-                      </span>
-                      <span className="text-[10px] text-[var(--muted)]/70 group-hover:text-[var(--muted)] transition-colors">
-                        Add or modify your custom prompts
-                      </span>
-                    </div>
-                  </div>
-                  <div className="opacity-0 transform translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
-                    <svg 
-                      width="16" 
-                      height="16" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="1.5" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round" 
-                      className="text-[var(--muted)]"
-                    >
-                      <path d="M5 12h14" />
-                      <path d="m12 5 7 7-7 7" />
-                    </svg>
-                  </div>
-                </div>
-              </button>
-
-              {/* Scrollable shortcuts list */}
-              <div 
-                ref={shortcutsListRef}
-                className="max-h-[30vh] overflow-y-auto"
-              >
-                {shortcuts.length > 0 ? (
-                  shortcuts.map((shortcut, index) => (
-                    <button
-                      key={shortcut.id}
-                      onClick={() => handleShortcutSelect(shortcut)}
-                      className={`w-full p-4 text-left transition-all duration-200 relative
-                                 ${index === selectedIndex ? 'bg-[var(--accent)]/30' : 'hover:bg-[var(--accent)]/10'}`}
-                    >
-                      <div className="flex flex-col gap-1">
-                        <span className={`text-sm font-medium tracking-wide transition-colors duration-200
-                                      ${index === selectedIndex ? 'text-[var(--foreground)]' : ''}`}>
-                          @{shortcut.name}
-                        </span>
-                        <span className={`text-xs line-clamp-1 transition-colors duration-200
-                                       ${index === selectedIndex ? 'text-[var(--foreground)]/90' : 'text-[var(--muted)]'}`}>
-                          {shortcut.content}
-                        </span>
-                      </div>
-                      {index === selectedIndex && (
-                        <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-[var(--foreground)] animate-fadeIn" />
-                      )}
-                    </button>
-                  ))
-                ) : (
-                  <div className="px-4 py-3 text-sm text-[var(--muted)]">
-                    No shortcuts found
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {renderShortcutsPopup()}
       </form>
     </div>
   );
