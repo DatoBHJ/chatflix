@@ -57,7 +57,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     supportsVision: true,
     rateLimit: {
       category: 'low',
-      requests: 300,
+      requests: 30,
       window: '60 m'
     },
     pricing: {
@@ -67,53 +67,15 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     },
     isEnabled: true
   },
-  // {
-  //   id: 'deepseek-ai/DeepSeek-R1',
-  //   name: 'DeepSeek R1',
-  //   description: 'The best open source reasoning model by DeepSeek via Together.ai',
-  //   provider: 'together',
-  //   supportsVision: false,
-  //   rateLimit: {
-  //     category: 'high',
-  //     requests: 30,
-  //     window: '60 m'
-  //   },
-  //   pricing: {
-  //     pricePerMillion: 7
-  //   },
-  //   isEnabled: true,
-  //   reasoning: {
-  //     enabled: true,
-  //     provider: 'together',
-  //     baseModelId: 'deepseek-ai/DeepSeek-R1',
-  //     tagName: 'think'
-  //   }
-  // },
-  // {
-  //   id: 'deepseek-ai/DeepSeek-V3',
-  //   name: 'DeepSeek V3',
-  //   description: 'The best open source non-reasoning model by DeepSeek via Together.ai',
-  //   provider: 'together',
-  //   supportsVision: false,
-  //   rateLimit: {
-  //     category: 'mid',
-  //     requests: 60,
-  //     window: '60 m'
-  //   },
-  //   pricing: {
-  //     pricePerMillion: 1.25
-  //   },
-  //   isEnabled: true
-  // },
   {
-    id: 'deepseek-reasoner',
-    name: 'DeepSeek R1 (unlimited rate limit)',
-    description: 'The best open source reasoning model by DeepSeek',
-    provider: 'deepseek',
+    id: 'deepseek-ai/DeepSeek-R1',
+    name: 'DeepSeek R1',
+    description: 'The best open source reasoning model by DeepSeek via Together.ai',
+    provider: 'together',
     supportsVision: false,
     rateLimit: {
-      category: 'low',
-      requests: 3000,
+      category: 'high',
+      requests: 30,
       window: '60 m'
     },
     pricing: {
@@ -122,20 +84,20 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     isEnabled: true,
     reasoning: {
       enabled: true,
-      provider: 'deepseek',
-      baseModelId: 'deepseek-reasoner',
+      provider: 'together',
+      baseModelId: 'deepseek-ai/DeepSeek-R1',
       tagName: 'think'
     }
   },
   {
-    id: 'deepseek-chat',
-    name: 'DeepSeek V3 (unlimited rate limit)',
-    description: 'The best open source non-reasoning model by DeepSeek',
-    provider: 'deepseek',
+    id: 'deepseek-ai/DeepSeek-V3',
+    name: 'DeepSeek V3',
+    description: 'The best open source non-reasoning model by DeepSeek via Together.ai',
+    provider: 'together',
     supportsVision: false,
     rateLimit: {
-      category: 'low',
-      requests: 3000,
+      category: 'mid',
+      requests: 60,
       window: '60 m'
     },
     pricing: {
@@ -143,6 +105,44 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     },
     isEnabled: true
   },
+  // {
+  //   id: 'deepseek-reasoner',
+  //   name: 'DeepSeek R1',
+  //   description: 'The best open source reasoning model by DeepSeek',
+  //   provider: 'deepseek',
+  //   supportsVision: false,
+  //   rateLimit: {
+  //     category: 'low',
+  //     requests: 3000,
+  //     window: '60 m'
+  //   },
+  //   pricing: {
+  //     pricePerMillion: 7
+  //   },
+  //   isEnabled: true,
+  //   reasoning: {
+  //     enabled: true,
+  //     provider: 'deepseek',
+  //     baseModelId: 'deepseek-reasoner',
+  //     tagName: 'think'
+  //   }
+  // },
+  // {
+  //   id: 'deepseek-chat',
+  //   name: 'DeepSeek V3',
+  //   description: 'The best open source non-reasoning model by DeepSeek',
+  //   provider: 'deepseek',
+  //   supportsVision: false,
+  //   rateLimit: {
+  //     category: 'low',
+  //     requests: 3000,
+  //     window: '60 m'
+  //   },
+  //   pricing: {
+  //     pricePerMillion: 1.25
+  //   },
+  //   isEnabled: true
+  // },
   {
     id: 'chatgpt-4o-latest',
     name: 'ChatGPT-4o',
