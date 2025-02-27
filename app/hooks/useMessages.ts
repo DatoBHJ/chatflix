@@ -27,6 +27,7 @@ export function useMessages(chatId: string, userId: string) {
       console.error('Failed to copy message:', error)
     }
   }
+  const generateMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
   const handleEditStart = (message: Message) => {
     setEditingMessageId(message.id)
@@ -38,7 +39,6 @@ export function useMessages(chatId: string, userId: string) {
     setEditingContent('')
   }
 
-  const generateMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
   const handleEditSave = async (messageId: string, currentModel: string, messages: Message[], setMessages: (messages: Message[]) => void, reload: any) => {
     try {
