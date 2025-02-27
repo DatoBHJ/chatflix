@@ -198,10 +198,21 @@ function AttachmentPreview({ attachments, messageId }: AttachmentPreviewProps) {
         }
         
         return isImage ? (
-          <div key={`${messageId}-${index}`} className="relative group image-preview-item">
+          <div 
+            key={`${messageId}-${index}`} 
+            className="relative group image-preview-item cursor-pointer"
+            onClick={() => window.open(attachment.url, '_blank')}
+          >
             <span className="file-type-badge">
               {getTypeBadge()}
             </span>
+            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </div>
             <img
               src={attachment.url}
               alt={attachment.name || `Image ${index + 1}`}
@@ -209,10 +220,21 @@ function AttachmentPreview({ attachments, messageId }: AttachmentPreviewProps) {
             />
           </div>
         ) : (
-          <div key={`${messageId}-${index}`} className="relative group file-preview-item">
+          <div 
+            key={`${messageId}-${index}`} 
+            className="relative group file-preview-item cursor-pointer"
+            onClick={() => window.open(attachment.url, '_blank')}
+          >
             <span className="file-type-badge">
               {getTypeBadge()}
             </span>
+            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </div>
             <div className="file-icon">
               {isCode ? (
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -235,14 +257,6 @@ function AttachmentPreview({ attachments, messageId }: AttachmentPreviewProps) {
               )}
             </div>
             <div className="file-name">{attachment.name || `File ${index + 1}`}</div>
-            <a 
-              href={attachment.url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-xs text-[var(--accent)] hover:underline mt-1 block"
-            >
-              Download
-            </a>
           </div>
         )
       })}
