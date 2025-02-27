@@ -5,6 +5,14 @@ import { ChatRequest, CompletionResult } from '@/lib/types';
 import { getRateLimiter } from '@/lib/ratelimit';
 import { getModelById } from '@/lib/models/config';
 
+// Initialize PDF.js worker
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+import { GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.js';
+
+if (typeof window === 'undefined') {
+  GlobalWorkerOptions.workerSrc = require('pdfjs-dist/legacy/build/pdf.worker.js');
+}
+
 export const runtime = 'edge';
 export const maxDuration = 300;
 
@@ -391,7 +399,40 @@ const handleStreamCompletion = async (
 // 파일 내용을 가져오는 함수 추가
 const fetchFileContent = async (url: string, supabase?: any): Promise<string | null> => {
   try {
-    // Supabase 스토리지 URL인 경우 (chat_attachments 버킷에서 가져오기)
+    // For PDF files
+    if (url.toLowerCase().endsWith('.pdf') || url.includes('application/pdf')) {
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.error(`Failed to fetch PDF: ${response.statusText}`);
+        return null;
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const pdfData = new Uint8Array(arrayBuffer);
+      
+      try {
+        // Try to extract text content using pdf-parse
+        const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+        const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+        
+        let textContent = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const pageText = content.items
+            .map((item: any) => item.str)
+            .join(' ');
+          textContent += `[Page ${i}]\n${pageText}\n\n`;
+        }
+        
+        return textContent;
+      } catch (pdfError) {
+        console.error('Error parsing PDF:', pdfError);
+        return '[PDF content could not be extracted]';
+      }
+    }
+
+    // For Supabase storage URLs
     if (url.includes('chat_attachments') && supabase) {
       const filePath = url.split('chat_attachments/')[1]?.split('?')[0];
       if (filePath) {
@@ -405,6 +446,32 @@ const fetchFileContent = async (url: string, supabase?: any): Promise<string | n
             return null;
           }
           
+          // If it's a PDF file from Supabase
+          if (filePath.toLowerCase().endsWith('.pdf')) {
+            const arrayBuffer = await data.arrayBuffer();
+            const pdfData = new Uint8Array(arrayBuffer);
+            
+            try {
+              const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+              const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+              
+              let textContent = '';
+              for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                const pageText = content.items
+                  .map((item: any) => item.str)
+                  .join(' ');
+                textContent += `[Page ${i}]\n${pageText}\n\n`;
+              }
+              
+              return textContent;
+            } catch (pdfError) {
+              console.error('Error parsing PDF from Supabase:', pdfError);
+              return '[PDF content could not be extracted]';
+            }
+          }
+          
           return await data.text();
         } catch (err) {
           console.error('Error processing Supabase file:', err);
@@ -413,7 +480,7 @@ const fetchFileContent = async (url: string, supabase?: any): Promise<string | n
       }
     }
     
-    // 외부 URL인 경우
+    // For other URLs
     if (url.startsWith('http') || url.startsWith('https')) {
       const response = await fetch(url);
       if (!response.ok) {
@@ -422,7 +489,7 @@ const fetchFileContent = async (url: string, supabase?: any): Promise<string | n
       }
       return await response.text();
     }
-    // Data URL인 경우
+    // For Data URLs
     else if (url.startsWith('data:')) {
       const base64Content = url.split(',')[1];
       if (base64Content) {
@@ -491,14 +558,15 @@ const convertMessageForAI = async (message: Message, modelId: string, supabase?:
   // Add text content from non-image attachments (text, code, etc.)
   const textAttachments = message.experimental_attachments
     .filter(attachment => {
-      // 텍스트 파일 또는 코드 파일인 경우
+      // Check for text files, code files, or PDFs
       return (attachment.contentType?.includes('text') || 
               (attachment as any).fileType === 'code' ||
-              (attachment.name && /\.(js|jsx|ts|tsx|html|css|json|md|py|java|c|cpp|cs|go|rb|php|swift|kt|rs)$/i.test(attachment.name || '')));
+              attachment.contentType === 'application/pdf' ||
+              (attachment.name && /\.(js|jsx|ts|tsx|html|css|json|md|py|java|c|cpp|cs|go|rb|php|swift|kt|rs|pdf)$/i.test(attachment.name || '')));
     });
   
   if (textAttachments.length > 0) {
-    // 각 텍스트 파일의 내용을 가져와서 추가
+    // Get content from each text file
     const fileContents = await Promise.all(
       textAttachments.map(async (attachment) => {
         const fileName = attachment.name || 'Unnamed file';
@@ -519,28 +587,11 @@ const convertMessageForAI = async (message: Message, modelId: string, supabase?:
       })
     );
     
-    // 파일 내용을 텍스트로 추가
+    // Add file contents to parts
     parts.push({
       type: 'text',
       text: `\n\nAttached files:\n${fileContents.map(file => {
         return `File: ${file.fileName}\nType: ${file.fileType}\n\nContent:\n\`\`\`\n${file.content}\n\`\`\`\n`;
-      }).join('\n')}`
-    });
-  }
-  
-  // Add PDF and other file types as references
-  const otherAttachments = message.experimental_attachments
-    .filter(attachment => {
-      return !attachment.contentType?.startsWith('image/') && 
-             !attachment.contentType?.includes('text') && 
-             (attachment as any).fileType !== 'code';
-    });
-  
-  if (otherAttachments.length > 0) {
-    parts.push({
-      type: 'text',
-      text: `\n\nOther attached files:\n${otherAttachments.map(attachment => {
-        return `File: ${attachment.name || 'Unnamed file'}\nURL: ${attachment.url}\nType: ${(attachment as any).fileType || attachment.contentType || 'Unknown'}\n`;
       }).join('\n')}`
     });
   }
@@ -569,15 +620,30 @@ export async function POST(req: Request) {
           throw new Error('Invalid messages format');
         }
 
-        await handleRateLimiting(user.id, model);
+        // Check for PDFs in messages
+        const hasPdf = messages.some(message => 
+          message.experimental_attachments?.some(attachment => 
+            attachment.contentType === 'application/pdf' || 
+            (attachment.name && attachment.name.toLowerCase().endsWith('.pdf'))
+          )
+        );
+
+        // Select appropriate model based on content type
+        let selectedModel = model;
+        if (hasPdf) {
+          // Use Claude for PDFs as it has better PDF support
+          selectedModel = 'claude-3-7-sonnet-latest';
+        }
+
+        await handleRateLimiting(user.id, selectedModel);
         await validateAndUpdateSession(supabase, chatId, user.id, messages);
 
         const systemPrompt = await fetchSystemPrompt(supabase, user.id);
-        const provider = getProviderFromModel(model);
+        const provider = getProviderFromModel(selectedModel);
         
         // Process messages with image conversion - 비동기 처리로 변경
         const processMessagesPromises = messages.map(async (msg) => {
-          const converted = await convertMessageForAI(msg, model, supabase);
+          const converted = await convertMessageForAI(msg, selectedModel, supabase);
           return {
             id: msg.id,
             ...converted
@@ -592,7 +658,7 @@ export async function POST(req: Request) {
 
         // Save messages
         if (lastMessage.role === 'user' && !isRegeneration) {
-          await saveUserMessage(supabase, chatId, user.id, lastMessage, model);
+          await saveUserMessage(supabase, chatId, user.id, lastMessage, selectedModel);
         }
 
         const assistantMessageId = isRegeneration && existingMessageId 
@@ -604,7 +670,7 @@ export async function POST(req: Request) {
           supabase,
           chatId,
           user.id,
-          model,
+          selectedModel,
           provider,
           isRegeneration,
           assistantMessageId
@@ -616,7 +682,7 @@ export async function POST(req: Request) {
         let isStreamFinished = false;
 
         // Check if the model supports reasoning
-        const modelConfig = getModelById(model);
+        const modelConfig = getModelById(selectedModel);
         const supportsReasoning = modelConfig?.reasoning?.enabled || false;
 
         // Prepare provider options
@@ -631,7 +697,7 @@ export async function POST(req: Request) {
         }
 
         const result = streamText({
-          model: providers.languageModel(model),
+          model: providers.languageModel(selectedModel),
           messages: [
             { role: 'system', content: systemPrompt },
             ...processMessages as unknown as Message[]
@@ -648,7 +714,7 @@ export async function POST(req: Request) {
               supabase,
               assistantMessageId,
               user.id,
-              model,
+              selectedModel,
               provider,
               completion,
               isRegeneration

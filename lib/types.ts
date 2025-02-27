@@ -55,6 +55,15 @@ export interface Attachment {
   url: string;
   path?: string;
   fileType?: 'image' | 'code' | 'pdf' | 'file';
+  size?: number;
+  content?: string; // For text-based files
+  preview?: string; // For image thumbnails or first page of PDFs
+  metadata?: {
+    pageCount?: number; // For PDFs
+    dimensions?: { width: number; height: number }; // For images
+    mimeType?: string;
+    encoding?: string;
+  };
 }
 
 export interface DatabaseMessage {
@@ -68,6 +77,9 @@ export interface DatabaseMessage {
   chat_session_id: string;
   attachments?: Attachment[];
   experimental_attachments?: Attachment[];
+  sequence_number?: number;
+  is_edited?: boolean;
+  user_id?: string;
 }
 
 // UI 타입
@@ -84,4 +96,17 @@ export interface ModelConfig {
   apiKey: string
   temperature: number
   maxTokens: number
+}
+
+export interface AIMessageContent {
+  type: 'text' | 'image' | 'pdf';
+  text?: string;
+  image?: string;
+  pdf?: string;
+  metadata?: {
+    name?: string;
+    contentType?: string;
+    size?: number;
+    pageCount?: number;
+  };
 } 

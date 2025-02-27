@@ -9,7 +9,7 @@ import { Header } from './components/Header'
 import { Sidebar } from './components/Sidebar'
 import { uploadFile } from '@/app/chat/[id]/utils'
 import { Attachment } from '@/lib/types'
-import { ChatInput } from './components/ChatInput';
+import { ChatInput } from '@/app/components/ChatInput'
 
 export default function Home() {
   const router = useRouter()

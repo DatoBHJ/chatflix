@@ -4,6 +4,7 @@ export interface ModelConfig {
   description: string;
   provider: 'anthropic' | 'openai' | 'google' | 'deepseek' | 'together' | 'groq' | 'xai';
   supportsVision: boolean;
+  supportsPdf?: boolean;
   rateLimit: {
     category: 'low' | 'mid' | 'high' | 'superHigh';
     requests: number;
@@ -31,6 +32,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     description: "Anthropic's most intelligent model yet with extended thinking capability.",
     provider: 'anthropic',
     supportsVision: true,
+    supportsPdf: true,
     rateLimit: {
       category: 'high',
       requests: 30,
@@ -55,9 +57,10 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     description: 'GOAT',
     provider: 'anthropic',
     supportsVision: true,
+    supportsPdf: true,
     rateLimit: {
       category: 'low',
-      requests: 30,
+      requests: 300,
       window: '60 m'
     },
     pricing: {
@@ -149,6 +152,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     description: 'Latest version of GPT-4o used in ChatGPT',
     provider: 'openai',
     supportsVision: true,
+    supportsPdf: false,
     rateLimit: {
       category: 'high',
       requests: 30,
@@ -203,6 +207,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     description: 'Latest model with 1m context window by Google',
     provider: 'google',
     supportsVision: true,
+    supportsPdf: true,
     rateLimit: {
       category: 'low',
       requests: 100,
