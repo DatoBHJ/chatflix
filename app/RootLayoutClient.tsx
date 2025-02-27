@@ -51,12 +51,12 @@ export default function RootLayoutClient({
     }
   }, [supabase, router])
 
-  // Add PDF support notice
-  useEffect(() => {
-    if (user) {
-      showAnnouncement("PDF file support is currently not available. We're working on adding this feature soon!", "error");
-    }
-  }, [user, showAnnouncement]);
+  // // Add PDF support notice
+  // useEffect(() => {
+  //   if (user) {
+  //     showAnnouncement("PDF file support is currently not available. We're working on adding this feature soon!", "error");
+  //   }
+  // }, [user, showAnnouncement]);
 
   if (isLoading) {
     return <div className="flex h-screen items-center justify-center">Loading...</div>
