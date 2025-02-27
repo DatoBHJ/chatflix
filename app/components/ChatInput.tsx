@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useRef, useState, ReactNode } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { openShortcutsDialog } from './PromptShortcutsDialog'
-// import { PromptShortcut } from '@/types';
 
 interface PromptShortcut {
   id: string;
@@ -334,11 +333,9 @@ export function ChatInput({
             error
           });
           
-          if (!error && data) {
-            setShortcuts(data);
-            setShowShortcuts(true);
-            return;
-          }
+          setShortcuts(data || []);
+          setShowShortcuts(true);
+          return;
         }
       }
     }
@@ -614,37 +611,6 @@ export function ChatInput({
         color: rgb(239, 68, 68);
         font-weight: 500;
         user-select: none;
-      }
-
-      /* Add shortcut item styles */
-      .shortcut-item {
-        position: relative;
-        overflow: hidden;
-        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-      }
-
-      .shortcut-item::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 2px;
-        height: 100%;
-        background: var(--foreground);
-        opacity: 0;
-        transform-origin: top center;
-        transform: scaleY(0);
-        transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.5s ease;
-      }
-
-      .shortcut-item:hover::before,
-      .shortcut-item.active::before {
-        transform: scaleY(1);
-        opacity: 0.5;
-      }
-
-      .shortcut-item:not(:hover)::before {
-        transform-origin: bottom center;
       }
 
       .futuristic-input {
@@ -998,6 +964,22 @@ export function ChatInput({
         inset: -20px;
         background: transparent;
         z-index: 30;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: scaleY(0.8);
+        }
+        to {
+          opacity: 1;
+          transform: scaleY(1);
+        }
+      }
+      
+      .animate-fadeIn {
+        animation: fadeIn 0.2s ease-out forwards;
+        transform-origin: center left;
       }
     `;
     document.head.appendChild(style);
@@ -1359,7 +1341,7 @@ export function ChatInput({
           </div>
         )}
 
-        {/* Shortcuts Popup - Added higher z-index */}
+        {/* Shortcuts Popup */}
         {showShortcuts && (
           <div className="absolute bottom-full left-0 right-0 mb-2 z-40">
             <div className="bg-[var(--background)]/90 backdrop-blur-md overflow-hidden shadow-lg transition-all duration-300">
@@ -1369,16 +1351,49 @@ export function ChatInput({
                   setShowShortcuts(false)
                   openShortcutsDialog()
                 }}
-                className="w-full p-4 text-left hover:bg-[var(--accent)]/30 transition-colors group"
+                className="w-full px-4 py-3 text-left transition-all duration-300 group relative overflow-hidden"
               >
-                <div className="flex items-center justify-between">
+                <div className="absolute inset-0 bg-gradient-to-r from-[var(--accent)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <div className="flex items-center justify-between relative">
                   <div className="flex items-center gap-3">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors">
-                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                    <div className="w-6 h-6 rounded-md bg-[var(--accent)]/10 flex items-center justify-center group-hover:bg-[var(--accent)]/20 transition-all duration-300 group-hover:scale-110">
+                      <svg 
+                        width="14" 
+                        height="14" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="1.5" 
+                        strokeLinecap="round" 
+                        className="text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors transform -rotate-12 group-hover:rotate-0 duration-300"
+                      >
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                      </svg>
+                    </div>
+                    <div className="flex flex-col items-start gap-0.5">
+                      <span className="text-xs tracking-wide text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors font-medium">
+                        CUSTOMIZE SHORTCUTS
+                      </span>
+                      <span className="text-[10px] text-[var(--muted)]/70 group-hover:text-[var(--muted)] transition-colors">
+                        Add or modify your custom prompts
+                      </span>
+                    </div>
+                  </div>
+                  <div className="opacity-0 transform translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+                    <svg 
+                      width="16" 
+                      height="16" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      strokeWidth="1.5" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      className="text-[var(--muted)]"
+                    >
+                      <path d="M5 12h14" />
+                      <path d="m12 5 7 7-7 7" />
                     </svg>
-                    <span className="text-xs tracking-wide text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors">
-                      CUSTOMIZE SHORTCUTS
-                    </span>
                   </div>
                 </div>
               </button>
@@ -1386,20 +1401,29 @@ export function ChatInput({
               {/* Scrollable shortcuts list */}
               <div 
                 ref={shortcutsListRef}
-                className="max-h-[30vh] overflow-y-auto"
+                className="overflow-y-auto max-h-[30vh]"
               >
                 {shortcuts.length > 0 ? (
                   shortcuts.map((shortcut, index) => (
                     <button
                       key={shortcut.id}
                       onClick={() => handleShortcutSelect(shortcut)}
-                      className={`shortcut-item w-full p-4 text-left transition-colors
-                               ${index === selectedIndex ? 'bg-[var(--accent)]/30 active' : 'hover:bg-[var(--accent)]/10'}`}
+                      className={`w-full p-4 text-left transition-all duration-200 relative
+                                 ${index === selectedIndex ? 'bg-[var(--accent)]/30' : 'hover:bg-[var(--accent)]/10'}`}
                     >
                       <div className="flex flex-col gap-1">
-                        <span className="text-sm font-medium tracking-wide">@{shortcut.name}</span>
-                        <span className="text-xs text-[var(--muted)] line-clamp-1">{shortcut.content}</span>
+                        <span className={`text-sm font-medium tracking-wide transition-colors duration-200
+                                      ${index === selectedIndex ? 'text-[var(--foreground)]' : ''}`}>
+                          @{shortcut.name}
+                        </span>
+                        <span className={`text-xs line-clamp-1 transition-colors duration-200
+                                       ${index === selectedIndex ? 'text-[var(--foreground)]/90' : 'text-[var(--muted)]'}`}>
+                          {shortcut.content}
+                        </span>
                       </div>
+                      {index === selectedIndex && (
+                        <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-[var(--foreground)] animate-fadeIn" />
+                      )}
                     </button>
                   ))
                 ) : (

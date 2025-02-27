@@ -81,100 +81,6 @@ export function Sidebar({ user, onClose }: SidebarProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isMenuOpen]);
 
-  useEffect(() => {
-    // Add styles to document head
-    const style = document.createElement('style');
-    style.textContent = `
-      /* Sidebar scrollbar styles */
-      .sidebar-scroll {
-        scrollbar-width: thin;
-        scrollbar-color: var(--muted) transparent;
-      }
-      
-      .sidebar-scroll::-webkit-scrollbar {
-        width: 4px;
-      }
-      
-      .sidebar-scroll::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      
-      .sidebar-scroll::-webkit-scrollbar-thumb {
-        background: var(--muted);
-        opacity: 0.3;
-        border-radius: 4px;
-      }
-
-      /* Chat item styles */
-      .yeezy-sidebar-item {
-        position: relative;
-        overflow: hidden;
-        padding: 1rem;
-        cursor: pointer;
-        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-      }
-
-      .yeezy-sidebar-item::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 2px;
-        height: 100%;
-        background: var(--foreground);
-        opacity: 0;
-        transform-origin: top center;
-        transform: scaleY(0);
-        transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.5s ease;
-      }
-
-      .yeezy-sidebar-item:hover::before,
-      .yeezy-sidebar-item.active::before {
-        transform: scaleY(1);
-        opacity: 0.5;
-      }
-
-      .yeezy-sidebar-item:not(:hover)::before {
-        transform-origin: bottom center;
-      }
-
-      /* Sidebar button styles */
-      .sidebar-button {
-        position: relative;
-        overflow: hidden;
-        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-      }
-
-      .sidebar-button::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 2px;
-        height: 100%;
-        background: var(--foreground);
-        opacity: 0;
-        transform-origin: top center;
-        transform: scaleY(0);
-        transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.5s ease;
-      }
-
-      .sidebar-button:hover::before {
-        transform: scaleY(1);
-        opacity: 0.5;
-      }
-
-      .sidebar-button:not(:hover)::before {
-        transform-origin: bottom center;
-      }
-    `;
-    
-    document.head.appendChild(style);
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, []);
-
   async function loadChats() {
     if (!user) return;
 
@@ -272,7 +178,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
               router.push('/')
               onClose?.()
             }}
-            className="sidebar-button w-full h-[46px] flex items-center justify-center gap-3 text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
+            className="w-full h-[46px] flex items-center justify-center gap-3 text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors"
             title="New Chat"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -290,7 +196,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
               <div className="mb-8">
                 <button
                   onClick={handleDeleteAllChats}
-                  className="sidebar-button w-full py-3 text-xs flex items-center justify-center gap-2 text-red-500 hover:text-red-700 transition-colors uppercase tracking-wider"
+                  className="w-full py-3 text-xs flex items-center justify-center gap-2 text-red-500 hover:text-red-700 transition-colors uppercase tracking-wider"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                     <path d="M3 6h18" />
@@ -308,8 +214,8 @@ export function Sidebar({ user, onClose }: SidebarProps) {
               {chats.map((chat) => (
                 <div
                   key={chat.id}
-                  className={`yeezy-sidebar-item ${
-                    pathname === `/chat/${chat.id}` ? 'bg-[var(--accent)] active' : ''
+                  className={`group yeezy-sidebar-item ${
+                    pathname === `/chat/${chat.id}` ? 'bg-[var(--accent)]' : ''
                   }`}
                   onClick={() => {
                     router.push(`/chat/${chat.id}`)
@@ -367,7 +273,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
           <div className="px-6 pt-6 pb-10 flex flex-col gap-2">
             <button
               onClick={() => openShortcutsDialog()}
-              className="sidebar-button w-full px-4 py-3 text-sm flex items-center gap-3 hover:bg-[var(--accent)] transition-colors"
+              className="w-full px-4 py-3 text-sm flex items-center gap-3 hover:bg-[var(--accent)] transition-colors"
               title="Manage Shortcuts"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -377,7 +283,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
             </button>
             <button
               onClick={() => setIsSystemPromptOpen(true)}
-              className="sidebar-button w-full px-4 py-3 text-sm flex items-center gap-3 hover:bg-[var(--accent)] transition-colors"
+              className="w-full px-4 py-3 text-sm flex items-center gap-3 hover:bg-[var(--accent)] transition-colors"
               title="Edit System Prompt"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -388,7 +294,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
             </button>
             <button
               onClick={() => setIsAccountOpen(true)}
-              className="sidebar-button w-full px-4 py-3 text-sm flex items-center gap-3 hover:bg-[var(--accent)] transition-colors group"
+              className="w-full px-4 py-3 text-sm flex items-center gap-3 hover:bg-[var(--accent)] transition-colors group"
               title="Account Settings"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">

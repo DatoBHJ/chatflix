@@ -397,7 +397,7 @@ export default function Chat({ params }: PageProps) {
   }, [stop, messages, currentModel, chatId, user?.id, setMessages])
 
   return (
-    <main className="flex-1 relative h-full">
+    <main className="flex-1 relative h-full flex flex-col">
       <Header 
         isSidebarOpen={isSidebarOpen}
         onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -416,7 +416,7 @@ export default function Chat({ params }: PageProps) {
         onClick={() => setIsSidebarOpen(false)}
       />
 
-      <div className="flex-1 overflow-y-auto pb-32 pt-10 sm:pt-16">
+      <div className="flex-1 overflow-y-auto pb-[200px] pt-10 sm:pt-16">
         <div className="messages-container py-4 max-w-2xl mx-auto px-4 sm:px-6 w-full">
           {messages.map((message) => (
             <MessageComponent
@@ -439,8 +439,8 @@ export default function Chat({ params }: PageProps) {
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-10 w-full">
-        <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-8 pb-6 w-full">
+      <div className="fixed inset-x-0 bottom-0 z-10">
+        <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-8 pb-6">
           <div className="max-w-2xl mx-auto w-full px-6 sm:px-8 relative flex flex-col items-center">
             <div className="w-full max-w-[calc(100vw-2rem)]">
               <ModelSelector
