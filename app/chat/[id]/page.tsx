@@ -397,7 +397,7 @@ export default function Chat({ params }: PageProps) {
   }, [stop, messages, currentModel, chatId, user?.id, setMessages])
 
   return (
-    <main className="flex-1 relative h-full flex flex-col">
+    <main className="flex-1 relative h-full">
       <Header 
         isSidebarOpen={isSidebarOpen}
         onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -439,8 +439,8 @@ export default function Chat({ params }: PageProps) {
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-10">
-        <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-8 pb-6">
+      <div className="fixed inset-x-0 bottom-0 z-10 w-full">
+        <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-8 pb-6 w-full">
           <div className="max-w-2xl mx-auto w-full px-6 sm:px-8 relative flex flex-col items-center">
             <div className="w-full max-w-[calc(100vw-2rem)]">
               <ModelSelector

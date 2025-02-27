@@ -1341,7 +1341,7 @@ export function ChatInput({
           </div>
         )}
 
-        {/* Shortcuts Popup */}
+        {/* Shortcuts Popup - Added higher z-index */}
         {showShortcuts && (
           <div className="absolute bottom-full left-0 right-0 mb-2 z-40">
             <div className="bg-[var(--background)]/90 backdrop-blur-md overflow-hidden shadow-lg transition-all duration-300">
@@ -1401,7 +1401,7 @@ export function ChatInput({
               {/* Scrollable shortcuts list */}
               <div 
                 ref={shortcutsListRef}
-                className="overflow-y-auto max-h-[30vh]"
+                className="max-h-[30vh] overflow-y-auto"
               >
                 {shortcuts.length > 0 ? (
                   shortcuts.map((shortcut, index) => (
