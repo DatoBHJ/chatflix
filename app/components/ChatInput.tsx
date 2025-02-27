@@ -57,6 +57,8 @@ export function ChatInput({
   const [isThemeChanging, setIsThemeChanging] = useState(false);
   const [lastTypedChar, setLastTypedChar] = useState<string | null>(null);
   const [mentionQueryActive, setMentionQueryActive] = useState(false);
+  const [showPDFError, setShowPDFError] = useState(false);
+  const [showFolderError, setShowFolderError] = useState(false);
   const supabase = createClient();
   
   // 타이핑 디바운스 설정
@@ -1123,19 +1125,48 @@ const closeShortcutsPopup = () => {
     setDragActive(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
     
+    const items = e.dataTransfer.items;
+    if (!items) return;
+
+    // Check for folders first
+    for (let i = 0; i < items.length; i++) {
+      const entry = items[i].webkitGetAsEntry();
+      if (entry?.isDirectory) {
+        setShowFolderError(true);
+        setTimeout(() => setShowFolderError(false), 1000);
+        return; // Stop processing if any folder is detected
+      }
+    }
+
+    // If no folders, process files
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleFiles(e.dataTransfer.files);
     }
   };
 
+  // Add helper function to check if file is PDF
+  const isPDFFile = (file: File): boolean => {
+    return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  };
+
   const handleFiles = (newFiles: FileList) => {
-    // Convert FileList to Array and create new file entries
-    const newFileArray = Array.from(newFiles);
+    // Convert FileList to Array and filter out PDF files
+    const newFileArray = Array.from(newFiles).filter(file => {
+      if (isPDFFile(file)) {
+        setShowPDFError(true);
+        setTimeout(() => setShowPDFError(false), 1000);
+        return false;
+      }
+      return true;
+    });
+    
+    // If no valid files after filtering, return early
+    if (newFileArray.length === 0) return;
     
     // Create new file entries
     const newFileEntries = newFileArray.map(file => {
@@ -1486,6 +1517,33 @@ const closeShortcutsPopup = () => {
           </div>
         )}
 
+        {/* Error Toasts */}
+        {showPDFError && (
+          <div className="absolute bottom-full mb-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg animate-fadeIn z-50">
+            <div className="flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <span>PDF files are not supported</span>
+            </div>
+          </div>
+        )}
+
+        {showFolderError && (
+          <div className="absolute bottom-full mb-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg animate-fadeIn z-50">
+            <div className="flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <span>Folders cannot be uploaded</span>
+            </div>
+          </div>
+        )}
+
         {/* Drag & Drop Zone */}
         <div 
           className={`relative transition-all duration-300 ${dragActive ? 'scale-[1.01]' : ''}`}
@@ -1496,7 +1554,7 @@ const closeShortcutsPopup = () => {
         >
           <input
             type="file"
-            accept="*/*" // Accept all file types
+            accept="image/*,text/*" // Remove PDF from accepted types
             onChange={(e) => {
               if (e.target.files) {
                 handleFiles(e.target.files);
@@ -1572,7 +1630,7 @@ const closeShortcutsPopup = () => {
           </div>
         </div>
 
-        {/* Drag & Drop Overlay - Updated for all file types */}
+        {/* Drag & Drop Overlay - Updated with folder restriction */}
         {dragActive && (
           <div 
             className="absolute inset-0 drag-upload-overlay
@@ -1586,7 +1644,10 @@ const closeShortcutsPopup = () => {
                   <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
               </div>
-              <span className="drag-upload-text">Drop files here</span>
+              <div className="flex flex-col items-center text-center">
+                <span className="drag-upload-text">Drop files here</span>
+                <span className="text-xs text-red-400 mt-0.5">(PDF files and folders not supported)</span>
+              </div>
             </div>
           </div>
         )}
