@@ -17,7 +17,7 @@ export interface ModelConfig {
   isEnabled: boolean;
   reasoning?: {
     enabled: boolean;
-    provider?: 'groq' | 'together' | 'anthropic';  
+    provider?: 'groq' | 'together' | 'anthropic' | 'deepseek';  
     baseModelId?: string; 
     tagName?: string; 
     budgetTokens?: number;
@@ -56,8 +56,8 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
-      category: 'high',
-      requests: 30,
+      category: 'low',
+      requests: 300,
       window: '60 m'
     },
     pricing: {
@@ -67,15 +67,53 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     },
     isEnabled: true
   },
+  // {
+  //   id: 'deepseek-ai/DeepSeek-R1',
+  //   name: 'DeepSeek R1',
+  //   description: 'The best open source reasoning model by DeepSeek via Together.ai',
+  //   provider: 'together',
+  //   supportsVision: false,
+  //   rateLimit: {
+  //     category: 'high',
+  //     requests: 30,
+  //     window: '60 m'
+  //   },
+  //   pricing: {
+  //     pricePerMillion: 7
+  //   },
+  //   isEnabled: true,
+  //   reasoning: {
+  //     enabled: true,
+  //     provider: 'together',
+  //     baseModelId: 'deepseek-ai/DeepSeek-R1',
+  //     tagName: 'think'
+  //   }
+  // },
+  // {
+  //   id: 'deepseek-ai/DeepSeek-V3',
+  //   name: 'DeepSeek V3',
+  //   description: 'The best open source non-reasoning model by DeepSeek via Together.ai',
+  //   provider: 'together',
+  //   supportsVision: false,
+  //   rateLimit: {
+  //     category: 'mid',
+  //     requests: 60,
+  //     window: '60 m'
+  //   },
+  //   pricing: {
+  //     pricePerMillion: 1.25
+  //   },
+  //   isEnabled: true
+  // },
   {
-    id: 'deepseek-ai/DeepSeek-R1',
-    name: 'DeepSeek R1',
-    description: 'The best open source reasoning model by DeepSeek via Together.ai',
-    provider: 'together',
+    id: 'deepseek-reasoner',
+    name: 'DeepSeek R1 (unlimited rate limit)',
+    description: 'The best open source reasoning model by DeepSeek',
+    provider: 'deepseek',
     supportsVision: false,
     rateLimit: {
-      category: 'high',
-      requests: 30,
+      category: 'low',
+      requests: 3000,
       window: '60 m'
     },
     pricing: {
@@ -84,20 +122,20 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     isEnabled: true,
     reasoning: {
       enabled: true,
-      provider: 'together',
-      baseModelId: 'deepseek-ai/DeepSeek-R1',
+      provider: 'deepseek',
+      baseModelId: 'deepseek-reasoner',
       tagName: 'think'
     }
   },
   {
-    id: 'deepseek-ai/DeepSeek-V3',
-    name: 'DeepSeek V3',
-    description: 'The best open source non-reasoning model by DeepSeek via Together.ai',
-    provider: 'together',
+    id: 'deepseek-chat',
+    name: 'DeepSeek V3 (unlimited rate limit)',
+    description: 'The best open source non-reasoning model by DeepSeek',
+    provider: 'deepseek',
     supportsVision: false,
     rateLimit: {
-      category: 'mid',
-      requests: 60,
+      category: 'low',
+      requests: 3000,
       window: '60 m'
     },
     pricing: {
