@@ -14,7 +14,7 @@ import { Attachment } from '@/lib/types'
 import { useMessages } from '@/app/hooks/useMessages'
 import '@/app/styles/attachments.css'
 import { Message as MessageComponent } from '@/app/components/Message'
-import { ChatInput } from '@/app/components/ChatInput/index';
+import { ChatInput } from '../../components/ChatInput';
 
 export default function Chat({ params }: PageProps) {
   const { id: chatId } = use(params)
