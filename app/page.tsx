@@ -5,7 +5,7 @@ import { useChat } from '@ai-sdk/react';
 import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { ModelSelector } from './components/ModelSelector'
-import { ChatInput } from './components/ChatInput'
+import { ChatInput } from '@/app/components/ChatInput/index';
 import { Header } from './components/Header'
 import { Sidebar } from './components/Sidebar'
 import { uploadFile } from '@/app/chat/[id]/utils'

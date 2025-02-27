@@ -6,7 +6,6 @@ import { useState, useEffect, use, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { ModelSelector } from '../../components/ModelSelector'
-import { ChatInput } from '../../components/ChatInput'
 import { Header } from '../../components/Header'
 import { Sidebar } from '../../components/Sidebar'
 import { convertMessage, uploadFile } from './utils'
@@ -15,6 +14,7 @@ import { Attachment } from '@/lib/types'
 import { useMessages } from '@/app/hooks/useMessages'
 import '@/app/styles/attachments.css'
 import { Message as MessageComponent } from '@/app/components/Message'
+import { ChatInput } from '@/app/components/ChatInput/index';
 
 export default function Chat({ params }: PageProps) {
   const { id: chatId } = use(params)
