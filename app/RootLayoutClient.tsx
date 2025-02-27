@@ -54,7 +54,7 @@ export default function RootLayoutClient({
   // Add PDF support notice
   useEffect(() => {
     if (user) {
-      showAnnouncement("PDF file support is currently not available. We're working on adding this feature soon!", "info");
+      showAnnouncement("PDF file support is currently not available. We're working on adding this feature soon!", "error");
     }
   }, [user, showAnnouncement]);
 
