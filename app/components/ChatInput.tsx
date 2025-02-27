@@ -643,7 +643,7 @@ const closeShortcutsPopup = () => {
       /* 검색 결과 스타일 개선 */
       .shortcut-item {
         width: 100%;
-        padding: 8px 12px;
+        padding: 16px 24px;
         text-align: left;
         transition: all 0.2s ease;
         position: relative;
@@ -1300,12 +1300,12 @@ const closeShortcutsPopup = () => {
               closeShortcutsPopup();
               openShortcutsDialog();
             }}
-            className="w-full px-4 py-3 text-left transition-all duration-300 group relative overflow-hidden"
+            className="w-full px-4 py-6 text-left transition-all duration-300 group relative overflow-hidden bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20"
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-[var(--accent)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[var(--accent)]/10 to-transparent opacity-100 transition-opacity duration-300" />
             <div className="flex items-center justify-between relative">
               <div className="flex items-center gap-3">
-                <div className="w-6 h-6 rounded-md bg-[var(--accent)]/10 flex items-center justify-center group-hover:bg-[var(--accent)]/20 transition-all duration-300 group-hover:scale-110">
+                <div className="w-6 h-6 rounded-md bg-[var(--accent)]/20 flex items-center justify-center transition-all duration-300 group-hover:scale-110">
                   <svg 
                     width="14" 
                     height="14" 
@@ -1314,21 +1314,21 @@ const closeShortcutsPopup = () => {
                     stroke="currentColor" 
                     strokeWidth="1.5" 
                     strokeLinecap="round" 
-                    className="text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors transform -rotate-12 group-hover:rotate-0 duration-300"
+                    className="text-[var(--foreground)] transition-colors transform rotate-0 duration-300"
                   >
                     <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                   </svg>
                 </div>
                 <div className="flex flex-col items-start gap-0.5">
-                  <span className="text-xs tracking-wide text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors font-medium">
+                  <span className="text-xs tracking-wide text-[var(--foreground)] transition-colors font-medium">
                     CUSTOMIZE SHORTCUTS
                   </span>
-                  <span className="text-[10px] text-[var(--muted)]/70 group-hover:text-[var(--muted)] transition-colors">
+                  <span className="text-[10px] text-[var(--muted)] transition-colors">
                     Add or modify your custom prompts
                   </span>
                 </div>
               </div>
-              <div className="opacity-0 transform translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+              <div className="transform translate-x-0 opacity-100 transition-all duration-300">
                 <svg 
                   width="16" 
                   height="16" 
@@ -1338,7 +1338,7 @@ const closeShortcutsPopup = () => {
                   strokeWidth="1.5" 
                   strokeLinecap="round" 
                   strokeLinejoin="round" 
-                  className="text-[var(--muted)]"
+                  className="text-[var(--foreground)]"
                 >
                   <path d="M5 12h14" />
                   <path d="m12 5 7 7-7 7" />
