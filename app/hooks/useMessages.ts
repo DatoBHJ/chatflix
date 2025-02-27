@@ -41,47 +41,114 @@ export function useMessages(chatId: string, userId: string) {
 
 
   const handleEditSave = async (messageId: string, currentModel: string, messages: Message[], setMessages: (messages: Message[]) => void, reload: any) => {
+    console.log('Starting edit save operation:', { 
+      messageId, 
+      userId, 
+      chatId,
+      messageContent: editingContent.substring(0, 100) + '...' // Log first 100 chars for debugging
+    });
+    
     try {
-      const { data: existingMessage, error: queryError } = await supabase
+      // First verify all required parameters are present
+      if (!messageId || !userId || !chatId) {
+        throw new Error('Missing required parameters for edit save operation');
+      }
+
+      console.log('Fetching existing message...');
+      // First try to find the message in local state
+      const localMessage = messages.find(msg => msg.id === messageId);
+      
+      if (!localMessage) {
+        console.warn('Message not found in local state:', messageId);
+        setEditingMessageId(null);
+        setEditingContent('');
+        return;
+      }
+
+      // Get the sequence number from local messages
+      const messageIndex = messages.findIndex(msg => msg.id === messageId);
+      const localSequenceNumber = messageIndex + 1; // 1-based sequence number
+
+      console.log('Local message found:', {
+        messageId,
+        messageIndex,
+        localSequenceNumber,
+        role: localMessage.role
+      });
+
+      // Then verify in database with proper error handling
+      const { data: existingMessages, error: queryError } = await supabase
         .from('messages')
         .select('id, sequence_number, chat_session_id')
-        .match({ id: messageId, user_id: userId, chat_session_id: chatId })
-        .single()
+        .eq('id', messageId)
+        .eq('user_id', userId)
+        .eq('chat_session_id', chatId);
 
-      if (queryError || !existingMessage) {
-        console.error('Error fetching message:', queryError)
-        const messageIndex = messages.findIndex(msg => msg.id === messageId)
-        if (messageIndex !== -1) {
-          setMessages(messages.map(msg =>
-            msg.id === messageId ? { ...msg, content: editingContent } : msg
-          ))
+      if (queryError) {
+        console.error('Database query error:', { 
+          error: queryError,
+          code: queryError.code,
+          message: queryError.message,
+          details: queryError.details,
+          hint: queryError.hint
+        });
+        throw new Error(`Database query failed: ${queryError.message}`);
+      }
+
+      let existingMessage = existingMessages?.[0];
+      
+      if (!existingMessage) {
+        console.log('Message not found in database, creating new record:', { 
+          messageId,
+          localSequenceNumber,
+          model: currentModel
+        });
+        
+        // Create the message in the database
+        const { data: insertedMessage, error: insertError } = await supabase
+          .from('messages')
+          .insert([{
+            id: messageId,
+            role: localMessage.role,
+            content: editingContent,
+            created_at: new Date().toISOString(),
+            chat_session_id: chatId,
+            user_id: userId,
+            sequence_number: localSequenceNumber,
+            is_edited: true,
+            edited_at: new Date().toISOString(),
+            model: currentModel,
+            host: localMessage.role === 'assistant' ? 'assistant' : 'user'
+          }])
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Failed to create message in database:', insertError);
+          throw insertError;
         }
-        setEditingMessageId(null)
-        setEditingContent('')
-        return
+
+        existingMessage = insertedMessage;
+      } else {
+        console.log('Updating message content...');
+        const { error: updateError } = await supabase
+          .from('messages')
+          .update({
+            content: editingContent,
+            is_edited: true,
+            edited_at: new Date().toISOString()
+          })
+          .eq('id', messageId)
+          .eq('user_id', userId)
+          .eq('chat_session_id', chatId);
+
+        if (updateError) {
+          console.error('Update operation failed:', updateError);
+          throw updateError;
+        }
       }
 
-      const { error: updateError } = await supabase
-        .from('messages')
-        .update({
-          content: editingContent,
-          is_edited: true,
-          edited_at: new Date().toISOString()
-        })
-        .match({ 
-          id: messageId, 
-          user_id: userId,
-          chat_session_id: chatId 
-        })
-
-      if (updateError) {
-        console.error('Error updating message:', updateError)
-        throw updateError
-      }
-
-      const messageIndex = messages.findIndex(msg => msg.id === messageId)
-      if (messageIndex === -1) return
-
+      console.log('Updating local message state...');
       const updatedMessages = messages.slice(0, messageIndex + 1).map(msg =>
         msg.id === messageId
           ? {
@@ -92,23 +159,26 @@ export function useMessages(chatId: string, userId: string) {
               ) : undefined
             }
           : msg
-      )
+      );
 
-      setMessages(updatedMessages)
-      setEditingMessageId(null)
-      setEditingContent('')
+      setMessages(updatedMessages);
+      setEditingMessageId(null);
+      setEditingContent('');
 
+      console.log('Deleting subsequent messages...');
       const { error: deleteError } = await supabase
         .from('messages')
         .delete()
-        .match({ chat_session_id: chatId, user_id: userId })
-        .gt('sequence_number', existingMessage.sequence_number)
+        .eq('chat_session_id', chatId)
+        .eq('user_id', userId)
+        .gt('sequence_number', existingMessage.sequence_number);
 
       if (deleteError) {
-        console.error('Error deleting subsequent messages:', deleteError)
+        console.error('Error deleting subsequent messages:', deleteError);
       }
 
-      const assistantMessageId = generateMessageId()
+      const assistantMessageId = generateMessageId();
+      console.log('Creating new assistant message:', assistantMessageId);
 
       const { error: insertError } = await supabase
         .from('messages')
@@ -122,13 +192,14 @@ export function useMessages(chatId: string, userId: string) {
           chat_session_id: chatId,
           user_id: userId,
           sequence_number: existingMessage.sequence_number + 1
-        }])
+        }]);
 
       if (insertError) {
-        console.error('Error creating assistant message:', insertError)
-        throw insertError
+        console.error('Error creating assistant message:', insertError);
+        throw insertError;
       }
 
+      console.log('Triggering reload with updated messages...');
       await reload({
         body: {
           messages: updatedMessages,
@@ -137,11 +208,22 @@ export function useMessages(chatId: string, userId: string) {
           isRegeneration: true,
           existingMessageId: assistantMessageId
         }
-      })
-    } catch (error) {
-      console.error('Failed to update message:', error)
-      setEditingMessageId(null)
-      setEditingContent('')
+      });
+    } catch (error: any) {
+      console.error('Failed to update message:', {
+        error: error?.message || error,
+        stack: error?.stack,
+        supabaseError: error?.error_description || error?.details,
+        statusCode: error?.status || error?.code,
+        messageId,
+        userId,
+        chatId
+      });
+      
+      // 에러 발생 시 편집 상태 유지하고 사용자에게 피드백
+      setEditingMessageId(messageId);
+      const originalContent = messages.find(msg => msg.id === messageId)?.content || '';
+      setEditingContent(originalContent);
     }
   }
 
