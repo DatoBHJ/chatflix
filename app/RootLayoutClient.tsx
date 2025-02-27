@@ -6,6 +6,8 @@ import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 import { PromptShortcutsDialog } from './components/PromptShortcutsDialog'
 import { Header } from './components/Header'
+import Announcement from './components/Announcement'
+import useAnnouncement from './hooks/useAnnouncement'
 
 export default function RootLayoutClient({
   children,
@@ -17,6 +19,7 @@ export default function RootLayoutClient({
   const [user, setUser] = useState<any>(null)
   const router = useRouter()
   const supabase = createClient()
+  const { announcement, showAnnouncement, hideAnnouncement, isVisible } = useAnnouncement()
 
   const toggleSidebar = () => {
     setIsSidebarOpen(prev => !prev)
@@ -48,6 +51,13 @@ export default function RootLayoutClient({
     }
   }, [supabase, router])
 
+  // Add PDF support notice
+  useEffect(() => {
+    if (user) {
+      showAnnouncement("PDF file support is currently not available. We're working on adding this feature soon!", "info");
+    }
+  }, [user, showAnnouncement]);
+
   if (isLoading) {
     return <div className="flex h-screen items-center justify-center">Loading...</div>
   }
@@ -62,6 +72,12 @@ export default function RootLayoutClient({
 
   return (
     <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)] overflow-x-hidden">
+      <Announcement
+        message={announcement?.message || ''}
+        type={announcement?.type || 'info'}
+        isVisible={isVisible}
+        onClose={hideAnnouncement}
+      />
       <Header 
         isSidebarOpen={isSidebarOpen}
         onSidebarToggle={toggleSidebar}
