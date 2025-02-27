@@ -1300,7 +1300,7 @@ const closeShortcutsPopup = () => {
               closeShortcutsPopup();
               openShortcutsDialog();
             }}
-            className="w-full px-4 py-6 text-left transition-all duration-300 group relative overflow-hidden bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20"
+            className="w-full px-4 py-3 text-left transition-all duration-300 group relative overflow-hidden bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-[var(--accent)]/10 to-transparent opacity-100 transition-opacity duration-300" />
             <div className="flex items-center justify-between relative">
@@ -1321,7 +1321,7 @@ const closeShortcutsPopup = () => {
                 </div>
                 <div className="flex flex-col items-start gap-0.5">
                   <span className="text-xs tracking-wide text-[var(--foreground)] transition-colors font-medium">
-                    CUSTOMIZE SHORTCUTS
+                  CLICK TO CUSTOMIZE SHORTCUTS
                   </span>
                   <span className="text-[10px] text-[var(--muted)] transition-colors">
                     Add or modify your custom prompts
