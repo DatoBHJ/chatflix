@@ -1,5 +1,4 @@
 import { FormEvent, useEffect, useRef, useState, ReactNode } from 'react';
-import { IconStop } from './icons';
 import { createClient } from '@/utils/supabase/client';
 import { openShortcutsDialog } from './PromptShortcutsDialog'
 // import { PromptShortcut } from '@/types';
@@ -615,6 +614,37 @@ export function ChatInput({
         color: rgb(239, 68, 68);
         font-weight: 500;
         user-select: none;
+      }
+
+      /* Add shortcut item styles */
+      .shortcut-item {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      }
+
+      .shortcut-item::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 2px;
+        height: 100%;
+        background: var(--foreground);
+        opacity: 0;
+        transform-origin: top center;
+        transform: scaleY(0);
+        transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.5s ease;
+      }
+
+      .shortcut-item:hover::before,
+      .shortcut-item.active::before {
+        transform: scaleY(1);
+        opacity: 0.5;
+      }
+
+      .shortcut-item:not(:hover)::before {
+        transform-origin: bottom center;
       }
 
       .futuristic-input {
@@ -1363,8 +1393,8 @@ export function ChatInput({
                     <button
                       key={shortcut.id}
                       onClick={() => handleShortcutSelect(shortcut)}
-                      className={`w-full p-4 text-left transition-colors
-                               ${index === selectedIndex ? 'bg-[var(--accent)]/30' : 'hover:bg-[var(--accent)]/10'}`}
+                      className={`shortcut-item w-full p-4 text-left transition-colors
+                               ${index === selectedIndex ? 'bg-[var(--accent)]/30 active' : 'hover:bg-[var(--accent)]/10'}`}
                     >
                       <div className="flex flex-col gap-1">
                         <span className="text-sm font-medium tracking-wide">@{shortcut.name}</span>

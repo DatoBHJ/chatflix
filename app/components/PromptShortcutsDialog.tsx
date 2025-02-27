@@ -22,6 +22,37 @@ const scrollbarHideStyles = `
   .hide-scrollbar::-webkit-scrollbar {
     display: none;             /* Chrome, Safari and Opera */
   }
+
+  /* Add highlight bar styles */
+  .shortcut-item {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  }
+
+  .shortcut-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 2px;
+    height: 100%;
+    background: var(--foreground);
+    opacity: 0;
+    transform-origin: top center;
+    transform: scaleY(0);
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.5s ease;
+  }
+
+  .shortcut-item:hover::before,
+  .shortcut-item.active::before {
+    transform: scaleY(1);
+    opacity: 0.5;
+  }
+
+  .shortcut-item:not(:hover)::before {
+    transform-origin: bottom center;
+  }
 `
 
 export function openShortcutsDialog() {
@@ -292,7 +323,7 @@ export function PromptShortcutsDialog({ user }: { user: any }) {
             {/* Shortcuts list */}
             <div className="space-y-1">
               {shortcuts.map((shortcut) => (
-                <div key={shortcut.id} className="group flex items-start gap-4 p-4 bg-[var(--accent)]">
+                <div key={shortcut.id} className="group flex items-start gap-4 p-4 bg-[var(--accent)] shortcut-item">
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium">@{shortcut.name}</div>
                     <div className="text-xs text-[var(--muted)] mt-1 break-words">{shortcut.content}</div>
