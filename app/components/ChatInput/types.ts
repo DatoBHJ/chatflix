@@ -19,6 +19,7 @@ export interface ChatInputProps {
   placeholder?: string;
   user: any;
   modelId: string;
+  popupPosition?: 'top' | 'bottom';
 }
 
 export interface FileData {

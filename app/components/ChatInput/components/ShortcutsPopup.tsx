@@ -2,13 +2,14 @@ import { useRef, useEffect } from 'react';
 import { ShortcutsPopupProps } from '../types';
 import { openShortcutsDialog } from '@/app/components/PromptShortcutsDialog';
 
-export const ShortcutsPopup: React.FC<ShortcutsPopupProps> = ({
+export const ShortcutsPopup: React.FC<ShortcutsPopupProps & { position?: 'top' | 'bottom' }> = ({
   showShortcuts,
   shortcuts,
   selectedIndex,
   searchTerm,
   handleShortcutSelect,
-  closeShortcutsPopup
+  closeShortcutsPopup,
+  position = 'top'
 }) => {
   const shortcutsListRef = useRef<HTMLDivElement>(null);
 
@@ -41,19 +42,18 @@ export const ShortcutsPopup: React.FC<ShortcutsPopupProps> = ({
   if (!showShortcuts) return null;
 
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-2 z-40">
+    <div className={`absolute ${position === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'} left-0 right-0 z-40`}>
       <div className="bg-[var(--background)]/95 backdrop-blur-xl shortcuts-container">
         <button
           onClick={() => {
             closeShortcutsPopup();
             openShortcutsDialog();
           }}
-          className="w-full px-4 py-3 text-left transition-all duration-300 group relative overflow-hidden"
+          className="w-full px-4 py-6 text-left transition-all duration-200 group relative overflow-hidden hover:bg-[var(--accent)]/5"
         >
-          <div className="absolute inset-0 bg-gradient-to-r from-[var(--accent)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           <div className="flex items-center justify-between relative">
             <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-md bg-[var(--accent)]/10 flex items-center justify-center group-hover:bg-[var(--accent)]/20 transition-all duration-300 group-hover:scale-110">
+              <div className="w-6 h-6 rounded-md bg-[var(--accent)]/10 flex items-center justify-center transition-all duration-200">
                 <svg 
                   width="14" 
                   height="14" 
@@ -62,21 +62,21 @@ export const ShortcutsPopup: React.FC<ShortcutsPopupProps> = ({
                   stroke="currentColor" 
                   strokeWidth="1.5" 
                   strokeLinecap="round" 
-                  className="text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors transform -rotate-12 group-hover:rotate-0 duration-300"
+                  className="text-[var(--foreground)] transition-transform duration-200 group-hover:rotate-12"
                 >
                   <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                 </svg>
               </div>
               <div className="flex flex-col items-start gap-0.5">
-                <span className="text-xs tracking-wide text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors font-medium">
+                <span className="text-xs tracking-wide text-[var(--foreground)] font-medium">
                   CUSTOMIZE SHORTCUTS
                 </span>
-                <span className="text-[10px] text-[var(--muted)]/70 group-hover:text-[var(--muted)] transition-colors">
+                <span className="text-[10px] text-[var(--muted)]">
                   Add or modify your custom prompts
                 </span>
               </div>
             </div>
-            <div className="opacity-0 transform translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+            <div className="flex items-center text-[var(--muted)]">
               <svg 
                 width="16" 
                 height="16" 
@@ -85,8 +85,7 @@ export const ShortcutsPopup: React.FC<ShortcutsPopupProps> = ({
                 stroke="currentColor" 
                 strokeWidth="1.5" 
                 strokeLinecap="round" 
-                strokeLinejoin="round" 
-                className="text-[var(--muted)]"
+                strokeLinejoin="round"
               >
                 <path d="M5 12h14" />
                 <path d="m12 5 7 7-7 7" />
@@ -97,7 +96,7 @@ export const ShortcutsPopup: React.FC<ShortcutsPopupProps> = ({
         
         <div 
           ref={shortcutsListRef}
-          className="max-h-60 overflow-y-auto"
+          className="max-h-40 overflow-y-auto"
         >
           {shortcuts.length > 0 ? (
             shortcuts.map((shortcut, index) => {

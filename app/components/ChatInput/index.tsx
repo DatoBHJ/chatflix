@@ -18,7 +18,8 @@ export function ChatInput({
   disabled,
   placeholder = "Type @ for shortcuts ...",
   user,
-  modelId
+  modelId,
+  popupPosition = 'top'
 }: ChatInputProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -270,6 +271,7 @@ export function ChatInput({
             }
           }}
           closeShortcutsPopup={closeShortcutsPopup}
+          position={popupPosition}
         />
       </form>
     </div>

@@ -159,6 +159,7 @@ export default function Home() {
               placeholder="Chat is this real?"
               user={user}
               modelId={nextModel}
+              popupPosition="bottom"
             />
             {/* <h1 className="text-xs sm:text-base uppercase tracking-wider text-[var(--muted)] text-start font-extralight">chatflix.app</h1> */}
 

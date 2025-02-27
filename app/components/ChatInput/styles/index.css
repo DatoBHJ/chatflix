@@ -48,7 +48,7 @@
 /* 검색 결과 스타일 */
 .shortcut-item {
   width: 100%;
-  padding: 8px 12px;
+  padding: 14px 24px;
   text-align: left;
   transition: all 0.2s ease;
   position: relative;
