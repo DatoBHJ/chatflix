@@ -416,7 +416,7 @@ export default function Chat({ params }: PageProps) {
         onClick={() => setIsSidebarOpen(false)}
       />
 
-      <div className="flex-1 overflow-y-auto pb-[200px] pt-10 sm:pt-16">
+      <div className="flex-1 overflow-y-auto pb-32 pt-10 sm:pt-16">
         <div className="messages-container py-4 max-w-2xl mx-auto px-4 sm:px-6 w-full">
           {messages.map((message) => (
             <MessageComponent
