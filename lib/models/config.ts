@@ -168,8 +168,8 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'openai',
     supportsVision: true,
     rateLimit: {
-      category: 'high',
-      requests: 30,
+      category: 'superHigh',
+      requests: 10,
       window: '60 m'
     },
     pricing: {
