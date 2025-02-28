@@ -20,7 +20,7 @@ import { ChatInput } from '@/app/components/ChatInput';
 export default function Chat({ params }: PageProps) {
   const { id: chatId } = use(params)
   const router = useRouter()
-  const [currentModel, setCurrentModel] = useState('claude-3-7-sonnet-latest')
+  const [currentModel, setCurrentModel] = useState('gpt-4.5-preview')
   const [nextModel, setNextModel] = useState(currentModel)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [isInitialized, setIsInitialized] = useState(false)

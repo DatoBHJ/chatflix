@@ -200,7 +200,7 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
             aria-haspopup="listbox"
           >
             {currentModelOption?.name || nextModel}
-            <span className="ml-2 opacity-60 text-xs">▾</span>
+            <span className="ml-2 opacity-60 text-base">▾</span>
           </button>
           
           {isOpen && !disabled && (

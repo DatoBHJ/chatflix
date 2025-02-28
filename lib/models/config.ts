@@ -162,8 +162,26 @@ export const MODEL_CONFIGS: ModelConfig[] = [
   //   isEnabled: true
   // },
   {
+    id: 'gpt-4.5-preview',
+    name: 'GPT-4.5',
+    description: 'Latest and most capable GPT model yet by OpenAI',
+    provider: 'openai',
+    supportsVision: true,
+    rateLimit: {
+      category: 'high',
+      requests: 30,
+      window: '60 m'
+    },
+    pricing: {
+      pricePerMillion: 10,
+      inputPrice: 5,
+      outputPrice: 15
+    },
+    isEnabled: true
+  },
+  {
     id: 'chatgpt-4o-latest',
-    name: 'ChatGPT-4o',
+    name: 'GPT-4o',
     description: 'Latest version of GPT-4o used in ChatGPT',
     provider: 'openai',
     supportsVision: true,
