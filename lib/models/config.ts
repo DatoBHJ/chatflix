@@ -174,8 +174,8 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     },
     pricing: {
       pricePerMillion: 10,
-      inputPrice: 5,
-      outputPrice: 15
+      inputPrice: 75,
+      outputPrice: 150
     },
     isEnabled: true
   },
