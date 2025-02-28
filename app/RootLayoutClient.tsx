@@ -51,15 +51,15 @@ export default function RootLayoutClient({
     }
   }, [supabase, router])
 
-  // // announcement for GPT-4.5
-  // useEffect(() => {
-  //   if (user) {
-  //     showAnnouncement(
-  //       "GPT-4.5 is now available! Try it out!",
-  //       "info"
-  //     );
-  //   }
-  // }, [user, showAnnouncement]);
+  // announcement for GPT-4.5
+  useEffect(() => {
+    if (user) {
+      showAnnouncement(
+        "GPT-4.5 is now available! Try it out!",
+        "info"
+      );
+    }
+  }, [user, showAnnouncement]);
 
   if (isLoading) {
     return <div className="flex h-screen items-center justify-center">Loading...</div>
