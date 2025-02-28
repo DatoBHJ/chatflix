@@ -85,26 +85,6 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
         transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
       }
       
-      /* 옵션 하이라이트 효과 */
-      .model-option::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 2px;
-        height: 100%;
-        background: var(--accent);
-        opacity: 0;
-        transform: scaleY(0);
-        transition: transform 0.25s ease, opacity 0.25s ease;
-      }
-      
-      .model-option:hover::before, 
-      .model-option.active::before {
-        transform: scaleY(1);
-        opacity: 0.7;
-      }
-      
       /* 선택된 모델 표시 효과 */
       .selected-indicator {
         position: absolute;
