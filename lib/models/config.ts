@@ -52,6 +52,24 @@ export const MODEL_CONFIGS: ModelConfig[] = [
   {
     id: 'claude-3-7-sonnet-latest',
     name: 'Claude 3.7 Sonnet',
+    description: "Anthropic's most intelligent model.",
+    provider: 'anthropic',
+    supportsVision: true,
+    rateLimit: {
+      category: 'low',
+      requests: 30,
+      window: '60 m'
+    },
+    pricing: {
+      pricePerMillion: 9,
+      inputPrice: 3,
+      outputPrice: 15
+    },
+    isEnabled: true
+  },
+  {
+    id: 'claude-3-5-sonnet-latest',
+    name: 'Claude 3.5 Sonnet',
     description: 'GOAT',
     provider: 'anthropic',
     supportsVision: true,
