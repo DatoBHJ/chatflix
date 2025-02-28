@@ -13,7 +13,7 @@ import { ChatInput } from '@/app/components/ChatInput'
 
 export default function Home() {
   const router = useRouter()
-  const [currentModel, setCurrentModel] = useState('gpt-4.5-preview')
+  const [currentModel, setCurrentModel] = useState('claude-3-7-sonnet-latest')
   const [nextModel, setNextModel] = useState(currentModel)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [user, setUser] = useState<any>(null)

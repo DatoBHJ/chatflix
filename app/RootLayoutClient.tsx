@@ -55,7 +55,7 @@ export default function RootLayoutClient({
   useEffect(() => {
     if (user) {
       showAnnouncement(
-        "GPT-4.5 is now available! Try it out!",
+        "GPT-4.5 is now available! Try it out now!",
         "info"
       );
     }
