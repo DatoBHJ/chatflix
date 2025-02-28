@@ -1347,7 +1347,8 @@ const closeShortcutsPopup = () => {
                     strokeLinecap="round" 
                     className="text-[var(--foreground)] transition-colors transform rotate-0 duration-300"
                   >
-                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
                 </div>
                 <div className="flex flex-col items-start gap-0.5">
@@ -1358,22 +1359,6 @@ const closeShortcutsPopup = () => {
                     Add or modify your custom prompts
                   </span>
                 </div>
-              </div>
-              <div className="transform translate-x-0 opacity-100 transition-all duration-300">
-                <svg 
-                  width="16" 
-                  height="16" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  strokeWidth="1.5" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  className="text-[var(--foreground)]"
-                >
-                  <path d="M5 12h14" />
-                  <path d="m12 5 7 7-7 7" />
-                </svg>
               </div>
             </div>
           </button>

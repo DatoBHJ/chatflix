@@ -99,13 +99,13 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     pricing: {
       pricePerMillion: 7
     },
-    isEnabled: true,
     reasoning: {
       enabled: true,
       provider: 'together',
       baseModelId: 'deepseek-ai/DeepSeek-R1',
       tagName: 'think'
-    }
+    },
+    isEnabled: false,
   },
   {
     id: 'deepseek-ai/DeepSeek-V3',
@@ -121,46 +121,46 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     pricing: {
       pricePerMillion: 1.25
     },
+    isEnabled: false
+  },
+  {
+    id: 'deepseek-reasoner',
+    name: 'DeepSeek R1',
+    description: 'The best open source reasoning model by DeepSeek',
+    provider: 'deepseek',
+    supportsVision: false,
+    rateLimit: {
+      category: 'low',
+      requests: 3000,
+      window: '60 m'
+    },
+    pricing: {
+      pricePerMillion: 7
+    },
+    reasoning: {
+      enabled: true,
+      provider: 'deepseek',
+      baseModelId: 'deepseek-reasoner',
+      tagName: 'think'
+    },
+    isEnabled: true,
+  },
+  {
+    id: 'deepseek-chat',
+    name: 'DeepSeek V3',
+    description: 'The best open source non-reasoning model by DeepSeek',
+    provider: 'deepseek',
+    supportsVision: false,
+    rateLimit: {
+      category: 'low',
+      requests: 3000,
+      window: '60 m'
+    },
+    pricing: {
+      pricePerMillion: 1.25
+    },
     isEnabled: true
   },
-  // {
-  //   id: 'deepseek-reasoner',
-  //   name: 'DeepSeek R1',
-  //   description: 'The best open source reasoning model by DeepSeek',
-  //   provider: 'deepseek',
-  //   supportsVision: false,
-  //   rateLimit: {
-  //     category: 'low',
-  //     requests: 3000,
-  //     window: '60 m'
-  //   },
-  //   pricing: {
-  //     pricePerMillion: 7
-  //   },
-  //   isEnabled: true,
-  //   reasoning: {
-  //     enabled: true,
-  //     provider: 'deepseek',
-  //     baseModelId: 'deepseek-reasoner',
-  //     tagName: 'think'
-  //   }
-  // },
-  // {
-  //   id: 'deepseek-chat',
-  //   name: 'DeepSeek V3',
-  //   description: 'The best open source non-reasoning model by DeepSeek',
-  //   provider: 'deepseek',
-  //   supportsVision: false,
-  //   rateLimit: {
-  //     category: 'low',
-  //     requests: 3000,
-  //     window: '60 m'
-  //   },
-  //   pricing: {
-  //     pricePerMillion: 1.25
-  //   },
-  //   isEnabled: true
-  // },
   {
     id: 'gpt-4.5-preview',
     name: 'GPT-4.5',
