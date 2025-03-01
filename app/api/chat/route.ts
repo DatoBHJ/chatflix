@@ -200,12 +200,25 @@ const saveUserMessage = async (supabase: any, chatId: string | undefined, userId
   });
 
   if (typeof message.content === 'string') {
-    messageContent = message.content;
+    // Only take the original user input, not any processed content with file contents
+    // This prevents the file content from being stored in the message content
+    const fileContentMarker = '\n\nAttached files:';
+    messageContent = message.content.includes(fileContentMarker) 
+      ? message.content.substring(0, message.content.indexOf(fileContentMarker))
+      : message.content;
+    
     attachments = message.experimental_attachments || [];
   } else {
     // Handle multi-modal content
     const textPart = message.content.find(part => part.type === 'text');
-    messageContent = textPart?.text || '';
+    
+    // If text part contains file content, extract only the original user input
+    if (textPart?.text) {
+      const fileContentMarker = '\n\nAttached files:';
+      messageContent = textPart.text.includes(fileContentMarker)
+        ? textPart.text.substring(0, textPart.text.indexOf(fileContentMarker))
+        : textPart.text;
+    }
     
     // Extract attachments from content array if they exist
     const imageParts = message.content.filter(part => part.type === 'image');
@@ -344,6 +357,7 @@ const handleStreamCompletion = async (
     finalContent = step.text || '';
     finalReasoning = step.reasoning || '';
   } else if (completion.parts) {
+    // Extract text content from parts
     finalContent = completion.parts
       .filter(part => part.type === 'text')
       .map(part => part.text)
@@ -375,6 +389,7 @@ const handleStreamCompletion = async (
     }
   }
 
+  // Update message in database
   await supabase
     .from('messages')
     .update({
