@@ -59,6 +59,11 @@ export default function RootLayoutClient({
         "error",
         "anthropic-models-down"
       );
+      showAnnouncement(
+        "We are facing some issues with file reading which is currently fixed. Please try again later.",
+        "error",
+        "file-read"
+      );
     }
   }, [user, showAnnouncement]);
 
