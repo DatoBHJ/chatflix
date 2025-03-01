@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Message } from 'ai'
 import { createClient } from '@/utils/supabase/client'
-import { ExtendedMessage } from '../chat/[id]/types'
 
 export function useMessages(chatId: string, userId: string) {
   const [isRegenerating, setIsRegenerating] = useState(false)

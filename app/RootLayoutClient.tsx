@@ -51,15 +51,16 @@ export default function RootLayoutClient({
     }
   }, [supabase, router])
 
-  // // announcement for GPT-4.5
-  // useEffect(() => {
-  //   if (user) {
-  //     showAnnouncement(
-  //       "GPT-4.5 is now available! Try it out now!",
-  //       "info"
-  //     );
-  //   }
-  // }, [user, showAnnouncement]);
+  // announcement for GPT-4.5
+  useEffect(() => {
+    if (user) {
+      showAnnouncement(
+        "Anthropic models are currently down. We are working on it. Please try other models or come back later.",
+        "error",
+        "anthropic-models-down"
+      );
+    }
+  }, [user, showAnnouncement]);
 
   if (isLoading) {
     return <div className="flex h-screen items-center justify-center">Loading...</div>

@@ -24,67 +24,71 @@ export interface ModelConfig {
   };
 }
 
+// Default model configuration
+export const DEFAULT_MODEL_ID = 'deepseek-ai/DeepSeek-R1'; 
+
+
 export const MODEL_CONFIGS: ModelConfig[] = [
-  {
-    id: 'claude-3-7-sonnet-20250219',
-    name: 'Claude 3.7 Sonnet (Thinking)',
-    description: "Anthropic's most intelligent model yet with extended thinking capability.",
-    provider: 'anthropic',
-    supportsVision: true,
-    rateLimit: {
-      category: 'high',
-      requests: 30,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 9,
-      inputPrice: 3,
-      outputPrice: 15
-    },
-    isEnabled: true,
-    reasoning: {
-      enabled: true,
-      provider: 'anthropic',
-      baseModelId: 'claude-3-7-sonnet-20250219',
-      budgetTokens: 12000
-    }
-  },
-  {
-    id: 'claude-3-7-sonnet-latest',
-    name: 'Claude 3.7 Sonnet',
-    description: "Anthropic's most intelligent model.",
-    provider: 'anthropic',
-    supportsVision: true,
-    rateLimit: {
-      category: 'low',
-      requests: 30,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 9,
-      inputPrice: 3,
-      outputPrice: 15
-    },
-    isEnabled: true
-  },
-  {
-    id: 'claude-3-5-sonnet-latest',
-    name: 'Claude 3.5 Sonnet',
-    description: 'GOAT',
-    provider: 'anthropic',
-    supportsVision: true,
-    rateLimit: {
-      category: 'low',
-      requests: 30,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 9,
-      inputPrice: 3,
-      outputPrice: 15
-    },
-    isEnabled: true
-  },
+  // {
+  //   id: 'claude-3-7-sonnet-20250219',
+  //   name: 'Claude 3.7 Sonnet (Thinking)',
+  //   description: "Anthropic's most intelligent model yet with extended thinking capability.",
+  //   provider: 'anthropic',
+  //   supportsVision: true,
+  //   rateLimit: {
+  //     category: 'high',
+  //     requests: 30,
+  //     window: '60 m'
+  //   },
+  //   pricing: {
+  //     pricePerMillion: 9,
+  //     inputPrice: 3,
+  //     outputPrice: 15
+  //   },
+  //   isEnabled: true,
+  //   reasoning: {
+  //     enabled: true,
+  //     provider: 'anthropic',
+  //     baseModelId: 'claude-3-7-sonnet-20250219',
+  //     budgetTokens: 12000
+  //   }
+  // },
+  // {
+  //   id: 'claude-3-7-sonnet-latest',
+  //   name: 'Claude 3.7 Sonnet',
+  //   description: "Anthropic's most intelligent model.",
+  //   provider: 'anthropic',
+  //   supportsVision: true,
+  //   rateLimit: {
+  //     category: 'low',
+  //     requests: 30,
+  //     window: '60 m'
+  //   },
+  //   pricing: {
+  //     pricePerMillion: 9,
+  //     inputPrice: 3,
+  //     outputPrice: 15
+  //   },
+  //   isEnabled: true
+  // },
+  // {
+  //   id: 'claude-3-5-sonnet-latest',
+  //   name: 'Claude 3.5 Sonnet',
+  //   description: 'GOAT',
+  //   provider: 'anthropic',
+  //   supportsVision: true,
+  //   rateLimit: {
+  //     category: 'low',
+  //     requests: 30,
+  //     window: '60 m'
+  //   },
+  //   pricing: {
+  //     pricePerMillion: 9,
+  //     inputPrice: 3,
+  //     outputPrice: 15
+  //   },
+  //   isEnabled: true
+  // },
   {
     id: 'deepseek-ai/DeepSeek-R1',
     name: 'DeepSeek R1',
@@ -105,7 +109,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       baseModelId: 'deepseek-ai/DeepSeek-R1',
       tagName: 'think'
     },
-    isEnabled: false,
+    isEnabled: true,
   },
   {
     id: 'deepseek-ai/DeepSeek-V3',
@@ -121,46 +125,46 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     pricing: {
       pricePerMillion: 1.25
     },
-    isEnabled: false
-  },
-  {
-    id: 'deepseek-reasoner',
-    name: 'DeepSeek R1',
-    description: 'The best open source reasoning model by DeepSeek',
-    provider: 'deepseek',
-    supportsVision: false,
-    rateLimit: {
-      category: 'low',
-      requests: 3000,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 7
-    },
-    reasoning: {
-      enabled: true,
-      provider: 'deepseek',
-      baseModelId: 'deepseek-reasoner',
-      tagName: 'think'
-    },
-    isEnabled: true,
-  },
-  {
-    id: 'deepseek-chat',
-    name: 'DeepSeek V3',
-    description: 'The best open source non-reasoning model by DeepSeek',
-    provider: 'deepseek',
-    supportsVision: false,
-    rateLimit: {
-      category: 'low',
-      requests: 3000,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 1.25
-    },
     isEnabled: true
   },
+  // {
+  //   id: 'deepseek-reasoner',
+  //   name: 'DeepSeek R1',
+  //   description: 'The best open source reasoning model by DeepSeek',
+  //   provider: 'deepseek',
+  //   supportsVision: false,
+  //   rateLimit: {
+  //     category: 'low',
+  //     requests: 3000,
+  //     window: '60 m'
+  //   },
+  //   pricing: {
+  //     pricePerMillion: 7
+  //   },
+  //   reasoning: {
+  //     enabled: true,
+  //     provider: 'deepseek',
+  //     baseModelId: 'deepseek-reasoner',
+  //     tagName: 'think'
+  //   },
+  //   isEnabled: true,
+  // },
+  // {
+  //   id: 'deepseek-chat',
+  //   name: 'DeepSeek V3',
+  //   description: 'The best open source non-reasoning model by DeepSeek',
+  //   provider: 'deepseek',
+  //   supportsVision: false,
+  //   rateLimit: {
+  //     category: 'low',
+  //     requests: 3000,
+  //     window: '60 m'
+  //   },
+  //   pricing: {
+  //     pricePerMillion: 1.25
+  //   },
+  //   isEnabled: true
+  // },
   {
     id: 'gpt-4.5-preview',
     name: 'GPT-4.5',

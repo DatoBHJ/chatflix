@@ -9,11 +9,13 @@ import { Header } from './components/Header'
 import { Sidebar } from './components/Sidebar'
 import { uploadFile } from '@/app/chat/[id]/utils'
 import { Attachment } from '@/lib/types'
-import { ChatInput } from '@/app/components/ChatInput'
+import { DEFAULT_MODEL_ID } from '@/lib/models/config'
+// import { ChatInput } from '@/app/components/ChatInput'
+import { ChatInput } from '@/app/components/ChatInput/index'
 
 export default function Home() {
   const router = useRouter()
-  const [currentModel, setCurrentModel] = useState('claude-3-7-sonnet-latest')
+  const [currentModel, setCurrentModel] = useState(DEFAULT_MODEL_ID)
   const [nextModel, setNextModel] = useState(currentModel)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [user, setUser] = useState<any>(null)

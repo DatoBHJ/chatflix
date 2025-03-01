@@ -1,5 +1,5 @@
 import { Dispatch, SetStateAction, useState, useRef, useEffect } from 'react';
-import { getEnabledModels, ModelConfig } from '@/lib/models/config';
+import { getEnabledModels } from '@/lib/models/config';
 
 interface ModelSelectorProps {
   currentModel: string;
@@ -257,11 +257,11 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
                         {option.description}
                       </div>
                       
-                      {option.id === nextModel && (
+                      {/* {option.id === nextModel && (
                         <div className="selected-indicator text-[var(--accent)]">
                           ✓
                         </div>
-                      )}
+                      )} */}
                     </div>
                   ))
                 ) : (

@@ -12,15 +12,17 @@ import { convertMessage, uploadFile } from './utils'
 import { PageProps, ExtendedMessage } from './types'
 import { Attachment } from '@/lib/types'
 import { useMessages } from '@/app/hooks/useMessages'
+import { DEFAULT_MODEL_ID } from '@/lib/models/config'
 import '@/app/styles/attachments.css'
 import { Message as MessageComponent } from '@/app/components/Message'
-import { ChatInput } from '@/app/components/ChatInput';
+// import { ChatInput } from '@/app/components/ChatInput';
+import { ChatInput } from '@/app/components/ChatInput/index';
 
 
 export default function Chat({ params }: PageProps) {
   const { id: chatId } = use(params)
   const router = useRouter()
-  const [currentModel, setCurrentModel] = useState('claude-3-7-sonnet-latest')
+  const [currentModel, setCurrentModel] = useState(DEFAULT_MODEL_ID)
   const [nextModel, setNextModel] = useState(currentModel)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [isInitialized, setIsInitialized] = useState(false)
