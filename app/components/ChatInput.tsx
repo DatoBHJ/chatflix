@@ -1,3 +1,6 @@
+// // 멀티모달 지원 안 되는 모델 파일 업로드 안하도록 하는 코드 없음. 
+
+
 // import { FormEvent, useEffect, useRef, useState, ReactNode } from 'react';
 // import { createClient } from '@/utils/supabase/client';
 // import { openShortcutsDialog } from './PromptShortcutsDialog'
