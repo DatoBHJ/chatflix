@@ -474,7 +474,7 @@ export function ChatInput({
     try {
       isSubmittingRef.current = true;
 
-      // 제출 전 콘텐츠 저장 - 원본 사용자 입력만 저장
+      // 제출 전 콘텐츠 저장
       const messageContent = content.trim();
 
       // 새 메소드로 입력 필드 클리어
