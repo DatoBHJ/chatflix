@@ -440,6 +440,20 @@ const convertMessageForAI = async (message: Message, modelId: string, supabase?:
   const modelConfig = getModelById(modelId);
   if (!modelConfig) throw new Error('Invalid model');
 
+  if (!modelConfig.supportsVision) {
+    // For non-vision models, ensure content is string and remove image attachments
+    return {
+      role: message.role as MessageRole,
+      content: typeof message.content === 'string' ? message.content :
+               Array.isArray(message.content) ? 
+               (message.content as Array<{ type: string; text: string }>)
+                 .filter(part => part.type === 'text')
+                 .map(part => part.text)
+                 .join('\n') :
+               'Content not available'
+    };
+  }
+
   if (!message.experimental_attachments?.length) {
     return {
       role: message.role as MessageRole,
@@ -447,61 +461,7 @@ const convertMessageForAI = async (message: Message, modelId: string, supabase?:
     };
   }
 
-  // For non-vision models, we'll still allow text/code attachments but filter out images
-  if (!modelConfig.supportsVision) {
-    // Add text content
-    let textContent = typeof message.content === 'string' ? message.content :
-      Array.isArray(message.content) ? 
-        (message.content as Array<{ type: string; text: string }>)
-          .filter(part => part.type === 'text')
-          .map(part => part.text)
-          .join('\n') :
-        'Content not available';
-    
-    // Process text files and code attachments
-    const textAttachments = message.experimental_attachments
-      .filter(attachment => {
-        // Filter text files or code files
-        return (attachment.contentType?.includes('text') || 
-                (attachment as any).fileType === 'code' ||
-                (attachment.name && /\.(js|jsx|ts|tsx|html|css|json|md|py|java|c|cpp|cs|go|rb|php|swift|kt|rs)$/i.test(attachment.name || '')));
-      });
-    
-    if (textAttachments.length > 0) {
-      // Fetch content from each text file
-      const fileContents = await Promise.all(
-        textAttachments.map(async (attachment) => {
-          const fileName = attachment.name || 'Unnamed file';
-          const fileType = (attachment as any).fileType || 'Unknown';
-          let content = null;
-          
-          try {
-            content = await fetchFileContent(attachment.url, supabase);
-          } catch (error) {
-            console.error(`Error fetching content for ${fileName}:`, error);
-          }
-          
-          return {
-            fileName,
-            fileType,
-            content: content || `[Could not fetch content for ${fileName}]`
-          };
-        })
-      );
-      
-      // Append file contents to the message text
-      textContent += `\n\nAttached files:\n${fileContents.map(file => {
-        return `File: ${file.fileName}\nType: ${file.fileType}\n\nContent:\n\`\`\`\n${file.content}\n\`\`\`\n`;
-      }).join('\n')}`;
-    }
-    
-    return {
-      role: message.role as MessageRole,
-      content: textContent
-    };
-  }
-
-  // For vision models, convert message with attachments to multi-modal format
+  // Convert message with attachments to multi-modal format for vision models
   const parts: AIMessageContent[] = [];
   
   // Add text content if exists

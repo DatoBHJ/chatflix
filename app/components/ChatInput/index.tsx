@@ -44,7 +44,6 @@ export function ChatInput({
   const [mentionQueryActive, setMentionQueryActive] = useState(false);
   const [showPDFError, setShowPDFError] = useState(false);
   const [showFolderError, setShowFolderError] = useState(false);
-  const [showImageError, setShowImageError] = useState(false);
   
   // Supabase 클라이언트
   const supabase = createClient();
@@ -58,27 +57,6 @@ export function ChatInput({
 
   // 스타일 적용
   useChatInputStyles();
-
-  // 파일 타입 확인 함수
-  const isTextOrCodeFile = (file: File): boolean => {
-    // 텍스트 파일 또는 코드 파일인지 확인
-    const textTypes = ['text/', 'application/json', 'application/javascript', 'application/xml'];
-    
-    // 확장자로 코드 파일 확인
-    const codeExtensions = ['.js', '.jsx', '.ts', '.tsx', '.html', '.css', '.json', '.md', 
-                           '.py', '.java', '.c', '.cpp', '.cs', '.go', '.rb', '.php', 
-                           '.swift', '.kt', '.rs', '.sh', '.yml', '.yaml', '.toml', '.ini'];
-    
-    // MIME 타입으로 체크
-    const isTextMimeType = textTypes.some(type => file.type.startsWith(type));
-    
-    // 확장자로 체크
-    const isCodeExtension = codeExtensions.some(ext => 
-      file.name.toLowerCase().endsWith(ext)
-    );
-    
-    return isTextMimeType || isCodeExtension;
-  };
 
   // 초기 렌더링 시 자동 포커스
   useEffect(() => {
@@ -94,30 +72,10 @@ export function ChatInput({
       setIsFocused(true);
     }
     
-    // 비전을 지원하지 않는 모델로 변경 시 이미지 파일 필터링
+    // 비전을 지원하지 않는 모델로 변경 시 파일 첨부 초기화
     if (!supportsVision && files.length > 0) {
-      // 텍스트/코드 파일만 유지
-      const textFiles = files.filter(file => isTextOrCodeFile(file));
-      
-      // 이미지 파일이 제거되었다면 fileMap 업데이트
-      if (textFiles.length !== files.length) {
-        const filteredMap = new Map();
-        textFiles.forEach(file => {
-          if (fileMap.has(file.name)) {
-            filteredMap.set(file.name, fileMap.get(file.name));
-          }
-        });
-        
-        // 제거된 파일의 URL 해제
-        fileMap.forEach(({ url }, filename) => {
-          if (!filteredMap.has(filename)) {
-            URL.revokeObjectURL(url);
-          }
-        });
-        
-        setFiles(textFiles);
-        setFileMap(filteredMap);
-      }
+      setFiles([]);
+      setFileMap(new Map());
     }
   }, [modelId, supportsVision, files.length]);
 
@@ -676,22 +634,13 @@ export function ChatInput({
 
   // 파일 처리
   const handleFiles = (newFiles: FileList) => {
-    // FileList를 Array로 변환
+    // FileList를 Array로 변환하고 PDF 파일 필터링
     const newFileArray = Array.from(newFiles).filter(file => {
-      // PDF 파일 필터링
       if (fileHelpers.isPDFFile(file)) {
         setShowPDFError(true);
         setTimeout(() => setShowPDFError(false), 3000);
         return false;
       }
-      
-      // 비전을 지원하지 않는 모델에서는 텍스트/코드 파일만 허용
-      if (!supportsVision && !isTextOrCodeFile(file)) {
-        setShowImageError(true);
-        setTimeout(() => setShowImageError(false), 3000);
-        return false;
-      }
-      
       return true;
     });
     
@@ -749,50 +698,58 @@ export function ChatInput({
         onSubmit={handleMessageSubmit} 
         className={`flex flex-col gap-2 sticky bottom-0 bg-transparent p-1 md:p-0
           ${dragActive ? 'drag-target-active' : ''}`}
-        onDragEnter={handleDrag}
-        onDragOver={handleDrag}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        onDragEnter={supportsVision ? handleDrag : undefined}
+        onDragOver={supportsVision ? handleDrag : undefined}
+        onDragLeave={supportsVision ? handleDragLeave : undefined}
+        onDrop={supportsVision ? handleDrop : undefined}
       >
         {/* 파일 미리보기 섹션 */}
-        <FilePreview 
-          files={files} 
-          fileMap={fileMap} 
-          removeFile={removeFile} 
-        />
+        {supportsVision && (
+          <FilePreview 
+            files={files} 
+            fileMap={fileMap} 
+            removeFile={removeFile} 
+          />
+        )}
 
         {/* 에러 토스트 */}
-        <ErrorToast show={showPDFError} message="PDF files are not supported" />
-        <ErrorToast show={showFolderError} message="Folders cannot be uploaded" />
-        <ErrorToast show={showImageError} message="This model only supports text and code files" />
+        {supportsVision && (
+          <>
+            <ErrorToast show={showPDFError} message="PDF files are not supported" />
+            <ErrorToast show={showFolderError} message="Folders cannot be uploaded" />
+          </>
+        )}
 
         {/* 드래그 & 드롭 영역 */}
         <div 
           className={`relative transition-all duration-300 ${dragActive ? 'scale-[1.01]' : ''}`}
-          onDragEnter={handleDrag}
-          onDragLeave={handleDragLeave}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
+          onDragEnter={supportsVision ? handleDrag : undefined}
+          onDragLeave={supportsVision ? handleDragLeave : undefined}
+          onDragOver={supportsVision ? handleDrag : undefined}
+          onDrop={supportsVision ? handleDrop : undefined}
         >
           <input
             type="file"
-            accept={supportsVision ? "image/*,text/*" : "text/*,.js,.jsx,.ts,.tsx,.html,.css,.json,.md,.py,.java,.c,.cpp,.cs,.go,.rb,.php,.swift,.kt,.rs"}
+            accept="image/*,text/*" // PDF 제외
             onChange={(e) => {
-              if (e.target.files) {
+              if (e.target.files && supportsVision) {
                 handleFiles(e.target.files);
               }
             }}
             ref={fileInputRef}
             className="hidden"
             multiple
+            disabled={!supportsVision}
           />
           
           <div className="flex gap-0 items-center input-container py-2">
-            {/* 파일 업로드 버튼 - 모든 모델에 표시 */}
-            <FileUploadButton 
-              filesCount={files.length} 
-              onClick={() => fileInputRef.current?.click()} 
-            />
+            {/* 파일 업로드 버튼 - 비전 모델만 표시 */}
+            {supportsVision && (
+              <FileUploadButton 
+                filesCount={files.length} 
+                onClick={() => fileInputRef.current?.click()} 
+              />
+            )}
 
             <div
               ref={inputRef}
@@ -840,7 +797,7 @@ export function ChatInput({
         </div>
 
         {/* 드래그 & 드롭 오버레이 */}
-        <DragDropOverlay dragActive={dragActive} />
+        {supportsVision && <DragDropOverlay dragActive={dragActive} />}
 
         {/* 숏컷 팝업 */}
         <PromptShortcuts
