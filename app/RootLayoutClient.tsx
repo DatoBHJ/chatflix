@@ -60,9 +60,9 @@ export default function RootLayoutClient({
         "anthropic-models-down"
       );
       showAnnouncement(
-        "We are facing some issues with file reading which is currently fixed. Please try again later.",
+        "File uploads have been temporarily disabled due to an ongoing issue with file reading. We expect to restore this functionality soon.",
         "error",
-        "file-read"
+        "file-read-disabled"
       );
     }
   }, [user, showAnnouncement]);
