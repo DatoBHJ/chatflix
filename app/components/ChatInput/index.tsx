@@ -71,7 +71,13 @@ export function ChatInput({
       inputRef.current.focus();
       setIsFocused(true);
     }
-  }, [modelId]);
+    
+    // 비전을 지원하지 않는 모델로 변경 시 파일 첨부 초기화
+    if (!supportsVision && files.length > 0) {
+      setFiles([]);
+      setFileMap(new Map());
+    }
+  }, [modelId, supportsVision, files.length]);
 
   // 테마 변경 감지
   useEffect(() => {
@@ -692,49 +698,58 @@ export function ChatInput({
         onSubmit={handleMessageSubmit} 
         className={`flex flex-col gap-2 sticky bottom-0 bg-transparent p-1 md:p-0
           ${dragActive ? 'drag-target-active' : ''}`}
-        onDragEnter={handleDrag}
-        onDragOver={handleDrag}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        onDragEnter={supportsVision ? handleDrag : undefined}
+        onDragOver={supportsVision ? handleDrag : undefined}
+        onDragLeave={supportsVision ? handleDragLeave : undefined}
+        onDrop={supportsVision ? handleDrop : undefined}
       >
         {/* 파일 미리보기 섹션 */}
-        <FilePreview 
-          files={files} 
-          fileMap={fileMap} 
-          removeFile={removeFile} 
-        />
+        {supportsVision && (
+          <FilePreview 
+            files={files} 
+            fileMap={fileMap} 
+            removeFile={removeFile} 
+          />
+        )}
 
         {/* 에러 토스트 */}
-        <ErrorToast show={showPDFError} message="PDF files are not supported" />
-        <ErrorToast show={showFolderError} message="Folders cannot be uploaded" />
+        {supportsVision && (
+          <>
+            <ErrorToast show={showPDFError} message="PDF files are not supported" />
+            <ErrorToast show={showFolderError} message="Folders cannot be uploaded" />
+          </>
+        )}
 
         {/* 드래그 & 드롭 영역 */}
         <div 
           className={`relative transition-all duration-300 ${dragActive ? 'scale-[1.01]' : ''}`}
-          onDragEnter={handleDrag}
-          onDragLeave={handleDragLeave}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
+          onDragEnter={supportsVision ? handleDrag : undefined}
+          onDragLeave={supportsVision ? handleDragLeave : undefined}
+          onDragOver={supportsVision ? handleDrag : undefined}
+          onDrop={supportsVision ? handleDrop : undefined}
         >
           <input
             type="file"
             accept="image/*,text/*" // PDF 제외
             onChange={(e) => {
-              if (e.target.files) {
+              if (e.target.files && supportsVision) {
                 handleFiles(e.target.files);
               }
             }}
             ref={fileInputRef}
             className="hidden"
             multiple
+            disabled={!supportsVision}
           />
           
           <div className="flex gap-0 items-center input-container py-2">
-            {/* 파일 업로드 버튼 */}
-            <FileUploadButton 
-              filesCount={files.length} 
-              onClick={() => fileInputRef.current?.click()} 
-            />
+            {/* 파일 업로드 버튼 - 비전 모델만 표시 */}
+            {supportsVision && (
+              <FileUploadButton 
+                filesCount={files.length} 
+                onClick={() => fileInputRef.current?.click()} 
+              />
+            )}
 
             <div
               ref={inputRef}
@@ -782,7 +797,7 @@ export function ChatInput({
         </div>
 
         {/* 드래그 & 드롭 오버레이 */}
-        <DragDropOverlay dragActive={dragActive} />
+        {supportsVision && <DragDropOverlay dragActive={dragActive} />}
 
         {/* 숏컷 팝업 */}
         <PromptShortcuts
