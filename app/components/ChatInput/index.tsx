@@ -458,6 +458,30 @@ export function ChatInput({
         dataTransfer.items.add(file);
       });
 
+      // 파일 첨부 정보 생성
+      const attachments = Array.from(files).map(file => {
+        // 파일 타입 결정
+        let fileType: 'image' | 'code' | 'pdf' | 'file' = 'file';
+        if (file.type.startsWith('image/')) {
+          fileType = 'image';
+        } else if (file.type.includes('text') || 
+                  /\.(js|jsx|ts|tsx|html|css|json|md|py|java|c|cpp|cs|go|rb|php|swift|kt|rs)$/i.test(file.name)) {
+          fileType = 'code';
+        } else if (file.name.endsWith('.pdf')) {
+          fileType = 'pdf';
+        }
+        
+        return {
+          name: file.name,
+          contentType: file.type,
+          url: fileMap.get(file.name)?.url || '',
+          fileType: fileType
+        };
+      });
+
+      // 파일 정보를 submitEvent에 추가
+      (submitEvent as any).experimental_attachments = attachments;
+      
       // 저장된 콘텐츠와 파일로 폼 제출
       await handleSubmit(submitEvent, dataTransfer.files);
       
@@ -744,12 +768,12 @@ export function ChatInput({
           
           <div className="flex gap-0 items-center input-container py-2">
             {/* 파일 업로드 버튼 - 비전 모델만 표시 */}
-            {supportsVision && (
+            {/* {supportsVision && (
               <FileUploadButton 
                 filesCount={files.length} 
                 onClick={() => fileInputRef.current?.click()} 
               />
-            )}
+            )} */}
 
             <div
               ref={inputRef}
@@ -797,7 +821,7 @@ export function ChatInput({
         </div>
 
         {/* 드래그 & 드롭 오버레이 */}
-        {supportsVision && <DragDropOverlay dragActive={dragActive} />}
+        {/* {supportsVision && <DragDropOverlay dragActive={dragActive} />} */}
 
         {/* 숏컷 팝업 */}
         <PromptShortcuts
