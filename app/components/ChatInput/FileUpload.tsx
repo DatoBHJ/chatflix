@@ -114,7 +114,7 @@ export function FilePreview({ files, fileMap, removeFile }: FilePreviewProps) {
   return (
     <div className="absolute bottom-full right-0 mb-4 bg-[var(--background)]/80 image-preview-container p-4 max-w-[80%] max-h-[200px] ml-auto">
       <div className="flex gap-4 image-preview-scroll" style={{ maxWidth: '100%' }}>
-        {files.map((file) => {
+        {[...files].reverse().map((file) => {
           const fileData = fileMap.get(file.name);
           if (!fileData) return null;
 

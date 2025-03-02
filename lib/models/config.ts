@@ -25,70 +25,70 @@ export interface ModelConfig {
 }
 
 // Default model configuration
-export const DEFAULT_MODEL_ID = 'deepseek-ai/DeepSeek-R1'; 
+export const DEFAULT_MODEL_ID = 'claude-3-7-sonnet-latest'; 
 
 
 export const MODEL_CONFIGS: ModelConfig[] = [
-  // {
-  //   id: 'claude-3-7-sonnet-20250219',
-  //   name: 'Claude 3.7 Sonnet (Thinking)',
-  //   description: "Anthropic's most intelligent model yet with extended thinking capability.",
-  //   provider: 'anthropic',
-  //   supportsVision: true,
-  //   rateLimit: {
-  //     category: 'high',
-  //     requests: 30,
-  //     window: '60 m'
-  //   },
-  //   pricing: {
-  //     pricePerMillion: 9,
-  //     inputPrice: 3,
-  //     outputPrice: 15
-  //   },
-  //   isEnabled: true,
-  //   reasoning: {
-  //     enabled: true,
-  //     provider: 'anthropic',
-  //     baseModelId: 'claude-3-7-sonnet-20250219',
-  //     budgetTokens: 12000
-  //   }
-  // },
-  // {
-  //   id: 'claude-3-7-sonnet-latest',
-  //   name: 'Claude 3.7 Sonnet',
-  //   description: "Anthropic's most intelligent model.",
-  //   provider: 'anthropic',
-  //   supportsVision: true,
-  //   rateLimit: {
-  //     category: 'low',
-  //     requests: 30,
-  //     window: '60 m'
-  //   },
-  //   pricing: {
-  //     pricePerMillion: 9,
-  //     inputPrice: 3,
-  //     outputPrice: 15
-  //   },
-  //   isEnabled: true
-  // },
-  // {
-  //   id: 'claude-3-5-sonnet-latest',
-  //   name: 'Claude 3.5 Sonnet',
-  //   description: 'GOAT',
-  //   provider: 'anthropic',
-  //   supportsVision: true,
-  //   rateLimit: {
-  //     category: 'low',
-  //     requests: 30,
-  //     window: '60 m'
-  //   },
-  //   pricing: {
-  //     pricePerMillion: 9,
-  //     inputPrice: 3,
-  //     outputPrice: 15
-  //   },
-  //   isEnabled: true
-  // },
+  {
+    id: 'claude-3-7-sonnet-20250219',
+    name: 'Claude 3.7 Sonnet (Thinking)',
+    description: "Anthropic's most intelligent model yet with extended thinking capability.",
+    provider: 'anthropic',
+    supportsVision: true,
+    rateLimit: {
+      category: 'high',
+      requests: 30,
+      window: '60 m'
+    },
+    pricing: {
+      pricePerMillion: 9,
+      inputPrice: 3,
+      outputPrice: 15
+    },
+    isEnabled: true,
+    reasoning: {
+      enabled: true,
+      provider: 'anthropic',
+      baseModelId: 'claude-3-7-sonnet-20250219',
+      budgetTokens: 12000
+    }
+  },
+  {
+    id: 'claude-3-7-sonnet-latest',
+    name: 'Claude 3.7 Sonnet',
+    description: "Anthropic's most intelligent model.",
+    provider: 'anthropic',
+    supportsVision: true,
+    rateLimit: {
+      category: 'low',
+      requests: 30,
+      window: '60 m'
+    },
+    pricing: {
+      pricePerMillion: 9,
+      inputPrice: 3,
+      outputPrice: 15
+    },
+    isEnabled: true
+  },
+  {
+    id: 'claude-3-5-sonnet-latest',
+    name: 'Claude 3.5 Sonnet',
+    description: 'GOAT',
+    provider: 'anthropic',
+    supportsVision: true,
+    rateLimit: {
+      category: 'low',
+      requests: 30,
+      window: '60 m'
+    },
+    pricing: {
+      pricePerMillion: 9,
+      inputPrice: 3,
+      outputPrice: 15
+    },
+    isEnabled: true
+  },
   {
     id: 'deepseek-ai/DeepSeek-R1',
     name: 'DeepSeek R1',
