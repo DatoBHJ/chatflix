@@ -13,54 +13,6 @@ export function useChatInputStyles() {
         white-space: nowrap;
       }
       
-      .mention-tag {
-        display: inline-flex !important;
-        align-items: center;
-        white-space: nowrap !important;
-        padding: 1px 6px 1px 4px;
-        margin: 0;
-        border-radius: 4px;
-        background-color: rgba(239, 68, 68, 0.15);
-        color: rgb(239, 68, 68);
-        font-weight: 500;
-        user-select: none;
-        transition: all 0.2s ease;
-        position: relative;
-        z-index: 1;
-      }
-      
-      .mention-tag::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(to right, rgba(239, 68, 68, 0.15), transparent);
-        opacity: 0;
-        transition: opacity 0.3s ease;
-        border-radius: 4px;
-        z-index: -1;
-      }
-      
-      .mention-tag:hover {
-        background-color: rgba(239, 68, 68, 0.25);
-      }
-      
-      .mention-tag:hover::before {
-        opacity: 0.6;
-        animation: shimmer 1.5s infinite;
-      }
-      
-      @keyframes shimmer {
-        0% {
-          transform: translateX(-100%);
-        }
-        100% {
-          transform: translateX(100%);
-        }
-      }
-      
       /* 검색 결과 스타일 개선 */
       .shortcut-item {
         width: 100%;
@@ -318,7 +270,6 @@ export function useChatInputStyles() {
         opacity: 0;
         transform: translateY(-6px);
         transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
-// app/components/chat/ChatInput/ChatInputStyles.tsx (계속)
         backdrop-filter: blur(4px);
         border: 1px solid rgba(255, 255, 255, 0.1);
         font-size: 14px;
