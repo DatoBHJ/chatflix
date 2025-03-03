@@ -91,7 +91,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
   },
   {
     id: 'deepseek-ai/DeepSeek-R1',
-    name: 'DeepSeek R1',
+    name: 'DeepSeek R1 (Thinking)',
     description: 'The best open source reasoning model by DeepSeek via Together.ai',
     provider: 'together',
     supportsVision: false,
@@ -127,44 +127,44 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     },
     isEnabled: true
   },
-  // {
-  //   id: 'deepseek-reasoner',
-  //   name: 'DeepSeek R1',
-  //   description: 'The best open source reasoning model by DeepSeek',
-  //   provider: 'deepseek',
-  //   supportsVision: false,
-  //   rateLimit: {
-  //     category: 'low',
-  //     requests: 3000,
-  //     window: '60 m'
-  //   },
-  //   pricing: {
-  //     pricePerMillion: 7
-  //   },
-  //   reasoning: {
-  //     enabled: true,
-  //     provider: 'deepseek',
-  //     baseModelId: 'deepseek-reasoner',
-  //     tagName: 'think'
-  //   },
-  //   isEnabled: true,
-  // },
-  // {
-  //   id: 'deepseek-chat',
-  //   name: 'DeepSeek V3',
-  //   description: 'The best open source non-reasoning model by DeepSeek',
-  //   provider: 'deepseek',
-  //   supportsVision: false,
-  //   rateLimit: {
-  //     category: 'low',
-  //     requests: 3000,
-  //     window: '60 m'
-  //   },
-  //   pricing: {
-  //     pricePerMillion: 1.25
-  //   },
-  //   isEnabled: true
-  // },
+  {
+    id: 'deepseek-reasoner',
+    name: 'DeepSeek R1 (Thinking)',
+    description: 'The best open source reasoning model by DeepSeek',
+    provider: 'deepseek',
+    supportsVision: false,
+    rateLimit: {
+      category: 'low',
+      requests: 3000,
+      window: '60 m'
+    },
+    pricing: {
+      pricePerMillion: 7
+    },
+    reasoning: {
+      enabled: true,
+      provider: 'deepseek',
+      baseModelId: 'deepseek-reasoner',
+      tagName: 'think'
+    },
+    isEnabled: true,
+  },
+  {
+    id: 'deepseek-chat',
+    name: 'DeepSeek V3',
+    description: 'The best open source non-reasoning model by DeepSeek',
+    provider: 'deepseek',
+    supportsVision: false,
+    rateLimit: {
+      category: 'low',
+      requests: 3000,
+      window: '60 m'
+    },
+    pricing: {
+      pricePerMillion: 1.25
+    },
+    isEnabled: true
+  },
   {
     id: 'gpt-4.5-preview',
     name: 'GPT-4.5',
@@ -202,40 +202,40 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     isEnabled: true
   },
   {
-    id: 'o1',
-    name: 'o1',
-    description: 'Advanced reasoning model by OpenAI',
-    provider: 'openai',
-    supportsVision: true,
-    rateLimit: {
-      category: 'superHigh',
-      requests: 15,
-      window: '60 m'
+    "id": "o1",
+    "name": "o1 (Thinking)",
+    "description": "Advanced reasoning model by OpenAI. Reasoning tokens used in its chain-of-thought process are hidden by OpenAI and not included in the visible output.",
+    "provider": "openai",
+    "supportsVision": true,
+    "rateLimit": {
+      "category": "superHigh",
+      "requests": 15,
+      "window": "60 m"
     },
-    pricing: {
-      pricePerMillion: 37.5,
-      inputPrice: 15,
-      outputPrice: 60
+    "pricing": {
+      "pricePerMillion": 37.5,
+      "inputPrice": 15,
+      "outputPrice": 60
     },
-    isEnabled: true
+    "isEnabled": true
   },
   {
-    id: 'o3-mini',
-    name: 'o3-mini',
-    description: 'Latest small reasoning model by OpenAI',
-    provider: 'openai',
-    supportsVision: true,
-    rateLimit: {
-      category: 'low',
-      requests: 100,
-      window: '60 m'
+    "id": "o3-mini",
+    "name": "o3-mini (Thinking)",
+    "description": "Latest small reasoning model by OpenAI. Reasoning tokens used in its chain-of-thought process are hidden by OpenAI and not included in the visible output.",
+    "provider": "openai",
+    "supportsVision": true,
+    "rateLimit": {
+      "category": "low",
+      "requests": 100,
+      "window": "60 m"
     },
-    pricing: {
-      pricePerMillion: 2.75,
-      inputPrice: 1.1,
-      outputPrice: 4.4
+    "pricing": {
+      "pricePerMillion": 2.75,
+      "inputPrice": 1.1,
+      "outputPrice": 4.4
     },
-    isEnabled: true
+    "isEnabled": true
   },
   {
     id: 'gemini-2.0-flash',

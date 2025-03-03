@@ -1,5 +1,29 @@
 import { Dispatch, SetStateAction, useState, useRef, useEffect } from 'react';
 import { getEnabledModels } from '@/lib/models/config';
+import Image from 'next/image';
+import type { ModelConfig } from '@/lib/models/config';
+
+// Helper function to get the logo path based on provider
+const getProviderLogo = (provider: ModelConfig['provider']) => {
+  const logoMap: Partial<Record<ModelConfig['provider'], string>> = {
+    anthropic: '/logo/anthropic.svg',
+    openai: '/logo/openai.svg',
+    google: '/logo/google.svg',
+    together: '/logo/together.svg',
+    xai: '/logo/grok.svg',
+    deepseek: '/logo/deepseek.svg',
+    groq: '/logo/groq.svg'
+  };
+  
+  // For providers without specific logos, we'll use a text-based fallback
+  return logoMap[provider] || '';
+};
+
+// Helper function to check if a logo exists for a provider
+const hasLogo = (provider: ModelConfig['provider']) => {
+  const providersWithLogos: ModelConfig['provider'][] = ['anthropic', 'openai', 'google', 'together', 'xai', 'deepseek', 'groq'];
+  return providersWithLogos.includes(provider);
+};
 
 interface ModelSelectorProps {
   currentModel: string;
@@ -177,6 +201,47 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
           border-radius: 2px;
         }
       }
+      
+      /* 모델 옵션 내 로고 스타일 */
+      .provider-logo {
+        transition: all 0.3s ease;
+        opacity: 0.7;
+      }
+      
+      .model-option:hover .provider-logo {
+        opacity: 1;
+      }
+      
+      /* 툴팁 스타일 */
+      .tooltip {
+        position: relative;
+      }
+      
+      .tooltip::before {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%) translateY(-4px);
+        padding: 4px 8px;
+        background: var(--background);
+        color: var(--foreground);
+        font-size: 10px;
+        border-radius: 4px;
+        white-space: nowrap;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        pointer-events: none;
+        z-index: 100;
+      }
+      
+      .tooltip:hover::before {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(-50%) translateY(-8px);
+      }
     `;
     
     document.head.appendChild(style);
@@ -194,13 +259,35 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
         <div className={`relative ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
           <button
             onClick={() => !disabled && setIsOpen(!isOpen)}
-            className={`futuristic-select-button px-3 py-1 text-sm tracking-wide transition-all ${isOpen ? 'text-[var(--foreground)] active' : 'text-[var(--muted)] hover:text-[var(--foreground)]'}`}
+            className={`futuristic-select-button px-3 py-1 text-sm tracking-wide transition-all flex items-center ${isOpen ? 'text-[var(--foreground)] active' : 'text-[var(--muted)] hover:text-[var(--foreground)]'}`}
             disabled={disabled}
             aria-expanded={isOpen}
             aria-haspopup="listbox"
           >
-            {currentModelOption?.name || nextModel}
-            <span className="ml-2 opacity-60 text-xl">▾</span>
+            <div className="flex items-center gap-2">
+              {currentModelOption?.provider && (
+                <div 
+                  className="provider-logo w-4 h-4 flex-shrink-0 tooltip" 
+                  data-tooltip={currentModelOption.provider.charAt(0).toUpperCase() + currentModelOption.provider.slice(1)}
+                >
+                  {hasLogo(currentModelOption.provider) ? (
+                    <Image 
+                      src={getProviderLogo(currentModelOption.provider)}
+                      alt={`${currentModelOption.provider} logo`}
+                      width={16}
+                      height={16}
+                      className="object-contain"
+                    />
+                  ) : (
+                    <div className="w-4 h-4 flex items-center justify-center text-[8px] uppercase bg-[var(--accent)]/10 rounded-sm">
+                      {currentModelOption.provider.substring(0, 1)}
+                    </div>
+                  )}
+                </div>
+              )}
+              <span>{currentModelOption?.name || nextModel}</span>
+            </div>
+            <span className="ml-1 opacity-60 text-xl">▾</span>
           </button>
           
           {isOpen && !disabled && (
@@ -247,21 +334,41 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
                       role="option"
                       aria-selected={option.id === nextModel}
                     >
-                      <div className="text-base font-normal mb-1 transition-all">
-                        <span className="model-name">
-                          {option.name}
-                        </span>
-                      </div>
-                      <div className={`text-xs transition-all
-                                   ${option.id === nextModel || hoverIndex === index ? 'text-[var(--muted)]' : 'text-[var(--muted)] opacity-60'}`}>
-                        {option.description}
-                      </div>
-                      
-                      {/* {option.id === nextModel && (
-                        <div className="selected-indicator text-[var(--accent)]">
-                          ✓
+                      <div className="flex flex-col">
+                        <div className="text-base font-normal mb-1 transition-all flex items-center gap-2">
+                          {/* Provider Logo */}
+                          {option.provider && (
+                            <div 
+                              className="provider-logo w-4 h-4 flex-shrink-0 tooltip" 
+                              data-tooltip={option.provider.charAt(0).toUpperCase() + option.provider.slice(1)}
+                            >
+                              {hasLogo(option.provider) ? (
+                                <Image 
+                                  src={getProviderLogo(option.provider)}
+                                  alt={`${option.provider} logo`}
+                                  width={16}
+                                  height={16}
+                                  className="object-contain"
+                                />
+                              ) : (
+                                <div className="w-4 h-4 flex items-center justify-center text-[8px] uppercase bg-[var(--accent)]/10 rounded-sm">
+                                  {option.provider.substring(0, 1)}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          <span className="model-name">
+                            {option.name}
+                          </span>
                         </div>
-                      )} */}
+                        <div className="flex items-start">
+                          <div className="w-4 mr-2 flex-shrink-0"></div>
+                          <div className={`text-xs transition-all
+                                    ${option.id === nextModel || hoverIndex === index ? 'text-[var(--muted)]' : 'text-[var(--muted)] opacity-60'}`}>
+                            {option.description}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   ))
                 ) : (
