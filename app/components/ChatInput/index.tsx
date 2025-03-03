@@ -547,13 +547,39 @@ export function ChatInput({
           setLastTypedChar(e.key);
           break;
       }
-    } else if (e.key === 'Enter' && !e.shiftKey) {
-      // 숏컷 목록이 닫혀있는 경우 엔터로 메시지 제출
-      e.preventDefault();
-      if (!isSubmittingRef.current && !isLoading) {
-        formRef.current?.dispatchEvent(
-          new Event('submit', { cancelable: true, bubbles: true })
-        );
+    } else if (e.key === 'Enter') {
+      if (e.shiftKey) {
+        // Shift+Enter: 사파리 호환성을 위한 명시적 줄바꿈 처리
+        e.preventDefault();
+        
+        // 현재 선택 범위 및 커서 위치 가져오기
+        const selection = window.getSelection();
+        const range = selection?.getRangeAt(0);
+        
+        if (range && inputRef.current) {
+          // 줄바꿈 요소 생성
+          const br = document.createElement('br');
+          range.deleteContents();
+          range.insertNode(br);
+          
+          // 커서 위치 조정
+          range.setStartAfter(br);
+          range.setEndAfter(br);
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          
+          // 입력 변경 이벤트 발생
+          const event = new Event('input', { bubbles: true });
+          inputRef.current.dispatchEvent(event);
+        }
+      } else {
+        // 일반 Enter: 메시지 제출
+        e.preventDefault();
+        if (!isSubmittingRef.current && !isLoading) {
+          formRef.current?.dispatchEvent(
+            new Event('submit', { cancelable: true, bubbles: true })
+          );
+        }
       }
     }
   };
