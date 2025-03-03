@@ -1,3 +1,4 @@
+// // 이 파일은 현재 사용되지 않음. 대신 app/components/ChatInput 폴더 파일들을 사용중. 
 // // 멀티모달 지원 안 되는 모델 파일 업로드 안하도록 하는 코드 없음. 
 
 
@@ -82,12 +83,20 @@
 //   }, []);
 
 //   // Add focus effect when model changes
+//   // 모델 변경 시 포커스 효과
 //   useEffect(() => {
 //     if (inputRef.current) {
-//       inputRef.current.focus();
+//       // 포커스 효과 적용
 //       setIsFocused(true);
+      
+//       // 잠시 후 포커스 효과 제거
+//       const timer = setTimeout(() => {
+//         setIsFocused(false);
+//       }, 1000); // 1초 후 효과 제거
+      
+//       return () => clearTimeout(timer);
 //     }
-//   }, [modelId]);
+//   }, [modelId]); // modelId가 변경될 때마다 실행
 
 //   // Add theme change detection
 //   useEffect(() => {

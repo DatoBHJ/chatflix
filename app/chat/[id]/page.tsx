@@ -37,6 +37,7 @@ export default function Chat({ params }: PageProps) {
     body: {
       model: nextModel,
       chatId,
+      experimental_attachments: true
     },
     id: chatId,
     initialMessages: existingMessages,
@@ -62,7 +63,9 @@ export default function Chat({ params }: PageProps) {
       const errorResponse = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: `⚠️ Error: rate limit reached, please try again later or change the model`,
+        content: `⚠️ Error: please try again later or change the model`,
+        // content: `⚠️ Error: rate limit reached, please try again later or change the model`,
+        // content: errorMessage,
         createdAt: new Date(),
         model: nextModel
       } as ExtendedMessage
@@ -294,7 +297,7 @@ export default function Chat({ params }: PageProps) {
   }
 
   const handleModelSubmit = useCallback(async (e: React.FormEvent, files?: FileList) => {
-    e.preventDefault()
+    e.preventDefault();
     
     if (nextModel !== currentModel) {
       const success = await handleModelChange(nextModel)
@@ -331,10 +334,60 @@ export default function Chat({ params }: PageProps) {
             type: 'image',
             image: attachment.url
           })
+        } else if (attachment.contentType?.includes('text') || 
+                  (attachment.name && /\.(js|jsx|ts|tsx|html|css|json|md|py|java|c|cpp|cs|go|rb|php|swift|kt|rs)$/i.test(attachment.name))) {
+          messageContent.push({
+            type: 'text_file',
+            file_url: attachment.url,
+            file_name: attachment.name
+          })
         }
       })
     }
 
+    // Save message to Supabase first
+    const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+    // Get the latest sequence number
+    const { data: currentMax } = await supabase
+      .from('messages')
+      .select('sequence_number')
+      .eq('chat_session_id', chatId)
+      .eq('user_id', user?.id)
+      .order('sequence_number', { ascending: false })
+      .limit(1)
+      .single()
+
+    const sequence = (currentMax?.sequence_number || 0) + 1
+
+    // Extract only text content for the content field
+    const textContent = messageContent.length === 1 ? 
+      messageContent[0].text : 
+      messageContent.filter(part => part.type === 'text')
+                   .map(part => part.text)
+                   .join(' ');
+
+    const { error: messageError } = await supabase
+      .from('messages')
+      .insert([{
+        id: messageId,
+        content: textContent, // Save only text content
+        role: 'user',
+        created_at: new Date().toISOString(),
+        model: nextModel,
+        host: 'user',
+        chat_session_id: chatId,
+        user_id: user?.id,
+        experimental_attachments: attachments,
+        sequence_number: sequence
+      }])
+
+    if (messageError) {
+      console.error('Failed to save message:', messageError)
+      return
+    }
+
+    // Only call API without saving to database
     await handleSubmit(e, {
       body: {
         model: nextModel,
@@ -342,15 +395,18 @@ export default function Chat({ params }: PageProps) {
         messages: [
           ...messages,
           {
+            id: messageId,
             role: 'user',
-            content: messageContent.length === 1 ? messageContent[0].text : messageContent
+            content: textContent,
+            experimental_attachments: attachments
           }
-        ]
+        ],
+        saveToDb: false // Add flag to prevent saving in API
       },
-      experimental_attachments: attachments.length > 0 ? attachments : undefined
+      experimental_attachments: attachments
     })
 
-  }, [nextModel, currentModel, chatId, handleSubmit, input, messages])
+  }, [nextModel, currentModel, chatId, handleSubmit, input, messages, user?.id])
 
   const handleStop = useCallback(async () => {
     try {

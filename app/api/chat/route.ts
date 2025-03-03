@@ -204,8 +204,8 @@ const saveUserMessage = async (supabase: any, chatId: string | undefined, userId
     attachments = message.experimental_attachments || [];
   } else {
     // Handle multi-modal content
-    const textPart = message.content.find(part => part.type === 'text');
-    messageContent = textPart?.text || '';
+    const textParts = message.content.filter(part => part.type === 'text');
+    messageContent = textParts.map(part => part.text).join(' ');
     
     // Extract attachments from content array if they exist
     const imageParts = message.content.filter(part => part.type === 'image');
@@ -440,20 +440,6 @@ const convertMessageForAI = async (message: Message, modelId: string, supabase?:
   const modelConfig = getModelById(modelId);
   if (!modelConfig) throw new Error('Invalid model');
 
-  if (!modelConfig.supportsVision) {
-    // For non-vision models, ensure content is string and remove image attachments
-    return {
-      role: message.role as MessageRole,
-      content: typeof message.content === 'string' ? message.content :
-               Array.isArray(message.content) ? 
-               (message.content as Array<{ type: string; text: string }>)
-                 .filter(part => part.type === 'text')
-                 .map(part => part.text)
-                 .join('\n') :
-               'Content not available'
-    };
-  }
-
   if (!message.experimental_attachments?.length) {
     return {
       role: message.role as MessageRole,
@@ -563,7 +549,7 @@ export async function POST(req: Request) {
           throw new Error('Unauthorized');
         }
 
-        const { messages, model, chatId, isRegeneration, existingMessageId, isReasoningEnabled = true }: ChatRequest & { isReasoningEnabled?: boolean } = await req.json();
+        const { messages, model, chatId, isRegeneration, existingMessageId, isReasoningEnabled = true, saveToDb = true }: ChatRequest & { isReasoningEnabled?: boolean; saveToDb?: boolean } = await req.json();
 
         if (!messages || !Array.isArray(messages) || messages.length === 0) {
           throw new Error('Invalid messages format');
@@ -590,9 +576,23 @@ export async function POST(req: Request) {
         const processedLastMessage = await handlePromptShortcuts(supabase, lastMessage, user.id) as MultiModalMessage;
         processMessages[processMessages.length - 1] = processedLastMessage;
 
-        // Save messages
-        if (lastMessage.role === 'user' && !isRegeneration) {
-          await saveUserMessage(supabase, chatId, user.id, lastMessage, model);
+        // Save messages only if saveToDb is true and it's not the initial message from home page
+        if (lastMessage.role === 'user' && !isRegeneration && saveToDb) {
+          // Check if this is the first message in the chat session
+          const { data: existingMessages } = await supabase
+            .from('messages')
+            .select('id')
+            .eq('chat_session_id', chatId)
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: true })
+            .limit(2);
+          
+          // Only save if this is not the initial message (more than 1 message exists or no messages exist)
+          const isInitialMessage = existingMessages?.length === 1;
+          
+          if (!isInitialMessage) {
+            await saveUserMessage(supabase, chatId, user.id, lastMessage, model);
+          }
         }
 
         const assistantMessageId = isRegeneration && existingMessageId 

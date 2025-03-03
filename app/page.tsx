@@ -34,10 +34,11 @@ export default function Home() {
     getUser()
   }, [supabase.auth, router])
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, stop } = useChat({
+  const { input, handleInputChange, isLoading, stop } = useChat({
     api: '/api/chat',
     body: {
-      model: currentModel
+      model: currentModel,
+      experimental_attachments: true,
     }
   })
 
@@ -144,7 +145,6 @@ export default function Home() {
       <div className="flex-1 flex flex-col items-center justify-center">
         <div className="w-full max-w-2xl px-6 sm:px-8 pb-12 sm:pb-32">
           <div className="space-y-0">
-            {/* <h1 className="text-xs sm:text-base uppercase tracking-wider mb-0 text-[var(--muted)] text-start font-extralight">chatflix.app</h1> */}
             <ModelSelector
               currentModel={currentModel}
               nextModel={nextModel}
@@ -163,8 +163,6 @@ export default function Home() {
               modelId={nextModel}
               popupPosition="bottom"
             />
-            {/* <h1 className="text-xs sm:text-base uppercase tracking-wider text-[var(--muted)] text-start font-extralight">chatflix.app</h1> */}
-
           </div>
         </div>
       </div>

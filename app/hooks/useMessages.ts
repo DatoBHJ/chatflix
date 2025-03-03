@@ -241,23 +241,10 @@ export function useMessages(chatId: string, userId: string) {
       
       if (!targetUserMessage) return
 
-      const { data: validMessages } = await supabase
-        .from('messages')
-        .select('sequence_number')
-        .eq('chat_session_id', chatId)
-        .eq('user_id', userId)
-        .order('sequence_number', { ascending: true })
-        .limit(messageIndex)
+      // Create a regeneration ID to reuse the existing message
+      const assistantMessageId = messageId
 
-      const lastSequenceNumber = validMessages?.[validMessages.length - 1]?.sequence_number || 0
-
-      await supabase
-        .from('messages')
-        .delete()
-        .eq('chat_session_id', chatId)
-        .eq('user_id', userId)
-        .gt('sequence_number', lastSequenceNumber)
-
+      // Don't delete existing messages from database, just update UI
       const updatedMessages = messages.slice(0, messageIndex)
       setMessages(updatedMessages)
 
@@ -267,10 +254,14 @@ export function useMessages(chatId: string, userId: string) {
             id: targetUserMessage.id,
             content: targetUserMessage.content,
             role: targetUserMessage.role,
-            createdAt: targetUserMessage.createdAt
+            createdAt: targetUserMessage.createdAt,
+            experimental_attachments: (targetUserMessage as any).experimental_attachments
           }],
           model: currentModel,
-          chatId
+          chatId,
+          isRegeneration: true,
+          existingMessageId: assistantMessageId,
+          saveToDb: false // Don't save user message again
         }
       })
     } catch (error) {

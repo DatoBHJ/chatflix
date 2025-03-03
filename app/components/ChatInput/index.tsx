@@ -68,10 +68,17 @@ export function ChatInput({
   // 모델 변경 시 포커스 효과
   useEffect(() => {
     if (inputRef.current) {
-      inputRef.current.focus();
+      // 포커스 효과 적용
       setIsFocused(true);
+      
+      // 잠시 후 포커스 효과 제거
+      const timer = setTimeout(() => {
+        setIsFocused(false);
+      }, 1000); // 1초 후 효과 제거
+      
+      return () => clearTimeout(timer);
     }
-  }, []);
+  }, [modelId]); // modelId가 변경될 때마다 실행
 
   // 테마 변경 감지
   useEffect(() => {
