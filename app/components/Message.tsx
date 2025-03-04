@@ -5,6 +5,7 @@ import { MarkdownContent } from './MarkdownContent'
 import { ExtendedMessage } from '../chat/[id]/types'
 import { getModelById } from '@/lib/models/config'
 import { Attachment } from '@/lib/types'
+import React from 'react'
 
 interface MessageProps {
   message: AIMessage & { experimental_attachments?: Attachment[] }
@@ -35,6 +36,23 @@ export function Message({
   onEditSave,
   setEditingContent
 }: MessageProps) {
+  // Function to truncate long messages
+  const truncateMessage = (content: string, maxLength: number = 300) => {
+    if (content.length <= maxLength) return content;
+    return content.substring(0, maxLength) + ' ';
+  };
+
+  // State to track which messages are expanded
+  const [expandedMessages, setExpandedMessages] = React.useState<Record<string, boolean>>({});
+
+  // Function to toggle message expansion
+  const toggleMessageExpansion = (messageId: string) => {
+    setExpandedMessages(prev => ({
+      ...prev,
+      [messageId]: !prev[messageId]
+    }));
+  };
+
   return (
     <div className="message-group group animate-fade-in overflow-hidden">
       <div className={`message-role ${message.role === 'user' ? 'text-right' : ''}`}>
@@ -52,6 +70,12 @@ export function Message({
                   setEditingContent(e.target.value)
                   e.target.style.height = 'auto'
                   e.target.style.height = `${e.target.scrollHeight}px`
+                }}
+                ref={(textarea) => {
+                  if (textarea) {
+                    textarea.style.height = 'auto'
+                    textarea.style.height = `${textarea.scrollHeight}px`
+                  }
                 }}
                 onFocus={(e) => {
                   e.target.style.height = 'auto'
@@ -99,12 +123,45 @@ export function Message({
                       return <ReasoningSection key={index} content={part.reasoning} />
                     }
                     if (part.type === 'text') {
-                      return <MarkdownContent key={index} content={part.text} />
+                      const shouldTruncate = message.role === 'user' && !editingMessageId && !expandedMessages[message.id];
+                      const isLongMessage = part.text.length > 300;
+                      
+                      return (
+                        <React.Fragment key={index}>
+                          <MarkdownContent content={shouldTruncate ? truncateMessage(part.text) : part.text} />
+                          {shouldTruncate && isLongMessage && (
+                            <div 
+                              onClick={() => toggleMessageExpansion(message.id)}
+                              className="text-[var(--muted)] font-medium mt-4 cursor-pointer hover:underline inline-block"
+                            >
+                              ... Read more
+                            </div>
+                          )}
+                          {!shouldTruncate && isLongMessage && expandedMessages[message.id] && (
+                            <div 
+                              onClick={() => toggleMessageExpansion(message.id)}
+                              className="text-[var(--muted)] font-medium mt-4 cursor-pointer hover:underline inline-block"
+                            >
+                              Show less
+                            </div>
+                          )}
+                        </React.Fragment>
+                      );
                     }
                   })}
                 </>
               ) : (
-                <MarkdownContent content={message.content} />
+                <>
+                  <MarkdownContent content={message.role === 'user' && !editingMessageId && !expandedMessages[message.id] ? truncateMessage(message.content) : message.content} />
+                  {message.role === 'user' && !editingMessageId && message.content.length > 300 && (
+                    <div 
+                      onClick={() => toggleMessageExpansion(message.id)}
+                      className="text-[var(--accent)] font-medium mt-1 cursor-pointer hover:underline inline-block"
+                    >
+                      {expandedMessages[message.id] ? 'Show less' : '... Read more'}
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
