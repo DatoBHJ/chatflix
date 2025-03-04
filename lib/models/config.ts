@@ -25,7 +25,7 @@ export interface ModelConfig {
 }
 
 // Default model configuration
-export const DEFAULT_MODEL_ID = 'claude-3-7-sonnet-latest'; 
+export const DEFAULT_MODEL_ID = 'gemini-2.0-flash'; 
 
 // Get system default model ID (should match Supabase's get_default_model_id function)
 export function getSystemDefaultModelId(): string {
