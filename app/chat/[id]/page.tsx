@@ -12,7 +12,7 @@ import { convertMessage, uploadFile } from './utils'
 import { PageProps, ExtendedMessage } from './types'
 import { Attachment } from '@/lib/types'
 import { useMessages } from '@/app/hooks/useMessages'
-import { DEFAULT_MODEL_ID } from '@/lib/models/config'
+import { getDefaultModelId, getSystemDefaultModelId } from '@/lib/models/config'
 import '@/app/styles/attachments.css'
 import { Message as MessageComponent } from '@/app/components/Message'
 // import { ChatInput } from '@/app/components/ChatInput';
@@ -22,8 +22,8 @@ import { ChatInput } from '@/app/components/ChatInput/index';
 export default function Chat({ params }: PageProps) {
   const { id: chatId } = use(params)
   const router = useRouter()
-  const [currentModel, setCurrentModel] = useState(DEFAULT_MODEL_ID)
-  const [nextModel, setNextModel] = useState(currentModel)
+  const [currentModel, setCurrentModel] = useState('')
+  const [nextModel, setNextModel] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [isInitialized, setIsInitialized] = useState(false)
   const initialMessageSentRef = useRef(false)
@@ -31,11 +31,15 @@ export default function Chat({ params }: PageProps) {
   const supabase = createClient()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [existingMessages, setExistingMessages] = useState<Message[]>([])
+  const [isModelLoading, setIsModelLoading] = useState(true)
+  const [isSessionLoaded, setIsSessionLoaded] = useState(false)
+
+  const isFullyLoaded = !isModelLoading && isSessionLoaded && !!currentModel
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, stop, setMessages, reload } = useChat({
     api: '/api/chat',
     body: {
-      model: nextModel,
+      model: nextModel || getSystemDefaultModelId(),
       chatId,
       experimental_attachments: true
     },
@@ -99,12 +103,29 @@ export default function Chat({ params }: PageProps) {
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
-        return
+      try {
+        setIsModelLoading(true)
+        
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/login')
+          return
+        }
+        setUser(user)
+        
+        // 사용자의 기본 모델 가져오기
+        const defaultModel = await getDefaultModelId(user.id)
+        setCurrentModel(defaultModel)
+        setNextModel(defaultModel)
+      } catch (error) {
+        console.error('사용자 정보 또는 모델 로딩 중 오류:', error)
+        // 오류 발생 시 시스템 기본 모델 사용
+        const systemDefault = getSystemDefaultModelId()
+        setCurrentModel(systemDefault)
+        setNextModel(systemDefault)
+      } finally {
+        setIsModelLoading(false)
       }
-      setUser(user)
     }
     getUser()
   }, [supabase.auth, router])
@@ -116,6 +137,9 @@ export default function Chat({ params }: PageProps) {
       if (initialMessageSentRef.current || !user) return
       
       try {
+        setIsModelLoading(true)
+        setIsSessionLoaded(false)
+        
         const { data: session, error: sessionError } = await supabase
           .from('chat_sessions')
           .select('current_model, initial_message')
@@ -129,9 +153,22 @@ export default function Chat({ params }: PageProps) {
           return
         }
 
+        // 세션에 저장된 모델이 있으면 사용, 없으면 사용자의 기본 모델 사용
         if (session.current_model && isMounted) {
           setCurrentModel(session.current_model)
           setNextModel(session.current_model)
+        } else if (isMounted) {
+          // 세션에 모델이 없는 경우 사용자의 기본 모델 가져오기
+          const userDefaultModel = await getDefaultModelId(user.id)
+          setCurrentModel(userDefaultModel)
+          setNextModel(userDefaultModel)
+          
+          // 세션 업데이트
+          await supabase
+            .from('chat_sessions')
+            .update({ current_model: userDefaultModel })
+            .eq('id', chatId)
+            .eq('user_id', user.id)
         }
 
         const { data: existingMessages, error: messagesError } = await supabase
@@ -210,6 +247,11 @@ export default function Chat({ params }: PageProps) {
         console.error('Error in initialization:', error)
         if (isMounted) {
           router.push('/')
+        }
+      } finally {
+        if (isMounted) {
+          setIsModelLoading(false)
+          setIsSessionLoaded(true)
         }
       }
     }
@@ -454,6 +496,11 @@ export default function Chat({ params }: PageProps) {
       console.error('Error in handleStop:', error)
     }
   }, [stop, messages, currentModel, chatId, user?.id, setMessages])
+
+  // 모든 데이터가 로드되기 전에는 로딩 화면 표시
+  if (!isFullyLoaded || !user) {
+    return <div className="flex h-screen items-center justify-center">Loading...</div>
+  }
 
   return (
     <main className="flex-1 relative h-full">

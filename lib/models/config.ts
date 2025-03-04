@@ -27,6 +27,98 @@ export interface ModelConfig {
 // Default model configuration
 export const DEFAULT_MODEL_ID = 'claude-3-7-sonnet-latest'; 
 
+// Get system default model ID (should match Supabase's get_default_model_id function)
+export function getSystemDefaultModelId(): string {
+  return DEFAULT_MODEL_ID;
+}
+
+// Function to get user's default model from Supabase
+export async function getUserDefaultModel(userId: string): Promise<string> {
+  try {
+    // Import supabase client dynamically to avoid circular dependencies
+    const { supabase } = await import('../supabase');
+    
+    // Call the Supabase function to get or create user model preference
+    const { data, error } = await supabase.rpc('get_or_create_user_model', {
+      p_user_id: userId
+    });
+    
+    if (error) {
+      console.error('Error fetching user model preference:', error);
+      return getSystemDefaultModelId();
+    }
+    
+    // Verify the returned model exists in our configs
+    const modelExists = MODEL_CONFIGS.some(model => model.id === data && model.isEnabled);
+    return modelExists ? data : getSystemDefaultModelId();
+  } catch (error) {
+    console.error('Error in getUserDefaultModel:', error);
+    return getSystemDefaultModelId();
+  }
+}
+
+// Function to update user's default model
+export async function updateUserDefaultModel(userId: string, modelId: string): Promise<boolean> {
+  try {
+    // Verify the model exists and is enabled
+    const modelExists = MODEL_CONFIGS.some(model => model.id === modelId && model.isEnabled);
+    if (!modelExists) {
+      console.error('Attempted to set invalid or disabled model as default:', modelId);
+      return false;
+    }
+    
+    // Import supabase client dynamically
+    const { supabase } = await import('../supabase');
+    
+    // Call the Supabase function to update user model preference
+    const { data, error } = await supabase.rpc('update_user_model', {
+      p_user_id: userId,
+      p_model_id: modelId
+    });
+    
+    if (error) {
+      console.error('Error updating user model preference:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error in updateUserDefaultModel:', error);
+    return false;
+  }
+}
+
+// Function to reset user's model to system default
+export async function resetUserDefaultModel(userId: string): Promise<boolean> {
+  try {
+    // Import supabase client dynamically
+    const { supabase } = await import('../supabase');
+    
+    // Call the Supabase function to reset user model preference
+    const { data, error } = await supabase.rpc('reset_user_model', {
+      p_user_id: userId
+    });
+    
+    if (error) {
+      console.error('Error resetting user model preference:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error in resetUserDefaultModel:', error);
+    return false;
+  }
+}
+
+// Function to get the default model ID (user's preference or system default)
+export async function getDefaultModelId(userId?: string): Promise<string> {
+  if (!userId) {
+    return getSystemDefaultModelId();
+  }
+  
+  return await getUserDefaultModel(userId);
+}
 
 export const MODEL_CONFIGS: ModelConfig[] = [
   {
