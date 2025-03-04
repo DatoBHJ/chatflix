@@ -58,12 +58,12 @@ export default function RootLayoutClient({
         "Tip: Gemini 2.0 Flash supports million-token context windows for larger documents and multiple files, with faster processing and improved accuracy (76.4% MMLU, 70.7% MMMU)",
         "info",
         "Gemini-2-flash-tip"
-      );
+      ); 
       showAnnouncement(
         "Due to high demand on anthropic models, there may be some delays in response time. We are working on it. In the meantime, please try other models.",
         "warning",
         "anthropic-models-high-request-1"
-      );
+      ); // 오후 8시 14분 
       // showAnnouncement(
       //   "File uploads have been temporarily disabled due to an ongoing issue with file reading. We expect to restore this functionality soon.",
       //   "error",
