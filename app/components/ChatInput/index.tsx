@@ -758,7 +758,7 @@ export function ChatInput({
             multiple
           />
           
-          <div className="flex gap-0 items-center input-container py-2">
+          <div className="flex gap-0 items-center input-container ">
             {/* 파일 업로드 버튼 */}
             <FileUploadButton 
               filesCount={files.length} 
