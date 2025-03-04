@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { Message } from 'ai'
 import { createClient } from '@/utils/supabase/client'
+import { useRouter } from 'next/navigation'
 
 export function useMessages(chatId: string, userId: string) {
   const [isRegenerating, setIsRegenerating] = useState(false)
@@ -8,6 +9,30 @@ export function useMessages(chatId: string, userId: string) {
   const [editingContent, setEditingContent] = useState('')
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
   const supabase = createClient()
+  const router = useRouter()
+
+  const handleRateLimitError = (error: any, model: string) => {
+    let errorData;
+    try {
+      errorData = error.message ? JSON.parse(error.message) : null;
+    } catch (e) {
+      errorData = null;
+    }
+
+    if (error.status === 429 || errorData?.error === 'Too many requests') {
+      const reset = errorData?.reset || new Date(Date.now() + 60000).toISOString();
+      const limit = errorData?.limit || 10;
+      
+      router.push(`/rate-limit?${new URLSearchParams({
+        limit: limit.toString(),
+        reset: reset,
+        model: model,
+        chatId: chatId
+      }).toString()}`);
+      return true;
+    }
+    return false;
+  }
 
   const handleCopyMessage = async (message: Message) => {
     try {
@@ -26,6 +51,7 @@ export function useMessages(chatId: string, userId: string) {
       console.error('Failed to copy message:', error)
     }
   }
+
   const generateMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
   const handleEditStart = (message: Message) => {
@@ -38,23 +64,19 @@ export function useMessages(chatId: string, userId: string) {
     setEditingContent('')
   }
 
-
   const handleEditSave = async (messageId: string, currentModel: string, messages: Message[], setMessages: (messages: Message[]) => void, reload: any) => {
     console.log('Starting edit save operation:', { 
       messageId, 
       userId, 
       chatId,
-      messageContent: editingContent.substring(0, 100) + '...' // Log first 100 chars for debugging
+      messageContent: editingContent.substring(0, 100) + '...'
     });
     
     try {
-      // First verify all required parameters are present
       if (!messageId || !userId || !chatId) {
         throw new Error('Missing required parameters for edit save operation');
       }
 
-      console.log('Fetching existing message...');
-      // First try to find the message in local state
       const localMessage = messages.find(msg => msg.id === messageId);
       
       if (!localMessage) {
@@ -64,18 +86,9 @@ export function useMessages(chatId: string, userId: string) {
         return;
       }
 
-      // Get the sequence number from local messages
       const messageIndex = messages.findIndex(msg => msg.id === messageId);
-      const localSequenceNumber = messageIndex + 1; // 1-based sequence number
+      const localSequenceNumber = messageIndex + 1;
 
-      console.log('Local message found:', {
-        messageId,
-        messageIndex,
-        localSequenceNumber,
-        role: localMessage.role
-      });
-
-      // Then verify in database with proper error handling
       const { data: existingMessages, error: queryError } = await supabase
         .from('messages')
         .select('id, sequence_number, chat_session_id')
@@ -84,26 +97,12 @@ export function useMessages(chatId: string, userId: string) {
         .eq('chat_session_id', chatId);
 
       if (queryError) {
-        console.error('Database query error:', { 
-          error: queryError,
-          code: queryError.code,
-          message: queryError.message,
-          details: queryError.details,
-          hint: queryError.hint
-        });
-        throw new Error(`Database query failed: ${queryError.message}`);
+        throw queryError;
       }
 
       let existingMessage = existingMessages?.[0];
       
       if (!existingMessage) {
-        console.log('Message not found in database, creating new record:', { 
-          messageId,
-          localSequenceNumber,
-          model: currentModel
-        });
-        
-        // Create the message in the database
         const { data: insertedMessage, error: insertError } = await supabase
           .from('messages')
           .insert([{
@@ -122,14 +121,9 @@ export function useMessages(chatId: string, userId: string) {
           .select()
           .single();
 
-        if (insertError) {
-          console.error('Failed to create message in database:', insertError);
-          throw insertError;
-        }
-
+        if (insertError) throw insertError;
         existingMessage = insertedMessage;
       } else {
-        console.log('Updating message content...');
         const { error: updateError } = await supabase
           .from('messages')
           .update({
@@ -141,13 +135,9 @@ export function useMessages(chatId: string, userId: string) {
           .eq('user_id', userId)
           .eq('chat_session_id', chatId);
 
-        if (updateError) {
-          console.error('Update operation failed:', updateError);
-          throw updateError;
-        }
+        if (updateError) throw updateError;
       }
 
-      console.log('Updating local message state...');
       const updatedMessages = messages.slice(0, messageIndex + 1).map(msg =>
         msg.id === messageId
           ? {
@@ -164,7 +154,6 @@ export function useMessages(chatId: string, userId: string) {
       setEditingMessageId(null);
       setEditingContent('');
 
-      console.log('Deleting subsequent messages...');
       const { error: deleteError } = await supabase
         .from('messages')
         .delete()
@@ -177,7 +166,6 @@ export function useMessages(chatId: string, userId: string) {
       }
 
       const assistantMessageId = generateMessageId();
-      console.log('Creating new assistant message:', assistantMessageId);
 
       const { error: insertError } = await supabase
         .from('messages')
@@ -193,33 +181,36 @@ export function useMessages(chatId: string, userId: string) {
           sequence_number: existingMessage.sequence_number + 1
         }]);
 
-      if (insertError) {
-        console.error('Error creating assistant message:', insertError);
-        throw insertError;
-      }
+      if (insertError) throw insertError;
 
-      console.log('Triggering reload with updated messages...');
-      await reload({
-        body: {
-          messages: updatedMessages,
-          model: currentModel,
-          chatId,
-          isRegeneration: true,
-          existingMessageId: assistantMessageId
+      try {
+        await reload({
+          body: {
+            messages: updatedMessages,
+            model: currentModel,
+            chatId,
+            isRegeneration: true,
+            existingMessageId: assistantMessageId
+          }
+        });
+      } catch (error: any) {
+        if (!handleRateLimitError(error, currentModel)) {
+          throw error;
         }
-      });
+      }
     } catch (error: any) {
-      console.error('Failed to update message:', {
-        error: error?.message || error,
-        stack: error?.stack,
-        supabaseError: error?.error_description || error?.details,
-        statusCode: error?.status || error?.code,
-        messageId,
-        userId,
-        chatId
-      });
+      if (!handleRateLimitError(error, currentModel)) {
+        console.error('Failed to update message:', {
+          error: error?.message || error,
+          stack: error?.stack,
+          supabaseError: error?.error_description || error?.details,
+          statusCode: error?.status || error?.code,
+          messageId,
+          userId,
+          chatId
+        });
+      }
       
-      // 에러 발생 시 편집 상태 유지하고 사용자에게 피드백
       setEditingMessageId(messageId);
       const originalContent = messages.find(msg => msg.id === messageId)?.content || '';
       setEditingContent(originalContent);
@@ -241,35 +232,40 @@ export function useMessages(chatId: string, userId: string) {
       
       if (!targetUserMessage) return
 
-      // Create a regeneration ID to reuse the existing message
       const assistantMessageId = messageId
-
-      // Don't delete existing messages from database, just update UI
       const updatedMessages = messages.slice(0, messageIndex)
       setMessages(updatedMessages)
 
-      await reload({
-        body: {
-          messages: [...updatedMessages, {
-            id: targetUserMessage.id,
-            content: targetUserMessage.content,
-            role: targetUserMessage.role,
-            createdAt: targetUserMessage.createdAt,
-            experimental_attachments: (targetUserMessage as any).experimental_attachments
-          }],
-          model: currentModel,
-          chatId,
-          isRegeneration: true,
-          existingMessageId: assistantMessageId,
-          saveToDb: false // Don't save user message again
+      try {
+        await reload({
+          body: {
+            messages: [...updatedMessages, {
+              id: targetUserMessage.id,
+              content: targetUserMessage.content,
+              role: targetUserMessage.role,
+              createdAt: targetUserMessage.createdAt,
+              experimental_attachments: (targetUserMessage as any).experimental_attachments
+            }],
+            model: currentModel,
+            chatId,
+            isRegeneration: true,
+            existingMessageId: assistantMessageId,
+            saveToDb: false
+          }
+        });
+      } catch (error: any) {
+        if (!handleRateLimitError(error, currentModel)) {
+          throw error;
         }
-      })
-    } catch (error) {
-      console.error('Regeneration failed:', error)
+      }
+    } catch (error: any) {
+      if (!handleRateLimitError(error, currentModel)) {
+        console.error('Regeneration failed:', error);
+      }
     } finally {
       setIsRegenerating(false)
     }
-  }, [chatId, userId])
+  }, [chatId, userId, handleRateLimitError])
 
   return {
     isRegenerating,

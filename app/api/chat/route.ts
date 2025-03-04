@@ -196,25 +196,8 @@ export async function POST(req: Request) {
         return stream;
 
       } catch (error) {
-        if (error instanceof Error) {
-          try {
-            const errorData = JSON.parse(error.message);
-            if (errorData.type === 'rate_limit') {
-              console.log('[Debug] Rate limit error:', errorData);
-              dataStream.write(errorData.message);
-              return;
-            }
-          } catch (e) {
-            // If parsing fails, treat it as a regular error
-          }
-        }
-        dataStream.writeMessageAnnotation({
-          type: 'error',
-          data: {
-            message: 'An unknown error occurred',
-            details: error ? JSON.stringify(error) : null
-          }
-        });
+        console.log('unknown error', error)
+        return
       }
     }
   });

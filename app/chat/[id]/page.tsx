@@ -46,6 +46,8 @@ export default function Chat({ params }: PageProps) {
     id: chatId,
     initialMessages: existingMessages,
     onResponse: (response) => {
+      // print the last message
+      console.log('[Debug] Response in chat/[id]/page.tsx:', messages)
       setMessages(prevMessages => {
         const updatedMessages = [...prevMessages]
         for (let i = updatedMessages.length - 1; i >= 0; i--) {
@@ -58,23 +60,32 @@ export default function Chat({ params }: PageProps) {
         return updatedMessages
       })
     },
-    onError: (error: Error & { data?: string }) => {
-      console.log('[Debug] Error:', error)
-      let errorMessage = error.message
+    onError: (error: Error & { status?: number }) => {
+      let errorData;
+      try {
+        errorData = error.message ? JSON.parse(error.message) : null;
+      } catch (e) {
+        errorData = null;
+      }
 
-      console.log('[Debug] Error message:', errorMessage)
-      
-      const errorResponse = {
-        id: `error-${Date.now()}`,
-        role: 'assistant',
-        content: `⚠️ Error: please try again later or change the model`,
-        // content: `⚠️ Error: rate limit reached, please try again later or change the model`,
-        // content: errorMessage,
-        createdAt: new Date(),
-        model: nextModel
-      } as ExtendedMessage
+      // Check if it's a rate limit error either from status or parsed error data
+      if (error.status === 429 || errorData?.error === 'Too many requests') {
+        const reset = errorData?.reset || new Date(Date.now() + 60000).toISOString();
+        const limit = errorData?.limit || 10;
+        
+        // Include chatId in the redirect URL
+        router.push(`/rate-limit?${new URLSearchParams({
+          limit: limit.toString(),
+          reset: reset,
+          model: nextModel,
+          chatId: chatId
+        }).toString()}`);
+        
+        return;
+      }
 
-      setMessages(prevMessages => [...prevMessages, errorResponse])
+      // Only log non-rate-limit errors
+      console.error('Unexpected chat error:', error)
     }
   })
 
