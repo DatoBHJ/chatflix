@@ -51,21 +51,21 @@ export default function RootLayoutClient({
     }
   }, [supabase, router])
 
-  // // announcement for GPT-4.5
-  // useEffect(() => {
-  //   if (user) {
-  //     showAnnouncement(
-  //       "Anthropic models are currently down. We are working on it. Please try other models or come back later.",
-  //       "error",
-  //       "anthropic-models-down"
-  //     );
-  //     showAnnouncement(
-  //       "File uploads have been temporarily disabled due to an ongoing issue with file reading. We expect to restore this functionality soon.",
-  //       "error",
-  //       "file-read-disabled"
-  //     );
-  //   }
-  // }, [user, showAnnouncement]);
+  // announcement for GPT-4.5
+  useEffect(() => {
+    if (user) {
+      showAnnouncement(
+        "Tip: Use Gemini 2.0 Flash for longer context windows, with a capacity of up to 1 million tokens, and multiple files, enabling faster processing to handle complex queries efficiently.",
+        "info",
+        "Gemini-2-flash-tip"
+      );
+      // showAnnouncement(
+      //   "File uploads have been temporarily disabled due to an ongoing issue with file reading. We expect to restore this functionality soon.",
+      //   "error",
+      //   "file-read-disabled"
+      // );
+    }
+  }, [user, showAnnouncement]);
 
   if (isLoading) {
     return <div className="flex h-screen items-center justify-center">Loading...</div>
