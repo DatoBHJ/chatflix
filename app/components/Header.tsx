@@ -40,6 +40,11 @@ export function Header({ isSidebarOpen, onSidebarToggle, showBackButton }: Heade
               </svg>
             </button>
           )}
+          {/* <div className="ml-2 flex items-center">
+            <h1 className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--muted)] to-transparent font-extralight uppercase tracking-[0.65em] text-lg">
+              Chatflix
+            </h1>
+          </div> */}
         </div>
 
         <div className="flex items-center gap-5">
