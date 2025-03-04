@@ -385,6 +385,11 @@ export function ChatInput({
     }
   };
 
+  // 고유 ID 생성 함수 추가
+  const generateUniqueId = () => {
+    return Date.now().toString(36) + Math.random().toString(36).substring(2);
+  };
+
   // 메시지 제출 처리
   const handleMessageSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -436,11 +441,15 @@ export function ChatInput({
           fileType = 'pdf';
         }
         
+        const fileId = (file as any).id;
+        const fileData = fileMap.get(fileId);
+        
         return {
           name: file.name,
           contentType: file.type,
-          url: fileMap.get(file.name)?.url || '',
-          fileType: fileType
+          url: fileData?.url || '',
+          fileType: fileType,
+          id: fileId // ID 정보도 전달
         };
       });
 
@@ -670,48 +679,57 @@ export function ChatInput({
     // 필터링 후 유효한 파일이 없으면 조기 반환
     if (newFileArray.length === 0) return;
     
-    // 새 파일 항목 생성
+    // 새 파일 항목 생성 (각 파일에 고유 ID 부여)
     const newFileEntries = newFileArray.map(file => {
+      const fileId = generateUniqueId();
       const url = URL.createObjectURL(file);
-      return [file.name, { file, url }] as [string, { file: File, url: string }];
+      // 각 파일에 고유 ID와 원본 경로 정보 추가
+      return [fileId, { file, url, id: fileId, originalName: file.name }] as [string, { file: File, url: string, id: string, originalName: string }];
     });
 
-    // 새 항목으로 파일 맵 업데이트
+    // 새 항목으로 파일 맵 업데이트 (ID 기반)
     setFileMap(prevMap => {
       const newMap = new Map(prevMap);
-      newFileEntries.forEach(([name, data]) => {
-        // 같은 이름의 파일이 있으면 이전 URL 해제
-        if (prevMap.has(name)) {
-          URL.revokeObjectURL(prevMap.get(name)!.url);
-        }
-        newMap.set(name, data);
+      newFileEntries.forEach(([id, data]) => {
+        newMap.set(id, data);
       });
       return newMap;
     });
 
-    // 파일 배열 업데이트
+    // 파일 배열 업데이트 (이름 대신 전체 파일 추가)
     setFiles(prevFiles => {
-      const existingNames = new Set(prevFiles.map(f => f.name));
-      const uniqueNewFiles = newFileArray.filter(file => !existingNames.has(file.name));
-      return [...prevFiles, ...uniqueNewFiles];
+      return [...prevFiles, ...newFileArray.map((file, index) => {
+        // 파일 객체에 ID 속성을 추가
+        Object.defineProperty(file, 'id', {
+          value: newFileEntries[index][0],
+          writable: false,
+          enumerable: true
+        });
+        return file;
+      })];
     });
   };
 
   // 파일 제거
   const removeFile = (fileToRemove: File) => {
+    // ID로 접근할 수 있도록 타입 확장
+    const fileId = (fileToRemove as any).id;
+    
     // fileMap에서 제거하고 URL 해제
     setFileMap(prevMap => {
       const newMap = new Map(prevMap);
-      const fileData = newMap.get(fileToRemove.name);
-      if (fileData) {
-        URL.revokeObjectURL(fileData.url);
-        newMap.delete(fileToRemove.name);
+      if (fileId && newMap.has(fileId)) {
+        const fileData = newMap.get(fileId);
+        if (fileData) {
+          URL.revokeObjectURL(fileData.url);
+          newMap.delete(fileId);
+        }
       }
       return newMap;
     });
 
-    // files 배열에서 제거
-    setFiles(prevFiles => prevFiles.filter(file => file !== fileToRemove));
+    // files 배열에서 제거 (ID로 비교)
+    setFiles(prevFiles => prevFiles.filter(file => (file as any).id !== fileId));
   };
 
   return (

@@ -115,12 +115,13 @@ export function FilePreview({ files, fileMap, removeFile }: FilePreviewProps) {
     <div className="absolute bottom-full right-0 mb-4 bg-[var(--background)]/80 image-preview-container p-4 max-w-[80%] max-h-[200px] ml-auto">
       <div className="flex gap-4 image-preview-scroll" style={{ maxWidth: '100%' }}>
         {[...files].reverse().map((file) => {
-          const fileData = fileMap.get(file.name);
+          const fileId = (file as any).id;
+          const fileData = fileMap.get(fileId);
           if (!fileData) return null;
 
           return fileHelpers.isImageFile(file) ? (
             // Image preview
-            <div key={file.name} className="relative group image-preview-item flex-shrink-0">
+            <div key={fileId} className="relative group image-preview-item flex-shrink-0">
               <div className="preview-overlay"></div>
               <span className="file-type-badge">{fileHelpers.getFileTypeBadge(file)}</span>
               <img
@@ -139,7 +140,7 @@ export function FilePreview({ files, fileMap, removeFile }: FilePreviewProps) {
             </div>
           ) : (
             // Non-image file preview
-            <div key={file.name} className="relative group file-preview-item flex-shrink-0">
+            <div key={fileId} className="relative group file-preview-item flex-shrink-0">
               <span className="file-type-badge">{fileHelpers.getFileTypeBadge(file)}</span>
               <div className="file-icon">
                 {fileHelpers.getFileIcon(file)}
