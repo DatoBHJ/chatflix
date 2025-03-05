@@ -183,7 +183,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
   },
   {
     id: 'deepseek-ai/DeepSeek-R1',
-    name: '⭐ DeepSeek R1 (Thinking)',
+    name: 'DeepSeek R1 (Thinking) 🇺🇸',
     description: 'The best open source reasoning model by DeepSeek via Together.ai',
     provider: 'together',
     supportsVision: false,
@@ -205,7 +205,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
   },
   {
     id: 'deepseek-ai/DeepSeek-V3',
-    name: 'DeepSeek V3',
+    name: 'DeepSeek V3 🇺🇸',
     description: 'The best open source non-reasoning model by DeepSeek via Together.ai',
     provider: 'together',
     supportsVision: false,
@@ -221,7 +221,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
   },
   {
     id: 'deepseek-reasoner',
-    name: 'DeepSeek R1 (Thinking)',
+    name: 'DeepSeek R1 (Thinking) 🇨🇳',
     description: 'The best open source reasoning model by DeepSeek',
     provider: 'deepseek',
     supportsVision: false,
@@ -243,7 +243,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
   },
   {
     id: 'deepseek-chat',
-    name: 'DeepSeek V3',
+    name: 'DeepSeek V3 🇨🇳',
     description: 'The best open source non-reasoning model by DeepSeek',
     provider: 'deepseek',
     supportsVision: false,
@@ -367,7 +367,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
   },
   {
     id: 'llama-3.3-70b-versatile',
-    name: 'Llama 3.3 70B',
+    name: '⚡ Llama 3.3 70B',
     description: 'Llama 3.3 70B by Meta via Groq',
     provider: 'groq',
     supportsVision: false,
