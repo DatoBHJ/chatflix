@@ -122,6 +122,6 @@ export default function RootLayoutClient({
       />
 
       {user && <PromptShortcutsDialog user={user} />}
-    </div>
+    </div> //
   )
 } 
