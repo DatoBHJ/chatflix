@@ -155,7 +155,7 @@ export default function Home() {
 
   // 로딩 중이거나 사용자 정보가 없는 경우 로딩 화면 표시
   if (isModelLoading || !user) {
-    return <div className="flex h-screen items-center justify-center">Loading...</div>
+    return <div className="flex h-screen items-center justify-center">Chatflix loading...</div>
   }
 
   return (

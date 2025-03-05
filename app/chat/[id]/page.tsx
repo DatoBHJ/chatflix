@@ -510,7 +510,7 @@ export default function Chat({ params }: PageProps) {
 
   // 모든 데이터가 로드되기 전에는 로딩 화면 표시
   if (!isFullyLoaded || !user) {
-    return <div className="flex h-screen items-center justify-center">Loading...</div>
+    return <div className="flex h-screen items-center justify-center">Chatflix loading...</div>
   }
 
   return (

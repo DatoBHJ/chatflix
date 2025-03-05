@@ -359,7 +359,7 @@ export default function RateLimitPage() {
       <div className="flex h-screen items-center justify-center">
         <div className="flex flex-col items-center">
           <div className="w-8 h-8 border-2 border-[var(--foreground)] border-t-transparent rounded-full animate-spin mb-4"></div>
-          <span className="text-[var(--muted)]">Loading...</span>
+          <span className="text-[var(--muted)]">Chatflix loading...</span>
         </div>
       </div>
     )
