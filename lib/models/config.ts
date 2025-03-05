@@ -165,7 +165,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
   },
   {
     id: 'claude-3-5-sonnet-latest',
-    name: '⭐ Claude 3.5 Sonnet',
+    name: 'Claude 3.5 Sonnet',
     description: 'Coding GOAT',
     provider: 'anthropic',
     supportsVision: true,
@@ -331,7 +331,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
   },
   {
     id: 'gemini-2.0-flash',
-    name: '⭐ Gemini 2.0 Flash',
+    name: 'Gemini 2.0 Flash',
     description: 'Latest model with 1m context window by Google',
     provider: 'google',
     supportsVision: true,
