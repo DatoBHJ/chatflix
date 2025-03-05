@@ -26,7 +26,7 @@
     "@upstash/ratelimit": "^2.0.5",
     "@upstash/redis": "^1.34.4",
     "@vercel/analytics": "^1.5.0",
-    "ai": "^4.1.46",
+    "ai": "^4.1.51",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^16.4.7",
