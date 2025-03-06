@@ -108,8 +108,21 @@ export default function Chat({ params }: PageProps) {
   }, [])
 
   useEffect(() => {
+    // 메시지가 로드되거나 변경될 때마다 스크롤
     scrollToBottom()
-  }, [scrollToBottom])
+  }, [messages, scrollToBottom])
+  
+  // 컴포넌트가 마운트될 때 스크롤
+  useEffect(() => {
+    scrollToBottom()
+  }, [])
+  
+  // 초기화가 완료된 후에도 스크롤
+  useEffect(() => {
+    if (isInitialized && isFullyLoaded) {
+      scrollToBottom()
+    }
+  }, [isInitialized, isFullyLoaded, scrollToBottom])
 
   useEffect(() => {
     const getUser = async () => {
@@ -509,7 +522,7 @@ export default function Chat({ params }: PageProps) {
 
   // 모든 데이터가 로드되기 전에는 로딩 화면 표시
   if (!isFullyLoaded || !user) {
-    return <div className="flex h-screen items-center justify-center">Chatflix loading...</div>
+    return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
   }
 
   return (

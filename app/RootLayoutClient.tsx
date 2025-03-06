@@ -78,7 +78,7 @@ export default function RootLayoutClient({
   }, [user, showAnnouncement]);
 
   if (isLoading) {
-    return <div className="flex h-screen items-center justify-center">Chatflix loading...</div>
+    return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
   }
 
   if (!user) {
