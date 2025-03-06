@@ -1,6 +1,6 @@
 import { Message } from 'ai';
 import { getModelById } from '@/lib/models/config';
-import { AIMessageContent, MessageRole, MultiModalMessage } from '../types';
+import { AIMessageContent, MessageRole } from '../types';
 
 export const generateMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 

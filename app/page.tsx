@@ -10,7 +10,6 @@ import { Sidebar } from './components/Sidebar'
 import { uploadFile } from '@/app/chat/[id]/utils'
 import { Attachment } from '@/lib/types'
 import { getDefaultModelId, getSystemDefaultModelId, updateUserDefaultModel } from '@/lib/models/config'
-// import { ChatInput } from '@/app/components/ChatInput'
 import { ChatInput } from '@/app/components/ChatInput/index'
 
 export default function Home() {

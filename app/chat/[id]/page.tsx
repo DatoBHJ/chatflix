@@ -15,7 +15,6 @@ import { useMessages } from '@/app/hooks/useMessages'
 import { getDefaultModelId, getSystemDefaultModelId } from '@/lib/models/config'
 import '@/app/styles/attachments.css'
 import { Message as MessageComponent } from '@/app/components/Message'
-// import { ChatInput } from '@/app/components/ChatInput';
 import { ChatInput } from '@/app/components/ChatInput/index';
 
 
