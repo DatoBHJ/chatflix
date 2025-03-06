@@ -398,7 +398,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
   },
   {
     id: 'qwen-qwq-32b',
-    name: 'QwQ-32B (Thinking)',
+    name: '⚡ QwQ-32B (Thinking)',
     description: "Alibaba's laatest model. Excels at mathematical reasoning, coding, and complex-problem solving with performance rivaling the likes of DeepSeek-R1 and o1-mini.",
     provider: 'groq',
     supportsVision: false,
