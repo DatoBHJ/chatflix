@@ -22,7 +22,7 @@ export interface ModelConfig {
     tagName?: string; 
     budgetTokens?: number;
   };
-  maxTokens?: number;
+  contextWindow?: number;
 }
 
 // Default model configuration
@@ -145,7 +145,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       baseModelId: 'claude-3-7-sonnet-20250219',
       budgetTokens: 12000
     },
-    maxTokens: 200000 // 추정
+    contextWindow: 200000 // 추정
   },
   {
     id: 'claude-3-7-sonnet-latest',
@@ -164,7 +164,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       outputPrice: 15
     },
     isEnabled: true,
-    maxTokens: 100000
+    contextWindow: 100000
   },
   {
     id: 'claude-3-5-sonnet-latest',
@@ -183,7 +183,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       outputPrice: 15
     },
     isEnabled: true,
-    maxTokens: 100000
+    contextWindow: 100000
   },
   {
     id: 'deepseek-ai/DeepSeek-R1',
@@ -206,7 +206,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       tagName: 'think'
     },
     isEnabled: true,
-    maxTokens: 16384 
+    contextWindow: 16384 
   },
   {
     id: 'deepseek-ai/DeepSeek-V3',
@@ -223,7 +223,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       pricePerMillion: 1.25
     },
     isEnabled: true,
-    maxTokens: 16384
+    contextWindow: 16384
   },
   {
     id: 'deepseek-reasoner',
@@ -246,7 +246,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       tagName: 'think'
     },
     isEnabled: true,
-    maxTokens: 16384 // Together.ai와 동일 추정
+    contextWindow: 16384 // Together.ai와 동일 추정
   },
   {
     id: 'deepseek-chat',
@@ -263,7 +263,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       pricePerMillion: 1.25
     },
     isEnabled: true,
-    maxTokens: 16384 // Together.ai와 동일 추정
+    contextWindow: 16384 // Together.ai와 동일 추정
   },
   {
     id: 'gpt-4.5-preview',
@@ -282,7 +282,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       outputPrice: 150
     },
     isEnabled: true,
-    maxTokens: 200000 // 추정
+    contextWindow: 200000 // 추정
   },
   {
     id: 'chatgpt-4o-latest',
@@ -301,7 +301,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       outputPrice: 15
     },
     isEnabled: true,
-    maxTokens: 128000 
+    contextWindow: 128000 
   },
   {
     "id": "o1",
@@ -320,7 +320,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       "outputPrice": 60
     },
     "isEnabled": true,
-    maxTokens: 128000
+    contextWindow: 128000
   },
   {
     "id": "o3-mini",
@@ -339,7 +339,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       "outputPrice": 4.4
     },
     "isEnabled": true,
-    maxTokens: 128000 // 추정
+    contextWindow: 128000 // 추정
   },
   {
     id: 'gemini-2.0-flash',
@@ -358,7 +358,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       outputPrice: 0.4
     },
     isEnabled: true,
-    maxTokens: 1024000
+    contextWindow: 1024000
   },
   {
     id: 'grok-2-vision-latest',
@@ -377,7 +377,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       outputPrice: 10
     },
     isEnabled: true,
-    maxTokens: 100000
+    contextWindow: 100000
   },
   {
     id: 'llama-3.3-70b-versatile',
@@ -394,12 +394,12 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       pricePerMillion: 0.7
     },
     isEnabled: true,
-    maxTokens: 16384
+    contextWindow: 16384
   },
   {
     id: 'qwen-qwq-32b',
     name: '⚡ QwQ-32B (Thinking)',
-    description: "Alibaba's laatest model. Excels at mathematical reasoning, coding, and complex-problem solving with performance rivaling the likes of DeepSeek-R1 and o1-mini.",
+    description: "Alibaba's latest model. Excels at mathematical reasoning, coding, and complex-problem solving with performance rivaling the likes of DeepSeek-R1 and o1-mini.",
     provider: 'groq',
     supportsVision: false,
     rateLimit: {
@@ -417,7 +417,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
       tagName: 'think'
     },
     isEnabled: true,
-    maxTokens: 16384
+    contextWindow: 16384
   },
 ];
 

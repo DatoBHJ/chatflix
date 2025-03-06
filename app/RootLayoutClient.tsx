@@ -69,6 +69,11 @@ export default function RootLayoutClient({
       //   "error",
       //   "file-read-disabled"
       // );
+      showAnnouncement(
+        "New model QwQ-32B is now available! It's a powerful reasoning model that excels at mathematical reasoning, coding, and complex-problem solving with performance rivaling the likes of DeepSeek-R1 and o1-mini.",
+        "info",
+        "new-model-qwq-32b"
+      );
     }
   }, [user, showAnnouncement]);
 
