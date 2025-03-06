@@ -819,7 +819,7 @@ export function ChatInput({
               <button 
                 type="submit" 
                 className={`futuristic-button w-10 h-10 flex items-center justify-center transition-all hover:bg-[var(--accent)]/30`}
-                disabled={disabled || isLoading}
+                disabled={disabled || !input.trim()}
                 aria-label="Send message"
               >
                 <span className="flex items-center justify-center leading-none">↑</span>

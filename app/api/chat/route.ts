@@ -165,7 +165,7 @@ export async function POST(req: Request) {
             ...processMessages as unknown as Message[]
           ],
           temperature: 0.7,
-          maxTokens: 4000,
+          maxTokens: 8000,
           providerOptions,
           experimental_transform: smoothStream({}),
           onFinish: async (completion) => {

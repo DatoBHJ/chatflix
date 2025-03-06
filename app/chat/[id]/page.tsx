@@ -480,7 +480,7 @@ export default function Chat({ params }: PageProps) {
           await supabase
             .from('messages')
             .update({
-              content: lastMessage.content || 'Response interrupted',
+              content: lastMessage.content ,
               reasoning: lastMessage.parts?.find(part => part.type === 'reasoning')?.reasoning || null,
               model: currentModel,
               created_at: new Date().toISOString()
@@ -494,7 +494,7 @@ export default function Chat({ params }: PageProps) {
             if (lastIndex >= 0 && updatedMessages[lastIndex].role === 'assistant') {
               updatedMessages[lastIndex] = {
                 ...updatedMessages[lastIndex],
-                content: lastMessage.content || 'Response interrupted',
+                content: lastMessage.content,
                 parts: lastMessage.parts
               }
             }
