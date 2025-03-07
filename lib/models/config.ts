@@ -129,8 +129,8 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
-      category: 'high',
-      requests: 30,
+      category: 'superHigh',
+      requests: 5,
       window: '60 m'
     },
     pricing: {
@@ -154,8 +154,8 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
-      category: 'low',
-      requests: 30,
+      category: 'superHigh',
+      requests: 5,
       window: '60 m'
     },
     pricing: {
@@ -173,8 +173,8 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
-      category: 'low',
-      requests: 30,
+      category: 'superHigh',
+      requests: 5,
       window: '60 m'
     },
     pricing: {
@@ -273,7 +273,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     supportsVision: true,
     rateLimit: {
       category: 'superHigh',
-      requests: 10,
+      requests: 3,
       window: '60 m'
     },
     pricing: {
