@@ -547,16 +547,16 @@ export default function Chat({ params }: PageProps) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
   
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    if (messages.length > 0 && messagesEndRef.current) {
-      if (listRef.current) {
-        listRef.current.scrollToItem(messages.length - 1, 'end');
-      } else {
-        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-      }
-    }
-  }, [messages]);
+  // // Scroll to bottom when messages change
+  // useEffect(() => {
+  //   if (messages.length > 0 && messagesEndRef.current) {
+  //     if (listRef.current) {
+  //       listRef.current.scrollToItem(messages.length - 1, 'end');
+  //     } else {
+  //       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+  //     }
+  //   }
+  // }, [messages]);
   
   // Calculate estimated message height based on content length
   const estimateMessageHeight = useCallback((message: Message) => {

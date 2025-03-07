@@ -234,6 +234,58 @@ export function useMessages(chatId: string, userId: string) {
 
       const assistantMessageId = messageId
       const updatedMessages = messages.slice(0, messageIndex)
+
+      // 메시지의 sequence_number를 찾거나 계산
+      let sequenceNumber: number;
+      const { data: messageData, error: messageError } = await supabase
+        .from('messages')
+        .select('sequence_number')
+        .eq('id', messageId)
+        .eq('user_id', userId)
+        .eq('chat_session_id', chatId)
+        .single()
+
+      if (messageError || !messageData) {
+        // 데이터베이스에서 메시지를 찾지 못한 경우, 현재 메시지 인덱스 + 1을 sequence number로 사용
+        console.log('Message not found in database, using index-based sequence number')
+        sequenceNumber = messageIndex 
+      } else {
+        sequenceNumber = messageData.sequence_number
+      }
+
+      // 이후 메시지들 삭제
+      const { error: deleteError } = await supabase
+        .from('messages')
+        .delete()
+        .eq('chat_session_id', chatId)
+        .eq('user_id', userId)
+        .gte('sequence_number', sequenceNumber)
+
+      if (deleteError) {
+        console.error('Error deleting subsequent messages:', deleteError)
+        return
+      }
+
+      // 새로운 assistant 메시지 삽입
+      const { error: insertError } = await supabase
+        .from('messages')
+        .insert([{
+          id: assistantMessageId,
+          role: 'assistant',
+          content: '',
+          created_at: new Date().toISOString(),
+          model: currentModel,
+          host: 'assistant',
+          chat_session_id: chatId,
+          user_id: userId,
+          sequence_number: sequenceNumber
+        }])
+
+      if (insertError) {
+        console.error('Error inserting new assistant message:', insertError)
+        return
+      }
+
       setMessages(updatedMessages)
 
       try {
@@ -265,7 +317,7 @@ export function useMessages(chatId: string, userId: string) {
     } finally {
       setIsRegenerating(false)
     }
-  }, [chatId, userId, handleRateLimitError])
+  }, [chatId, userId, handleRateLimitError, supabase])
 
   return {
     isRegenerating,
