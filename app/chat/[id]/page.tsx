@@ -106,7 +106,7 @@ export default function Chat({ params }: PageProps) {
 
   const scrollToBottom = useCallback(() => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+      messagesEndRef.current.scrollIntoView({ behavior: 'auto' })
     }
   }, [])
 

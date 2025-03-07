@@ -51,31 +51,31 @@ export default function RootLayoutClient({
     }
   }, [supabase, router])
 
-  // announcement for GPT-4.5
-  useEffect(() => {
-    if (user) {
-      // showAnnouncement(
-      //   "Tip: Gemini 2.0 Flash supports million-token context windows for larger documents and multiple files, with faster processing and improved accuracy (76.4% MMLU, 70.7% MMMU)",
-      //   "info",
-      //   "Gemini-2-flash-tip"
-      // ); 
-      // showAnnouncement(
-      //   "Due to high demand on anthropic models, there may be some delays in response time. We are working on it. In the meantime, please try other models.",
-      //   "warning",
-      //   "anthropic-models-high-request-1"
-      // ); // 오후 8시 14분 
-      // showAnnouncement(
-      //   "File uploads have been temporarily disabled due to an ongoing issue with file reading. We expect to restore this functionality soon.",
-      //   "error",
-      //   "file-read-disabled"
-      // );
-      showAnnouncement(
-        "New model QwQ-32B is now available! It's a powerful reasoning model that excels at mathematical reasoning, coding, and complex-problem solving with performance rivaling the likes of DeepSeek-R1 and o1-mini.",
-        "info",
-        "new-model-qwq-32b"
-      );
-    }
-  }, [user, showAnnouncement]);
+  // // announcement for GPT-4.5
+  // useEffect(() => {
+  //   if (user) {
+  //     // showAnnouncement(
+  //     //   "Tip: Gemini 2.0 Flash supports million-token context windows for larger documents and multiple files, with faster processing and improved accuracy (76.4% MMLU, 70.7% MMMU)",
+  //     //   "info",
+  //     //   "Gemini-2-flash-tip"
+  //     // ); 
+  //     // showAnnouncement(
+  //     //   "Due to high demand on anthropic models, there may be some delays in response time. We are working on it. In the meantime, please try other models.",
+  //     //   "warning",
+  //     //   "anthropic-models-high-request-1"
+  //     // ); // 오후 8시 14분 
+  //     // showAnnouncement(
+  //     //   "File uploads have been temporarily disabled due to an ongoing issue with file reading. We expect to restore this functionality soon.",
+  //     //   "error",
+  //     //   "file-read-disabled"
+  //     // );
+  //     // showAnnouncement(
+  //     //   "New model QwQ-32B is now available! It's a powerful reasoning model that excels at mathematical reasoning, coding, and complex-problem solving with performance rivaling the likes of DeepSeek-R1 and o1-mini.",
+  //     //   "info",
+  //     //   "new-model-qwq-32b"
+  //     // );
+  //   }
+  // }, [user, showAnnouncement]);
 
   if (isLoading) {
     return <div className="flex h-screen items-center justify-center">Chatflix.app</div>

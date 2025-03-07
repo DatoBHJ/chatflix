@@ -10,28 +10,25 @@ export function ReasoningSection({ content }: ReasoningSectionProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
-    // 컨텐츠가 변경되거나 확장될 때만 스크롤 처리
-    if (!contentRef.current || !isExpanded) return;
-    
-    // requestAnimationFrame을 사용하여 레이아웃 계산 최적화
-    const scrollContainer = contentRef.current;
-    
-    // DOM 업데이트 후 스크롤 계산을 위해 requestAnimationFrame 사용
-    const animationFrame = requestAnimationFrame(() => {
-      // 컨텐츠가 충분히 길 때만 스크롤 적용
+    if (contentRef.current && isExpanded) {
+      const scrollContainer = contentRef.current;
       const scrollHeight = scrollContainer.scrollHeight;
-      const clientHeight = scrollContainer.clientHeight;
       
-      if (scrollHeight > clientHeight) {
-        scrollContainer.scrollTo({
-          top: scrollHeight - clientHeight,
-          behavior: 'smooth'
-        });
-      }
-    });
-    
-    // 클린업 함수에서 애니메이션 프레임 취소
-    return () => cancelAnimationFrame(animationFrame);
+      const startScroll = () => {
+        const currentScroll = scrollContainer.scrollTop;
+        const targetScroll = scrollHeight - scrollContainer.clientHeight;
+        const distance = targetScroll - currentScroll;
+        
+        if (distance > 0) {
+          scrollContainer.scrollTo({
+            top: targetScroll,
+            behavior: 'smooth'
+          });
+        }
+      };
+
+      startScroll();
+    }
   }, [content, isExpanded]);
 
   return (
