@@ -16,6 +16,7 @@ import { getDefaultModelId, getSystemDefaultModelId } from '@/lib/models/config'
 import '@/app/styles/attachments.css'
 import { Message as MessageComponent } from '@/app/components/Message'
 import { ChatInput } from '@/app/components/ChatInput/index';
+import { VariableSizeList as List } from 'react-window';
 
 
 export default function Chat({ params }: PageProps) {
@@ -24,6 +25,8 @@ export default function Chat({ params }: PageProps) {
   const [currentModel, setCurrentModel] = useState('')
   const [nextModel, setNextModel] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<List>(null)
   const [isInitialized, setIsInitialized] = useState(false)
   const initialMessageSentRef = useRef(false)
   const [user, setUser] = useState<any>(null)
@@ -107,17 +110,17 @@ export default function Chat({ params }: PageProps) {
     }
   }, [])
 
-  useEffect(() => {
-    // 메시지가 로드되거나 변경될 때마다 스크롤
-    scrollToBottom()
-  }, [messages, scrollToBottom])
+  // useEffect(() => {
+  //   // 메시지가 로드되거나 변경될 때마다 스크롤
+  //   scrollToBottom()
+  // }, [messages, scrollToBottom])
   
-  // 컴포넌트가 마운트될 때 스크롤
-  useEffect(() => {
-    scrollToBottom()
-  }, [])
+  // // 컴포넌트가 마운트될 때 스크롤
+  // useEffect(() => {
+  //   scrollToBottom()
+  // }, [scrollToBottom()])
   
-  // 초기화가 완료된 후에도 스크롤
+  // // 초기화가 완료된 후에도 스크롤
   useEffect(() => {
     if (isInitialized && isFullyLoaded) {
       scrollToBottom()
@@ -520,10 +523,102 @@ export default function Chat({ params }: PageProps) {
     }
   }, [stop, messages, currentModel, chatId, user?.id, setMessages])
 
+  // Get window dimensions for virtualization
+  const [windowDimensions, setWindowDimensions] = useState<{
+    width: number;
+    height: number;
+  }>({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1200,
+    height: typeof window !== 'undefined' ? window.innerHeight : 800,
+  });
+  
+  // Update window dimensions on resize
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const handleResize = () => {
+      setWindowDimensions({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (messages.length > 0 && messagesEndRef.current) {
+      if (listRef.current) {
+        listRef.current.scrollToItem(messages.length - 1, 'end');
+      } else {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  }, [messages]);
+  
+  // Calculate estimated message height based on content length
+  const estimateMessageHeight = useCallback((message: Message) => {
+    const baseHeight = 100; // Base height for a message container
+    const contentLength = message.content?.length || 0;
+    
+    // Estimate height based on content length
+    let estimatedHeight = baseHeight;
+    
+    if (contentLength > 0) {
+      // Rough estimate: 20px per 100 characters, with a minimum of baseHeight
+      estimatedHeight += Math.ceil(contentLength / 100) * 20;
+      
+      // Add extra height for code blocks (rough estimate)
+      if (message.content.includes('```')) {
+        estimatedHeight += 100;
+      }
+      
+      // Add extra height for attachments
+      const attachments = (message as any).experimental_attachments;
+      if (attachments && attachments.length > 0) {
+        estimatedHeight += attachments.length * 80;
+      }
+    }
+    
+    return estimatedHeight;
+  }, []);
+  
+  // Message row renderer for virtualized list
+  const MessageRow = useCallback(({ index, style }: { index: number; style: React.CSSProperties }) => {
+    const message = messages[index];
+    return (
+      <div style={style}>
+        <MessageComponent
+          key={message.id}
+          message={message}
+          currentModel={currentModel}
+          isRegenerating={isRegenerating}
+          editingMessageId={editingMessageId}
+          editingContent={editingContent}
+          copiedMessageId={copiedMessageId}
+          onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
+          onCopy={handleCopyMessage}
+          onEditStart={handleEditStart}
+          onEditCancel={handleEditCancel}
+          onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
+          setEditingContent={setEditingContent}
+        />
+      </div>
+    );
+  }, [messages, currentModel, isRegenerating, editingMessageId, editingContent, copiedMessageId, 
+      handleRegenerate, handleCopyMessage, handleEditStart, handleEditCancel, handleEditSave, 
+      setEditingContent, reload]);
+
   // 모든 데이터가 로드되기 전에는 로딩 화면 표시
   if (!isFullyLoaded || !user) {
     return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
   }
+
+  // Determine if we should use virtualization based on message count
+  const useVirtualization = messages.length > 15;
+  const listHeight = windowDimensions.height ? Math.max(windowDimensions.height - 300, 400) : 600;
 
   return (
     <main className="flex-1 relative h-full">
@@ -546,24 +641,40 @@ export default function Chat({ params }: PageProps) {
       />
 
       <div className="flex-1 overflow-y-auto pb-32 pt-10 sm:pt-16">
-        <div className="messages-container py-4 max-w-2xl mx-auto px-4 sm:px-6 w-full">
-          {messages.map((message) => (
-            <MessageComponent
-              key={message.id}
-              message={message}
-              currentModel={currentModel}
-              isRegenerating={isRegenerating}
-              editingMessageId={editingMessageId}
-              editingContent={editingContent}
-              copiedMessageId={copiedMessageId}
-              onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
-              onCopy={handleCopyMessage}
-              onEditStart={handleEditStart}
-              onEditCancel={handleEditCancel}
-              onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
-              setEditingContent={setEditingContent}
-            />
-          ))}
+        <div 
+          className="messages-container py-4 max-w-2xl mx-auto px-4 sm:px-6 w-full"
+          ref={messagesContainerRef}
+        >
+          {useVirtualization ? (
+            <List
+              ref={listRef}
+              height={listHeight}
+              itemCount={messages.length}
+              itemSize={(index) => estimateMessageHeight(messages[index])}
+              width="100%"
+              overscanCount={2}
+            >
+              {MessageRow}
+            </List>
+          ) : (
+            messages.map((message) => (
+              <MessageComponent
+                key={message.id}
+                message={message}
+                currentModel={currentModel}
+                isRegenerating={isRegenerating}
+                editingMessageId={editingMessageId}
+                editingContent={editingContent}
+                copiedMessageId={copiedMessageId}
+                onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
+                onCopy={handleCopyMessage}
+                onEditStart={handleEditStart}
+                onEditCancel={handleEditCancel}
+                onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
+                setEditingContent={setEditingContent}
+              />
+            ))
+          )}
           <div ref={messagesEndRef} className="h-px" />
         </div>
       </div>

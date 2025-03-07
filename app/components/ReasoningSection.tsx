@@ -9,27 +9,27 @@ export function ReasoningSection({ content }: ReasoningSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const contentRef = useRef<HTMLDivElement>(null);
   
-  // useEffect(() => {
-  //   if (contentRef.current && isExpanded) {
-  //     const scrollContainer = contentRef.current;
-  //     const scrollHeight = scrollContainer.scrollHeight;
+  useEffect(() => {
+    if (contentRef.current && isExpanded) {
+      const scrollContainer = contentRef.current;
+      const scrollHeight = scrollContainer.scrollHeight;
       
-  //     const startScroll = () => {
-  //       const currentScroll = scrollContainer.scrollTop;
-  //       const targetScroll = scrollHeight - scrollContainer.clientHeight;
-  //       const distance = targetScroll - currentScroll;
+      const startScroll = () => {
+        const currentScroll = scrollContainer.scrollTop;
+        const targetScroll = scrollHeight - scrollContainer.clientHeight;
+        const distance = targetScroll - currentScroll;
         
-  //       if (distance > 0) {
-  //         scrollContainer.scrollTo({
-  //           top: targetScroll,
-  //           behavior: 'smooth'
-  //         });
-  //       }
-  //     };
+        if (distance > 0) {
+          scrollContainer.scrollTo({
+            top: targetScroll,
+            behavior: 'smooth'
+          });
+        }
+      };
 
-  //     startScroll();
-  //   }
-  // }, [content, isExpanded]);
+      startScroll();
+    }
+  }, [content, isExpanded]);
 
   return (
     <div className="message-reasoning">
