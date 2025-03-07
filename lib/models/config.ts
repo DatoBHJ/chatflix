@@ -130,8 +130,8 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     supportsVision: true,
     rateLimit: {
       category: 'superHigh',
-      requests: 35,
-      // requests: 5,
+      // requests: 35,
+      requests: 5,
       window: '60 m'
     },
     pricing: {
@@ -156,8 +156,8 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     supportsVision: true,
     rateLimit: {
       category: 'superHigh',
-      requests: 35,
-      // requests: 5,
+      // requests: 35,
+      requests: 5,
       window: '60 m'
     },
     pricing: {
@@ -176,8 +176,8 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     supportsVision: true,
     rateLimit: {
       category: 'superHigh',
-      requests: 35,
-      // requests: 5,
+      // requests: 35,
+      requests: 5,
       window: '60 m'
     },
     pricing: {
