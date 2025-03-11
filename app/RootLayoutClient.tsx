@@ -78,7 +78,7 @@ export default function RootLayoutClient({
       showAnnouncement(
         "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Our team is actively monitoring and addressing any problems that arise. Thank you for your patience and understanding.",
         "warning",
-        "major-update-in-progress"
+        "major-update-in-progress-1"
       );
     }
   }, [user, showAnnouncement]);
