@@ -249,54 +249,54 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     contextWindow: 128000
   },
-  {
-    id: 'gpt-4.5-preview',
-    name: 'GPT-4.5',
-    description: 'Latest and most capable GPT model yet by OpenAI',
-    provider: 'openai',
-    supportsVision: true,
-    rateLimit: {
-      level: 'level3',
-    },
-    isEnabled: true,
-    contextWindow: 128000
-  },
-  {
-    id: 'chatgpt-4o-latest',
-    name: 'GPT-4o',
-    description: 'Latest version of GPT-4o used in ChatGPT',
-    provider: 'openai',
-    supportsVision: true,
-    rateLimit: {
-      level: 'level3',
-    },
-    isEnabled: true,
-    contextWindow: 128000 
-  },
-  {
-    "id": "o1",
-    "name": "o1 (Thinking)",
-    "description": "Advanced reasoning model by OpenAI. Reasoning tokens used in its chain-of-thought process are hidden by OpenAI and not included in the visible output.",
-    "provider": "openai",
-    "supportsVision": true,
-    "rateLimit": {
-      "level": "level3",
-    },
-    "isEnabled": true,
-    contextWindow: 200000 
-  },
-  {
-    "id": "o3-mini",
-    "name": "o3-mini (Thinking)",
-    "description": "Latest small reasoning model by OpenAI. Reasoning tokens used in its chain-of-thought process are hidden by OpenAI and not included in the visible output.",
-    "provider": "openai",
-    "supportsVision": true,
-    "rateLimit": {
-      "level": "level2",
-    },
-    "isEnabled": true,
-    contextWindow: 200000
-  },
+  // {
+  //   id: 'gpt-4.5-preview',
+  //   name: 'GPT-4.5',
+  //   description: 'Latest and most capable GPT model yet by OpenAI',
+  //   provider: 'openai',
+  //   supportsVision: true,
+  //   rateLimit: {
+  //     level: 'level3',
+  //   },
+  //   isEnabled: true,
+  //   contextWindow: 128000
+  // },
+  // {
+  //   id: 'chatgpt-4o-latest',
+  //   name: 'GPT-4o',
+  //   description: 'Latest version of GPT-4o used in ChatGPT',
+  //   provider: 'openai',
+  //   supportsVision: true,
+  //   rateLimit: {
+  //     level: 'level3',
+  //   },
+  //   isEnabled: true,
+  //   contextWindow: 128000 
+  // },
+  // {
+  //   "id": "o1",
+  //   "name": "o1 (Thinking)",
+  //   "description": "Advanced reasoning model by OpenAI. Reasoning tokens used in its chain-of-thought process are hidden by OpenAI and not included in the visible output.",
+  //   "provider": "openai",
+  //   "supportsVision": true,
+  //   "rateLimit": {
+  //     "level": "level3",
+  //   },
+  //   "isEnabled": true,
+  //   contextWindow: 200000 
+  // },
+  // {
+  //   "id": "o3-mini",
+  //   "name": "o3-mini (Thinking)",
+  //   "description": "Latest small reasoning model by OpenAI. Reasoning tokens used in its chain-of-thought process are hidden by OpenAI and not included in the visible output.",
+  //   "provider": "openai",
+  //   "supportsVision": true,
+  //   "rateLimit": {
+  //     "level": "level2",
+  //   },
+  //   "isEnabled": true,
+  //   contextWindow: 200000
+  // },
   {
     id: 'gemini-2.0-flash',
     name: 'Gemini 2.0 Flash',
