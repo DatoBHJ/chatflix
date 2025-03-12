@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { deleteCustomer } from '@/lib/polar'
 
 export async function POST() {
   try {
@@ -33,6 +34,15 @@ export async function POST() {
     )
 
     try {
+      // Delete Polar customer data
+      try {
+        await deleteCustomer(user.id)
+        console.log('Successfully deleted Polar customer data')
+      } catch (polarError) {
+        console.error('Error deleting Polar customer data:', polarError)
+        // Continue with account deletion even if Polar deletion fails
+      }
+
       // Delete all user data using the security definer function
       const { error: dataError } = await serviceClient.rpc('delete_user_data_and_account', {
         p_user_id: user.id

@@ -75,11 +75,11 @@ export default function RootLayoutClient({
       //   "new-model-qwq-32b"
       // );
       // Code for a major update warning announcement
-      showAnnouncement(
-        "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Our team is actively monitoring and addressing any problems that arise. Thank you for your patience and understanding.",
-        "warning",
-        "major-update-in-progress-1"
-      );
+      // showAnnouncement(
+      //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Our team is actively monitoring and addressing any problems that arise. Thank you for your patience and understanding.",
+      //   "warning",
+      //   "major-update-in-progress"
+      // );
     }
   }, [user, showAnnouncement]);
 

@@ -2,7 +2,7 @@
 
 import { useChat } from '@ai-sdk/react';
 import { Message } from 'ai'
-import { useState, useEffect, use, useRef, useCallback } from 'react'
+import { useState, useEffect, use, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { ModelSelector } from '../../components/ModelSelector'
@@ -12,11 +12,11 @@ import { convertMessage, uploadFile } from './utils'
 import { PageProps, ExtendedMessage } from './types'
 import { Attachment } from '@/lib/types'
 import { useMessages } from '@/app/hooks/useMessages'
-import { getDefaultModelId, getSystemDefaultModelId } from '@/lib/models/config'
+import { getDefaultModelId, getSystemDefaultModelId, MODEL_CONFIGS } from '@/lib/models/config'
 import '@/app/styles/attachments.css'
 import { Message as MessageComponent } from '@/app/components/Message'
 import { ChatInput } from '@/app/components/ChatInput/index';
-import { VariableSizeList as List } from 'react-window';
+import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 
 
 export default function Chat({ params }: PageProps) {
@@ -26,7 +26,7 @@ export default function Chat({ params }: PageProps) {
   const [nextModel, setNextModel] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const listRef = useRef<List>(null)
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [isInitialized, setIsInitialized] = useState(false)
   const initialMessageSentRef = useRef(false)
   const [user, setUser] = useState<any>(null)
@@ -35,6 +35,7 @@ export default function Chat({ params }: PageProps) {
   const [existingMessages, setExistingMessages] = useState<Message[]>([])
   const [isModelLoading, setIsModelLoading] = useState(true)
   const [isSessionLoaded, setIsSessionLoaded] = useState(false)
+  const [rateLimitedLevels, setRateLimitedLevels] = useState<string[]>([])
 
   const isFullyLoaded = !isModelLoading && isSessionLoaded && !!currentModel
 
@@ -75,12 +76,17 @@ export default function Chat({ params }: PageProps) {
         const reset = errorData?.reset || new Date(Date.now() + 60000).toISOString();
         const limit = errorData?.limit || 10;
         
-        // Include chatId in the redirect URL
+        // Get the model level
+        const modelConfig = MODEL_CONFIGS.find(m => m.id === nextModel);
+        const modelLevel = modelConfig?.rateLimit.level || '';
+        
+        // Include chatId and level in the redirect URL
         router.push(`/rate-limit?${new URLSearchParams({
           limit: limit.toString(),
           reset: reset,
           model: nextModel,
-          chatId: chatId
+          chatId: chatId,
+          level: modelLevel
         }).toString()}`);
         
         return;
@@ -105,27 +111,15 @@ export default function Chat({ params }: PageProps) {
   } = useMessages(chatId, user?.id)
 
   const scrollToBottom = useCallback(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'auto' })
+    if (virtuosoRef.current) {
+      virtuosoRef.current.scrollToIndex({
+        index: messages.length - 1,
+        behavior: 'smooth'
+      });
+    } else if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
     }
-  }, [])
-
-  // useEffect(() => {
-  //   // 메시지가 로드되거나 변경될 때마다 스크롤
-  //   scrollToBottom()
-  // }, [messages, scrollToBottom])
-  
-  // // 컴포넌트가 마운트될 때 스크롤
-  // useEffect(() => {
-  //   scrollToBottom()
-  // }, [scrollToBottom()])
-  
-  // // 초기화가 완료된 후에도 스크롤
-  useEffect(() => {
-    if (isInitialized && isFullyLoaded) {
-      scrollToBottom()
-    }
-  }, [isInitialized, isFullyLoaded, scrollToBottom])
+  }, [messages.length]);
 
   useEffect(() => {
     const getUser = async () => {
@@ -343,8 +337,89 @@ export default function Chat({ params }: PageProps) {
     }
   }, [chatId, setMessages, isInitialized])
 
+  // Check for rate limited levels from localStorage
+  useEffect(() => {
+    // Only run on client side
+    if (typeof window !== 'undefined') {
+      try {
+        // Check for multiple rate limited levels
+        const rateLimitLevelsStr = localStorage.getItem('rateLimitLevels')
+        if (rateLimitLevelsStr) {
+          const levelsData = JSON.parse(rateLimitLevelsStr)
+          const currentTime = Date.now()
+          
+          // Filter out expired levels and collect valid ones
+          const validLevels = Object.entries(levelsData)
+            .filter(([_, data]: [string, any]) => data.reset > currentTime)
+            .map(([level, _]: [string, any]) => level)
+          
+          if (validLevels.length > 0) {
+            setRateLimitedLevels(validLevels)
+            
+            // If current model is rate limited, switch to a different model
+            if (currentModel) {
+              const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel)
+              if (currentModelConfig && validLevels.includes(currentModelConfig.rateLimit.level)) {
+                // Find a model from a different level that's not rate limited
+                const alternativeModel = MODEL_CONFIGS.find(m => 
+                  m.isEnabled && !validLevels.includes(m.rateLimit.level)
+                )
+                if (alternativeModel) {
+                  setNextModel(alternativeModel.id)
+                }
+              }
+            }
+          } else {
+            // All rate limits have expired, remove the data
+            localStorage.removeItem('rateLimitLevels')
+          }
+        } else {
+          // For backward compatibility, check the old format
+          const rateLimitInfoStr = localStorage.getItem('rateLimitInfo')
+          if (rateLimitInfoStr) {
+            const rateLimitInfo = JSON.parse(rateLimitInfoStr)
+            
+            // Check if the rate limit is still valid
+            if (rateLimitInfo.reset > Date.now()) {
+              setRateLimitedLevels([rateLimitInfo.level])
+              
+              // If current model is rate limited, switch to a different model
+              if (currentModel) {
+                const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel)
+                if (currentModelConfig && currentModelConfig.rateLimit.level === rateLimitInfo.level) {
+                  // Find a model from a different level
+                  const alternativeModel = MODEL_CONFIGS.find(m => 
+                    m.isEnabled && m.rateLimit.level !== rateLimitInfo.level
+                  )
+                  if (alternativeModel) {
+                    setNextModel(alternativeModel.id)
+                  }
+                }
+              }
+            } else {
+              // Rate limit has expired, remove it
+              localStorage.removeItem('rateLimitInfo')
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing rate limit info:', error)
+      }
+    }
+  }, [currentModel])
+
   const handleModelChange = async (newModel: string) => {
     try {
+      // Check if the selected model is in a rate-limited level
+      if (rateLimitedLevels.length > 0) {
+        const modelConfig = MODEL_CONFIGS.find(m => m.id === newModel)
+        if (modelConfig && rateLimitedLevels.includes(modelConfig.rateLimit.level)) {
+          // Don't allow changing to a rate-limited model
+          console.warn('Cannot change to a rate-limited model')
+          return false
+        }
+      }
+
       const { error: sessionError } = await supabase
         .from('chat_sessions')
         .update({ current_model: newModel })
@@ -547,69 +622,20 @@ export default function Chat({ params }: PageProps) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
   
-  // // Scroll to bottom when messages change
-  // useEffect(() => {
-  //   if (messages.length > 0 && messagesEndRef.current) {
-  //     if (listRef.current) {
-  //       listRef.current.scrollToItem(messages.length - 1, 'end');
-  //     } else {
-  //       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-  //     }
-  //   }
-  // }, [messages]);
-  
-  // Calculate estimated message height based on content length
-  const estimateMessageHeight = useCallback((message: Message) => {
-    const baseHeight = 100; // Base height for a message container
-    const contentLength = message.content?.length || 0;
-    
-    // Estimate height based on content length
-    let estimatedHeight = baseHeight;
-    
-    if (contentLength > 0) {
-      // Rough estimate: 20px per 100 characters, with a minimum of baseHeight
-      estimatedHeight += Math.ceil(contentLength / 100) * 20;
-      
-      // Add extra height for code blocks (rough estimate)
-      if (message.content.includes('```')) {
-        estimatedHeight += 100;
-      }
-      
-      // Add extra height for attachments
-      const attachments = (message as any).experimental_attachments;
-      if (attachments && attachments.length > 0) {
-        estimatedHeight += attachments.length * 80;
-      }
+  // Optimize virtualization condition
+  const useVirtualization = useMemo(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      return messages.length > 10;
     }
-    
-    return estimatedHeight;
-  }, []);
-  
-  // Message row renderer for virtualized list
-  const MessageRow = useCallback(({ index, style }: { index: number; style: React.CSSProperties }) => {
-    const message = messages[index];
-    return (
-      <div style={style}>
-        <MessageComponent
-          key={message.id}
-          message={message}
-          currentModel={currentModel}
-          isRegenerating={isRegenerating}
-          editingMessageId={editingMessageId}
-          editingContent={editingContent}
-          copiedMessageId={copiedMessageId}
-          onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
-          onCopy={handleCopyMessage}
-          onEditStart={handleEditStart}
-          onEditCancel={handleEditCancel}
-          onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
-          setEditingContent={setEditingContent}
-        />
-      </div>
-    );
-  }, [messages, currentModel, isRegenerating, editingMessageId, editingContent, copiedMessageId, 
-      handleRegenerate, handleCopyMessage, handleEditStart, handleEditCancel, handleEditSave, 
-      setEditingContent, reload]);
+    return messages.length > 20;
+  }, [messages.length]);
+
+  // Add back initialization scroll effect only
+  useEffect(() => {
+    if (isInitialized && isFullyLoaded) {
+      scrollToBottom();
+    }
+  }, [isInitialized, isFullyLoaded, scrollToBottom]);
 
   // 모든 데이터가 로드되기 전에는 로딩 화면 표시
   if (!isFullyLoaded || !user) {
@@ -617,7 +643,6 @@ export default function Chat({ params }: PageProps) {
   }
 
   // Determine if we should use virtualization based on message count
-  const useVirtualization = messages.length > 15;
   const listHeight = windowDimensions.height ? Math.max(windowDimensions.height - 300, 400) : 600;
 
   return (
@@ -625,6 +650,7 @@ export default function Chat({ params }: PageProps) {
       <Header 
         isSidebarOpen={isSidebarOpen}
         onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+        user={user}
       />
       
       <div className={`fixed left-0 top-0 h-full transform transition-all duration-300 ease-in-out z-50 ${
@@ -646,16 +672,34 @@ export default function Chat({ params }: PageProps) {
           ref={messagesContainerRef}
         >
           {useVirtualization ? (
-            <List
-              ref={listRef}
-              height={listHeight}
-              itemCount={messages.length}
-              itemSize={(index) => estimateMessageHeight(messages[index])}
-              width="100%"
-              overscanCount={2}
-            >
-              {MessageRow}
-            </List>
+            <Virtuoso
+              ref={virtuosoRef}
+              data={messages}
+              totalCount={messages.length}
+              style={{ height: listHeight }}
+              overscan={800}
+              initialTopMostItemIndex={messages.length - 1}
+              components={{
+                Footer: () => <div ref={messagesEndRef} className="h-px" />
+              }}
+              itemContent={(index, message) => (
+                <MessageComponent
+                  key={message.id}
+                  message={message}
+                  currentModel={currentModel}
+                  isRegenerating={isRegenerating}
+                  editingMessageId={editingMessageId}
+                  editingContent={editingContent}
+                  copiedMessageId={copiedMessageId}
+                  onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
+                  onCopy={handleCopyMessage}
+                  onEditStart={handleEditStart}
+                  onEditCancel={handleEditCancel}
+                  onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
+                  setEditingContent={setEditingContent}
+                />
+              )}
+            />
           ) : (
             messages.map((message) => (
               <MessageComponent
@@ -688,6 +732,7 @@ export default function Chat({ params }: PageProps) {
                 nextModel={nextModel}
                 setNextModel={setNextModel}
                 position="top"
+                disabledLevels={rateLimitedLevels}
               />
               <ChatInput
                 input={input}

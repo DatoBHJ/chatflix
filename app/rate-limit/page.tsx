@@ -12,6 +12,7 @@ import { uploadFile } from '@/app/chat/[id]/utils'
 import { Header } from '@/app/components/Header'
 import { Sidebar } from '@/app/components/Sidebar'
 import Image from 'next/image'
+import { createCheckoutSession } from '@/lib/polar'
 
 // Helper function to get the logo path based on provider
 const getProviderLogo = (provider: string) => {
@@ -59,14 +60,134 @@ export default function RateLimitPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isModelLoading, setIsModelLoading] = useState(true)
   const [chatTitle, setChatTitle] = useState<string>('')
+  const [isSubscribing, setIsSubscribing] = useState(false)
+  const [showTooltip, setShowTooltip] = useState(false)
   
   // Get the rate-limited model and chat session from URL params
   const rateLimitedModelId = searchParams.get('model') || ''
   const chatId = searchParams.get('chatId') || ''
   const currentModel = MODEL_CONFIGS.find(m => m.id === rateLimitedModelId)
   
-  // Set up model selection (default to system default, but not the rate-limited one)
+  // Get the rate-limited level (either from URL or from model config)
+  const levelFromUrl = searchParams.get('level') || ''
+  const rateLimitedLevel = levelFromUrl || currentModel?.rateLimit.level || ''
+  
+  // Get all models with the same level as the rate-limited model
+  const rateLimitedModels = MODEL_CONFIGS.filter(m => m.rateLimit.level === rateLimitedLevel).map(m => m.id)
+  
+  // Track all rate limited levels
+  const [rateLimitedLevels, setRateLimitedLevels] = useState<string[]>([])
+  
+  // Set up model selection (default to system default, but not from the rate-limited level)
   const [nextModel, setNextModel] = useState<string>('')
+  
+  // Store rate limit info in localStorage
+  useEffect(() => {
+    if (rateLimitedLevel) {
+      const resetTime = new Date(searchParams.get('reset') || '').getTime()
+      
+      // Get existing rate limit levels from localStorage
+      let rateLimitLevels = {}
+      try {
+        const existingLevelsStr = localStorage.getItem('rateLimitLevels')
+        if (existingLevelsStr) {
+          rateLimitLevels = JSON.parse(existingLevelsStr)
+        }
+      } catch (error) {
+        console.error('Error parsing existing rate limit levels:', error)
+      }
+      
+      // Add or update the current rate limited level
+      rateLimitLevels = {
+        ...rateLimitLevels,
+        [rateLimitedLevel]: {
+          reset: resetTime,
+          models: rateLimitedModels
+        }
+      }
+      
+      // Store in localStorage
+      localStorage.setItem('rateLimitLevels', JSON.stringify(rateLimitLevels))
+      
+      // For backward compatibility
+      const rateLimitInfo = {
+        level: rateLimitedLevel,
+        reset: resetTime,
+        models: rateLimitedModels
+      }
+      localStorage.setItem('rateLimitInfo', JSON.stringify(rateLimitInfo))
+      
+      // Set up cleanup for expired rate limits
+      const timeoutId = setTimeout(() => {
+        try {
+          const levelsStr = localStorage.getItem('rateLimitLevels')
+          if (levelsStr) {
+            const levels = JSON.parse(levelsStr)
+            // Remove the expired level
+            delete levels[rateLimitedLevel]
+            
+            if (Object.keys(levels).length > 0) {
+              localStorage.setItem('rateLimitLevels', JSON.stringify(levels))
+            } else {
+              localStorage.removeItem('rateLimitLevels')
+            }
+          }
+          
+          // Also remove the legacy rateLimitInfo if it matches this level
+          const infoStr = localStorage.getItem('rateLimitInfo')
+          if (infoStr) {
+            const info = JSON.parse(infoStr)
+            if (info.level === rateLimitedLevel) {
+              localStorage.removeItem('rateLimitInfo')
+            }
+          }
+        } catch (error) {
+          console.error('Error cleaning up rate limit info:', error)
+        }
+      }, Math.max(0, resetTime - Date.now()))
+      
+      return () => clearTimeout(timeoutId)
+    }
+  }, [rateLimitedLevel, rateLimitedModels, searchParams])
+  
+  // Separate useEffect to update rateLimitedLevels state
+  useEffect(() => {
+    // Only run on client side
+    if (typeof window !== 'undefined') {
+      try {
+        const rateLimitLevelsStr = localStorage.getItem('rateLimitLevels')
+        if (rateLimitLevelsStr) {
+          const levelsData = JSON.parse(rateLimitLevelsStr)
+          const currentTime = Date.now()
+          
+          // Filter out expired levels and collect valid ones
+          const validLevels = Object.entries(levelsData)
+            .filter(([_, data]: [string, any]) => data.reset > currentTime)
+            .map(([level, _]: [string, any]) => level)
+          
+          setRateLimitedLevels(validLevels)
+        } else {
+          // For backward compatibility
+          const rateLimitInfoStr = localStorage.getItem('rateLimitInfo')
+          if (rateLimitInfoStr) {
+            const rateLimitInfo = JSON.parse(rateLimitInfoStr)
+            
+            // Check if the rate limit is still valid
+            if (rateLimitInfo.reset > Date.now()) {
+              setRateLimitedLevels([rateLimitInfo.level])
+            } else {
+              setRateLimitedLevels([])
+            }
+          } else {
+            setRateLimitedLevels([])
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing rate limit info:', error)
+        setRateLimitedLevels([])
+      }
+    }
+  }, [])
   
   // Add styles to the document head for animations and effects
   useEffect(() => {
@@ -208,11 +329,15 @@ export default function RateLimitPage() {
           }
         }
         
-        // Get system default model but make sure it's not the rate-limited one
+        // Get system default model but make sure it's not from any rate-limited level
         let defaultModel = getSystemDefaultModelId()
-        if (defaultModel === rateLimitedModelId) {
-          // If rate-limited model is the default, choose another one
-          const alternativeModel = MODEL_CONFIGS.find(m => m.id !== rateLimitedModelId)
+        const defaultModelConfig = MODEL_CONFIGS.find(m => m.id === defaultModel)
+        
+        if (defaultModelConfig && rateLimitedLevels.includes(defaultModelConfig.rateLimit.level)) {
+          // If default model is in any rate-limited level, choose another one from a different level
+          const alternativeModel = MODEL_CONFIGS.find(m => 
+            m.isEnabled && !rateLimitedLevels.includes(m.rateLimit.level)
+          )
           defaultModel = alternativeModel?.id || defaultModel
         }
         
@@ -220,8 +345,10 @@ export default function RateLimitPage() {
       } catch (error) {
         console.error('Error loading user or model:', error)
         
-        // Fallback to a non-rate-limited model
-        const fallbackModel = MODEL_CONFIGS.find(m => m.id !== rateLimitedModelId)?.id || getSystemDefaultModelId()
+        // Fallback to a non-rate-limited model from a different level
+        const fallbackModel = MODEL_CONFIGS.find(m => 
+          m.isEnabled && !rateLimitedLevels.includes(m.rateLimit.level)
+        )?.id || getSystemDefaultModelId()
         setNextModel(fallbackModel)
       } finally {
         setIsModelLoading(false)
@@ -229,7 +356,7 @@ export default function RateLimitPage() {
     }
     
     getUser()
-  }, [supabase.auth, router, rateLimitedModelId, chatId])
+  }, [supabase.auth, router, chatId, rateLimitedLevels])
   
   // Timer for rate limit countdown
   useEffect(() => {
@@ -258,7 +385,13 @@ export default function RateLimitPage() {
   })
   
   const handleModelChange = (newModel: string) => {
-    setNextModel(newModel)
+    // Check if the selected model is in any of the rate-limited levels
+    const selectedModelConfig = MODEL_CONFIGS.find(m => m.id === newModel)
+    if (selectedModelConfig && !rateLimitedLevels.includes(selectedModelConfig.rateLimit.level)) {
+      setNextModel(newModel)
+    } else {
+      console.warn(`Cannot select model ${newModel} as its level is rate limited`)
+    }
   }
   
   const handleContinueChat = async (e: React.FormEvent) => {
@@ -353,6 +486,28 @@ export default function RateLimitPage() {
     }
   }
   
+  // Handle subscription
+  const handleSubscribe = async () => {
+    if (!user) return;
+    
+    setIsSubscribing(true);
+    try {
+      const checkout = await createCheckoutSession(
+        user.id,
+        user.email,
+        user.user_metadata?.full_name
+      );
+      
+      // Redirect to checkout URL
+      window.location.href = checkout.url;
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      alert('Failed to create checkout session. Please try again.');
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+  
   // 로딩 중이거나 사용자 정보가 없는 경우 로딩 화면 표시
   if (isModelLoading || !user) {
     return (
@@ -373,6 +528,7 @@ export default function RateLimitPage() {
       <Header 
         isSidebarOpen={isSidebarOpen}
         onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+        user={user}
       />
       
       {/* Sidebar with improved transition */}
@@ -396,7 +552,7 @@ export default function RateLimitPage() {
 
       <div className="flex-1 flex flex-col items-center justify-center">
         <div className="mobile-container w-full h-full">
-          <div className="w-full max-w-2xl mx-auto px-6 sm:px-8 pt-6 sm:pt-12 pb-12 sm:pb-32">
+          <div className="w-full max-w-2xl mx-auto px-6 sm:px-8 pt-20 pb-10">
             {/* Rate limit notice */}
             <div className="mb-8 fade-in-up">
               <h1 className="text-2xl md:text-3xl font-medium mb-4 text-[var(--foreground)]">
@@ -424,10 +580,72 @@ export default function RateLimitPage() {
                 </div>
               )}
               
+              {/* Display the rate limited level */}
+              {rateLimitedLevel && (
+                <div className="mb-6 fade-in-up" style={{ animationDelay: '0.15s' }}>
+                  <div className="text-xs uppercase tracking-wider text-[var(--muted)] mb-2">Rate Limited Level</div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center bg-red-500/10 rounded-md text-red-500 dark:text-red-400 font-medium">
+                      {rateLimitedLevel.replace('level', '')}
+                    </div>
+                    <div className="text-base font-medium text-red-500 dark:text-red-400">
+                      {rateLimitedLevel.charAt(0).toUpperCase() + rateLimitedLevel.slice(1)}
+                      <span className="ml-2 text-sm text-[var(--muted)]">
+                        ({rateLimitedModels.length} {rateLimitedModels.length === 1 ? 'model' : 'models'})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div className="mb-8 fade-in-up" style={{ animationDelay: '0.2s' }}>
                 <div className="text-xs uppercase tracking-wider text-[var(--muted)] mb-2">Time Until Reset</div>
                 <div className="text-lg font-medium text-red-500 dark:text-red-400">
                   {formatTimeLeft(timeLeft)}
+                </div>
+              </div>
+              
+              {/* Golden Ticket Subscription Button */}
+              <div className="mb-8 fade-in-up" style={{ animationDelay: '0.25s' }}>
+                <div className="p-4 bg-amber-50/10 border border-amber-200 rounded-sm">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-base font-medium mb-1 text-amber-800 dark:text-amber-400">Upgrade to Premium</h3>
+                      <p className="text-sm text-[var(--muted)]">Get unlimited access to all models without rate limits</p>
+                    </div>
+                    <div className="relative" onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)}>
+                      <button
+                        onClick={handleSubscribe}
+                        disabled={isSubscribing}
+                        className="premium-ticket flex items-center gap-2 px-4 py-2 border border-amber-400/30 bg-gradient-to-r from-amber-50 to-amber-100 text-amber-800 rounded-sm hover:shadow-md transition-all whitespace-nowrap"
+                        aria-label="Get Premium Access"
+                      >
+                        {isSubscribing ? (
+                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                            <path d="M12 2L15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2z" />
+                          </svg>
+                        )}
+                        <span className="font-medium text-xs tracking-wide">GET GOLDEN TICKET</span>
+                      </button>
+                      
+                      {showTooltip && (
+                        <div className="absolute right-0 mt-2 w-64 bg-white/90 backdrop-blur-sm text-amber-900 p-3 rounded shadow-lg z-10 border border-amber-100 animate-fade-in">
+                          <div className="font-medium text-xs mb-1 text-amber-800">Golden Ticket Benefits:</div>
+                          <ul className="text-xs text-amber-700 opacity-80 list-disc pl-4 space-y-1">
+                            <li>Unlimited conversations with all models</li>
+                            <li>No rate limits or waiting periods</li>
+                            <li>Priority access during peak times</li>
+                            <li>Access to all premium features</li>
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
               
@@ -456,7 +674,7 @@ export default function RateLimitPage() {
             </div>
             <div className="mb-4 model-selector-container">
                 <ModelSelector
-                  currentModel={nextModel}
+                  currentModel={currentModel?.id || ''}
                   nextModel={nextModel}
                   setNextModel={(model) => {
                     if (typeof model === 'function') {
@@ -466,7 +684,8 @@ export default function RateLimitPage() {
                       handleModelChange(model);
                     }
                   }}
-                  disabled={isSubmitting}
+                  disabled={isModelLoading}
+                  disabledLevels={rateLimitedLevels}
                 />
               </div>
 
@@ -477,7 +696,7 @@ export default function RateLimitPage() {
               {chatId && (
                 <button 
                   onClick={handleContinueChat}
-                  disabled={isSubmitting || nextModel === rateLimitedModelId}
+                  disabled={isSubmitting || (nextModel === rateLimitedModelId) || !nextModel}
                   className="continue-button w-full px-4 py-3 bg-[var(--foreground)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-[var(--background)] transition-colors mb-4"
                 >
                   <div className="flex items-center justify-center gap-2">
@@ -514,7 +733,7 @@ export default function RateLimitPage() {
             
             {/* Help text */}
             <div className="mt-12 text-xs text-[var(--muted)] opacity-70 text-center fade-in-up" style={{ animationDelay: '0.8s' }}>
-              Rate limits help us maintain service quality and prevent abuse.
+              Upgrade to Premium for unlimited access to all models without rate limits.
             </div>
           </div>
         </div>

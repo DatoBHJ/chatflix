@@ -583,3 +583,83 @@ body {
 .sidebar-scroll::-webkit-scrollbar {
   display: none;  /* Chrome, Safari, Opera */
 }
+
+/* Modern Minimal Golden Ticket */
+.premium-ticket {
+  font-family: var(--font-sans);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.premium-ticket::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg, 
+    rgba(251, 191, 36, 0) 0%, 
+    rgba(251, 191, 36, 0.1) 50%, 
+    rgba(251, 191, 36, 0) 100%
+  );
+  transition: left 0.7s ease;
+}
+
+.premium-ticket:hover::before {
+  left: 100%;
+}
+
+/* Subscribed badge style */
+.premium-badge {
+  background: linear-gradient(135deg, #f3f0c7 0%, #f7d060 100%);
+  border: 1px solid rgba(217, 119, 6, 0.15);
+}
+
+/* Dark mode support */
+:root[data-theme="dark"] .premium-ticket {
+  border-color: rgba(251, 191, 36, 0.2);
+  background: linear-gradient(to right, rgba(251, 191, 36, 0.05), rgba(251, 191, 36, 0.1));
+  color: rgba(251, 191, 36, 0.9);
+}
+
+:root[data-theme="dark"] .premium-badge {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(251, 191, 36, 0.3) 100%);
+  border-color: rgba(251, 191, 36, 0.3);
+  color: rgba(251, 191, 36, 0.9);
+}
+
+:root[data-theme="dark"] .premium-ticket::before {
+  background: linear-gradient(
+    90deg, 
+    rgba(251, 191, 36, 0) 0%, 
+    rgba(251, 191, 36, 0.15) 50%, 
+    rgba(251, 191, 36, 0) 100%
+  );
+}
+
+:root[data-theme="dark"] .premium-tooltip {
+  background: rgba(23, 23, 23, 0.95);
+  backdrop-filter: blur(8px);
+  border-color: rgba(251, 191, 36, 0.2);
+  color: rgba(251, 191, 36, 0.9);
+}
+
+/* Animation for fade in */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+

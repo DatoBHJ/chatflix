@@ -2,14 +2,35 @@
 
 import { useRouter } from 'next/navigation'
 import { Header } from '../components/Header'
+import { useState, useEffect } from 'react'
+import { createClient } from '@/utils/supabase/client'
 
 export default function About() {
+  const [user, setUser] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const supabase = createClient()
+  
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+      setIsLoading(false)
+    }
+    
+    getUser()
+  }, [supabase])
+  
+  if (isLoading) {
+    return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
+  }
+  
   return (
     <main className="flex-1 flex flex-col min-h-screen">
       <Header 
         showBackButton={true}
         isSidebarOpen={false}
         onSidebarToggle={() => {}}
+        user={user}
       />
       
       <div className="flex-1 overflow-y-auto pt-24 sm:pt-40">

@@ -9,7 +9,7 @@ import { Header } from './components/Header'
 import { Sidebar } from './components/Sidebar'
 import { uploadFile } from '@/app/chat/[id]/utils'
 import { Attachment } from '@/lib/types'
-import { getDefaultModelId, getSystemDefaultModelId, updateUserDefaultModel } from '@/lib/models/config'
+import { getDefaultModelId, getSystemDefaultModelId, updateUserDefaultModel, MODEL_CONFIGS } from '@/lib/models/config'
 import { ChatInput } from '@/app/components/ChatInput/index'
 
 export default function Home() {
@@ -20,7 +20,79 @@ export default function Home() {
   const [user, setUser] = useState<any>(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isModelLoading, setIsModelLoading] = useState(true) // 모델 로딩 상태 추가
+  const [rateLimitedLevels, setRateLimitedLevels] = useState<string[]>([])
   const supabase = createClient()
+
+  // Check for rate limited levels from localStorage
+  useEffect(() => {
+    // Only run on client side
+    if (typeof window !== 'undefined') {
+      try {
+        // Check for multiple rate limited levels
+        const rateLimitLevelsStr = localStorage.getItem('rateLimitLevels')
+        if (rateLimitLevelsStr) {
+          const levelsData = JSON.parse(rateLimitLevelsStr)
+          const currentTime = Date.now()
+          
+          // Filter out expired levels and collect valid ones
+          const validLevels = Object.entries(levelsData)
+            .filter(([_, data]: [string, any]) => data.reset > currentTime)
+            .map(([level, _]: [string, any]) => level)
+          
+          if (validLevels.length > 0) {
+            setRateLimitedLevels(validLevels)
+            
+            // If current model is rate limited, switch to a different model
+            if (currentModel) {
+              const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel)
+              if (currentModelConfig && validLevels.includes(currentModelConfig.rateLimit.level)) {
+                // Find a model from a different level that's not rate limited
+                const alternativeModel = MODEL_CONFIGS.find(m => 
+                  m.isEnabled && !validLevels.includes(m.rateLimit.level)
+                )
+                if (alternativeModel) {
+                  setNextModel(alternativeModel.id)
+                }
+              }
+            }
+          } else {
+            // All rate limits have expired, remove the data
+            localStorage.removeItem('rateLimitLevels')
+          }
+        } else {
+          // For backward compatibility, check the old format
+          const rateLimitInfoStr = localStorage.getItem('rateLimitInfo')
+          if (rateLimitInfoStr) {
+            const rateLimitInfo = JSON.parse(rateLimitInfoStr)
+            
+            // Check if the rate limit is still valid
+            if (rateLimitInfo.reset > Date.now()) {
+              setRateLimitedLevels([rateLimitInfo.level])
+              
+              // If current model is rate limited, switch to a different model
+              if (currentModel) {
+                const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel)
+                if (currentModelConfig && currentModelConfig.rateLimit.level === rateLimitInfo.level) {
+                  // Find a model from a different level
+                  const alternativeModel = MODEL_CONFIGS.find(m => 
+                    m.isEnabled && m.rateLimit.level !== rateLimitInfo.level
+                  )
+                  if (alternativeModel) {
+                    setNextModel(alternativeModel.id)
+                  }
+                }
+              }
+            } else {
+              // Rate limit has expired, remove it
+              localStorage.removeItem('rateLimitInfo')
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing rate limit info:', error)
+      }
+    }
+  }, [currentModel])
 
   useEffect(() => {
     const getUser = async () => {
@@ -36,8 +108,30 @@ export default function Home() {
         
         // 사용자의 기본 모델 가져오기
         const defaultModel = await getDefaultModelId(user.id)
-        setCurrentModel(defaultModel)
-        setNextModel(defaultModel)
+        
+        // Check if the default model is in a rate-limited level
+        if (rateLimitedLevels.length > 0) {
+          const modelConfig = MODEL_CONFIGS.find(m => m.id === defaultModel)
+          if (modelConfig && rateLimitedLevels.includes(modelConfig.rateLimit.level)) {
+            // Find a model from a different level
+            const alternativeModel = MODEL_CONFIGS.find(m => 
+              m.isEnabled && !rateLimitedLevels.includes(m.rateLimit.level)
+            )
+            if (alternativeModel) {
+              setCurrentModel(alternativeModel.id)
+              setNextModel(alternativeModel.id)
+            } else {
+              setCurrentModel(defaultModel)
+              setNextModel(defaultModel)
+            }
+          } else {
+            setCurrentModel(defaultModel)
+            setNextModel(defaultModel)
+          }
+        } else {
+          setCurrentModel(defaultModel)
+          setNextModel(defaultModel)
+        }
       } catch (error) {
         console.error('사용자 정보 또는 모델 로딩 중 오류:', error)
         // 오류 발생 시 시스템 기본 모델 사용
@@ -49,10 +143,20 @@ export default function Home() {
       }
     }
     getUser()
-  }, [supabase.auth, router])
+  }, [supabase.auth, router, rateLimitedLevels])
 
   // 사용자가 모델을 변경할 때 호출되는 함수
   const handleModelChange = async (newModel: string) => {
+    // Check if the selected model is in a rate-limited level
+    if (rateLimitedLevels.length > 0) {
+      const modelConfig = MODEL_CONFIGS.find(m => m.id === newModel)
+      if (modelConfig && rateLimitedLevels.includes(modelConfig.rateLimit.level)) {
+        // Don't allow changing to a rate-limited model
+        console.warn('Cannot change to a rate-limited model')
+        return
+      }
+    }
+    
     // 모델 상태 업데이트
     setNextModel(newModel)
     
@@ -162,6 +266,7 @@ export default function Home() {
       <Header 
         isSidebarOpen={isSidebarOpen}
         onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+        user={user}
       />
       
       {/* Sidebar with improved transition */}
@@ -198,6 +303,7 @@ export default function Home() {
                 }
               }}
               disabled={isSubmitting}
+              disabledLevels={rateLimitedLevels}
             />
             <ChatInput
               input={input}

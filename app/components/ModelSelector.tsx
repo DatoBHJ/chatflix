@@ -31,14 +31,32 @@ interface ModelSelectorProps {
   setNextModel: Dispatch<SetStateAction<string>>;
   disabled?: boolean;
   position?: 'top' | 'bottom';
+  disabledModels?: string[]; // Array of model IDs that should be disabled
+  disabledLevel?: string; // Level that should be disabled (legacy)
+  disabledLevels?: string[]; // Array of levels that should be disabled
 }
 
-export function ModelSelector({ currentModel, nextModel, setNextModel, disabled, position = 'bottom' }: ModelSelectorProps) {
+export function ModelSelector({ 
+  currentModel, 
+  nextModel, 
+  setNextModel, 
+  disabled, 
+  position = 'bottom',
+  disabledModels = [],
+  disabledLevel,
+  disabledLevels = []
+}: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(false);
   const MODEL_OPTIONS = getEnabledModels();
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+
+  // Combine disabledLevel and disabledLevels for backward compatibility
+  const allDisabledLevels = [...disabledLevels];
+  if (disabledLevel && !allDisabledLevels.includes(disabledLevel)) {
+    allDisabledLevels.push(disabledLevel);
+  }
 
   // Check if mobile on mount and window resize
   useEffect(() => {
@@ -145,12 +163,12 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
       }
       
       /* 호버 시 모델 이름 효과 */
-      .model-option:hover .model-name {
+      .model-option:not(.disabled):hover .model-name {
         transform: translateY(-1px);
       }
       
       /* 호버 시 밑줄 효과 */
-      .model-option:hover .model-name::after {
+      .model-option:not(.disabled):hover .model-name::after {
         transform: scaleX(1);
         opacity: 0.6;
       }
@@ -208,7 +226,7 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
         opacity: 0.7;
       }
       
-      .model-option:hover .provider-logo {
+      .model-option:not(.disabled):hover .provider-logo {
         opacity: 1;
       }
       
@@ -295,14 +313,14 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
               className={`
                 model-dropdown
                 ${isMobile 
-                  ? 'fixed inset-x-0 bottom-0 w-full max-h-[80vh] overflow-y-auto pb-6 model-selector-scroll rounded-t-xl' 
-                  : `absolute ${position === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'} left-0 w-[280px] max-h-[400px] overflow-y-auto model-selector-scroll rounded-md`}
-                bg-[var(--background)]/90 z-50
+                  ? 'fixed inset-x-0 bottom-0 w-full max-h-[80vh] overflow-y-auto pb-6 model-selector-scroll rounded-t-xl bg-[var(--background)]' 
+                  : `absolute ${position === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'} left-0 w-[280px] max-h-[300px] overflow-y-auto model-selector-scroll rounded-md bg-[var(--background)]/90 backdrop-blur-md`}
+                z-50
               `}
               role="listbox"
             >
               {isMobile && (
-                <div className="sticky top-0 z-10 backdrop-blur-md bg-[var(--background)]/95 pt-6 pb-3">
+                <div className="sticky top-0 z-10 bg-[var(--background)] pt-6 pb-3">
                   <div className="mobile-handle"></div>
                   <div className="flex items-center justify-between px-4 mt-2">
                     <span className="text-xs uppercase tracking-wider opacity-70">Models</span>
@@ -318,63 +336,76 @@ export function ModelSelector({ currentModel, nextModel, setNextModel, disabled,
               
               <div className="py-1">
                 {MODEL_OPTIONS.length > 0 ? (
-                  MODEL_OPTIONS.map((option, index) => (
-                    <div 
-                      key={option.id}
-                      className={`model-option px-4 py-4 last:border-b-0 relative
-                               ${option.id === nextModel ? 'bg-[var(--accent)]/10 active' : ''}
-                               hover:bg-[var(--accent)]/5 transition-all cursor-pointer
-                               ${isMobile ? 'p-5' : ''}`}
-                      onClick={() => {
-                        setNextModel(option.id);
-                        setIsOpen(false);
-                      }}
-                      onMouseEnter={() => setHoverIndex(index)}
-                      onMouseLeave={() => setHoverIndex(null)}
-                      role="option"
-                      aria-selected={option.id === nextModel}
-                    >
-                      <div className="flex flex-col">
-                        <div className="text-base font-normal mb-1 transition-all flex items-center gap-2">
-                          {/* Provider Logo */}
-                          {option.provider && (
-                            <div 
-                              className="provider-logo w-4 h-4 flex-shrink-0 tooltip" 
-                              data-tooltip={option.provider.charAt(0).toUpperCase() + option.provider.slice(1)}
-                            >
-                              {hasLogo(option.provider) ? (
-                                <Image 
-                                  src={getProviderLogo(option.provider)}
-                                  alt={`${option.provider} logo`}
-                                  width={16}
-                                  height={16}
-                                  className="object-contain"
-                                />
-                              ) : (
-                                <div className="w-4 h-4 flex items-center justify-center text-[8px] uppercase bg-[var(--accent)]/10 rounded-sm">
-                                  {option.provider.substring(0, 1)}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          <span className="model-name">
-                            {option.name}
-                          </span>
-                        </div>
-                        <div className="flex items-start">
+                  MODEL_OPTIONS.map((option, index) => {
+                    // Check if this model is disabled (either by ID or by level)
+                    const isModelDisabled = disabledModels.includes(option.id) || 
+                                           (allDisabledLevels.length > 0 && allDisabledLevels.includes(option.rateLimit.level));
+                    
+                    return (
+                      <div 
+                        key={option.id}
+                        className={`model-option px-4 py-4 last:border-b-0 relative
+                                 ${option.id === nextModel ? 'bg-[var(--accent)]/10 active' : ''}
+                                 ${isModelDisabled 
+                                   ? 'opacity-50 cursor-not-allowed disabled' 
+                                   : 'hover:bg-[var(--accent)]/5 cursor-pointer'}
+                                 transition-all
+                                 ${isMobile ? 'p-5' : ''}`}
+                        onClick={() => {
+                          if (!isModelDisabled) {
+                            setNextModel(option.id);
+                            setIsOpen(false);
+                          }
+                        }}
+                        onMouseEnter={() => !isModelDisabled && setHoverIndex(index)}
+                        onMouseLeave={() => !isModelDisabled && setHoverIndex(null)}
+                        role="option"
+                        aria-selected={option.id === nextModel}
+                        aria-disabled={isModelDisabled ? 'true' : 'false'}
+                        data-tooltip={isModelDisabled ? `This model is rate limited (${option.rateLimit.level})` : undefined}
+                      >
+                        <div className="flex flex-col">
+                          <div className="text-base font-normal mb-1 transition-all flex items-center gap-2">
+                            {/* Provider Logo */}
+                            {option.provider && (
+                              <div 
+                                className="provider-logo w-4 h-4 flex-shrink-0 tooltip" 
+                                data-tooltip={option.provider.charAt(0).toUpperCase() + option.provider.slice(1)}
+                              >
+                                {hasLogo(option.provider) ? (
+                                  <Image 
+                                    src={getProviderLogo(option.provider)}
+                                    alt={`${option.provider} logo`}
+                                    width={16}
+                                    height={16}
+                                    className="object-contain"
+                                  />
+                                ) : (
+                                  <div className="w-4 h-4 flex items-center justify-center text-[8px] uppercase bg-[var(--accent)]/10 rounded-sm">
+                                    {option.provider.substring(0, 1)}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            <span className="model-name">
+                              {option.name}
+                            </span>
+                          </div>
+                          
+                          {/* Description */}
+                                 <div className="flex items-start">
                           <div className="w-4 mr-2 flex-shrink-0"></div>
                           <div className={`text-xs transition-all
                                     ${option.id === nextModel || hoverIndex === index ? 'text-[var(--muted)]' : 'text-[var(--muted)] opacity-60'}`}>
                             {option.description}
                           </div>
                         </div>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
-                  <div className="px-4 py-3 text-sm text-[var(--muted)] opacity-70">
-                    No models available
-                  </div>
+                  <div className="px-4 py-2 text-sm text-[var(--muted)]">No models available</div>
                 )}
               </div>
             </div>

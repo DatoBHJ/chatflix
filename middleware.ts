@@ -1,39 +1,17 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/utils/supabase/middleware'
-import { redis } from '@/lib/ratelimit'
+import { redis, getLevelRateLimiter } from '@/lib/ratelimit'
 import { Ratelimit } from '@upstash/ratelimit'
-import { MODEL_CONFIGS } from '@/lib/models/config'
-
-type Duration = `${number} ms` | `${number} s` | `${number} m` | `${number} h` | `${number} d`;
-
-// Helper function to parse window string into Duration format
-function parseWindow(window: string): Duration {
-  // Expected format: "60 m" or similar
-  const [value, unit] = window.split(' ');
-  return `${value} ${unit}` as Duration;
-}
+import { getModelById } from '@/lib/models/config'
+import { createServerClient } from '@supabase/ssr'
 
 // Create a new ratelimiter, that allows 10 requests per 10 seconds for general routes
 const globalRatelimit = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(10, '10 s' as Duration),
+  limiter: Ratelimit.slidingWindow(10, '10 s'),
   analytics: true,
   prefix: 'global_ratelimit',
 })
-
-// Create model-specific rate limiters
-const modelRateLimiters = MODEL_CONFIGS.reduce((acc, model) => {
-  acc[model.id] = new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(
-      model.rateLimit.requests,
-      parseWindow(model.rateLimit.window)
-    ),
-    analytics: true,
-    prefix: `ratelimit:model:${model.id}`,
-  })
-  return acc
-}, {} as { [key: string]: Ratelimit })
 
 export async function middleware(request: NextRequest) {
   // Skip rate limiting for static files and images
@@ -47,27 +25,63 @@ export async function middleware(request: NextRequest) {
              request.headers.get('x-real-ip') ?? 
              '127.0.0.1'
 
+  // Try to get the user ID for subscription checking
+  let userId: string | undefined;
+  try {
+    // Create a Supabase client for the middleware
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll() {
+            // We don't need to set cookies in this context
+          },
+        },
+      }
+    )
+    
+    // Get the user
+    const { data: { user } } = await supabase.auth.getUser()
+    userId = user?.id
+  } catch (error) {
+    console.error('Error getting user in middleware:', error)
+    // Continue without user ID if there's an error
+  }
+
   let rateLimitResult;
 
-  // Apply model-specific rate limit for chat API requests
+  // Apply level-based rate limit for chat API requests
   if (request.nextUrl.pathname.startsWith('/api/chat')) {
     try {
       const body = await request.clone().json()
       const modelId = body.model
       
-      if (modelId && modelRateLimiters[modelId]) {
-        const identifier = `${ip}:${modelId}`
-        rateLimitResult = await modelRateLimiters[modelId].limit(identifier)
+      if (modelId) {
+        const modelConfig = getModelById(modelId);
+        if (modelConfig) {
+          const level = modelConfig.rateLimit.level;
+          // Pass the userId to getLevelRateLimiter and await the result
+          const levelRateLimiter = await getLevelRateLimiter(level, userId);
+          const identifier = `${ip}:${level}`;
+          rateLimitResult = await levelRateLimiter.limit(identifier);
+        } else {
+          rateLimitResult = await globalRatelimit.limit(`${ip}:${request.nextUrl.pathname}`);
+        }
       } else {
-        rateLimitResult = await globalRatelimit.limit(`${ip}:${request.nextUrl.pathname}`)
+        rateLimitResult = await globalRatelimit.limit(`${ip}:${request.nextUrl.pathname}`);
       }
     } catch (error) {
+      console.error('Error in rate limiting middleware:', error);
       // If we can't parse the body or find the model, use global rate limit
-      rateLimitResult = await globalRatelimit.limit(`${ip}:${request.nextUrl.pathname}`)
+      rateLimitResult = await globalRatelimit.limit(`${ip}:${request.nextUrl.pathname}`);
     }
   } else {
     // Use global rate limit for all other routes
-    rateLimitResult = await globalRatelimit.limit(`${ip}:${request.nextUrl.pathname}`)
+    rateLimitResult = await globalRatelimit.limit(`${ip}:${request.nextUrl.pathname}`);
   }
 
   const { success, limit, remaining, reset } = rateLimitResult

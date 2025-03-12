@@ -24,14 +24,20 @@ const getProviderFromModel = (model: string): string => {
 };
 
 const handleRateLimiting = async (userId: string, model: string) => {
-  const modelRateLimiter = getRateLimiter(model);
-  const { success, reset } = await modelRateLimiter.limit(`${userId}:${model}`);
+  const modelConfig = getModelById(model);
+  if (!modelConfig) {
+    throw new Error(`Model ${model} not found in configuration`);
+  }
+  
+  const modelRateLimiter = await getRateLimiter(model, userId);
+  const level = modelConfig.rateLimit.level;
+  const { success, reset } = await modelRateLimiter.limit(`${userId}:${level}`);
   
   if (!success) {
     const retryAfter = Math.floor((reset - Date.now()) / 1000);
     throw new Error(JSON.stringify({
       type: 'rate_limit',
-      message: `Rate limit exceeded for ${model}. Please try again in ${retryAfter} seconds.`,
+      message: `Rate limit exceeded for ${level} models. Please try again in ${retryAfter} seconds.`,
       retryAfter
     }));
   }

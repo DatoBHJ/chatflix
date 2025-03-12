@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { Message } from 'ai'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
+import { MODEL_CONFIGS } from '@/lib/models/config'
 
 export function useMessages(chatId: string, userId: string) {
   const [isRegenerating, setIsRegenerating] = useState(false)
@@ -23,11 +24,16 @@ export function useMessages(chatId: string, userId: string) {
       const reset = errorData?.reset || new Date(Date.now() + 60000).toISOString();
       const limit = errorData?.limit || 10;
       
+      // Get the model level
+      const modelConfig = MODEL_CONFIGS.find(m => m.id === model);
+      const modelLevel = modelConfig?.rateLimit.level || '';
+      
       router.push(`/rate-limit?${new URLSearchParams({
         limit: limit.toString(),
         reset: reset,
         model: model,
-        chatId: chatId
+        chatId: chatId,
+        level: modelLevel
       }).toString()}`);
       return true;
     }
@@ -183,18 +189,73 @@ export function useMessages(chatId: string, userId: string) {
 
       if (insertError) throw insertError;
 
+      // Check if current model is rate limited
+      let modelToUse = currentModel;
+      if (typeof window !== 'undefined') {
+        try {
+          // Check for multiple rate limited levels
+          const rateLimitLevelsStr = localStorage.getItem('rateLimitLevels')
+          if (rateLimitLevelsStr) {
+            const levelsData = JSON.parse(rateLimitLevelsStr)
+            const currentTime = Date.now()
+            
+            // Filter out expired levels and collect valid ones
+            const validLevels = Object.entries(levelsData)
+              .filter(([_, data]: [string, any]) => data.reset > currentTime)
+              .map(([level, _]: [string, any]) => level)
+            
+            if (validLevels.length > 0) {
+              const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel)
+              if (currentModelConfig && validLevels.includes(currentModelConfig.rateLimit.level)) {
+                // Find a model from a different level that's not rate limited
+                const alternativeModel = MODEL_CONFIGS.find(m => 
+                  m.isEnabled && !validLevels.includes(m.rateLimit.level)
+                )
+                if (alternativeModel) {
+                  modelToUse = alternativeModel.id
+                  console.log(`Current model ${currentModel} is rate limited. Using alternative model: ${modelToUse}`)
+                }
+              }
+            }
+          } else {
+            // For backward compatibility, check the old format
+            const rateLimitInfoStr = localStorage.getItem('rateLimitInfo')
+            if (rateLimitInfoStr) {
+              const rateLimitInfo = JSON.parse(rateLimitInfoStr)
+              
+              // Check if the rate limit is still valid
+              if (rateLimitInfo.reset > Date.now()) {
+                const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel)
+                if (currentModelConfig && currentModelConfig.rateLimit.level === rateLimitInfo.level) {
+                  // Find a model from a different level
+                  const alternativeModel = MODEL_CONFIGS.find(m => 
+                    m.isEnabled && m.rateLimit.level !== rateLimitInfo.level
+                  )
+                  if (alternativeModel) {
+                    modelToUse = alternativeModel.id
+                    console.log(`Current model ${currentModel} is rate limited. Using alternative model: ${modelToUse}`)
+                  }
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing rate limit info:', error)
+        }
+      }
+
       try {
         await reload({
           body: {
             messages: updatedMessages,
-            model: currentModel,
+            model: modelToUse, // Use alternative model if current is rate limited
             chatId,
             isRegeneration: true,
             existingMessageId: assistantMessageId
           }
         });
       } catch (error: any) {
-        if (!handleRateLimitError(error, currentModel)) {
+        if (!handleRateLimitError(error, modelToUse)) {
           throw error;
         }
       }
@@ -288,6 +349,61 @@ export function useMessages(chatId: string, userId: string) {
 
       setMessages(updatedMessages)
 
+      // Check if current model is rate limited
+      let modelToUse = currentModel;
+      if (typeof window !== 'undefined') {
+        try {
+          // Check for multiple rate limited levels
+          const rateLimitLevelsStr = localStorage.getItem('rateLimitLevels')
+          if (rateLimitLevelsStr) {
+            const levelsData = JSON.parse(rateLimitLevelsStr)
+            const currentTime = Date.now()
+            
+            // Filter out expired levels and collect valid ones
+            const validLevels = Object.entries(levelsData)
+              .filter(([_, data]: [string, any]) => data.reset > currentTime)
+              .map(([level, _]: [string, any]) => level)
+            
+            if (validLevels.length > 0) {
+              const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel)
+              if (currentModelConfig && validLevels.includes(currentModelConfig.rateLimit.level)) {
+                // Find a model from a different level that's not rate limited
+                const alternativeModel = MODEL_CONFIGS.find(m => 
+                  m.isEnabled && !validLevels.includes(m.rateLimit.level)
+                )
+                if (alternativeModel) {
+                  modelToUse = alternativeModel.id
+                  console.log(`Current model ${currentModel} is rate limited. Using alternative model: ${modelToUse}`)
+                }
+              }
+            }
+          } else {
+            // For backward compatibility, check the old format
+            const rateLimitInfoStr = localStorage.getItem('rateLimitInfo')
+            if (rateLimitInfoStr) {
+              const rateLimitInfo = JSON.parse(rateLimitInfoStr)
+              
+              // Check if the rate limit is still valid
+              if (rateLimitInfo.reset > Date.now()) {
+                const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel)
+                if (currentModelConfig && currentModelConfig.rateLimit.level === rateLimitInfo.level) {
+                  // Find a model from a different level
+                  const alternativeModel = MODEL_CONFIGS.find(m => 
+                    m.isEnabled && m.rateLimit.level !== rateLimitInfo.level
+                  )
+                  if (alternativeModel) {
+                    modelToUse = alternativeModel.id
+                    console.log(`Current model ${currentModel} is rate limited. Using alternative model: ${modelToUse}`)
+                  }
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing rate limit info:', error)
+        }
+      }
+
       try {
         await reload({
           body: {
@@ -298,7 +414,7 @@ export function useMessages(chatId: string, userId: string) {
               createdAt: targetUserMessage.createdAt,
               experimental_attachments: (targetUserMessage as any).experimental_attachments
             }],
-            model: currentModel,
+            model: modelToUse, // Use alternative model if current is rate limited
             chatId,
             isRegeneration: true,
             existingMessageId: assistantMessageId,
@@ -306,7 +422,7 @@ export function useMessages(chatId: string, userId: string) {
           }
         });
       } catch (error: any) {
-        if (!handleRateLimitError(error, currentModel)) {
+        if (!handleRateLimitError(error, modelToUse)) {
           throw error;
         }
       }

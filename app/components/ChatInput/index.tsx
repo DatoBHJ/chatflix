@@ -752,7 +752,7 @@ export function ChatInput({
         />
 
         {/* 에러 토스트 */}
-        <ErrorToast show={showPDFError} message={supportsVision ? "PDF files are not supported" : "PDF and image files are not supported"} />
+        <ErrorToast show={showPDFError} message={supportsVision ? "PDF files are not supported" : "This model does not support PDF and image files."} />
         <ErrorToast show={showFolderError} message="Folders cannot be uploaded" />
 
         {/* 드래그 & 드롭 영역 */}

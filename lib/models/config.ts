@@ -5,14 +5,7 @@ export interface ModelConfig {
   provider: 'anthropic' | 'openai' | 'google' | 'deepseek' | 'together' | 'groq' | 'xai';
   supportsVision: boolean;
   rateLimit: {
-    category: 'low' | 'mid' | 'high' | 'superHigh';
-    requests: number;
-    window: string;
-  };
-  pricing: {
-    pricePerMillion: number;
-    inputPrice?: number;
-    outputPrice?: number;
+    level: 'level1' | 'level2' | 'level3';
   };
   isEnabled: boolean;
   reasoning?: {
@@ -27,6 +20,37 @@ export interface ModelConfig {
 
 // Default model configuration
 export const DEFAULT_MODEL_ID = 'gemini-2.0-flash'; 
+
+// // Rate limit configuration by level
+// export const RATE_LIMITS = {
+//   level1: {
+//     requests: 1,
+//     window: '60 m'
+//   },
+//   level2: {
+//     requests: 6,
+//     window: '60 m'
+//   },
+//   level3: {
+//     requests: 3,
+//     window: '60 m'
+//   }
+// };
+// Rate limit configuration by level
+export const RATE_LIMITS = {
+  level1: {
+    requests: 5,
+    window: '60 m'
+  },
+  level2: {
+    requests: 5,
+    window: '60 m'
+  },
+  level3: {
+    requests: 5,
+    window: '60 m'
+  }
+};
 
 // Get system default model ID (should match Supabase's get_default_model_id function)
 export function getSystemDefaultModelId(): string {
@@ -121,7 +145,8 @@ export async function getDefaultModelId(userId?: string): Promise<string> {
   return await getUserDefaultModel(userId);
 }
 
-export const MODEL_CONFIGS: ModelConfig[] = [
+// Define the model configurations
+const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'claude-3-7-sonnet-20250219',
     name: 'Claude 3.7 Sonnet (Thinking)',
@@ -129,15 +154,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
-      category: 'superHigh',
-      // requests: 35,
-      requests: 5,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 9,
-      inputPrice: 3,
-      outputPrice: 15
+      level: 'level3',
     },
     isEnabled: true,
     reasoning: {
@@ -155,15 +172,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
-      category: 'superHigh',
-      // requests: 35,
-      requests: 5,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 9,
-      inputPrice: 3,
-      outputPrice: 15
+      level: 'level3',
     },
     isEnabled: true,
     contextWindow: 200000
@@ -175,15 +184,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
-      category: 'superHigh',
-      // requests: 35,
-      requests: 5,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 9,
-      inputPrice: 3,
-      outputPrice: 15
+      level: 'level3',
     },
     isEnabled: true,
     contextWindow: 200000
@@ -195,12 +196,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'together',
     supportsVision: false,
     rateLimit: {
-      category: 'high',
-      requests: 30,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 7
+      level: 'level2',
     },
     reasoning: {
       enabled: true,
@@ -218,12 +214,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'together',
     supportsVision: false,
     rateLimit: {
-      category: 'mid',
-      requests: 60,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 1.25
+      level: 'level2',
     },
     isEnabled: true,
     contextWindow: 128000
@@ -235,12 +226,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'deepseek',
     supportsVision: false,
     rateLimit: {
-      category: 'low',
-      requests: 3000,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 7
+      level: 'level1',
     },
     reasoning: {
       enabled: true,
@@ -258,12 +244,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'deepseek',
     supportsVision: false,
     rateLimit: {
-      category: 'low',
-      requests: 3000,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 1.25
+      level: 'level1',
     },
     isEnabled: true,
     contextWindow: 128000
@@ -275,14 +256,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'openai',
     supportsVision: true,
     rateLimit: {
-      category: 'superHigh',
-      requests: 3,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 10,
-      inputPrice: 75,
-      outputPrice: 150
+      level: 'level3',
     },
     isEnabled: true,
     contextWindow: 128000
@@ -294,14 +268,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'openai',
     supportsVision: true,
     rateLimit: {
-      category: 'high',
-      requests: 30,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 10,
-      inputPrice: 5,
-      outputPrice: 15
+      level: 'level3',
     },
     isEnabled: true,
     contextWindow: 128000 
@@ -313,14 +280,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     "provider": "openai",
     "supportsVision": true,
     "rateLimit": {
-      "category": "superHigh",
-      "requests": 15,
-      "window": "60 m"
-    },
-    "pricing": {
-      "pricePerMillion": 37.5,
-      "inputPrice": 15,
-      "outputPrice": 60
+      "level": "level3",
     },
     "isEnabled": true,
     contextWindow: 200000 
@@ -332,14 +292,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     "provider": "openai",
     "supportsVision": true,
     "rateLimit": {
-      "category": "low",
-      "requests": 100,
-      "window": "60 m"
-    },
-    "pricing": {
-      "pricePerMillion": 2.75,
-      "inputPrice": 1.1,
-      "outputPrice": 4.4
+      "level": "level2",
     },
     "isEnabled": true,
     contextWindow: 200000
@@ -351,14 +304,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'google',
     supportsVision: true,
     rateLimit: {
-      category: 'low',
-      requests: 100,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 0.25,
-      inputPrice: 0.1,
-      outputPrice: 0.4
+      level: 'level1',
     },
     isEnabled: true,
     contextWindow: 1024000
@@ -370,14 +316,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'xai',
     supportsVision: true,
     rateLimit: {
-      category: 'high',
-      requests: 30,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 6,
-      inputPrice: 2,
-      outputPrice: 10
+      level: 'level2',
     },
     isEnabled: true,
     contextWindow: 128000
@@ -389,12 +328,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'groq',
     supportsVision: false,
     rateLimit: {
-      category: 'low',
-      requests: 100,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 0.7
+      level: 'level1',
     },
     isEnabled: true,
     contextWindow: 128000
@@ -406,12 +340,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     provider: 'groq',
     supportsVision: false,
     rateLimit: {
-      category: 'low',
-      requests: 3000,
-      window: '60 m'
-    },
-    pricing: {
-      pricePerMillion: 7
+      level: 'level1',
     },
     reasoning: {
       enabled: true,
@@ -423,6 +352,9 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     contextWindow: 128000
   },
 ];
+
+// Export the final MODEL_CONFIGS
+export const MODEL_CONFIGS: ModelConfig[] = MODEL_CONFIG_DATA;
 
 // Utility functions
 export const getEnabledModels = () => MODEL_CONFIGS.filter(model => model.isEnabled);
