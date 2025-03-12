@@ -5,6 +5,11 @@ export const viewport = {
   themeColor: '#000000',
 }
 
+export const metadata = {
+  title: 'Chatflix - Login',
+  description: 'Login to access all AI models in one place',
+}
+
 export default function LoginLayout({
   children,
 }: {

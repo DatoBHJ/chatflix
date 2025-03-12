@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { createClient } from '@/utils/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { PromptShortcutsDialog } from './components/PromptShortcutsDialog'
 import { Header } from './components/Header'
 import Announcement from './components/Announcement'
@@ -18,6 +18,7 @@ export default function RootLayoutClient({
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
   const router = useRouter()
+  const pathname = usePathname()
   const supabase = createClient()
   const { announcement, showAnnouncement, hideAnnouncement, isVisible } = useAnnouncement()
 
@@ -30,7 +31,7 @@ export default function RootLayoutClient({
       const { data: { user } } = await supabase.auth.getUser()
       setIsLoading(false)
       setUser(user)
-      if (!user) {
+      if (!user && pathname !== '/login') {
         router.push('/login')
       }
     }
@@ -49,7 +50,7 @@ export default function RootLayoutClient({
     return () => {
       subscription.unsubscribe()
     }
-  }, [supabase, router])
+  }, [supabase, router, pathname])
 
   // announcement for GPT-4.5
   useEffect(() => {
@@ -87,7 +88,7 @@ export default function RootLayoutClient({
     return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
   }
 
-  if (!user) {
+  if (!user && pathname !== '/login') {
     return (
       <div className="w-full h-screen">
         {children}
@@ -103,20 +104,24 @@ export default function RootLayoutClient({
         isVisible={isVisible}
         onClose={hideAnnouncement}
       />
-      <Header 
-        isSidebarOpen={isSidebarOpen}
-        onSidebarToggle={toggleSidebar}
-        user={user}
-      />
+      {user && (
+        <Header 
+          isSidebarOpen={isSidebarOpen}
+          onSidebarToggle={toggleSidebar}
+          user={user}
+        />
+      )}
       
       {/* Sidebar with improved transition */}
-      <div 
-        className={`fixed left-0 top-0 h-full transform transition-all duration-300 ease-out z-40 ${
-          isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'
-        }`}
-      >
-        <Sidebar user={user} onClose={() => setIsSidebarOpen(false)} />
-      </div>
+      {user && (
+        <div 
+          className={`fixed left-0 top-0 h-full transform transition-all duration-300 ease-out z-40 ${
+            isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'
+          }`}
+        >
+          <Sidebar user={user} onClose={() => setIsSidebarOpen(false)} />
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1">
@@ -124,14 +129,16 @@ export default function RootLayoutClient({
       </div>
 
       {/* Overlay with improved transition */}
-      <div
-        className={`fixed inset-0 backdrop-blur-[1px] bg-black transition-all duration-300 ease-out z-30 ${
-          isSidebarOpen 
-            ? 'opacity-30 pointer-events-auto' 
-            : 'opacity-0 pointer-events-none'
-        }`}
-        onClick={() => setIsSidebarOpen(false)}
-      />
+      {user && (
+        <div
+          className={`fixed inset-0 backdrop-blur-[1px] bg-black transition-all duration-300 ease-out z-30 ${
+            isSidebarOpen 
+              ? 'opacity-30 pointer-events-auto' 
+              : 'opacity-0 pointer-events-none'
+          }`}
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
 
       {user && <PromptShortcutsDialog user={user} />}
     </div> //
