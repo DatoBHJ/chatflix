@@ -611,7 +611,8 @@ export default function RateLimitPage() {
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                       <h3 className="text-base font-medium mb-1 text-amber-800 dark:text-amber-400">Upgrade to Premium</h3>
-                      <p className="text-sm text-[var(--muted)]">Get unlimited access to all models without rate limits</p>
+                      <p className="text-sm text-[var(--muted)]">Get your 50% off before the official launch.</p>
+                      <p className="text-sm text-[var(--muted)]">Unlimited access to all models without rate limits</p>
                     </div>
                     <div className="relative" onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)}>
                       <button
