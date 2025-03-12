@@ -94,7 +94,8 @@ export function SubscriptionButton({ user }: SubscriptionButtonProps) {
       {showTooltip && (
         <div className="absolute right-0 mt-2 w-48 bg-white/90 backdrop-blur-sm text-amber-900 p-2.5 rounded shadow-lg z-10 border border-amber-100 animate-fade-in">
           <div className="font-medium text-xs mb-1 text-amber-800">Golden Ticket Access</div>
-          <p className="text-xs text-amber-700 opacity-80">Unlock unlimited conversations and premium features.</p>
+          <p className="text-xs text-amber-700 opacity-80">Get your 50% off before the official launch.</p>
+          {/* <p className="text-xs text-amber-700 opacity-80">Unlock unlimited conversations and premium features.</p> */}
         </div>
       )}
     </div>
