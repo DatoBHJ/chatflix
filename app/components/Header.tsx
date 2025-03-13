@@ -50,7 +50,7 @@ export function Header({ isSidebarOpen, onSidebarToggle, showBackButton, user }:
         </div>
 
         <div className="flex items-center gap-5">
-          {user && <SubscriptionButton user={user} />}
+          {/* {user && <SubscriptionButton user={user} />} */}
           <button
             onClick={() => router.push('/about')}
             className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"

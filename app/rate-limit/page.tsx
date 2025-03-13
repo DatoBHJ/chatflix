@@ -606,7 +606,7 @@ export default function RateLimitPage() {
               </div>
               
               {/* Golden Ticket Subscription Button */}
-              <div className="mb-8 fade-in-up" style={{ animationDelay: '0.25s' }}>
+              {/* <div className="mb-8 fade-in-up" style={{ animationDelay: '0.25s' }}>
                 <div className="p-4 bg-amber-50/10 border border-amber-200 rounded-sm">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
@@ -648,7 +648,7 @@ export default function RateLimitPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </div> */}
               
               {/* 사용자 메시지 스타일로 현재 채팅 표시 */}
               {chatId && chatTitle && (
@@ -733,9 +733,9 @@ export default function RateLimitPage() {
             </div>
             
             {/* Help text */}
-            <div className="mt-12 text-xs text-[var(--muted)] opacity-70 text-center fade-in-up" style={{ animationDelay: '0.8s' }}>
+            {/* <div className="mt-12 text-xs text-[var(--muted)] opacity-70 text-center fade-in-up" style={{ animationDelay: '0.8s' }}>
               Upgrade to Premium for unlimited access to all models without rate limits.
-            </div>
+            </div> */}
           </div>
         </div>
       </div>
