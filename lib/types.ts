@@ -1,16 +1,3 @@
-import { Message as AIMessage } from 'ai'
-
-export interface ChatRequest {
-  messages: AIMessage[];
-  model: string;
-  chatId?: string;
-  isRegeneration?: boolean; 
-  existingMessageId?: string;  
-  isReasoningEnabled?: boolean;
-  isWebSearchEnabled?: boolean;
-  saveToDb?: boolean;
-}
-
 export type MessagePartType = 'text' | 'reasoning';
 
 export interface BaseMessagePart {

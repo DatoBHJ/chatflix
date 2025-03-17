@@ -1,7 +1,6 @@
 import { streamText, createDataStreamResponse, smoothStream } from 'ai';
 import { createClient } from '@/utils/supabase/server';
 import { providers } from '@/lib/providers';
-import { ChatRequest } from '@/lib/types';
 import { getRateLimiter } from '@/lib/ratelimit';
 import { getModelById } from '@/lib/models/config';
 import { Message } from 'ai';
@@ -18,7 +17,7 @@ import {
   webSearchQueryGeneratorPrompt, 
   getWebSearchResponsePrompt 
 } from './prompts';
-import { createWebSearchTool, createDatetimeTool } from './tools';
+import { createWebSearchTool, createDatetimeTool } from '@/lib/search/tools';
 
 export const runtime = 'edge';
 export const maxDuration = 300;
