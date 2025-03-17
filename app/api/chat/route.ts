@@ -246,7 +246,8 @@ export async function POST(req: Request) {
 
           // Forward assistant response
           return assistantResult.mergeIntoDataStream(dataStream, {
-            experimental_sendStart: false
+            experimental_sendStart: false,
+            sendReasoning: true
           });
         } else {
           // Standard chat flow without web search
