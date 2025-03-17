@@ -71,11 +71,21 @@ export default function RootLayoutClient({
       //   "file-read-disabled"
       // );
       showAnnouncement(
-        "MAJOR SYSTEM UPDATE: Web Search, Model Updates, and More - March 17, 2025",
+        "MAJOR SYSTEM UPDATE: chatflix_0.0.0: Web Search, Model Updates, and More - March 17, 2025",
         "info",
         "major-update-v1"
       );
       // Code for a major update warning announcement
+      showAnnouncement(
+        "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period.",
+        "warning",
+        "major-update-bug-report"
+      );
+      showAnnouncement(
+        "If you want to report a bug, please contact us at datobhj@gmail.com",
+        "info",
+        "bug-report-contact"
+      );
       // showAnnouncement(
       //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Our team is actively monitoring and addressing any problems that arise. Thank you for your patience and understanding.",
       //   "warning",
