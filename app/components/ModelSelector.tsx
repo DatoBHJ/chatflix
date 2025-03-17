@@ -260,9 +260,9 @@ const ModelBarChart = ({
   models: ModelConfig[],
   isMobile: boolean,
   isFullscreen?: boolean,
-  metric?: 'tps' | 'intelligenceIndex' | 'contextWindow'
+  metric?: 'tps' | 'intelligenceIndex' | 'contextWindow' | 'MMLU_Pro' | 'Coding' | 'MATH' | 'GPQA' | 'multilingual' | 'HLE'
 }) => {
-  const [selectedMetric, setSelectedMetric] = useState<'tps' | 'intelligenceIndex' | 'contextWindow'>(metric);
+  const [selectedMetric, setSelectedMetric] = useState<'tps' | 'intelligenceIndex' | 'contextWindow' | 'MMLU_Pro' | 'Coding' | 'MATH' | 'GPQA' | 'multilingual' | 'HLE'>(metric);
   
   // Filter models that have the selected metric
   const validModels = models
@@ -297,6 +297,18 @@ const ModelBarChart = ({
         return `${value.toFixed(1)}`;
       case 'contextWindow':
         return `${(value / 1000).toFixed(0)}K`;
+      case 'MMLU_Pro':
+        return `${value.toFixed(1)}`;
+      case 'Coding':
+        return `${value.toFixed(1)}`;
+      case 'MATH':
+        return `${value.toFixed(1)}`;
+      case 'GPQA':
+        return `${value.toFixed(1)}`;
+      case 'multilingual':
+        return `${value.toFixed(1)}`;
+      case 'HLE':
+        return `${value.toFixed(1)}`;
       default:
         return `${value}`;
     }
@@ -311,6 +323,18 @@ const ModelBarChart = ({
         return 'Intelligence Index';
       case 'contextWindow':
         return 'Context Window';
+      case 'MMLU_Pro':
+        return 'MMLU_Pro Score';
+      case 'Coding':
+        return 'Coding Index';
+      case 'MATH':
+        return 'Math Index';
+      case 'GPQA':
+        return 'GPQA Score';
+      case 'multilingual':
+        return 'Multilingual Index';
+      case 'HLE':
+        return 'HLE Score';
       default:
         return metric;
     }
@@ -321,7 +345,7 @@ const ModelBarChart = ({
       <h3 className={`${isFullscreen ? 'text-xl' : 'text-sm'} font-medium mb-2 text-center`}>
         {getMetricName(selectedMetric)}
       </h3>
-      <div className="flex items-center justify-center gap-2 mb-3">
+      <div className="flex items-center justify-center gap-2 flex-wrap px-10 py-6 ">
         <button 
           onClick={() => setSelectedMetric('tps')}
           className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'tps' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
@@ -340,12 +364,55 @@ const ModelBarChart = ({
         >
           Context
         </button>
+        <button 
+          onClick={() => setSelectedMetric('MMLU_Pro')}
+          className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'MMLU_Pro' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
+        >
+          Knowledge
+        </button>
+        <button 
+          onClick={() => setSelectedMetric('Coding')}
+          className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'Coding' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
+        >
+          Coding
+        </button>
+        <button 
+          onClick={() => setSelectedMetric('MATH')}
+          className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'MATH' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
+        >
+          Math
+        </button>
+        <button 
+          onClick={() => setSelectedMetric('GPQA')}
+          className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'GPQA' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
+        >
+          Science
+        </button>
+        <button 
+          onClick={() => setSelectedMetric('multilingual')}
+          className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'multilingual' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
+        >
+          Multilingual
+        </button>
+        <button 
+          onClick={() => setSelectedMetric('HLE')}
+          className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'HLE' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
+        >
+          Reasoning
+        </button>
       </div>
       
-      <div className="text-xs text-[var(--muted)] mb-2 text-center">
-        {selectedMetric === 'tps' ? 'Output Tokens per Second; Higher is better' : 
-         selectedMetric === 'intelligenceIndex' ? 'Artificial Intelligence Index; Higher is better' :
-         'Maximum context length in tokens; Higher is better'}
+      <div className="text-xs text-[var(--muted)] mb-6 text-center px-10">
+        {selectedMetric === 'tps' ? 'Tokens per second received while the model is generating tokens - measure of real-time response speed after initial latency. Higher is better.' : 
+         selectedMetric === 'intelligenceIndex' ? 'Combination metric covering multiple dimensions of intelligence - the simplest way to compare how smart models are. Higher is better.' :
+         selectedMetric === 'contextWindow' ? 'Maximum context length in tokens - determines how much information the model can process in a single conversation. Higher is better.' :
+         selectedMetric === 'MMLU_Pro' ? 'Massive Multitask Language Understanding Pro - measures knowledge across 12,000+ questions in academic and professional domains. Higher is better.' :
+         selectedMetric === 'Coding' ? 'Average of coding evaluations including LiveCodeBench and SciCode - measures ability to write functional code that passes unit tests. Higher is better.' :
+         selectedMetric === 'MATH' ? 'Average of math evaluations including AIME and MATH-500 - measures mathematical reasoning from basic to competition-level problems. Higher is better.' :
+         selectedMetric === 'GPQA' ? 'Graduate-level Google-Proof Q&A - measures scientific reasoning on 198 expert-level questions in biology, physics, and chemistry. Higher is better.' :
+         selectedMetric === 'multilingual' ? 'Average of Multilingual MMLU and MGSM across languages - measures performance across Spanish, German, Japanese, Chinese, and others. Higher is better.' :
+         selectedMetric === 'HLE' ? 'Humanity\'s Last Exam - measures performance on 2,684 challenging questions across mathematics, humanities, and natural sciences. Higher is better.' :
+         'Higher values indicate better performance across all metrics.'}
       </div>
       
       <svg

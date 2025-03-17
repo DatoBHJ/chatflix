@@ -56,7 +56,7 @@ export default function RootLayoutClient({
   useEffect(() => {
     if (user) {
       // showAnnouncement(
-      //   "Tip: Gemini 2.0 Flash supports million-token context windows for larger documents and multiple files, with faster processing and improved accuracy (76.4% MMLU, 70.7% MMMU)",
+      //   "Tip: Gemini 2.0 Flash supports million-token context windows for larger documents and multiple files, with faster processing and improved accuracy (76.4% MMLU_Pro, 70.7% MMMU)",
       //   "info",
       //   "Gemini-2-flash-tip"
       // ); 

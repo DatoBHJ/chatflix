@@ -18,8 +18,14 @@ export interface ModelConfig {
   };
   contextWindow?: number;
   tps?: number; // Tokens per second received while the model is generating tokens (ie. after first chunk has been received from the API for models which support streaming).
-  intelligenceIndex?: number; // Artificial Analysis Intelligence Index: Combination metric covering multiple dimensions of intelligence - the simplest way to compare how smart models are. Version 2 was released in Feb '25 and includes: MMLU-Pro, GPQA Diamond, Humanity's Last Exam, LiveCodeBench, SciCode, AIME, MATH-500. See Intelligence Index methodology for further details, including a breakdown of each evaluation and how we run them.
-  latency?: number; // Time to first token of tokens received, in seconds, after API request sent. For models which do not support streaming, this represents time to receive the completion.
+  intelligenceIndex?: number; // Artificial Analysis Intelligence Index: Combination metric covering multiple dimensions of intelligence - the simplest way to compare how smart models are. Version 2 was released in Feb '25 and includes: MMLU_Pro-Pro, GPQA Diamond, HLE's Last Exam, LiveCodeBench, SciCode, AIME, MATH-500. See Intelligence Index methodology for further details, including a breakdown of each evaluation and how we run them.
+  MMLU_Pro?: number; // (Reasoning & Knowledge)
+  Coding?: number; // Artificial Analysis Coding Index: Represents the average of coding evaluations in the Artificial Analysis Intelligence Index. Currently includes: LiveCodeBench, SciCode. See Intelligence Index methodology for further details, including a breakdown of each evaluation and how we run them.
+  MATH?: number; // Artificial Analysis Math Index: Represents the average of math evaluations in the Artificial Analysis Intelligence Index. Currently includes: AIME, MATH-500. See Intelligence Index methodology for further details, including a breakdown of each evaluation and how we run them.
+  GPQA?: number; // GPQA Diamond (Scientific Reasoning)
+  multilingual?: number
+  HLE?: number // HLE's Last Exam (Reasoning & Knowledge)
+
 }
 
 // Default model configuration
@@ -170,7 +176,12 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     },
     contextWindow: 200000,
     tps: 78,
-    intelligenceIndex: 57
+    intelligenceIndex: 57,
+    MMLU_Pro: 84,
+    Coding: 44,
+    MATH: 72,
+    GPQA: 77,
+    HLE: 10.3
   },
   {
     id: 'claude-3-7-sonnet-latest',
@@ -185,7 +196,12 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     contextWindow: 200000,
     tps: 78,
-    intelligenceIndex: 48
+    intelligenceIndex: 48,
+    MMLU_Pro: 80,
+    Coding: 38,
+    MATH: 54,
+    GPQA: 66,
+    HLE: 4.8
   },
   {
     id: 'claude-3-5-sonnet-latest',
@@ -200,7 +216,13 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     contextWindow: 200000,
     tps: 77,
-    intelligenceIndex: 44
+    intelligenceIndex: 44,
+    MMLU_Pro: 77,
+    Coding: 37,
+    MATH: 46,
+    GPQA: 60,
+    multilingual:88,
+    HLE: 3.9
   },
   {
     id: 'deepseek-ai/DeepSeek-R1',
@@ -221,7 +243,13 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     contextWindow: 128000,
     tps: 96,
-    intelligenceIndex: 60
+    intelligenceIndex: 60,
+    MMLU_Pro: 84,
+    Coding: 49,
+    MATH: 82,
+    GPQA: 71,
+    multilingual:86,
+    HLE: 9.3
   },
   {
     id: 'deepseek-ai/DeepSeek-V3',
@@ -236,7 +264,13 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     contextWindow: 128000,
     tps: 72,
-    intelligenceIndex: 46
+    intelligenceIndex: 46,
+    MMLU_Pro: 76,
+    Coding: 36,
+    MATH: 57,
+    GPQA: 56,
+    multilingual:86,
+    HLE: 3.6
   },
   {
     id: 'deepseek-reasoner',
@@ -257,7 +291,13 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     contextWindow: 128000,
     tps: 25,
-    intelligenceIndex: 60
+    intelligenceIndex: 60,
+    MMLU_Pro: 84,
+    Coding: 49,
+    MATH: 82,
+    GPQA: 71,
+    multilingual:86,
+    HLE: 9.3
   },
   {
     id: 'deepseek-chat',
@@ -272,7 +312,13 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     contextWindow: 128000,
     tps: 29,
-    intelligenceIndex: 46
+    intelligenceIndex: 46,
+    MMLU_Pro: 76,
+    Coding: 36,
+    MATH: 57,
+    GPQA: 56,
+    multilingual:86,
+    HLE: 3.6
   },
   {
     id: 'gpt-4.5-preview',
@@ -287,7 +333,11 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     contextWindow: 128000,
     tps: 14,
-    intelligenceIndex: 51
+    intelligenceIndex: 51,
+    MMLU_Pro: 89.6,  // estimated
+    // Coding: , // unknown
+    // MATH: // unknown,
+    GPQA: 71
   },
   {
     id: 'chatgpt-4o-latest',
@@ -302,7 +352,12 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     contextWindow: 128000,
     tps: 136,
-    intelligenceIndex: 41
+    intelligenceIndex: 41,
+    MMLU_Pro: 77,
+    Coding: 31,
+    MATH: 45,
+    GPQA: 51,
+    HLE: 3.7
   },
   {
     "id": "o1",
@@ -317,7 +372,13 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     contextWindow: 200000,
     tps: 36,
-    intelligenceIndex: 62
+    intelligenceIndex: 62,
+    MMLU_Pro: 84,
+    Coding: 52,
+    MATH: 85,
+    GPQA: 75,
+    multilingual: 88,
+    HLE: 7.7
   },
   {
     "id": "o3-mini",
@@ -332,7 +393,12 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     contextWindow: 200000,
     tps: 188,
-    intelligenceIndex: 63
+    intelligenceIndex: 63,
+    MMLU_Pro: 79,
+    Coding: 56,
+    MATH: 87,
+    GPQA: 75,
+    HLE: 8.7
   },
   {
     id: 'gemini-2.0-flash',
@@ -347,7 +413,12 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     contextWindow: 1024000,
     tps: 258,
-    intelligenceIndex: 48
+    intelligenceIndex: 48,
+    MMLU_Pro: 78,
+    Coding: 32,
+    MATH: 63,
+    GPQA: 62,
+    HLE: 5.3
   },
   {
     id: 'grok-2-vision-latest',
@@ -362,7 +433,12 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     contextWindow: 128000,
     tps: 67, 
-    intelligenceIndex: 38 
+    intelligenceIndex: 38 ,
+    MMLU_Pro: 70,
+    Coding: 27,
+    MATH: 42,
+    GPQA: 47,
+    HLE: 4.7
   },
   {
     id: 'llama-3.3-70b-versatile',
@@ -377,7 +453,13 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     contextWindow: 128000,
     tps: 275,
-    intelligenceIndex: 41
+    intelligenceIndex: 41,
+    MMLU_Pro: 71,
+    Coding: 27,
+    MATH: 54,
+    GPQA: 50,
+    multilingual:84,
+    HLE: 4.0
   },
   {
     id: 'qwen-qwq-32b',
@@ -398,7 +480,12 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isWebSearchEnabled: true,
     contextWindow: 131000,
     tps: 399,
-    intelligenceIndex: 58
+    intelligenceIndex: 58,
+    MMLU_Pro: 76,
+    Coding: 49,
+    MATH: 87,
+    GPQA: 59,
+    HLE: 8.2
   },
 ];
 
