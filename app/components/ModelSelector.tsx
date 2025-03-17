@@ -801,7 +801,7 @@ export function ModelSelector({
               {currentModelOption.tps && (
                 <div className="inline-flex items-center gap-0.5">
                   <span className={`text-[9px] uppercase tracking-wider opacity-60 ${isMobile ? 'hidden sm:inline' : ''}`}>Speed</span>
-                  <span className="text-[10px] font-medium bg-[var(--accent)]/10 px-1 py-0.5 rounded-sm flex items-center">
+                  <span className="text-[10px] uppercase font-medium bg-[var(--accent)]/10 px-1 py-0.5 rounded-sm flex items-center">
                     {typeof currentModelOption.tps === 'number' ? (
                       <>
                         {currentModelOption.tps >= 300 ? '⚡️ Very Fast' : 
@@ -817,7 +817,7 @@ export function ModelSelector({
               {currentModelOption.intelligenceIndex && (
                 <div className="inline-flex items-center gap-0.5">
                   <span className={`text-[9px] uppercase tracking-wider opacity-60 ${isMobile ? 'hidden sm:inline' : ''}`}>Intelligence</span>
-                  <span className="text-[10px] font-medium bg-[var(--accent)]/10 px-1 py-0.5 rounded-sm flex items-center">
+                  <span className="text-[10px] uppercase font-medium bg-[var(--accent)]/10 px-1 py-0.5 rounded-sm flex items-center">
                     {typeof currentModelOption.intelligenceIndex === 'number' ? (
                       <>
                         {currentModelOption.intelligenceIndex >= 55 ? '🧠 Superior' : 
@@ -833,7 +833,7 @@ export function ModelSelector({
               {currentModelOption.contextWindow && (
                 <div className="inline-flex items-center gap-0.5">
                   <span className={`text-[9px] uppercase tracking-wider opacity-60 ${isMobile ? 'hidden sm:inline' : ''}`}>Context</span>
-                  <span className="text-[10px] font-medium bg-[var(--accent)]/10 px-1 py-0.5 rounded-sm flex items-center">
+                  <span className="text-[10px] uppercase font-medium bg-[var(--accent)]/10 px-1 py-0.5 rounded-sm flex items-center">
                     {typeof currentModelOption.contextWindow === 'number' ? (
                       <>
                         {currentModelOption.contextWindow >= 1024000 ? '📚 Enormous' : 
@@ -1002,13 +1002,13 @@ export function ModelSelector({
                        
                             
                             {/* Model metrics - TPS and Intelligence Index */}
-                            <div className="flex items-start mt-2">
+                            <div className="flex items-start mt-2 mb-2">
                               <div className="w-4 mr-2 flex-shrink-0"></div>
                               <div className="flex flex-wrap gap-x-3 gap-y-1">
                                 {option.tps && (
                                   <div className="inline-flex items-center gap-1">
                                     <span className="text-[10px] uppercase tracking-wider opacity-60">Speed</span>
-                                    <span className="text-xs font-medium bg-[var(--accent)]/10 px-1.5 py-0.5 rounded-sm flex items-center">
+                                    <span className="text-base uppercase font-bold bg-[var(--accent)]/10 px-1.5 py-0.5 rounded-sm flex items-center">
                                       {typeof option.tps === 'number' ? (
                                         <>
                                           {option.tps >= 300 ? '⚡️ Very Fast' : 
@@ -1024,7 +1024,7 @@ export function ModelSelector({
                                 {option.intelligenceIndex && (
                                   <div className="inline-flex items-center gap-1">
                                     <span className="text-[10px] uppercase tracking-wider opacity-60">Intelligence</span>
-                                    <span className="text-xs font-medium bg-[var(--accent)]/10 px-1.5 py-0.5 rounded-sm flex items-center">
+                                    <span className="text-base uppercase font-bold bg-[var(--accent)]/10 px-1.5 py-0.5 rounded-sm flex items-center">
                                       {typeof option.intelligenceIndex === 'number' ? (
                                         <>
                                           {option.intelligenceIndex >= 55 ? '🧠 Superior' : 
@@ -1050,7 +1050,7 @@ export function ModelSelector({
                                 {option.contextWindow && (
                                   <div className="inline-flex items-center gap-1">
                                     <span className="text-[10px] uppercase tracking-wider opacity-60">Context</span>
-                                    <span className="text-xs font-medium bg-[var(--accent)]/10 px-1.5 py-0.5 rounded-sm flex items-center">
+                                    <span className="text-base uppercase font-bold bg-[var(--accent)]/10 px-1.5 py-0.5 rounded-sm flex items-center">
                                       {typeof option.contextWindow === 'number' ? (
                                         <>
                                           {option.contextWindow >= 1024000 ? '📚 Enormous' : 
