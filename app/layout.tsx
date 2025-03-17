@@ -16,7 +16,7 @@ export const metadata = {
     default: 'Chatflix.app',
     template: '%s | Chatflix.app'
   },
-  description: 'Experience seamless AI conversations with multiple language models. Chatflix.app offers a minimalist interface focused on simplicity and efficiency for natural language interactions, custom prompts, and efficient chat management.',
+  description: 'Neflix of Chatbots',
   keywords: [
     'AI chat',
     'artificial intelligence',
@@ -48,21 +48,21 @@ export const metadata = {
     type: 'website',
     locale: 'en_US',
     url: 'https://chatflix.app',
-    title: 'Chatflix.app - the Netflix of chatbots',
-    description: 'Experience seamless AI conversations with multiple language models. Chatflix.app offers a minimalist interface focused on simplicity and efficiency.',
+    title: 'CHATFLIX - I AM AI',
+    description: 'Neflix of Chatbots',
     siteName: 'Chatflix.app',
     images: [{
-      url: 'https://chatflix.app/music.png?v=2',
+      url: 'https://chatflix.app/music.png?v=3',
       width: 1200,
       height: 630,
-      alt: 'Chatflix.app - the Netflix of chatbots'
+      alt: 'CHATFLIX - I AM AI'
     }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Chatflix.app - the Netflix of chatbots',
-    description: 'Experience seamless AI conversations with multiple language models.',
-    images: ['https://chatflix.app/music.png?v=2'],
+    title: 'CHATFLIX - I AM AI',
+    description: 'Neflix of Chatbots',
+    images: ['https://chatflix.app/music.png?v=3'],
   },
   appleWebApp: {
     capable: true,
