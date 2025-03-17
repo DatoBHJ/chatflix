@@ -48,19 +48,19 @@ export const metadata = {
     type: 'website',
     locale: 'en_US',
     url: 'https://chatflix.app',
-    title: 'CHATFLIX - I AM AI',
+    title: 'CHATFLIX - THE NEFLIX OF CHATBOTS',
     description: 'Neflix of Chatbots',
     siteName: 'Chatflix.app',
     images: [{
       url: 'https://chatflix.app/music.png?v=3',
       width: 1200,
       height: 630,
-      alt: 'CHATFLIX - I AM AI'
+      alt: 'CHATFLIX - THE NEFLIX OF CHATBOTS'
     }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'CHATFLIX - I AM AI',
+    title: 'CHATFLIX - THE NEFLIX OF CHATBOTS',
     description: 'Neflix of Chatbots',
     images: ['https://chatflix.app/music.png?v=3'],
   },
