@@ -76,11 +76,11 @@ export default function RootLayoutClient({
         "major-update-v1"
       );
       // Code for a major update warning announcement
-      showAnnouncement(
-        "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period.",
-        "warning",
-        "major-update-bug-report"
-      );
+      // showAnnouncement(
+      //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period.",
+      //   "warning",
+      //   "major-update-bug-report"
+      // );
       showAnnouncement(
         "If you want to report a bug, please contact us at datobhj@gmail.com",
         "info",
