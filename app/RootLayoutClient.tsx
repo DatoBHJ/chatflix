@@ -73,7 +73,7 @@ export default function RootLayoutClient({
       showAnnouncement(
         "MAJOR SYSTEM UPDATE: chatflix_0.0.0: Web Search, Model Updates, and More - March 17, 2025",
         "info",
-        "major-update-v1"
+        "major-update-v2"
       );
       // Code for a major update warning announcement
       // showAnnouncement(
