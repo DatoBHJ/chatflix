@@ -60,6 +60,12 @@ const Message = memo(function MessageComponent({
   const isAssistant = message.role === 'assistant';
   const isUser = message.role === 'user';
   const hasAttachments = message.experimental_attachments && message.experimental_attachments.length > 0;
+  const hasContent = message.content && message.content.trim().length > 0;
+
+  // 어시스턴트 메시지이고 내용이 없으면 렌더링하지 않음
+  if (isAssistant && !hasContent) {
+    return null;
+  }
 
   return (
     <div className="message-group group animate-fade-in overflow-hidden">

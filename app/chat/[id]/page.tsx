@@ -17,6 +17,8 @@ import '@/app/styles/attachments.css'
 import { Message as MessageComponent } from '@/app/components/Message'
 import { ChatInput } from '@/app/components/ChatInput/index';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
+import MultiSearch from '@/app/components/MultiSearch';
+import { ToolInvocation, JSONValue } from 'ai';
 
 
 export default function Chat({ params }: PageProps) {
@@ -36,6 +38,7 @@ export default function Chat({ params }: PageProps) {
   const [isModelLoading, setIsModelLoading] = useState(true)
   const [isSessionLoaded, setIsSessionLoaded] = useState(false)
   const [rateLimitedLevels, setRateLimitedLevels] = useState<string[]>([])
+  const [isWebSearchEnabled, setIsWebSearchEnabled] = useState(false)
 
   const isFullyLoaded = !isModelLoading && isSessionLoaded && !!currentModel
 
@@ -44,10 +47,11 @@ export default function Chat({ params }: PageProps) {
     body: {
       model: nextModel || getSystemDefaultModelId(),
       chatId,
-      experimental_attachments: true
+      experimental_attachments: true,
+      isWebSearchEnabled
     },
     id: chatId,
-    initialMessages: existingMessages,
+    initialMessages: isFullyLoaded ? existingMessages : [],
     onResponse: (response) => {
       // print the last message
       console.log('[Debug] Response in chat/[id]/page.tsx:', messages)
@@ -160,107 +164,150 @@ export default function Chat({ params }: PageProps) {
         setIsModelLoading(true)
         setIsSessionLoaded(false)
         
-        const { data: session, error: sessionError } = await supabase
-          .from('chat_sessions')
-          .select('current_model, initial_message')
-          .eq('id', chatId)
-          .eq('user_id', user.id)
-          .single()
-
-        if (sessionError || !session) {
-          console.error('Session error:', sessionError)
-          router.push('/')
-          return
-        }
-
-        // 세션에 저장된 모델이 있으면 사용, 없으면 사용자의 기본 모델 사용
-        if (session.current_model && isMounted) {
-          setCurrentModel(session.current_model)
-          setNextModel(session.current_model)
-        } else if (isMounted) {
-          // 세션에 모델이 없는 경우 사용자의 기본 모델 가져오기
-          const userDefaultModel = await getDefaultModelId(user.id)
-          setCurrentModel(userDefaultModel)
-          setNextModel(userDefaultModel)
+        // First check URL query parameter for web search setting
+        if (isMounted && typeof window !== 'undefined') {
+          console.log('[Debug] Chat page - Checking web search settings for chatId:', chatId);
           
-          // 세션 업데이트
-          await supabase
+          const urlParams = new URLSearchParams(window.location.search);
+          const webSearchParam = urlParams.get('web_search');
+          console.log('[Debug] Chat page - URL web_search parameter:', webSearchParam);
+          
+          let shouldEnableWebSearch = false;
+          
+          if (webSearchParam === 'true') {
+            console.log('[Debug] Chat page - Setting web search enabled from URL parameter');
+            shouldEnableWebSearch = true;
+            // Also update localStorage for persistence
+            localStorage.setItem(`websearch_${chatId}`, 'true');
+            
+            // Clean up URL by removing the query parameter
+            const newUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, newUrl);
+            console.log('[Debug] Chat page - Cleaned up URL, removed query parameter');
+          } else {
+            // If not in URL, check localStorage as fallback
+            const savedWebSearchState = localStorage.getItem(`websearch_${chatId}`);
+            console.log('[Debug] Chat page - localStorage web search state:', savedWebSearchState);
+            
+            if (savedWebSearchState === 'true') {
+              console.log('[Debug] Chat page - Setting web search enabled from localStorage');
+              shouldEnableWebSearch = true;
+            } else {
+              console.log('[Debug] Chat page - Web search is disabled');
+            }
+          }
+          
+          // Update state synchronously before proceeding
+          setIsWebSearchEnabled(shouldEnableWebSearch);
+          
+          const { data: session, error: sessionError } = await supabase
             .from('chat_sessions')
-            .update({ current_model: userDefaultModel })
+            .select('current_model, initial_message')
             .eq('id', chatId)
             .eq('user_id', user.id)
-        }
+            .single()
 
-        const { data: existingMessages, error: messagesError } = await supabase
-          .from('messages')
-          .select('*')
-          .eq('chat_session_id', chatId)
-          .eq('user_id', user.id)
-          .order('sequence_number', { ascending: true })
-
-        if (messagesError) {
-          console.error('Failed to load messages:', messagesError)
-          return
-        }
-
-        if (existingMessages?.length > 0 && isMounted) {
-          const sortedMessages = existingMessages
-            .map(convertMessage)
-            .sort((a: any, b: any) => {
-              const seqA = (a as any).sequence_number || 0
-              const seqB = (b as any).sequence_number || 0
-              return seqA - seqB
-            })
-          setExistingMessages(sortedMessages)
-          setMessages(sortedMessages)
-          setIsInitialized(true)
-
-          if (sortedMessages.length === 1 && sortedMessages[0].role === 'user') {
-            reload({
-              body: {
-                model: session.current_model || currentModel,
-                chatId,
-                messages: sortedMessages
-              }
-            })
+          if (sessionError || !session) {
+            console.error('Session error:', sessionError)
+            router.push('/')
+            return
           }
-        } else if (session.initial_message && isMounted) {
-          const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-          
-          await supabase.from('messages').insert([{
-            id: messageId,
-            content: session.initial_message,
-            role: 'user',
-            created_at: new Date().toISOString(),
-            model: session.current_model,
-            host: 'user',
-            chat_session_id: chatId,
-            user_id: user.id
-          }])
 
-          setMessages([{
-            id: messageId,
-            content: session.initial_message,
-            role: 'user',
-            createdAt: new Date()
-          }])
+          // 세션에 저장된 모델이 있으면 사용, 없으면 사용자의 기본 모델 사용
+          if (session.current_model && isMounted) {
+            setCurrentModel(session.current_model)
+            setNextModel(session.current_model)
+          } else if (isMounted) {
+            // 세션에 모델이 없는 경우 사용자의 기본 모델 가져오기
+            const userDefaultModel = await getDefaultModelId(user.id)
+            setCurrentModel(userDefaultModel)
+            setNextModel(userDefaultModel)
+            
+            // 세션 업데이트
+            await supabase
+              .from('chat_sessions')
+              .update({ current_model: userDefaultModel })
+              .eq('id', chatId)
+              .eq('user_id', user.id)
+          }
 
-          initialMessageSentRef.current = true
-          setIsInitialized(true)
+          const { data: existingMessages, error: messagesError } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('chat_session_id', chatId)
+            .eq('user_id', user.id)
+            .order('sequence_number', { ascending: true })
 
-          if (isMounted) {
-            reload({
-              body: {
-                model: session.current_model,
-                chatId,
-                messages: [{
-                  id: messageId,
-                  content: session.initial_message,
-                  role: 'user',
-                  createdAt: new Date()
-                }]
-              }
-            })
+          if (messagesError) {
+            console.error('Failed to load messages:', messagesError)
+            return
+          }
+
+          if (existingMessages?.length > 0 && isMounted) {
+            const sortedMessages = existingMessages
+              .map(convertMessage)
+              .sort((a: any, b: any) => {
+                const seqA = (a as any).sequence_number || 0
+                const seqB = (b as any).sequence_number || 0
+                return seqA - seqB
+              })
+            setExistingMessages(sortedMessages)
+            setMessages(sortedMessages)
+            setIsInitialized(true)
+
+            if (sortedMessages.length === 1 && sortedMessages[0].role === 'user') {
+              console.log('[Debug] Chat page - Reloading with initial message, web search:', shouldEnableWebSearch);
+              reload({
+                body: {
+                  model: session.current_model || currentModel,
+                  chatId,
+                  messages: sortedMessages,
+                  isWebSearchEnabled: shouldEnableWebSearch
+                }
+              });
+            }
+          } else if (session.initial_message && isMounted) {
+            // Only create initial message if there are no existing messages
+            console.log('[Debug] Chat page - Creating initial message, web search:', shouldEnableWebSearch);
+            const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            
+            await supabase.from('messages').insert([{
+              id: messageId,
+              content: session.initial_message,
+              role: 'user',
+              created_at: new Date().toISOString(),
+              model: session.current_model,
+              host: 'user',
+              chat_session_id: chatId,
+              user_id: user.id
+            }])
+
+            setMessages([{
+              id: messageId,
+              content: session.initial_message,
+              role: 'user',
+              createdAt: new Date()
+            }])
+
+            initialMessageSentRef.current = true
+            setIsInitialized(true)
+
+            if (isMounted) {
+              console.log('[Debug] Chat page - Reloading with new message, web search:', shouldEnableWebSearch);
+              reload({
+                body: {
+                  model: session.current_model,
+                  chatId,
+                  messages: [{
+                    id: messageId,
+                    content: session.initial_message,
+                    role: 'user',
+                    createdAt: new Date()
+                  }],
+                  isWebSearchEnabled: shouldEnableWebSearch
+                }
+              });
+            }
           }
         }
       } catch (error) {
@@ -442,6 +489,9 @@ export default function Chat({ params }: PageProps) {
   const handleModelSubmit = useCallback(async (e: React.FormEvent, files?: FileList) => {
     e.preventDefault();
     
+    // 디버깅: 폼 제출 시 웹 검색 상태 출력
+    console.log('[Debug] Chat page - handleModelSubmit called with web search:', isWebSearchEnabled);
+    
     if (nextModel !== currentModel) {
       const success = await handleModelChange(nextModel)
       if (!success) {
@@ -510,6 +560,15 @@ export default function Chat({ params }: PageProps) {
                    .map(part => part.text)
                    .join(' ');
 
+    // Update web search setting in localStorage instead of database
+    if (typeof window !== 'undefined') {
+      if (isWebSearchEnabled) {
+        localStorage.setItem(`websearch_${chatId}`, 'true');
+      } else {
+        localStorage.removeItem(`websearch_${chatId}`);
+      }
+    }
+
     const { error: messageError } = await supabase
       .from('messages')
       .insert([{
@@ -544,12 +603,13 @@ export default function Chat({ params }: PageProps) {
             experimental_attachments: attachments
           }
         ],
-        saveToDb: false // Add flag to prevent saving in API
+        saveToDb: false, // Add flag to prevent saving in API
+        isWebSearchEnabled
       },
       experimental_attachments: attachments
     })
 
-  }, [nextModel, currentModel, chatId, handleSubmit, input, messages, user?.id])
+  }, [nextModel, currentModel, chatId, handleSubmit, input, messages, user?.id, isWebSearchEnabled])
 
   const handleStop = useCallback(async () => {
     try {
@@ -645,6 +705,28 @@ export default function Chat({ params }: PageProps) {
   // Determine if we should use virtualization based on message count
   const listHeight = windowDimensions.height ? Math.max(windowDimensions.height - 300, 400) : 600;
 
+  // Find web search tool results to display
+  const getWebSearchResults = (message: Message) => {
+    if (!message.parts) return null;
+    
+    for (const part of message.parts) {
+      if (part.type === 'tool-invocation' && part.toolInvocation.toolName === 'web_search') {
+        try {
+          // Use type assertion to handle 'result' property that may not be explicitly defined in ToolInvocation type
+          const invocation = part.toolInvocation as any;
+          return {
+            result: invocation.result ? JSON.parse(JSON.stringify(invocation.result)) : null,
+            args: invocation.args ? JSON.parse(JSON.stringify(invocation.args)) : null
+          };
+        } catch (error) {
+          console.error('Error parsing web search results:', error);
+          return null;
+        }
+      }
+    }
+    return null;
+  };
+
   return (
     <main className="flex-1 relative h-full">
       <Header 
@@ -682,42 +764,65 @@ export default function Chat({ params }: PageProps) {
               components={{
                 Footer: () => <div ref={messagesEndRef} className="h-px" />
               }}
-              itemContent={(index, message) => (
-                <MessageComponent
-                  key={message.id}
-                  message={message}
-                  currentModel={currentModel}
-                  isRegenerating={isRegenerating}
-                  editingMessageId={editingMessageId}
-                  editingContent={editingContent}
-                  copiedMessageId={copiedMessageId}
-                  onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
-                  onCopy={handleCopyMessage}
-                  onEditStart={handleEditStart}
-                  onEditCancel={handleEditCancel}
-                  onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
-                  setEditingContent={setEditingContent}
-                />
-              )}
+              itemContent={(index, message) => {
+                const webSearchData = getWebSearchResults(message);
+                return (
+                  <>
+                    {webSearchData && (
+                      <MultiSearch 
+                        result={webSearchData.result} 
+                        args={webSearchData.args}
+                        annotations={(message.annotations as any[] || []).filter(a => a && typeof a === 'object' && 'type' in a && a.type === 'query_completion')}
+                      />
+                    )}
+                    <MessageComponent
+                      key={message.id}
+                      message={message}
+                      currentModel={currentModel}
+                      isRegenerating={isRegenerating}
+                      editingMessageId={editingMessageId}
+                      editingContent={editingContent}
+                      copiedMessageId={copiedMessageId}
+                      onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
+                      onCopy={handleCopyMessage}
+                      onEditStart={handleEditStart}
+                      onEditCancel={handleEditCancel}
+                      onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
+                      setEditingContent={setEditingContent}
+                    />
+                  </>
+                );
+              }}
             />
           ) : (
-            messages.map((message) => (
-              <MessageComponent
-                key={message.id}
-                message={message}
-                currentModel={currentModel}
-                isRegenerating={isRegenerating}
-                editingMessageId={editingMessageId}
-                editingContent={editingContent}
-                copiedMessageId={copiedMessageId}
-                onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
-                onCopy={handleCopyMessage}
-                onEditStart={handleEditStart}
-                onEditCancel={handleEditCancel}
-                onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
-                setEditingContent={setEditingContent}
-              />
-            ))
+            messages.map((message) => {
+              const webSearchData = getWebSearchResults(message);
+              return (
+                <div key={message.id}>
+                  {webSearchData && (
+                    <MultiSearch 
+                      result={webSearchData.result} 
+                      args={webSearchData.args}
+                      annotations={(message.annotations as any[] || []).filter(a => a && typeof a === 'object' && 'type' in a && a.type === 'query_completion')}
+                    />
+                  )}
+                  <MessageComponent
+                    message={message}
+                    currentModel={currentModel}
+                    isRegenerating={isRegenerating}
+                    editingMessageId={editingMessageId}
+                    editingContent={editingContent}
+                    copiedMessageId={copiedMessageId}
+                    onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
+                    onCopy={handleCopyMessage}
+                    onEditStart={handleEditStart}
+                    onEditCancel={handleEditCancel}
+                    onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
+                    setEditingContent={setEditingContent}
+                  />
+                </div>
+              );
+            })
           )}
           <div ref={messagesEndRef} className="h-px" />
         </div>
@@ -733,6 +838,7 @@ export default function Chat({ params }: PageProps) {
                 setNextModel={setNextModel}
                 position="top"
                 disabledLevels={rateLimitedLevels}
+                isWebSearchEnabled={isWebSearchEnabled}
               />
               <ChatInput
                 input={input}
@@ -742,6 +848,8 @@ export default function Chat({ params }: PageProps) {
                 stop={handleStop}
                 user={user}
                 modelId={nextModel}
+                isWebSearchEnabled={isWebSearchEnabled}
+                setIsWebSearchEnabled={setIsWebSearchEnabled}
               />
             </div>
           </div>

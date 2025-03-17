@@ -14,9 +14,14 @@ import {
   handleStreamCompletion
 } from './services/chatService';
 import { generateMessageId, convertMessageForAI } from './utils/messageUtils';
+import { 
+  webSearchQueryGeneratorPrompt, 
+  getWebSearchResponsePrompt 
+} from './prompts';
+import { createWebSearchTool, createDatetimeTool } from './tools';
 
-export const runtime = 'edge';
-export const maxDuration = 300;
+// export const runtime = 'edge';
+export const maxDuration = 600;
 
 const getProviderFromModel = (model: string): string => {
   const selectedModel = providers.languageModel(model);
@@ -83,16 +88,28 @@ export async function POST(req: Request) {
   return createDataStreamResponse({
     execute: async (dataStream) => {
       try {
+        console.log('[Debug-API] Starting chat request processing');
+        
         const supabase = await createClient();
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         
         if (userError || !user) {
+          console.log('[Debug-API] Authentication error:', userError);
           throw new Error('Unauthorized');
         }
 
-        const { messages, model, chatId, isRegeneration, existingMessageId, isReasoningEnabled = true, saveToDb = true }: ChatRequest & { isReasoningEnabled?: boolean; saveToDb?: boolean } = await req.json();
+        const requestData = await req.json();
+        console.log('[Debug-API] Request data:', {
+          chatId: requestData.chatId,
+          model: requestData.model,
+          isWebSearchEnabled: requestData.isWebSearchEnabled,
+          messageCount: requestData.messages?.length
+        });
+
+        const { messages, model, chatId, isRegeneration, existingMessageId, isReasoningEnabled = true, saveToDb = true, isWebSearchEnabled = false } = requestData;
 
         if (!messages || !Array.isArray(messages) || messages.length === 0) {
+          console.log('[Debug-API] Invalid messages format');
           throw new Error('Invalid messages format');
         }
 
@@ -163,47 +180,118 @@ export async function POST(req: Request) {
             }
           };
         }
+        
+        if (isWebSearchEnabled) {
+          console.log('[Debug-API] Web search is enabled, starting multi-step approach');
+          // Step 1: Web search query generation and execution
+          const webSearchResult = streamText({
+            model: providers.languageModel(model),
+            messages: [
+              { role: 'system', content: webSearchQueryGeneratorPrompt },
+              ...processMessages as unknown as Message[]
+            ],
+            temperature: 0,
+            toolChoice: 'required',
+            experimental_activeTools: [
+              'web_search', 
+              'datetime'
+            ],
+            tools: {
+              web_search: createWebSearchTool(processMessages, dataStream),
+              datetime: createDatetimeTool(req)
+            },
+            onChunk(event) {
+              if (event.chunk.type === 'tool-call') {
+                console.log('[Debug-API] Called Tool:', event.chunk.toolName);
+              }
+            },
+            onFinish(event) {
+              console.log('[Debug-API] Web search generator finished:', {
+                finishReason: event.finishReason,
+                messageCount: event.response.messages.length
+              });
+            }
+          });
 
-        const result = streamText({
-          model: providers.languageModel(model),
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...processMessages as unknown as Message[]
-          ],
-          temperature: 0.7,
-          maxTokens: 8000,
-          providerOptions,
-          experimental_transform: smoothStream({}),
-          onFinish: async (completion) => {
-            if (abortController.signal.aborted || isStreamFinished) return;
+          // Forward the web search step results without finish event
+          webSearchResult.mergeIntoDataStream(dataStream, {
+            experimental_sendFinish: false
+          });
+
+          console.log('[Debug-API] Starting assistant response');
+          const assistantResult = streamText({
+            model: providers.languageModel(model),
+            system: getWebSearchResponsePrompt(systemPrompt),
+            messages: [
+              ...processMessages as unknown as Message[],
+              ...(await webSearchResult.response).messages as unknown as Message[]
+            ],
+            temperature: 0.7,
+            maxTokens: 8000,
+            providerOptions,
+            experimental_transform: smoothStream({}),
+            onFinish: async (completion) => {
+              if (abortController.signal.aborted || isStreamFinished) return;
+              isStreamFinished = true;
+
+              await handleStreamCompletion(
+                supabase,
+                assistantMessageId,
+                user.id,
+                model,
+                provider,
+                completion,
+                isRegeneration
+              );
+            }
+          });
+
+          // Forward assistant response
+          return assistantResult.mergeIntoDataStream(dataStream, {
+            experimental_sendStart: false
+          });
+        } else {
+          // Standard chat flow without web search
+          const result = streamText({
+            model: providers.languageModel(model),
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...processMessages as unknown as Message[]
+            ],
+            temperature: 0.7,
+            maxTokens: 8000,
+            providerOptions,
+            experimental_transform: smoothStream({}),
+            onFinish: async (completion) => {
+              if (abortController.signal.aborted || isStreamFinished) return;
+              isStreamFinished = true;
+
+              await handleStreamCompletion(
+                supabase,
+                assistantMessageId,
+                user.id,
+                model,
+                provider,
+                completion,
+                isRegeneration
+              );
+            }
+          });
+
+          const stream = result.mergeIntoDataStream(dataStream, {
+            sendReasoning: true
+          });
+
+          req.signal.addEventListener('abort', () => {
+            abortController.abort();
             isStreamFinished = true;
+          });
 
-            await handleStreamCompletion(
-              supabase,
-              assistantMessageId,
-              user.id,
-              model,
-              provider,
-              completion,
-              isRegeneration
-            );
-          }
-        });
-
-        const stream = result.mergeIntoDataStream(dataStream, {
-          sendReasoning: true
-        });
-
-        req.signal.addEventListener('abort', () => {
-          abortController.abort();
-          isStreamFinished = true;
-        });
-
-        return stream;
-
+          return stream;
+        }
       } catch (error) {
-        console.log('unknown error', error)
-        return
+        console.log('Unknown error', error);
+        return;
       }
     }
   });

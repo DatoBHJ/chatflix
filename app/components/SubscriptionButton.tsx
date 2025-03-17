@@ -88,16 +88,16 @@ export function SubscriptionButton({ user }: SubscriptionButtonProps) {
         className="premium-ticket flex items-center gap-2 px-3 py-1.5 border border-amber-400/30 bg-gradient-to-r from-amber-50 to-amber-100 text-amber-800 rounded-sm hover:shadow-md transition-all"
         aria-label="Get Premium Access"
       >
-      <span className="font-bold text-xs tracking-wide ">GOLDEN TICKET</span>
+      <span className="font-bold text-xs tracking-wide ">$2 - ENDING SOON</span>
       </button>
       
-      {showTooltip && (
+      {/* {showTooltip && (
         <div className="absolute right-0 mt-2 w-48 bg-white/90 backdrop-blur-sm text-amber-900 p-2.5 rounded shadow-lg z-10 border border-amber-100 animate-fade-in">
           <div className="font-medium text-xs mb-1 text-amber-800">Golden Ticket Access</div>
           <p className="text-xs text-amber-700 opacity-80">Get your 50% off before the official launch.</p>
-          {/* <p className="text-xs text-amber-700 opacity-80">Unlock unlimited conversations and premium features.</p> */}
+          <p className="text-xs text-amber-700 opacity-80">Unlock unlimited conversations and premium features.</p>
         </div>
-      )}
+      )} */}
     </div>
   );
 }

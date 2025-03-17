@@ -52,7 +52,7 @@ export const metadata = {
     description: 'Experience seamless AI conversations with multiple language models. Chatflix.app offers a minimalist interface focused on simplicity and efficiency.',
     siteName: 'Chatflix.app',
     images: [{
-      url: 'https://chatflix.app/drake-meme.png?v=2',
+      url: 'https://chatflix.app/music.png?v=2',
       width: 1200,
       height: 630,
       alt: 'Chatflix.app - the Netflix of chatbots'
@@ -62,7 +62,7 @@ export const metadata = {
     card: 'summary_large_image',
     title: 'Chatflix.app - the Netflix of chatbots',
     description: 'Experience seamless AI conversations with multiple language models.',
-    images: ['https://chatflix.app/drake-meme.png?v=2'],
+    images: ['https://chatflix.app/music.png?v=2'],
   },
   appleWebApp: {
     capable: true,

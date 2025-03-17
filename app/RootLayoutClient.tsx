@@ -70,17 +70,17 @@ export default function RootLayoutClient({
       //   "error",
       //   "file-read-disabled"
       // );
-      // showAnnouncement(
-      //   "New model QwQ-32B is now available! It's a powerful reasoning model that excels at mathematical reasoning, coding, and complex-problem solving with performance rivaling the likes of DeepSeek-R1 and o1-mini.",
-      //   "info",
-      //   "new-model-qwq-32b"
-      // );
-      // Code for a major update warning announcement
       showAnnouncement(
-        "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Our team is actively monitoring and addressing any problems that arise. Thank you for your patience and understanding.",
-        "warning",
-        "major-update-in-progress"
+        "MAJOR SYSTEM UPDATE: Web Search, Model Updates, and More - March 17, 2025",
+        "info",
+        "major-update-v1"
       );
+      // Code for a major update warning announcement
+      // showAnnouncement(
+      //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Our team is actively monitoring and addressing any problems that arise. Thank you for your patience and understanding.",
+      //   "warning",
+      //   "major-update-in-progress"
+      // );
     }
   }, [user, showAnnouncement]);
 

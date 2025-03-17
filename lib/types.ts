@@ -7,6 +7,8 @@ export interface ChatRequest {
   isRegeneration?: boolean; 
   existingMessageId?: string;  
   isReasoningEnabled?: boolean;
+  isWebSearchEnabled?: boolean;
+  saveToDb?: boolean;
 }
 
 export type MessagePartType = 'text' | 'reasoning';
@@ -76,6 +78,7 @@ export interface Chat extends ChatSession {
   lastMessage?: string;
   lastMessageTime?: number;
   current_model?: string;
+  is_web_search_enabled?: boolean;
 }
 
 export interface ModelConfig {

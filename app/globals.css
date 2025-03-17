@@ -99,6 +99,31 @@ body {
   overflow-x: hidden;
 }
 
+/* 미래지향적 스크롤바 스타일 */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--foreground) 20%, transparent);
+  border-radius: 4px;
+  transition: background-color 0.3s ease;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--foreground) 30%, transparent);
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 20%, transparent) transparent;
+}
+
 @layer components {
   .yeezy-input {
     @apply bg-transparent border-0 rounded-none pr-8 py-3 sm:py-4 w-full 
@@ -152,6 +177,15 @@ body {
   .yeezy-model-selector:disabled {
     @apply opacity-50 cursor-not-allowed;
   }
+  
+  /* 트렌딩 용어 버튼 스타일 */
+  .trending-term {
+    @apply text-xs uppercase tracking-wider px-3 py-1.5 border border-transparent 
+           hover:bg-[var(--foreground)] hover:text-[var(--background)] 
+           transition-[var(--transition)] whitespace-nowrap;
+    line-height: 1;
+    letter-spacing: 0.05em;
+  }
 }
 
 @keyframes fadeIn {
@@ -165,8 +199,20 @@ body {
   }
 }
 
+/* Enhanced fadeIn animation with slight scale */
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .animate-fade-in {
-  animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: fadeInScale 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
 /* Message Container Styles */
@@ -647,19 +693,85 @@ body {
   color: rgba(251, 191, 36, 0.9);
 }
 
-/* Animation for fade in */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* Login page specific styles */
+.login-container {
+  @apply min-h-screen flex items-center justify-center;
+  background-color: #ffffff;
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out forwards;
+/* 이미지 컨테이너에 대한 스타일을 단순화합니다 */
+/* 
+.login-image-container {
+  @apply cursor-pointer transition-all duration-300;
+  transform-origin: center bottom;
+}
+
+.login-image-container:hover {
+  transform: scale(1.03);
+}
+*/
+
+.login-form-container {
+  @apply w-full max-w-md mx-auto px-6 py-8;
+}
+
+.login-input {
+  @apply w-full bg-transparent border transition-all 
+         outline-none text-sm tracking-wider rounded-none px-5 py-4;
+  border-color: #f5f5f5;
+  color: #111111;
+}
+
+.login-input:focus {
+  border-color: #111111;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.login-input::placeholder {
+  color: #999999;
+}
+
+.login-button-primary {
+  @apply flex items-center justify-center text-sm uppercase tracking-wider 
+         transition-all rounded-none;
+  background-color: #111111;
+  color: #ffffff;
+}
+
+.login-button-primary:hover {
+  background-color: #333333;
+}
+
+.login-button-secondary {
+  @apply flex items-center justify-center text-sm uppercase tracking-wider 
+         border transition-all rounded-none;
+  border-color: #f5f5f5;
+  color: #666666;
+}
+
+.login-button-secondary:hover {
+  border-color: #111111;
+  color: #111111;
+}
+
+/* Button hover effects */
+.login-button-primary:hover,
+.login-button-secondary:hover {
+  transform: translateY(-1px);
+}
+
+.login-button-primary:active,
+.login-button-secondary:active {
+  transform: translateY(1px);
+}
+
+/* Error message styling */
+.login-error {
+  @apply text-xs text-center uppercase tracking-wider
+         whitespace-pre-line p-4 border;
+  animation: fadeIn 0.3s ease-out;
+  color: #666666;
+  border-color: #f5f5f5;
+  background-color: rgba(245, 245, 245, 0.5);
 }
 

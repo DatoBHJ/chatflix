@@ -21,6 +21,7 @@ export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isModelLoading, setIsModelLoading] = useState(true) // 모델 로딩 상태 추가
   const [rateLimitedLevels, setRateLimitedLevels] = useState<string[]>([])
+  const [isWebSearchEnabled, setIsWebSearchEnabled] = useState(false)
   const supabase = createClient()
 
   // Check for rate limited levels from localStorage
@@ -180,6 +181,7 @@ export default function Home() {
     body: {
       model: currentModel,
       experimental_attachments: true,
+      isWebSearchEnabled,
     }
   })
 
@@ -190,6 +192,9 @@ export default function Home() {
     setIsSubmitting(true)
 
     try {
+      // 디버깅: 웹 검색 상태 확인
+      console.log('[Debug] Home page - Web search enabled:', isWebSearchEnabled);
+      
       // Generate session ID immediately
       const sessionId = Date.now().toString();
       
@@ -209,7 +214,7 @@ export default function Home() {
       // 사용자가 선택한 모델 사용
       const modelToUse = nextModel;
 
-      // Create session with initial message
+      // Create session with initial message and web search setting
       const { error: sessionError } = await supabase
         .from('chat_sessions')
         .insert([{
@@ -217,7 +222,7 @@ export default function Home() {
           title: input.trim(),
           current_model: modelToUse,
           initial_message: input.trim(),
-          user_id: user.id
+          user_id: user.id,
         }]);
 
       if (sessionError) {
@@ -226,7 +231,7 @@ export default function Home() {
       }
 
       // Save initial message with attachments
-      const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 15)}`;
       const { error: messageError } = await supabase
         .from('messages')
         .insert([{
@@ -246,8 +251,18 @@ export default function Home() {
         return;
       }
 
-      // Redirect to chat page
-      router.push(`/chat/${sessionId}`);
+      // Before redirect, save web search state to localStorage
+      if (isWebSearchEnabled) {
+        localStorage.setItem(`websearch_${sessionId}`, 'true');
+        console.log('[Debug] Home page - Saved web search state to localStorage:', sessionId);
+      }
+
+      // 디버깅: 리다이렉트 URL 출력
+      const redirectUrl = `/chat/${sessionId}${isWebSearchEnabled ? '?web_search=true' : ''}`;
+      console.log('[Debug] Home page - Redirecting to:', redirectUrl);
+      
+      // Redirect to chat page with query parameter to indicate web search
+      router.push(redirectUrl);
       
     } catch (error) {
       console.error('Error in handleModelSubmit:', error);
@@ -290,7 +305,7 @@ export default function Home() {
 
       <div className="flex-1 flex flex-col items-center justify-center">
         <div className="w-full max-w-2xl px-6 sm:px-8 pb-12 sm:pb-32">
-          <div className="space-y-0">
+          <div className="space-y-2">
             <ModelSelector
               currentModel={currentModel}
               nextModel={nextModel}
@@ -303,7 +318,7 @@ export default function Home() {
                 }
               }}
               disabled={isSubmitting}
-              disabledLevels={rateLimitedLevels}
+              isWebSearchEnabled={isWebSearchEnabled}
             />
             <ChatInput
               input={input}
@@ -316,6 +331,8 @@ export default function Home() {
               user={user}
               modelId={nextModel}
               popupPosition="bottom"
+              isWebSearchEnabled={isWebSearchEnabled}
+              setIsWebSearchEnabled={setIsWebSearchEnabled}
             />
           </div>
         </div>

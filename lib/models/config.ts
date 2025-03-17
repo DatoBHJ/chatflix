@@ -8,6 +8,7 @@ export interface ModelConfig {
     level: 'level1' | 'level2' | 'level3';
   };
   isEnabled: boolean;
+  isWebSearchEnabled: boolean;
   reasoning?: {
     enabled: boolean;
     provider?: 'groq' | 'together' | 'anthropic' | 'deepseek';  
@@ -16,6 +17,9 @@ export interface ModelConfig {
     budgetTokens?: number;
   };
   contextWindow?: number;
+  tps?: number; // Tokens per second received while the model is generating tokens (ie. after first chunk has been received from the API for models which support streaming).
+  intelligenceIndex?: number; // Artificial Analysis Intelligence Index: Combination metric covering multiple dimensions of intelligence - the simplest way to compare how smart models are. Version 2 was released in Feb '25 and includes: MMLU-Pro, GPQA Diamond, Humanity's Last Exam, LiveCodeBench, SciCode, AIME, MATH-500. See Intelligence Index methodology for further details, including a breakdown of each evaluation and how we run them.
+  latency?: number; // Time to first token of tokens received, in seconds, after API request sent. For models which do not support streaming, this represents time to receive the completion.
 }
 
 // Default model configuration
@@ -25,11 +29,11 @@ export const DEFAULT_MODEL_ID = 'gemini-2.0-flash';
 // export const RATE_LIMITS = {
 //   level1: {
 //     requests: 1,
-//     window: '60 m'
+//     window: '24 h'
 //   },
 //   level2: {
-//     requests: 6,
-//     window: '60 m'
+//     requests: 1,
+//     window: '24 h'
 //   },
 //   level3: {
 //     requests: 3,
@@ -39,16 +43,16 @@ export const DEFAULT_MODEL_ID = 'gemini-2.0-flash';
 // Rate limit configuration by level
 export const RATE_LIMITS = {
   level1: {
-    requests: 5,
-    window: '60 m'
+    requests: 100,
+    window: '30 s'
   },
   level2: {
     requests: 5,
-    window: '60 m'
+    window: '1 h'
   },
   level3: {
     requests: 5,
-    window: '60 m'
+    window: '3 h'
   }
 };
 
@@ -154,8 +158,9 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
-      level: 'level3',
+      level: 'level2',
     },
+    isWebSearchEnabled: false,
     isEnabled: true,
     reasoning: {
       enabled: true,
@@ -163,7 +168,9 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       baseModelId: 'claude-3-7-sonnet-20250219',
       budgetTokens: 12000
     },
-    contextWindow: 200000    
+    contextWindow: 200000,
+    tps: 78,
+    intelligenceIndex: 57
   },
   {
     id: 'claude-3-7-sonnet-latest',
@@ -172,10 +179,13 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
-      level: 'level3',
+      level: 'level2',
     },
+    isWebSearchEnabled: false,
     isEnabled: true,
-    contextWindow: 200000
+    contextWindow: 200000,
+    tps: 78,
+    intelligenceIndex: 48
   },
   {
     id: 'claude-3-5-sonnet-latest',
@@ -184,20 +194,24 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
-      level: 'level3',
+      level: 'level2',
     },
+    isWebSearchEnabled: true,
     isEnabled: true,
-    contextWindow: 200000
+    contextWindow: 200000,
+    tps: 77,
+    intelligenceIndex: 44
   },
   {
     id: 'deepseek-ai/DeepSeek-R1',
-    name: 'DeepSeek R1 (Thinking) 🇺🇸',
+    name: 'DeepSeek R1 (Thinking)',
     description: 'The best open source reasoning model by DeepSeek via Together.ai',
     provider: 'together',
     supportsVision: false,
     rateLimit: {
       level: 'level2',
     },
+    isWebSearchEnabled: false,
     reasoning: {
       enabled: true,
       provider: 'together',
@@ -205,29 +219,35 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       tagName: 'think'
     },
     isEnabled: true,
-    contextWindow: 128000 
+    contextWindow: 128000,
+    tps: 96,
+    intelligenceIndex: 60
   },
   {
     id: 'deepseek-ai/DeepSeek-V3',
-    name: 'DeepSeek V3 🇺🇸',
+    name: 'DeepSeek V3',
     description: 'The best open source non-reasoning model by DeepSeek via Together.ai',
     provider: 'together',
     supportsVision: false,
     rateLimit: {
       level: 'level2',
     },
+    isWebSearchEnabled: false,
     isEnabled: true,
-    contextWindow: 128000
+    contextWindow: 128000,
+    tps: 72,
+    intelligenceIndex: 46
   },
   {
     id: 'deepseek-reasoner',
-    name: 'DeepSeek R1 (Thinking) 🇨🇳',
+    name: 'DeepSeek R1 (Thinking)',
     description: 'The best open source reasoning model by DeepSeek',
     provider: 'deepseek',
     supportsVision: false,
     rateLimit: {
       level: 'level1',
     },
+    isWebSearchEnabled: false,
     reasoning: {
       enabled: true,
       provider: 'deepseek',
@@ -235,68 +255,85 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       tagName: 'think'
     },
     isEnabled: true,
-    contextWindow: 128000
+    contextWindow: 128000,
+    tps: 25,
+    intelligenceIndex: 60
   },
   {
     id: 'deepseek-chat',
-    name: 'DeepSeek V3 🇨🇳',
+    name: 'DeepSeek V3',
     description: 'The best open source non-reasoning model by DeepSeek',
     provider: 'deepseek',
     supportsVision: false,
     rateLimit: {
       level: 'level1',
     },
+    isWebSearchEnabled: false,
     isEnabled: true,
-    contextWindow: 128000
+    contextWindow: 128000,
+    tps: 29,
+    intelligenceIndex: 46
   },
-  // {
-  //   id: 'gpt-4.5-preview',
-  //   name: 'GPT-4.5',
-  //   description: 'Latest and most capable GPT model yet by OpenAI',
-  //   provider: 'openai',
-  //   supportsVision: true,
-  //   rateLimit: {
-  //     level: 'level3',
-  //   },
-  //   isEnabled: true,
-  //   contextWindow: 128000
-  // },
-  // {
-  //   id: 'chatgpt-4o-latest',
-  //   name: 'GPT-4o',
-  //   description: 'Latest version of GPT-4o used in ChatGPT',
-  //   provider: 'openai',
-  //   supportsVision: true,
-  //   rateLimit: {
-  //     level: 'level3',
-  //   },
-  //   isEnabled: true,
-  //   contextWindow: 128000 
-  // },
-  // {
-  //   "id": "o1",
-  //   "name": "o1 (Thinking)",
-  //   "description": "Advanced reasoning model by OpenAI. Reasoning tokens used in its chain-of-thought process are hidden by OpenAI and not included in the visible output.",
-  //   "provider": "openai",
-  //   "supportsVision": true,
-  //   "rateLimit": {
-  //     "level": "level3",
-  //   },
-  //   "isEnabled": true,
-  //   contextWindow: 200000 
-  // },
-  // {
-  //   "id": "o3-mini",
-  //   "name": "o3-mini (Thinking)",
-  //   "description": "Latest small reasoning model by OpenAI. Reasoning tokens used in its chain-of-thought process are hidden by OpenAI and not included in the visible output.",
-  //   "provider": "openai",
-  //   "supportsVision": true,
-  //   "rateLimit": {
-  //     "level": "level2",
-  //   },
-  //   "isEnabled": true,
-  //   contextWindow: 200000
-  // },
+  {
+    id: 'gpt-4.5-preview',
+    name: 'GPT-4.5',
+    description: 'Latest and most capable GPT model yet by OpenAI',
+    provider: 'openai',
+    supportsVision: true,
+    rateLimit: {
+      level: 'level2',
+    },
+    isWebSearchEnabled: false,
+    isEnabled: true,
+    contextWindow: 128000,
+    tps: 14,
+    intelligenceIndex: 51
+  },
+  {
+    id: 'chatgpt-4o-latest',
+    name: 'GPT-4o',
+    description: 'Latest version of GPT-4o used in ChatGPT',
+    provider: 'openai',
+    supportsVision: true,
+    rateLimit: {
+      level: 'level2',
+    },
+    isWebSearchEnabled: false,
+    isEnabled: true,
+    contextWindow: 128000,
+    tps: 136,
+    intelligenceIndex: 41
+  },
+  {
+    "id": "o1",
+    "name": "o1 (Thinking)",
+    "description": "Advanced reasoning model by OpenAI. Reasoning tokens used in its chain-of-thought process are hidden by OpenAI and not included in the visible output.",
+    "provider": "openai",
+    "supportsVision": true,
+    "rateLimit": {
+      "level": "level2",
+    },
+    isWebSearchEnabled: false,
+    isEnabled: true,
+    contextWindow: 200000,
+    tps: 36,
+    intelligenceIndex: 62
+  },
+  {
+    "id": "o3-mini",
+    "name": "o3-mini (Thinking)",
+    "description": "Latest small reasoning model by OpenAI. Reasoning tokens used in its chain-of-thought process are hidden by OpenAI and not included in the visible output.",
+    "provider": "openai",
+    "supportsVision": true,
+    "rateLimit": {
+      "level": "level2",
+    },
+    isWebSearchEnabled: false,
+    isEnabled: true,
+    contextWindow: 200000,
+    tps: 188,
+    intelligenceIndex: 63
+  },
   {
     id: 'gemini-2.0-flash',
     name: 'Gemini 2.0 Flash',
@@ -306,8 +343,11 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level1',
     },
+    isWebSearchEnabled: true,
     isEnabled: true,
-    contextWindow: 1024000
+    contextWindow: 1024000,
+    tps: 258,
+    intelligenceIndex: 48
   },
   {
     id: 'grok-2-vision-latest',
@@ -316,10 +356,13 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'xai',
     supportsVision: true,
     rateLimit: {
-      level: 'level2',
+      level: 'level1',
     },
+    isWebSearchEnabled: true,
     isEnabled: true,
-    contextWindow: 128000
+    contextWindow: 128000,
+    tps: 67, 
+    intelligenceIndex: 38 
   },
   {
     id: 'llama-3.3-70b-versatile',
@@ -330,8 +373,11 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level1',
     },
+    isWebSearchEnabled: true,
     isEnabled: true,
-    contextWindow: 128000
+    contextWindow: 128000,
+    tps: 275,
+    intelligenceIndex: 41
   },
   {
     id: 'qwen-qwq-32b',
@@ -349,7 +395,10 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       tagName: 'think'
     },
     isEnabled: true,
-    contextWindow: 128000
+    isWebSearchEnabled: true,
+    contextWindow: 131000,
+    tps: 399,
+    intelligenceIndex: 58
   },
 ];
 

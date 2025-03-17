@@ -7,6 +7,8 @@ import { useChatInputStyles } from './ChatInputStyles';
 import { FileUploadButton, FilePreview, fileHelpers } from './FileUpload';
 import { PromptShortcuts } from './PromptShortcuts';
 import { DragDropOverlay, ErrorToast } from './DragDropOverlay';
+import { Globe } from 'lucide-react';
+// import { InlineTrendingTerms } from './InlineTrendingTerms';
 
 export function ChatInput({
   input,
@@ -18,7 +20,9 @@ export function ChatInput({
   placeholder = "Type @ for shortcuts ...",
   user,
   modelId,
-  popupPosition = 'top'
+  popupPosition = 'top',
+  isWebSearchEnabled,
+  setIsWebSearchEnabled
 }: ChatInputProps) {
   // 기본 상태 및 참조
   const inputRef = useRef<HTMLDivElement>(null);
@@ -27,6 +31,7 @@ export function ChatInput({
   const shortcutsListRef = useRef<HTMLDivElement>(null);
   const isSubmittingRef = useRef(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const inputContainerRef = useRef<HTMLDivElement>(null);
   
   // 상태 관리
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -38,8 +43,6 @@ export function ChatInput({
   const [files, setFiles] = useState<File[]>([]);
   const [fileMap, setFileMap] = useState<Map<string, { file: File, url: string }>>(new Map());
   const [dragActive, setDragActive] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
-  const [isThemeChanging, setIsThemeChanging] = useState(false);
   const [lastTypedChar, setLastTypedChar] = useState<string | null>(null);
   const [mentionQueryActive, setMentionQueryActive] = useState(false);
   const [showPDFError, setShowPDFError] = useState(false);
@@ -63,62 +66,6 @@ export function ChatInput({
     if (inputRef.current) {
       inputRef.current.focus();
     }
-  }, []);
-
-  // 모델 변경 시 포커스 효과
-  useEffect(() => {
-    if (inputRef.current) {
-      // 포커스 효과 적용
-      setIsFocused(true);
-      
-      // 잠시 후 포커스 효과 제거
-      const timer = setTimeout(() => {
-        setIsFocused(false);
-      }, 1000); // 1초 후 효과 제거
-      
-      return () => clearTimeout(timer);
-    }
-  }, [modelId]); // modelId가 변경될 때마다 실행
-
-  // 테마 변경 감지
-  useEffect(() => {
-    // 테마 변경 감지 함수
-    const detectThemeChange = () => {
-      setIsThemeChanging(true);
-      
-      setTimeout(() => {
-        setIsThemeChanging(false);
-      }, 500);
-    };
-
-    // MutationObserver로 테마 변경 감시
-    const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        if (
-          mutation.type === 'attributes' && 
-          (mutation.attributeName === 'class' || mutation.attributeName === 'data-theme')
-        ) {
-          detectThemeChange();
-          break;
-        }
-      }
-    });
-
-    // document.documentElement의 class 또는 data-theme 변경 감시
-    observer.observe(document.documentElement, { 
-      attributes: true,
-      attributeFilter: ['class', 'data-theme']
-    });
-
-    // body의 class 변경도 감시
-    observer.observe(document.body, { 
-      attributes: true,
-      attributeFilter: ['class']
-    });
-
-    return () => {
-      observer.disconnect();
-    };
   }, []);
 
   // 붙여넣기 이벤트 핸들러
@@ -220,6 +167,13 @@ export function ChatInput({
     
     const cursorPosition = getCursorPosition(inputRef.current);
     const content = inputRef.current.textContent || '';
+    
+    // placeholder를 위한 empty 클래스 설정
+    if (content.trim() === '') {
+      inputRef.current.classList.add('empty');
+    } else {
+      inputRef.current.classList.remove('empty');
+    }
     
     // 부모 컴포넌트 상태 업데이트
     const event = {
@@ -374,6 +328,9 @@ export function ChatInput({
       // 모든 콘텐츠 및 빈 노드 제거
       inputRef.current.innerHTML = '';
       
+      // 빈 상태 클래스 추가
+      inputRef.current.classList.add('empty');
+      
       // 부모 상태 업데이트
       const event = {
         target: { value: '' }
@@ -385,6 +342,14 @@ export function ChatInput({
     }
   };
 
+  // 컴포넌트가 마운트될 때 빈 입력 필드 초기화
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.classList.add('empty');
+      inputRef.current.focus();
+    }
+  }, []);
+
   // 고유 ID 생성 함수 추가
   const generateUniqueId = () => {
     return Date.now().toString(36) + Math.random().toString(36).substring(2);
@@ -395,6 +360,8 @@ export function ChatInput({
     e.preventDefault();
     
     if (isSubmittingRef.current || isLoading) return;
+    
+    if (!inputRef.current) return;
     
     const content = inputRef.current?.textContent || '';
     if (!content.trim() && files.length === 0) return;
@@ -732,32 +699,63 @@ export function ChatInput({
     setFiles(prevFiles => prevFiles.filter(file => (file as any).id !== fileId));
   };
 
+  // Add a new method to handle trending term clicks
+  const handleTrendingTermClick = (term: string) => {
+    if (!inputRef.current) return;
+    
+    // Set the input content to the trending term
+    inputRef.current.textContent = term;
+    inputRef.current.classList.remove('empty');
+    
+    // Update parent component's state
+    const event = {
+      target: { value: term }
+    } as React.ChangeEvent<HTMLTextAreaElement>;
+    handleInputChange(event);
+    
+    // Ensure web search is enabled
+    if (setIsWebSearchEnabled && !isWebSearchEnabled) {
+      setIsWebSearchEnabled(true);
+    }
+    
+    // Focus the input field
+    inputRef.current.focus();
+  };
+
   return (
     <div className="relative">
       <form 
         ref={formRef} 
         onSubmit={handleMessageSubmit} 
-        className={`flex flex-col gap-2 sticky bottom-0 bg-transparent p-1 md:p-0
+        className={`flex flex-col gap-2 sticky bottom-0 bg-transparent p-1
           ${dragActive ? 'drag-target-active' : ''}`}
         onDragEnter={handleDrag}
         onDragOver={handleDrag}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {/* 파일 미리보기 섹션 */}
+        {/* Only show trending terms when web search is enabled. do not erase this code even if it is not used yet */}
+        {/* {isWebSearchEnabled && (
+          <InlineTrendingTerms 
+            isVisible={isWebSearchEnabled === true} 
+            onTermClick={handleTrendingTermClick} 
+          />
+        )} */}
+        
+        {/* File preview section */}
         <FilePreview 
           files={files} 
           fileMap={fileMap} 
           removeFile={removeFile} 
         />
 
-        {/* 에러 토스트 */}
+        {/* Error toast */}
         <ErrorToast show={showPDFError} message={supportsVision ? "PDF files are not supported" : "This model does not support PDF and image files."} />
         <ErrorToast show={showFolderError} message="Folders cannot be uploaded" />
 
-        {/* 드래그 & 드롭 영역 */}
+        {/* Drag & drop area */}
         <div 
-          className={`relative transition-all duration-300 ${dragActive ? 'scale-[1.01]' : ''}`}
+          className={`relative transition-transform duration-300 ${dragActive ? 'scale-[1.01]' : ''}`}
           onDragEnter={handleDrag}
           onDragLeave={handleDragLeave}
           onDragOver={handleDrag}
@@ -776,8 +774,30 @@ export function ChatInput({
             multiple
           />
           
-          <div className="flex gap-0 items-center input-container ">
-            {/* 파일 업로드 버튼 */}
+          <div 
+            ref={inputContainerRef}
+            className="flex gap-1 items-center rounded-lg transition-all duration-300 px-2 py-1 bg-[color-mix(in_srgb,var(--foreground)_100%,transparent)]"
+          >
+            {/* Web Search Toggle - improved for visibility */}
+            {setIsWebSearchEnabled && (
+              <button
+                type="button"
+                onClick={() => setIsWebSearchEnabled(!isWebSearchEnabled)}
+                className={`input-btn transition-all duration-300 flex items-center justify-center relative rounded-md w-9 h-9 ${
+                  isWebSearchEnabled ? 
+                    'input-btn-active' : 
+                    'text-background'
+                }`}
+                title={isWebSearchEnabled ? "Disable web search" : "Enable web search"}
+              >
+                <Globe className="h-4 w-4 transition-transform duration-300" strokeWidth={1.2} />
+                {isWebSearchEnabled && (
+                  <span className="absolute top-1 right-1 bg-[var(--foreground)] rounded-sm w-1.5 h-1.5"></span>
+                )}
+              </button>
+            )}
+
+            {/* File upload button */}
             <FileUploadButton 
               filesCount={files.length} 
               onClick={() => fileInputRef.current?.click()} 
@@ -789,49 +809,54 @@ export function ChatInput({
               onInput={handleInputWithShortcuts}
               onPaste={handlePaste}
               onKeyDown={handleKeyDown}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              className={`yeezy-input futuristic-input flex-1 transition-all duration-300 py-2 px-2
-                ${isFocused ? 'focused' : ''}
-                ${isThemeChanging ? 'theme-changing' : ''}
-                ${!isFocused && !isThemeChanging ? 'bg-transparent' : ''}`}
-              style={{ 
-                minHeight: '44px',
-                maxHeight: window.innerWidth <= 768 ? '120px' : '200px',
-                lineHeight: '1.5',
-                wordBreak: 'break-word',
-                overflowWrap: 'break-word'
-              }}
+              className="futuristic-input empty flex-1 transition-colors duration-300 py-3 px-3 rounded-md outline-none text-sm sm:text-base bg-transparent"
               data-placeholder={placeholder}
               suppressContentEditableWarning
-            />
+            ></div>
 
             {isLoading ? (
               <button 
                 onClick={(e) => { e.preventDefault(); stop(); }} 
                 type="button"
-                className="futuristic-button w-10 h-10 flex items-center justify-center transition-all hover:bg-[var(--accent)]/30"
+                className="input-btn input-btn-active flex items-center justify-center w-9 h-9 rounded-md transition-all duration-300 mx-1"
                 aria-label="Stop generation"
               >
-                <span className="text-red-500 flex items-center justify-center w-3 h-3">■</span>
+                <span className="flex items-center justify-center w-2.5 h-2.5">■</span>
               </button>
             ) : (
               <button 
                 type="submit" 
-                className={`futuristic-button w-10 h-10 flex items-center justify-center transition-all hover:bg-[var(--accent)]/30`}
+                className={`input-btn w-9 h-9 rounded-md flex items-center justify-center transition-all duration-300 mx-1 ${
+                  disabled || !input.trim() ? 
+                    'text-background' : 
+                    'input-btn-active'
+                }`}
                 disabled={disabled || !input.trim()}
                 aria-label="Send message"
               >
-                <span className="flex items-center justify-center leading-none">↑</span>
+                <svg 
+                  width="16" 
+                  height="16" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="1.5" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
+                  className="transition-transform duration-300"
+                >
+                  <path d="M22 2L11 13"></path>
+                  <path d="M22 2L15 22L11 13L2 9L22 2Z"></path>
+                </svg>
               </button>
             )}
           </div>
         </div>
 
-        {/* 드래그 & 드롭 오버레이 */}
+        {/* Drag & drop overlay */}
         <DragDropOverlay dragActive={dragActive} />
 
-        {/* 숏컷 팝업 */}
+        {/* Shortcuts popup */}
         <PromptShortcuts
           showShortcuts={showShortcuts}
           shortcuts={shortcuts}

@@ -1,4 +1,4 @@
-import { customProvider, wrapLanguageModel, extractReasoningMiddleware, LanguageModelV1, LanguageModelV1Middleware } from 'ai';
+import { customProvider, wrapLanguageModel, extractReasoningMiddleware, LanguageModelV1 } from 'ai';
 import { createDeepSeek } from '@ai-sdk/deepseek';
 import { createTogetherAI } from '@ai-sdk/togetherai';
 import { createGroq } from '@ai-sdk/groq';

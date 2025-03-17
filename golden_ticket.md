@@ -2,7 +2,7 @@
 
 > ## ***"Why subscribe to multiple AI services when you can stream them ALL for $5?"***
 
-![Chatflix Banner](https://chatflix.app/drake-meme.png?v=2)
+![Chatflix Banner](https://chatflix.app/.png?v=2)
 
 ---
 

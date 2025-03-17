@@ -62,6 +62,7 @@ export default function RateLimitPage() {
   const [chatTitle, setChatTitle] = useState<string>('')
   const [isSubscribing, setIsSubscribing] = useState(false)
   const [showTooltip, setShowTooltip] = useState(false)
+  const [isWebSearchEnabled, setIsWebSearchEnabled] = useState(false)
   
   // Get the rate-limited model and chat session from URL params
   const rateLimitedModelId = searchParams.get('model') || ''
@@ -559,7 +560,7 @@ export default function RateLimitPage() {
                 Rate Limit Exceeded
               </h1>
               
-              {currentModel && (
+              {/* {currentModel && (
                 <div className="mb-6 fade-in-up" style={{ animationDelay: '0.1s' }}>
                   <div className="text-xs uppercase tracking-wider text-[var(--muted)] mb-2">Rate Limited Model</div>
                   <div className="flex items-center gap-2">
@@ -578,16 +579,16 @@ export default function RateLimitPage() {
                     </div>
                   </div>
                 </div>
-              )}
+              )} */}
               
               {/* Display the rate limited level */}
               {rateLimitedLevel && (
                 <div className="mb-6 fade-in-up" style={{ animationDelay: '0.15s' }}>
                   <div className="text-xs uppercase tracking-wider text-[var(--muted)] mb-2">Rate Limited Level</div>
                   <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center bg-red-500/10 rounded-md text-red-500 dark:text-red-400 font-medium">
+                    {/* <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center bg-red-500/10 rounded-md text-red-500 dark:text-red-400 font-medium">
                       {rateLimitedLevel.replace('level', '')}
-                    </div>
+                    </div> */}
                     <div className="text-base font-medium text-red-500 dark:text-red-400">
                       {rateLimitedLevel.charAt(0).toUpperCase() + rateLimitedLevel.slice(1)}
                       <span className="ml-2 text-sm text-[var(--muted)]">
@@ -606,13 +607,13 @@ export default function RateLimitPage() {
               </div>
               
               {/* Golden Ticket Subscription Button */}
-              {/* <div className="mb-8 fade-in-up" style={{ animationDelay: '0.25s' }}>
+              <div className="mb-8 fade-in-up" style={{ animationDelay: '0.25s' }}>
                 <div className="p-4 bg-amber-50/10 border border-amber-200 rounded-sm">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
-                      <h3 className="text-base font-medium mb-1 text-amber-800 dark:text-amber-400">Upgrade to Premium</h3>
-                      <p className="text-sm text-[var(--muted)]">Get your 50% off before the official launch.</p>
-                      <p className="text-sm text-[var(--muted)]">Unlimited access to all models without rate limits</p>
+                    <h3 className="text-base font-medium mb-1 text-amber-800 dark:text-amber-400">80% OFF - ENDING SOON</h3>
+                      {/* <p className="text-sm text-[var(--muted)]">Get your 80% off before the official launch.</p> */}
+                      <p className="text-sm text-[var(--muted)]">Unlimited access to all features</p>
                     </div>
                     <div className="relative" onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)}>
                       <button
@@ -621,7 +622,7 @@ export default function RateLimitPage() {
                         className="premium-ticket flex items-center gap-2 px-4 py-2 border border-amber-400/30 bg-gradient-to-r from-amber-50 to-amber-100 text-amber-800 rounded-sm hover:shadow-md transition-all whitespace-nowrap"
                         aria-label="Get Premium Access"
                       >
-                        {isSubscribing ? (
+                        {/* {isSubscribing ? (
                           <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -630,11 +631,11 @@ export default function RateLimitPage() {
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
                             <path d="M12 2L15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2z" />
                           </svg>
-                        )}
-                        <span className="font-medium text-xs tracking-wide">GET GOLDEN TICKET</span>
+                        )} */}
+                        <span className="text-2xl font-bold tracking-wide">$2</span>
                       </button>
                       
-                      {showTooltip && (
+                      {/* {showTooltip && (
                         <div className="absolute right-0 mt-2 w-64 bg-white/90 backdrop-blur-sm text-amber-900 p-3 rounded shadow-lg z-10 border border-amber-100 animate-fade-in">
                           <div className="font-medium text-xs mb-1 text-amber-800">Golden Ticket Benefits:</div>
                           <ul className="text-xs text-amber-700 opacity-80 list-disc pl-4 space-y-1">
@@ -644,11 +645,11 @@ export default function RateLimitPage() {
                             <li>Access to all premium features</li>
                           </ul>
                         </div>
-                      )}
+                      )} */}
                     </div>
                   </div>
                 </div>
-              </div> */}
+              </div>
               
               {/* 사용자 메시지 스타일로 현재 채팅 표시 */}
               {chatId && chatTitle && (
@@ -669,9 +670,7 @@ export default function RateLimitPage() {
                 </div>
               )}
               
-              {/* <div className="text-sm text-[var(--muted)] mt-4 mb-8 fade-in-up" style={{ animationDelay: '0.4s' }}>
-                Continue your conversation with another model below.
-              </div> */}
+         
             </div>
             <div className="mb-4 model-selector-container">
                 <ModelSelector
@@ -685,8 +684,9 @@ export default function RateLimitPage() {
                       handleModelChange(model);
                     }
                   }}
-                  disabled={isModelLoading}
+                  disabled={isSubmitting}
                   disabledLevels={rateLimitedLevels}
+                  isWebSearchEnabled={isWebSearchEnabled}
                 />
               </div>
 
@@ -710,32 +710,28 @@ export default function RateLimitPage() {
                 </button>
               )}
             
-            {/* 구분선을 여기로 이동 */}
-            <div className="h-px w-full bg-[var(--accent)] opacity-30 fade-in-up" style={{ animationDelay: '0.5s' }} />
-            
-              <div className={`transition-opacity duration-300 ${chatId ? 'opacity-80 hover:opacity-100' : 'opacity-100'}`}>
-                <ChatInput
-                  input={input}
-                  handleInputChange={handleInputChange}
-                  handleSubmit={handleNewChat}
-                  isLoading={isLoading}
-                  stop={stop}
-                  disabled={isSubmitting}
-                  placeholder={chatId 
-                    ? `Start a new conversation with ${nextModelDetails?.name} ...`
-                    : `Continue your conversation with ${nextModelDetails?.name} ...`
-                  }
-                  user={user}
-                  modelId={nextModel}
-                  popupPosition="bottom"
-                />
-              </div>
+              {/* 구분선을 여기로 이동 */}
+              {/* <div className="h-px w-full bg-[var(--accent)] opacity-30 fade-in-up" style={{ animationDelay: '0.5s' }} /> */}
+              
+                {/* <div className={`transition-opacity duration-300 ${chatId ? 'opacity-80 hover:opacity-100' : 'opacity-100'}`}>
+                  <ChatInput
+                    input={input}
+                    handleInputChange={handleInputChange}
+                    handleSubmit={handleNewChat}
+                    isLoading={isLoading}
+                    stop={stop}
+                    disabled={isSubmitting}
+                    placeholder={chatId 
+                      ? `Start a new conversation with ${nextModelDetails?.name} ...`
+                      : `Continue your conversation with ${nextModelDetails?.name} ...`
+                    }
+                    user={user}
+                    modelId={nextModel}
+                    popupPosition="bottom"
+                  />
+                </div> */}
             </div>
-            
-            {/* Help text */}
-            {/* <div className="mt-12 text-xs text-[var(--muted)] opacity-70 text-center fade-in-up" style={{ animationDelay: '0.8s' }}>
-              Upgrade to Premium for unlimited access to all models without rate limits.
-            </div> */}
+          
           </div>
         </div>
       </div>

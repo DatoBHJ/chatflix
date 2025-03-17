@@ -15,9 +15,9 @@ interface PolarConfig {
 export function getPolarConfig(): PolarConfig {
   const isDevelopment = process.env.NODE_ENV === 'development';
   
-  // Log environment variables for debugging
-  console.log('Environment:', process.env.NODE_ENV);
-  console.log('Access Token:', isDevelopment ? process.env.POLAR_DEV_ACCESS_TOKEN : process.env.POLAR_PROD_ACCESS_TOKEN);
+  // // Log environment variables for debugging
+  // console.log('Environment:', process.env.NODE_ENV);
+  // console.log('Access Token:', isDevelopment ? process.env.POLAR_DEV_ACCESS_TOKEN : process.env.POLAR_PROD_ACCESS_TOKEN);
   
   if (isDevelopment) {
     const config = {
@@ -72,11 +72,11 @@ export async function checkSubscription(externalId: string): Promise<boolean> {
     const polar = createPolarClient();
     const config = getPolarConfig();
     
-    console.log('Checking subscription with config:', {
-      isSandbox: config.isSandbox,
-      baseUrl: config.baseUrl,
-      externalId
-    });
+    // console.log('Checking subscription with config:', {
+    //   isSandbox: config.isSandbox,
+    //   baseUrl: config.baseUrl,
+    //   externalId
+    // });
     
     try {
       const result = await polar.customers.getStateExternal({
