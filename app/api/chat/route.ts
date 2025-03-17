@@ -20,8 +20,8 @@ import {
 } from './prompts';
 import { createWebSearchTool, createDatetimeTool } from './tools';
 
-// export const runtime = 'edge';
-export const maxDuration = 600;
+export const runtime = 'edge';
+export const maxDuration = 300;
 
 const getProviderFromModel = (model: string): string => {
   const selectedModel = providers.languageModel(model);
