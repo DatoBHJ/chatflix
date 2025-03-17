@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { tool } from 'ai';
 import { tavily } from '@tavily/core';
 import { geolocation } from '@vercel/functions';
-import { toolDefinitions } from './toolDefinitions';
+import { toolDefinitions } from './prompts';
 
 // URL을 정규화하는 함수 - 변형된 URL을 일관된 형태로 변환
 const normalizeUrl = (url: string): string => {

@@ -17,9 +17,8 @@ import {
   webSearchQueryGeneratorPrompt, 
   getWebSearchResponsePrompt 
 } from './prompts';
-import { createWebSearchTool, createDatetimeTool } from '@/lib/search/tools';
+import { createWebSearchTool, createDatetimeTool } from './tools';
 
-export const runtime = 'edge';
 export const maxDuration = 300;
 
 const getProviderFromModel = (model: string): string => {
