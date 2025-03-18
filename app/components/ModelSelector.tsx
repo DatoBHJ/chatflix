@@ -952,9 +952,12 @@ export function ModelSelector({
                 <div className="sticky top-0 z-10 bg-[var(--background)] pt-6 pb-3">
                   <div className="mobile-handle"></div>
                   <div className="flex items-center justify-between px-4 mt-2">
-                    <span className="text-xs uppercase tracking-wider opacity-70">Models</span>
+                    <div className="flex flex-col">
+                      <span className="text-xs uppercase tracking-wider opacity-70">Models</span>
+                      <span className="mt-2 text-xs italic text-[var(--muted)]">Chatflix: The Ultimate Collection of Excellence</span>
+                    </div>
                     <div className="flex items-center gap-2">
-                      <button 
+                      {/* <button 
                         onClick={() => setIsFullscreen(true)}
                         className="expand-button"
                         aria-label="Expand to fullscreen"
@@ -962,7 +965,7 @@ export function ModelSelector({
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" fill="currentColor"/>
                         </svg>
-                      </button>
+                      </button> */}
                       <button 
                         onClick={() => setIsOpen(false)}
                         className="text-[var(--muted)] hover:text-[var(--foreground)] text-xs"
@@ -977,7 +980,8 @@ export function ModelSelector({
               {/* Desktop mode - add expand button */}
               {!isMobile && !isFullscreen && (
                 <div className="sticky top-0 z-10 bg-[var(--background)] pb-2 pt-2 px-4">
-                  <div className="flex items-center justify-end">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs italic text-[var(--muted)]">Chatflix: The Ultimate Collection of Excellence</span>
                     <button 
                       onClick={() => setIsFullscreen(true)}
                       className="expand-button"
