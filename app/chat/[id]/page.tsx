@@ -18,7 +18,6 @@ import { Message as MessageComponent } from '@/app/components/Message'
 import { ChatInput } from '@/app/components/ChatInput/index';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import MultiSearch from '@/app/components/MultiSearch';
-import { ToolInvocation, JSONValue } from 'ai';
 
 
 export default function Chat({ params }: PageProps) {

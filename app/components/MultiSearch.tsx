@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { Globe, Search, ExternalLink, Calendar, ImageIcon, ChevronDown, ChevronUp, Layers } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { Globe, Search, ExternalLink, Calendar, ImageIcon, ChevronDown, ChevronUp, Layers, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 type SearchImage = {
   url: string;
@@ -244,12 +245,144 @@ const DomainGroup = ({
 // Image grid component
 const ImageGrid = ({ images }: { images: SearchImage[] }) => {
   const [expanded, setExpanded] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<SearchImage | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+  const [isMounted, setIsMounted] = useState(false);
   
   if (images.length === 0) return null;
   
   // Determine number of images to display based on total count
   const displayCount = images.length <= 8 ? images.length : (expanded ? images.length : 8);
   const displayImages = images.slice(0, displayCount);
+  
+  const handleImageClick = (image: SearchImage, index: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    setSelectedImage(image);
+    setSelectedIndex(index);
+    document.body.style.overflow = 'hidden';
+  };
+  
+  const closeModal = () => {
+    setSelectedImage(null);
+    setSelectedIndex(-1);
+    document.body.style.overflow = '';
+  };
+  
+  const navigateImage = (direction: 'prev' | 'next') => {
+    const newIndex = direction === 'next' 
+      ? (selectedIndex + 1) % images.length 
+      : (selectedIndex - 1 + images.length) % images.length;
+    setSelectedImage(images[newIndex]);
+    setSelectedIndex(newIndex);
+  };
+  
+  // Check if we're in the browser environment for portal rendering
+  useEffect(() => {
+    setIsMounted(true);
+    return () => {
+      setIsMounted(false);
+    };
+  }, []);
+  
+  // Handle keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedImage) return;
+      
+      if (e.key === 'Escape') {
+        closeModal();
+      } else if (e.key === 'ArrowRight') {
+        navigateImage('next');
+      } else if (e.key === 'ArrowLeft') {
+        navigateImage('prev');
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedImage, selectedIndex]);
+  
+  // Modal content to be rendered in the portal
+  const modalContent = selectedImage && (
+    <div 
+      className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center" 
+      onClick={closeModal}
+      style={{ 
+        position: 'fixed', 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0, 
+        width: '100vw', 
+        height: '100vh',
+        margin: 0,
+        padding: 0
+      }}
+    >
+      <div className="close-button">
+        <X className="h-5 w-5 text-white" strokeWidth={1.5} />
+      </div>
+      
+      <a 
+        href={selectedImage.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="view-original-button"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <ExternalLink className="h-4 w-4" strokeWidth={1.5} />
+        View Original
+      </a>
+      
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="image-container">
+          <img 
+            src={selectedImage.url} 
+            alt={selectedImage.description || ''} 
+            className="main-image"
+          />
+          
+          {selectedImage.description && (
+            <div className="image-description">
+              <p>{selectedImage.description}</p>
+            </div>
+          )}
+        </div>
+        
+        <div className="nav-button prev-button" onClick={() => navigateImage('prev')}>
+          <ChevronLeft className="h-6 w-6 text-white" strokeWidth={1.5} />
+        </div>
+        
+        <div className="nav-button next-button" onClick={() => navigateImage('next')}>
+          <ChevronRight className="h-6 w-6 text-white" strokeWidth={1.5} />
+        </div>
+        
+        <div className="similar-images-container">
+          <h4 className="similar-images-title">Related Images</h4>
+          
+          <div className="similar-images-grid">
+            {images.filter(img => img.url !== selectedImage.url).slice(0, 12).map((image, idx) => (
+              <div key={idx} className="relative">
+                <img
+                  src={image.url}
+                  alt={image.description || ''}
+                  className="w-full h-32 object-cover rounded-lg cursor-pointer"
+                  loading="lazy"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const newIndex = images.findIndex(img => img.url === image.url);
+                    setSelectedImage(image);
+                    setSelectedIndex(newIndex);
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
   
   return (
     <div className="mt-4 space-y-2">
@@ -282,30 +415,252 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
         )}
       </div>
       
-      <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 transition-all duration-300 ${expanded ? 'max-h-[800px]' : 'max-h-[400px]'} overflow-hidden`}>
+      <style jsx global>{`
+        .tetris-grid {
+          column-count: 2;
+          column-gap: 8px;
+        }
+        
+        @media (min-width: 640px) {
+          .tetris-grid {
+            column-count: 3;
+          }
+        }
+        
+        @media (min-width: 768px) {
+          .tetris-grid {
+            column-count: 4;
+          }
+        }
+        
+        .tetris-item {
+          break-inside: avoid;
+          margin-bottom: 8px;
+          display: block;
+          position: relative;
+        }
+        
+        .tetris-img {
+          display: block;
+          width: 100%;
+          height: auto;
+          border-radius: 8px;
+          background-color: color-mix(in srgb, var(--foreground) 3%, transparent);
+        }
+        
+        .image-modal {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          z-index: 9999;
+          background-color: rgba(0, 0, 0, 0.95);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          width: 100vw;
+          height: 100vh;
+          pointer-events: auto;
+          margin: 0;
+          padding: 0;
+          border: none;
+          box-sizing: border-box;
+          isolation: isolate;
+        }
+        
+        body:has(.image-modal) {
+          overflow: hidden;
+          position: relative;
+        }
+        
+        .modal-content {
+          max-width: 100%;
+          width: 100%;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          padding: 0;
+          position: relative;
+        }
+        
+        .image-container {
+          flex: 1;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          position: relative;
+          width: 100%;
+          padding: 0;
+          margin: 0;
+          overflow: hidden;
+        }
+        
+        .main-image {
+          max-height: 85vh;
+          max-width: 95vw;
+          object-fit: contain;
+        }
+        
+        .image-description {
+          color: white;
+          background-color: rgba(0, 0, 0, 0.7);
+          padding: 12px 20px;
+          border-radius: 8px;
+          position: absolute;
+          bottom: 24px;
+          left: 24px;
+          max-width: 80%;
+          z-index: 10;
+        }
+        
+        .close-button {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background-color: rgba(0, 0, 0, 0.6);
+          border-radius: 50%;
+          width: 44px;
+          height: 44px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          z-index: 10000;
+          transition: background-color 0.2s;
+        }
+        
+        .close-button:hover {
+          background-color: rgba(0, 0, 0, 0.8);
+        }
+        
+        .nav-button {
+          position: fixed;
+          top: 50%;
+          transform: translateY(-50%);
+          background-color: rgba(0, 0, 0, 0.6);
+          border-radius: 50%;
+          width: 50px;
+          height: 50px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          z-index: 10000;
+          transition: background-color 0.2s;
+        }
+        
+        .nav-button:hover {
+          background-color: rgba(0, 0, 0, 0.8);
+        }
+        
+        .prev-button {
+          left: 20px;
+        }
+        
+        .next-button {
+          right: 20px;
+        }
+        
+        .similar-images-container {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background-color: rgba(0, 0, 0, 0.8);
+          padding: 16px;
+          transform: translateY(100%);
+          transition: transform 0.3s ease;
+        }
+        
+        .image-modal:hover .similar-images-container {
+          transform: translateY(0);
+        }
+        
+        .similar-images-title {
+          color: white;
+          margin-bottom: 16px;
+          font-size: 18px;
+          font-weight: 500;
+          padding-left: 16px;
+        }
+        
+        .similar-images-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+          gap: 8px;
+          padding: 0 16px;
+          max-height: 160px;
+          overflow-x: auto;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+        }
+        
+        .similar-images-grid::-webkit-scrollbar {
+          height: 6px;
+        }
+        
+        .similar-images-grid::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        
+        .similar-images-grid::-webkit-scrollbar-thumb {
+          background-color: rgba(255, 255, 255, 0.3);
+          border-radius: 6px;
+        }
+        
+        .view-original-button {
+          position: absolute;
+          top: 20px;
+          left: 20px;
+          background-color: rgba(0, 0, 0, 0.6);
+          border-radius: 8px;
+          padding: 8px 16px;
+          color: white;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          z-index: 10000;
+          transition: background-color 0.2s;
+        }
+        
+        .view-original-button:hover {
+          background-color: rgba(0, 0, 0, 0.8);
+        }
+      `}</style>
+      
+      <div className={`tetris-grid transition-all duration-300 ${expanded ? '' : 'max-h-[800px] overflow-hidden'}`}>
         {displayImages.map((image, index) => (
-          <a
-            key={index}
-            href={image.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="relative rounded-xl overflow-hidden group hover:opacity-90 transition-opacity"
-            style={{ aspectRatio: '4/3' }}
-          >
-            <img
-              src={image.url}
-              alt={image.description}
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
-            {image.description && (
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-2 flex items-end">
-                <p className="text-xs text-white line-clamp-2">{image.description}</p>
-              </div>
-            )}
-          </a>
+          <div key={index} className="tetris-item">
+            <a
+              href={image.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block group hover:opacity-90 transition-opacity cursor-pointer"
+              onClick={(e) => handleImageClick(image, index, e)}
+            >
+              <img
+                src={image.url}
+                alt={image.description || ''}
+                className="tetris-img"
+                loading="lazy"
+              />
+              {image.description && (
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-2 flex items-end rounded-lg">
+                  <p className="text-xs text-white line-clamp-2">{image.description}</p>
+                </div>
+              )}
+            </a>
+          </div>
         ))}
       </div>
+      
+      {/* Render the modal in a portal */}
+      {isMounted && selectedImage && createPortal(
+        modalContent,
+        document.body
+      )}
     </div>
   );
 };
