@@ -4,6 +4,7 @@ chatflix.app - the Netflix of chatbots
 - customizable prompt shortcuts
 - vision 
 - file uplaod
+- image generation (experimental)
 - works with both reasoning & non-reasoning models
 - switch models mid-convo
 - supports the bests models itw (sonnet, openai, deepseek, google, meta ..etc) 
