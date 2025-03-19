@@ -53,46 +53,46 @@ export default function RootLayoutClient({
   }, [supabase, router, pathname])
 
   // announcement 
-  // useEffect(() => {
-  //   if (user) {
-  //     // showAnnouncement(
-  //     //   "Tip: Gemini 2.0 Flash supports million-token context windows for larger documents and multiple files, with faster processing and improved accuracy (76.4% MMLU_Pro, 70.7% MMMU)",
-  //     //   "info",
-  //     //   "Gemini-2-flash-tip"
-  //     // ); 
-  //     // showAnnouncement(
-  //     //   "Due to high demand on anthropic models, there may be some delays in response time. We are working on it. In the meantime, please try other models.",
-  //     //   "warning",
-  //     //   "anthropic-models-high-request-1"
-  //     // ); // 오후 8시 14분 
-  //     // showAnnouncement(
-  //     //   "File uploads have been temporarily disabled due to an ongoing issue with file reading. We expect to restore this functionality soon.",
-  //     //   "error",
-  //     //   "file-read-disabled"
-  //     // );
-  //     // showAnnouncement(
-  //     //   "MAJOR SYSTEM UPDATE: chatflix_0.0.0: Web Search, Model Updates, and More - March 17, 2025",
-  //     //   "info",
-  //     //   "major-update-v2"
-  //     // );
-  //     // Code for a major update warning announcement
-  //     // showAnnouncement(
-  //     //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period.",
-  //     //   "warning",
-  //     //   "major-update-bug-report"
-  //     // );
-  //     // showAnnouncement(
-  //     //   "If you want to report a bug, please contact us at datobhj@gmail.com",
-  //     //   "info",
-  //     //   "bug-report-contact"
-  //     // );
-  //     // showAnnouncement(
-  //     //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Our team is actively monitoring and addressing any problems that arise. Thank you for your patience and understanding.",
-  //     //   "warning",
-  //     //   "major-update-in-progress"
-  //     // );
-  //   }
-  // }, [user, showAnnouncement]);
+  useEffect(() => {
+    if (user) {
+      // showAnnouncement(
+      //   "Tip: Gemini 2.0 Flash supports million-token context windows for larger documents and multiple files, with faster processing and improved accuracy (76.4% MMLU_Pro, 70.7% MMMU)",
+      //   "info",
+      //   "Gemini-2-flash-tip"
+      // ); 
+      showAnnouncement(
+        "Due to high demand on anthropic models, there may be some delays in response time. We are working on it. In the meantime, please try other models.",
+        "warning",
+        "anthropic-models-high-request-2"
+      ); 
+      // showAnnouncement(
+      //   "File uploads have been temporarily disabled due to an ongoing issue with file reading. We expect to restore this functionality soon.",
+      //   "error",
+      //   "file-read-disabled"
+      // );
+      // showAnnouncement(
+      //   "MAJOR SYSTEM UPDATE: chatflix_0.0.0: Web Search, Model Updates, and More - March 17, 2025",
+      //   "info",
+      //   "major-update-v2"
+      // );
+      // Code for a major update warning announcement
+      // showAnnouncement(
+      //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period.",
+      //   "warning",
+      //   "major-update-bug-report"
+      // );
+      showAnnouncement(
+        "(Experimental) New Feature: Text to Image Generation. Use the /image command to generate images from text. For example, /image a beautiful sunset over a calm ocean.",
+        "info",
+        "NEW FEATURE: /image command"
+      );
+      // showAnnouncement(
+      //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Our team is actively monitoring and addressing any problems that arise. Thank you for your patience and understanding.",
+      //   "warning",
+      //   "major-update-in-progress"
+      // );
+    }
+  }, [user, showAnnouncement]);
 
   if (isLoading) {
     return <div className="flex h-screen items-center justify-center">Chatflix.app</div>

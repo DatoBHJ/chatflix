@@ -19,6 +19,7 @@ export interface ProcessedMessage extends Omit<Message, 'parts' | 'content'> {
   content: string | AIMessageContent[];
   parts?: MessagePart[];
   role: MessageRole;
+  useImageSystemPrompt?: boolean;
 }
 
 export interface AIMessageContent {

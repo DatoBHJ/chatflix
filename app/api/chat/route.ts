@@ -179,6 +179,47 @@ export async function POST(req: Request) {
           };
         }
         
+        // Check if we need to use the image generator system prompt
+        let currentSystemPrompt = systemPrompt;
+        if ((processedLastMessage as any).useImageSystemPrompt) {
+          currentSystemPrompt = `
+  # Image Generator Instructions
+
+  You are an image generator. The user provides a prompt. Please infer the following parameters for image generation:
+
+  - **Prompt:** [prompt, max 50 words]
+  - **Seed:** [seed]
+  - **Width:** [width]
+  - **Height:** [height]
+  - **Model:** [model]
+
+  ## Key points:
+  - If the user's prompt is short, add creative details to make it about 50 words suitable for an image generator AI.
+  - Each seed value creates a unique image for a given prompt.
+  - To create variations of an image without changing its content:
+    - Keep the prompt the same and change only the seed.
+  - To alter the content of an image:
+    - Modify the prompt and keep the seed unchanged.
+  - Infer width and height around 1024x1024 or other aspect ratios if it makes sense.
+  - Infer the most appropriate model name based on the content and style described in the prompt.
+
+  ## Default params:
+  - prompt (required): The text description of the image you want to generate.
+  - model (optional): The model to use for generation. Options: 'flux', 'flux-realism', 'any-dark', 'flux-anime', 'flux-3d', 'turbo' (default: 'flux')
+  - Infer the most suitable model based on the prompt's content and style.
+  - seed (optional): Seed for reproducible results (default: random).
+  - width/height (optional): Default 1024x1024.
+  - nologo (optional): Set to true to disable the logo rendering.
+
+  ## Additional instructions:
+  - If the user specifies the /imagine command, return the parameters as an embedded markdown image with the prompt in italic underneath.
+
+  ## Example:
+  ![{description}](https://image.pollinations.ai/prompt/{description}?width={width}&height={height})
+  *{description}*
+  `;
+        }
+        
         if (isWebSearchEnabled) {
           console.log('[Debug-API] Web search is enabled, starting multi-step approach');
           // Step 1: Web search query generation and execution
@@ -219,7 +260,7 @@ export async function POST(req: Request) {
           console.log('[Debug-API] Starting assistant response');
           const assistantResult = streamText({
             model: providers.languageModel(model),
-            system: getWebSearchResponsePrompt(systemPrompt),
+            system: getWebSearchResponsePrompt(currentSystemPrompt),
             messages: [
               ...processMessages as unknown as Message[],
               ...(await webSearchResult.response).messages as unknown as Message[]
@@ -254,7 +295,7 @@ export async function POST(req: Request) {
           const result = streamText({
             model: providers.languageModel(model),
             messages: [
-              { role: 'system', content: systemPrompt },
+              { role: 'system', content: currentSystemPrompt },
               ...processMessages as unknown as Message[]
             ],
             temperature: 0.7,

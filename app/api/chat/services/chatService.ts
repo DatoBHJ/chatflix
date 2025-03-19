@@ -28,6 +28,16 @@ export const handlePromptShortcuts = async (supabase: any, message: MultiModalMe
   if (message.role !== 'user') return processedMessage;
 
   let updatedContent = typeof message.content === 'string' ? message.content : '';
+  let useImageSystemPrompt = false;
+
+  // Handle /image command
+  if (updatedContent.trim().startsWith('/image')) {
+    // Set flag to use image generator prompt
+    useImageSystemPrompt = true;
+    
+    // Remove the /image command from the content
+    updatedContent = updatedContent.replace(/^\/image\s*/, '').trim();
+  }
 
   try {
     const jsonMatch = updatedContent.match(/\{"displayName":"[^"]+","promptContent":"[^"]+"}/g);
@@ -59,7 +69,8 @@ export const handlePromptShortcuts = async (supabase: any, message: MultiModalMe
 
   return {
     ...processedMessage,
-    content: Array.isArray(message.content) ? message.content : updatedContent
+    content: Array.isArray(message.content) ? message.content : updatedContent,
+    useImageSystemPrompt
   };
 };
 
