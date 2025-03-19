@@ -10,6 +10,54 @@ interface MarkdownContentProps {
   content: string;
 }
 
+// 이미지 컴포넌트를 분리하여 로딩 상태를 관리
+const ImageWithLoading = memo(({ src, alt, className, ...props }: { src: string, alt?: string, className?: string, [key: string]: any }) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  // 이미지 로드 완료 핸들러
+  const handleImageLoaded = () => {
+    setIsLoading(false);
+  };
+
+  // 이미지 로드 에러 핸들러
+  const handleImageError = () => {
+    setIsLoading(false);
+    setError(true);
+  };
+
+  return (
+    <div className="relative">
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-[var(--accent)] bg-opacity-20 rounded-lg">
+          <div className="flex flex-col items-center justify-center p-4">
+            <div className="w-8 h-8 border-4 border-[var(--muted)] border-t-[var(--foreground)] rounded-full animate-spin mb-2"></div>
+            <div className="text-xs text-[var(--muted)]">Loading image...</div>
+          </div>
+        </div>
+      )}
+      
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-[var(--accent)] bg-opacity-20 rounded-lg">
+          <div className="text-center p-4">
+            <div className="text-sm text-[var(--foreground)]">Unable to load image</div>
+            <div className="text-xs text-[var(--muted)] mt-1">Click the link to open directly</div>
+          </div>
+        </div>
+      )}
+      
+      <img 
+        src={src} 
+        alt={alt || "Generated image"} 
+        className={`${className || 'rounded-lg max-w-full'} ${isLoading ? 'min-h-[200px]' : ''}`}
+        onLoad={handleImageLoaded}
+        onError={handleImageError}
+        {...props} 
+      />
+    </div>
+  );
+});
+
 // Memoize the MarkdownContent component to prevent unnecessary re-renders
 export const MarkdownContent = memo(function MarkdownContentComponent({ content }: MarkdownContentProps) {
   const [copied, setCopied] = useState<{[key: string]: boolean}>({});
@@ -78,6 +126,52 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
     return parts.length > 0 ? parts : text;
   }, []);
 
+  // Function to detect and convert plain image URLs to clickable images
+  const styleImageUrls = useCallback((text: string) => {
+    if (!text.includes('image.pollinations.ai')) return text; // Quick check to avoid unnecessary regex processing
+    
+    // Detect full pollinations.ai URLs in text
+    const pollinationsUrlRegex = /(https:\/\/image\.pollinations\.ai\/prompt\/[^\s]+)/g;
+    
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = pollinationsUrlRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      
+      const imageUrl = match[1];
+      const decodedUrl = decodeURIComponent(imageUrl);
+      
+      // Create a link that includes the actual image with loading state
+      parts.push(
+        <span key={match.index} className="block my-4">
+          <a 
+            href={decodedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block"
+          >
+            <ImageWithLoading src={decodedUrl} alt="Generated image" className="rounded-lg max-w-full hover:opacity-90 transition-opacity cursor-pointer border border-[var(--accent)] shadow-md" />
+            <div className="text-xs text-[var(--muted)] mt-2 text-center break-all">
+              {decodedUrl}
+            </div>
+          </a>
+        </span>
+      );
+      
+      lastIndex = match.index + match[0].length;
+    }
+    
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+    
+    return parts.length > 0 ? parts : text;
+  }, []);
+
   // Memoize the extractText function
   const extractText = useCallback((node: any): string => {
     if (typeof node === 'string') return node;
@@ -89,10 +183,76 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
   // Memoize the components object to avoid recreating it on every render
   const components = useMemo<Components>(() => ({
     p: ({ children, ...props }) => {
+      // Process text content to detect image generation links
       if (typeof children === 'string') {
+        // Check for image pollinations link pattern
+        const pollinationsRegex = /!\[([^\]]+)\]\((https:\/\/image\.pollinations\.ai\/prompt\/[^)]+\?width=\d+&height=\d+)[^)]*\)/g;
+        const match = pollinationsRegex.exec(children);
+        
+        if (match) {
+          const [fullMatch, altText, imageUrl] = match;
+          const decodedUrl = decodeURIComponent(imageUrl);
+          
+          // Return a clickable image with link
+          // Using a div at the root to avoid nesting p inside p
+          return (
+            <div className="my-4">
+              <a 
+                href={decodedUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <ImageWithLoading 
+                  src={decodedUrl} 
+                  alt={altText || "Generated image"} 
+                  className="rounded-lg max-w-full hover:opacity-90 transition-opacity cursor-pointer border border-[var(--accent)] shadow-md" 
+                />
+              </a>
+              <div className="text-sm text-[var(--muted)] mt-2 italic text-center">{altText}</div>
+            </div>
+          );
+        }
+        
+        // Process for raw image URLs first, then apply mention styling
+        const processedContent = styleImageUrls(children);
+        if (processedContent !== children) {
+          // If URLs were replaced, render the processed content
+          return <div className="my-3 leading-relaxed" {...props}>{processedContent}</div>;
+        }
+        
+        // Handle plain text with styleMentions for regular paragraphs
         return <p className="my-3 leading-relaxed" {...props}>{styleMentions(children)}</p>;
       }
       return <p className="my-3 leading-relaxed" {...props}>{children}</p>;
+    },
+    img: ({ src, alt, ...props }) => {
+      // Check if it's a pollinations.ai image URL
+      if (src && src.includes('image.pollinations.ai/prompt')) {
+        return (
+          <a 
+            href={src} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="block my-4"
+          >
+            <ImageWithLoading 
+              src={src} 
+              alt={alt || "Generated image"} 
+              className="rounded-lg max-w-full hover:opacity-90 transition-opacity cursor-pointer border border-[var(--accent)] shadow-md" 
+              {...props}
+            />
+            {alt && <div className="text-sm text-[var(--muted)] mt-2 italic text-center">{alt}</div>}
+          </a>
+        );
+      }
+      
+      // Regular image rendering with loading state
+      return src ? (
+        <ImageWithLoading src={src} alt={alt} className="my-4 rounded-lg max-w-full" {...props} />
+      ) : (
+        <span className="text-[var(--muted)]">[Unable to load image]</span>
+      );
     },
     a: ({ href, children, ...props }) => (
       <a 
@@ -183,7 +343,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
     h3: ({ children, ...props }) => (
       <h3 className="text-lg font-bold mt-5 mb-2" {...props}>{children}</h3>
     ),
-  }), [styleMentions, extractText, handleCopy, copied]);
+  }), [styleMentions, styleImageUrls, extractText, handleCopy, copied]);
 
   // Memoize the plugins to avoid recreating them on every render
   const remarkPlugins = useMemo(() => [remarkGfm], []);
