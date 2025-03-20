@@ -48,19 +48,19 @@ export const metadata = {
     type: 'website',
     locale: 'en_US',
     url: 'https://chatflix.app',
-    title: 'CHATFLIX - THE NEFLIX OF CHATBOTS',
+    title: 'Chat is this real?',
     description: 'Neflix of Chatbots',
     siteName: 'Chatflix.app',
     images: [{
       url: 'https://chatflix.app/music.png?v=3',
       width: 1200,
       height: 630,
-      alt: 'CHATFLIX - THE NEFLIX OF CHATBOTS'
+      alt: 'Chat is this real?'
     }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'CHATFLIX - THE NEFLIX OF CHATBOTS',
+    title: 'Chat is this real?',
     description: 'Neflix of Chatbots',
     images: ['https://chatflix.app/music.png?v=3'],
   },

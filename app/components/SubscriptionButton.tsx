@@ -88,7 +88,7 @@ export function SubscriptionButton({ user }: SubscriptionButtonProps) {
         className="premium-ticket flex items-center gap-2 px-3 py-1.5 border border-amber-400/30 bg-gradient-to-r from-amber-50 to-amber-100 text-amber-800 rounded-sm hover:shadow-md transition-all"
         aria-label="Get Premium Access"
       >
-      <span className="font-bold text-xs tracking-wide ">$2 - ENDING SOON</span>
+      <span className="font-bold text-xs tracking-wide ">$2 / month</span>
       </button>
       
       {/* {showTooltip && (
