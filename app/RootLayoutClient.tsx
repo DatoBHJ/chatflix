@@ -84,7 +84,7 @@ export default function RootLayoutClient({
       showAnnouncement(
         "(Experimental) New Feature: Text to Image Generation. Use the /image command to generate images from text. For example, /image a beautiful sunset over a calm ocean.",
         "info",
-        "NEW FEATURE: /image command"
+        "NEW FEATURE: image command"
       );
       // showAnnouncement(
       //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Our team is actively monitoring and addressing any problems that arise. Thank you for your patience and understanding.",
