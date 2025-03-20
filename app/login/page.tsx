@@ -88,6 +88,15 @@ export default function LoginPage() {
             {/* <p className="text-xs text-[#666666] mt-1 tracking-wide">Sign in to continue</p> */}
           </div>
           <div className="relative">
+            {/* Notice about email registration being disabled */}
+            <div className="mb-6 p-4 bg-blue-50 text-blue-700 rounded-md">
+              <p className="text-sm">
+                Due to high registration volume, email/password registration is temporarily disabled. 
+                Please use Google Sign In instead.
+              </p>
+            </div>
+            
+            {/* Email/password form commented out
             <form className="space-y-6" onSubmit={handleSignIn}>
               {error && (
                 <div className="login-error">
@@ -148,21 +157,21 @@ export default function LoginPage() {
                   <span className="bg-white px-4 text-xs uppercase text-[#666666]">Or continue with Google</span>
                 </div>
               </div>
+            */}
               
-              <div className="flex justify-center">
-                <GoogleSignIn />
-              </div>
+            <div className="flex justify-center mt-6">
+              <GoogleSignIn />
+            </div>
               
-              <div className="text-center mt-8">
-                <button 
-                  type="button"
-                  onClick={() => setShowLoginModal(false)}
-                  className="text-xs text-[#666666] hover:text-[#111111] transition-colors uppercase tracking-wider py-2 px-4"
-                >
-                  ← Back
-                </button>
-              </div>
-            </form>
+            <div className="text-center mt-8">
+              <button 
+                type="button"
+                onClick={() => setShowLoginModal(false)}
+                className="text-xs text-[#666666] hover:text-[#111111] transition-colors uppercase tracking-wider py-2 px-4"
+              >
+                ← Back
+              </button>
+            </div>
           </div>
         </div>
       )}
