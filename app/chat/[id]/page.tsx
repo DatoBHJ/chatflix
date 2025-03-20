@@ -199,12 +199,29 @@ export default function Chat({ params }: PageProps) {
           // Update state synchronously before proceeding
           setIsWebSearchEnabled(shouldEnableWebSearch);
           
-          const { data: session, error: sessionError } = await supabase
+          // Fetch session and messages in parallel
+          const sessionPromise = supabase
             .from('chat_sessions')
             .select('current_model, initial_message')
             .eq('id', chatId)
             .eq('user_id', user.id)
-            .single()
+            .single();
+            
+          const messagesPromise = supabase
+            .from('messages')
+            .select('*')
+            .eq('chat_session_id', chatId)
+            .eq('user_id', user.id)
+            .order('sequence_number', { ascending: true });
+            
+          // Wait for both promises to resolve
+          const [sessionResult, messagesResult] = await Promise.all([
+            sessionPromise,
+            messagesPromise
+          ]);
+          
+          const { data: session, error: sessionError } = sessionResult;
+          const { data: existingMessages, error: messagesError } = messagesResult;
 
           if (sessionError || !session) {
             console.error('Session error:', sessionError)
@@ -230,13 +247,6 @@ export default function Chat({ params }: PageProps) {
               .eq('user_id', user.id)
           }
 
-          const { data: existingMessages, error: messagesError } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('chat_session_id', chatId)
-            .eq('user_id', user.id)
-            .order('sequence_number', { ascending: true })
-
           if (messagesError) {
             console.error('Failed to load messages:', messagesError)
             return
@@ -256,6 +266,9 @@ export default function Chat({ params }: PageProps) {
 
             if (sortedMessages.length === 1 && sortedMessages[0].role === 'user') {
               console.log('[Debug] Chat page - Reloading with initial message, web search:', shouldEnableWebSearch);
+              
+              // Only reload if we don't have an assistant message yet (fresh conversation)
+              // This prevents unnecessary API calls when refreshing a page with existing conversation
               reload({
                 body: {
                   model: session.current_model || currentModel,
@@ -270,43 +283,60 @@ export default function Chat({ params }: PageProps) {
             console.log('[Debug] Chat page - Creating initial message, web search:', shouldEnableWebSearch);
             const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             
-            await supabase.from('messages').insert([{
+            // Start the API request immediately before updating the database
+            const initialMessage = {
               id: messageId,
               content: session.initial_message,
-              role: 'user',
-              created_at: new Date().toISOString(),
-              model: session.current_model,
-              host: 'user',
-              chat_session_id: chatId,
-              user_id: user.id
-            }])
-
-            setMessages([{
-              id: messageId,
-              content: session.initial_message,
-              role: 'user',
+              role: 'user' as const,
               createdAt: new Date()
-            }])
-
-            initialMessageSentRef.current = true
-            setIsInitialized(true)
-
-            if (isMounted) {
-              console.log('[Debug] Chat page - Reloading with new message, web search:', shouldEnableWebSearch);
-              reload({
-                body: {
-                  model: session.current_model,
-                  chatId,
-                  messages: [{
-                    id: messageId,
-                    content: session.initial_message,
-                    role: 'user',
-                    createdAt: new Date()
-                  }],
-                  isWebSearchEnabled: shouldEnableWebSearch
+            };
+            
+            setMessages([initialMessage]);
+            
+            // Start API request immediately (don't wait for DB update)
+            reload({
+              body: {
+                model: session.current_model,
+                chatId,
+                messages: [initialMessage],
+                isWebSearchEnabled: shouldEnableWebSearch
+              }
+            });
+            
+            // In parallel, save the message to the database - but we know the chat session already exists
+            // since we're on the chat page and fetched the session successfully
+            Promise.resolve().then(async () => {
+              try {
+                // Verify the session exists before inserting message
+                const { error: checkSessionError } = await supabase
+                  .from('chat_sessions')
+                  .select('id')
+                  .eq('id', chatId)
+                  .eq('user_id', user.id)
+                  .single();
+                  
+                if (checkSessionError) {
+                  console.error('Session not found when saving initial message:', checkSessionError);
+                  return;
                 }
-              });
-            }
+                
+                await supabase.from('messages').insert([{
+                  id: messageId,
+                  content: session.initial_message,
+                  role: 'user',
+                  created_at: new Date().toISOString(),
+                  model: session.current_model,
+                  host: 'user',
+                  chat_session_id: chatId,
+                  user_id: user.id
+                }]);
+                
+                initialMessageSentRef.current = true;
+                setIsInitialized(true);
+              } catch (error: any) {
+                console.error('Failed to save initial message:', error);
+              }
+            });
           }
         }
       } catch (error) {

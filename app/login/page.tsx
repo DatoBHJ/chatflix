@@ -129,7 +129,7 @@ export default function LoginPage() {
                   <div className="w-full border-t border-[#f5f5f5]"></div>
                 </div>
                 <div className="relative flex justify-center">
-                  <span className="bg-white px-4 text-xs uppercase text-[#666666]">Or continue with</span>
+                  <span className="bg-white px-4 text-xs uppercase text-[#666666]">Or continue with Google</span>
                 </div>
               </div>
               

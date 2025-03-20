@@ -146,21 +146,14 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
       const decodedUrl = decodeURIComponent(imageUrl);
       
       // Create a link that includes the actual image with loading state
-      parts.push(
-        <span key={match.index} className="block my-4">
-          <a 
-            href={decodedUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block"
-          >
-            <ImageWithLoading src={decodedUrl} alt="Generated image" className="rounded-lg max-w-full hover:opacity-90 transition-opacity cursor-pointer border border-[var(--accent)] shadow-md" />
-            <div className="text-xs text-[var(--muted)] mt-2 text-center break-all">
-              {decodedUrl}
-            </div>
-          </a>
-        </span>
-      );
+      // Instead of returning a span with divs inside (which would cause issues when rendered in a p tag),
+      // we'll signal that this needs special handling at the component level
+      parts.push({
+        type: 'image_link',
+        key: match.index,
+        url: decodedUrl,
+        display: decodedUrl
+      });
       
       lastIndex = match.index + match[0].length;
     }
@@ -214,16 +207,65 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
           );
         }
         
-        // Process for raw image URLs first, then apply mention styling
+        // Process for raw image URLs
         const processedContent = styleImageUrls(children);
-        if (processedContent !== children) {
-          // If URLs were replaced, render the processed content
-          return <div className="my-3 leading-relaxed" {...props}>{processedContent}</div>;
+        
+        // Check if we got back an array with image links that need special handling
+        if (Array.isArray(processedContent)) {
+          // We need to render each part appropriately
+          const elements = processedContent.map((part, index) => {
+            if (typeof part === 'string') {
+              return <span key={index}>{styleMentions(part)}</span>;
+            } else if (part && typeof part === 'object' && 'type' in part && part.type === 'image_link') {
+              // This is our special image link that shouldn't be inside a p tag
+              return (
+                <div key={part.key} className="my-4">
+                  <a 
+                    href={part.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block"
+                  >
+                    <ImageWithLoading 
+                      src={part.url} 
+                      alt="Generated image" 
+                      className="rounded-lg max-w-full hover:opacity-90 transition-opacity cursor-pointer border border-[var(--accent)] shadow-md" 
+                    />
+                    <div className="text-xs text-[var(--muted)] mt-2 text-center break-all">
+                      {part.display}
+                    </div>
+                  </a>
+                </div>
+              );
+            }
+            return null;
+          });
+          
+          // Return a fragment instead of a p to avoid nesting issues
+          return <>{elements}</>;
         }
         
         // Handle plain text with styleMentions for regular paragraphs
         return <p className="my-3 leading-relaxed" {...props}>{styleMentions(children)}</p>;
       }
+      
+      // If children is not a string, we need to be careful about potential nesting issues
+      if (Array.isArray(children)) {
+        // Check if any of the children would cause invalid nesting
+        const hasComplexChildren = children.some(child => 
+          typeof child === 'object' && 
+          child !== null && 
+          'type' in child && 
+          (typeof child.type === 'string' && 
+           ['div', 'p', 'table', 'ul', 'ol', 'blockquote'].includes(child.type as string))
+        );
+        
+        if (hasComplexChildren) {
+          // Use a fragment to avoid invalid nesting
+          return <>{children}</>;
+        }
+      }
+      
       return <p className="my-3 leading-relaxed" {...props}>{children}</p>;
     },
     img: ({ src, alt, ...props }) => {

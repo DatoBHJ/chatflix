@@ -112,11 +112,20 @@ export async function POST(req: Request) {
         }
 
         await handleRateLimiting(user.id, model);
-        await validateAndUpdateSession(supabase, chatId, user.id, messages);
-
-        const systemPrompt = await fetchSystemPrompt(supabase, user.id);
-        const provider = getProviderFromModel(model);
         
+        // Prioritize API request for faster response
+        // Only validate session if we have a chatId
+        let sessionValidationPromise;
+        if (chatId) {
+          sessionValidationPromise = validateAndUpdateSession(supabase, chatId, user.id, messages);
+        } else {
+          sessionValidationPromise = Promise.resolve();
+        }
+
+        // Fetch system prompt in parallel - don't wait
+        const systemPromptPromise = fetchSystemPrompt(supabase, user.id);
+        
+        // Process messages in parallel
         const processMessagesPromises = messages.map(async (msg) => {
           const converted = await convertMessageForAI(msg, model, supabase);
           return {
@@ -125,26 +134,39 @@ export async function POST(req: Request) {
           } as MultiModalMessage;
         });
         
+        // Wait for message processing to complete
         const processMessages = await Promise.all(processMessagesPromises);
 
+        // Process last message shortcut if needed
         const lastMessage = processMessages[processMessages.length - 1];
-        const processedLastMessage = await handlePromptShortcuts(supabase, lastMessage, user.id) as MultiModalMessage;
-        processMessages[processMessages.length - 1] = processedLastMessage;
+        const processedLastMessagePromise = handlePromptShortcuts(supabase, lastMessage, user.id) as Promise<MultiModalMessage>;
 
-        if (lastMessage.role === 'user' && !isRegeneration && saveToDb) {
-          const { data: existingMessages } = await supabase
-            .from('messages')
-            .select('id')
-            .eq('chat_session_id', chatId)
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: true })
-            .limit(2);
-          
-          const isInitialMessage = existingMessages?.length === 1;
-          
-          if (!isInitialMessage) {
-            await saveUserMessage(supabase, chatId, user.id, lastMessage, model);
-          }
+        // Prepare DB operations (but don't wait)
+        let dbOperationsPromise = Promise.resolve();
+        // const isInitialMessage = messages.length === 1 && lastMessage.role === 'user';
+        
+        if (lastMessage.role === 'user' && !isRegeneration && saveToDb && chatId) {
+          dbOperationsPromise = new Promise(async (resolve) => {
+            try {
+              const { data: existingMessages } = await supabase
+                .from('messages')
+                .select('id')
+                .eq('chat_session_id', chatId)
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: true })
+                .limit(2);
+              
+              const isInitialDbMessage = existingMessages?.length === 1;
+              
+              if (!isInitialDbMessage) {
+                await saveUserMessage(supabase, chatId, user.id, lastMessage, model);
+              }
+              resolve(undefined);
+            } catch (error) {
+              console.error('[Debug-API] Error in DB operations:', error);
+              resolve(undefined);
+            }
+          });
         }
 
         const assistantMessageId = isRegeneration && existingMessageId 
@@ -152,16 +174,36 @@ export async function POST(req: Request) {
           : generateMessageId();
 
         if (chatId) {
-          await createOrUpdateAssistantMessage(
-            supabase,
-            chatId,
-            user.id,
-            model,
-            provider,
-            isRegeneration,
-            assistantMessageId
+          dbOperationsPromise = dbOperationsPromise.then(() => 
+            createOrUpdateAssistantMessage(
+              supabase,
+              chatId,
+              user.id,
+              model,
+              getProviderFromModel(model),
+              isRegeneration,
+              assistantMessageId
+            )
           );
         }
+
+        // Now wait for the processed message and system prompt
+        const [processedLastMessage, systemPrompt] = await Promise.all([
+          processedLastMessagePromise,
+          systemPromptPromise
+        ]);
+        
+        processMessages[processMessages.length - 1] = processedLastMessage;
+
+        // Continue with session validation in the background
+        sessionValidationPromise.catch(error => {
+          console.error('[Debug-API] Session validation error (non-blocking):', error);
+        });
+
+        // Continue with DB operations in the background
+        dbOperationsPromise.catch(error => {
+          console.error('[Debug-API] DB operations error (non-blocking):', error);
+        });
 
         const abortController = new AbortController();
         let isStreamFinished = false;
@@ -278,7 +320,7 @@ export async function POST(req: Request) {
                 assistantMessageId,
                 user.id,
                 model,
-                provider,
+                getProviderFromModel(model),
                 completion,
                 isRegeneration
               );
@@ -311,7 +353,7 @@ export async function POST(req: Request) {
                 assistantMessageId,
                 user.id,
                 model,
-                provider,
+                getProviderFromModel(model),
                 completion,
                 isRegeneration
               );
