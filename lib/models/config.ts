@@ -50,10 +50,10 @@ export const DEFAULT_MODEL_ID = 'gemini-2.0-flash';
 export const RATE_LIMITS = {
   level1: {
     requests: 100,
-    window: '30 s'
+    window: '1 h'
   },
   level2: {
-    requests: 5,
+    requests: 10,
     window: '1 h'
   },
   level3: {
