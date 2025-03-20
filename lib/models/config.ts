@@ -53,11 +53,11 @@ export const RATE_LIMITS = {
     window: '1 h'
   },
   level2: {
-    requests: 10,
+    requests: 20,
     window: '1 h'
   },
   level3: {
-    requests: 5,
+    requests: 10,
     window: '3 h'
   }
 };
