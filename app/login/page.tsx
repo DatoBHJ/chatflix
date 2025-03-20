@@ -92,7 +92,7 @@ export default function LoginPage() {
             <div className="mb-6 p-4 bg-blue-50 text-blue-700 rounded-md">
               <p className="text-sm">
                 Due to high registration volume, email/password registration is temporarily disabled. 
-                Please use Google Sign In instead.
+                Please use Google Sign at the bottom of the page. If you don't see one, please refresh the page.
               </p>
             </div>
             
