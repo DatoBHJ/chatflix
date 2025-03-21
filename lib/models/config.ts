@@ -58,7 +58,7 @@ export const RATE_LIMITS = {
   },
   level3: {
     requests: 10,
-    window: '3 h'
+    window: '1 h'
   }
 };
 
@@ -164,7 +164,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
-      level: 'level2',
+      level: 'level3',
     },
     isWebSearchEnabled: false,
     isEnabled: true,
@@ -190,7 +190,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
-      level: 'level2',
+      level: 'level3',
     },
     isWebSearchEnabled: false,
     isEnabled: true,
@@ -210,7 +210,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
-      level: 'level2',
+      level: 'level3',
     },
     isWebSearchEnabled: true,
     isEnabled: true,
@@ -327,7 +327,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'openai',
     supportsVision: true,
     rateLimit: {
-      level: 'level2',
+      level: 'level3',
     },
     isWebSearchEnabled: false,
     isEnabled: true,
@@ -366,7 +366,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     "provider": "openai",
     "supportsVision": true,
     "rateLimit": {
-      "level": "level2",
+      "level": "level3",
     },
     isWebSearchEnabled: false,
     isEnabled: true,
