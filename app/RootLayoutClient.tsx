@@ -67,7 +67,7 @@ export default function RootLayoutClient({
       //   "anthropic-models-high-request-2"
       // ); 
       showAnnouncement(
-        "Due to high demand on Anthropic models, we're temporarily setting high limits on Anthropic models for free users. Subscribe to get unlimited access.",
+        "Due to high demand on Anthropic models, we're temporarily setting high limits on Anthropic models for free users.",
         "error",
         "anthropic model high limits"
       );
