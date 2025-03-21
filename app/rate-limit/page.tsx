@@ -607,12 +607,11 @@ export default function RateLimitPage() {
               </div>
               
               {/* Golden Ticket Subscription Button */}
-              <div className="mb-8 fade-in-up" style={{ animationDelay: '0.25s' }}>
+              {/* <div className="mb-8 fade-in-up" style={{ animationDelay: '0.25s' }}>
                 <div className="p-4 bg-amber-50/10 border border-amber-200 rounded-sm">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                     <h3 className="text-base font-medium mb-1 text-amber-800 dark:text-amber-400">80% OFF - ENDING SOON</h3>
-                      {/* <p className="text-sm text-[var(--muted)]">Get your 80% off before the official launch.</p> */}
                       <p className="text-sm text-[var(--muted)]">Unlimited access to all features</p>
                     </div>
                     <div className="relative" onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)}>
@@ -622,34 +621,14 @@ export default function RateLimitPage() {
                         className="premium-ticket flex items-center gap-2 px-4 py-2 border border-amber-400/30 bg-gradient-to-r from-amber-50 to-amber-100 text-amber-800 rounded-sm hover:shadow-md transition-all whitespace-nowrap"
                         aria-label="Get Premium Access"
                       >
-                        {/* {isSubscribing ? (
-                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                        ) : (
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                            <path d="M12 2L15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2z" />
-                          </svg>
-                        )} */}
+                   
                         <span className="text-2xl font-bold tracking-wide">$2</span>
                       </button>
                       
-                      {/* {showTooltip && (
-                        <div className="absolute right-0 mt-2 w-64 bg-white/90 backdrop-blur-sm text-amber-900 p-3 rounded shadow-lg z-10 border border-amber-100 animate-fade-in">
-                          <div className="font-medium text-xs mb-1 text-amber-800">Golden Ticket Benefits:</div>
-                          <ul className="text-xs text-amber-700 opacity-80 list-disc pl-4 space-y-1">
-                            <li>Unlimited conversations with all models</li>
-                            <li>No rate limits or waiting periods</li>
-                            <li>Priority access during peak times</li>
-                            <li>Access to all premium features</li>
-                          </ul>
-                        </div>
-                      )} */}
                     </div>
                   </div>
                 </div>
-              </div>
+              </div> */}
               
               {/* 사용자 메시지 스타일로 현재 채팅 표시 */}
               {chatId && chatTitle && (
