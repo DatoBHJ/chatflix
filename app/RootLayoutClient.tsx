@@ -20,7 +20,7 @@ export default function RootLayoutClient({
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
-  const { announcement, showAnnouncement, hideAnnouncement, isVisible } = useAnnouncement()
+  const { announcements, showAnnouncement, hideAnnouncement } = useAnnouncement()
 
   const toggleSidebar = () => {
     setIsSidebarOpen(prev => !prev)
@@ -52,9 +52,10 @@ export default function RootLayoutClient({
     }
   }, [supabase, router, pathname])
 
-  // announcement 
+  // announcements 
   useEffect(() => {
     if (user) {
+      // Uncomment to show multiple announcements
       // showAnnouncement(
       //   "Tip: Gemini 2.0 Flash supports million-token context windows for larger documents and multiple files, with faster processing and improved accuracy (76.4% MMLU_Pro, 70.7% MMMU)",
       //   "info",
@@ -65,6 +66,11 @@ export default function RootLayoutClient({
       //   "warning",
       //   "anthropic-models-high-request-2"
       // ); 
+      showAnnouncement(
+        "Due to high demand on Anthropic models, we're temporarily setting high limits on Anthropic models for free users. Subscribe to get unlimited access.",
+        "error",
+        "anthropic model high limits"
+      );
       // showAnnouncement(
       //   "File uploads have been temporarily disabled due to an ongoing issue with file reading. We expect to restore this functionality soon.",
       //   "error",
@@ -84,7 +90,7 @@ export default function RootLayoutClient({
       showAnnouncement(
         "(Experimental) New Feature: Text to Image Generation. Use the /image command to generate images from text. For example, /image a beautiful sunset over a calm ocean.",
         "info",
-        "NEW FEATURE: image command"
+        "NEW FEATURE: image command 1"
       );
       // showAnnouncement(
       //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Our team is actively monitoring and addressing any problems that arise. Thank you for your patience and understanding.",
@@ -109,9 +115,7 @@ export default function RootLayoutClient({
   return (
     <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)] overflow-x-hidden">
       <Announcement
-        message={announcement?.message || ''}
-        type={announcement?.type || 'info'}
-        isVisible={isVisible}
+        announcements={announcements || []}
         onClose={hideAnnouncement}
       />
       {user && (
