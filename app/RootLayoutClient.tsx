@@ -66,11 +66,11 @@ export default function RootLayoutClient({
       //   "warning",
       //   "anthropic-models-high-request-2"
       // ); 
-      showAnnouncement(
-        "Due to high demand on Anthropic models, we're temporarily setting high limits on Anthropic models for free users. Please subscribe to get unlimited access. 80% off for the first month.",
-        "error",
-        "anthropic model high limits"
-      );
+      // showAnnouncement(
+      //   "Due to high demand on Anthropic models, we're temporarily setting high limits on Anthropic models for free users. Please subscribe to get unlimited access. 80% off for the first month.",
+      //   "error",
+      //   "anthropic model high limits"
+      // );
       // showAnnouncement(
       //   "File uploads have been temporarily disabled due to an ongoing issue with file reading. We expect to restore this functionality soon.",
       //   "error",
@@ -92,11 +92,11 @@ export default function RootLayoutClient({
         "info",
         "NEW FEATURE: image command 1"
       );
-      // showAnnouncement(
-      //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Our team is actively monitoring and addressing any problems that arise. Thank you for your patience and understanding.",
-      //   "warning",
-      //   "major-update-in-progress"
-      // );
+      showAnnouncement(
+        "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Thank you for your patience and understanding.",
+        "warning",
+        "major-update-in-progress"
+      );
     }
   }, [user, showAnnouncement]);
 
