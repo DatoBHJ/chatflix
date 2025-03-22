@@ -97,11 +97,11 @@ export default function RootLayoutClient({
         "info",
         "NEW FEATURE: image command 1"
       );
-      // showAnnouncement(
-      //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Thank you for your patience and understanding.",
-      //   "warning",
-      //   "major-update-in-progress"
-      // );
+      showAnnouncement(
+        "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Thank you for your patience and understanding.",
+        "warning",
+        "major-update-in-progress"
+      );
     }
   }, [user, showAnnouncement]);
 
