@@ -76,6 +76,11 @@ export default function RootLayoutClient({
       //   "error",
       //   "file-read-disabled"
       // );
+      showAnnouncement(
+        "Anthropic models are currently down. We are working on it. In the meantime, please try other models.",
+        "error",
+        "Anthropic-disabled"
+      );
       // showAnnouncement(
       //   "MAJOR SYSTEM UPDATE: chatflix_0.0.0: Web Search, Model Updates, and More - March 17, 2025",
       //   "info",
