@@ -76,11 +76,11 @@ export default function RootLayoutClient({
       //   "error",
       //   "file-read-disabled"
       // );
-      showAnnouncement(
-        "Anthropic models are currently down. We are working on it. In the meantime, please try other models.",
-        "error",
-        "Anthropic-disabled"
-      );
+      // showAnnouncement(
+      //   "Anthropic models are currently down. We are working on it. In the meantime, please try other models.",
+      //   "error",
+      //   "Anthropic-disabled"
+      // );
       // showAnnouncement(
       //   "MAJOR SYSTEM UPDATE: chatflix_0.0.0: Web Search, Model Updates, and More - March 17, 2025",
       //   "info",
@@ -97,11 +97,11 @@ export default function RootLayoutClient({
         "info",
         "NEW FEATURE: image command 1"
       );
-      showAnnouncement(
-        "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Thank you for your patience and understanding.",
-        "warning",
-        "major-update-in-progress"
-      );
+      // showAnnouncement(
+      //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Thank you for your patience and understanding.",
+      //   "warning",
+      //   "major-update-in-progress"
+      // );
     }
   }, [user, showAnnouncement]);
 
