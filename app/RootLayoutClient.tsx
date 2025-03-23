@@ -87,11 +87,11 @@ export default function RootLayoutClient({
         "major-update-v3"
       );
       // Code for a major update warning announcement
-      // showAnnouncement(
-      //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period.",
-      //   "warning",
-      //   "major-update-bug-report"
-      // );
+      showAnnouncement(
+        "You may experience some first input latency issues with reasoning models. We're working on it.",
+        "warning",
+        "First input latency issue with reasoning models"
+      );
       // showAnnouncement(
       //   "(Experimental) New Feature: Text to Image Generation. Use the /image command to generate images from text. For example, /image a beautiful sunset over a calm ocean.",
       //   "info",
