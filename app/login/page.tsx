@@ -96,8 +96,8 @@ export default function LoginPage() {
               </p>
             </div>
             
-            {/* Email/password form commented out
-            <form className="space-y-6" onSubmit={handleSignIn}>
+            {/* Email/password form commented out */}
+            {/* <form className="space-y-6" onSubmit={handleSignIn}>
               {error && (
                 <div className="login-error">
                   {error} 
@@ -157,8 +157,7 @@ export default function LoginPage() {
                   <span className="bg-white px-4 text-xs uppercase text-[#666666]">Or continue with Google</span>
                 </div>
               </div>
-            */}
-              
+            </form> */}
             <div className="flex justify-center mt-6">
               <GoogleSignIn />
             </div>

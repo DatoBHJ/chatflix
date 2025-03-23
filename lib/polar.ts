@@ -1,4 +1,5 @@
 import { Polar } from "@polar-sh/sdk";
+import { clearRateLimitInfo } from "./utils";
 
 // Environment configuration
 interface PolarConfig {
@@ -87,6 +88,33 @@ export async function checkSubscription(externalId: string): Promise<boolean> {
       
       // Check if user has any active subscriptions
       const isSubscribed = result.activeSubscriptions && result.activeSubscriptions.length > 0;
+      
+      // Get previously cached subscription status if available
+      let previousStatus = false;
+      if (typeof window !== 'undefined') {
+        try {
+          const cachedStatus = localStorage.getItem(`subscription_status_${externalId}`);
+          previousStatus = cachedStatus === 'true';
+        } catch (e) {
+          // Ignore errors when accessing localStorage
+        }
+      }
+
+      // If subscription status changed from not subscribed to subscribed,
+      // clear rate limit information from localStorage
+      if (isSubscribed && !previousStatus) {
+        clearRateLimitInfo();
+      }
+      
+      // Cache the current status
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`subscription_status_${externalId}`, String(isSubscribed));
+        } catch (e) {
+          // Ignore errors when accessing localStorage
+        }
+      }
+      
       return isSubscribed;
     } catch (error: any) {
       // If the error is 404 Not Found, it means the customer doesn't exist yet

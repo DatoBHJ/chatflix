@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { Header } from '@/app/components/Header'
+import { clearRateLimitInfo } from '@/lib/utils'
 
 export default function SubscriptionSuccess() {
   const [user, setUser] = useState<any>(null)
@@ -11,6 +12,11 @@ export default function SubscriptionSuccess() {
   const [countdown, setCountdown] = useState(5)
   const router = useRouter()
   const supabase = createClient()
+  
+  // Clear rate limit information on subscription success page load
+  useEffect(() => {
+    clearRateLimitInfo();
+  }, []);
   
   useEffect(() => {
     const getUser = async () => {

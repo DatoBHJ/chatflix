@@ -5,6 +5,7 @@ export interface ModelConfig {
   description: string;
   provider: 'anthropic' | 'openai' | 'google' | 'deepseek' | 'together' | 'groq' | 'xai';
   supportsVision: boolean;
+  supportsPDFs: boolean;
   rateLimit: {
     level: 'level1' | 'level2' | 'level3' | 'level4' | 'level5';
   };
@@ -184,6 +185,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level4',
     },
     isWebSearchEnabled: false,
+    supportsPDFs: true,
     isEnabled: true,
     reasoning: {
       enabled: true,
@@ -207,6 +209,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: "Anthropic's most intelligent model.",
     provider: 'anthropic',
     supportsVision: true,
+    supportsPDFs: true,
     rateLimit: {
       level: 'level4',
     },
@@ -232,6 +235,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level4',
     },
     isWebSearchEnabled: false,
+    supportsPDFs: true,
     isEnabled: true,
     contextWindow: 200000,
     tps: 77,
@@ -254,6 +258,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level3',
     },
     isWebSearchEnabled: false,
+    supportsPDFs: false,
     reasoning: {
       enabled: true,
       provider: 'together',
@@ -282,6 +287,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level3',
     },
     isWebSearchEnabled: false,
+    supportsPDFs: false,
     isEnabled: true,
     contextWindow: 128000,
     tps: 72,
@@ -304,6 +310,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level2',
     },
     isWebSearchEnabled: false,
+    supportsPDFs: false,
     reasoning: {
       enabled: true,
       provider: 'deepseek',
@@ -332,6 +339,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level2',
     },
     isWebSearchEnabled: true,
+    supportsPDFs: false,
     isEnabled: true,
     contextWindow: 128000,
     tps: 29,
@@ -354,7 +362,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level5',
     },
     isWebSearchEnabled: false,
-    isEnabled: true,
+    supportsPDFs: false,
+    isEnabled: false,
     contextWindow: 128000,
     tps: 14,
     intelligenceIndex: 51,
@@ -374,6 +383,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level5',
     },
     isWebSearchEnabled: false,
+    supportsPDFs: false,
     isEnabled: true,
     contextWindow: 128000,
     tps: 136,
@@ -395,6 +405,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       "level": "level5",
     },
     isWebSearchEnabled: false,
+    supportsPDFs: false,
     isEnabled: true,
     contextWindow: 200000,
     tps: 36,
@@ -417,6 +428,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       "level": "level5",
     },
     isWebSearchEnabled: false,
+    supportsPDFs: false,
     isEnabled: true,
     contextWindow: 200000,
     tps: 188,
@@ -438,6 +450,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level1',
     },
     isWebSearchEnabled: true,
+    supportsPDFs: true,
     isEnabled: true,
     contextWindow: 1024000,
     tps: 258,
@@ -459,6 +472,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level3',
     },
     isWebSearchEnabled: false,
+    supportsPDFs: false,
     isEnabled: true,
     contextWindow: 128000,
     tps: 67, 
@@ -480,6 +494,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level1',
     },
     isWebSearchEnabled: true,
+    supportsPDFs: false,
     isEnabled: true,
     contextWindow: 128000,
     tps: 275,
@@ -508,6 +523,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       tagName: 'think'
     },
     isEnabled: true,
+    supportsPDFs: false,
     isWebSearchEnabled: true,
     contextWindow: 131000,
     tps: 399,

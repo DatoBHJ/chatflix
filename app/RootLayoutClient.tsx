@@ -8,6 +8,7 @@ import { PromptShortcutsDialog } from './components/PromptShortcutsDialog'
 import { Header } from './components/Header'
 import Announcement from './components/Announcement'
 import useAnnouncement from './hooks/useAnnouncement'
+import { clearRateLimitInfo } from '@/lib/utils'
 
 export default function RootLayoutClient({
   children,
@@ -33,6 +34,9 @@ export default function RootLayoutClient({
       setUser(user)
       if (!user && pathname !== '/login') {
         router.push('/login')
+      } else if (user) {
+        // Clear rate limit info when user is loaded (on refresh/initial load)
+        clearRateLimitInfo()
       }
     }
 
@@ -42,6 +46,8 @@ export default function RootLayoutClient({
         router.push('/login')
       } else if (event === 'SIGNED_IN') {
         setUser(session?.user || null)
+        // Clear rate limit info on sign in
+        clearRateLimitInfo()
       }
     })
 
@@ -53,57 +59,57 @@ export default function RootLayoutClient({
   }, [supabase, router, pathname])
 
   // announcements 
-  useEffect(() => {
-    if (user) {
-      // Uncomment to show multiple announcements
-      // showAnnouncement(
-      //   "Tip: Gemini 2.0 Flash supports million-token context windows for larger documents and multiple files, with faster processing and improved accuracy (76.4% MMLU_Pro, 70.7% MMMU)",
-      //   "info",
-      //   "Gemini-2-flash-tip"
-      // ); 
-      // showAnnouncement(
-      //   "Due to high demand on anthropic models, there may be some delays in response time. We are working on it. In the meantime, please try other models.",
-      //   "warning",
-      //   "anthropic-models-high-request-2"
-      // ); 
-      // showAnnouncement(
-      //   "Due to high demand on Anthropic models, we're temporarily setting high limits on Anthropic models for free users. Please subscribe to get unlimited access. 80% off for the first month.",
-      //   "error",
-      //   "anthropic model high limits"
-      // );
-      // showAnnouncement(
-      //   "File uploads have been temporarily disabled due to an ongoing issue with file reading. We expect to restore this functionality soon.",
-      //   "error",
-      //   "file-read-disabled"
-      // );
-      // showAnnouncement(
-      //   "Anthropic models are currently down. We are working on it. In the meantime, please try other models.",
-      //   "error",
-      //   "Anthropic-disabled"
-      // );
-      showAnnouncement(
-        "SYSTEM UPDATE: chatflix_0.0.1: rate limit update, backend updates, and more",
-        "info",
-        "major-update-v3"
-      );
-      // Code for a major update warning announcement
-      // showAnnouncement(
-      //   "You may experience some first input latency issues with reasoning models. We're working on it.",
-      //   "warning",
-      //   "First input latency issue with reasoning models"
-      // );
-      // showAnnouncement(
-      //   "(Experimental) New Feature: Text to Image Generation. Use the /image command to generate images from text. For example, /image a beautiful sunset over a calm ocean.",
-      //   "info",
-      //   "NEW FEATURE: image command 1"
-      // );
-      showAnnouncement(
-        "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Thank you for your patience and understanding.",
-        "warning",
-        "major-update-in-progress-1"
-      );
-    }
-  }, [user, showAnnouncement]);
+  // useEffect(() => {
+  //   if (user) {
+  //     // Uncomment to show multiple announcements
+  //     // showAnnouncement(
+  //     //   "Tip: Gemini 2.0 Flash supports million-token context windows for larger documents and multiple files, with faster processing and improved accuracy (76.4% MMLU_Pro, 70.7% MMMU)",
+  //     //   "info",
+  //     //   "Gemini-2-flash-tip"
+  //     // ); 
+  //     // showAnnouncement(
+  //     //   "Due to high demand on anthropic models, there may be some delays in response time. We are working on it. In the meantime, please try other models.",
+  //     //   "warning",
+  //     //   "anthropic-models-high-request-2"
+  //     // ); 
+  //     // showAnnouncement(
+  //     //   "Due to high demand on Anthropic models, we're temporarily setting high limits on Anthropic models for free users. Please subscribe to get unlimited access. 80% off for the first month.",
+  //     //   "error",
+  //     //   "anthropic model high limits"
+  //     // );
+  //     // showAnnouncement(
+  //     //   "File uploads have been temporarily disabled due to an ongoing issue with file reading. We expect to restore this functionality soon.",
+  //     //   "error",
+  //     //   "file-read-disabled"
+  //     // );
+  //     // showAnnouncement(
+  //     //   "Anthropic models are currently down. We are working on it. In the meantime, please try other models.",
+  //     //   "error",
+  //     //   "Anthropic-disabled"
+  //     // );
+  //     // showAnnouncement(
+  //     //   "SYSTEM UPDATE: chatflix_0.0.1: rate limit update, backend updates, and more",
+  //     //   "info",
+  //     //   "major-update-v3"
+  //     // );
+  //     // Code for a major update warning announcement
+  //     // showAnnouncement(
+  //     //   "You may experience some first input latency issues with reasoning models. We're working on it.",
+  //     //   "warning",
+  //     //   "First input latency issue with reasoning models"
+  //     // );
+  //     // showAnnouncement(
+  //     //   "(Experimental) New Feature: Text to Image Generation. Use the /image command to generate images from text. For example, /image a beautiful sunset over a calm ocean.",
+  //     //   "info",
+  //     //   "NEW FEATURE: image command 1"
+  //     // );
+  //     // showAnnouncement(
+  //     //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Thank you for your patience and understanding.",
+  //     //   "warning",
+  //     //   "major-update-in-progress-1"
+  //     // );
+  //   }
+  // }, [user, showAnnouncement]);
 
   if (isLoading) {
     return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
