@@ -81,26 +81,26 @@ export default function RootLayoutClient({
       //   "error",
       //   "Anthropic-disabled"
       // );
-      // showAnnouncement(
-      //   "MAJOR SYSTEM UPDATE: chatflix_0.0.0: Web Search, Model Updates, and More - March 17, 2025",
-      //   "info",
-      //   "major-update-v2"
-      // );
+      showAnnouncement(
+        "SYSTEM UPDATE: chatflix_0.0.1: rate limit update, backend updates, and more",
+        "info",
+        "major-update-v3"
+      );
       // Code for a major update warning announcement
       // showAnnouncement(
       //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period.",
       //   "warning",
       //   "major-update-bug-report"
       // );
-      showAnnouncement(
-        "(Experimental) New Feature: Text to Image Generation. Use the /image command to generate images from text. For example, /image a beautiful sunset over a calm ocean.",
-        "info",
-        "NEW FEATURE: image command 1"
-      );
+      // showAnnouncement(
+      //   "(Experimental) New Feature: Text to Image Generation. Use the /image command to generate images from text. For example, /image a beautiful sunset over a calm ocean.",
+      //   "info",
+      //   "NEW FEATURE: image command 1"
+      // );
       showAnnouncement(
         "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Thank you for your patience and understanding.",
         "warning",
-        "major-update-in-progress"
+        "major-update-in-progress-1"
       );
     }
   }, [user, showAnnouncement]);
