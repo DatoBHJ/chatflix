@@ -29,10 +29,10 @@ const hasLogo = (provider: ModelConfig['provider']) => {
 const getProviderColor = (provider: ModelConfig['provider']): string => {
   const colorMap: Record<string, string> = {
     anthropic: '#B33A3A', // reddish
-    openai: '#000000',    // black
+    openai: '#10A37F',    // green
     google: '#34A853',    // green
     together: '#6366F1',  // purple/blue
-    xai: '#000000',       // black
+    xai: '#555555',       // purple
     deepseek: '#377CF7',  // blue
     groq: '#FF6B6B',      // coral
   };
