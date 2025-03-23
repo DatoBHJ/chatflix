@@ -47,6 +47,7 @@ export function ChatInput({
   const [mentionQueryActive, setMentionQueryActive] = useState(false);
   const [showPDFError, setShowPDFError] = useState(false);
   const [showFolderError, setShowFolderError] = useState(false);
+  const [showVideoError, setShowVideoError] = useState(false);
   
   // Supabase 클라이언트
   const supabase = createClient();
@@ -625,7 +626,7 @@ export function ChatInput({
 
   // 파일 처리
   const handleFiles = (newFiles: FileList) => {
-    // FileList를 Array로 변환하고 PDF 파일과 이미지 파일(vision 미지원시) 필터링
+    // FileList를 Array로 변환하고 PDF 파일과 이미지 파일(vision 미지원시)과 비디오 파일 필터링
     const newFileArray = Array.from(newFiles).filter(file => {
       if (fileHelpers.isPDFFile(file)) {
         setShowPDFError(true);
@@ -637,6 +638,13 @@ export function ChatInput({
       if (!supportsVision && file.type.startsWith('image/')) {
         setShowPDFError(true); // 기존 에러 토스트 재활용
         setTimeout(() => setShowPDFError(false), 3000);
+        return false;
+      }
+
+      // 비디오 파일 필터링
+      if (file.type.startsWith('video/') || /\.(mp4|mov|avi|wmv|flv|mkv|webm)$/i.test(file.name)) {
+        setShowVideoError(true);
+        setTimeout(() => setShowVideoError(false), 3000);
         return false;
       }
       
@@ -752,6 +760,7 @@ export function ChatInput({
         {/* Error toast */}
         <ErrorToast show={showPDFError} message={supportsVision ? "PDF files are not supported" : "This model does not support PDF and image files."} />
         <ErrorToast show={showFolderError} message="Folders cannot be uploaded" />
+        <ErrorToast show={showVideoError} message="Video files are not supported" />
 
         {/* Drag & drop area */}
         <div 
