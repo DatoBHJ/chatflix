@@ -53,7 +53,6 @@ export default function Chat({ params }: PageProps) {
     initialMessages: isFullyLoaded ? existingMessages : [],
     onResponse: (response) => {
       // print the last message
-      console.log('[Debug] Response in chat/[id]/page.tsx:', messages)
       setMessages(prevMessages => {
         const updatedMessages = [...prevMessages]
         for (let i = updatedMessages.length - 1; i >= 0; i--) {
@@ -71,32 +70,80 @@ export default function Chat({ params }: PageProps) {
       try {
         errorData = error.message ? JSON.parse(error.message) : null;
       } catch (e) {
-        errorData = null;
+        // If error is not JSON, try to parse from the raw message
+        try {
+          const errorMatch = error.message?.match(/\{.*\}/);
+          if (errorMatch) {
+            errorData = JSON.parse(errorMatch[0]);
+          }
+        } catch (err) {
+          console.error('Failed to parse error data:', err);
+          errorData = null;
+        }
       }
 
       // Check if it's a rate limit error either from status or parsed error data
-      if (error.status === 429 || errorData?.error === 'Too many requests') {
+      if (error.status === 429 || (errorData && (errorData.error === 'Too many requests' || errorData.type === 'rate_limit'))) {
+        console.log('[Debug] Rate limit error detected:', errorData);
+        
+        // Extract data from response
         const reset = errorData?.reset || new Date(Date.now() + 60000).toISOString();
         const limit = errorData?.limit || 10;
+        const level = errorData?.level || '';
+        const modelId = errorData?.model || nextModel;
         
-        // Get the model level
-        const modelConfig = MODEL_CONFIGS.find(m => m.id === nextModel);
-        const modelLevel = modelConfig?.rateLimit.level || '';
+        // Update rate limit information in localStorage
+        if (level) {
+          try {
+            // Get existing rate limit levels
+            let rateLimitLevels = {};
+            const existingLevelsStr = localStorage.getItem('rateLimitLevels');
+            if (existingLevelsStr) {
+              rateLimitLevels = JSON.parse(existingLevelsStr);
+            }
+            
+            // Add or update this level
+            rateLimitLevels = {
+              ...rateLimitLevels,
+              [level]: {
+                reset: new Date(reset).getTime(),
+                models: MODEL_CONFIGS
+                  .filter(m => m.rateLimit.level === level)
+                  .map(m => m.id)
+              }
+            };
+            
+            // Save to localStorage
+            localStorage.setItem('rateLimitLevels', JSON.stringify(rateLimitLevels));
+            
+            // For backward compatibility
+            const rateLimitInfo = {
+              level,
+              reset: new Date(reset).getTime(),
+              models: MODEL_CONFIGS
+                .filter(m => m.rateLimit.level === level)
+                .map(m => m.id)
+            };
+            localStorage.setItem('rateLimitInfo', JSON.stringify(rateLimitInfo));
+          } catch (storageError) {
+            console.error('Error storing rate limit info:', storageError);
+          }
+        }
         
         // Include chatId and level in the redirect URL
         router.push(`/rate-limit?${new URLSearchParams({
           limit: limit.toString(),
-          reset: reset,
-          model: nextModel,
+          reset,
+          model: modelId,
           chatId: chatId,
-          level: modelLevel
+          level: level
         }).toString()}`);
         
         return;
       }
 
       // Only log non-rate-limit errors
-      console.error('Unexpected chat error:', error)
+      console.error('Unexpected chat error:', error);
     }
   })
 
@@ -165,16 +212,16 @@ export default function Chat({ params }: PageProps) {
         
         // First check URL query parameter for web search setting
         if (isMounted && typeof window !== 'undefined') {
-          console.log('[Debug] Chat page - Checking web search settings for chatId:', chatId);
+          // console.log('[Debug] Chat page - Checking web search settings for chatId:', chatId);
           
           const urlParams = new URLSearchParams(window.location.search);
           const webSearchParam = urlParams.get('web_search');
-          console.log('[Debug] Chat page - URL web_search parameter:', webSearchParam);
+          // console.log('[Debug] Chat page - URL web_search parameter:', webSearchParam);
           
           let shouldEnableWebSearch = false;
           
           if (webSearchParam === 'true') {
-            console.log('[Debug] Chat page - Setting web search enabled from URL parameter');
+            // console.log('[Debug] Chat page - Setting web search enabled from URL parameter');
             shouldEnableWebSearch = true;
             // Also update localStorage for persistence
             localStorage.setItem(`websearch_${chatId}`, 'true');
@@ -182,17 +229,17 @@ export default function Chat({ params }: PageProps) {
             // Clean up URL by removing the query parameter
             const newUrl = window.location.pathname;
             window.history.replaceState({}, document.title, newUrl);
-            console.log('[Debug] Chat page - Cleaned up URL, removed query parameter');
+            // console.log('[Debug] Chat page - Cleaned up URL, removed query parameter');
           } else {
             // If not in URL, check localStorage as fallback
             const savedWebSearchState = localStorage.getItem(`websearch_${chatId}`);
-            console.log('[Debug] Chat page - localStorage web search state:', savedWebSearchState);
+            // console.log('[Debug] Chat page - localStorage web search state:', savedWebSearchState);
             
             if (savedWebSearchState === 'true') {
-              console.log('[Debug] Chat page - Setting web search enabled from localStorage');
+              // console.log('[Debug] Chat page - Setting web search enabled from localStorage');
               shouldEnableWebSearch = true;
             } else {
-              console.log('[Debug] Chat page - Web search is disabled');
+              // console.log('[Debug] Chat page - Web search is disabled');
             }
           }
           
@@ -265,7 +312,7 @@ export default function Chat({ params }: PageProps) {
             setIsInitialized(true)
 
             if (sortedMessages.length === 1 && sortedMessages[0].role === 'user') {
-              console.log('[Debug] Chat page - Reloading with initial message, web search:', shouldEnableWebSearch);
+              // console.log('[Debug] Chat page - Reloading with initial message, web search:', shouldEnableWebSearch);
               
               // Only reload if we don't have an assistant message yet (fresh conversation)
               // This prevents unnecessary API calls when refreshing a page with existing conversation
@@ -280,7 +327,7 @@ export default function Chat({ params }: PageProps) {
             }
           } else if (session.initial_message && isMounted) {
             // Only create initial message if there are no existing messages
-            console.log('[Debug] Chat page - Creating initial message, web search:', shouldEnableWebSearch);
+            // console.log('[Debug] Chat page - Creating initial message, web search:', shouldEnableWebSearch);
             const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             
             // Start the API request immediately before updating the database
@@ -519,7 +566,7 @@ export default function Chat({ params }: PageProps) {
     e.preventDefault();
     
     // 디버깅: 폼 제출 시 웹 검색 상태 출력
-    console.log('[Debug] Chat page - handleModelSubmit called with web search:', isWebSearchEnabled);
+    // console.log('[Debug] Chat page - handleModelSubmit called with web search:', isWebSearchEnabled);
     
     if (nextModel !== currentModel) {
       const success = await handleModelChange(nextModel)

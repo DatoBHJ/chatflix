@@ -1,8 +1,6 @@
 # 🎬 **INTRODUCING CHATFLIX: THE NETFLIX OF CHATBOTS!** 🤖
 
-> ## ***"Why subscribe to multiple AI services when you can stream them ALL for $5?"***
-
-![Chatflix Banner](https://chatflix.app/.png?v=2)
+> ## ***"Why subscribe to multiple AI services when you can stream them ALL of them in one place?”***
 
 ---
 
@@ -14,7 +12,7 @@
 | Perplexity Pro | $20 | *AI search engine* |
 | Claude Pro | $20 | *Sonnet series* |
 | ... | ... | ... |
-| **CHATFLIX** | **$5** | **ALL IN ONE** |
+| **CHATFLIX** | **$10 ($2 for first month)** | **ALL IN ONE** |
 
 > ##  ***"SUPPORTS : OpenAI, DeepSeek, Anthropic, Gemini, Meta, and more!"***
 
@@ -24,7 +22,7 @@
 
 ## 🧠 **PREMIUM FEATURES UNLOCKED**
 * ⚡ **NO** rate limiting or waiting
-* 🔍 **ADVANCED** web & deep search
+* 🔍 **ADVANCED** web & deep search (soon)
 * 💬 **UNLIMITED** conversations
 
 ## 🎭 **MULTIPLE AI MODELS IN ONE PLACE**
@@ -33,12 +31,8 @@
 
 ---
 
-# ☕ **For the price of ONE Starbucks coffee, get UNLIMITED AI ACCESS for an ENTIRE MONTH** 
-
-> ## ***"Why pay $60+ across multiple platforms when $5 gets you EVERYTHING?"***
+# 💫 Early Access Offer: Use Code "chatflix" to get your first month for only $2!
 
 ---
 
-## 🚀 **JOIN THE SMART REVOLUTION** 🚀
-### *Experience the Netflix of chatbots today!*
-
+Don't miss this limited-time opportunity to access all premium AI models at an incredible value. Start streaming today!

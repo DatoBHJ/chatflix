@@ -72,24 +72,36 @@ export async function checkSubscription(externalId: string): Promise<boolean> {
     const polar = createPolarClient();
     const config = getPolarConfig();
     
-    // console.log('Checking subscription with config:', {
-    //   isSandbox: config.isSandbox,
-    //   baseUrl: config.baseUrl,
-    //   externalId
-    // });
-    
     try {
-      const result = await polar.customers.getStateExternal({
+      // Add timeout to prevent long-running requests
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Polar API request timed out')), 5000);
+      });
+      
+      const resultPromise = polar.customers.getStateExternal({
         externalId,
       });
       
+      // Race between the API call and timeout
+      const result = await Promise.race([resultPromise, timeoutPromise]) as any;
+      
       // Check if user has any active subscriptions
-      return result.activeSubscriptions && result.activeSubscriptions.length > 0;
+      const isSubscribed = result.activeSubscriptions && result.activeSubscriptions.length > 0;
+      return isSubscribed;
     } catch (error: any) {
       // If the error is 404 Not Found, it means the customer doesn't exist yet
       // This is normal for new users who haven't subscribed yet
       if (error.message && (error.message.includes('Not found') || error.message.includes('ResourceNotFound'))) {
-        console.log('Customer not found in Polar system, likely not subscribed yet');
+        return false;
+      }
+      
+      // For timeout errors, log and return false
+      if (error.message && error.message.includes('timed out')) {
+        return false;
+      }
+      
+      // For network or server errors (including 403 Forbidden), log and return false
+      if (error.message && (error.message.includes('403') || error.message.includes('network') || error.message.includes('server'))) {
         return false;
       }
       
@@ -97,7 +109,7 @@ export async function checkSubscription(externalId: string): Promise<boolean> {
       throw error;
     }
   } catch (error) {
-    console.error('Error checking subscription:', error);
+    console.error('[polar.ts]: Error checking subscription:', error);
     return false;
   }
 }

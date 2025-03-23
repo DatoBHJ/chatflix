@@ -27,19 +27,31 @@ const levelRateLimiters = {
     redis,
     limiter: Ratelimit.slidingWindow(RATE_LIMITS.level1.requests, parseWindow(RATE_LIMITS.level1.window)),
     analytics: true,
-    prefix: 'ratelimit:level:level1',
+    prefix: 'ratelimit',  // Simplified prefix
   }),
   level2: new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(RATE_LIMITS.level2.requests, parseWindow(RATE_LIMITS.level2.window)),
     analytics: true,
-    prefix: 'ratelimit:level:level2',
+    prefix: 'ratelimit',  // Simplified prefix
   }),
   level3: new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(RATE_LIMITS.level3.requests, parseWindow(RATE_LIMITS.level3.window)),
     analytics: true,
-    prefix: 'ratelimit:level:level3',
+    prefix: 'ratelimit',  // Simplified prefix
+  }),
+  level4: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level4.requests, parseWindow(RATE_LIMITS.level4.window)),
+    analytics: true,
+    prefix: 'ratelimit',  // Simplified prefix
+  }),
+  level5: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level5.requests, parseWindow(RATE_LIMITS.level5.window)),
+    analytics: true,
+    prefix: 'ratelimit',  // Simplified prefix
   }),
 };
 
@@ -48,6 +60,9 @@ const subscriptionCache = new Map<string, { isSubscribed: boolean, timestamp: nu
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 async function isUserSubscribed(userId: string): Promise<boolean> {
+  // If no userId is provided, return false (not subscribed)
+  if (!userId) return false;
+  
   const now = Date.now();
   const cached = subscriptionCache.get(userId);
   
@@ -63,6 +78,12 @@ async function isUserSubscribed(userId: string): Promise<boolean> {
     return isSubscribed;
   } catch (error) {
     console.error('Error checking subscription status:', error);
+    // In case of error, don't update the cache and:
+    // 1. If we have a cached value, keep using it even if expired
+    if (cached) {
+      return cached.isSubscribed;
+    }
+    // 2. Otherwise, default to false but don't cache this result
     return false;
   }
 }
@@ -77,7 +98,7 @@ export async function getRateLimiter(model: string, userId?: string): Promise<Ra
   if (!modelConfig) {
     throw new Error(`Model ${model} not found in configuration`);
   }
-
+  
   // Check if user has an active subscription
   if (userId) {
     const isSubscribed = await isUserSubscribed(userId);
@@ -87,7 +108,7 @@ export async function getRateLimiter(model: string, userId?: string): Promise<Ra
         redis,
         limiter: Ratelimit.slidingWindow(1000000, '1 d'), // Very high limit
         analytics: true,
-        prefix: `ratelimit:subscribed:${userId}`,
+        prefix: 'ratelimit',  // Simplified prefix
       });
     }
   }
@@ -97,24 +118,31 @@ export async function getRateLimiter(model: string, userId?: string): Promise<Ra
   if (!levelRateLimiter) {
     throw new Error(`Rate limiter not initialized for level ${modelConfig.rateLimit.level}`);
   }
-
+  
   return levelRateLimiter;
 }
 
 // Function to get the level-based rate limiter directly
-export async function getLevelRateLimiter(level: 'level1' | 'level2' | 'level3', userId?: string): Promise<Ratelimit> {
-  // Check if user has an active subscription
-  if (userId) {
-    const isSubscribed = await isUserSubscribed(userId);
-    if (isSubscribed) {
-      // Create an unlimited rate limiter for subscribed users
-      return new Ratelimit({
-        redis,
-        limiter: Ratelimit.slidingWindow(1000000, '1 d'), // Very high limit
-        analytics: true,
-        prefix: `ratelimit:subscribed:${userId}`,
-      });
+export async function getLevelRateLimiter(level: 'level1' | 'level2' | 'level3' | 'level4' | 'level5', userId?: string): Promise<Ratelimit> {
+  // If no userId is provided, use a default limiter without subscription check
+  if (!userId) {
+    const rateLimiter = levelRateLimiters[level];
+    if (!rateLimiter) {
+      throw new Error(`Rate limiter not initialized for level ${level}`);
     }
+    return rateLimiter;
+  }
+  
+  // Check if user has an active subscription
+  const isSubscribed = await isUserSubscribed(userId);
+  if (isSubscribed) {
+    // Create an unlimited rate limiter for subscribed users
+    return new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(1000000, '1 d'), // Very high limit
+      analytics: true,
+      prefix: 'ratelimit',  // Simplified prefix
+    });
   }
   
   const rateLimiter = levelRateLimiters[level];
@@ -122,4 +150,9 @@ export async function getLevelRateLimiter(level: 'level1' | 'level2' | 'level3',
     throw new Error(`Rate limiter not initialized for level ${level}`);
   }
   return rateLimiter;
+}
+
+// Helper function to create a standardized rate limit key
+export function createRateLimitKey(userId: string, level: string): string {
+  return `user:${userId}:level:${level}`;
 }

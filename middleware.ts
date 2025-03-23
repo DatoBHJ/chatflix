@@ -1,17 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/utils/supabase/middleware'
-import { redis, getLevelRateLimiter } from '@/lib/ratelimit'
-import { Ratelimit } from '@upstash/ratelimit'
+import { getLevelRateLimiter, createRateLimitKey } from '@/lib/ratelimit'
 import { getModelById } from '@/lib/models/config'
 import { createServerClient } from '@supabase/ssr'
-
-// Create a new ratelimiter, that allows 10 requests per 10 seconds for general routes
-const globalRatelimit = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(10, '10 s'),
-  analytics: true,
-  prefix: 'global_ratelimit',
-})
 
 export async function middleware(request: NextRequest) {
   // Skip rate limiting for static files and images
@@ -19,13 +10,14 @@ export async function middleware(request: NextRequest) {
     return await updateSession(request)
   }
 
-  // Get IP or a unique identifier
-  const forwarded = request.headers.get('x-forwarded-for')
-  const ip = forwarded ? forwarded.split(',')[0].trim() : 
-             request.headers.get('x-real-ip') ?? 
-             '127.0.0.1'
+  // Skip rate limiting for the chat API - it's already handled in the route handler
+  // But still update the session to maintain authentication state
+  if (request.nextUrl.pathname.startsWith('/api/chat')) {
+    const response = await updateSession(request);
+    return response;
+  }
 
-  // Try to get the user ID for subscription checking
+  // Try to get the user ID for subscription and rate limiting
   let userId: string | undefined;
   try {
     // Create a Supabase client for the middleware
@@ -52,41 +44,58 @@ export async function middleware(request: NextRequest) {
     // Continue without user ID if there's an error
   }
 
+  // If no userId is found, we can't apply rate limiting properly
+  // Just proceed with the request
+  if (!userId) {
+    return await updateSession(request)
+  }
+
   let rateLimitResult;
 
   // Apply level-based rate limit for chat API requests
   if (request.nextUrl.pathname.startsWith('/api/chat')) {
     try {
-      const body = await request.clone().json()
-      const modelId = body.model
+      // More robust JSON parsing that won't crash the middleware
+      const text = await request.clone().text();
+      let body;
+      try {
+        body = JSON.parse(text);
+      } catch (jsonError) {
+        console.error('[DEBUG-RATELIMIT-MIDDLEWARE] Failed to parse JSON:', jsonError);
+        // Skip rate limiting if we can't parse the request body
+        return await updateSession(request);
+      }
+      
+      const modelId = body.model;
+      
+      console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Processing request for user ${userId}, model ${modelId}`);
       
       if (modelId) {
         const modelConfig = getModelById(modelId);
         if (modelConfig) {
           const level = modelConfig.rateLimit.level;
           // Pass the userId to getLevelRateLimiter and await the result
+          console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Using level ${level} for model ${modelId}`);
           const levelRateLimiter = await getLevelRateLimiter(level, userId);
-          const identifier = `${ip}:${level}`;
-          rateLimitResult = await levelRateLimiter.limit(identifier);
-        } else {
-          rateLimitResult = await globalRatelimit.limit(`${ip}:${request.nextUrl.pathname}`);
+          rateLimitResult = await levelRateLimiter.limit(createRateLimitKey(userId, level));
+          console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Rate limit result:`, {
+            success: rateLimitResult.success,
+            remaining: rateLimitResult.remaining,
+            limit: rateLimitResult.limit,
+            reset: new Date(rateLimitResult.reset).toISOString()
+          });
         }
-      } else {
-        rateLimitResult = await globalRatelimit.limit(`${ip}:${request.nextUrl.pathname}`);
       }
     } catch (error) {
       console.error('Error in rate limiting middleware:', error);
-      // If we can't parse the body or find the model, use global rate limit
-      rateLimitResult = await globalRatelimit.limit(`${ip}:${request.nextUrl.pathname}`);
+      // If we can't parse the body or find the model, just continue without rate limiting
+      return await updateSession(request)
     }
-  } else {
-    // Use global rate limit for all other routes
-    rateLimitResult = await globalRatelimit.limit(`${ip}:${request.nextUrl.pathname}`);
   }
 
-  const { success, limit, remaining, reset } = rateLimitResult
+  if (rateLimitResult && !rateLimitResult.success) {
+    const { limit, reset } = rateLimitResult
 
-  if (!success) {
     // If it's an API request, return JSON response
     if (request.nextUrl.pathname.startsWith('/api/')) {
       return new NextResponse(
@@ -109,18 +118,53 @@ export async function middleware(request: NextRequest) {
     }
 
     // For regular pages, redirect to rate limit page with information
-    const params = new URLSearchParams({
-      limit: limit.toString(),
-      reset: new Date(reset).toISOString(),
-    })
-    return NextResponse.redirect(new URL(`/rate-limit?${params.toString()}`, request.url))
+    try {
+      // Try to extract additional information for the rate limit page
+      let modelId = '';
+      let level = '';
+      
+      if (request.nextUrl.pathname.startsWith('/api/chat')) {
+        const body = await request.clone().json();
+        modelId = body.model || '';
+        
+        if (modelId) {
+          const modelConfig = getModelById(modelId);
+          if (modelConfig) {
+            level = modelConfig.rateLimit.level;
+          }
+        }
+      }
+      
+      const params = new URLSearchParams({
+        limit: limit.toString(),
+        reset: new Date(reset).toISOString(),
+      });
+      
+      // Add optional parameters if available
+      if (modelId) params.append('model', modelId);
+      if (level) params.append('level', level);
+      
+      return NextResponse.redirect(new URL(`/rate-limit?${params.toString()}`, request.url));
+    } catch (error) {
+      // If there's an error parsing the body, just redirect with basic info
+      const params = new URLSearchParams({
+        limit: limit.toString(),
+        reset: new Date(reset).toISOString(),
+      });
+      
+      return NextResponse.redirect(new URL(`/rate-limit?${params.toString()}`, request.url));
+    }
   }
 
-  // Add rate limit headers to all responses
+  // Add rate limit headers to all responses if we have rate limit results
   const response = await updateSession(request)
-  response.headers.set('X-RateLimit-Limit', limit.toString())
-  response.headers.set('X-RateLimit-Remaining', remaining.toString())
-  response.headers.set('X-RateLimit-Reset', new Date(reset).toISOString())
+  
+  if (rateLimitResult) {
+    const { limit, remaining, reset } = rateLimitResult
+    response.headers.set('X-RateLimit-Limit', limit.toString())
+    response.headers.set('X-RateLimit-Remaining', remaining.toString())
+    response.headers.set('X-RateLimit-Reset', new Date(reset).toISOString())
+  }
 
   return response
 }

@@ -5,7 +5,7 @@ export interface ModelConfig {
   provider: 'anthropic' | 'openai' | 'google' | 'deepseek' | 'together' | 'groq' | 'xai';
   supportsVision: boolean;
   rateLimit: {
-    level: 'level1' | 'level2' | 'level3';
+    level: 'level1' | 'level2' | 'level3' | 'level4' | 'level5';
   };
   isEnabled: boolean;
   isWebSearchEnabled: boolean;
@@ -35,32 +35,48 @@ export const DEFAULT_MODEL_ID = 'gemini-2.0-flash';
 // export const RATE_LIMITS = {
 //   level1: {
 //     requests: 1,
-//     window: '24 h'
+//     window: '4 m'
 //   },
 //   level2: {
-//     requests: 1,
-//     window: '24 h'
+//     requests: 3,
+//     window: '4 m'
 //   },
 //   level3: {
 //     requests: 3,
-//     window: '60 m'
+//     window: '4 m'
+//   },
+//   level4: {
+//     requests: 4,
+//     window: '4 m'
+//   },
+//   level5: {
+//     requests: 3,
+//     window: '4 m'
 //   }
 // };
-// Rate limit configuration by level
 export const RATE_LIMITS = {
   level1: {
-    requests: 100,
-    window: '1 h'
+    requests: 5,
+    window: '30 h'
   },
   level2: {
-    requests: 10,
-    window: '1 h'
+    requests: 5,
+    window: '30 h'
   },
   level3: {
-    requests: 10,
-    window: '6 h'
+    requests: 5,
+    window: '30 h'
+  },
+  level4: {
+    requests: 7,
+    window: '30 h'
+  },
+  level5: {
+    requests: 5,
+    window: '30 h'
   }
 };
+
 
 // Get system default model ID (should match Supabase's get_default_model_id function)
 export function getSystemDefaultModelId(): string {
@@ -164,7 +180,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
-      level: 'level3',
+      level: 'level4',
     },
     isWebSearchEnabled: false,
     isEnabled: true,
@@ -190,7 +206,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
-      level: 'level3',
+      level: 'level4',
     },
     isWebSearchEnabled: false,
     isEnabled: true,
@@ -210,7 +226,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
-      level: 'level3',
+      level: 'level4',
     },
     isWebSearchEnabled: true,
     isEnabled: true,
@@ -231,7 +247,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'together',
     supportsVision: false,
     rateLimit: {
-      level: 'level2',
+      level: 'level3',
     },
     isWebSearchEnabled: false,
     reasoning: {
@@ -258,7 +274,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'together',
     supportsVision: false,
     rateLimit: {
-      level: 'level2',
+      level: 'level3',
     },
     isWebSearchEnabled: false,
     isEnabled: true,
@@ -279,7 +295,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'deepseek',
     supportsVision: false,
     rateLimit: {
-      level: 'level1',
+      level: 'level2',
     },
     isWebSearchEnabled: false,
     reasoning: {
@@ -306,7 +322,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'deepseek',
     supportsVision: false,
     rateLimit: {
-      level: 'level1',
+      level: 'level2',
     },
     isWebSearchEnabled: false,
     isEnabled: true,
@@ -327,7 +343,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'openai',
     supportsVision: true,
     rateLimit: {
-      level: 'level3',
+      level: 'level5',
     },
     isWebSearchEnabled: false,
     isEnabled: true,
@@ -346,7 +362,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'openai',
     supportsVision: true,
     rateLimit: {
-      level: 'level2',
+      level: 'level5',
     },
     isWebSearchEnabled: false,
     isEnabled: true,
@@ -366,7 +382,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     "provider": "openai",
     "supportsVision": true,
     "rateLimit": {
-      "level": "level3",
+      "level": "level5",
     },
     isWebSearchEnabled: false,
     isEnabled: true,
@@ -387,7 +403,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     "provider": "openai",
     "supportsVision": true,
     "rateLimit": {
-      "level": "level2",
+      "level": "level5",
     },
     isWebSearchEnabled: false,
     isEnabled: true,
@@ -427,7 +443,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'xai',
     supportsVision: true,
     rateLimit: {
-      level: 'level1',
+      level: 'level3',
     },
     isWebSearchEnabled: true,
     isEnabled: true,

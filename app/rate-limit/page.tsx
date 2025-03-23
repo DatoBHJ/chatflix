@@ -607,7 +607,7 @@ export default function RateLimitPage() {
               </div>
               
               {/* Golden Ticket Subscription Button */}
-              {/* <div className="mb-8 fade-in-up" style={{ animationDelay: '0.25s' }}>
+              <div className="mb-8 fade-in-up" style={{ animationDelay: '0.25s' }}>
                 <div className="p-4 bg-amber-50/10 border border-amber-200 rounded-sm">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
@@ -622,13 +622,13 @@ export default function RateLimitPage() {
                         aria-label="Get Premium Access"
                       >
                    
-                        <span className="text-2xl font-bold tracking-wide">$2</span>
+                        <span className="text-2xl font-bold tracking-wide">Start for $2</span>
                       </button>
                       
                     </div>
                   </div>
                 </div>
-              </div> */}
+              </div>
               
               {/* 사용자 메시지 스타일로 현재 채팅 표시 */}
               {chatId && chatTitle && (

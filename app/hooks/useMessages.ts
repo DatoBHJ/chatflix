@@ -72,6 +72,7 @@ export function useMessages(chatId: string, userId: string) {
 
   const handleEditSave = async (messageId: string, currentModel: string, messages: Message[], setMessages: (messages: Message[]) => void, reload: any) => {
     console.log('Starting edit save operation:', { 
+      currentModel,
       messageId, 
       userId, 
       chatId,
@@ -279,6 +280,14 @@ export function useMessages(chatId: string, userId: string) {
   }
 
   const handleRegenerate = useCallback((messageId: string, messages: Message[], setMessages: (messages: Message[]) => void, currentModel: string, reload: any) => async (e: React.MouseEvent) => {
+    console.log('Starting regenerate operation:', { 
+      currentModel,
+      messageId, 
+      userId, 
+      chatId,
+      messageContent: editingContent.substring(0, 100) + '...'
+    });
+    
     e.preventDefault()
     setIsRegenerating(true)
     

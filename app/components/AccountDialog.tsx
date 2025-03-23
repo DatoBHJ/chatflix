@@ -45,7 +45,7 @@ export function AccountDialog({ user, isOpen, onClose }: AccountDialogProps) {
       const hasSubscription = await checkSubscription(user.id);
       setIsSubscribed(hasSubscription);
     } catch (error) {
-      console.error('Error checking subscription:', error);
+      // console.error('Error checking subscription:', error);
       setIsSubscribed(false);
     }
   };
