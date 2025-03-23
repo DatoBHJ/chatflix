@@ -40,6 +40,56 @@ const getProviderColor = (provider: ModelConfig['provider']): string => {
   return colorMap[provider] || '#888888'; // Return gray as default
 };
 
+// Helper function to get color for speed level
+const getSpeedColor = (tps: number): string => {
+  if (tps >= 300) return 'text-neutral-900 font-bold text-base'; // Very Fast - emoji distinction
+  if (tps >= 200) return 'text-neutral-800 font-semibold text-base'; // Fast
+  if (tps >= 50) return 'text-neutral-700 font-medium text-sm';    // Medium
+  return 'text-neutral-500 font-light text-xs';                    // Slow
+};
+
+// Helper function to get color for intelligence level
+const getIntelligenceColor = (index: number): string => {
+  if (index >= 63) return 'text-neutral-900 font-bold text-base'; // Superior - emoji distinction
+  if (index >= 45) return 'text-neutral-800 font-semibold text-base'; // Advanced
+  if (index >= 35) return 'text-neutral-700 font-medium text-sm';   // Good
+  return 'text-neutral-500 font-light text-xs';                     // Basic
+};
+
+// Helper function to get color for context window size
+const getContextColor = (size: number): string => {
+  if (size >= 1024000) return 'text-neutral-900 font-bold text-base'; // Enormous - emoji distinction
+  if (size >= 200000) return 'text-neutral-800 font-semibold text-base';  // Very Large
+  if (size >= 128000) return 'text-neutral-700 font-semibold text-sm';  // Large
+  if (size >= 32000) return 'text-neutral-700 font-medium text-sm';     // Medium
+  return 'text-neutral-500 font-light text-xs';                         // Standard
+};
+
+// Function to get only weight for selected model display
+const getSpeedWeight = (tps: number): string => {
+  if (tps >= 300) return 'font-bold'; // Very Fast - emoji distinction
+  if (tps >= 200) return 'font-semibold'; // Fast
+  if (tps >= 50) return 'font-medium';    // Medium
+  return 'font-light';                    // Slow
+};
+
+// Function to get only weight for selected model intelligence display
+const getIntelligenceWeight = (index: number): string => {
+  if (index >= 63) return 'font-bold'; // Superior - emoji distinction
+  if (index >= 45) return 'font-semibold'; // Advanced
+  if (index >= 35) return 'font-medium';   // Good
+  return 'font-light';                     // Basic
+};
+
+// Function to get only weight for selected model context display
+const getContextWeight = (size: number): string => {
+  if (size >= 1024000) return 'font-bold'; // Enormous - emoji distinction
+  if (size >= 200000) return 'font-semibold';  // Very Large
+  if (size >= 128000) return 'font-semibold';  // Large
+  if (size >= 32000) return 'font-medium';     // Medium
+  return 'font-light';                         // Standard
+};
+
 // Model Performance Graph component
 const ModelPerformanceGraph = ({ 
   models, 
@@ -85,6 +135,19 @@ const ModelPerformanceGraph = ({
   const scaleY = (value: number) => {
     return height - padding.bottom - ((value - minIntelligence) / (maxIntelligence - minIntelligence)) * (height - padding.top - padding.bottom);
   };
+
+  // Calculate Chatflix median values
+  const chatflixMedianTps = validModels.length > 0 
+    ? validModels.map(m => m.tps as number).sort((a, b) => a - b)[Math.floor(validModels.length / 2)]
+    : 0;
+  
+  const chatflixMedianIntelligence = validModels.length > 0 
+    ? validModels.map(m => m.intelligenceIndex as number).sort((a, b) => a - b)[Math.floor(validModels.length / 2)]
+    : 0;
+
+  // General models median values (fixed)
+  const generalMedianTps = 81.5;
+  const generalMedianIntelligence = 47;
 
   // Generate X and Y axis ticks
   const xTicks = [0, Math.round(maxTps * 0.25), Math.round(maxTps * 0.5), Math.round(maxTps * 0.75), Math.round(maxTps)];
@@ -138,6 +201,92 @@ const ModelPerformanceGraph = ({
         {/* X and Y axis */}
         <line x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} stroke="var(--muted)" strokeWidth={isFullscreen ? "1.5" : "1"} />
         <line x1={padding.left} y1={padding.top} x2={padding.left} y2={height - padding.bottom} stroke="var(--muted)" strokeWidth={isFullscreen ? "1.5" : "1"} />
+        
+        {/* Median lines for general models */}
+        {/* <line 
+          x1={padding.left} 
+          y1={scaleY(generalMedianIntelligence)} 
+          x2={width - padding.right} 
+          y2={scaleY(generalMedianIntelligence)} 
+          stroke="#FF6B6B" 
+          strokeWidth={isFullscreen ? "1.2" : "0.9"} 
+          strokeDasharray="4,4"
+          opacity="0.7"
+        />
+        <line 
+          x1={scaleX(generalMedianTps)} 
+          y1={padding.top} 
+          x2={scaleX(generalMedianTps)} 
+          y2={height - padding.bottom} 
+          stroke="#FF6B6B" 
+          strokeWidth={isFullscreen ? "1.2" : "0.9"} 
+          strokeDasharray="4,4"
+          opacity="0.7"
+        /> */}
+        
+        {/* Median lines for Chatflix models */}
+        <line 
+          x1={padding.left} 
+          y1={scaleY(chatflixMedianIntelligence)} 
+          x2={width - padding.right} 
+          y2={scaleY(chatflixMedianIntelligence)} 
+          stroke="#6366F1" 
+          strokeWidth={isFullscreen ? "1.2" : "0.9"} 
+          strokeDasharray="2,4"
+          opacity="0.7"
+        />
+        <line 
+          x1={scaleX(chatflixMedianTps)} 
+          y1={padding.top} 
+          x2={scaleX(chatflixMedianTps)} 
+          y2={height - padding.bottom} 
+          stroke="#6366F1" 
+          strokeWidth={isFullscreen ? "1.2" : "0.9"} 
+          strokeDasharray="2,4"
+          opacity="0.7"
+        />
+        
+        {/* Labels for median lines */}
+        {/* <text 
+          x={width - padding.right - 10} 
+          y={scaleY(generalMedianIntelligence) - 5} 
+          textAnchor="end" 
+          fontSize={tickFontSize} 
+          fill="#FF6B6B"
+          opacity="0.9"
+        >
+          General Models Median (47)
+        </text>
+        <text 
+          x={scaleX(generalMedianTps)} 
+          y={padding.top + 15} 
+          textAnchor="middle" 
+          fontSize={tickFontSize} 
+          fill="#FF6B6B"
+          opacity="0.9"
+        >
+          General (81.5)
+        </text> */}
+        <text 
+          x={width - padding.right - 10} 
+          y={scaleY(chatflixMedianIntelligence) - 5} 
+          textAnchor="end" 
+          fontSize={tickFontSize} 
+          fill="#6366F1"
+          opacity="0.9"
+        >
+          Chatflix Median ({chatflixMedianIntelligence.toFixed(1)})
+        </text>
+        <text 
+          x={scaleX(chatflixMedianTps)} 
+          y={padding.top + 30} 
+          textAnchor="middle" 
+          fontSize={tickFontSize} 
+          fill="#6366F1"
+          opacity="0.9"
+        >
+          Chatflix ({chatflixMedianTps.toFixed(1)})
+        </text>
         
         {/* X axis label */}
         <text x={width / 2} y={height - (isFullscreen ? 20 : 10)} textAnchor="middle" fontSize={labelFontSize} fill="var(--muted)">
@@ -868,13 +1017,13 @@ export function ModelSelector({
               {currentModelOption.tps && (
                 <div className="inline-flex items-center gap-0.5">
                   <span className={`text-[9px] uppercase tracking-wider opacity-60 ${isMobile ? 'hidden sm:inline' : ''}`}>Speed</span>
-                  <span className="text-[10px] uppercase font-medium bg-[var(--accent)]/10 px-1 py-0.5 rounded-sm flex items-center">
+                  <span className={`uppercase rounded-sm flex items-center ${typeof currentModelOption.tps === 'number' ? getSpeedWeight(currentModelOption.tps) + ' bg-[var(--accent)]/20 px-1.5 py-0.5 text-[10px]' : 'text-[var(--accent)] text-[10px] font-medium px-1 py-0.5'}`}>
                     {typeof currentModelOption.tps === 'number' ? (
                       <>
                         {currentModelOption.tps >= 300 ? '⚡️ Very Fast' : 
                          currentModelOption.tps >= 200 ? 'Fast' : 
-                         currentModelOption.tps >= 100 ? 'Medium' : 'Slow'}
-                        <span className="text-[8px] ml-1 opacity-60">({currentModelOption.tps.toFixed(1)})</span>
+                         currentModelOption.tps >= 50 ? 'Medium' : 'Slow'}
+                        <span className="text-[8px] ml-1 opacity-80">({currentModelOption.tps.toFixed(1)})</span>
                       </>
                     ) : currentModelOption.tps}
                   </span>
@@ -884,13 +1033,13 @@ export function ModelSelector({
               {currentModelOption.intelligenceIndex && (
                 <div className="inline-flex items-center gap-0.5">
                   <span className={`text-[9px] uppercase tracking-wider opacity-60 ${isMobile ? 'hidden sm:inline' : ''}`}>Intelligence</span>
-                  <span className="text-[10px] uppercase font-medium bg-[var(--accent)]/10 px-1 py-0.5 rounded-sm flex items-center">
+                  <span className={`uppercase rounded-sm flex items-center ${typeof currentModelOption.intelligenceIndex === 'number' ? getIntelligenceWeight(currentModelOption.intelligenceIndex) + ' bg-[var(--accent)]/20 px-1.5 py-0.5 text-[10px]' : 'text-[var(--accent)] text-[10px] font-medium px-1 py-0.5'}`}>
                     {typeof currentModelOption.intelligenceIndex === 'number' ? (
                       <>
-                        {currentModelOption.intelligenceIndex >= 55 ? '🧠 Superior' : 
+                        {currentModelOption.intelligenceIndex >= 63 ? '🧠 Superior' : 
                          currentModelOption.intelligenceIndex >= 45 ? 'Advanced' : 
                          currentModelOption.intelligenceIndex >= 35 ? 'Good' : 'Basic'}
-                        <span className="text-[8px] ml-1 opacity-60">({currentModelOption.intelligenceIndex.toFixed(1)})</span>
+                        <span className="text-[8px] ml-1 opacity-80">({currentModelOption.intelligenceIndex.toFixed(1)})</span>
                       </>
                     ) : currentModelOption.intelligenceIndex}
                   </span>
@@ -900,14 +1049,14 @@ export function ModelSelector({
               {currentModelOption.contextWindow && (
                 <div className="inline-flex items-center gap-0.5">
                   <span className={`text-[9px] uppercase tracking-wider opacity-60 ${isMobile ? 'hidden sm:inline' : ''}`}>Context</span>
-                  <span className="text-[10px] uppercase font-medium bg-[var(--accent)]/10 px-1 py-0.5 rounded-sm flex items-center">
+                  <span className={`uppercase rounded-sm flex items-center ${typeof currentModelOption.contextWindow === 'number' ? getContextWeight(currentModelOption.contextWindow) + ' bg-[var(--accent)]/20 px-1.5 py-0.5 text-[10px]' : 'text-[var(--accent)] text-[10px] font-medium px-1 py-0.5'}`}>
                     {typeof currentModelOption.contextWindow === 'number' ? (
                       <>
                         {currentModelOption.contextWindow >= 1024000 ? '📚 Enormous' : 
                          currentModelOption.contextWindow >= 200000 ? 'Very Large' : 
                          currentModelOption.contextWindow >= 128000 ? 'Large' : 
                          currentModelOption.contextWindow >= 32000 ? 'Medium' : 'Standard'}
-                        <span className="text-[8px] ml-1 opacity-60">({(currentModelOption.contextWindow / 1000).toFixed(0)}K)</span>
+                        <span className="text-[8px] ml-1 opacity-80">({(currentModelOption.contextWindow / 1000).toFixed(0)}K)</span>
                       </>
                     ) : currentModelOption.contextWindow}
                   </span>
@@ -1079,13 +1228,13 @@ export function ModelSelector({
                                 {option.tps && (
                                   <div className="inline-flex items-center gap-1">
                                     <span className="text-[10px] uppercase tracking-wider opacity-60">Speed</span>
-                                    <span className="text-base uppercase font-bold bg-[var(--accent)]/10 px-1.5 py-0.5 rounded-sm flex items-center">
+                                    <span className={`uppercase rounded-sm flex items-center ${typeof option.tps === 'number' ? getSpeedColor(option.tps) + ' bg-[var(--accent)]/20 px-1.5 py-0.5' : 'text-[var(--accent)] text-base font-bold px-1.5 py-0.5'}`}>
                                       {typeof option.tps === 'number' ? (
                                         <>
                                           {option.tps >= 300 ? '⚡️ Very Fast' : 
                                            option.tps >= 200 ? 'Fast' : 
-                                           option.tps >= 100 ? 'Medium' : 'Slow'}
-                                          <span className="text-[9px] ml-1 opacity-60">({option.tps.toFixed(1)})</span>
+                                           option.tps >= 50 ? 'Medium' : 'Slow'}
+                                          <span className="text-[9px] ml-1 opacity-80">({option.tps.toFixed(1)})</span>
                                         </>
                                       ) : option.tps}
                                     </span>
@@ -1095,40 +1244,30 @@ export function ModelSelector({
                                 {option.intelligenceIndex && (
                                   <div className="inline-flex items-center gap-1">
                                     <span className="text-[10px] uppercase tracking-wider opacity-60">Intelligence</span>
-                                    <span className="text-base uppercase font-bold bg-[var(--accent)]/10 px-1.5 py-0.5 rounded-sm flex items-center">
+                                    <span className={`uppercase rounded-sm flex items-center ${typeof option.intelligenceIndex === 'number' ? getIntelligenceColor(option.intelligenceIndex) + ' bg-[var(--accent)]/20 px-1.5 py-0.5' : 'text-[var(--accent)] text-base font-bold px-1.5 py-0.5'}`}>
                                       {typeof option.intelligenceIndex === 'number' ? (
                                         <>
-                                          {option.intelligenceIndex >= 55 ? '🧠 Superior' : 
+                                          {option.intelligenceIndex >= 63 ? '🧠 Superior' : 
                                            option.intelligenceIndex >= 45 ? 'Advanced' : 
                                            option.intelligenceIndex >= 35 ? 'Good' : 'Basic'}
-                                          <span className="text-[9px] ml-1 opacity-60">({option.intelligenceIndex.toFixed(1)})</span>
+                                          <span className="text-[9px] ml-1 opacity-80">({option.intelligenceIndex.toFixed(1)})</span>
                                         </>
                                       ) : option.intelligenceIndex}
                                     </span>
                                   </div>
                                 )}
                                 
-                                {/* Web Search Support indicator */}
-                                {/* {isWebSearchEnabled && (
-                                  <div className="inline-flex items-center gap-1">
-                                    <span className="text-[10px] uppercase tracking-wider opacity-60">Web Search</span>
-                                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded-sm flex items-center ${option.isWebSearchEnabled ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-red-500/10 text-red-600 dark:text-red-400'}`}>
-                                      {option.isWebSearchEnabled ? 'Supported' : 'Not Supported'}
-                                    </span>
-                                  </div>
-                                )}
-                                 */}
                                 {option.contextWindow && (
                                   <div className="inline-flex items-center gap-1">
                                     <span className="text-[10px] uppercase tracking-wider opacity-60">Context</span>
-                                    <span className="text-base uppercase font-bold bg-[var(--accent)]/10 px-1.5 py-0.5 rounded-sm flex items-center">
+                                    <span className={`uppercase rounded-sm flex items-center ${typeof option.contextWindow === 'number' ? getContextColor(option.contextWindow) + ' bg-[var(--accent)]/20 px-1.5 py-0.5' : 'text-[var(--accent)] text-base font-bold px-1.5 py-0.5'}`}>
                                       {typeof option.contextWindow === 'number' ? (
                                         <>
                                           {option.contextWindow >= 1024000 ? '📚 Enormous' : 
                                            option.contextWindow >= 200000 ? 'Very Large' : 
                                            option.contextWindow >= 128000 ? 'Large' : 
                                            option.contextWindow >= 32000 ? 'Medium' : 'Standard'}
-                                          <span className="text-[9px] ml-1 opacity-60">({(option.contextWindow / 1000).toFixed(0)}K)</span>
+                                          <span className="text-[9px] ml-1 opacity-80">({(option.contextWindow / 1000).toFixed(0)}K)</span>
                                         </>
                                       ) : option.contextWindow}
                                     </span>

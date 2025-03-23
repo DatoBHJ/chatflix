@@ -1,6 +1,7 @@
 export interface ModelConfig {
   id: string;
   name: string;
+  country: string;
   description: string;
   provider: 'anthropic' | 'openai' | 'google' | 'deepseek' | 'together' | 'groq' | 'xai';
   supportsVision: boolean;
@@ -25,7 +26,6 @@ export interface ModelConfig {
   GPQA?: number; // GPQA Diamond (Scientific Reasoning)
   multilingual?: number
   HLE?: number // HLE's Last Exam (Reasoning & Knowledge)
-
 }
 
 // Default model configuration
@@ -176,6 +176,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'claude-3-7-sonnet-20250219',
     name: 'Claude 3.7 Sonnet (Thinking)',
+    country: 'US',
     description: "Anthropic's most intelligent model yet with extended thinking capability.",
     provider: 'anthropic',
     supportsVision: true,
@@ -202,6 +203,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'claude-3-7-sonnet-latest',
     name: 'Claude 3.7 Sonnet',
+    country: 'US',
     description: "Anthropic's most intelligent model.",
     provider: 'anthropic',
     supportsVision: true,
@@ -222,13 +224,14 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'claude-3-5-sonnet-latest',
     name: 'Claude 3.5 Sonnet',
+    country: 'US',
     description: 'Coding GOAT',
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
       level: 'level4',
     },
-    isWebSearchEnabled: true,
+    isWebSearchEnabled: false,
     isEnabled: true,
     contextWindow: 200000,
     tps: 77,
@@ -243,6 +246,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'deepseek-ai/DeepSeek-R1',
     name: 'DeepSeek R1 (Thinking)',
+    country: 'CHINA',
     description: 'The best open source reasoning model by DeepSeek via Together.ai',
     provider: 'together',
     supportsVision: false,
@@ -270,6 +274,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'deepseek-ai/DeepSeek-V3',
     name: 'DeepSeek V3',
+    country: 'CHINA',
     description: 'The best open source non-reasoning model by DeepSeek via Together.ai',
     provider: 'together',
     supportsVision: false,
@@ -291,6 +296,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'deepseek-reasoner',
     name: 'DeepSeek R1 (Thinking)',
+    country: 'CHINA',
     description: 'The best open source reasoning model by DeepSeek',
     provider: 'deepseek',
     supportsVision: false,
@@ -318,13 +324,14 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'deepseek-chat',
     name: 'DeepSeek V3',
+    country: 'CHINA',
     description: 'The best open source non-reasoning model by DeepSeek',
     provider: 'deepseek',
     supportsVision: false,
     rateLimit: {
       level: 'level2',
     },
-    isWebSearchEnabled: false,
+    isWebSearchEnabled: true,
     isEnabled: true,
     contextWindow: 128000,
     tps: 29,
@@ -339,6 +346,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'gpt-4.5-preview',
     name: 'GPT-4.5',
+    country: 'US',
     description: 'Latest and most capable GPT model yet by OpenAI',
     provider: 'openai',
     supportsVision: true,
@@ -358,6 +366,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'chatgpt-4o-latest',
     name: 'GPT-4o',
+    country: 'US',
     description: 'Latest version of GPT-4o used in ChatGPT',
     provider: 'openai',
     supportsVision: true,
@@ -378,6 +387,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     "id": "o1",
     "name": "o1 (Thinking)",
+    "country": 'US',
     "description": "Advanced reasoning model by OpenAI. Reasoning tokens used in its chain-of-thought process are hidden by OpenAI and not included in the visible output.",
     "provider": "openai",
     "supportsVision": true,
@@ -399,9 +409,10 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     "id": "o3-mini",
     "name": "o3-mini (Thinking)",
+    "country": 'US',
     "description": "Latest small reasoning model by OpenAI. Reasoning tokens used in its chain-of-thought process are hidden by OpenAI and not included in the visible output.",
     "provider": "openai",
-    "supportsVision": true,
+    "supportsVision": false,
     "rateLimit": {
       "level": "level5",
     },
@@ -419,6 +430,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'gemini-2.0-flash',
     name: 'Gemini 2.0 Flash',
+    country: 'US',
     description: 'Latest model with 1m context window by Google',
     provider: 'google',
     supportsVision: true,
@@ -439,13 +451,14 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'grok-2-vision-latest',
     name: 'Grok 2 Vision',
+    country: 'US',
     description: 'Grok 2 by xAI',
     provider: 'xai',
     supportsVision: true,
     rateLimit: {
       level: 'level3',
     },
-    isWebSearchEnabled: true,
+    isWebSearchEnabled: false,
     isEnabled: true,
     contextWindow: 128000,
     tps: 67, 
@@ -459,6 +472,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'llama-3.3-70b-versatile',
     name: 'Llama 3.3 70B',
+    country: 'US',
     description: 'Llama 3.3 70B by Meta via Groq',
     provider: 'groq',
     supportsVision: false,
@@ -480,6 +494,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'qwen-qwq-32b',
     name: 'QwQ-32B (Thinking)',
+    country: 'CHINA',
     description: "Alibaba's latest model. Excels at mathematical reasoning, coding, and complex-problem solving with performance rivaling the likes of DeepSeek-R1 and o1-mini.",
     provider: 'groq',
     supportsVision: false,
