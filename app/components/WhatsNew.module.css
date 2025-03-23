@@ -1,0 +1,290 @@
+/* WhatsNew module styles */
+
+.whatsNewModal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--overlay);
+  backdrop-filter: blur(8px);
+}
+
+.modalContent {
+  position: relative;
+  background-color: var(--background);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 1024px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  margin: 1rem;
+}
+
+.header {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--subtle-divider);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.closeButton {
+  color: var(--muted);
+  transition: var(--transition);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.closeButton:hover {
+  color: var(--foreground);
+}
+
+/* 스크롤바 숨김 클래스 */
+.hideScrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+.hideScrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+.contentWrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto; /* Single scroll for mobile */
+  overscroll-behavior: contain;
+}
+
+.sidebar {
+  width: 100%;
+  border-bottom: 1px solid var(--subtle-divider);
+  overflow-y: visible; /* Remove vertical scroll on mobile */
+  flex-shrink: 0;
+}
+
+.sidebarScroller {
+  display: flex;
+  overflow-x: auto;
+  padding: 0;
+  margin: 0;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+}
+
+.sidebarItem {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+}
+
+.sidebarButton {
+  text-align: left;
+  padding: 1.25rem 1.5rem;
+  transition: var(--transition);
+  white-space: nowrap;
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sidebarButtonActive {
+  background-color: var(--accent);
+  border-bottom: 1px solid var(--foreground);
+}
+
+.sidebarButtonInactive {
+  color: var(--muted);
+}
+
+.sidebarButtonInactive:hover {
+  background-color: var(--accent);
+  color: var(--foreground);
+}
+
+.mainContent {
+  flex: 1;
+  overflow-y: visible; /* Remove vertical scroll on mobile */
+  padding: 1.5rem;
+}
+
+.updateTitle {
+  font-size: 1.5rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  margin-bottom: 0.25rem;
+}
+
+.updateDate {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 1.5rem;
+}
+
+.updateImage {
+  margin-bottom: 2rem;
+  border: 1px solid var(--subtle-divider);
+  overflow: hidden;
+  width: 100%;
+}
+
+/* 갤러리 관련 스타일 */
+.galleryContainer {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.galleryImageWrapper {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.galleryControls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+}
+
+.galleryButton {
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.galleryButton:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.galleryCounter {
+  font-size: 0.75rem;
+}
+
+.galleryThumbnails {
+  display: flex;
+  overflow-x: auto;
+  padding: 0.5rem 0;
+  gap: 0.5rem;
+}
+
+.galleryThumbnail {
+  width: 60px;
+  height: 40px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.2s;
+  overflow: hidden;
+}
+
+.activeThumbnail {
+  border-color: var(--foreground);
+}
+
+.updateDescription {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  margin-bottom: 2rem;
+  color: var(--foreground);
+}
+
+.sectionTitle {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+
+.highlightsList {
+  margin-bottom: 2rem;
+}
+
+.instructionsList {
+  border-top: 1px solid var(--subtle-divider);
+  padding-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.listItem {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.listNumber {
+  margin-right: 0.75rem;
+  font-size: 0.75rem;
+  background-color: var(--accent);
+  padding: 0.25rem 0.5rem;
+  font-weight: 500;
+  display: inline-block;
+}
+
+/* Media queries for responsive design */
+@media (min-width: 768px) {
+  .modalContent {
+    margin: 2rem;
+  }
+  
+  .contentWrapper {
+    flex-direction: row;
+    overflow-y: hidden; /* Reset for desktop */
+  }
+  
+  .sidebar {
+    width: 33.333%;
+    border-bottom: none;
+    border-right: 1px solid var(--subtle-divider);
+    overflow-y: auto; /* Enable vertical scroll for sidebar on desktop */
+  }
+  
+  .sidebarScroller {
+    display: block;
+    overflow-x: visible;
+    padding: 0.5rem 0;
+  }
+  
+  .sidebarButton {
+    white-space: normal;
+  }
+  
+  .sidebarButtonActive {
+    border-bottom: none;
+    border-left: 1px solid var(--foreground);
+  }
+  
+  .mainContent {
+    overflow-y: auto; /* Enable vertical scroll for content on desktop */
+  }
+  
+  .updateTitle {
+    font-size: 1.75rem;
+  }
+} 

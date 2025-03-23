@@ -4,8 +4,11 @@ import { AIMessageContent, MessageRole } from '../types';
 
 export const generateMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-export const fetchFileContent = async (url: string, supabase?: any): Promise<string | null> => {
+export const fetchFileContent = async (url: string, supabase?: any, fileType?: string): Promise<{ text?: string; base64?: string } | null> => {
   try {
+    // Special handling for PDFs - always get binary data
+    const isPDF = fileType === 'pdf' || url.includes('.pdf') || url.includes('application/pdf');
+    
     if (url.includes('chat_attachments') && supabase) {
       const filePath = url.split('chat_attachments/')[1]?.split('?')[0];
       if (filePath) {
@@ -19,7 +22,17 @@ export const fetchFileContent = async (url: string, supabase?: any): Promise<str
             return null;
           }
           
-          return await data.text();
+          if (isPDF) {
+            // For PDFs, return base64 encoded data
+            const arrayBuffer = await data.arrayBuffer();
+            const bytes = new Uint8Array(arrayBuffer);
+            const binary = bytes.reduce((acc, byte) => acc + String.fromCharCode(byte), '');
+            const base64Data = btoa(binary);
+            return { base64: base64Data };
+          } else {
+            // For text files, return text content
+            return { text: await data.text() };
+          }
         } catch (err) {
           console.error('Error processing Supabase file:', err);
           return null;
@@ -33,12 +46,31 @@ export const fetchFileContent = async (url: string, supabase?: any): Promise<str
         console.error(`Failed to fetch file content: ${response.statusText}`);
         return null;
       }
-      return await response.text();
+      
+      if (isPDF) {
+        // For PDFs, return base64 encoded data
+        const arrayBuffer = await response.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        const binary = bytes.reduce((acc, byte) => acc + String.fromCharCode(byte), '');
+        const base64Data = btoa(binary);
+        return { base64: base64Data };
+      } else {
+        // For text files, return text content
+        return { text: await response.text() };
+      }
     }
     else if (url.startsWith('data:')) {
-      const base64Content = url.split(',')[1];
-      if (base64Content) {
-        return atob(base64Content);
+      // Data URLs are already properly formatted, no need to modify
+      if (url.includes('base64,')) {
+        // Extract base64 part if it's already in that format
+        const base64Content = url.split(',')[1];
+        if (base64Content) {
+          if (isPDF) {
+            return { base64: base64Content };
+          } else {
+            return { text: atob(base64Content) };
+          }
+        }
       }
     }
     return null;
@@ -98,7 +130,8 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
         let content = null;
         
         try {
-          content = await fetchFileContent(attachment.url, supabase);
+          const fetchResult = await fetchFileContent(attachment.url, supabase, fileType);
+          content = fetchResult?.text || `[Could not fetch content for ${fileName}]`;
         } catch (error) {
           console.error(`Error fetching content for ${fileName}:`, error);
         }
@@ -119,44 +152,80 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
     });
   }
   
-  const otherAttachments = message.experimental_attachments
-    .filter(attachment => {
-      return !attachment.contentType?.startsWith('image/') && 
-             !attachment.contentType?.includes('text') && 
-             (attachment as any).fileType !== 'code';
-    });
-  
-  const pdfAttachments = otherAttachments.filter(attachment => 
+  // Handle PDFs using proper document format for Claude models
+  const pdfAttachments = message.experimental_attachments.filter(attachment => 
     attachment.contentType === 'application/pdf' || 
     (attachment.name && attachment.name.toLowerCase().endsWith('.pdf'))
   );
   
   if (pdfAttachments.length > 0) {
-    parts.push({
-      type: 'text',
-      text: `\n\nPDF documents attached:\n${pdfAttachments.map(attachment => {
-        return `PDF: ${attachment.name || 'Unnamed PDF'}\nURL: ${attachment.url}\n`;
-      }).join('\n')}`
-    });
+    console.log(`Processing ${pdfAttachments.length} PDF attachments`);
     
-    const nonPdfAttachments = otherAttachments.filter(attachment => 
-      !(attachment.contentType === 'application/pdf' || 
-        (attachment.name && attachment.name.toLowerCase().endsWith('.pdf')))
-    );
-    
-    if (nonPdfAttachments.length > 0) {
-      parts.push({
-        type: 'text',
-        text: `\n\nOther attached files:\n${nonPdfAttachments.map(attachment => {
-          return `File: ${attachment.name || 'Unnamed file'}\nURL: ${attachment.url}\nType: ${(attachment as any).fileType || attachment.contentType || 'Unknown'}\n`;
-        }).join('\n')}`
-      });
+    // Process each PDF
+    for (const attachment of pdfAttachments) {
+      const fileName = attachment.name || 'Unnamed PDF';
+      try {
+        // Download and convert PDF to base64
+        const fileResult = await fetchFileContent(attachment.url, supabase, 'pdf');
+        
+        if (fileResult?.base64) {
+          // For Claude, add document in proper format
+          if (modelId.includes('claude')) {
+            parts.push({
+              type: 'document' as any,
+              source: {
+                type: 'base64',
+                media_type: 'application/pdf',
+                data: fileResult.base64
+              }
+            } as any);
+            console.log(`Added PDF "${fileName}" as document object for Claude`);
+          } else {
+            // For other models, include as data URL
+            parts.push({
+              type: 'text',
+              text: `\n\nPDF Document: ${fileName}\n`
+            });
+            
+            // Create data URL reference to the PDF
+            parts.push({
+              type: 'image' as any, // Some models handle PDFs through image type
+              image: `data:application/pdf;base64,${fileResult.base64}`
+            });
+            console.log(`Added PDF "${fileName}" as data URL for generic model`);
+          }
+        } else {
+          // Fallback: just mention the PDF
+          parts.push({
+            type: 'text',
+            text: `\n\nPDF Document: ${fileName} (Could not process the PDF content)\n`
+          });
+          console.log(`Could not process PDF "${fileName}"`);
+        }
+      } catch (error) {
+        console.error(`Error processing PDF ${fileName}:`, error);
+        parts.push({
+          type: 'text',
+          text: `\n\nPDF Document: ${fileName} (Error processing the PDF)\n`
+        });
+      }
     }
-  } else if (otherAttachments.length > 0) {
+  }
+  
+  const otherAttachments = message.experimental_attachments
+    .filter(attachment => {
+      return !attachment.contentType?.startsWith('image/') && 
+             !attachment.contentType?.includes('text') && 
+             (attachment as any).fileType !== 'code' &&
+             attachment.contentType !== 'application/pdf' &&
+             !(attachment.name && attachment.name.toLowerCase().endsWith('.pdf'));
+    });
+  
+  if (otherAttachments.length > 0) {
     parts.push({
       type: 'text',
       text: `\n\nOther attached files:\n${otherAttachments.map(attachment => {
-        return `File: ${attachment.name || 'Unnamed file'}\nURL: ${attachment.url}\nType: ${(attachment as any).fileType || attachment.contentType || 'Unknown'}\n`;
+        return `File: ${attachment.name || 'Unnamed file'}\nType: ${(attachment as any).fileType || attachment.contentType || 'Unknown'}\n`;
       }).join('\n')}`
     });
   }
