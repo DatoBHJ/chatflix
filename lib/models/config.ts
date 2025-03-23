@@ -450,7 +450,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level1',
     },
     isWebSearchEnabled: true,
-    supportsPDFs: true,
+    supportsPDFs: false,
     isEnabled: true,
     contextWindow: 1024000,
     tps: 258,

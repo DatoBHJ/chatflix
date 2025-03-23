@@ -99,9 +99,9 @@ export default function RootLayoutClient({
       //   "First input latency issue with reasoning models"
       // );
       showAnnouncement(
-        "(Experimental) New Feature: PDF support for Anthropic & Google models",
+        "(Experimental) New Feature: PDF support for Anthropic models",
         "info",
-        "NEW FEATURE: PDF support"
+        "NEW FEATURE: PDF support for Anthropic models"
       );
       // showAnnouncement(
       //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Thank you for your patience and understanding.",
