@@ -42,52 +42,42 @@ const getProviderColor = (provider: ModelConfig['provider']): string => {
 
 // Helper function to get color for speed level
 const getSpeedColor = (tps: number): string => {
-  if (tps >= 300) return 'text-neutral-900 font-bold text-base'; // Very Fast - emoji distinction
-  if (tps >= 200) return 'text-neutral-800 font-semibold text-base'; // Fast
-  if (tps >= 50) return 'text-neutral-700 font-medium text-sm';    // Medium
-  return 'text-neutral-500 font-light text-xs';                    // Slow
+  if (tps >= 300) return 'text-[var(--foreground)] font-medium text-sm'; // Very Fast - emoji distinction
+  if (tps >= 200) return 'text-[var(--foreground)] font-medium text-sm'; // Fast
+  if (tps >= 50) return 'text-[var(--foreground)] font-medium text-sm';    // Medium
+  return 'text-[var(--foreground)] font-medium text-sm';                    // Slow
 };
 
 // Helper function to get color for intelligence level
 const getIntelligenceColor = (index: number): string => {
-  if (index >= 63) return 'text-neutral-900 font-bold text-base'; // Superior - emoji distinction
-  if (index >= 45) return 'text-neutral-800 font-semibold text-base'; // Advanced
-  if (index >= 35) return 'text-neutral-700 font-medium text-sm';   // Good
-  return 'text-neutral-500 font-light text-xs';                     // Basic
+  if (index >= 63) return 'text-[var(--foreground)] font-medium text-sm'; // Superior - emoji distinction
+  if (index >= 45) return 'text-[var(--foreground)] font-medium text-sm'; // Advanced
+  if (index >= 35) return 'text-[var(--foreground)] font-medium text-sm';   // Good
+  return 'text-[var(--foreground)] font-medium text-sm';                     // Basic
 };
 
 // Helper function to get color for context window size
 const getContextColor = (size: number): string => {
-  if (size >= 1024000) return 'text-neutral-900 font-bold text-base'; // Enormous - emoji distinction
-  if (size >= 200000) return 'text-neutral-800 font-semibold text-base';  // Very Large
-  if (size >= 128000) return 'text-neutral-700 font-semibold text-sm';  // Large
-  if (size >= 32000) return 'text-neutral-700 font-medium text-sm';     // Medium
-  return 'text-neutral-500 font-light text-xs';                         // Standard
+  if (size >= 1024000) return 'text-[var(--foreground)] font-medium text-sm'; // Enormous - emoji distinction
+  if (size >= 200000) return 'text-[var(--foreground)] font-medium text-sm';  // Very Large
+  if (size >= 128000) return 'text-[var(--foreground)] font-medium text-sm';  // Large
+  if (size >= 32000) return 'text-[var(--foreground)] font-medium text-sm';     // Medium
+  return 'text-[var(--foreground)] font-medium text-sm';                         // Standard
 };
 
 // Function to get only weight for selected model display
 const getSpeedWeight = (tps: number): string => {
-  if (tps >= 300) return 'font-bold'; // Very Fast - emoji distinction
-  if (tps >= 200) return 'font-semibold'; // Fast
-  if (tps >= 50) return 'font-medium';    // Medium
-  return 'font-light';                    // Slow
+  return 'font-medium';  // Unified weight
 };
 
 // Function to get only weight for selected model intelligence display
 const getIntelligenceWeight = (index: number): string => {
-  if (index >= 63) return 'font-bold'; // Superior - emoji distinction
-  if (index >= 45) return 'font-semibold'; // Advanced
-  if (index >= 35) return 'font-medium';   // Good
-  return 'font-light';                     // Basic
+  return 'font-medium';  // Unified weight
 };
 
 // Function to get only weight for selected model context display
 const getContextWeight = (size: number): string => {
-  if (size >= 1024000) return 'font-bold'; // Enormous - emoji distinction
-  if (size >= 200000) return 'font-semibold';  // Very Large
-  if (size >= 128000) return 'font-semibold';  // Large
-  if (size >= 32000) return 'font-medium';     // Medium
-  return 'font-light';                         // Standard
+  return 'font-medium';  // Unified weight
 };
 
 // Model Performance Graph component
@@ -1020,9 +1010,9 @@ export function ModelSelector({
                   <span className={`uppercase rounded-sm flex items-center ${typeof currentModelOption.tps === 'number' ? getSpeedWeight(currentModelOption.tps) + ' bg-[var(--accent)]/20 px-1.5 py-0.5 text-[10px]' : 'text-[var(--accent)] text-[10px] font-medium px-1 py-0.5'}`}>
                     {typeof currentModelOption.tps === 'number' ? (
                       <>
-                        {currentModelOption.tps >= 300 ? '⚡️ Very Fast' : 
-                         currentModelOption.tps >= 200 ? 'Fast' : 
-                         currentModelOption.tps >= 50 ? 'Medium' : 'Slow'}
+                        {currentModelOption.tps >= 300 ? '⚡️⚡️⚡️ Very Fast' : 
+                         currentModelOption.tps >= 200 ? '⚡️⚡️ Fast' : 
+                         currentModelOption.tps >= 50 ? '⚡️ Medium' : 'Slow'}
                         <span className="text-[8px] ml-1 opacity-80">({currentModelOption.tps.toFixed(1)})</span>
                       </>
                     ) : currentModelOption.tps}
@@ -1036,10 +1026,10 @@ export function ModelSelector({
                   <span className={`uppercase rounded-sm flex items-center ${typeof currentModelOption.intelligenceIndex === 'number' ? getIntelligenceWeight(currentModelOption.intelligenceIndex) + ' bg-[var(--accent)]/20 px-1.5 py-0.5 text-[10px]' : 'text-[var(--accent)] text-[10px] font-medium px-1 py-0.5'}`}>
                     {typeof currentModelOption.intelligenceIndex === 'number' ? (
                       <>
-                        {currentModelOption.intelligenceIndex >= 63 ? '🧠 Superior' : 
-                         currentModelOption.intelligenceIndex >= 45 ? 'Advanced' : 
-                         currentModelOption.intelligenceIndex >= 35 ? 'Good' : 'Basic'}
-                        <span className="text-[8px] ml-1 opacity-80">({currentModelOption.intelligenceIndex.toFixed(1)})</span>
+                        {currentModelOption.intelligenceIndex >= 63 ? '🧠🧠🧠 Superior' : 
+                         currentModelOption.intelligenceIndex >= 45 ? '🧠🧠 Advanced' : 
+                         currentModelOption.intelligenceIndex >= 35 ? '🧠 Good' : 'Basic'}
+                        <span className="text-[9px] ml-1 opacity-80">({currentModelOption.intelligenceIndex.toFixed(1)})</span>
                       </>
                     ) : currentModelOption.intelligenceIndex}
                   </span>
@@ -1052,11 +1042,11 @@ export function ModelSelector({
                   <span className={`uppercase rounded-sm flex items-center ${typeof currentModelOption.contextWindow === 'number' ? getContextWeight(currentModelOption.contextWindow) + ' bg-[var(--accent)]/20 px-1.5 py-0.5 text-[10px]' : 'text-[var(--accent)] text-[10px] font-medium px-1 py-0.5'}`}>
                     {typeof currentModelOption.contextWindow === 'number' ? (
                       <>
-                        {currentModelOption.contextWindow >= 1024000 ? '📚 Enormous' : 
-                         currentModelOption.contextWindow >= 200000 ? 'Very Large' : 
-                         currentModelOption.contextWindow >= 128000 ? 'Large' : 
-                         currentModelOption.contextWindow >= 32000 ? 'Medium' : 'Standard'}
-                        <span className="text-[8px] ml-1 opacity-80">({(currentModelOption.contextWindow / 1000).toFixed(0)}K)</span>
+                        {currentModelOption.contextWindow >= 1024000 ? '📚📚📚📚📚 Enormous' : 
+                         currentModelOption.contextWindow >= 200000 ? '📚📚 Very Large' : 
+                         currentModelOption.contextWindow >= 128000 ? '📚 Large' : 
+                         currentModelOption.contextWindow >= 32000 ? '📚 Medium' : 'Standard'}
+                        <span className="text-[9px] ml-1 opacity-80">({(currentModelOption.contextWindow / 1000).toFixed(0)}K)</span>
                       </>
                     ) : currentModelOption.contextWindow}
                   </span>
@@ -1231,9 +1221,9 @@ export function ModelSelector({
                                     <span className={`uppercase rounded-sm flex items-center ${typeof option.tps === 'number' ? getSpeedColor(option.tps) + ' bg-[var(--accent)]/20 px-1.5 py-0.5' : 'text-[var(--accent)] text-base font-bold px-1.5 py-0.5'}`}>
                                       {typeof option.tps === 'number' ? (
                                         <>
-                                          {option.tps >= 300 ? '⚡️ Very Fast' : 
-                                           option.tps >= 200 ? 'Fast' : 
-                                           option.tps >= 50 ? 'Medium' : 'Slow'}
+                                          {option.tps >= 300 ? '⚡️⚡️⚡️ Very Fast' : 
+                                           option.tps >= 200 ? '⚡️⚡️ Fast' : 
+                                           option.tps >= 50 ? '⚡️ Medium' : 'Slow'}
                                           <span className="text-[9px] ml-1 opacity-80">({option.tps.toFixed(1)})</span>
                                         </>
                                       ) : option.tps}
@@ -1247,9 +1237,9 @@ export function ModelSelector({
                                     <span className={`uppercase rounded-sm flex items-center ${typeof option.intelligenceIndex === 'number' ? getIntelligenceColor(option.intelligenceIndex) + ' bg-[var(--accent)]/20 px-1.5 py-0.5' : 'text-[var(--accent)] text-base font-bold px-1.5 py-0.5'}`}>
                                       {typeof option.intelligenceIndex === 'number' ? (
                                         <>
-                                          {option.intelligenceIndex >= 63 ? '🧠 Superior' : 
-                                           option.intelligenceIndex >= 45 ? 'Advanced' : 
-                                           option.intelligenceIndex >= 35 ? 'Good' : 'Basic'}
+                                          {option.intelligenceIndex >= 63 ? '🧠🧠🧠 Superior' : 
+                                           option.intelligenceIndex >= 45 ? '🧠🧠 Advanced' : 
+                                           option.intelligenceIndex >= 35 ? '🧠 Good' : 'Basic'}
                                           <span className="text-[9px] ml-1 opacity-80">({option.intelligenceIndex.toFixed(1)})</span>
                                         </>
                                       ) : option.intelligenceIndex}
@@ -1263,10 +1253,10 @@ export function ModelSelector({
                                     <span className={`uppercase rounded-sm flex items-center ${typeof option.contextWindow === 'number' ? getContextColor(option.contextWindow) + ' bg-[var(--accent)]/20 px-1.5 py-0.5' : 'text-[var(--accent)] text-base font-bold px-1.5 py-0.5'}`}>
                                       {typeof option.contextWindow === 'number' ? (
                                         <>
-                                          {option.contextWindow >= 1024000 ? '📚 Enormous' : 
-                                           option.contextWindow >= 200000 ? 'Very Large' : 
-                                           option.contextWindow >= 128000 ? 'Large' : 
-                                           option.contextWindow >= 32000 ? 'Medium' : 'Standard'}
+                                          {option.contextWindow >= 1024000 ? '📚📚📚📚📚 Enormous' : 
+                                           option.contextWindow >= 200000 ? '📚📚 Very Large' : 
+                                           option.contextWindow >= 128000 ? '📚 Large' : 
+                                           option.contextWindow >= 32000 ? '📚 Medium' : 'Standard'}
                                           <span className="text-[9px] ml-1 opacity-80">({(option.contextWindow / 1000).toFixed(0)}K)</span>
                                         </>
                                       ) : option.contextWindow}
