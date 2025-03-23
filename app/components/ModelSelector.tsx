@@ -1002,7 +1002,7 @@ export function ModelSelector({
           </button>
           
           {/* Selected model metrics */}
-          {currentModelOption && (
+          {/* {currentModelOption && (
             <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 mb-1 px-3 ${isMobile ? 'max-w-full overflow-x-auto' : ''}`}>
               {currentModelOption.tps && (
                 <div className="inline-flex items-center gap-0.5">
@@ -1053,7 +1053,7 @@ export function ModelSelector({
                 </div>
               )}
             </div>
-          )}
+          )} */}
           
           {isOpen && !disabled && (
             <div 
@@ -1153,7 +1153,7 @@ export function ModelSelector({
                 </div>
                 
                 {/* Model options list */}
-                <div className={`py-1 space-y-10 ${isFullscreen ? 'max-w-4xl mx-auto px-4' : ''}`}>
+                <div className={`py-1 space-y-6 ${isFullscreen ? 'max-w-4xl mx-auto px-4' : ''}`}>
                   {MODEL_OPTIONS.length > 0 ? (
                     MODEL_OPTIONS.map((option, index) => {
                       // Check if this model is disabled (either by ID, by level, or doesn't support web search)
@@ -1185,6 +1185,7 @@ export function ModelSelector({
                         >
                           <div className="flex flex-col">
                             <div className="text-base font-normal mb-1 transition-all flex items-center gap-2">
+                              
                               {/* Provider Logo */}
                               {option.provider && (
                                 <div 
@@ -1208,11 +1209,35 @@ export function ModelSelector({
                               <span className="model-name">
                                 {option.name}
                               </span>
+                                                            
+                              {/* Vision Support Badge */}
+                              <div className="ml-1 flex items-center">
+                                <div className={`rounded-full px-1.5 py-0.5 text-[9px] uppercase font-medium flex items-center gap-0.5 ${option.supportsVision ? 'bg-[var(--accent)]/20' : 'bg-[var(--muted)]/20'}`}>
+                                  {option.supportsVision ? (
+                                    <>
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
+                                        <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+                                        <path fillRule="evenodd" d="M1.323 11.447C2.811 6.976 7.028 3.75 12.001 3.75c4.97 0 9.185 3.223 10.675 7.69.12.362.12.752 0 1.113-1.487 4.471-5.705 7.697-10.677 7.697-4.97 0-9.186-3.223-10.675-7.69a1.762 1.762 0 0 1 0-1.113ZM17.25 12a5.25 5.25 0 1 1-10.5 0 5.25 5.25 0 0 1 10.5 0Z" clipRule="evenodd" />
+                                      </svg>
+                                      <span>Vision</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
+                                        <path d="M3.53 2.47a.75.75 0 0 0-1.06 1.06l18 18a.75.75 0 1 0 1.06-1.06l-18-18ZM22.676 12.553a11.249 11.249 0 0 1-2.631 4.31l-3.099-3.099a5.25 5.25 0 0 0-6.71-6.71L7.759 4.577a11.217 11.217 0 0 1 4.242-.827c4.97 0 9.185 3.223 10.675 7.69.12.362.12.752 0 1.113Z" />
+                                        <path d="M15.75 12c0 .18-.013.357-.037.53l-4.244-4.243A3.75 3.75 0 0 1 15.75 12ZM12.53 15.713l-4.243-4.244a3.75 3.75 0 0 0 4.244 4.243Z" />
+                                        <path d="M6.75 12c0-.619.107-1.213.304-1.764l-3.1-3.1a11.25 11.25 0 0 0-2.63 4.31c-.12.362-.12.752 0 1.114 1.489 4.467 5.704 7.69 10.675 7.69 1.5 0 2.933-.294 4.242-.827l-2.477-2.477A5.25 5.25 0 0 1 6.75 12Z" />
+                                      </svg>
+                                      <span>Text-only</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                        
                             
                             {/* Model metrics - TPS and Intelligence Index */}
-                            <div className="flex items-start mt-2 mb-2">
+                            {/* <div className="flex items-start mt-2 mb-2">
                               <div className="w-4 mr-2 flex-shrink-0"></div>
                               <div className="flex flex-wrap gap-x-3 gap-y-1">
                                 {option.tps && (
@@ -1264,7 +1289,7 @@ export function ModelSelector({
                                   </div>
                                 )}
                               </div>
-                            </div>
+                            </div> */}
                                  
                             {/* Description */}
                             <div className="flex items-start">
