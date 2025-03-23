@@ -98,15 +98,22 @@ export default function RootLayoutClient({
       //   "warning",
       //   "First input latency issue with reasoning models"
       // );
-      // showAnnouncement(
-      //   "(Experimental) New Feature: PDF support for Anthropic models",
-      //   "info",
-      //   "NEW FEATURE: PDF support for Anthropic models"
-      // );
+      showAnnouncement(
+        "(Experimental) New Feature: PDF support",
+        "info",
+        "NEW FEATURE: PDF support -1"
+      );
       // showAnnouncement(
       //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Thank you for your patience and understanding.",
       //   "warning",
       //   "major-update-in-progress-1"
+      // );
+
+      // New active announcement about future updates
+      // showAnnouncement(
+      //   "🔔 From now on, all updates and new features will be announced through notification banners. Keep an eye out for future improvements!",
+      //   "info",
+      //   "announcement-system-active"
       // );
     }
   }, [user, showAnnouncement]);

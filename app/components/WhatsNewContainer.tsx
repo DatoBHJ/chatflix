@@ -4,28 +4,28 @@ import { useLastSeenUpdate } from '../hooks/useLastSeenUpdate';
 
 // Sample updates - in a real app, these could be fetched from an API
 const UPDATES: FeatureUpdate[] = [
-  {
-    id: 'pdf-support',
-    title: 'PDF Support',
-    date: '24th March 2025',
-    description: 'We\'ve added support for PDF files! Now you can upload and chat about PDF documents with compatible AI models. This feature allows you to easily reference and analyze PDF content directly in your conversations.',
-    images: [
-      '/images/updates/pdf1.png',
-      '/images/updates/pdf2.png'
-    ],
-    highlights: [
-      'Upload PDF files directly in chat via drag-and-drop or attachment button',
-      'Automatic compatibility check with AI models that support PDF processing',
-      'Clean PDF document display with file name and type indicators',
-      'Ask specific questions about PDF content for instant analysis'
-    ],
-    instructions: [
-      'Upload a PDF by clicking the attachment icon or dragging and dropping the file',
-      'The system will automatically check if your current model supports PDFs',
-      'If needed, you\'ll be prompted to switch to a compatible model',
-      'Once uploaded, simply ask questions about the PDF content like "summarize this pdf" or "explain the key points in this document"'
-    ]
-  },
+  // {
+  //   id: 'pdf-support',
+  //   title: 'PDF Support',
+  //   date: '24th March 2025',
+  //   description: 'We\'ve added support for PDF files! Now you can upload and chat about PDF documents with compatible AI models. This feature allows you to easily reference and analyze PDF content directly in your conversations.',
+  //   images: [
+  //     '/images/updates/pdf1.png',
+  //     '/images/updates/pdf2.png'
+  //   ],
+  //   highlights: [
+  //     'Upload PDF files directly in chat via drag-and-drop or attachment button',
+  //     'Automatic compatibility check with AI models that support PDF processing',
+  //     'Clean PDF document display with file name and type indicators',
+  //     'Ask specific questions about PDF content for instant analysis'
+  //   ],
+  //   instructions: [
+  //     'Upload a PDF by clicking the attachment icon or dragging and dropping the file',
+  //     'The system will automatically check if your current model supports PDFs',
+  //     'If needed, you\'ll be prompted to switch to a compatible model',
+  //     'Once uploaded, simply ask questions about the PDF content like "summarize this pdf" or "explain the key points in this document"'
+  //   ]
+  // },
   {
     id: 'prompt-shortcuts',
     title: 'Custom Prompt Shortcuts',
