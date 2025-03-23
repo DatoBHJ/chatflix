@@ -185,7 +185,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level4',
     },
     isWebSearchEnabled: false,
-    supportsPDFs: true,
+    supportsPDFs: false,
     isEnabled: true,
     reasoning: {
       enabled: true,
@@ -209,7 +209,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: "Anthropic's most intelligent model.",
     provider: 'anthropic',
     supportsVision: true,
-    supportsPDFs: true,
+    supportsPDFs: false,
     rateLimit: {
       level: 'level4',
     },
@@ -235,7 +235,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level4',
     },
     isWebSearchEnabled: false,
-    supportsPDFs: true,
+    supportsPDFs: false,
     isEnabled: true,
     contextWindow: 200000,
     tps: 77,
