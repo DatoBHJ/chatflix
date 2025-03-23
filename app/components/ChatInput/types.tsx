@@ -33,6 +33,7 @@ export interface FilePreviewProps {
 
 export interface DragDropOverlayProps {
   dragActive: boolean;
+  supportsPDFs?: boolean;
 }
 
 export interface PromptShortcutsProps {

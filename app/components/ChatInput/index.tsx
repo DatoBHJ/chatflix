@@ -55,6 +55,7 @@ export function ChatInput({
   // 모델 설정
   const modelConfig = getModelById(modelId);
   const supportsVision = modelConfig?.supportsVision ?? false;
+  const supportsPDFs = modelConfig?.supportsPDFs ?? false;
 
   // 멘션 감지를 위한 정규식
   const mentionRegex = /@(\w*)$/;
@@ -626,12 +627,16 @@ export function ChatInput({
 
   // 파일 처리
   const handleFiles = (newFiles: FileList) => {
-    // FileList를 Array로 변환하고 PDF 파일과 이미지 파일(vision 미지원시)과 비디오 파일 필터링
+    // FileList를 Array로 변환하고 필터링
     const newFileArray = Array.from(newFiles).filter(file => {
+      // PDF 파일 처리 - 지원하는 모델이면 허용
       if (fileHelpers.isPDFFile(file)) {
-        setShowPDFError(true);
-        setTimeout(() => setShowPDFError(false), 3000);
-        return false;
+        if (!supportsPDFs) {
+          setShowPDFError(true);
+          setTimeout(() => setShowPDFError(false), 3000);
+          return false;
+        }
+        return true;
       }
       
       // Vision을 지원하지 않는 경우 이미지 파일 필터링
@@ -758,7 +763,12 @@ export function ChatInput({
         />
 
         {/* Error toast */}
-        <ErrorToast show={showPDFError} message={supportsVision ? "PDF files are not supported" : "This model does not support PDF and image files."} />
+        <ErrorToast show={showPDFError} message={
+          supportsPDFs 
+            ? "This file type is not supported" 
+            : (supportsVision 
+              ? "This model does not support PDF files" 
+              : "This model does not support PDF and image files")} />
         <ErrorToast show={showFolderError} message="Folders cannot be uploaded" />
         <ErrorToast show={showVideoError} message="Video files are not supported" />
 
@@ -772,7 +782,9 @@ export function ChatInput({
         >
           <input
             type="file"
-            accept={supportsVision ? "image/*,text/*" : "text/*"}
+            accept={supportsPDFs 
+              ? "image/*,text/*,application/pdf" 
+              : (supportsVision ? "image/*,text/*" : "text/*")}
             onChange={(e) => {
               if (e.target.files) {
                 handleFiles(e.target.files);
@@ -863,7 +875,7 @@ export function ChatInput({
         </div>
 
         {/* Drag & drop overlay */}
-        <DragDropOverlay dragActive={dragActive} />
+        <DragDropOverlay dragActive={dragActive} supportsPDFs={supportsPDFs} />
 
         {/* Shortcuts popup */}
         <PromptShortcuts

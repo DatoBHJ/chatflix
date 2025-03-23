@@ -1,7 +1,7 @@
 // app/components/chat/ChatInput/DragDropOverlay.tsx
 import { DragDropOverlayProps } from './types';
 
-export function DragDropOverlay({ dragActive }: DragDropOverlayProps) {
+export function DragDropOverlay({ dragActive, supportsPDFs = false }: DragDropOverlayProps) {
   if (!dragActive) return null;
 
   return (
@@ -19,7 +19,9 @@ export function DragDropOverlay({ dragActive }: DragDropOverlayProps) {
         </div> */}
         <div className="flex flex-col items-center text-center">
           {/* <span className="text-foreground ">Drop files here</span> */}
-          <span className="text-xs text-red-400 mt-0.5">(PDF files and folders not supported)</span>
+          <span className="text-xs text-red-400 mt-0.5">
+            {supportsPDFs ? "Folders not supported" : "PDF files and folders not supported"}
+          </span>
         </div>
       </div>
     </div>

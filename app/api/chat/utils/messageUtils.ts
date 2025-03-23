@@ -126,7 +126,33 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
              (attachment as any).fileType !== 'code';
     });
   
-  if (otherAttachments.length > 0) {
+  const pdfAttachments = otherAttachments.filter(attachment => 
+    attachment.contentType === 'application/pdf' || 
+    (attachment.name && attachment.name.toLowerCase().endsWith('.pdf'))
+  );
+  
+  if (pdfAttachments.length > 0) {
+    parts.push({
+      type: 'text',
+      text: `\n\nPDF documents attached:\n${pdfAttachments.map(attachment => {
+        return `PDF: ${attachment.name || 'Unnamed PDF'}\nURL: ${attachment.url}\n`;
+      }).join('\n')}`
+    });
+    
+    const nonPdfAttachments = otherAttachments.filter(attachment => 
+      !(attachment.contentType === 'application/pdf' || 
+        (attachment.name && attachment.name.toLowerCase().endsWith('.pdf')))
+    );
+    
+    if (nonPdfAttachments.length > 0) {
+      parts.push({
+        type: 'text',
+        text: `\n\nOther attached files:\n${nonPdfAttachments.map(attachment => {
+          return `File: ${attachment.name || 'Unnamed file'}\nURL: ${attachment.url}\nType: ${(attachment as any).fileType || attachment.contentType || 'Unknown'}\n`;
+        }).join('\n')}`
+      });
+    }
+  } else if (otherAttachments.length > 0) {
     parts.push({
       type: 'text',
       text: `\n\nOther attached files:\n${otherAttachments.map(attachment => {

@@ -2,7 +2,7 @@ import { streamText, createDataStreamResponse, smoothStream } from 'ai';
 import { createClient } from '@/utils/supabase/server';
 import { providers } from '@/lib/providers';
 import { getRateLimiter, createRateLimitKey } from '@/lib/ratelimit';
-import { getModelById, RATE_LIMITS } from '@/lib/models/config';
+import { getModelById, RATE_LIMITS, getEnabledModels, ModelConfig } from '@/lib/models/config';
 import { Message } from 'ai';
 import { MultiModalMessage } from './types';
 import { 
@@ -18,6 +18,15 @@ import {
   getWebSearchResponsePrompt 
 } from './prompts';
 import { createWebSearchTool, createDatetimeTool } from './tools';
+
+// Helper function to check if messages contain PDF
+const messagesContainPDF = (messages: Message[]): boolean => {
+  return messages.some(message => 
+    message.experimental_attachments?.some(
+      a => a.contentType === 'application/pdf'
+    )
+  );
+};
 
 export const maxDuration = 300;
 
@@ -129,7 +138,7 @@ export async function POST(req: Request) {
       timestamp: requestStart.toISOString()
     });
 
-    const { messages, model, chatId, isRegeneration, existingMessageId, isReasoningEnabled = true, saveToDb = true, isWebSearchEnabled = false } = requestData;
+    let { messages, model, chatId, isRegeneration, existingMessageId, isReasoningEnabled = true, saveToDb = true, isWebSearchEnabled = false } = requestData;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return new Response(JSON.stringify({ error: 'Invalid messages format' }), {
@@ -138,7 +147,34 @@ export async function POST(req: Request) {
       });
     }
 
-    // Check rate limiting
+    // Check if messages contain PDF and adjust model if needed
+    const hasPDF = messagesContainPDF(messages);
+    const originalModel = model;
+    
+    if (hasPDF) {
+      // Get the current model config
+      const modelConfig = getModelById(model);
+      
+      // If current model doesn't support PDFs, find a suitable one
+      if (modelConfig && !modelConfig.supportsPDFs) {
+        const pdfModels = getEnabledModels().filter((m: ModelConfig) => m.supportsPDFs);
+        if (pdfModels.length > 0) {
+          // Use the first available PDF-supporting model
+          model = pdfModels[0].id;
+          console.log(`[DEBUG-PDF] Switched model from ${originalModel} to ${model} for PDF support`);
+        } else {
+          return new Response(JSON.stringify({ 
+            error: 'PDF not supported', 
+            message: 'No PDF-supporting models available'
+          }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+      }
+    }
+
+    // Check rate limiting with potentially updated model
     const rateLimitResult = await handleRateLimiting(user.id, model);
     if (!rateLimitResult.success) {
       const { error } = rateLimitResult;
