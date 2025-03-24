@@ -363,7 +363,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     },
     isWebSearchEnabled: false,
     supportsPDFs: false,
-    isEnabled: false,
+    isEnabled: true,
     contextWindow: 128000,
     tps: 14,
     intelligenceIndex: 51,
