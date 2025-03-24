@@ -46,7 +46,7 @@ const UPDATES: FeatureUpdate[] = [
     id: '(Experimental) Image Generation',
     title: '(Experimental) Image Generation',
     date: 'Not confirmed',
-    description: '',
+    description: 'We\'ve added support for image generation! Now you can generate images with compatible AI models. This feature allows you to easily generate images directly in your conversations.',
     images: [
       '/images/updates/imageg.png',
     ],
