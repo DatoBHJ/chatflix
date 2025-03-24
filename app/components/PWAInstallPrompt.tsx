@@ -52,7 +52,7 @@ export function PWAInstallPrompt() {
                     and then "Add to Home Screen"
                   </span>
                 ) : (
-                  <span>Add Chatflix to your home screen for a faster, app-like experience</span>
+                  <span>Add Chatflix to your home screen to use it as an app</span>
                 )}
               </p>
             </div>
