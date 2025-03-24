@@ -927,7 +927,7 @@ export function ModelSelector({
 
   return (
     <div className="relative" ref={containerRef}>
-      <div className="flex items-center gap-4 pb-2">
+      <div className="flex items-center gap-4 pb-0">
         <div className={`relative ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
           <button
             onClick={() => !disabled && setIsOpen(!isOpen)}

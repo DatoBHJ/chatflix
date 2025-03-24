@@ -355,6 +355,9 @@ export default function Home() {
               isWebSearchEnabled={isWebSearchEnabled}
               setIsWebSearchEnabled={setIsWebSearchEnabled}
             />
+            <div className={`text-xs text-[var(--muted)] h-6 text-center mt-2 transition-opacity duration-200 ${input ? 'opacity-60' : 'opacity-0'}`}>
+              Start your prompt with /image to generate images
+            </div>
           </div>
         </div>
       </div>
