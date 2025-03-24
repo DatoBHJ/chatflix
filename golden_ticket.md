@@ -4,6 +4,10 @@
 
 ---
 
+// add a meme picture  like this(/Users/hajunbae/deepseek/chatbot-app/public/previous/drake-meme.png ) here
+
+[![Golden Ticket Access - Subscribe Now](https://www.chatflix.app/previous/drake-meme.png)](https://app.polar.sh/checkout/YOUR_PRODUCT_ID)
+
 ## 💰 **THE MATH IS SIMPLE:**
 
 | Platform | Monthly Cost | What You Get |
