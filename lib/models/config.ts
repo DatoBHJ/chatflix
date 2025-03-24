@@ -58,23 +58,23 @@ export const DEFAULT_MODEL_ID = 'gemini-2.0-flash';
 // };
 export const RATE_LIMITS = {
   level1: {
-    requests: 5,
+    requests: 10,
     window: '30 h'
   },
   level2: {
-    requests: 5,
+    requests: 10,
     window: '30 h'
   },
   level3: {
-    requests: 5,
+    requests: 10,
     window: '30 h'
   },
   level4: {
-    requests: 7,
+    requests: 10,
     window: '30 h'
   },
   level5: {
-    requests: 5,
+    requests: 10,
     window: '30 h'
   }
 };

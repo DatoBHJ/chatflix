@@ -1,12 +1,10 @@
-# 🎬 **INTRODUCING CHATFLIX: THE NETFLIX OF CHATBOTS!** 🤖
+# **Chatflix: The Ultimate Collection of Excellence**
 
-> ## ***"Why subscribe to multiple AI services when you can stream them ALL of them in one place?”***
+![Golden Ticket Access - Subscribe Now](https://www.chatflix.app/previous/drake-meme.png)
+
+> ## ***"START YOUR UNLIMITED ACCESS FOR $2!!"***
 
 ---
-
-// add a meme picture  like this(/Users/hajunbae/deepseek/chatbot-app/public/previous/drake-meme.png ) here
-
-[![Golden Ticket Access - Subscribe Now](https://www.chatflix.app/previous/drake-meme.png)](https://app.polar.sh/checkout/YOUR_PRODUCT_ID)
 
 ## 💰 **THE MATH IS SIMPLE:**
 
@@ -16,7 +14,7 @@
 | Perplexity Pro | $20 | *AI search engine* |
 | Claude Pro | $20 | *Sonnet series* |
 | ... | ... | ... |
-| **CHATFLIX** | **$10 ($2 for first month)** | **ALL IN ONE** |
+| **CHATFLIX** | **$9.99** | **ALL IN ONE** |
 
 > ##  ***"SUPPORTS : OpenAI, DeepSeek, Anthropic, Gemini, Meta, and more!"***
 
@@ -35,7 +33,7 @@
 
 ---
 
-# 💫 Early Access Offer: Use Code "chatflix" to get your first month for only $2!
+# 💫 Early Access Offer: Use Code "chatflix" to get your first month for $2!
 
 ---
 
