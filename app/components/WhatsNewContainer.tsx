@@ -10,8 +10,8 @@ const UPDATES: FeatureUpdate[] = [
     date: 'Not confirmed',
     description: 'We\'ve added support for PDF files! Now you can upload and chat about PDF documents with compatible AI models. This feature allows you to easily reference and analyze PDF content directly in your conversations.',
     images: [
-      '/images/updates/imageg.png',
-    ],
+      // '/images/updates/pdf1.png',
+      '/images/updates/pdf2.png'    ],
     highlights: [
       'Chat with PDF files',
     ],
@@ -48,6 +48,7 @@ const UPDATES: FeatureUpdate[] = [
     date: 'Not confirmed',
     description: '',
     images: [
+      '/images/updates/imageg.png',
     ],
     highlights: [
      'Experimental feature for image generation',
