@@ -55,7 +55,7 @@ const UPDATES: FeatureUpdate[] = [
     //  'Supports uncensored image generation',
     ],
     instructions: [
-     'Start your prompt with /imagine to generate images'
+     'Start your prompt with /image to generate images'
     ]
   },
   {
