@@ -6,6 +6,7 @@ export interface ModelConfig {
   provider: 'anthropic' | 'openai' | 'google' | 'deepseek' | 'together' | 'groq' | 'xai';
   supportsVision: boolean;
   supportsPDFs: boolean;
+  censored?: boolean;
   rateLimit: {
     level: 'level1' | 'level2' | 'level3' | 'level4' | 'level5';
   };
@@ -186,6 +187,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     },
     isWebSearchEnabled: false,
     supportsPDFs: true,
+    censored: true,
     isEnabled: true,
     reasoning: {
       enabled: true,
@@ -210,10 +212,11 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     supportsPDFs: true,
+    censored: true,
     rateLimit: {
       level: 'level4',
     },
-    isWebSearchEnabled: false,
+    isWebSearchEnabled: true,
     isEnabled: true,
     contextWindow: 200000,
     tps: 78,
@@ -231,10 +234,11 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Coding GOAT',
     provider: 'anthropic',
     supportsVision: true,
+    censored: true,
     rateLimit: {
       level: 'level4',
     },
-    isWebSearchEnabled: false,
+    isWebSearchEnabled: true,
     supportsPDFs: true,
     isEnabled: true,
     contextWindow: 200000,
@@ -254,6 +258,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'The best open source reasoning model by DeepSeek via Together.ai',
     provider: 'together',
     supportsVision: false,
+    censored: true,
     rateLimit: {
       level: 'level3',
     },
@@ -283,6 +288,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'The best open source non-reasoning model by DeepSeek via Together.ai',
     provider: 'together',
     supportsVision: false,
+    censored: true,
     rateLimit: {
       level: 'level3',
     },
@@ -306,6 +312,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'The best open source reasoning model by DeepSeek',
     provider: 'deepseek',
     supportsVision: false,
+    censored: true,
     rateLimit: {
       level: 'level2',
     },
@@ -335,6 +342,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'The best open source non-reasoning model by DeepSeek',
     provider: 'deepseek',
     supportsVision: false,
+    censored: true,
     rateLimit: {
       level: 'level2',
     },
@@ -358,6 +366,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Latest and most capable GPT model yet by OpenAI',
     provider: 'openai',
     supportsVision: true,
+    censored: true,
     rateLimit: {
       level: 'level5',
     },
@@ -379,6 +388,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Latest version of GPT-4o used in ChatGPT',
     provider: 'openai',
     supportsVision: true,
+    censored: true,
     rateLimit: {
       level: 'level5',
     },
@@ -401,6 +411,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     "description": "Advanced reasoning model by OpenAI. Reasoning tokens used in its chain-of-thought process are hidden by OpenAI and not included in the visible output.",
     "provider": "openai",
     "supportsVision": true,
+    // "censored": true,
     "rateLimit": {
       "level": "level5",
     },
@@ -424,6 +435,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     "description": "Latest small reasoning model by OpenAI. Reasoning tokens used in its chain-of-thought process are hidden by OpenAI and not included in the visible output.",
     "provider": "openai",
     "supportsVision": false,
+    // "censored": true,
     "rateLimit": {
       "level": "level5",
     },
@@ -446,6 +458,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Latest model with 1m context window by Google',
     provider: 'google',
     supportsVision: true,
+    censored: true,
     rateLimit: {
       level: 'level1',
     },
@@ -468,15 +481,16 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Grok 2 by xAI',
     provider: 'xai',
     supportsVision: true,
+    censored: false,
     rateLimit: {
       level: 'level3',
     },
-    isWebSearchEnabled: false,
+    isWebSearchEnabled: true,
     supportsPDFs: false,
     isEnabled: true,
     contextWindow: 128000,
     tps: 67, 
-    intelligenceIndex: 38 ,
+    intelligenceIndex: 38,
     MMLU_Pro: 70,
     Coding: 27,
     MATH: 42,
@@ -490,6 +504,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Llama 3.3 70B by Meta via Groq',
     provider: 'groq',
     supportsVision: false,
+    censored: false,
     rateLimit: {
       level: 'level1',
     },
@@ -513,6 +528,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: "Alibaba's latest model. Excels at mathematical reasoning, coding, and complex-problem solving with performance rivaling the likes of DeepSeek-R1 and o1-mini.",
     provider: 'groq',
     supportsVision: false,
+    // censored: true,
     rateLimit: {
       level: 'level1',
     },

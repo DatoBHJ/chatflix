@@ -92,28 +92,15 @@ export default function RootLayoutClient({
       //   "info",
       //   "major-update-v3"
       // );
-      // Code for a major update warning announcement
       // showAnnouncement(
-      //   "You may experience some first input latency issues with reasoning models. We're working on it.",
-      //   "warning",
-      //   "First input latency issue with reasoning models"
+      //   "(Experimental) New Feature: PDF support",
+      //   "info",
+      //   "NEW FEATURE: PDF support -1"
       // );
-      showAnnouncement(
-        "(Experimental) New Feature: PDF support",
-        "info",
-        "NEW FEATURE: PDF support -1"
-      );
       // showAnnouncement(
       //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Thank you for your patience and understanding.",
       //   "warning",
       //   "major-update-in-progress-1"
-      // );
-
-      // New active announcement about future updates
-      // showAnnouncement(
-      //   "🔔 From now on, all updates and new features will be announced through notification banners. Keep an eye out for future improvements!",
-      //   "info",
-      //   "announcement-system-active"
       // );
     }
   }, [user, showAnnouncement]);

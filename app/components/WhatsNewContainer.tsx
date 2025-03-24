@@ -4,9 +4,25 @@ import { useLastSeenUpdate } from '../hooks/useLastSeenUpdate';
 
 // Sample updates - in a real app, these could be fetched from an API
 const UPDATES: FeatureUpdate[] = [
+  {
+    id: '(Experimental) pdf-support',
+    title: '(Experimental) PDF Support',
+    date: 'Not confirmed',
+    description: 'We\'ve added support for PDF files! Now you can upload and chat about PDF documents with compatible AI models. This feature allows you to easily reference and analyze PDF content directly in your conversations.',
+    images: [
+      '/images/updates/imageg.png',
+    ],
+    highlights: [
+      'Chat with PDF files',
+    ],
+    instructions: [
+      'Upload a PDF by clicking the attachment icon or dragging and dropping the file',
+      'Once uploaded, simply ask questions about the PDF content like "summarize this pdf" or "explain the key points in this document"'
+    ]
+  },
   // {
-  //   id: 'pdf-support',
-  //   title: 'PDF Support',
+  //   id: '(Experimental) pdf-support',
+  //   title: '(Experimental) PDF Support',
   //   date: '24th March 2025',
   //   description: 'We\'ve added support for PDF files! Now you can upload and chat about PDF documents with compatible AI models. This feature allows you to easily reference and analyze PDF content directly in your conversations.',
   //   images: [
@@ -26,6 +42,21 @@ const UPDATES: FeatureUpdate[] = [
   //     'Once uploaded, simply ask questions about the PDF content like "summarize this pdf" or "explain the key points in this document"'
   //   ]
   // },
+  {
+    id: '(Experimental) Image Generation',
+    title: '(Experimental) Image Generation',
+    date: 'Not confirmed',
+    description: '',
+    images: [
+    ],
+    highlights: [
+     'Experimental feature for image generation',
+     'Supports uncensored image generation',
+    ],
+    instructions: [
+     'Start your prompt with /imagine to generate images'
+    ]
+  },
   {
     id: 'prompt-shortcuts',
     title: 'Custom Prompt Shortcuts',
