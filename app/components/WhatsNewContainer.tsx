@@ -70,9 +70,9 @@ const UPDATES: FeatureUpdate[] = [
     ],
     highlights: [
       'Create custom shortcuts for frequently used prompts',
-      'Access shortcuts quickly using the @ symbol',
-      'Customize both shortcut names and prompt contents',
-      'Manage your shortcuts through an easy-to-use interface'
+      // 'Access shortcuts quickly using the @ symbol',
+      // 'Customize both shortcut names and prompt contents',
+      // 'Manage your shortcuts through an easy-to-use interface'
     ],
     instructions: [
       'Type @ to access shortcuts',
