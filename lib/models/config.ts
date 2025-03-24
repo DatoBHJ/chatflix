@@ -258,7 +258,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'The best open source reasoning model by DeepSeek via Together.ai',
     provider: 'together',
     supportsVision: false,
-    censored: true,
+    // censored: true,
     rateLimit: {
       level: 'level3',
     },
@@ -288,7 +288,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'The best open source non-reasoning model by DeepSeek via Together.ai',
     provider: 'together',
     supportsVision: false,
-    censored: true,
+    // censored: true,
     rateLimit: {
       level: 'level3',
     },
@@ -312,7 +312,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'The best open source reasoning model by DeepSeek',
     provider: 'deepseek',
     supportsVision: false,
-    censored: true,
+    // censored: true,
     rateLimit: {
       level: 'level2',
     },
@@ -342,7 +342,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'The best open source non-reasoning model by DeepSeek',
     provider: 'deepseek',
     supportsVision: false,
-    censored: true,
+    // censored: true,
     rateLimit: {
       level: 'level2',
     },
