@@ -67,11 +67,11 @@ export default function RootLayoutClient({
       //   "info",
       //   "Gemini-2-flash-tip"
       // ); 
-      showAnnouncement(
-        "Due to high demand on anthropic models, there may be some delays in response time. We are working on it. Try other models if you are experiencing delays.",
-        "warning",
-        "anthropic-models-high-request-3"
-      ); 
+      // showAnnouncement(
+      //   "Due to high demand on anthropic models, there may be some delays in response time. We are working on it. Try other models if you are experiencing delays.",
+      //   "warning",
+      //   "anthropic-models-high-request-3"
+      // ); 
       // showAnnouncement(
       //   "Due to high demand on Anthropic models, we're temporarily setting high limits on Anthropic models for free users. Please subscribe to get unlimited access. 80% off for the first month.",
       //   "error",
