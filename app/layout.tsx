@@ -52,7 +52,7 @@ export const metadata = {
     description: 'Neflix of Chatbots',
     siteName: 'Chatflix.app',
     images: [{
-      url: 'https://chatflix.app/music2.png?v=3',
+      url: 'https://chatflix.app/music2.png?v=4',
       width: 1200,
       height: 630,
       alt: 'Chat is this real?'
@@ -62,7 +62,7 @@ export const metadata = {
     card: 'summary_large_image',
     title: 'Chat is this real?',
     description: 'Neflix of Chatbots',
-    images: ['https://chatflix.app/music2.png?v=3'],
+    images: ['https://chatflix.app/music2.png?v=4'],
   },
   appleWebApp: {
     capable: true,
