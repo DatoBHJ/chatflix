@@ -78,9 +78,9 @@ export default function RootLayoutClient({
       //   "anthropic model high limits"
       // );
       // showAnnouncement(
-      //   "File uploads have been temporarily disabled due to an ongoing issue with file reading. We expect to restore this functionality soon.",
+      //   "PDF uploads have been temporarily disabled for Anthropic models due to an ongoing issue with PDF reading. We expect to restore this functionality soon.",
       //   "error",
-      //   "file-read-disabled"
+      //   "pdf-read-disabled"
       // );
       // showAnnouncement(
       //   "Anthropic models are currently down. We are working on it. In the meantime, please try other models.",
