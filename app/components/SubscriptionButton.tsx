@@ -88,11 +88,13 @@ export function SubscriptionButton({ user }: SubscriptionButtonProps) {
         className="premium-ticket flex items-center gap-2 px-3 py-1.5 border border-amber-400/30 bg-gradient-to-r from-amber-50 to-amber-100 text-amber-800 rounded-sm hover:shadow-md transition-all"
         aria-label="Get Premium Access"
       >
-                        <span className="text-sm font-bold tracking-wide relative z-10">
-                          <span className="opacity-70 text-xs line-through mr-1">$4</span>
-                          $0.8
-                        </span>
-                              </button>
+        <span className="text-sm font-bold tracking-wide relative z-10">
+          <span className="opacity-70 text-xs mr-1">ngl it's a steal</span>
+        </span>
+          {/* <span className="opacity-70 text-xs line-through mr-1">$4</span>
+          $0.8
+        </span> */}
+      </button>
       
       {/* {showTooltip && (
         <div className="absolute right-0 mt-2 w-48 bg-white/90 backdrop-blur-sm text-amber-900 p-2.5 rounded shadow-lg z-10 border border-amber-100 animate-fade-in">
