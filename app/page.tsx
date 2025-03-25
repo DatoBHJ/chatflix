@@ -339,6 +339,7 @@ export default function Home() {
                 }
               }}
               disabled={isSubmitting}
+              disabledLevels={rateLimitedLevels}
               isWebSearchEnabled={isWebSearchEnabled}
             />
             <ChatInput

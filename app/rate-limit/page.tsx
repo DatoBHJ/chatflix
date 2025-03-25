@@ -58,14 +58,13 @@ const CountdownTimer = ({ seconds }: { seconds: number }) => {
   
   return (
     <div className="flex gap-2 sm:gap-4 items-center justify-center">
-      {hours > 0 && (
-        <div className="flex flex-col items-center">
-          <div className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-gradient-to-b from-red-500/10 to-red-500/20 rounded-lg text-xl sm:text-2xl font-medium text-red-500 dark:text-red-400">
-            {hours.toString().padStart(2, '0')}
-          </div>
-          <span className="text-xs mt-1 text-[var(--muted)]">HOURS</span>
+      <div className="flex flex-col items-center">
+        <div className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-gradient-to-b from-red-500/10 to-red-500/20 rounded-lg text-xl sm:text-2xl font-medium text-red-500 dark:text-red-400">
+          {hours.toString().padStart(2, '0')}
         </div>
-      )}
+        <span className="text-xs mt-1 text-[var(--muted)]">HOURS</span>
+      </div>
+      <div className="text-red-500 dark:text-red-400 text-xl font-bold">:</div>
       <div className="flex flex-col items-center">
         <div className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-gradient-to-b from-red-500/10 to-red-500/20 rounded-lg text-xl sm:text-2xl font-medium text-red-500 dark:text-red-400">
           {minutes.toString().padStart(2, '0')}
