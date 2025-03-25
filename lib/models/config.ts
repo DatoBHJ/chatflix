@@ -59,24 +59,24 @@ export const DEFAULT_MODEL_ID = 'gemini-2.0-flash';
 // };
 export const RATE_LIMITS = {
   level1: {
-    requests: 10,
-    window: '30 h'
+    requests: 7,
+    window: '8 h'
   },
   level2: {
-    requests: 10,
-    window: '30 h'
+    requests: 7,
+    window: '8 h'
   },
   level3: {
-    requests: 10,
-    window: '30 h'
+    requests: 7,
+    window: '8 h'
   },
   level4: {
-    requests: 10,
-    window: '30 h'
+    requests: 7,
+    window: '8 h'
   },
   level5: {
-    requests: 10,
-    window: '30 h'
+    requests: 7,
+    window: '8 h'
   }
 };
 
@@ -206,7 +206,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsPDFs: false,
     censored: true,
     isEnabled: true,
-    isActivated: false,
+    isActivated: true,
     reasoning: {
       enabled: true,
       provider: 'anthropic',
@@ -236,7 +236,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     },
     isWebSearchEnabled: true,
     isEnabled: true,
-    isActivated: false,
+    isActivated: true,
     contextWindow: 200000,
     tps: 78,
     intelligenceIndex: 48,
