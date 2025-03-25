@@ -5,6 +5,22 @@ import { useLastSeenUpdate } from '../hooks/useLastSeenUpdate';
 // Sample updates - in a real app, these could be fetched from an API
 const UPDATES: FeatureUpdate[] = [
   {
+    id: 'new-model-release',
+    title: 'New Model: DeepSeek V3 (Mar\' 25)',
+    date: '25th March 2025',
+    description: 'The best open source non-reasoning model in the world, outscoring Grok3, Claude 3.7 Sonnet and GPT-4.5 in the Artificial Analysis Intelligence Index.',
+    // images: [
+    //   // '/images/updates/pdf1.png',
+    //   '/images/updates/pdf2.png'    ],
+    // highlights: [
+    //   'Chat with PDF files',
+    // ],
+    // instructions: [
+    //   'Upload a PDF by clicking the attachment icon or dragging and dropping the file',
+    //   'Once uploaded, simply ask questions about the PDF content like "summarize this pdf" or "explain the key points in this document"'
+    // ]
+  },
+  {
     id: 'Anthropic-PDF-Issue',
     title: 'Anthropic PDF Issue',
     date: '25th March 2025',
