@@ -33,51 +33,51 @@ export interface ModelConfig {
 // Default model configuration
 export const DEFAULT_MODEL_ID = 'gemini-2.0-flash'; 
 
-// // Rate limit configuration by level
-// export const RATE_LIMITS = {
-//   level1: {
-//     requests: 1,
-//     window: '4 m'
-//   },
-//   level2: {
-//     requests: 3,
-//     window: '4 m'
-//   },
-//   level3: {
-//     requests: 3,
-//     window: '4 m'
-//   },
-//   level4: {
-//     requests: 4,
-//     window: '4 m'
-//   },
-//   level5: {
-//     requests: 3,
-//     window: '4 m'
-//   }
-// };
+// Rate limit configuration by level
 export const RATE_LIMITS = {
   level1: {
-    requests: 10,
-    window: '6 h'
+    requests: 1,
+    window: '4 m'
   },
   level2: {
-    requests: 10,
-    window: '6 h'
+    requests: 3,
+    window: '4 m'
   },
   level3: {
-    requests: 10,
-    window: '6 h'
+    requests: 3,
+    window: '4 m'
   },
   level4: {
-    requests: 10,
-    window: '6 h'
+    requests: 4,
+    window: '4 m'
   },
   level5: {
-    requests: 10,
-    window: '6 h'
+    requests: 3,
+    window: '4 m'
   }
 };
+// export const RATE_LIMITS = {
+//   level1: {
+//     requests: 10,
+//     window: '6 h'
+//   },
+//   level2: {
+//     requests: 10,
+//     window: '6 h'
+//   },
+//   level3: {
+//     requests: 10,
+//     window: '6 h'
+//   },
+//   level4: {
+//     requests: 10,
+//     window: '6 h'
+//   },
+//   level5: {
+//     requests: 10,
+//     window: '6 h'
+//   }
+// };
 
 
 // Get system default model ID (should match Supabase's get_default_model_id function)
@@ -186,7 +186,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level4',
     },
     isWebSearchEnabled: false,
-    supportsPDFs: true,
+    supportsPDFs: false,
     censored: true,
     isEnabled: true,
     reasoning: {
@@ -211,7 +211,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: "Anthropic's most intelligent model.",
     provider: 'anthropic',
     supportsVision: true,
-    supportsPDFs: true,
+    supportsPDFs: false,
     censored: true,
     rateLimit: {
       level: 'level4',
@@ -239,7 +239,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level4',
     },
     isWebSearchEnabled: true,
-    supportsPDFs: true,
+    supportsPDFs: false,
     isEnabled: true,
     contextWindow: 200000,
     tps: 77,
