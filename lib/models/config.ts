@@ -34,50 +34,50 @@ export interface ModelConfig {
 export const DEFAULT_MODEL_ID = 'gemini-2.0-flash'; 
 
 // Rate limit configuration by level
-export const RATE_LIMITS = {
-  level1: {
-    requests: 1,
-    window: '4 m'
-  },
-  level2: {
-    requests: 3,
-    window: '4 m'
-  },
-  level3: {
-    requests: 3,
-    window: '4 m'
-  },
-  level4: {
-    requests: 4,
-    window: '4 m'
-  },
-  level5: {
-    requests: 3,
-    window: '4 m'
-  }
-};
 // export const RATE_LIMITS = {
 //   level1: {
-//     requests: 10,
-//     window: '6 h'
+//     requests: 1,
+//     window: '4 m'
 //   },
 //   level2: {
-//     requests: 10,
-//     window: '6 h'
+//     requests: 3,
+//     window: '4 m'
 //   },
 //   level3: {
-//     requests: 10,
-//     window: '6 h'
+//     requests: 3,
+//     window: '4 m'
 //   },
 //   level4: {
-//     requests: 10,
-//     window: '6 h'
+//     requests: 4,
+//     window: '4 m'
 //   },
 //   level5: {
-//     requests: 10,
-//     window: '6 h'
+//     requests: 3,
+//     window: '4 m'
 //   }
 // };
+export const RATE_LIMITS = {
+  level1: {
+    requests: 10,
+    window: '6 h'
+  },
+  level2: {
+    requests: 10,
+    window: '6 h'
+  },
+  level3: {
+    requests: 10,
+    window: '6 h'
+  },
+  level4: {
+    requests: 10,
+    window: '6 h'
+  },
+  level5: {
+    requests: 10,
+    window: '6 h'
+  }
+};
 
 
 // Get system default model ID (should match Supabase's get_default_model_id function)
