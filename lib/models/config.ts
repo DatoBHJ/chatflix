@@ -71,11 +71,11 @@ export const RATE_LIMITS = {
     window: '1 h'
   },
   level4: {
-    requests: 3,     // 고급 모델은 더 엄격하게 제한
+    requests: 5,     // 고급 모델은 더 엄격하게 제한
     window: '1 h'
   },
   level5: {
-    requests: 3,     // 최상위 모델은 매우 제한적으로
+    requests: 5,     // 최상위 모델은 매우 제한적으로
     window: '1 h'
   }
 };
