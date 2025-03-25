@@ -59,24 +59,54 @@ export const DEFAULT_MODEL_ID = 'gemini-2.0-flash';
 // };
 export const RATE_LIMITS = {
   level1: {
-    requests: 8,     // 기본 모델은 비교적 관대하게
-    window: '1 h'
+    hourly: {
+      requests: 10,     // 기본 모델은 시간당 8회
+      window: '1 h'
+    },
+    daily: {
+      requests: 50,    // 하루 총 50회
+      window: '24 h'
+    }
   },
   level2: {
-    requests: 7,
-    window: '1 h'
+    hourly: {
+      requests: 5,
+      window: '1 h'
+    },
+    daily: {
+      requests: 40,
+      window: '24 h'
+    }
   },
   level3: {
-    requests: 5,     // 중간 레벨 모델은 적당한 제한
-    window: '1 h'
+    hourly: {
+      requests: 5,     // 중간 레벨 모델은 적당한 제한
+      window: '1 h'
+    },
+    daily: {
+      requests: 30,
+      window: '24 h'
+    }
   },
   level4: {
-    requests: 5,     // 고급 모델은 더 엄격하게 제한
-    window: '1 h'
+    hourly: {
+      requests: 5,     // 고급 모델은 더 엄격하게 제한
+      window: '1 h'
+    },
+    daily: {
+      requests: 20,
+      window: '24 h'
+    }
   },
   level5: {
-    requests: 5,     // 최상위 모델은 매우 제한적으로
-    window: '1 h'
+    hourly: {
+      requests: 5,     // 최상위 모델은 매우 제한적으로
+      window: '1 h'
+    },
+    daily: {
+      requests: 20,
+      window: '24 h'
+    }
   }
 };
 
@@ -280,7 +310,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: false,
     // censored: true,
     rateLimit: {
-      level: 'level2',
+      level: 'level1',
     },
     isWebSearchEnabled: false,
     supportsPDFs: false,
@@ -311,7 +341,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: false,
     // censored: true,
     rateLimit: {
-      level: 'level2',
+      level: 'level1',
     },
     isWebSearchEnabled: true,
     supportsPDFs: false,
@@ -536,7 +566,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: false,
     censored: false,
     rateLimit: {
-      level: 'level1',
+      level: 'level2',
     },
     isWebSearchEnabled: true,
     supportsPDFs: false,
@@ -561,7 +591,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: false,
     // censored: true,
     rateLimit: {
-      level: 'level1',
+      level: 'level2',
     },
     reasoning: {
       enabled: true,

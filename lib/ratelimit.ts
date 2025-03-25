@@ -21,37 +21,71 @@ function parseWindow(window: string): Duration {
   return window as Duration;
 }
 
-// Create level-based rate limiters
-const levelRateLimiters = {
+// Create level-based rate limiters for hourly limits
+const hourlyRateLimiters = {
   level1: new Ratelimit({
     redis,
-    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level1.requests, parseWindow(RATE_LIMITS.level1.window)),
+    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level1.hourly.requests, parseWindow(RATE_LIMITS.level1.hourly.window)),
     analytics: true,
-    prefix: 'ratelimit',  // Simplified prefix
+    prefix: 'ratelimit:hourly',
   }),
   level2: new Ratelimit({
     redis,
-    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level2.requests, parseWindow(RATE_LIMITS.level2.window)),
+    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level2.hourly.requests, parseWindow(RATE_LIMITS.level2.hourly.window)),
     analytics: true,
-    prefix: 'ratelimit',  // Simplified prefix
+    prefix: 'ratelimit:hourly',
   }),
   level3: new Ratelimit({
     redis,
-    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level3.requests, parseWindow(RATE_LIMITS.level3.window)),
+    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level3.hourly.requests, parseWindow(RATE_LIMITS.level3.hourly.window)),
     analytics: true,
-    prefix: 'ratelimit',  // Simplified prefix
+    prefix: 'ratelimit:hourly',
   }),
   level4: new Ratelimit({
     redis,
-    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level4.requests, parseWindow(RATE_LIMITS.level4.window)),
+    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level4.hourly.requests, parseWindow(RATE_LIMITS.level4.hourly.window)),
     analytics: true,
-    prefix: 'ratelimit',  // Simplified prefix
+    prefix: 'ratelimit:hourly',
   }),
   level5: new Ratelimit({
     redis,
-    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level5.requests, parseWindow(RATE_LIMITS.level5.window)),
+    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level5.hourly.requests, parseWindow(RATE_LIMITS.level5.hourly.window)),
     analytics: true,
-    prefix: 'ratelimit',  // Simplified prefix
+    prefix: 'ratelimit:hourly',
+  }),
+};
+
+// Create level-based rate limiters for daily limits
+const dailyRateLimiters = {
+  level1: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level1.daily.requests, parseWindow(RATE_LIMITS.level1.daily.window)),
+    analytics: true,
+    prefix: 'ratelimit:daily',
+  }),
+  level2: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level2.daily.requests, parseWindow(RATE_LIMITS.level2.daily.window)),
+    analytics: true,
+    prefix: 'ratelimit:daily',
+  }),
+  level3: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level3.daily.requests, parseWindow(RATE_LIMITS.level3.daily.window)),
+    analytics: true,
+    prefix: 'ratelimit:daily',
+  }),
+  level4: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level4.daily.requests, parseWindow(RATE_LIMITS.level4.daily.window)),
+    analytics: true,
+    prefix: 'ratelimit:daily',
+  }),
+  level5: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level5.daily.requests, parseWindow(RATE_LIMITS.level5.daily.window)),
+    analytics: true,
+    prefix: 'ratelimit:daily',
   }),
 };
 
@@ -89,7 +123,7 @@ async function isUserSubscribed(userId: string): Promise<boolean> {
 }
 
 // Function to get rate limiter for a specific model
-export async function getRateLimiter(model: string, userId?: string): Promise<Ratelimit> {
+export async function getRateLimiter(model: string, userId?: string): Promise<{hourly: Ratelimit, daily: Ratelimit}> {
   if (!model) {
     throw new Error('Model parameter is required');
   }
@@ -103,56 +137,37 @@ export async function getRateLimiter(model: string, userId?: string): Promise<Ra
   if (userId) {
     const isSubscribed = await isUserSubscribed(userId);
     if (isSubscribed) {
-      // Create an unlimited rate limiter for subscribed users
-      return new Ratelimit({
+      // Create unlimited rate limiters for subscribed users
+      const unlimitedLimiter = new Ratelimit({
         redis,
         limiter: Ratelimit.slidingWindow(1000000, '1 d'), // Very high limit
         analytics: true,
-        prefix: 'ratelimit',  // Simplified prefix
+        prefix: 'ratelimit',
       });
+      
+      return {
+        hourly: unlimitedLimiter,
+        daily: unlimitedLimiter
+      };
     }
   }
 
-  // Use level-based rate limiter for non-subscribed users
-  const levelRateLimiter = levelRateLimiters[modelConfig.rateLimit.level];
-  if (!levelRateLimiter) {
-    throw new Error(`Rate limiter not initialized for level ${modelConfig.rateLimit.level}`);
-  }
+  // Use level-based rate limiters for non-subscribed users
+  const level = modelConfig.rateLimit.level;
+  const hourlyRateLimiter = hourlyRateLimiters[level];
+  const dailyRateLimiter = dailyRateLimiters[level];
   
-  return levelRateLimiter;
-}
-
-// Function to get the level-based rate limiter directly
-export async function getLevelRateLimiter(level: 'level1' | 'level2' | 'level3' | 'level4' | 'level5', userId?: string): Promise<Ratelimit> {
-  // If no userId is provided, use a default limiter without subscription check
-  if (!userId) {
-    const rateLimiter = levelRateLimiters[level];
-    if (!rateLimiter) {
-      throw new Error(`Rate limiter not initialized for level ${level}`);
-    }
-    return rateLimiter;
-  }
-  
-  // Check if user has an active subscription
-  const isSubscribed = await isUserSubscribed(userId);
-  if (isSubscribed) {
-    // Create an unlimited rate limiter for subscribed users
-    return new Ratelimit({
-      redis,
-      limiter: Ratelimit.slidingWindow(1000000, '1 d'), // Very high limit
-      analytics: true,
-      prefix: 'ratelimit',  // Simplified prefix
-    });
-  }
-  
-  const rateLimiter = levelRateLimiters[level];
-  if (!rateLimiter) {
+  if (!hourlyRateLimiter || !dailyRateLimiter) {
     throw new Error(`Rate limiter not initialized for level ${level}`);
   }
-  return rateLimiter;
+  
+  return {
+    hourly: hourlyRateLimiter,
+    daily: dailyRateLimiter
+  };
 }
 
-// Helper function to create a standardized rate limit key
-export function createRateLimitKey(userId: string, level: string): string {
-  return `user:${userId}:level:${level}`;
+// Helper function to create standardized rate limit keys
+export function createRateLimitKey(userId: string, level: string, type: 'hourly' | 'daily' = 'hourly'): string {
+  return `user:${userId}:level:${level}:${type}`;
 }

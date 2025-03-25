@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/utils/supabase/middleware'
-import { getLevelRateLimiter, createRateLimitKey } from '@/lib/ratelimit'
+import { getRateLimiter, createRateLimitKey } from '@/lib/ratelimit'
 import { getModelById } from '@/lib/models/config'
 import { createServerClient } from '@supabase/ssr'
 
@@ -74,16 +74,47 @@ export async function middleware(request: NextRequest) {
         const modelConfig = getModelById(modelId);
         if (modelConfig) {
           const level = modelConfig.rateLimit.level;
-          // Pass the userId to getLevelRateLimiter and await the result
+          
+          // Get hourly and daily rate limiters
           console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Using level ${level} for model ${modelId}`);
-          const levelRateLimiter = await getLevelRateLimiter(level, userId);
-          rateLimitResult = await levelRateLimiter.limit(createRateLimitKey(userId, level));
-          console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Rate limit result:`, {
-            success: rateLimitResult.success,
-            remaining: rateLimitResult.remaining,
-            limit: rateLimitResult.limit,
-            reset: new Date(rateLimitResult.reset).toISOString()
+          const rateLimiters = await getRateLimiter(modelId, userId);
+          
+          // Check hourly limit
+          const hourlyKey = createRateLimitKey(userId, level, 'hourly');
+          const hourlyResult = await rateLimiters.hourly.limit(hourlyKey);
+          
+          // Log hourly result
+          console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Hourly rate limit result:`, {
+            success: hourlyResult.success,
+            remaining: hourlyResult.remaining,
+            limit: hourlyResult.limit,
+            reset: new Date(hourlyResult.reset).toISOString()
           });
+          
+          // Return hourly limit exceeded response if needed
+          if (!hourlyResult.success) {
+            return handleRateLimitExceeded(request, hourlyResult, level, modelId, 'hourly');
+          }
+          
+          // Check daily limit
+          const dailyKey = createRateLimitKey(userId, level, 'daily');
+          const dailyResult = await rateLimiters.daily.limit(dailyKey);
+          
+          // Log daily result
+          console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Daily rate limit result:`, {
+            success: dailyResult.success,
+            remaining: dailyResult.remaining,
+            limit: dailyResult.limit,
+            reset: new Date(dailyResult.reset).toISOString()
+          });
+          
+          // Return daily limit exceeded response if needed
+          if (!dailyResult.success) {
+            return handleRateLimitExceeded(request, dailyResult, level, modelId, 'daily');
+          }
+          
+          // Store the results for adding headers later
+          rateLimitResult = hourlyResult; // We'll use hourly for headers
         }
       }
     } catch (error) {
@@ -118,42 +149,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // For regular pages, redirect to rate limit page with information
-    try {
-      // Try to extract additional information for the rate limit page
-      let modelId = '';
-      let level = '';
-      
-      if (request.nextUrl.pathname.startsWith('/api/chat')) {
-        const body = await request.clone().json();
-        modelId = body.model || '';
-        
-        if (modelId) {
-          const modelConfig = getModelById(modelId);
-          if (modelConfig) {
-            level = modelConfig.rateLimit.level;
-          }
-        }
-      }
-      
-      const params = new URLSearchParams({
-        limit: limit.toString(),
-        reset: new Date(reset).toISOString(),
-      });
-      
-      // Add optional parameters if available
-      if (modelId) params.append('model', modelId);
-      if (level) params.append('level', level);
-      
-      return NextResponse.redirect(new URL(`/rate-limit?${params.toString()}`, request.url));
-    } catch (error) {
-      // If there's an error parsing the body, just redirect with basic info
-      const params = new URLSearchParams({
-        limit: limit.toString(),
-        reset: new Date(reset).toISOString(),
-      });
-      
-      return NextResponse.redirect(new URL(`/rate-limit?${params.toString()}`, request.url));
-    }
+    return redirectToRateLimitPage(request, rateLimitResult, null, null);
   }
 
   // Add rate limit headers to all responses if we have rate limit results
@@ -167,6 +163,62 @@ export async function middleware(request: NextRequest) {
   }
 
   return response
+}
+
+// Helper function to handle rate limit exceeded response
+function handleRateLimitExceeded(
+  request: NextRequest, 
+  result: { limit: number, reset: number, success: boolean },
+  level: string,
+  modelId: string,
+  type: 'hourly' | 'daily' = 'hourly'
+) {
+  // If it's an API request, return JSON response
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    return new NextResponse(
+      JSON.stringify({
+        error: 'Too many requests',
+        limit: result.limit,
+        remaining: 0,
+        reset: new Date(result.reset).toISOString(),
+        type: type
+      }),
+      {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-RateLimit-Limit': result.limit.toString(),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': new Date(result.reset).toISOString(),
+          'X-RateLimit-Type': type
+        },
+      }
+    )
+  }
+  
+  // For regular pages, redirect to rate limit page
+  return redirectToRateLimitPage(request, result, level, modelId, type);
+}
+
+// Helper function to redirect to rate limit page
+function redirectToRateLimitPage(
+  request: NextRequest, 
+  result: { limit: number, reset: number, success: boolean },
+  level: string | null,
+  modelId: string | null,
+  type: 'hourly' | 'daily' = 'hourly'
+) {
+  const params = new URLSearchParams({
+    limit: result.limit.toString(),
+    reset: new Date(result.reset).toISOString(),
+    type: type
+  });
+  
+  // Add optional parameters if available
+  if (modelId) params.append('model', modelId);
+  if (level) params.append('level', level);
+  
+  return NextResponse.redirect(new URL(`/rate-limit?${params.toString()}`, request.url));
 }
 
 export const config = {

@@ -47,32 +47,62 @@ const handleRateLimiting = async (userId: string, model: string) => {
   
   const now = new Date();
   console.log(`[DEBUG-RATELIMIT][${now.toISOString()}] Checking rate limit for user ${userId}, model ${model}, level ${modelConfig.rateLimit.level}`);
-  const modelRateLimiter = await getRateLimiter(model, userId);
+  
+  const rateLimiters = await getRateLimiter(model, userId);
   const level = modelConfig.rateLimit.level;
-  const { success, reset, limit, remaining } = await modelRateLimiter.limit(createRateLimitKey(userId, level));
   
-  const resetDate = new Date(reset);
-  const timeToReset = Math.floor((reset - Date.now()) / 1000);
-  console.log(`[DEBUG-RATELIMIT][${now.toISOString()}] Rate limit result: success=${success}, remaining=${remaining}/${limit}, reset=${resetDate.toISOString()}, seconds_to_reset=${timeToReset}`);
+  // 시간당 제한 체크
+  const hourlyKey = createRateLimitKey(userId, level, 'hourly');
+  const hourlyResult = await rateLimiters.hourly.limit(hourlyKey);
   
-  if (!success) {
-    const retryAfter = Math.floor((reset - Date.now()) / 1000);
+  const hourlyReset = new Date(hourlyResult.reset);
+  const hourlyTimeToReset = Math.floor((hourlyResult.reset - Date.now()) / 1000);
+  console.log(`[DEBUG-RATELIMIT][${now.toISOString()}] Hourly rate limit result: success=${hourlyResult.success}, remaining=${hourlyResult.remaining}/${hourlyResult.limit}, reset=${hourlyReset.toISOString()}, seconds_to_reset=${hourlyTimeToReset}`);
+  
+  // 시간당 제한 초과시
+  if (!hourlyResult.success) {
+    const retryAfter = Math.floor((hourlyResult.reset - Date.now()) / 1000);
     // Get the actual window from config
     const configLevel = RATE_LIMITS[level as keyof typeof RATE_LIMITS];
-    const windowText = configLevel ? configLevel.window : 'window period';
-    const windowSeconds = configLevel ? parseInt(configLevel.window.split(' ')[0]) * 60 : 0; // Convert minutes to seconds
-    
-    console.log(`[DEBUG-RATELIMIT][${now.toISOString()}] Rate limit exceeded. Window=${windowText} (${windowSeconds}s), RetryAfter=${retryAfter}s, Difference=${windowSeconds - retryAfter}s`);
+    const windowText = configLevel ? configLevel.hourly.window : '1 h';
     
     return {
       success: false,
       error: {
         type: 'rate_limit',
-        message: `Rate limit exceeded for ${level} models. You've used all ${limit} requests in the sliding ${windowText}. Next request allowed in ${retryAfter} seconds.`,
+        message: `Hourly rate limit exceeded for ${level} models. You've used all ${hourlyResult.limit} requests in the sliding ${windowText} window. Next request allowed in ${retryAfter} seconds.`,
         retryAfter,
         level,
-        reset,
-        limit
+        reset: hourlyResult.reset,
+        limit: hourlyResult.limit
+      }
+    };
+  }
+  
+  // 일일 제한 체크
+  const dailyKey = createRateLimitKey(userId, level, 'daily');
+  const dailyResult = await rateLimiters.daily.limit(dailyKey);
+  
+  const dailyReset = new Date(dailyResult.reset);
+  const dailyTimeToReset = Math.floor((dailyResult.reset - Date.now()) / 1000);
+  console.log(`[DEBUG-RATELIMIT][${now.toISOString()}] Daily rate limit result: success=${dailyResult.success}, remaining=${dailyResult.remaining}/${dailyResult.limit}, reset=${dailyReset.toISOString()}, seconds_to_reset=${dailyTimeToReset}`);
+  
+  // 일일 제한 초과시
+  if (!dailyResult.success) {
+    const retryAfter = Math.floor((dailyResult.reset - Date.now()) / 1000);
+    // Get the actual window from config
+    const configLevel = RATE_LIMITS[level as keyof typeof RATE_LIMITS];
+    const windowText = configLevel ? configLevel.daily.window : '24 h';
+    
+    return {
+      success: false,
+      error: {
+        type: 'rate_limit',
+        message: `Daily rate limit exceeded for ${level} models. You've used all ${dailyResult.limit} requests for today. Limit resets in ${Math.floor(retryAfter / 3600)} hours and ${Math.floor((retryAfter % 3600) / 60)} minutes.`,
+        retryAfter,
+        level,
+        reset: dailyResult.reset,
+        limit: dailyResult.limit
       }
     };
   }
