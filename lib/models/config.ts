@@ -59,24 +59,24 @@ export const DEFAULT_MODEL_ID = 'gemini-2.0-flash';
 // };
 export const RATE_LIMITS = {
   level1: {
-    requests: 7,
-    window: '8 h'
+    requests: 8,     // 기본 모델은 비교적 관대하게
+    window: '1 h'
   },
   level2: {
     requests: 7,
-    window: '8 h'
+    window: '1 h'
   },
   level3: {
-    requests: 7,
-    window: '8 h'
+    requests: 5,     // 중간 레벨 모델은 적당한 제한
+    window: '1 h'
   },
   level4: {
-    requests: 7,
-    window: '8 h'
+    requests: 3,     // 고급 모델은 더 엄격하게 제한
+    window: '1 h'
   },
   level5: {
-    requests: 7,
-    window: '8 h'
+    requests: 3,     // 최상위 모델은 매우 제한적으로
+    window: '1 h'
   }
 };
 
@@ -234,7 +234,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level4',
     },
-    isWebSearchEnabled: true,
+    isWebSearchEnabled: false,
     isEnabled: true,
     isActivated: true,
     contextWindow: 200000,
