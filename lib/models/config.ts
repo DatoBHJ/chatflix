@@ -70,7 +70,7 @@ export const RATE_LIMITS = {
     window: '6 h'
   },
   level4: {
-    requests: 10,
+    requests: 7,
     window: '6 h'
   },
   level5: {
@@ -236,7 +236,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: true,
     censored: true,
     rateLimit: {
-      level: 'level4',
+      level: 'level3',
     },
     isWebSearchEnabled: true,
     supportsPDFs: false,
@@ -492,10 +492,10 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 67, 
     intelligenceIndex: 39,
     MMLU_Pro: 70,
-    Coding: 27,
-    MATH: 42,
-    GPQA: 47,
-    HLE: 4.7
+    Coding: 28,
+    MATH: 46,
+    GPQA: 51,
+    HLE: 3.8
   },
   {
     id: 'llama-3.3-70b-versatile',
