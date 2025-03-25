@@ -4,6 +4,12 @@ import { useLastSeenUpdate } from '../hooks/useLastSeenUpdate';
 
 // Sample updates - in a real app, these could be fetched from an API
 const UPDATES: FeatureUpdate[] = [
+  // {
+  //   id: 'Anthropic mode',
+  //   title: 'Rate Limit Clearance',
+  //   date: '25th March 2025',
+  //   description: "We've cleared the rate limit for all users",
+  // },
   {
     id: 'new-model-release',
     title: 'New Model: DeepSeek V3 (Mar\' 25)',

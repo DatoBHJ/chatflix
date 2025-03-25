@@ -1,12 +1,12 @@
-# **Chatflix: The Ultimate Collection of Excellence**
+# **CHAT IS THIS REAL?**
 
 ![Golden Ticket Access - Subscribe Now](https://www.chatflix.app/previous/drake-meme.png)
 
-> ## ***"START YOUR UNLIMITED ACCESS FOR $2!!"***
+> ## ***"UNLOCK EVERYTHING FOR $4 !!"***
 
 ---
 
-## 💰 **THE MATH IS SIMPLE:**
+## **THE MATH IS SIMPLE:**
 
 | Platform | Monthly Cost | What You Get |
 |:--------:|:------------:|:------------:|
@@ -14,7 +14,7 @@
 | Perplexity Pro | $20 | *AI search engine* |
 | Claude Pro | $20 | *Sonnet series* |
 | ... | ... | ... |
-| **CHATFLIX** | **$9.99** | **ALL IN ONE** |
+| **CHATFLIX** | **$4** | **ALL IN ONE** |
 
 > ##  ***"SUPPORTS : OpenAI, DeepSeek, Anthropic, Gemini, Meta, and more!"***
 
@@ -22,7 +22,7 @@
 
 # 🌟 **GOLDEN TICKET ACCESS** 🌟
 
-## 🧠 **PREMIUM FEATURES UNLOCKED**
+## 🧠**PREMIUM FEATURES UNLOCKED**
 * ⚡ **NO** rate limiting or waiting
 * 🔍 **ADVANCED** web & deep search (soon)
 * 💬 **UNLIMITED** conversations
@@ -33,7 +33,7 @@
 
 ---
 
-# 💫 Early Access Offer: Use Code "chatflix" to get your first month for $2!
+# 💫 Early Access Offer: Use Code "chatflix" to get your first month for $0.8!
 
 ---
 

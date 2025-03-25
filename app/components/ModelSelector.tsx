@@ -111,7 +111,7 @@ const ModelPerformanceGraph = ({
   return (
     <div className={`${isFullscreen ? 'p-0' : `p-3 ${isMobile ? 'px-1' : 'px-4'}`} bg-[var(--background-secondary)]/30 rounded-md mt-3 mb-2 overflow-x-auto`}>
       <h3 className={`${isFullscreen ? 'text-xl' : 'text-sm'} font-medium mb-2 text-center`}>
-        Performance Graph: Speed vs Intelligence
+        Speed vs Intelligence
       </h3>
       <svg 
         width={width} 
@@ -915,12 +915,21 @@ export function ModelSelector({
   const currentModelOption = MODEL_OPTIONS.find(option => option.id === nextModel);
 
   // Update nextModel if current model doesn't support web search when web search is enabled
+  // or if the model is deactivated
   useEffect(() => {
-    if (isWebSearchEnabled && nextModel && allModels.find(m => m.id === nextModel)?.isWebSearchEnabled === false) {
-      // Find the first web search enabled model
-      const firstWebSearchModel = allModels.find(model => model.isWebSearchEnabled);
-      if (firstWebSearchModel) {
-        setNextModel(firstWebSearchModel.id);
+    const currentModelData = allModels.find(m => m.id === nextModel);
+    
+    if (
+      (isWebSearchEnabled && currentModelData?.isWebSearchEnabled === false) ||
+      (currentModelData?.isActivated === false)
+    ) {
+      // Find the first web search enabled and activated model
+      const firstAvailableModel = allModels.find(model => 
+        (!isWebSearchEnabled || model.isWebSearchEnabled) && model.isActivated
+      );
+      
+      if (firstAvailableModel) {
+        setNextModel(firstAvailableModel.id);
       }
     }
   }, [isWebSearchEnabled, nextModel, allModels, setNextModel]);
@@ -1065,7 +1074,8 @@ export function ModelSelector({
                       // Check if this model is disabled (either by ID, by level, or doesn't support web search)
                       const isModelDisabled = disabledModels.includes(option.id) || 
                                              (allDisabledLevels.length > 0 && allDisabledLevels.includes(option.rateLimit.level)) ||
-                                             (isWebSearchEnabled && !option.isWebSearchEnabled);
+                                             (isWebSearchEnabled && !option.isWebSearchEnabled) ||
+                                             !option.isActivated;
                       
                       return (
                         <div 
@@ -1165,6 +1175,15 @@ export function ModelSelector({
                                       <span>Uncensored</span>
                                     </>
                                   )}
+                                </div>
+                              )}
+                              {/* Activation status badge */}
+                              {!option.isActivated && (
+                                <div className="rounded-full px-1.5 py-0.5 text-[9px] uppercase font-medium flex items-center gap-0.5 bg-[#FF6B6B]/20">
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
+                                    <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                                  </svg>
+                                  <span>Temporarily Deactivated</span>
                                 </div>
                               )}
                             </div>

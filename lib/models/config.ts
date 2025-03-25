@@ -11,6 +11,7 @@ export interface ModelConfig {
     level: 'level1' | 'level2' | 'level3' | 'level4' | 'level5';
   };
   isEnabled: boolean;
+  isActivated: boolean; // Whether the model is activated for selection
   isWebSearchEnabled: boolean;
   reasoning?: {
     enabled: boolean;
@@ -59,30 +60,39 @@ export const DEFAULT_MODEL_ID = 'gemini-2.0-flash';
 export const RATE_LIMITS = {
   level1: {
     requests: 10,
-    window: '6 h'
+    window: '8 h'
   },
   level2: {
     requests: 10,
-    window: '6 h'
+    window: '8 h'
   },
   level3: {
     requests: 10,
-    window: '6 h'
+    window: '8 h'
   },
   level4: {
     requests: 7,
-    window: '6 h'
+    window: '8 h'
   },
   level5: {
-    requests: 10,
-    window: '6 h'
+    requests: 7,
+    window: '8 h'
   }
 };
 
 
 // Get system default model ID (should match Supabase's get_default_model_id function)
 export function getSystemDefaultModelId(): string {
-  return DEFAULT_MODEL_ID;
+  // Check if the default model is activated
+  const defaultModel = MODEL_CONFIGS.find(model => model.id === DEFAULT_MODEL_ID);
+  
+  if (defaultModel && defaultModel.isEnabled && defaultModel.isActivated) {
+    return DEFAULT_MODEL_ID;
+  } else {
+    // If the default model is not enabled or activated, find the first activated model
+    const firstActivatedModel = getActivatedModels()[0];
+    return firstActivatedModel ? firstActivatedModel.id : DEFAULT_MODEL_ID; // Fallback to default even if not activated as last resort
+  }
 }
 
 // Function to get user's default model from Supabase
@@ -101,9 +111,16 @@ export async function getUserDefaultModel(userId: string): Promise<string> {
       return getSystemDefaultModelId();
     }
     
-    // Verify the returned model exists in our configs
-    const modelExists = MODEL_CONFIGS.some(model => model.id === data && model.isEnabled);
-    return modelExists ? data : getSystemDefaultModelId();
+    // Verify the returned model exists, is enabled, and is activated
+    const modelExists = MODEL_CONFIGS.some(model => model.id === data && model.isEnabled && model.isActivated);
+    
+    if (modelExists) {
+      return data;
+    } else {
+      // If the model is not enabled or not activated, get the first activated model
+      const firstActivatedModel = getActivatedModels()[0];
+      return firstActivatedModel ? firstActivatedModel.id : getSystemDefaultModelId();
+    }
   } catch (error) {
     console.error('Error in getUserDefaultModel:', error);
     return getSystemDefaultModelId();
@@ -113,10 +130,10 @@ export async function getUserDefaultModel(userId: string): Promise<string> {
 // Function to update user's default model
 export async function updateUserDefaultModel(userId: string, modelId: string): Promise<boolean> {
   try {
-    // Verify the model exists and is enabled
-    const modelExists = MODEL_CONFIGS.some(model => model.id === modelId && model.isEnabled);
+    // Verify the model exists, is enabled, and is activated
+    const modelExists = MODEL_CONFIGS.some(model => model.id === modelId && model.isEnabled && model.isActivated);
     if (!modelExists) {
-      console.error('Attempted to set invalid or disabled model as default:', modelId);
+      console.error('Attempted to set invalid, disabled, or deactivated model as default:', modelId);
       return false;
     }
     
@@ -189,6 +206,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsPDFs: false,
     censored: true,
     isEnabled: true,
+    isActivated: false,
     reasoning: {
       enabled: true,
       provider: 'anthropic',
@@ -218,6 +236,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     },
     isWebSearchEnabled: true,
     isEnabled: true,
+    isActivated: false,
     contextWindow: 200000,
     tps: 78,
     intelligenceIndex: 48,
@@ -236,11 +255,12 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: true,
     censored: true,
     rateLimit: {
-      level: 'level3',
+      level: 'level4',
     },
     isWebSearchEnabled: true,
     supportsPDFs: false,
     isEnabled: true,
+    isActivated: true,
     contextWindow: 200000,
     tps: 77,
     intelligenceIndex: 44,
@@ -271,6 +291,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       tagName: 'think'
     },
     isEnabled: true,
+    isActivated: true,
     contextWindow: 128000,
     tps: 25,
     intelligenceIndex: 60,
@@ -295,6 +316,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isWebSearchEnabled: true,
     supportsPDFs: false,
     isEnabled: true,
+    isActivated: true,
     contextWindow: 128000,
     tps: 33,
     intelligenceIndex: 53,
@@ -325,6 +347,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       tagName: 'think'
     },
     isEnabled: true,
+    isActivated: true,
     contextWindow: 128000,
     tps: 96,
     intelligenceIndex: 60,
@@ -349,6 +372,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isWebSearchEnabled: false,
     supportsPDFs: false,
     isEnabled: true,
+    isActivated: true,
     contextWindow: 128000,
     tps: 72,
     intelligenceIndex: 46,
@@ -373,6 +397,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isWebSearchEnabled: false,
     supportsPDFs: false,
     isEnabled: true,
+    isActivated: true,
     contextWindow: 128000,
     tps: 14,
     intelligenceIndex: 51,
@@ -395,6 +420,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isWebSearchEnabled: false,
     supportsPDFs: false,
     isEnabled: true,
+    isActivated: true,
     contextWindow: 128000,
     tps: 136,
     intelligenceIndex: 41,
@@ -418,6 +444,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isWebSearchEnabled: false,
     supportsPDFs: false,
     isEnabled: true,
+    isActivated: true,
     contextWindow: 200000,
     tps: 36,
     intelligenceIndex: 62,
@@ -442,6 +469,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isWebSearchEnabled: false,
     supportsPDFs: false,
     isEnabled: true,
+    isActivated: true,
     contextWindow: 200000,
     tps: 188,
     intelligenceIndex: 63,
@@ -465,6 +493,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isWebSearchEnabled: true,
     supportsPDFs: true,
     isEnabled: true,
+    isActivated: true,
     contextWindow: 1024000,
     tps: 258,
     intelligenceIndex: 48,
@@ -488,6 +517,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isWebSearchEnabled: true,
     supportsPDFs: false,
     isEnabled: true,
+    isActivated: true,
     contextWindow: 128000,
     tps: 67, 
     intelligenceIndex: 39,
@@ -511,6 +541,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isWebSearchEnabled: true,
     supportsPDFs: false,
     isEnabled: true,
+    isActivated: true,
     contextWindow: 128000,
     tps: 275,
     intelligenceIndex: 41,
@@ -539,6 +570,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       tagName: 'think'
     },
     isEnabled: true,
+    isActivated: true,
     supportsPDFs: false,
     isWebSearchEnabled: true,
     contextWindow: 131000,
@@ -557,6 +589,7 @@ export const MODEL_CONFIGS: ModelConfig[] = MODEL_CONFIG_DATA;
 
 // Utility functions
 export const getEnabledModels = () => MODEL_CONFIGS.filter(model => model.isEnabled);
+export const getActivatedModels = () => MODEL_CONFIGS.filter(model => model.isEnabled && model.isActivated);
 export const getModelById = (id: string) => MODEL_CONFIGS.find(model => model.id === id);
 export const getVisionModels = () => MODEL_CONFIGS.filter(model => model.supportsVision);
 export const getNonVisionModels = () => MODEL_CONFIGS.filter(model => !model.supportsVision);

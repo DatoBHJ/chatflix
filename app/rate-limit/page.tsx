@@ -49,6 +49,46 @@ function formatTimeLeft(seconds: number): string {
   }
 }
 
+// Add countdown component for better visualization
+const CountdownTimer = ({ seconds }: { seconds: number }) => {
+  // Calculate hours, minutes, seconds
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  
+  return (
+    <div className="flex gap-2 sm:gap-4 items-center justify-center">
+      {hours > 0 && (
+        <div className="flex flex-col items-center">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-gradient-to-b from-red-500/10 to-red-500/20 rounded-lg text-xl sm:text-2xl font-medium text-red-500 dark:text-red-400">
+            {hours.toString().padStart(2, '0')}
+          </div>
+          <span className="text-xs mt-1 text-[var(--muted)]">HOURS</span>
+        </div>
+      )}
+      <div className="flex flex-col items-center">
+        <div className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-gradient-to-b from-red-500/10 to-red-500/20 rounded-lg text-xl sm:text-2xl font-medium text-red-500 dark:text-red-400">
+          {minutes.toString().padStart(2, '0')}
+        </div>
+        <span className="text-xs mt-1 text-[var(--muted)]">MINUTES</span>
+      </div>
+      <div className="text-red-500 dark:text-red-400 text-xl font-bold">:</div>
+      <div className="flex flex-col items-center">
+        <div className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-gradient-to-b from-red-500/10 to-red-500/20 rounded-lg text-xl sm:text-2xl font-medium text-red-500 dark:text-red-400 relative">
+          {secs.toString().padStart(2, '0')}
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-red-500/30">
+            <div 
+              className="h-full bg-red-500" 
+              style={{ width: `${(secs / 60) * 100}%`, transition: 'width 1s linear' }}
+            ></div>
+          </div>
+        </div>
+        <span className="text-xs mt-1 text-[var(--muted)]">SECONDS</span>
+      </div>
+    </div>
+  );
+};
+
 export default function RateLimitPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -557,8 +597,12 @@ export default function RateLimitPage() {
             {/* Rate limit notice */}
             <div className="mb-8 fade-in-up">
               <h1 className="text-2xl md:text-3xl font-medium mb-4 text-[var(--foreground)]">
-                Rate Limit Exceeded
+                AYOO CHAT IS THIS REAL???
               </h1>
+              
+              <p className="text-base text-[var(--muted)] mb-6 fade-in-up" style={{ animationDelay: '0.1s' }}>
+                Bro, it's $4. Hop on it before it's too late.
+              </p>
               
               {/* {currentModel && (
                 <div className="mb-6 fade-in-up" style={{ animationDelay: '0.1s' }}>
@@ -582,13 +626,13 @@ export default function RateLimitPage() {
               )} */}
               
               {/* Display the rate limited level */}
-              {rateLimitedLevel && (
+              {/* {rateLimitedLevel && (
                 <div className="mb-6 fade-in-up" style={{ animationDelay: '0.15s' }}>
                   <div className="text-xs uppercase tracking-wider text-[var(--muted)] mb-2">Rate Limited Level</div>
                   <div className="flex items-center gap-2">
-                    {/* <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center bg-red-500/10 rounded-md text-red-500 dark:text-red-400 font-medium">
+                    <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center bg-red-500/10 rounded-md text-red-500 dark:text-red-400 font-medium">
                       {rateLimitedLevel.replace('level', '')}
-                    </div> */}
+                    </div>
                     <div className="text-base font-medium text-red-500 dark:text-red-400">
                       {rateLimitedLevel.charAt(0).toUpperCase() + rateLimitedLevel.slice(1)}
                       <span className="ml-2 text-sm text-[var(--muted)]">
@@ -597,41 +641,66 @@ export default function RateLimitPage() {
                     </div>
                   </div>
                 </div>
-              )}
+              )} */}
               
               <div className="mb-8 fade-in-up" style={{ animationDelay: '0.2s' }}>
-                <div className="text-xs uppercase tracking-wider text-[var(--muted)] mb-2">Time Until Reset</div>
-                <div className="text-lg font-medium text-red-500 dark:text-red-400">
-                  {formatTimeLeft(timeLeft)}
+                <div className="flex flex-col items-center">
+                  {/* <div className="bg-gradient-to-r from-rose-400/20 to-amber-400/20 px-6 py-4 rounded-lg w-full max-w-md"> */}
+                    <div className="text-center mb-3">
+                      <span className="text-base font-medium">fr tho... why wait</span>
+                      <span className="mx-1 text-rose-500">⏳</span>
+                    </div>
+                    
+                    <CountdownTimer seconds={timeLeft} />
+                    
+                    <div className="text-center mt-3 flex flex-col items-center">
+                      <span className="text-base font-medium mb-2">when you could go unlimited rn? 💯</span>
+                      <div className="flex items-center gap-2 mt-1">
+                        {/* <span className="line-through text-sm text-[var(--muted)]">$4</span> */}
+                        {/* <span className="bg-gradient-to-r from-rose-500 to-amber-500 text-transparent bg-clip-text text-2xl font-bold">$0.8</span> */}
+                        {/* <span className="text-xs bg-rose-600 text-white px-2 py-0.5 rounded">STEAL</span> */}
+                      </div>
+                    </div>
+                  {/* </div> */}
                 </div>
               </div>
               
               {/* Golden Ticket Subscription Button */}
               <div className="mb-8 fade-in-up" style={{ animationDelay: '0.25s' }}>
-                <div className="p-4 bg-amber-50/10 border border-amber-200 rounded-sm">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="p-4 bg-amber-50/10 border border-amber-200 rounded-sm relative overflow-hidden">
+                  <div className="absolute top-0 right-0 bg-rose-600 text-xs text-white px-3 py-1 rounded-bl-sm font-medium">
+                    NGL IT'S A STEAL. YOU'RE WELCOME.
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2">
                     <div>
-                    <h3 className="text-base font-medium mb-1 text-amber-800 dark:text-amber-400">80% OFF - ENDING SOON</h3>
-                      <p className="text-sm text-[var(--muted)]">Unlimited access to all features</p>
+                      <h3 className="text-base font-medium mb-1 text-amber-800 dark:text-amber-400">UNLOCK PREMIUM ACCESS</h3>
+                      <p className="text-sm text-[var(--muted)]">Skip the wait & enjoy unlimited chatting</p>
+                      <div className="flex gap-2 mt-2">
+                        <span className="text-xs px-2 py-1 bg-amber-100/20 text-amber-700 rounded">No Rate Limits</span>
+                        <span className="text-xs px-2 py-1 bg-amber-100/20 text-amber-700 rounded">All Models</span>
+                        <span className="text-xs px-2 py-1 bg-amber-100/20 text-amber-700 rounded">Priority Access</span>
+                      </div>
                     </div>
                     <div className="relative" onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)}>
                       <button
                         onClick={handleSubscribe}
                         disabled={isSubscribing}
-                        className="premium-ticket flex items-center gap-2 px-4 py-2 border border-amber-400/30 bg-gradient-to-r from-amber-50 to-amber-100 text-amber-800 rounded-sm hover:shadow-md transition-all whitespace-nowrap"
+                        className="premium-ticket flex items-center gap-2 px-4 py-2 border border-amber-400/30 bg-gradient-to-r from-amber-500 to-amber-400 text-white rounded-sm hover:shadow-md transition-all whitespace-nowrap relative overflow-hidden"
                         aria-label="Get Premium Access"
                       >
-                   
-                        <span className="text-2xl font-bold tracking-wide">Start for $2</span>
+                        <span className="text-2xl font-bold tracking-wide relative z-10">
+                          <span className="opacity-70 text-sm line-through mr-1">$4</span>
+                          $0.8
+                        </span>
+                        <div className="absolute inset-0 bg-white opacity-0 hover:opacity-10 transition-opacity"></div>
                       </button>
-                      
                     </div>
                   </div>
                 </div>
               </div>
               
               {/* 사용자 메시지 스타일로 현재 채팅 표시 */}
-              {chatId && chatTitle && (
+              {/* {chatId && chatTitle && (
                 <div className="mb-8 fade-in-up" style={{ animationDelay: '0.3s' }}>
                   <div className="text-xs uppercase tracking-wider text-[var(--muted)] mb-3">Current Chat</div>
                   <div className="message-group">
@@ -647,9 +716,8 @@ export default function RateLimitPage() {
                     </div>
                   </div>
                 </div>
-              )}
+              )} */}
               
-         
             </div>
             <div className="mb-4 model-selector-container">
                 <ModelSelector
