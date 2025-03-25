@@ -28,72 +28,104 @@ export default function Home() {
   useEffect(() => {
     // Only run on client side
     if (typeof window !== 'undefined') {
-      try {
-        // Check for multiple rate limited levels
-        const rateLimitLevelsStr = localStorage.getItem('rateLimitLevels')
-        if (rateLimitLevelsStr) {
-          const levelsData = JSON.parse(rateLimitLevelsStr)
-          const currentTime = Date.now()
+      const checkRateLimits = () => {
+        try {
+          // Check for multiple rate limited levels
+          const rateLimitLevelsStr = localStorage.getItem('rateLimitLevels')
+          let newRateLimitedLevels: string[] = [];
+          let shouldUpdateState = false;
           
-          // Filter out expired levels and collect valid ones
-          const validLevels = Object.entries(levelsData)
-            .filter(([_, data]: [string, any]) => data.reset > currentTime)
-            .map(([level, _]: [string, any]) => level)
-          
-          if (validLevels.length > 0) {
-            setRateLimitedLevels(validLevels)
+          if (rateLimitLevelsStr) {
+            const levelsData = JSON.parse(rateLimitLevelsStr)
+            const currentTime = Date.now()
             
-            // If current model is rate limited, switch to a different model
-            if (currentModel) {
-              const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel)
-              if (currentModelConfig && validLevels.includes(currentModelConfig.rateLimit.level)) {
-                // Find a model from a different level that's not rate limited
-                const alternativeModel = MODEL_CONFIGS.find(m => 
-                  m.isEnabled && !validLevels.includes(m.rateLimit.level)
-                )
-                if (alternativeModel) {
-                  setNextModel(alternativeModel.id)
-                }
+            // Filter out expired levels and collect valid ones
+            const validLevels = Object.entries(levelsData)
+              .filter(([_, data]: [string, any]) => data.reset > currentTime)
+              .map(([level, _]: [string, any]) => level)
+            
+            if (validLevels.length > 0) {
+              // Only update state if the levels have changed
+              if (JSON.stringify(validLevels) !== JSON.stringify(rateLimitedLevels)) {
+                newRateLimitedLevels = validLevels;
+                shouldUpdateState = true;
               }
-            }
-          } else {
-            // All rate limits have expired, remove the data
-            localStorage.removeItem('rateLimitLevels')
-          }
-        } else {
-          // For backward compatibility, check the old format
-          const rateLimitInfoStr = localStorage.getItem('rateLimitInfo')
-          if (rateLimitInfoStr) {
-            const rateLimitInfo = JSON.parse(rateLimitInfoStr)
-            
-            // Check if the rate limit is still valid
-            if (rateLimitInfo.reset > Date.now()) {
-              setRateLimitedLevels([rateLimitInfo.level])
               
               // If current model is rate limited, switch to a different model
               if (currentModel) {
                 const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel)
-                if (currentModelConfig && currentModelConfig.rateLimit.level === rateLimitInfo.level) {
-                  // Find a model from a different level
+                if (currentModelConfig && validLevels.includes(currentModelConfig.rateLimit.level)) {
+                  // Find a model from a different level that's not rate limited
                   const alternativeModel = MODEL_CONFIGS.find(m => 
-                    m.isEnabled && m.rateLimit.level !== rateLimitInfo.level
+                    m.isEnabled && !validLevels.includes(m.rateLimit.level)
                   )
-                  if (alternativeModel) {
+                  if (alternativeModel && alternativeModel.id !== nextModel) {
                     setNextModel(alternativeModel.id)
                   }
                 }
               }
             } else {
-              // Rate limit has expired, remove it
-              localStorage.removeItem('rateLimitInfo')
+              // All rate limits have expired, remove the data
+              localStorage.removeItem('rateLimitLevels')
+              if (rateLimitedLevels.length > 0) {
+                shouldUpdateState = true;
+              }
+            }
+          } else {
+            // For backward compatibility, check the old format
+            const rateLimitInfoStr = localStorage.getItem('rateLimitInfo')
+            if (rateLimitInfoStr) {
+              const rateLimitInfo = JSON.parse(rateLimitInfoStr)
+              
+              // Check if the rate limit is still valid
+              if (rateLimitInfo.reset > Date.now()) {
+                if (rateLimitedLevels.length !== 1 || rateLimitedLevels[0] !== rateLimitInfo.level) {
+                  newRateLimitedLevels = [rateLimitInfo.level];
+                  shouldUpdateState = true;
+                }
+                
+                // If current model is rate limited, switch to a different model
+                if (currentModel) {
+                  const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel)
+                  if (currentModelConfig && currentModelConfig.rateLimit.level === rateLimitInfo.level) {
+                    // Find a model from a different level
+                    const alternativeModel = MODEL_CONFIGS.find(m => 
+                      m.isEnabled && m.rateLimit.level !== rateLimitInfo.level
+                    )
+                    if (alternativeModel && alternativeModel.id !== nextModel) {
+                      setNextModel(alternativeModel.id)
+                    }
+                  }
+                }
+              } else {
+                // Rate limit has expired, remove it
+                localStorage.removeItem('rateLimitInfo')
+                if (rateLimitedLevels.length > 0) {
+                  shouldUpdateState = true;
+                }
+              }
             }
           }
+          
+          // Only update state if necessary
+          if (shouldUpdateState) {
+            setRateLimitedLevels(newRateLimitedLevels);
+          }
+        } catch (error) {
+          console.error('Error checking rate limits:', error)
         }
-      } catch (error) {
-        console.error('Error parsing rate limit info:', error)
       }
+
+      // Initial check
+      checkRateLimits()
+
+      // Set up interval to check every 5 seconds instead of every second
+      const intervalId = setInterval(checkRateLimits, 5000)
+
+      // Cleanup interval on unmount
+      return () => clearInterval(intervalId)
     }
-  }, [currentModel])
+  }, [currentModel, nextModel, rateLimitedLevels]) // Add rateLimitedLevels to dependencies
 
   useEffect(() => {
     const getUser = async () => {

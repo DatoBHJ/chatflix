@@ -125,6 +125,11 @@ export default function RateLimitPage() {
   useEffect(() => {
     if (rateLimitedLevel) {
       const resetTime = new Date(searchParams.get('reset') || '').getTime()
+      console.log('Saving rate limit info:', {
+        level: rateLimitedLevel,
+        reset: resetTime,
+        models: rateLimitedModels
+      })
       
       // Get existing rate limit levels from localStorage
       let rateLimitLevels = {}
@@ -148,6 +153,7 @@ export default function RateLimitPage() {
       
       // Store in localStorage
       localStorage.setItem('rateLimitLevels', JSON.stringify(rateLimitLevels))
+      console.log('Saved rateLimitLevels:', rateLimitLevels)
       
       // For backward compatibility
       const rateLimitInfo = {
@@ -156,6 +162,7 @@ export default function RateLimitPage() {
         models: rateLimitedModels
       }
       localStorage.setItem('rateLimitInfo', JSON.stringify(rateLimitInfo))
+      console.log('Saved rateLimitInfo:', rateLimitInfo)
       
       // Set up cleanup for expired rate limits
       const timeoutId = setTimeout(() => {

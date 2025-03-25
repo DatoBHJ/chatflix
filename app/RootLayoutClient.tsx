@@ -8,7 +8,6 @@ import { PromptShortcutsDialog } from './components/PromptShortcutsDialog'
 import { Header } from './components/Header'
 import Announcement from './components/Announcement'
 import useAnnouncement from './hooks/useAnnouncement'
-import { clearRateLimitInfo } from '@/lib/utils'
 
 export default function RootLayoutClient({
   children,
@@ -34,9 +33,6 @@ export default function RootLayoutClient({
       setUser(user)
       if (!user && pathname !== '/login') {
         router.push('/login')
-      } else if (user) {
-        // Clear rate limit info when user is loaded (on refresh/initial load)
-        clearRateLimitInfo()
       }
     }
 
@@ -46,8 +42,6 @@ export default function RootLayoutClient({
         router.push('/login')
       } else if (event === 'SIGNED_IN') {
         setUser(session?.user || null)
-        // Clear rate limit info on sign in
-        clearRateLimitInfo()
       }
     })
 
