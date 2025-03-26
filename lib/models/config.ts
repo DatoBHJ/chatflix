@@ -13,6 +13,8 @@ export interface ModelConfig {
   isEnabled: boolean;
   isActivated: boolean; // Whether the model is activated for selection
   isWebSearchEnabled: boolean;
+  isNew?: boolean; // Mark model as new
+  isHot?: boolean; // Mark model as hot/trending
   reasoning?: {
     enabled: boolean;
     provider?: 'groq' | 'together' | 'anthropic' | 'deepseek';  
@@ -265,6 +267,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level4',
     },
     isWebSearchEnabled: false,
+    isHot: true,
     isEnabled: true,
     isActivated: true,
     contextWindow: 200000,
@@ -345,6 +348,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     },
     isWebSearchEnabled: true,
     supportsPDFs: false,
+    isHot: true,
+    isNew: true,
     isEnabled: true,
     isActivated: true,
     contextWindow: 128000,
@@ -545,6 +550,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level3',
     },
     isWebSearchEnabled: true,
+    isHot: true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -593,6 +599,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level2',
     },
+    isHot: true,
     reasoning: {
       enabled: true,
       provider: 'groq',

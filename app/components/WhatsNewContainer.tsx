@@ -5,10 +5,18 @@ import { useLastSeenUpdate } from '../hooks/useLastSeenUpdate';
 // Sample updates - in a real app, these could be fetched from an API
 const UPDATES: FeatureUpdate[] = [
   // {
-  //   id: 'Anthropic mode',
-  //   title: 'Rate Limit Clearance',
+  //   id: 'Web Search Source Retrieval',
+  //   title: 'Tip: Try Web Search to retrieve sources',
   //   date: '25th March 2025',
-  //   description: "We've cleared the rate limit for all users",
+  //   description: "Web Search allows you to retrieve sources for your queries. It's a great way to get more information about a topic or to find more details on a specific subject.",
+  //   images: [
+  //     // '/images/updates/pdf1.png',
+  //     '/images/updates/pdf2.png'    ],
+  //   highlights: [
+  //     '',
+  //   ],
+  //   instructions: [
+  //   ]  
   // },
   {
     id: 'new-model-release',

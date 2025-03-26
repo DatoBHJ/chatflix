@@ -520,6 +520,18 @@ const ModelBarChart = ({
         viewBox={`0 0 ${width} ${height}`}
         className="overflow-visible mx-auto"
       >
+        {/* Define gradients for NEW and HOT badges */}
+        <defs>
+          <linearGradient id="new-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#3B82F6" />
+            <stop offset="100%" stopColor="#60A5FA" />
+          </linearGradient>
+          <linearGradient id="hot-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#F97316" />
+            <stop offset="100%" stopColor="#EF4444" />
+          </linearGradient>
+        </defs>
+        
         {validModels.map((model, index) => {
           const value = model[selectedMetric] as number;
           const barWidth = scaleWidth(value);
@@ -540,6 +552,68 @@ const ModelBarChart = ({
               >
                 {model.name}
               </text>
+              
+              {/* NEW/HOT badges with improved modern design */}
+              {model.isNew && (
+                <g transform={`translate(${labelWidth + barWidth + 10}, ${y + barHeight / 2})`}>
+                  <rect 
+                    x={-6} 
+                    y={-8} 
+                    width={45} 
+                    height={16} 
+                    rx={8}
+                    fill="url(#new-gradient)"
+                    className="shadow-sm"
+                  />
+                  {/* Replace simple circle+path with Heroicon path */}
+                  <g transform="translate(-1, -4.5) scale(0.4)">
+                    <path 
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" 
+                      fill="white"
+                    />
+                  </g>
+                  <text
+                    x={10}
+                    y={0}
+                    fontSize={isFullscreen ? 10 : 9}
+                    fill="white"
+                    fontWeight="600"
+                    dominantBaseline="middle"
+                  >
+                    NEW
+                  </text>
+                </g>
+              )}
+              {model.isHot && (
+                <g transform={`translate(${labelWidth + barWidth + 10}, ${y + barHeight / 2})`}>
+                  <rect 
+                    x={-6} 
+                    y={-8} 
+                    width={45} 
+                    height={16} 
+                    rx={8}
+                    fill="url(#hot-gradient)"
+                    className="shadow-sm"
+                  />
+                  {/* Replace simple flame path with Heroicon path */}
+                  <g transform="translate(-1, -4.5) scale(0.4)">
+                    <path 
+                      d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" 
+                      fill="white"
+                    />
+                  </g>
+                  <text
+                    x={10}
+                    y={0}
+                    fontSize={isFullscreen ? 10 : 9}
+                    fill="white"
+                    fontWeight="600"
+                    dominantBaseline="middle"
+                  >
+                    HOT
+                  </text>
+                </g>
+              )}
               
               {/* Bar */}
               <rect
@@ -562,16 +636,20 @@ const ModelBarChart = ({
                 />
               )}
               
-              {/* Value */}
-              <text
-                x={labelWidth + barWidth + 10}
-                y={y + barHeight / 2}
-                fontSize={isFullscreen ? 12 : 10}
-                fill="var(--foreground)"
-                dominantBaseline="middle"
-              >
-                {formatValue(value, selectedMetric)}
-              </text>
+              {/* Value - only shown if bar width is 50px or more */}
+              {barWidth >= 50 && (
+                <text
+                  x={barWidth > 60 ? labelWidth + barWidth - 10 : labelWidth + barWidth + 5}
+                  y={y + barHeight / 2}
+                  fontSize={isFullscreen ? 12 : 10}
+                  fill={barWidth > 60 ? "white" : "var(--foreground)"}
+                  dominantBaseline="middle"
+                  textAnchor={barWidth > 60 ? "end" : "start"}
+                  fontWeight={barWidth > 60 ? "bold" : "normal"}
+                >
+                  {formatValue(value, selectedMetric)}
+                </text>
+              )}
             </g>
           );
         })}
@@ -1051,22 +1129,6 @@ export function ModelSelector({
               
               {/* Fullscreen content container */}
               <div className={isFullscreen ? "fullscreen-content" : ""}>
-                {/* Graph container with enhanced styling for fullscreen mode */}
-                <div className={`${isFullscreen ? 'graph-container' : ''}`}>
-                  <ModelPerformanceGraph 
-                    models={MODEL_OPTIONS} 
-                    isMobile={isMobile && !isFullscreen} 
-                    isFullscreen={isFullscreen}
-                  />
-                  
-                  {/* Add Bar Chart below the scatter plot */}
-                  <ModelBarChart
-                    models={MODEL_OPTIONS}
-                    isMobile={isMobile && !isFullscreen}
-                    isFullscreen={isFullscreen}
-                  />
-                </div>
-                
                 {/* Model options list */}
                 <div className={`py-1 space-y-6 ${isFullscreen ? 'max-w-4xl mx-auto px-4' : ''}`}>
                   {MODEL_OPTIONS.length > 0 ? (
@@ -1125,6 +1187,24 @@ export function ModelSelector({
                               <span className="model-name">
                                 {option.name}
                               </span>
+                              
+                              {/* NEW/HOT badges with improved modern design */}
+                              {option.isNew && (
+                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-gradient-to-r from-blue-500 to-blue-400 text-white shadow-sm">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+                                  </svg>
+                                  NEW
+                                </span>
+                              )}
+                              {option.isHot && (
+                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
+                                  </svg>
+                                  HOT
+                                </span>
+                              )}
                             </div>
                        
                             {/* Badges below model name for both desktop and mobile */}
@@ -1201,10 +1281,24 @@ export function ModelSelector({
                       );
                     })
                   ) : (
-                    <div className="px-4 py-2 text-sm text-[var(--muted)]">
-                      No models available
-                    </div>
+                    <div className="text-center py-4 text-gray-500">No models available</div>
                   )}
+                </div>
+
+                {/* Performance visualization section - moved to appear after model options list */}
+                <div className={`model-visualization-container ${isFullscreen ? 'mt-8' : 'mt-4'}`}>
+                  {/* Bar Chart */}
+                  <ModelBarChart
+                    models={MODEL_OPTIONS}
+                    isMobile={isMobile && !isFullscreen}
+                    isFullscreen={isFullscreen}
+                  />
+                  {/* Scatter plot */}
+                  <ModelPerformanceGraph
+                  models={MODEL_OPTIONS}
+                  isMobile={isMobile && !isFullscreen}
+                  isFullscreen={isFullscreen}
+                />
                 </div>
               </div>
             </div>
