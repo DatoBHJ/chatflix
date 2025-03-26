@@ -23,12 +23,6 @@ function parseWindow(window: string): Duration {
 
 // Create level-based rate limiters for hourly limits
 const hourlyRateLimiters = {
-  level0: new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level0.hourly.requests, parseWindow(RATE_LIMITS.level0.hourly.window)),
-    analytics: true,
-    prefix: 'ratelimit:hourly',
-  }),
   level1: new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(RATE_LIMITS.level1.hourly.requests, parseWindow(RATE_LIMITS.level1.hourly.window)),
@@ -63,12 +57,6 @@ const hourlyRateLimiters = {
 
 // Create level-based rate limiters for daily limits
 const dailyRateLimiters = {
-  level0: new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level0.daily.requests, parseWindow(RATE_LIMITS.level0.daily.window)),
-    analytics: true,
-    prefix: 'ratelimit:daily',
-  }),
   level1: new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(RATE_LIMITS.level1.daily.requests, parseWindow(RATE_LIMITS.level1.daily.window)),

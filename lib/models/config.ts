@@ -8,7 +8,7 @@ export interface ModelConfig {
   supportsPDFs: boolean;
   censored?: boolean;
   rateLimit: {
-    level: 'level0' | 'level1' | 'level2' | 'level3' | 'level4' | 'level5';
+    level: 'level1' | 'level2' | 'level3' | 'level4' | 'level5';
   };
   isEnabled: boolean;
   isActivated: boolean; // Whether the model is activated for selection
@@ -37,23 +37,13 @@ export interface ModelConfig {
 export const DEFAULT_MODEL_ID = 'gemini-2.0-flash'; 
 
 export const RATE_LIMITS = {
-  level0: {
+  level1: {
     hourly: {
-      requests: 1000,    
+      requests: 10000,    
       window: '1 h'
     },
     daily: {
       requests: 10000,    
-      window: '24 h'
-    }
-  },
-  level1: {
-    hourly: {
-      requests: 10,    
-      window: '1 h'
-    },
-    daily: {
-      requests: 50,    
       window: '24 h'
     }
   },
@@ -587,7 +577,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: true,
     censored: false,
     rateLimit: {
-      level: 'level0',
+      level: 'level1',
     },
     isWebSearchEnabled: true,
     supportsPDFs: false,
