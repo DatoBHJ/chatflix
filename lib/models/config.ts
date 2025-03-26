@@ -49,7 +49,7 @@ export const RATE_LIMITS = {
   },
   level2: {
     hourly: {
-      requests: 5,
+      requests: 10,
       window: '1 h'
     },
     daily: {
@@ -59,7 +59,7 @@ export const RATE_LIMITS = {
   },
   level3: {
     hourly: {
-      requests: 5,    
+      requests: 10,    
       window: '1 h'
     },
     daily: {
@@ -601,7 +601,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: false,
     censored: false,
     rateLimit: {
-      level: 'level1',
+      level: 'level2',
     },
     isWebSearchEnabled: true,
     supportsPDFs: false,
@@ -626,7 +626,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: false,
     // censored: true,
     rateLimit: {
-      level: 'level1',
+      level: 'level2',
     },
     isHot: true,
     reasoning: {
