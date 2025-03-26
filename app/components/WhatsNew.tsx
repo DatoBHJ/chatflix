@@ -190,8 +190,8 @@ const WhatsNew: React.FC<WhatsNewProps> = ({
                             : styles.sidebarButtonInactive
                         }`}
                       >
-                        <div>{update.title}</div>
-                        <div className="text-xs text-[var(--muted)] mt-1">{update.date}</div>
+                        <div className="max-w-[140px] sm:max-w-full truncate text-left" title={update.title}>{update.title}</div>
+                        <div className="text-xs text-[var(--muted)] mt-1 truncate max-w-[140px] sm:max-w-full">{update.date}</div>
                       </button>
                     </div>
                   ))}
