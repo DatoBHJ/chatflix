@@ -12,9 +12,14 @@ export default function About() {
   
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
-      setIsLoading(false)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+      } catch (error) {
+        console.error('Failed to fetch user:', error)
+      } finally {
+        setIsLoading(false)
+      }
     }
     
     getUser()
