@@ -498,6 +498,7 @@ You are an image generator. The user provides a prompt. Please infer the followi
             });
 
             const stream = result.mergeIntoDataStream(dataStream, {
+              experimental_sendStart: false,
               sendReasoning: true
             });
 

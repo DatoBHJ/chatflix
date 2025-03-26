@@ -17,7 +17,7 @@ export interface ModelConfig {
   isHot?: boolean; // Mark model as hot/trending
   reasoning?: {
     enabled: boolean;
-    provider?: 'groq' | 'together' | 'anthropic' | 'deepseek';  
+    provider?: 'groq' | 'together' | 'anthropic' | 'deepseek' | 'google';  
     baseModelId?: string; 
     tagName?: string; 
     budgetTokens?: number;
@@ -255,6 +255,55 @@ export async function getDefaultModelId(userId?: string): Promise<string> {
 // Define the model configurations
 const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
+    id: 'gemini-2.5-pro-exp-03-25',
+    name: 'Gemini 2.5 Pro Experimental (Mar\' 25)',
+    country: 'US',
+    description: 'Google\'s most powerful thinking model. Reasoning tokens used in its chain-of-thought process are hidden by Google and not included in the visible output.',
+    provider: 'google',
+    supportsVision: true,
+    censored: true,
+    rateLimit: {
+      level: 'level1',
+    },
+    isNew: true,
+    isWebSearchEnabled: true,
+    supportsPDFs: true,
+    isEnabled: true,
+    isActivated: true,
+    contextWindow: 1024000,
+    // tps: 258,
+    // intelligenceIndex: 48,
+    // MMLU_Pro: 78,
+    // Coding: 32,
+    // MATH: 63,
+    // GPQA: 62,
+    // HLE: 5.3
+  },
+  {
+    id: 'gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    country: 'US',
+    description: 'Latest model with 1m context window by Google',
+    provider: 'google',
+    supportsVision: true,
+    censored: true,
+    rateLimit: {
+      level: 'level1',
+    },
+    isWebSearchEnabled: true,
+    supportsPDFs: true,
+    isEnabled: true,
+    isActivated: true,
+    contextWindow: 1024000,
+    tps: 258,
+    intelligenceIndex: 48,
+    MMLU_Pro: 78,
+    Coding: 32,
+    MATH: 63,
+    GPQA: 62,
+    HLE: 5.3
+  },
+  {
     id: 'claude-3-7-sonnet-20250219',
     name: 'Claude 3.7 Sonnet (Thinking)',
     country: 'US',
@@ -369,7 +418,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     id: 'deepseek-chat',
     name: "DeepSeek V3 (Mar' 25)",
     country: 'CHINA',
-    description: 'The best open source non-reasoning model in the world, outscoring Grok3, Claude 3.7 Sonnet and GPT-4.5 in the Artificial Analysis Intelligence Index.',
+    description: 'Latest generation of DeepSeek V3. The best open source non-reasoning model by DeepSeek',
     provider: 'deepseek',
     supportsVision: false,
     // censored: true,
@@ -395,7 +444,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     id: 'deepseek-ai/DeepSeek-R1',
     name: 'DeepSeek R1 (Thinking)',
     country: 'CHINA',
-    description: 'DeepSeek R1 via Together.ai',
+    description: 'Developed by DeepSeek hosted by Together.ai. Faster than the official DeepSeek R1',
     provider: 'together',
     supportsVision: false,
     // censored: true,
@@ -426,7 +475,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     id: 'deepseek-ai/DeepSeek-V3',
     name: 'DeepSeek V3',
     country: 'CHINA',
-    description: 'DeepSeek V3 via Together.ai',
+    description: 'Previous generation of DeepSeek V3 hosted by Together.ai. Faster than the official DeepSeek V3',
     provider: 'together',
     supportsVision: false,
     // censored: true,
@@ -447,29 +496,29 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     multilingual:86,
     HLE: 3.6
   },
-  {
-    id: 'gpt-4.5-preview',
-    name: 'GPT-4.5',
-    country: 'US',
-    description: 'Latest and most capable GPT model yet by OpenAI',
-    provider: 'openai',
-    supportsVision: true,
-    censored: true,
-    rateLimit: {
-      level: 'level5',
-    },
-    isWebSearchEnabled: false,
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    contextWindow: 128000,
-    tps: 14,
-    intelligenceIndex: 51,
-    MMLU_Pro: 89.6,  // estimated
-    // Coding: , // unknown
-    // MATH: // unknown,
-    GPQA: 71
-  },
+  // {
+  //   id: 'gpt-4.5-preview',
+  //   name: 'GPT-4.5',
+  //   country: 'US',
+  //   description: 'Latest and most capable GPT model yet by OpenAI',
+  //   provider: 'openai',
+  //   supportsVision: true,
+  //   censored: true,
+  //   rateLimit: {
+  //     level: 'level5',
+  //   },
+  //   isWebSearchEnabled: false,
+  //   supportsPDFs: false,
+  //   isEnabled: true,
+  //   isActivated: true,
+  //   contextWindow: 128000,
+  //   tps: 14,
+  //   intelligenceIndex: 51,
+  //   MMLU_Pro: 89.6,  // estimated
+  //   // Coding: , // unknown
+  //   // MATH: // unknown,
+  //   GPQA: 71
+  // },
   {
     id: 'chatgpt-4o-latest',
     name: 'GPT-4o',
@@ -545,30 +594,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     HLE: 8.7
   },
   {
-    id: 'gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    country: 'US',
-    description: 'Latest model with 1m context window by Google',
-    provider: 'google',
-    supportsVision: true,
-    censored: true,
-    rateLimit: {
-      level: 'level1',
-    },
-    isWebSearchEnabled: true,
-    supportsPDFs: true,
-    isEnabled: true,
-    isActivated: true,
-    contextWindow: 1024000,
-    tps: 258,
-    intelligenceIndex: 48,
-    MMLU_Pro: 78,
-    Coding: 32,
-    MATH: 63,
-    GPQA: 62,
-    HLE: 5.3
-  },
-  {
     id: 'grok-2-vision-latest',
     name: 'Grok 2 Vision',
     country: 'US',
@@ -596,7 +621,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     id: 'llama-3.3-70b-versatile',
     name: 'Llama 3.3 70B',
     country: 'US',
-    description: 'Llama 3.3 70B by Meta via Groq',
+    description: 'Developed by Meta hosted by Groq. Lightning fast and smart.',
     provider: 'groq',
     supportsVision: false,
     censored: false,
@@ -621,7 +646,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     id: 'qwen-qwq-32b',
     name: 'QwQ-32B (Thinking)',
     country: 'CHINA',
-    description: "Capable of achieving competitive performance against state-of-the-art reasoning models, e.g., DeepSeek-R1, o1-mini",
+    description: "Developed by Qwen hosted by Groq. Capable of achieving competitive performance against state-of-the-art reasoning models, e.g., DeepSeek-R1, o1-mini",
     provider: 'groq',
     supportsVision: false,
     // censored: true,
