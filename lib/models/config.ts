@@ -53,7 +53,7 @@ export const RATE_LIMITS = {
       window: '1 h'
     },
     daily: {
-      requests: 40,
+      requests: 30,
       window: '24 h'
     }
   },
@@ -73,7 +73,7 @@ export const RATE_LIMITS = {
       window: '1 h'
     },
     daily: {
-      requests: 20,
+      requests: 15,
       window: '24 h'
     }
   },
@@ -83,7 +83,7 @@ export const RATE_LIMITS = {
       window: '1 h'
     },
     daily: {
-      requests: 20,
+      requests: 15,
       window: '24 h'
     }
   },
