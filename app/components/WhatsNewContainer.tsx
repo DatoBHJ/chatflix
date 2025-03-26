@@ -19,6 +19,12 @@ const UPDATES: FeatureUpdate[] = [
   //   ]  
   // },
   {
+    id: 'image-generation-instructions',
+    title: '(Experimental) Image Generation Instructions',
+    date: 'Not confirmed',
+    description: 'Start your prompt with /image to generate images',
+  },
+  {
     id: 'new-model-release-1',
     title: 'New Model: Gemini 2.5 Pro (Mar\' 25)',
     date: '27th March 2025',
@@ -87,7 +93,7 @@ const UPDATES: FeatureUpdate[] = [
     //  'Supports uncensored image generation',
     ],
     instructions: [
-     'Start your prompt with <strong>/image</strong> to generate <strong>images</strong>'
+     'Start your prompt with /image to generate images'
     ]
   },
   {
@@ -118,6 +124,7 @@ const UPDATES: FeatureUpdate[] = [
 const WhatsNewContainer: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [hasNewUpdates, setHasNewUpdates] = useState(false);
+  const [newUpdatesCount, setNewUpdatesCount] = useState(0);
   const { lastSeenUpdateId, updateLastSeen, isLoaded } = useLastSeenUpdate();
   
   // Check if there are updates the user hasn't seen
@@ -126,8 +133,18 @@ const WhatsNewContainer: React.FC = () => {
     
     if (lastSeenUpdateId) {
       const lastSeenIndex = UPDATES.findIndex(update => update.id === lastSeenUpdateId);
-      setHasNewUpdates(lastSeenIndex > 0 || lastSeenIndex === -1);
+      // If the last seen update is found, count items newer than it
+      if (lastSeenIndex !== -1) {
+        setNewUpdatesCount(lastSeenIndex);
+        setHasNewUpdates(lastSeenIndex > 0);
+      } else {
+        // If last seen update not found, all updates are new
+        setNewUpdatesCount(UPDATES.length);
+        setHasNewUpdates(UPDATES.length > 0);
+      }
     } else {
+      // If no update has been seen before, all are new
+      setNewUpdatesCount(UPDATES.length);
       setHasNewUpdates(UPDATES.length > 0);
     }
   }, [lastSeenUpdateId, isLoaded]);
@@ -137,6 +154,7 @@ const WhatsNewContainer: React.FC = () => {
     if (UPDATES.length > 0) {
       updateLastSeen(UPDATES[0].id);
       setHasNewUpdates(false);
+      setNewUpdatesCount(0);
     }
   };
   
@@ -166,7 +184,9 @@ const WhatsNewContainer: React.FC = () => {
           <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
         </svg>
         {hasNewUpdates && (
-          <span className="absolute top-0 right-0 w-2 h-2 bg-[var(--foreground)] rounded-full"></span>
+          <span className="absolute -top-2 -right-2 flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-[var(--foreground)] text-[var(--background)] rounded-full">
+            {newUpdatesCount}
+          </span>
         )}
       </button>
       
