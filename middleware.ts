@@ -79,8 +79,18 @@ export async function middleware(request: NextRequest) {
           console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Using level ${level} for model ${modelId}`);
           const rateLimiters = await getRateLimiter(modelId, userId);
           
+          // Check if the user is subscribed
+          let isSubscribed = false;
+          try {
+            const { supabase } = await import('@/lib/supabase');
+            const { data, error } = await supabase.rpc('check_user_subscription', { user_id: userId });
+            isSubscribed = data || false;
+          } catch (error) {
+            console.error('[DEBUG-RATELIMIT-MIDDLEWARE] Error checking subscription:', error);
+          }
+          
           // Check hourly limit
-          const hourlyKey = createRateLimitKey(userId, level, 'hourly');
+          const hourlyKey = createRateLimitKey(userId, level, 'hourly', isSubscribed);
           const hourlyResult = await rateLimiters.hourly.limit(hourlyKey);
           
           // Log hourly result
@@ -97,7 +107,7 @@ export async function middleware(request: NextRequest) {
           }
           
           // Check daily limit
-          const dailyKey = createRateLimitKey(userId, level, 'daily');
+          const dailyKey = createRateLimitKey(userId, level, 'daily', isSubscribed);
           const dailyResult = await rateLimiters.daily.limit(dailyKey);
           
           // Log daily result

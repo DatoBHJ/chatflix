@@ -12,7 +12,7 @@ import { uploadFile } from '@/app/chat/[id]/utils'
 import { Header } from '@/app/components/Header'
 import { Sidebar } from '@/app/components/Sidebar'
 import Image from 'next/image'
-import { createCheckoutSession } from '@/lib/polar'
+import { createCheckoutSession, checkSubscription } from '@/lib/polar'
 
 // Helper function to get the logo path based on provider
 const getProviderLogo = (provider: string) => {
@@ -102,6 +102,8 @@ export default function RateLimitPage() {
   const [isSubscribing, setIsSubscribing] = useState(false)
   const [showTooltip, setShowTooltip] = useState(false)
   const [isWebSearchEnabled, setIsWebSearchEnabled] = useState(false)
+  const [isSubscribed, setIsSubscribed] = useState(false)
+  const [isCheckingSubscription, setIsCheckingSubscription] = useState(true)
   
   // Get the rate-limited model and chat session from URL params
   const rateLimitedModelId = searchParams.get('model') || ''
@@ -363,6 +365,18 @@ export default function RateLimitPage() {
         }
         setUser(user)
         
+        // Check subscription status
+        setIsCheckingSubscription(true)
+        try {
+          const hasSubscription = await checkSubscription(user.id)
+          setIsSubscribed(hasSubscription)
+        } catch (error) {
+          console.error('Error checking subscription status:', error)
+          setIsSubscribed(false)
+        } finally {
+          setIsCheckingSubscription(false)
+        }
+        
         // Fetch chat title if chatId exists
         if (chatId) {
           const { data: chatData } = await supabase
@@ -555,8 +569,32 @@ export default function RateLimitPage() {
     }
   };
   
+  // Handler for continuing to use subscribed models
+  const handleContinueWithSubscription = async () => {
+    if (!chatId || !nextModel || !user) return
+    
+    try {
+      // Update the chat session with the new model
+      const { error: updateError } = await supabase
+        .from('chat_sessions')
+        .update({ current_model: nextModel })
+        .eq('id', chatId)
+        .eq('user_id', user.id)
+        
+      if (updateError) {
+        console.error('Failed to update chat session:', updateError)
+        return
+      }
+      
+      // Redirect back to the chat page
+      router.push(`/chat/${chatId}`)
+    } catch (error) {
+      console.error('Error continuing chat:', error)
+    }
+  }
+  
   // 로딩 중이거나 사용자 정보가 없는 경우 로딩 화면 표시
-  if (isModelLoading || !user) {
+  if (isModelLoading || !user || isCheckingSubscription) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="flex flex-col items-center">
@@ -603,158 +641,120 @@ export default function RateLimitPage() {
             {/* Rate limit notice */}
             <div className="mb-8 fade-in-up">
               <h1 className="text-2xl md:text-3xl font-medium mb-4 text-[var(--foreground)]">
-                AYOO CHAT IS THIS REAL???
+                {isSubscribed ? "Taking a Quick Break ✨" : "Taking a Quick Break ⏱️"}
               </h1>
               
               <p className="text-base text-[var(--muted)] mb-6 fade-in-up" style={{ animationDelay: '0.1s' }}>
-                Bro, it's $4. Hop on it before it's too late.
+                {isSubscribed 
+                  ? "Our systems need a short breather to keep things running smoothly for everyone. Your premium access will be ready again soon!" 
+                  : "Just a short pause to keep our AI models happy and responsive for everyone. You'll be back chatting in no time!"}
               </p>
               
-              {/* {currentModel && (
-                <div className="mb-6 fade-in-up" style={{ animationDelay: '0.1s' }}>
-                  <div className="text-xs uppercase tracking-wider text-[var(--muted)] mb-2">Rate Limited Model</div>
-                  <div className="flex items-center gap-2">
-                    {hasLogo(currentModel.provider) && (
-                      <div className="w-5 h-5 flex-shrink-0">
-                        <Image 
-                          src={getProviderLogo(currentModel.provider)}
-                          alt={`${currentModel.provider} logo`}
-                          width={20}
-                          height={20}
-                          className="object-contain opacity-70"
-                        />
-                      </div>)}
-                    <div className="text-base font-medium text-red-500 dark:text-red-400">
-                      {currentModel.name} 
-                    </div>
-                  </div>
-                </div>
-              )} */}
-              
-              {/* Display the rate limited level */}
-              {/* {rateLimitedLevel && (
-                <div className="mb-6 fade-in-up" style={{ animationDelay: '0.15s' }}>
-                  <div className="text-xs uppercase tracking-wider text-[var(--muted)] mb-2">Rate Limited Level</div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center bg-red-500/10 rounded-md text-red-500 dark:text-red-400 font-medium">
-                      {rateLimitedLevel.replace('level', '')}
-                    </div>
-                    <div className="text-base font-medium text-red-500 dark:text-red-400">
-                      {rateLimitedLevel.charAt(0).toUpperCase() + rateLimitedLevel.slice(1)}
-                      <span className="ml-2 text-sm text-[var(--muted)]">
-                        ({rateLimitedModels.length} {rateLimitedModels.length === 1 ? 'model' : 'models'})
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )} */}
-              
-              <div className="mb-8 fade-in-up" style={{ animationDelay: '0.2s' }}>
-                <div className="flex flex-col items-center">
-                  {/* <div className="bg-gradient-to-r from-rose-400/20 to-amber-400/20 px-6 py-4 rounded-lg w-full max-w-md"> */}
-                    <div className="text-center mb-3">
-                      <span className="text-base font-medium">fr tho... why wait</span>
-                      <span className="mx-1 text-rose-500">⏳</span>
-                    </div>
-                    
-                    <CountdownTimer seconds={timeLeft} />
-                    
-                    <div className="text-center mt-3 flex flex-col items-center">
-                      <span className="text-base font-medium mb-2">when you could go unlimited rn? 💯</span>
-                      <div className="flex items-center gap-2 mt-1">
-                        {/* <span className="line-through text-sm text-[var(--muted)]">$4</span> */}
-                        {/* <span className="bg-gradient-to-r from-rose-500 to-amber-500 text-transparent bg-clip-text text-2xl font-bold">$0.8</span> */}
-                        {/* <span className="text-xs bg-rose-600 text-white px-2 py-0.5 rounded">STEAL</span> */}
+              {isSubscribed ? (
+                <div className="mb-8 fade-in-up" style={{ animationDelay: '0.2s' }}>
+                  <div className="p-4 bg-blue-50/10 border border-blue-200 rounded-sm">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-base font-medium mb-1 text-blue-600 dark:text-blue-400">PREMIUM PERKS 🌟</h3>
+                        <p className="text-sm text-[var(--muted)]">Your subscription gives you faster refreshes and more generous usage</p>
+                        <div className="flex gap-2 mt-2">
+                          <span className="text-xs px-2 py-1 bg-blue-100/20 text-blue-700 rounded  dark:text-blue-300">More Usage</span>
+                          <span className="text-xs px-2 py-1 bg-blue-100/20 text-blue-700 rounded  dark:text-blue-300">Priority Access</span>
+                          <span className="text-xs px-2 py-1 bg-blue-100/20 text-blue-700 rounded  dark:text-blue-300">All Models</span>
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-blue-600 dark:text-blue-400 font-medium mb-2">Ready in:</div>
+                        <CountdownTimer seconds={timeLeft} />
                       </div>
                     </div>
-                  {/* </div> */}
-                </div>
-              </div>
-              
-              {/* Golden Ticket Subscription Button */}
-              <div className="mb-8 fade-in-up" style={{ animationDelay: '0.25s' }}>
-                <div className="p-4 bg-amber-50/10 border border-amber-200 rounded-sm relative overflow-hidden">
-                  <div className="absolute top-0 right-0 bg-rose-600 text-xs text-white px-3 py-1 rounded-bl-sm font-medium">
-                    NGL IT'S A STEAL. YOU'RE WELCOME.
                   </div>
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2">
-                    <div>
-                      <h3 className="text-base font-medium mb-1 text-amber-800 dark:text-amber-400">UNLOCK PREMIUM ACCESS</h3>
-                      <p className="text-sm text-[var(--muted)]">Skip the wait & enjoy unlimited chatting</p>
-                      <div className="flex gap-2 mt-2">
-                        <span className="text-xs px-2 py-1 bg-amber-100/20 text-amber-700 rounded">No Rate Limits</span>
-                        <span className="text-xs px-2 py-1 bg-amber-100/20 text-amber-700 rounded">All Models</span>
-                        <span className="text-xs px-2 py-1 bg-amber-100/20 text-amber-700 rounded">Priority Access</span>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-8 fade-in-up" style={{ animationDelay: '0.2s' }}>
+                    <div className="flex flex-col items-center">
+                      <div className="text-center mb-3">
+                        <span className="text-base font-medium">Hang tight! Ready in:</span>
+                      </div>
+                      
+                      <CountdownTimer seconds={timeLeft} />
+                      
+                      <div className="text-center mt-5 text-sm text-[var(--muted)]">
+                        <p>These short pauses help keep our systems running smoothly for everyone. Thanks for your patience! 🙏</p>
                       </div>
                     </div>
-                    <div className="relative" onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)}>
-                      <button
-                        onClick={handleSubscribe}
-                        disabled={isSubscribing}
-                        className="premium-ticket flex items-center gap-2 px-4 py-2 border border-amber-400/30 bg-gradient-to-r from-amber-500 to-amber-400 text-white rounded-sm hover:shadow-md transition-all whitespace-nowrap relative overflow-hidden"
-                        aria-label="Get Premium Access"
-                      >
-                        <span className="text-2xl font-bold tracking-wide relative z-10">
-                          <span className="opacity-70 text-sm line-through mr-1">$4</span>
-                          $0.8
-                        </span>
-                        <div className="absolute inset-0 bg-white opacity-0 hover:opacity-10 transition-opacity"></div>
-                      </button>
-                    </div>
                   </div>
-                </div>
-              </div>
-              
-              {/* 사용자 메시지 스타일로 현재 채팅 표시 */}
-              {/* {chatId && chatTitle && (
-                <div className="mb-8 fade-in-up" style={{ animationDelay: '0.3s' }}>
-                  <div className="text-xs uppercase tracking-wider text-[var(--muted)] mb-3">Current Chat</div>
-                  <div className="message-group">
-                    <div className="message-role text-right">
-                      You
-                    </div>
-                    <div className="flex justify-end">
-                      <div className="message-user">
-                        <div className="message-content">
-                          {chatTitle}
+                  
+                  {/* Subscription Button - only shown to non-subscribers */}
+                  <div className="mb-8 fade-in-up" style={{ animationDelay: '0.25s' }}>
+                    <div className="p-4 bg-amber-50/10 border border-amber-200 rounded-sm relative overflow-hidden">
+                      <div className="absolute top-0 right-0 bg-blue-600 text-xs text-white px-3 py-1 rounded-bl-sm font-medium">
+                        UPGRADE OPTION ✨
+                      </div>
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2">
+                        <div>
+                          <h3 className="text-base font-medium mb-1 text-amber-800 dark:text-amber-400">WANT FEWER BREAKS?</h3>
+                          <p className="text-sm text-[var(--muted)]">Premium users enjoy more chat time and quicker refreshes</p>
+                          <div className="flex gap-2 mt-2">
+                            <span className="text-xs px-2 py-1 bg-amber-100/20 text-amber-700 rounded">More Chat Time</span>
+                            <span className="text-xs px-2 py-1 bg-amber-100/20 text-amber-700 rounded">All Models</span>
+                            <span className="text-xs px-2 py-1 bg-amber-100/20 text-amber-700 rounded">Priority Access</span>
+                          </div>
+                        </div>
+                        <div className="relative" onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)}>
+                          <button
+                            onClick={handleSubscribe}
+                            disabled={isSubscribing}
+                            className="premium-ticket flex items-center gap-2 px-4 py-2 border border-amber-400/30 bg-gradient-to-r from-amber-500 to-amber-400 text-white rounded-sm hover:shadow-md transition-all whitespace-nowrap relative overflow-hidden"
+                            aria-label="Get Premium Access"
+                          >
+                            <span className="text-2xl font-bold tracking-wide relative z-10">
+                              <span className="opacity-70 text-sm line-through mr-1">$4</span>
+                              $0.8
+                            </span>
+                            <div className="absolute inset-0 bg-white opacity-0 hover:opacity-10 transition-opacity"></div>
+                          </button>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )} */}
-              
+                </>
+              )}
             </div>
+            
             <div className="mb-4 model-selector-container">
-                <ModelSelector
-                  currentModel={currentModel?.id || ''}
-                  nextModel={nextModel}
-                  setNextModel={(model) => {
-                    if (typeof model === 'function') {
-                      const newModel = model(nextModel);
-                      handleModelChange(newModel);
-                    } else {
-                      handleModelChange(model);
-                    }
-                  }}
-                  disabled={isSubmitting}
-                  disabledLevels={rateLimitedLevels}
-                  isWebSearchEnabled={isWebSearchEnabled}
-                />
-              </div>
+              <ModelSelector
+                currentModel={currentModel?.id || ''}
+                nextModel={nextModel}
+                setNextModel={(model) => {
+                  if (typeof model === 'function') {
+                    const newModel = model(nextModel);
+                    handleModelChange(newModel);
+                  } else {
+                    handleModelChange(model);
+                  }
+                }}
+                disabled={isSubmitting}
+                disabledLevels={isSubscribed ? [] : rateLimitedLevels}
+                isWebSearchEnabled={isWebSearchEnabled}
+              />
+            </div>
 
             {/* Model selector and action buttons */}
             <div className="space-y-10 fade-in-up" style={{ animationDelay: '0.7s' }}>
-      
-              
               {chatId && (
                 <button 
-                  onClick={handleContinueChat}
-                  disabled={isSubmitting || (nextModel === rateLimitedModelId) || !nextModel}
+                  onClick={isSubscribed ? handleContinueWithSubscription : handleContinueChat}
+                  disabled={isSubmitting || (!isSubscribed && (nextModel === rateLimitedModelId)) || !nextModel}
                   className="continue-button w-full px-4 py-3 bg-[var(--foreground)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-[var(--background)] transition-colors mb-4"
                 >
                   <div className="flex items-center justify-center gap-2">
-                    <span>CONTINUE WITH {nextModelDetails?.name.toUpperCase()}</span>
+                    <span>
+                      {isSubscribed 
+                        ? `CONTINUE WITH ${nextModelDetails?.name.toUpperCase()}` 
+                        : `CONTINUE WITH ${nextModelDetails?.name.toUpperCase()}`}
+                    </span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-1">
                       <path d="M5 12h14"></path>
                       <path d="m12 5 7 7-7 7"></path>
@@ -762,29 +762,7 @@ export default function RateLimitPage() {
                   </div>
                 </button>
               )}
-            
-              {/* 구분선을 여기로 이동 */}
-              {/* <div className="h-px w-full bg-[var(--accent)] opacity-30 fade-in-up" style={{ animationDelay: '0.5s' }} /> */}
-              
-                {/* <div className={`transition-opacity duration-300 ${chatId ? 'opacity-80 hover:opacity-100' : 'opacity-100'}`}>
-                  <ChatInput
-                    input={input}
-                    handleInputChange={handleInputChange}
-                    handleSubmit={handleNewChat}
-                    isLoading={isLoading}
-                    stop={stop}
-                    disabled={isSubmitting}
-                    placeholder={chatId 
-                      ? `Start a new conversation with ${nextModelDetails?.name} ...`
-                      : `Continue your conversation with ${nextModelDetails?.name} ...`
-                    }
-                    user={user}
-                    modelId={nextModel}
-                    popupPosition="bottom"
-                  />
-                </div> */}
             </div>
-          
           </div>
         </div>
       </div>

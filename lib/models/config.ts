@@ -8,7 +8,7 @@ export interface ModelConfig {
   supportsPDFs: boolean;
   censored?: boolean;
   rateLimit: {
-    level: 'level1' | 'level2' | 'level3' | 'level4' | 'level5';
+    level: 'level0' | 'level1' | 'level2' | 'level3' | 'level4' | 'level5';
   };
   isEnabled: boolean;
   isActivated: boolean; // Whether the model is activated for selection
@@ -37,13 +37,23 @@ export interface ModelConfig {
 export const DEFAULT_MODEL_ID = 'gemini-2.0-flash'; 
 
 export const RATE_LIMITS = {
-  level1: {
+  level0: {
     hourly: {
-      requests: 10,     // 기본 모델은 시간당 8회
+      requests: 1000,    
       window: '1 h'
     },
     daily: {
-      requests: 50,    // 하루 총 50회
+      requests: 10000,    
+      window: '24 h'
+    }
+  },
+  level1: {
+    hourly: {
+      requests: 10,    
+      window: '1 h'
+    },
+    daily: {
+      requests: 50,    
       window: '24 h'
     }
   },
@@ -59,7 +69,7 @@ export const RATE_LIMITS = {
   },
   level3: {
     hourly: {
-      requests: 5,     // 중간 레벨 모델은 적당한 제한
+      requests: 5,    
       window: '1 h'
     },
     daily: {
@@ -69,7 +79,7 @@ export const RATE_LIMITS = {
   },
   level4: {
     hourly: {
-      requests: 5,     // 고급 모델은 더 엄격하게 제한
+      requests: 5,    
       window: '1 h'
     },
     daily: {
@@ -79,14 +89,67 @@ export const RATE_LIMITS = {
   },
   level5: {
     hourly: {
-      requests: 5,     // 최상위 모델은 매우 제한적으로
+      requests: 5,    
       window: '1 h'
     },
     daily: {
       requests: 20,
       window: '24 h'
     }
-  }
+  },
+  // // 구독자용 레이트 리밋 설정
+  // subscriber_limits: {
+  //   level1: {
+  //     hourly: {
+  //       requests: 50,
+  //       window: '1 h'
+  //     },
+  //     daily: {
+  //       requests: 200,
+  //       window: '24 h'
+  //     }
+  //   },
+  //   level2: {
+  //     hourly: {
+  //       requests: 40,
+  //       window: '1 h'
+  //     },
+  //     daily: {
+  //       requests: 160,
+  //       window: '24 h'
+  //     }
+  //   },
+  //   level3: {
+  //     hourly: {
+  //       requests: 30,
+  //       window: '1 h'
+  //     },
+  //     daily: {
+  //       requests: 120,
+  //       window: '24 h'
+  //     }
+  //   },
+  //   level4: {
+  //     hourly: {
+  //       requests: 20,
+  //       window: '1 h'
+  //     },
+  //     daily: {
+  //       requests: 80,
+  //       window: '24 h'
+  //     }
+  //   },
+  //   level5: {
+  //     hourly: {
+  //       requests: 20,
+  //       window: '1 h'
+  //     },
+  //     daily: {
+  //       requests: 60,
+  //       window: '24 h'
+  //     }
+  //   }
+  // }
 };
 
 
@@ -325,7 +388,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     },
     isWebSearchEnabled: true,
     supportsPDFs: false,
-    isHot: true,
     isNew: true,
     isEnabled: true,
     isActivated: true,
@@ -481,6 +543,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isWebSearchEnabled: false,
     supportsPDFs: false,
     isEnabled: true,
+    isHot: true,
     isActivated: true,
     contextWindow: 200000,
     tps: 188,
@@ -524,10 +587,9 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: true,
     censored: false,
     rateLimit: {
-      level: 'level3',
+      level: 'level0',
     },
     isWebSearchEnabled: true,
-    isHot: true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -569,7 +631,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     id: 'qwen-qwq-32b',
     name: 'QwQ-32B (Thinking)',
     country: 'CHINA',
-    description: "Alibaba's latest model. Excels at mathematical reasoning, coding, and complex-problem solving with performance rivaling the likes of DeepSeek-R1 and o1-mini.",
+    description: "Capable of achieving competitive performance against state-of-the-art reasoning models, e.g., DeepSeek-R1, o1-mini",
     provider: 'groq',
     supportsVision: false,
     // censored: true,

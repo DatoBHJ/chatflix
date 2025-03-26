@@ -23,6 +23,12 @@ function parseWindow(window: string): Duration {
 
 // Create level-based rate limiters for hourly limits
 const hourlyRateLimiters = {
+  level0: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level0.hourly.requests, parseWindow(RATE_LIMITS.level0.hourly.window)),
+    analytics: true,
+    prefix: 'ratelimit:hourly',
+  }),
   level1: new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(RATE_LIMITS.level1.hourly.requests, parseWindow(RATE_LIMITS.level1.hourly.window)),
@@ -57,6 +63,12 @@ const hourlyRateLimiters = {
 
 // Create level-based rate limiters for daily limits
 const dailyRateLimiters = {
+  level0: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(RATE_LIMITS.level0.daily.requests, parseWindow(RATE_LIMITS.level0.daily.window)),
+    analytics: true,
+    prefix: 'ratelimit:daily',
+  }),
   level1: new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(RATE_LIMITS.level1.daily.requests, parseWindow(RATE_LIMITS.level1.daily.window)),
@@ -88,6 +100,74 @@ const dailyRateLimiters = {
     prefix: 'ratelimit:daily',
   }),
 };
+
+// Create level-based rate limiters for subscriber hourly limits
+// const subscriberHourlyRateLimiters = {
+//   level1: new Ratelimit({
+//     redis,
+//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level1.hourly.requests, parseWindow(RATE_LIMITS.subscriber_limits.level1.hourly.window)),
+//     analytics: true,
+//     prefix: 'ratelimit:subscriber:hourly',
+//   }),
+//   level2: new Ratelimit({
+//     redis,
+//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level2.hourly.requests, parseWindow(RATE_LIMITS.subscriber_limits.level2.hourly.window)),
+//     analytics: true,
+//     prefix: 'ratelimit:subscriber:hourly',
+//   }),
+//   level3: new Ratelimit({
+//     redis,
+//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level3.hourly.requests, parseWindow(RATE_LIMITS.subscriber_limits.level3.hourly.window)),
+//     analytics: true,
+//     prefix: 'ratelimit:subscriber:hourly',
+//   }),
+//   level4: new Ratelimit({
+//     redis,
+//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level4.hourly.requests, parseWindow(RATE_LIMITS.subscriber_limits.level4.hourly.window)),
+//     analytics: true,
+//     prefix: 'ratelimit:subscriber:hourly',
+//   }),
+//   level5: new Ratelimit({
+//     redis,
+//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level5.hourly.requests, parseWindow(RATE_LIMITS.subscriber_limits.level5.hourly.window)),
+//     analytics: true,
+//     prefix: 'ratelimit:subscriber:hourly',
+//   }),
+// };
+
+// // Create level-based rate limiters for subscriber daily limits
+// const subscriberDailyRateLimiters = {
+//   level1: new Ratelimit({
+//     redis,
+//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level1.daily.requests, parseWindow(RATE_LIMITS.subscriber_limits.level1.daily.window)),
+//     analytics: true,
+//     prefix: 'ratelimit:subscriber:daily',
+//   }),
+//   level2: new Ratelimit({
+//     redis,
+//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level2.daily.requests, parseWindow(RATE_LIMITS.subscriber_limits.level2.daily.window)),
+//     analytics: true,
+//     prefix: 'ratelimit:subscriber:daily',
+//   }),
+//   level3: new Ratelimit({
+//     redis,
+//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level3.daily.requests, parseWindow(RATE_LIMITS.subscriber_limits.level3.daily.window)),
+//     analytics: true,
+//     prefix: 'ratelimit:subscriber:daily',
+//   }),
+//   level4: new Ratelimit({
+//     redis,
+//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level4.daily.requests, parseWindow(RATE_LIMITS.subscriber_limits.level4.daily.window)),
+//     analytics: true,
+//     prefix: 'ratelimit:subscriber:daily',
+//   }),
+//   level5: new Ratelimit({
+//     redis,
+//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level5.daily.requests, parseWindow(RATE_LIMITS.subscriber_limits.level5.daily.window)),
+//     analytics: true,
+//     prefix: 'ratelimit:subscriber:daily',
+//   }),
+// };
 
 // Function to check if a user has an active subscription (cached for 5 minutes)
 const subscriptionCache = new Map<string, { isSubscribed: boolean, timestamp: number }>();
@@ -137,17 +217,26 @@ export async function getRateLimiter(model: string, userId?: string): Promise<{h
   if (userId) {
     const isSubscribed = await isUserSubscribed(userId);
     if (isSubscribed) {
-      // Create unlimited rate limiters for subscribed users
       const unlimitedLimiter = new Ratelimit({
         redis,
-        limiter: Ratelimit.slidingWindow(1000000, '1 d'), // Very high limit
+        limiter: Ratelimit.slidingWindow(1000000, '1 d'),
         analytics: true,
         prefix: 'ratelimit',
       });
+      // Use subscriber rate limiters instead of unlimited
+      // const level = modelConfig.rateLimit.level;
+      // const subscriberHourlyRateLimiter = subscriberHourlyRateLimiters[level];
+      // const subscriberDailyRateLimiter = subscriberDailyRateLimiters[level];
+      
+      // if (!subscriberHourlyRateLimiter || !subscriberDailyRateLimiter) {
+      //   throw new Error(`Subscriber rate limiter not initialized for level ${level}`);
+      // }
       
       return {
         hourly: unlimitedLimiter,
         daily: unlimitedLimiter
+        // hourly: subscriberHourlyRateLimiter,
+        // daily: subscriberDailyRateLimiter
       };
     }
   }
@@ -168,6 +257,7 @@ export async function getRateLimiter(model: string, userId?: string): Promise<{h
 }
 
 // Helper function to create standardized rate limit keys
-export function createRateLimitKey(userId: string, level: string, type: 'hourly' | 'daily' = 'hourly'): string {
-  return `user:${userId}:level:${level}:${type}`;
+export function createRateLimitKey(userId: string, level: string, type: 'hourly' | 'daily' = 'hourly', isSubscriber: boolean = false): string {
+  const prefix = isSubscriber ? 'subscriber:' : '';
+  return `user:${userId}:${prefix}level:${level}:${type}`;
 }
