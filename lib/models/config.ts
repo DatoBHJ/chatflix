@@ -601,7 +601,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: false,
     censored: false,
     rateLimit: {
-      level: 'level2',
+      level: 'level1',
     },
     isWebSearchEnabled: true,
     supportsPDFs: false,
@@ -626,7 +626,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: false,
     // censored: true,
     rateLimit: {
-      level: 'level2',
+      level: 'level1',
     },
     isHot: true,
     reasoning: {
