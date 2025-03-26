@@ -388,8 +388,8 @@ export default function Home() {
               isWebSearchEnabled={isWebSearchEnabled}
               setIsWebSearchEnabled={setIsWebSearchEnabled}
             />
-            <div className={`text-xs text-[var(--muted)] h-6 text-center mt-2 transition-opacity duration-200 ${input ? 'opacity-60' : 'opacity-0'}`}>
-              Start your prompt with /image to generate images
+            <div className={`text-base px-4 text-[var(--muted)] h-6 text-center mt-2 transition-opacity duration-200 ${input ? 'opacity-60' : 'opacity-0'}`}>
+            (Experimental) Start your prompt with <strong className="text-[var(--foreground)] font-bold">/image</strong> to generate <strong className="text-[var(--foreground)] font-bold">images</strong>
             </div>
           </div>
         </div>

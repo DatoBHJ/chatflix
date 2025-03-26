@@ -17,7 +17,7 @@ export function PromptShortcuts({
   
   const positionClass = popupPosition === 'top' 
     ? 'bottom-full mb-2' 
-    : 'top-full mt-2';
+    : 'top-full mt-12';
   
   return (
     <div className={`absolute ${positionClass} left-0 right-0 z-40`}>
