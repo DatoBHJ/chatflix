@@ -19,6 +19,12 @@ const UPDATES: FeatureUpdate[] = [
   //   ]  
   // },
   {
+    id: 'First input latency issue with Reasoning Models',
+    title: 'First input latency issue with Reasoning Models',
+    date: '27th March 2025',
+    description: 'We are aware of an issue where the first input latency for reasoning models is higher than normal. We are working on a fix and will update you as soon as it is ready.',
+  },
+  {
     id: 'new-model-release-1',
     title: 'New Model: Gemini 2.5 Pro (Mar\' 25)',
     date: '27th March 2025',
@@ -35,16 +41,6 @@ const UPDATES: FeatureUpdate[] = [
     title: 'Anthropic PDF Issue',
     date: '25th March 2025',
     description: 'Due to an ongoing issue with PDF reading, we have temporarily disabled PDF uploads for Anthropic models. We expect to restore this functionality soon.',
-    // images: [
-    //   // '/images/updates/pdf1.png',
-    //   '/images/updates/pdf2.png'    ],
-    // highlights: [
-    //   'Chat with PDF files',
-    // ],
-    // instructions: [
-    //   'Upload a PDF by clicking the attachment icon or dragging and dropping the file',
-    //   'Once uploaded, simply ask questions about the PDF content like "summarize this pdf" or "explain the key points in this document"'
-    // ]
   },
   {
     id: '(Experimental) pdf-support',
