@@ -258,7 +258,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     id: 'gemini-2.5-pro-exp-03-25',
     name: 'Gemini 2.5 Pro Experimental (Mar\' 25)',
     country: 'US',
-    description: 'Google\'s most powerful thinking model. Slower than Flash series but more powerful. Reasoning tokens used in its chain-of-thought process are hidden by Google and not included in the visible output.',
+    description: 'Google\'s most powerful thinking model. Reasoning tokens used in its chain-of-thought process are hidden by Google and not included in the visible output.',
     provider: 'google',
     supportsVision: true,
     censored: true,
