@@ -272,7 +272,7 @@ export async function POST(req: Request) {
           // Process last message shortcut if needed
           const lastMessage = processMessages[processMessages.length - 1];
           const processedLastMessagePromise = handlePromptShortcuts(supabase, lastMessage, user.id) as Promise<MultiModalMessage>;
-
+          console.log('[DEBUG-PROMPT-SHORTCUTS] Processed last message:', lastMessage);
           // Prepare DB operations (but don't wait)
           let dbOperationsPromise = Promise.resolve();
           // const isInitialMessage = messages.length === 1 && lastMessage.role === 'user';
@@ -326,6 +326,8 @@ export async function POST(req: Request) {
           ]);
           
           processMessages[processMessages.length - 1] = processedLastMessage;
+
+          console.log('[DEBUG-PROMPT-SHORTCUTS] Processed last message:', processedLastMessage);
 
           // Continue with session validation in the background
           sessionValidationPromise.catch(error => {

@@ -27,51 +27,107 @@ export const handlePromptShortcuts = async (supabase: any, message: MultiModalMe
 
   if (message.role !== 'user') return processedMessage;
 
-  let updatedContent = typeof message.content === 'string' ? message.content : '';
-  let useImageSystemPrompt = false;
+  // Handle multimodal messages (array content)
+  if (Array.isArray(message.content)) {
+    const updatedContent = [...message.content];
+    let useImageSystemPrompt = false;
 
-  // Handle /image command
-  if (updatedContent.trim().startsWith('/image')) {
-    // Set flag to use image generator prompt
-    useImageSystemPrompt = true;
-    
-    // Remove the /image command from the content
-    updatedContent = updatedContent.replace(/^\/image\s*/, '').trim();
-  }
+    // Process each text part in the array
+    for (let i = 0; i < updatedContent.length; i++) {
+      const part = updatedContent[i];
+      if (part.type === 'text' && typeof part.text === 'string') {
+        let updatedText = part.text;
 
-  try {
-    const jsonMatch = updatedContent.match(/\{"displayName":"[^"]+","promptContent":"[^"]+"}/g);
-    if (jsonMatch) {
-      for (const match of jsonMatch) {
-        const mentionData = JSON.parse(match);
-        updatedContent = updatedContent.replace(match, mentionData.promptContent);
-      }
-    } else {
-      const match = updatedContent.match(/@([\w?!.,_\-+=@#$%^&*()<>{}\[\]|/\\~`]+)/);
-      if (match) {
-        const shortcutName = match[1];
-        const { data: shortcutData, error: shortcutError } = await supabase
-          .from('prompt_shortcuts')
-          .select('content')
-          .eq('user_id', userId)
-          .eq('name', shortcutName)
-          .single();
-
-        if (!shortcutError && shortcutData) {
-          const remainingText = updatedContent.replace(new RegExp(`@${shortcutName}\\s*`), '').trim();
-          updatedContent = `${shortcutData.content} ${remainingText}`;
+        // Handle /image command
+        if (updatedText.trim().startsWith('/image')) {
+          useImageSystemPrompt = true;
+          updatedText = updatedText.replace(/^\/image\s*/, '').trim();
         }
+
+        // Process shortcuts and mentions
+        try {
+          const jsonMatch = updatedText.match(/\{"displayName":"[^"]+","promptContent":"[^"]+"}/g);
+          if (jsonMatch) {
+            for (const match of jsonMatch) {
+              const mentionData = JSON.parse(match);
+              updatedText = updatedText.replace(match, mentionData.promptContent);
+            }
+          } else {
+            const match = updatedText.match(/@([\w?!.,_\-+=@#$%^&*()<>{}\[\]|/\\~`]+)/);
+            if (match) {
+              const shortcutName = match[1];
+              const { data: shortcutData, error: shortcutError } = await supabase
+                .from('prompt_shortcuts')
+                .select('content')
+                .eq('user_id', userId)
+                .eq('name', shortcutName)
+                .single();
+              if (!shortcutError && shortcutData) {
+                updatedText = updatedText.replace(new RegExp(`@${shortcutName}`), shortcutData.content);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('[Debug] Error processing mentions:', error);
+        }
+
+        // Update the part with processed text
+        updatedContent[i] = {
+          ...part,
+          text: updatedText
+        };
       }
     }
-  } catch (error) {
-    console.error('[Debug] Error processing mentions:', error);
-  }
 
-  return {
-    ...processedMessage,
-    content: Array.isArray(message.content) ? message.content : updatedContent,
-    useImageSystemPrompt
-  };
+    return {
+      ...processedMessage,
+      content: updatedContent,
+      useImageSystemPrompt
+    };
+  } 
+  // Handle string content (original implementation)
+  else {
+    let updatedContent = typeof message.content === 'string' ? message.content : '';
+    let useImageSystemPrompt = false;
+
+    // Handle /image command
+    if (updatedContent.trim().startsWith('/image')) {
+      useImageSystemPrompt = true;
+      updatedContent = updatedContent.replace(/^\/image\s*/, '').trim();
+    }
+
+    try {
+      const jsonMatch = updatedContent.match(/\{"displayName":"[^"]+","promptContent":"[^"]+"}/g);
+      if (jsonMatch) {
+        for (const match of jsonMatch) {
+          const mentionData = JSON.parse(match);
+          updatedContent = updatedContent.replace(match, mentionData.promptContent);
+        }
+      } else {
+        const match = updatedContent.match(/@([\w?!.,_\-+=@#$%^&*()<>{}\[\]|/\\~`]+)/);
+        if (match) {
+          const shortcutName = match[1];
+          const { data: shortcutData, error: shortcutError } = await supabase
+            .from('prompt_shortcuts')
+            .select('content')
+            .eq('user_id', userId)
+            .eq('name', shortcutName)
+            .single();
+          if (!shortcutError && shortcutData) {
+            updatedContent = updatedContent.replace(new RegExp(`@${shortcutName}`), shortcutData.content);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[Debug] Error processing mentions:', error);
+    }
+
+    return {
+      ...processedMessage,
+      content: updatedContent,
+      useImageSystemPrompt
+    };
+  }
 };
 
 export const saveUserMessage = async (supabase: any, chatId: string | undefined, userId: string, message: MultiModalMessage | Message, model: string) => {
