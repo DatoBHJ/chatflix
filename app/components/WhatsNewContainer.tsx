@@ -28,7 +28,7 @@ const UPDATES: FeatureUpdate[] = [
     id: 'new-model-release-1',
     title: 'New Model: Gemini 2.5 Pro (Mar\' 25)',
     date: '27th March 2025',
-    description: 'Google\'s most powerful thinking model. Reasoning tokens used in its chain-of-thought process are hidden by Google and not included in the visible output.',
+    description: 'Google\'s most powerful thinking model. Slower than Flash series but more powerful. Reasoning tokens used in its chain-of-thought process are hidden by Google and not included in the visible output.',
   },
   {
     id: 'new-model-release',
