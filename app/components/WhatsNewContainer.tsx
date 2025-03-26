@@ -18,12 +18,6 @@ const UPDATES: FeatureUpdate[] = [
   //   instructions: [
   //   ]  
   // },
-  // {
-  //   id: 'First input latency issue with Reasoning Models',
-  //   title: 'First input latency issue with Reasoning Models',
-  //   date: '27th March 2025',
-  //   description: 'We are aware of an issue where the first input latency for reasoning models is higher than normal. We are working on a fix and will update you as soon as it is ready.',
-  // },
   {
     id: 'new-model-release-1',
     title: 'New Model: Gemini 2.5 Pro (Mar\' 25)',
