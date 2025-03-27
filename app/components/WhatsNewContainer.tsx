@@ -7,6 +7,7 @@ const UPDATES: FeatureUpdate[] = [
   {
     id: 'customer-support-email',
     date: '27th March 2025',
+    timestamp: 1774310400000, // 2025-03-27 in ms since epoch
     title: '📩 Contact Info',
     description: 'Email: sply@chatflix.app'
   },
@@ -14,18 +15,21 @@ const UPDATES: FeatureUpdate[] = [
     id: 'new-model-release-1',
     title: 'New Model: Gemini 2.5 Pro (Mar\' 25)',
     date: '27th March 2025',
+    timestamp: 1774224000000, // 2025-03-26 in ms since epoch
     description: 'Google\'s most powerful thinking model. Slower than Flash series but more powerful. Reasoning tokens used in its chain-of-thought process are hidden by Google and not included in the visible output.',
   },
   {
     id: 'new-model-release',
     title: 'New Model: DeepSeek V3 (Mar\' 25)',
     date: '25th March 2025',
+    timestamp: 1774051200000, // 2025-03-24 in ms since epoch
     description: 'The best open source non-reasoning model in the world, outscoring Grok3, Claude 3.7 Sonnet and GPT-4.5 in the Artificial Analysis Intelligence Index.',
   },
   {
     id: '(Experimental) pdf-support',
     title: '(Experimental) PDF Support',
     date: 'Not confirmed',
+    timestamp: 1771545600000, // 2025-02-24 in ms since epoch
     description: 'We\'ve added support for PDF files! Now you can upload and chat about PDF documents with compatible AI models. This feature allows you to easily reference and analyze PDF content directly in your conversations.',
     images: [
       // '/images/updates/pdf1.png',
@@ -64,6 +68,7 @@ const UPDATES: FeatureUpdate[] = [
     id: '(Experimental) Image Generation',
     title: '(Experimental) Image Generation',
     date: 'Not confirmed',
+    timestamp: 1771459200000, // 2025-02-23 in ms since epoch
     description: 'We\'ve added support for image generation! Now you can generate images with compatible AI models. This feature allows you to easily generate images directly in your conversations.',
     images: [
       '/images/updates/imageg.png',
@@ -80,6 +85,7 @@ const UPDATES: FeatureUpdate[] = [
     id: 'prompt-shortcuts',
     title: 'Custom Prompt Shortcuts',
     date: '14th March 2025',
+    timestamp: 1771372800000, // 2025-02-22 in ms since epoch
     description: 'We\'ve added support for custom prompt shortcuts! Now you can create and use your own shortcuts for frequently used prompts. This feature makes it faster and easier to give specific instructions to the AI.',
     images: [
       '/images/updates/shortcut1.png',
@@ -101,41 +107,57 @@ const UPDATES: FeatureUpdate[] = [
   },
 ];
 
+// Sort updates by timestamp (newest first)
+const SORTED_UPDATES = [...UPDATES].sort((a, b) => b.timestamp - a.timestamp);
+
 const WhatsNewContainer: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [hasNewUpdates, setHasNewUpdates] = useState(false);
   const [newUpdatesCount, setNewUpdatesCount] = useState(0);
-  const { lastSeenUpdateId, updateLastSeen, isLoaded } = useLastSeenUpdate();
+  const { lastSeenUpdateId, lastSeenTimestamp, updateLastSeen, isLoaded } = useLastSeenUpdate();
   
   // Check if there are updates the user hasn't seen
   useEffect(() => {
     if (!isLoaded) return;
-    
-    if (lastSeenUpdateId) {
-      const lastSeenIndex = UPDATES.findIndex(update => update.id === lastSeenUpdateId);
-      
-      if (lastSeenIndex !== -1) {
-        // Count only updates that are newer than the last seen update
-        // Since updates are ordered with newest first, these are at indices 0 to lastSeenIndex-1
-        const numNewUpdates = lastSeenIndex;
-        setNewUpdatesCount(numNewUpdates);
-        setHasNewUpdates(numNewUpdates > 0);
-      } else {
-        // If last seen update not found in current list, all updates are new
-        setNewUpdatesCount(UPDATES.length);
-        setHasNewUpdates(UPDATES.length > 0);
+
+    const checkForNewUpdates = () => {
+      if (!lastSeenUpdateId && lastSeenTimestamp === 0) {
+        // First time user - all updates are new
+        setNewUpdatesCount(SORTED_UPDATES.length);
+        setHasNewUpdates(SORTED_UPDATES.length > 0);
+        return;
       }
-    } else {
-      // If no update has been seen before, all are new
-      setNewUpdatesCount(UPDATES.length);
-      setHasNewUpdates(UPDATES.length > 0);
-    }
-  }, [lastSeenUpdateId, isLoaded]);
+
+      // Find the last update the user has seen
+      const lastSeenUpdate = SORTED_UPDATES.find(update => update.id === lastSeenUpdateId);
+      
+      if (!lastSeenUpdate) {
+        // If the last seen update no longer exists, use timestamp approach
+        // Count updates newer than the last seen timestamp
+        const newUpdates = SORTED_UPDATES.filter(update => update.timestamp > lastSeenTimestamp);
+        setNewUpdatesCount(newUpdates.length);
+        setHasNewUpdates(newUpdates.length > 0);
+      } else {
+        // Count updates with newer timestamps than the last seen
+        const newUpdates = SORTED_UPDATES.filter(
+          update => update.timestamp > lastSeenUpdate.timestamp
+        );
+        setNewUpdatesCount(newUpdates.length);
+        setHasNewUpdates(newUpdates.length > 0);
+      }
+    };
+
+    checkForNewUpdates();
+  }, [lastSeenUpdateId, lastSeenTimestamp, isLoaded]);
   
   const handleOpen = () => {
     setIsOpen(true);
-    if (UPDATES.length > 0) {
-      updateLastSeen(UPDATES[0].id);
+    
+    if (SORTED_UPDATES.length > 0) {
+      // Store both the ID and timestamp of the newest update
+      const newestUpdate = SORTED_UPDATES[0];
+      updateLastSeen(newestUpdate.id, newestUpdate.timestamp);
+      
       setHasNewUpdates(false);
       setNewUpdatesCount(0);
     }
@@ -176,7 +198,7 @@ const WhatsNewContainer: React.FC = () => {
       <WhatsNew 
         isOpen={isOpen} 
         onClose={handleClose} 
-        updates={UPDATES} 
+        updates={SORTED_UPDATES} 
       />
     </>
   );

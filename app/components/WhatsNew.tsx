@@ -8,6 +8,7 @@ export interface FeatureUpdate {
   title: string;
   description: string;
   date: string;
+  timestamp: number; // Unix timestamp in milliseconds for versioning
   images?: string[];
   highlights?: string[];
   instructions?: string[];
