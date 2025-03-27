@@ -266,6 +266,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level3',
     },
     isNew: true,
+    isHot: true,
     isWebSearchEnabled: false,
     supportsPDFs: true,
     isEnabled: true,
@@ -582,7 +583,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isWebSearchEnabled: true,
     supportsPDFs: false,
     isEnabled: true,
-    // isHot: true,
+    isHot: true,
     isActivated: true,
     contextWindow: 200000,
     tps: 188,
@@ -652,7 +653,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level2',
     },
-    isHot: true,
     reasoning: {
       enabled: true,
       provider: 'groq',

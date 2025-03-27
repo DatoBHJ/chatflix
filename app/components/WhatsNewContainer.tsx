@@ -4,25 +4,11 @@ import { useLastSeenUpdate } from '../hooks/useLastSeenUpdate';
 
 // Sample updates - in a real app, these could be fetched from an API
 const UPDATES: FeatureUpdate[] = [
-  // {
-  //   id: 'Web Search Source Retrieval',
-  //   title: 'Tip: Try Web Search to retrieve sources',
-  //   date: '25th March 2025',
-  //   description: "Web Search allows you to retrieve sources for your queries. It's a great way to get more information about a topic or to find more details on a specific subject.",
-  //   images: [
-  //     // '/images/updates/pdf1.png',
-  //     '/images/updates/pdf2.png'    ],
-  //   highlights: [
-  //     '',
-  //   ],
-  //   instructions: [
-  //   ]  
-  // },
   {
-    id: 'image-generation-instructions',
-    title: '(Experimental) Image Generation Instructions',
-    date: 'Not confirmed',
-    description: 'Start your prompt with /image to generate images',
+    id: 'customer-support-email',
+    date: '27th March 2025',
+    title: '📩 Contact Info',
+    description: 'Email: sply@chatflix.app'
   },
   {
     id: 'new-model-release-1',
