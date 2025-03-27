@@ -23,9 +23,11 @@ export interface ProcessedMessage extends Omit<Message, 'parts' | 'content'> {
 }
 
 export interface AIMessageContent {
-  type: 'text' | 'image' | 'pdf';
+  type: 'text' | 'image' | 'file';
   text?: string;
   image?: string;
+  data?: string;
+  mimeType?: string;
 }
 
 export interface MultiModalMessage extends Omit<Message, 'content'> {

@@ -169,31 +169,14 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
         const fileResult = await fetchFileContent(attachment.url, supabase, 'pdf');
         
         if (fileResult?.base64) {
-          // For Claude, add document in proper format
-          if (modelId.includes('claude')) {
-            parts.push({
-              type: 'document' as any,
-              source: {
-                type: 'base64',
-                media_type: 'application/pdf',
-                data: fileResult.base64
-              }
-            } as any);
-            console.log(`Added PDF "${fileName}" as document object for Claude`);
-          } else {
-            // For other models, include as data URL
-            parts.push({
-              type: 'text',
-              text: `\n\nPDF Document: ${fileName}\n`
-            });
-            
-            // Create data URL reference to the PDF
-            parts.push({
-              type: 'image' as any, // Some models handle PDFs through image type
-              image: `data:application/pdf;base64,${fileResult.base64}`
-            });
-            console.log(`Added PDF "${fileName}" as data URL for generic model`);
-          }
+          
+          // Add as file type
+          parts.push({
+            type: 'file',
+            data: fileResult.base64,
+            mimeType: 'application/pdf'
+          });
+          console.log(`Added PDF "${fileName}" as file type`);
         } else {
           // Fallback: just mention the PDF
           parts.push({

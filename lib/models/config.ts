@@ -267,7 +267,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     },
     isNew: true,
     isWebSearchEnabled: true,
-    supportsPDFs: true,
+    supportsPDFs: false,
     isEnabled: true,
     isActivated: false,
     contextWindow: 1024000,
@@ -340,7 +340,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: "Anthropic's most intelligent model.",
     provider: 'anthropic',
     supportsVision: true,
-    supportsPDFs: false,
+    supportsPDFs: true,
     censored: true,
     rateLimit: {
       level: 'level4',
@@ -370,7 +370,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level4',
     },
     isWebSearchEnabled: true,
-    supportsPDFs: false,
+    supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
     contextWindow: 200000,
@@ -496,29 +496,29 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     multilingual:86,
     HLE: 3.6
   },
-  // {
-  //   id: 'gpt-4.5-preview',
-  //   name: 'GPT-4.5',
-  //   country: 'US',
-  //   description: 'Latest and most capable GPT model yet by OpenAI',
-  //   provider: 'openai',
-  //   supportsVision: true,
-  //   censored: true,
-  //   rateLimit: {
-  //     level: 'level5',
-  //   },
-  //   isWebSearchEnabled: false,
-  //   supportsPDFs: false,
-  //   isEnabled: true,
-  //   isActivated: true,
-  //   contextWindow: 128000,
-  //   tps: 14,
-  //   intelligenceIndex: 51,
-  //   MMLU_Pro: 89.6,  // estimated
-  //   // Coding: , // unknown
-  //   // MATH: // unknown,
-  //   GPQA: 71
-  // },
+  {
+    id: 'gpt-4.5-preview',
+    name: 'GPT-4.5',
+    country: 'US',
+    description: 'Latest and most capable GPT model yet by OpenAI',
+    provider: 'openai',
+    supportsVision: true,
+    censored: true,
+    rateLimit: {
+      level: 'level5',
+    },
+    isWebSearchEnabled: false,
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: false,
+    contextWindow: 128000,
+    tps: 14,
+    intelligenceIndex: 51,
+    MMLU_Pro: 89.6,  // estimated
+    // Coding: , // unknown
+    // MATH: // unknown,
+    GPQA: 71
+  },
   {
     id: 'chatgpt-4o-latest',
     name: 'GPT-4o',
@@ -605,7 +605,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level1',
     },
     isWebSearchEnabled: true,
-    supportsPDFs: false,
+    supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
     contextWindow: 128000,
