@@ -49,21 +49,21 @@ export const RATE_LIMITS = {
   },
   level2: {
     hourly: {
-      requests: 10,
+      requests: 8,
       window: '1 h'
     },
     daily: {
-      requests: 30,
+      requests: 24,
       window: '24 h'
     }
   },
   level3: {
     hourly: {
-      requests: 10,    
+      requests: 8,    
       window: '1 h'
     },
     daily: {
-      requests: 30,
+      requests: 24,
       window: '24 h'
     }
   },
