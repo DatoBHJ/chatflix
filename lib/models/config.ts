@@ -60,7 +60,7 @@ export const RATE_LIMITS = {
   level3: {
     hourly: {
       requests: 8,    
-      window: '1 h'
+      window: '2 h'
     },
     daily: {
       requests: 24,
@@ -70,7 +70,7 @@ export const RATE_LIMITS = {
   level4: {
     hourly: {
       requests: 5,    
-      window: '1 h'
+      window: '2 h'
     },
     daily: {
       requests: 15,
@@ -80,7 +80,7 @@ export const RATE_LIMITS = {
   level5: {
     hourly: {
       requests: 5,    
-      window: '1 h'
+      window: '2 h'
     },
     daily: {
       requests: 15,
