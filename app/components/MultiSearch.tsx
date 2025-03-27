@@ -369,6 +369,8 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
   };
   
   const navigateImage = (direction: 'prev' | 'next') => {
+    if (!images || images.length === 0) return;
+    
     const newIndex = direction === 'next' 
       ? (selectedIndex + 1) % images.length 
       : (selectedIndex - 1 + images.length) % images.length;
@@ -377,11 +379,18 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
   };
   
   // Early return after all hooks are declared
-  if (images.length === 0) return null;
+  if (!images || images.length === 0) return null;
+  
+  // Validate the images array to make sure each item has a valid URL
+  const validImages = images.filter(img => img && img.url);
+  if (validImages.length === 0) return null;
   
   // Determine number of images to display based on total count
-  const displayCount = images.length <= 8 ? images.length : (expanded ? images.length : 8);
-  const displayImages = images.slice(0, displayCount);
+  const displayCount = validImages.length <= 8 ? validImages.length : (expanded ? validImages.length : 8);
+  const displayImages = validImages.slice(0, displayCount);
+  
+  // Return null if no valid images to display
+  if (displayImages.length === 0) return null;
   
   // Modal content to be rendered in the portal
   const modalContent = selectedImage && (
@@ -796,20 +805,28 @@ const MultiSearch: React.FC<{
       .sort(([, resultsA], [, resultsB]) => resultsB.length - resultsA.length);
   }, [result, activeFilter]);
 
+  // Calculate total results based on active filter
+  const totalResults = useMemo(() => {
+    if (!result) return 0;
+    
+    return activeFilter
+      ? result.searches.find(s => s.query === activeFilter)?.results.length || 0
+      : result.searches.reduce((sum, search) => sum + search.results.length, 0);
+  }, [result, activeFilter]);
+
+  // Get filtered images based on active filter
+  const displayImages = useMemo(() => {
+    if (!result) return [];
+    
+    return activeFilter
+      ? result.searches.find(s => s.query === activeFilter)?.images || []
+      : allImages;
+  }, [result, activeFilter, allImages]);
+
   // Early return for loading state
   if (!result) {
     return <SearchLoadingState queries={args.queries} annotations={annotations} />;
   }
-
-  // Calculate total results based on active filter
-  const totalResults = activeFilter
-    ? result.searches.find(s => s.query === activeFilter)?.results.length || 0
-    : result.searches.reduce((sum, search) => sum + search.results.length, 0);
-
-  // Get filtered images based on active filter
-  const displayImages = activeFilter
-    ? result.searches.find(s => s.query === activeFilter)?.images || []
-    : allImages;
 
   return (
     <div className="w-full space-y-4 my-4">
@@ -875,7 +892,7 @@ const MultiSearch: React.FC<{
                     <span className="hidden sm:inline">results</span>
                   </div>
                   
-                  {search.images.length > 0 && (
+                  {search.images && search.images.length > 0 && (
                     <div className="flex items-center gap-1">
                       <ImageIcon className="h-3 w-3" strokeWidth={1.5} />
                       <span>{search.images.length}</span>

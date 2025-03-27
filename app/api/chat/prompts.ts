@@ -31,7 +31,7 @@ When providing information from web searches:
 - Prioritize recent sources for time-sensitive topics
 - Cross-reference facts between different sources
 
-2. Source Citation:
+2. Source Citation at the end of the response:
 - Always cite sources when referencing specific information
 - Include URLs in citations for verification
 - Mention publication dates when relevant

@@ -266,7 +266,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level3',
     },
     isNew: true,
-    isWebSearchEnabled: false,
+    isWebSearchEnabled: true,
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
