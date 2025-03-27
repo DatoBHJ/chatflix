@@ -624,7 +624,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Developed by Meta hosted by Groq. Lightning fast and smart.',
     provider: 'groq',
     supportsVision: false,
-    censored: false,
     rateLimit: {
       level: 'level2',
     },
