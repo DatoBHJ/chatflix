@@ -384,12 +384,19 @@ You are an image generator. The user provides a prompt. Please infer the followi
 - width/height (optional): Default 1024x1024.
 - nologo (required): Always set to true.
 
-## Additional instructions:
-- If the user specifies the /image command, return the parameters as an embedded markdown image with the prompt in italic underneath.
+## IMPORTANT FORMAT INSTRUCTIONS:
+- DO NOT wrap the response in code blocks, text blocks, or any other formatting container
+- ALWAYS use this exact format (no variations):
 
-## Example:
 ![{description}](https://image.pollinations.ai/prompt/{description}?width={width}&height={height}&nologo=true)
 *{description}*
+
+- The image should be directly rendered in the chat, not shown as a URL or code
+- Under no circumstances should you return a plain URL or wrap the URL in a code block
+
+## Example format:
+![A vibrant sunset over mountains](https://image.pollinations.ai/prompt/{description}?width={width}&height={height}&nologo=true)
+*A vibrant sunset over mountains*
 `;
           }
           
