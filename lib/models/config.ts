@@ -271,13 +271,13 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     isActivated: true,
     contextWindow: 1024000,
-    tps: 195,
+    // tps: 195,
     // intelligenceIndex: 48,
-    MMLU_Pro: 86,
+    // MMLU_Pro: 86,
     // Coding: 32,
-    MATH: 94,
-    GPQA: 83,
-    HLE: 17.7
+    // MATH: 94,
+    // GPQA: 83,
+    // HLE: 17.7
   },
   {
     id: 'gemini-2.0-flash',
