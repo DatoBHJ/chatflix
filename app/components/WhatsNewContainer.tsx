@@ -37,12 +37,6 @@ const UPDATES: FeatureUpdate[] = [
     description: 'The best open source non-reasoning model in the world, outscoring Grok3, Claude 3.7 Sonnet and GPT-4.5 in the Artificial Analysis Intelligence Index.',
   },
   {
-    id: 'Anthropic-PDF-Issue',
-    title: 'Anthropic PDF Issue',
-    date: '25th March 2025',
-    description: 'Due to an ongoing issue with PDF reading, we have temporarily disabled PDF uploads for Anthropic models. We expect to restore this functionality soon.',
-  },
-  {
     id: '(Experimental) pdf-support',
     title: '(Experimental) PDF Support',
     date: 'Not confirmed',
