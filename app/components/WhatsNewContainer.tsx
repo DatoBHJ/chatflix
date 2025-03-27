@@ -113,12 +113,15 @@ const WhatsNewContainer: React.FC = () => {
     
     if (lastSeenUpdateId) {
       const lastSeenIndex = UPDATES.findIndex(update => update.id === lastSeenUpdateId);
-      // If the last seen update is found, count items newer than it
+      
       if (lastSeenIndex !== -1) {
-        setNewUpdatesCount(lastSeenIndex);
-        setHasNewUpdates(lastSeenIndex > 0);
+        // Count only updates that are newer than the last seen update
+        // Since updates are ordered with newest first, these are at indices 0 to lastSeenIndex-1
+        const numNewUpdates = lastSeenIndex;
+        setNewUpdatesCount(numNewUpdates);
+        setHasNewUpdates(numNewUpdates > 0);
       } else {
-        // If last seen update not found, all updates are new
+        // If last seen update not found in current list, all updates are new
         setNewUpdatesCount(UPDATES.length);
         setHasNewUpdates(UPDATES.length > 0);
       }
