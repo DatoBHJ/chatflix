@@ -267,7 +267,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     },
     isNew: true,
     isWebSearchEnabled: true,
-    supportsPDFs: true,
+    supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
     contextWindow: 1024000,
