@@ -263,7 +263,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: true,
     censored: true,
     rateLimit: {
-      level: 'level1',
+      level: 'level3',
     },
     isNew: true,
     isWebSearchEnabled: false,
