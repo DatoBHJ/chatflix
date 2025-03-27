@@ -310,19 +310,12 @@ const SearchSidebar = ({
 };
 
 // Image grid component
-const ImageGrid = ({ 
-  images, 
-  onImageError 
-}: { 
-  images: SearchImage[]; 
-  onImageError: (url: string) => void;
-}) => {
+const ImageGrid = ({ images }: { images: SearchImage[] }) => {
   const [expanded, setExpanded] = useState(false);
   const [selectedImage, setSelectedImage] = useState<SearchImage | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const [isMounted, setIsMounted] = useState(false);
   const metaTagRef = useRef<HTMLMetaElement | null>(null);
-  const [errorImages, setErrorImages] = useState<Set<string>>(new Set());
   
   // Check if we're in the browser environment for portal rendering
   useEffect(() => {
@@ -364,7 +357,6 @@ const ImageGrid = ({
   
   const handleImageClick = (image: SearchImage, index: number, e: React.MouseEvent) => {
     e.preventDefault();
-    if (errorImages.has(image.url)) return; // Do not open modal for error images
     setSelectedImage(image);
     setSelectedIndex(index);
     document.body.style.overflow = 'hidden';
@@ -377,43 +369,19 @@ const ImageGrid = ({
   };
   
   const navigateImage = (direction: 'prev' | 'next') => {
-    // Filter out error images for navigation
-    const validImages = images.filter(img => !errorImages.has(img.url));
-    if (validImages.length === 0) return;
-    
-    const currentIndex = validImages.findIndex(img => img === selectedImage);
-    if (currentIndex === -1) return;
-    
     const newIndex = direction === 'next' 
-      ? (currentIndex + 1) % validImages.length 
-      : (currentIndex - 1 + validImages.length) % validImages.length;
-    setSelectedImage(validImages[newIndex]);
-    setSelectedIndex(images.indexOf(validImages[newIndex]));
+      ? (selectedIndex + 1) % images.length 
+      : (selectedIndex - 1 + images.length) % images.length;
+    setSelectedImage(images[newIndex]);
+    setSelectedIndex(newIndex);
   };
-  
-  const handleImageError = (imageUrl: string) => {
-    // 로컬 상태 업데이트
-    setErrorImages(prev => {
-      const newSet = new Set(prev);
-      newSet.add(imageUrl);
-      return newSet;
-    });
-    
-    // 부모 컴포넌트에게 에러 알림
-    onImageError(imageUrl);
-  };
-  
-  // Filter out error images
-  const validImages = useMemo(() => {
-    return images.filter(img => !errorImages.has(img.url));
-  }, [images, errorImages]);
   
   // Early return after all hooks are declared
-  if (validImages.length === 0) return null;
+  if (images.length === 0) return null;
   
   // Determine number of images to display based on total count
-  const displayCount = validImages.length <= 8 ? validImages.length : (expanded ? validImages.length : 8);
-  const displayImages = validImages.slice(0, displayCount);
+  const displayCount = images.length <= 8 ? images.length : (expanded ? images.length : 8);
+  const displayImages = images.slice(0, displayCount);
   
   // Modal content to be rendered in the portal
   const modalContent = selectedImage && (
@@ -455,10 +423,6 @@ const ImageGrid = ({
             className="main-image"
             referrerPolicy="no-referrer"
             loading="lazy"
-            onError={(e) => {
-              handleImageError(selectedImage.url);
-              closeModal(); // Close modal if the main image fails to load
-            }}
           />
           
           {selectedImage.description && (
@@ -480,7 +444,7 @@ const ImageGrid = ({
           <h4 className="similar-images-title">Related Images</h4>
           
           <div className="similar-images-grid">
-            {validImages.filter(img => img.url !== selectedImage.url).slice(0, 12).map((image, idx) => (
+            {images.filter(img => img.url !== selectedImage.url).slice(0, 12).map((image, idx) => (
               <div key={idx} className="relative">
                 <img
                   src={image.url}
@@ -488,7 +452,6 @@ const ImageGrid = ({
                   className="w-full h-32 object-cover rounded-lg cursor-pointer"
                   loading="lazy"
                   referrerPolicy="no-referrer"
-                  onError={() => handleImageError(image.url)}
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -506,15 +469,15 @@ const ImageGrid = ({
   );
   
   return (
-    <div className="space-y-2 px-4">
+    <div className=" space-y-2 px-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded-lg bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
             <ImageIcon className="h-3.5 w-3.5 text-[var(--foreground)]" strokeWidth={1.5} />
           </div>
-          <h3 className="text-sm font-medium">Image Results ({validImages.length})</h3>
+          <h3 className="text-sm font-medium">Image Results ({images.length})</h3>
         </div>
-        {validImages.length > 8 && (
+        {images.length > 8 && (
           <button 
             onClick={() => setExpanded(!expanded)}
             className="flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors px-2 py-1 rounded-md bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)]"
@@ -528,8 +491,8 @@ const ImageGrid = ({
             ) : (
               <>
                 <ChevronDown className="h-3 w-3" strokeWidth={1.5} />
-                <span className="hidden sm:inline">Show More ({validImages.length - 8})</span>
-                <span className="sm:hidden">More ({validImages.length - 8})</span>
+                <span className="hidden sm:inline">Show More ({images.length - 8})</span>
+                <span className="sm:hidden">More ({images.length - 8})</span>
               </>
             )}
           </button>
@@ -616,7 +579,6 @@ const ImageGrid = ({
           padding: 0;
           margin: 0;
           overflow: hidden;
-          flex-direction: column;
         }
         
         .main-image {
@@ -768,7 +730,6 @@ const ImageGrid = ({
                 className="tetris-img"
                 loading="lazy"
                 referrerPolicy="no-referrer"
-                onError={() => handleImageError(image.url)}
               />
               {image.description && (
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-2 flex items-end rounded-lg">
@@ -801,16 +762,6 @@ const MultiSearch: React.FC<{
 }) => {
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [errorImages, setErrorImages] = useState<Set<string>>(new Set());
-  
-  // 에러 이미지 처리 함수
-  const handleImageError = (imageUrl: string) => {
-    setErrorImages(prev => {
-      const newSet = new Set(prev);
-      newSet.add(imageUrl);
-      return newSet;
-    });
-  };
   
   // Calculate all images from search results
   const allImages = useMemo(() => {
@@ -818,11 +769,6 @@ const MultiSearch: React.FC<{
       return [...acc, ...search.images];
     }, []) || [];
   }, [result]);
-
-  // Filter out error images from all images
-  const validAllImages = useMemo(() => {
-    return allImages.filter(img => !errorImages.has(img.url));
-  }, [allImages, errorImages]);
 
   // Group all results by domain
   const domainGroups = useMemo(() => {
@@ -860,13 +806,10 @@ const MultiSearch: React.FC<{
     ? result.searches.find(s => s.query === activeFilter)?.results.length || 0
     : result.searches.reduce((sum, search) => sum + search.results.length, 0);
 
-  // Get filtered images based on active filter and exclude error images
-  const displayImages = useMemo(() => {
-    const filteredImages = activeFilter
-      ? result.searches.find(s => s.query === activeFilter)?.images || []
-      : allImages;
-    return filteredImages.filter(img => !errorImages.has(img.url));
-  }, [activeFilter, result, allImages, errorImages]);
+  // Get filtered images based on active filter
+  const displayImages = activeFilter
+    ? result.searches.find(s => s.query === activeFilter)?.images || []
+    : allImages;
 
   return (
     <div className="w-full space-y-4 my-4">
@@ -907,47 +850,42 @@ const MultiSearch: React.FC<{
             <span className="font-medium">All Queries</span>
           </div>
 
-          {result.searches.map((search, i) => {
-            // 각 검색 쿼리별 유효한 이미지 수를 계산
-            const validQueryImages = search.images.filter(img => !errorImages.has(img.url));
-            
-            return (
-              <div
-                key={i}
-                onClick={() => {
-                  setActiveFilter(search.query === activeFilter ? null : search.query);
-                  setSidebarOpen(true);
-                }}
-                className={`group px-3.5 py-2 rounded-lg flex items-center gap-2 cursor-pointer transition-all duration-200 break-keep
-                          ${search.query === activeFilter 
-                            ? "bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_15%,transparent)] to-[color-mix(in_srgb,var(--foreground)_10%,transparent)] shadow-sm translate-y-0 border border-[color-mix(in_srgb,var(--foreground)_20%,transparent)]" 
-                            : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)] border border-transparent hover:border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] hover:-translate-y-0.5 hover:shadow-sm"
-                          }`}
-              >
-                <div className={`p-1.5 rounded-full ${search.query === activeFilter ? "bg-[color-mix(in_srgb,var(--foreground)_25%,transparent)]" : "bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] group-hover:bg-[color-mix(in_srgb,var(--foreground)_15%,transparent)]"} transition-colors`}>
-                  <Search className="h-3 w-3" strokeWidth={1.5} />
-                </div>
-                
-                <div className="flex flex-col leading-tight">
-                  <span className="font-medium text-sm">{search.query}</span>
-                  <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
-                    <div className="flex items-center gap-1">
-                      <span>{search.results.length}</span>
-                      <span className="hidden sm:inline">results</span>
-                    </div>
-                    
-                    {validQueryImages.length > 0 && (
-                      <div className="flex items-center gap-1">
-                        <ImageIcon className="h-3 w-3" strokeWidth={1.5} />
-                        <span>{validQueryImages.length}</span>
-                        <span className="hidden sm:inline">images</span>
-                      </div>
-                    )}
+          {result.searches.map((search, i) => (
+            <div
+              key={i}
+              onClick={() => {
+                setActiveFilter(search.query === activeFilter ? null : search.query);
+                setSidebarOpen(true);
+              }}
+              className={`group px-3.5 py-2 rounded-lg flex items-center gap-2 cursor-pointer transition-all duration-200 break-keep
+                        ${search.query === activeFilter 
+                          ? "bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_15%,transparent)] to-[color-mix(in_srgb,var(--foreground)_10%,transparent)] shadow-sm translate-y-0 border border-[color-mix(in_srgb,var(--foreground)_20%,transparent)]" 
+                          : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)] border border-transparent hover:border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] hover:-translate-y-0.5 hover:shadow-sm"
+                        }`}
+            >
+              <div className={`p-1.5 rounded-full ${search.query === activeFilter ? "bg-[color-mix(in_srgb,var(--foreground)_25%,transparent)]" : "bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] group-hover:bg-[color-mix(in_srgb,var(--foreground)_15%,transparent)]"} transition-colors`}>
+                <Search className="h-3 w-3" strokeWidth={1.5} />
+              </div>
+              
+              <div className="flex flex-col leading-tight">
+                <span className="font-medium text-sm">{search.query}</span>
+                <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                  <div className="flex items-center gap-1">
+                    <span>{search.results.length}</span>
+                    <span className="hidden sm:inline">results</span>
                   </div>
+                  
+                  {search.images.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      <ImageIcon className="h-3 w-3" strokeWidth={1.5} />
+                      <span>{search.images.length}</span>
+                      <span className="hidden sm:inline">images</span>
+                    </div>
+                  )}
                 </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       </div>
       
@@ -961,10 +899,7 @@ const MultiSearch: React.FC<{
       />
       
       {/* Image viewer modal */}
-      <ImageGrid 
-        images={displayImages} 
-        onImageError={handleImageError}
-      />
+      <ImageGrid images={displayImages} />
     </div>
   );
 };
