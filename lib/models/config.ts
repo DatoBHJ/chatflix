@@ -345,7 +345,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level4',
     },
-    isWebSearchEnabled: false,
+    isWebSearchEnabled: true,
     isHot: true,
     isEnabled: true,
     isActivated: true,
@@ -482,7 +482,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level3',
     },
-    isWebSearchEnabled: false,
+    isWebSearchEnabled: true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -507,7 +507,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level5',
     },
-    isWebSearchEnabled: false,
+    isWebSearchEnabled: true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: false,
@@ -530,7 +530,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level5',
     },
-    isWebSearchEnabled: false,
+    isWebSearchEnabled: true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -554,7 +554,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     "rateLimit": {
       "level": "level5",
     },
-    isWebSearchEnabled: false,
+    isWebSearchEnabled: true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -579,7 +579,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     "rateLimit": {
       "level": "level5",
     },
-    isWebSearchEnabled: false,
+    isWebSearchEnabled: true,
     supportsPDFs: false,
     isEnabled: true,
     isHot: true,
@@ -663,7 +663,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     isActivated: true,
     supportsPDFs: false,
-    isWebSearchEnabled: true,
+    isWebSearchEnabled: false,
     contextWindow: 131000,
     tps: 399,
     intelligenceIndex: 58,

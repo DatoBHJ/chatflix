@@ -272,7 +272,6 @@ export async function POST(req: Request) {
           // Process last message shortcut if needed
           const lastMessage = processMessages[processMessages.length - 1];
           const processedLastMessagePromise = handlePromptShortcuts(supabase, lastMessage, user.id) as Promise<MultiModalMessage>;
-          console.log('[DEBUG-PROMPT-SHORTCUTS] Processed last message:', lastMessage);
           // Prepare DB operations (but don't wait)
           let dbOperationsPromise = Promise.resolve();
           // const isInitialMessage = messages.length === 1 && lastMessage.role === 'user';
@@ -326,8 +325,6 @@ export async function POST(req: Request) {
           ]);
           
           processMessages[processMessages.length - 1] = processedLastMessage;
-
-          console.log('[DEBUG-PROMPT-SHORTCUTS] Processed last message:', processedLastMessage);
 
           // Continue with session validation in the background
           sessionValidationPromise.catch(error => {
@@ -398,9 +395,14 @@ You are an image generator. The user provides a prompt. Please infer the followi
           
           if (isWebSearchEnabled) {
             console.log('[Debug-API] Web search is enabled, starting multi-step approach');
+            console.log('[Debug-API] Web search model:', model);  
+            console.log('[Debug-API] full prompt:', [
+              { role: 'system', content: webSearchQueryGeneratorPrompt },
+              ...processMessages as unknown as Message[]
+            ]);
             // Step 1: Web search query generation and execution
             const webSearchResult = streamText({
-              model: providers.languageModel(model),
+              model: providers.languageModel('grok-2-vision-latest'),
               messages: [
                 { role: 'system', content: webSearchQueryGeneratorPrompt },
                 ...processMessages as unknown as Message[]
@@ -433,13 +435,61 @@ You are an image generator. The user provides a prompt. Please infer the followi
               experimental_sendFinish: false
             });
 
+            console.log('[Debug-API] Web search result:', webSearchResult);
+
             console.log('[Debug-API] Starting assistant response');
+            console.log('[Debug-API] Assistant model:', model);
+            
+            // Process web search results to extract only essential content
+            const processWebSearchResults = async (result: any) => {
+              const webSearchResponse = await result.response;
+              const toolResults = webSearchResponse.messages.find((m: any) => m.role === 'tool')?.content || [];
+              
+              if (!toolResults.length) return [];
+              
+              const searchContent = toolResults[0]?.result?.searches || [];
+              const processedResults: Message[] = [];
+              
+              // Extract only the essential content from search results
+              for (const search of searchContent) {
+                const query = search.query;
+                const sources = search.results.map((r: any) => ({
+                  title: r.title,
+                  content: r.content,
+                  url: r.url,
+                  publishedDate: r.publishedDate
+                }));
+                
+                processedResults.push({
+                  id: generateMessageId(),
+                  role: 'assistant',
+                  content: `### Search results for: "${query}"\n\n${sources.map((s: any, i: number) => 
+                    `[${i+1}] ${s.title}\n${s.content}\nSource: ${s.url}${s.publishedDate ? ` (${s.publishedDate})` : ''}\n`
+                  ).join('\n')}`
+                });
+              }
+              
+              return processedResults;
+            };
+            
+            // Get processed web search results
+            const webSearchProcessedResults = await processWebSearchResults(webSearchResult);
+            
+            const assistantPrompt = [
+              { role: 'system', content: currentSystemPrompt },
+              ...processMessages as unknown as Message[],
+              ...webSearchProcessedResults
+            ];
+            
+            // Log the full prompt contents with proper formatting
+            console.log('[Debug-API] Assistant full prompt:', JSON.stringify(assistantPrompt, null, 2));
+            
             const assistantResult = streamText({
               model: providers.languageModel(model),
               system: getWebSearchResponsePrompt(currentSystemPrompt),
               messages: [
                 ...processMessages as unknown as Message[],
-                ...(await webSearchResult.response).messages as unknown as Message[]
+                ...webSearchProcessedResults
               ],
               temperature: 0.7,
               maxTokens: 8000,
