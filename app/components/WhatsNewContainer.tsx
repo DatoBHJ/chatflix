@@ -8,7 +8,7 @@ const UPDATES: FeatureUpdate[] = [
     id: 'customer-support-email',
     date: '27th March 2025',
     timestamp: 1774310400000, // 2025-03-27 in ms since epoch
-    title: '📩 Contact Info',
+    title: 'Contact Info',
     description: 'Email: sply@chatflix.app'
   },
   {
