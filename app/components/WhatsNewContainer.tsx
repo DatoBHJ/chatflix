@@ -16,7 +16,7 @@ const UPDATES: FeatureUpdate[] = [
     title: "We're experiencing high demand on Gemini 2.5 Pro",
     date: '28th March 2025',
     timestamp: 1774396800000, // 2025-03-28 in ms since epoch
-    description: "Gemini 2.5 Pro is currently experiencing high demand. We've adjusted usage limits for free users to manage traffic. For unlimited access, consider subscribing to our premium plan, or try our other available models for faster response times."
+    description: "Gemini 2.5 Pro is currently experiencing high demand. If you're experiencing slow response times, please try again later or switch to a different model."
   },
   {
     id: 'new-model-release-1',
