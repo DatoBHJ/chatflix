@@ -40,10 +40,10 @@ export const RATE_LIMITS = {
   level1: {
     hourly: {
       requests: 10,    
-      window: '2 h'
+      window: '1 h'
     },
     daily: {
-      requests: 30,    
+      requests: 50,    
       window: '24 h'
     }
   },
@@ -270,7 +270,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isWebSearchEnabled: false,
     supportsPDFs: true,
     isEnabled: true,
-    isActivated: false,
+    isActivated: true,
     contextWindow: 1024000,
     // tps: 195,
     // intelligenceIndex: 48,
