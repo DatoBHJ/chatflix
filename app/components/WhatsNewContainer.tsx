@@ -12,6 +12,13 @@ const UPDATES: FeatureUpdate[] = [
     description: 'Email: sply@chatflix.app'
   },
   {
+    id: 'gemini-2-5-pro-high-demand',
+    title: "We're experiencing high demand on Gemini 2.5 pro",
+    date: '28th March 2025',
+    timestamp: 1774396800000, // 2025-03-28 in ms since epoch
+    description: 'Due to high demand on Gemini 2.5 pro, there may be some delays in response time. Try other models if you are experiencing delays.',
+  },
+  {
     id: 'new-model-release-1',
     title: 'New Model: Gemini 2.5 Pro (Mar\' 25)',
     date: '27th March 2025',
