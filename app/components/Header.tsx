@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation'
 import { ThemeToggle } from './ThemeToggle'
 import { SubscriptionButton } from './SubscriptionButton'
 import WhatsNewContainer from './WhatsNewContainer'
+import { useUser } from '@/app/lib/UserContext'
+import Image from 'next/image'
 
 export interface HeaderProps {
   isSidebarOpen: boolean;
@@ -14,11 +16,12 @@ export interface HeaderProps {
 
 export function Header({ isSidebarOpen, onSidebarToggle, showBackButton, user }: HeaderProps) {
   const router = useRouter()
+  const { userName, profileImage } = useUser()
 
   return (
     <header className="fixed top-0 left-0 right-0 z-40 bg-[var(--background)]">
       <div className="flex justify-between items-center px-6 py-6">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           {showBackButton ? (
             <button
               onClick={() => router.back()}
@@ -43,11 +46,25 @@ export function Header({ isSidebarOpen, onSidebarToggle, showBackButton, user }:
               </svg>
             </button>
           )}
-          {/* <div className="ml-2 flex items-center">
-            <h1 className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--muted)] to-transparent font-extralight uppercase tracking-[0.65em] text-lg">
-              Chatflix
-            </h1>
-          </div> */}
+          
+          <div className="hidden md:flex items-center gap-2 cursor-pointer" onClick={() => router.push('/user-insights')}>
+            {profileImage ? (
+              <div className="w-7 h-7 rounded-full overflow-hidden relative">
+                <Image 
+                  src={profileImage} 
+                  alt={userName} 
+                  width={28}
+                  height={28}
+                  className="object-cover"
+                />
+              </div>
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-[var(--foreground)] text-[var(--background)] inline-flex items-center justify-center text-sm font-medium">
+                {userName.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span className="text-sm font-medium">{userName}</span>
+          </div>
         </div>
 
         <div className="flex items-center gap-5">
