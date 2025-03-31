@@ -6,6 +6,9 @@ import { ExtendedMessage } from '../chat/[id]/types'
 import { getModelById } from '@/lib/models/config'
 import { Attachment } from '@/lib/types'
 import React, { memo, useCallback, useState } from 'react'
+import Image from 'next/image'
+import { useRouter } from 'next/navigation'
+import { useUser } from '@/app/lib/UserContext'
 
 
 interface MessageProps {
@@ -21,6 +24,8 @@ interface MessageProps {
   onEditCancel: () => void
   onEditSave: (messageId: string) => void
   setEditingContent: (content: string) => void
+  userName?: string
+  profileImage?: string | null
 }
 
 // Create a memoized Message component to prevent unnecessary re-renders
@@ -36,8 +41,18 @@ const Message = memo(function MessageComponent({
   onEditStart,
   onEditCancel,
   onEditSave,
-  setEditingContent
+  setEditingContent,
+  userName: propUserName,
+  profileImage: propProfileImage
 }: MessageProps) {
+  const router = useRouter();
+  // Context에서 사용자 정보 가져오기
+  const { userName: contextUserName, profileImage: contextProfileImage } = useUser();
+  
+  // Props와 Context 중 우선순위를 결정하여 최종 값 설정
+  const userName = propUserName || contextUserName;
+  const profileImage = propProfileImage || contextProfileImage;
+  
   // Function to truncate long messages
   const truncateMessage = useCallback((content: string, maxLength: number = 300) => {
     if (content.length <= maxLength) return content;
@@ -54,6 +69,11 @@ const Message = memo(function MessageComponent({
       [messageId]: !prev[messageId]
     }));
   }, []);
+  
+  // Navigate to user insights page
+  const goToUserInsights = useCallback(() => {
+    router.push('/user-insights');
+  }, [router]);
 
   const isEditing = editingMessageId === message.id;
   const isCopied = copiedMessageId === message.id;
@@ -70,7 +90,42 @@ const Message = memo(function MessageComponent({
   return (
     <div className="message-group group animate-fade-in overflow-hidden">
       <div className={`message-role ${isUser ? 'text-right' : ''}`}>
-        {isAssistant ? 'Chatflix.app' : 'You'}
+        {isAssistant ? (
+          <div className="inline-flex items-center gap-2">
+            <div className="w-5 h-5 rounded-full overflow-hidden relative inline-block align-middle">
+              <Image 
+                src="/favicon-32x32.png" 
+                alt="Chatflix" 
+                width={20}
+                height={20}
+                className="object-cover"
+              />
+            </div>
+            <span>Chatflix.app</span>
+          </div>
+        ) : (
+          <div 
+            className="inline-flex items-center gap-2 cursor-pointer hover:opacity-80"
+            onClick={goToUserInsights}
+            title="View your AI Recap"
+          >
+            {profileImage ? (
+              <div className="w-5 h-5 rounded-full overflow-hidden relative inline-block align-middle">
+                <Image 
+                  src={profileImage} 
+                  alt={userName} 
+                  fill 
+                  className="object-cover"
+                />
+              </div>
+            ) : (
+              <div className="w-5 h-5 rounded-full bg-[var(--foreground)] text-[var(--background)] inline-flex items-center justify-center text-xs font-medium">
+                {userName.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span>{userName}</span>
+          </div>
+        )}
       </div>
       <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
         <div className={`${isUser ? 'message-user' : 'message-assistant'} max-w-full overflow-x-auto ${

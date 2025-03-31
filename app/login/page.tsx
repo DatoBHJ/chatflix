@@ -89,15 +89,15 @@ export default function LoginPage() {
           </div>
           <div className="relative">
             {/* Notice about email registration being disabled */}
-            <div className="mb-6 p-4 bg-blue-50 text-blue-700 rounded-md">
+            {/* <div className="mb-6 p-4 bg-blue-50 text-blue-700 rounded-md">
               <p className="text-sm">
                 Due to high registration volume, email/password registration is temporarily disabled. 
                 Please use Google Sign at the bottom of the page. If you don't see one, please refresh the page.
               </p>
-            </div>
+            </div> */}
             
             {/* Email/password form commented out */}
-            {/* <form className="space-y-6" onSubmit={handleSignIn}>
+            <form className="space-y-6" onSubmit={handleSignIn}>
               {error && (
                 <div className="login-error">
                   {error} 
@@ -157,7 +157,7 @@ export default function LoginPage() {
                   <span className="bg-white px-4 text-xs uppercase text-[#666666]">Or continue with Google</span>
                 </div>
               </div>
-            </form> */}
+            </form>
             <div className="flex justify-center mt-6">
               <GoogleSignIn />
             </div>

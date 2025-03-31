@@ -25,6 +25,10 @@ const nextConfig = {
     POLAR_PROD_DISCOUNT_CODE: process.env.POLAR_PROD_DISCOUNT_CODE,
     POLAR_PROD_BASE_URL: process.env.POLAR_PROD_BASE_URL,
   },
+  reactStrictMode: true,
+  images: {
+    domains: ['jgkrhazygwcvbzkwkhnj.supabase.co'],
+  }
 }
 
 module.exports = withPWA(nextConfig)

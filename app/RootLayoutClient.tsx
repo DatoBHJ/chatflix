@@ -8,6 +8,8 @@ import { PromptShortcutsDialog } from './components/PromptShortcutsDialog'
 import { Header } from './components/Header'
 import Announcement from './components/Announcement'
 import useAnnouncement from './hooks/useAnnouncement'
+import { UserProvider } from './lib/UserContext'
+import { Toaster } from 'sonner'
 
 export default function RootLayoutClient({
   children,
@@ -112,48 +114,51 @@ export default function RootLayoutClient({
   }
 
   return (
-    <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)] overflow-x-hidden">
-      <Announcement
-        announcements={announcements || []}
-        onClose={hideAnnouncement}
-      />
-      {user && (
-        <Header 
-          isSidebarOpen={isSidebarOpen}
-          onSidebarToggle={toggleSidebar}
-          user={user}
+    <UserProvider>
+      <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)] overflow-x-hidden">
+        <Toaster position="top-right" richColors />
+        <Announcement
+          announcements={announcements || []}
+          onClose={hideAnnouncement}
         />
-      )}
-      
-      {/* Sidebar with improved transition */}
-      {user && (
-        <div 
-          className={`fixed left-0 top-0 h-full transform transition-all duration-300 ease-out z-40 ${
-            isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'
-          }`}
-        >
-          <Sidebar user={user} onClose={() => setIsSidebarOpen(false)} />
+        {user && (
+          <Header 
+            isSidebarOpen={isSidebarOpen}
+            onSidebarToggle={toggleSidebar}
+            user={user}
+          />
+        )}
+        
+        {/* Sidebar with improved transition */}
+        {user && (
+          <div 
+            className={`fixed left-0 top-0 h-full transform transition-all duration-300 ease-out z-40 ${
+              isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'
+            }`}
+          >
+            <Sidebar user={user} onClose={() => setIsSidebarOpen(false)} />
+          </div>
+        )}
+
+        {/* Main Content */}
+        <div className="flex-1">
+          {children}
         </div>
-      )}
 
-      {/* Main Content */}
-      <div className="flex-1">
-        {children}
+        {/* Overlay with improved transition */}
+        {user && (
+          <div
+            className={`fixed inset-0 backdrop-blur-[1px] bg-black transition-all duration-300 ease-out z-30 ${
+              isSidebarOpen 
+                ? 'opacity-30 pointer-events-auto' 
+                : 'opacity-0 pointer-events-none'
+            }`}
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+
+        {user && <PromptShortcutsDialog user={user} />}
       </div>
-
-      {/* Overlay with improved transition */}
-      {user && (
-        <div
-          className={`fixed inset-0 backdrop-blur-[1px] bg-black transition-all duration-300 ease-out z-30 ${
-            isSidebarOpen 
-              ? 'opacity-30 pointer-events-auto' 
-              : 'opacity-0 pointer-events-none'
-          }`}
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
-      {user && <PromptShortcutsDialog user={user} />}
-    </div> //
+    </UserProvider>
   )
 } 

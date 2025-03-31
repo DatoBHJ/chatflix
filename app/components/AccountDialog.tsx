@@ -1,15 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { getCustomerPortalUrl, checkSubscription } from '@/lib/polar'
+import Image from 'next/image'
 
 interface AccountDialogProps {
   user: any;
   isOpen: boolean;
   onClose: () => void;
+  profileImage?: string | null;
+  handleDeleteAllChats?: () => Promise<void>;
 }
 
-export function AccountDialog({ user, isOpen, onClose }: AccountDialogProps) {
+export function AccountDialog({ user, isOpen, onClose, profileImage: initialProfileImage, handleDeleteAllChats }: AccountDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [isManagingSubscription, setIsManagingSubscription] = useState(false)
@@ -18,12 +21,18 @@ export function AccountDialog({ user, isOpen, onClose }: AccountDialogProps) {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleteReason, setDeleteReason] = useState('')
+  const [isEditing, setIsEditing] = useState(false)
+  const [userName, setUserName] = useState(user?.user_metadata?.name || 'User')
+  const [profileImage, setProfileImage] = useState<string | null>(initialProfileImage || null)
+  const [isUploading, setIsUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
     if (user && isOpen) {
       checkUserSubscription();
+      fetchProfileImage(user.id);
     }
   }, [user, isOpen]);
 
@@ -37,6 +46,33 @@ export function AccountDialog({ user, isOpen, onClose }: AccountDialogProps) {
       setDeleteReason('');
     }
   }, [isOpen]);
+
+  const fetchProfileImage = async (userId: string) => {
+    try {
+      // Try to get profile image from storage
+      const { data: profileData, error: profileError } = await supabase
+        .storage
+        .from('profile-pics')
+        .list(`${userId}`);
+
+      if (profileError) {
+        console.error('Error fetching profile image:', profileError);
+        return;
+      }
+
+      // If profile image exists, get public URL
+      if (profileData && profileData.length > 0) {
+        const { data } = supabase
+          .storage
+          .from('profile-pics')
+          .getPublicUrl(`${userId}/${profileData[0].name}`);
+        
+        setProfileImage(data.publicUrl);
+      }
+    } catch (error) {
+      console.error('Error fetching profile image:', error);
+    }
+  };
 
   const checkUserSubscription = async () => {
     if (!user) return;
@@ -74,6 +110,208 @@ export function AccountDialog({ user, isOpen, onClose }: AccountDialogProps) {
       alert('Failed to sign out. Please try again.')
     }
   }
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id) return;
+
+    try {
+      setIsUploading(true);
+
+      // 파일 크기 체크 (3MB 제한)
+      const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB
+      if (file.size > MAX_FILE_SIZE) {
+        alert("File size should be less than 3MB");
+        setIsUploading(false);
+        return;
+      }
+
+      // 이미지 확장자 체크
+      const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+        alert("Please upload a valid image file (JPEG, PNG, GIF, or WEBP)");
+        setIsUploading(false);
+        return;
+      }
+
+      // 이미지 압축을 위한 함수
+      const compressImage = async (file: File, maxSizeMB = 1): Promise<File> => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = (event) => {
+            const img = document.createElement('img');
+            img.src = event.target?.result as string;
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              let width = img.width;
+              let height = img.height;
+              
+              // 이미지 크기 제한
+              const MAX_WIDTH = 800;
+              const MAX_HEIGHT = 800;
+              
+              if (width > height) {
+                if (width > MAX_WIDTH) {
+                  height = Math.round(height * MAX_WIDTH / width);
+                  width = MAX_WIDTH;
+                }
+              } else {
+                if (height > MAX_HEIGHT) {
+                  width = Math.round(width * MAX_HEIGHT / height);
+                  height = MAX_HEIGHT;
+                }
+              }
+              
+              canvas.width = width;
+              canvas.height = height;
+              
+              const ctx = canvas.getContext('2d');
+              ctx?.drawImage(img, 0, 0, width, height);
+              
+              // 압축 품질 조정 (0.7 = 70% 품질)
+              const quality = 0.7;
+              canvas.toBlob(
+                (blob) => {
+                  if (!blob) {
+                    reject(new Error('Canvas to Blob conversion failed'));
+                    return;
+                  }
+                  const newFile = new File([blob], file.name, {
+                    type: file.type,
+                    lastModified: Date.now(),
+                  });
+                  resolve(newFile);
+                },
+                file.type,
+                quality
+              );
+            };
+            img.onerror = () => {
+              reject(new Error('Error loading image'));
+            };
+          };
+          reader.onerror = () => {
+            reject(new Error('Error reading file'));
+          };
+        });
+      };
+
+      // 이미지 압축 후 업로드
+      let fileToUpload = file;
+      try {
+        if (file.size > 1 * 1024 * 1024) { // 1MB 이상이면 압축
+          fileToUpload = await compressImage(file);
+          console.log(`Compressed image from ${file.size} to ${fileToUpload.size} bytes`);
+        }
+      } catch (compressionError) {
+        console.error('Error compressing image:', compressionError);
+        // 압축 실패 시 원본 파일 사용
+      }
+
+      // 먼저 기존 파일 제거
+      try {
+        const { data: existingFiles } = await supabase.storage
+          .from('profile-pics')
+          .list(`${user.id}`);
+
+        if (existingFiles && existingFiles.length > 0) {
+          await supabase.storage
+            .from('profile-pics')
+            .remove(existingFiles.map(f => `${user.id}/${f.name}`));
+        }
+      } catch (error) {
+        console.error('Error removing existing files:', error);
+        // 기존 파일 제거 실패해도 계속 진행
+      }
+
+      // RLS 정책 때문에 인증 세션을 통한 업로드 사용
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        console.error('No active session');
+        alert('You must be logged in to upload images');
+        setIsUploading(false);
+        return;
+      }
+
+      // 타임스탬프로 파일명 생성
+      const timestamp = new Date().getTime();
+      const fileExt = file.name.split('.').pop();
+      const fileName = `profile_${timestamp}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('profile-pics')
+        .upload(filePath, fileToUpload, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error('Error uploading profile image:', uploadError);
+        
+        // RLS 정책 오류 특별 처리
+        if (uploadError.message?.includes('row-level security') || 
+            (uploadError as any).statusCode === 403 || 
+            uploadError.message?.includes('Unauthorized')) {
+          alert("Permission denied. Please contact administrator to set up proper access rights.");
+        } else {
+          alert(`Failed to upload image: ${uploadError.message || 'Unknown error'}`);
+        }
+        return;
+      }
+
+      // URL 가져오기 및 캐시 버스팅
+      const { data } = supabase.storage
+        .from('profile-pics')
+        .getPublicUrl(filePath);
+
+      if (!data || !data.publicUrl) {
+        alert('Failed to get uploaded image URL');
+        return;
+      }
+
+      const cacheBustedUrl = `${data.publicUrl}?t=${Date.now()}`;
+      setProfileImage(cacheBustedUrl);
+      
+      console.log('Image upload successful');
+    } catch (error) {
+      console.error('Error uploading profile image:', error);
+      alert(`Error uploading image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const updateUserName = async () => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: { name: userName }
+      });
+
+      if (error) {
+        console.error('Error updating user name:', error);
+        alert(`Failed to update name: ${error.message}`);
+        return;
+      }
+
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error updating user name:', error);
+      alert(`Error updating name: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleEditToggle = () => {
+    if (isEditing) {
+      updateUserName();
+    } else {
+      setIsEditing(true);
+    }
+  };
 
   const handleDeleteAccount = async () => {
     // 확인 텍스트가 정확하지 않으면 삭제 불가
@@ -225,9 +463,70 @@ export function AccountDialog({ user, isOpen, onClose }: AccountDialogProps) {
             {/* User Info */}
             <div className="mb-8">
               <div className="space-y-6">
-                <div className="space-y-1">
-                  <div className="text-xs uppercase tracking-wider text-[var(--muted)] pb-4">Account</div>
-                  <div className="text-sm">{user.email}</div>
+                <div className="flex flex-col items-center gap-4">
+                  {/* 프로필 이미지 섹션 - user-insights/page.tsx 스타일 적용 */}
+                  <div className="inline-block relative group">
+                    <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[var(--foreground)] flex items-center justify-center overflow-hidden z-10">
+                      {profileImage ? (
+                        <Image 
+                          src={profileImage} 
+                          alt={userName} 
+                          fill 
+                          className="object-cover"
+                        />
+                      ) : (
+                        <span className="text-3xl font-bold text-[var(--background)]">
+                          {userName.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      
+                      {/* Edit overlay */}
+                      <div 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        <span className="text-white text-xs">Change</span>
+                      </div>
+                    </div>
+                    <div className="absolute inset-0 bg-[var(--foreground)] opacity-20 blur-lg rounded-full"></div>
+                    
+                    {isUploading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full z-20">
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      </div>
+                    )}
+                    <input 
+                      type="file" 
+                      ref={fileInputRef}
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      accept="image/*"
+                    />
+                  </div>
+                  
+                  {/* 이름 편집 섹션 - user-insights/page.tsx 스타일 적용 */}
+                  <div className="mt-4 flex items-center justify-center">
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={userName}
+                        onChange={(e) => setUserName(e.target.value)}
+                        className="text-xl sm:text-2xl font-bold bg-transparent border-b border-[var(--foreground)] text-center focus:outline-none"
+                        autoFocus
+                        maxLength={30}
+                      />
+                    ) : (
+                      <h2 className="text-xl sm:text-2xl font-bold">{userName}</h2>
+                    )}
+                    
+                    <button 
+                      onClick={handleEditToggle}
+                      className="ml-2 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                    >
+                      {isEditing ? "✓" : "✎"}
+                    </button>
+                  </div>
+                  <div className="text-sm text-[var(--muted)]">{user.email}</div>
                 </div>
                 <div className="h-[1px] bg-[var(--accent)]" />
                 <div className="space-y-1">
@@ -280,19 +579,22 @@ export function AccountDialog({ user, isOpen, onClose }: AccountDialogProps) {
                       </button>
                     )}
                     
-                    {/* Help Center */}
-                    {/* <button
-                      className="w-full p-3 text-xs text-[var(--muted)] bg-[var(--background)] border border-[var(--accent)] hover:bg-[var(--accent)] transition-colors"
-                    >
-                      Help Center
-                    </button> */}
-                    
-                    {/* Privacy Settings */}
-                    {/* <button
-                      className="w-full p-3 text-xs text-[var(--muted)] bg-[var(--background)] border border-[var(--accent)] hover:bg-[var(--accent)] transition-colors"
-                    >
-                      Privacy Settings
-                    </button> */}
+                    {/* 모든 채팅 삭제 버튼 */}
+                    {handleDeleteAllChats && (
+                      <button
+                        onClick={handleDeleteAllChats}
+                        className="w-full p-3 text-xs text-red-500 hover:text-red-700 bg-[var(--background)] border border-[var(--accent)] hover:bg-[var(--accent)] transition-colors flex items-center justify-center gap-2"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                          <path d="M3 6h18" />
+                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                          <line x1="10" y1="11" x2="10" y2="17" />
+                          <line x1="14" y1="11" x2="14" y2="17" />
+                        </svg>
+                        <span>Delete All Chats</span>
+                      </button>
+                    )}
                     
                     {/* 계정 삭제 버튼 */}
                     <button

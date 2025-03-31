@@ -11,6 +11,13 @@ const UPDATES: FeatureUpdate[] = [
     title: 'Contact Info',
     description: 'Email: sply@chatflix.app'
   },
+  // {
+  //   id: 'mega-update-v2',
+  //   date: '30th March 2025',
+  //   timestamp: 1774569600000, // 2025-03-30 in ms since epoch
+  //   title: 'MEGA UPDATE INCOMING HANG TIGHT',
+  //   description: 'STAY TUNED'
+  // },
   {
     id: 'gemini-2-5-pro-high-demand',
     title: "We're experiencing high demand on Gemini 2.5 Pro",

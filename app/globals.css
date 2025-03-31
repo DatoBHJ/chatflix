@@ -17,6 +17,7 @@
   --inline-code-text-light: #374151;
   --overlay-light: rgba(0, 0, 0, 0.1);
   --subtle-divider-light: color-mix(in srgb, var(--foreground-light) 8%, transparent);
+  --sidebar-divider-light: rgba(0, 0, 0, 0.15);
 
   /* Dark theme variables */
   --background-dark: #0a0a0a;
@@ -29,6 +30,7 @@
   --inline-code-text-dark: #e5e5e5;
   --overlay-dark: rgba(0, 0, 0, 0.8);
   --subtle-divider-dark: color-mix(in srgb, var(--foreground-dark) 8%, transparent);
+  --sidebar-divider-dark: rgba(255, 255, 255, 0.08);
 
   /* Default to light theme */
   --background: var(--background-light);
@@ -41,6 +43,7 @@
   --inline-code-text: var(--inline-code-text-light);
   --overlay: var(--overlay-light);
   --subtle-divider: var(--subtle-divider-light);
+  --sidebar-divider: var(--sidebar-divider-light);
 
   --font-sans: "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
   --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -59,6 +62,7 @@
     --inline-code-text: var(--inline-code-text-dark);
     --overlay: var(--overlay-dark);
     --subtle-divider: var(--subtle-divider-dark);
+    --sidebar-divider: var(--sidebar-divider-dark);
   }
 }
 
@@ -74,6 +78,7 @@
   --inline-code-text: var(--inline-code-text-dark);
   --overlay: var(--overlay-dark);
   --subtle-divider: var(--subtle-divider-dark);
+  --sidebar-divider: var(--sidebar-divider-dark);
 }
 
 /* Manual light theme */
@@ -88,6 +93,7 @@
   --inline-code-text: var(--inline-code-text-light);
   --overlay: var(--overlay-light);
   --subtle-divider: var(--subtle-divider-light);
+  --sidebar-divider: var(--sidebar-divider-light);
 }
 
 body {
@@ -139,7 +145,7 @@ body {
   }
 
   .yeezy-sidebar-item {
-    @apply p-4 sm:p-6 hover:bg-[var(--accent)] transition-colors cursor-pointer
+    @apply p-4 sm:p-6 transition-colors cursor-pointer
            text-sm mb-1;
   }
 
