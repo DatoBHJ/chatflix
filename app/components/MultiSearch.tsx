@@ -71,67 +71,80 @@ const SearchLoadingState = ({
 
   return (
     <div className="w-full space-y-4 my-4">
-      <div className="p-4 bg-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] shadow-sm">
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
+      <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
+        <div className="flex items-center justify-between w-full mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-[color-mix(in_srgb,var(--foreground)_7%,transparent)] to-[color-mix(in_srgb,var(--foreground)_3%,transparent)]">
               <Globe className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
             </div>
-            <h2 className="font-medium text-left">Searching...</h2>
+            <h2 className="font-medium text-left tracking-tight">Chatflix Search</h2>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="rounded-full px-3 py-1 bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
-              <Search className="h-3 w-3 mr-1.5 inline" strokeWidth={1.5} />
-              {totalResults || '0'} results
-            </div>
+          <div className="rounded-full px-3.5 py-1.5 bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_7%,transparent)] to-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex items-center gap-2 border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] shadow-sm">
+            <Search className="h-3 w-3" strokeWidth={1.5} />
+            <span className="text-sm">{totalResults} Results</span>
           </div>
         </div>
         
-        {/* Query badges */}
-        <div className="flex flex-wrap gap-2 mt-3">
+        {/* Query filter pills */}
+        <div className="mb-2 text-xs uppercase tracking-wide text-[var(--muted)] px-1">Search Queries</div>
+        <div className="flex flex-wrap gap-2 mb-4">
           {queries.map((query, i) => {
             const annotation = annotations.find(a => a.data.query === query);
             return (
               <div
                 key={i}
-                className={`px-3 py-1.5 rounded-full flex-shrink-0 flex items-center gap-1.5 ${
-                  annotation 
-                    ? "bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)]" 
-                    : "bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[var(--muted)]"
-                }`}
+                className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition-all duration-200 break-keep
+                  ${annotation 
+                    ? "bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_15%,transparent)] to-[color-mix(in_srgb,var(--foreground)_10%,transparent)] shadow-sm border border-[color-mix(in_srgb,var(--foreground)_20%,transparent)]" 
+                    : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] border border-transparent"
+                  }`}
               >
-                {annotation ? (
-                  <span className="h-3 w-3">✓</span>
-                ) : (
-                  <div className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                )}
-                <span className="text-sm break-keep whitespace-nowrap">{query}</span>
+                <div className={`p-1.5 rounded-full ${annotation ? "bg-[color-mix(in_srgb,var(--foreground)_25%,transparent)]" : "bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)]"} transition-colors flex items-center justify-center`}>
+                  {annotation ? (
+                    <span className="h-3 w-3 flex items-center justify-center">✓</span>
+                  ) : (
+                    <div className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                  )}
+                </div>
+                
+                <div className="flex flex-col leading-tight">
+                  <span className="font-medium text-sm">{query}</span>
+                  {annotation && (
+                    <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                      <div className="flex items-center gap-1">
+                        <span>{annotation.data.resultsCount}</span>
+                        <span className="hidden sm:inline">results</span>
+                      </div>
+                      
+                      {annotation.data.imagesCount > 0 && (
+                        <div className="flex items-center gap-1">
+                          <ImageIcon className="h-3 w-3" strokeWidth={1.5} />
+                          <span>{annotation.data.imagesCount}</span>
+                          <span className="hidden sm:inline">images</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
 
-        {/* Mobile-optimized loading skeleton */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-          {[...Array(3)].map((_, i) => (
-            <div 
-              key={i}
-              className="bg-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] rounded-xl border border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] p-4"
-            >
-              <div className="flex items-center gap-2.5 mb-3">
-                <div className="w-10 h-10 rounded-lg bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)] animate-pulse" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-md animate-pulse w-3/4" />
-                  <div className="h-3 bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-md animate-pulse w-1/2" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="h-3 bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-md animate-pulse w-full" />
-                <div className="h-3 bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-md animate-pulse w-5/6" />
-                <div className="h-3 bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-md animate-pulse w-4/6" />
-              </div>
+        {/* Small image results skeleton */}
+        <div className="mt-1">
+          <div className="flex items-center gap-2 mb-1.5 px-1">
+            <div className="p-1 rounded-lg bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
+              <ImageIcon className="h-3 w-3 text-[var(--foreground)]" strokeWidth={1.5} />
             </div>
-          ))}
+            <div className="h-3.5 bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-md animate-pulse w-24" />
+          </div>
+          
+          <div className="grid grid-cols-4 gap-1 h-[60px] overflow-hidden">
+            {[...Array(4)].map((_, index) => (
+              <div key={index} className="h-full bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] rounded-md animate-pulse" />
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -272,36 +285,35 @@ const SearchSidebar = ({
       <div className={`
         fixed top-0 right-0 h-full z-50 w-full max-w-[420px] transform transition-transform duration-300
         bg-[var(--background)] shadow-lg border-l border-[color-mix(in_srgb,var(--foreground)_7%,transparent)]
+        flex flex-col
         ${isOpen ? 'translate-x-0' : 'translate-x-full'}
       `}>
-        <div className="h-full flex flex-col overflow-hidden">
-          {/* Header */}
-          <div className="px-4 py-4 border-b border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <Search className="h-4 w-4" strokeWidth={1.5} />
-              <h2 className="font-medium">Search Results</h2>
-              <span className="text-sm text-[var(--muted)]">({totalResults})</span>
-            </div>
-            <button 
-              onClick={onClose}
-              className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors"
-            >
-              <X className="h-4 w-4" strokeWidth={1.5} />
-            </button>
+        {/* Header */}
+        <div className="px-4 py-4 border-b border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex justify-between items-center flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Search className="h-4 w-4" strokeWidth={1.5} />
+            <h2 className="font-medium">Search Results</h2>
+            <span className="text-sm text-[var(--muted)]">({totalResults})</span>
           </div>
-          
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto sidebar-scroll px-4 py-4">
-            {/* Domain groups results */}
-            <div className="space-y-3">
-              {domainGroups.map(([domain, results]) => (
-                <DomainGroup 
-                  key={domain} 
-                  domain={domain} 
-                  results={results}
-                />
-              ))}
-            </div>
+          <button 
+            onClick={onClose}
+            className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors"
+          >
+            <X className="h-4 w-4" strokeWidth={1.5} />
+          </button>
+        </div>
+        
+        {/* Content - using sidebar-scroll class for proper scrolling */}
+        <div className="flex-1 overflow-y-auto sidebar-scroll px-4 py-4">
+          {/* Domain groups results */}
+          <div className="space-y-3">
+            {domainGroups.map(([domain, results]) => (
+              <DomainGroup 
+                key={domain} 
+                domain={domain} 
+                results={results}
+              />
+            ))}
           </div>
         </div>
       </div>
@@ -512,6 +524,7 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
         .tetris-grid {
           column-count: 2;
           column-gap: 8px;
+          width: 100%;
         }
         
         @media (min-width: 640px) {
@@ -531,6 +544,7 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
           margin-bottom: 8px;
           display: block;
           position: relative;
+          width: 100%;
         }
         
         .tetris-img {
@@ -539,6 +553,8 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
           height: auto;
           border-radius: 8px;
           background-color: color-mix(in srgb, var(--foreground) 3%, transparent);
+          max-height: 240px;
+          object-fit: cover;
         }
         
         .image-modal {
