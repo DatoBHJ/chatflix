@@ -22,7 +22,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleteReason, setDeleteReason] = useState('')
   const [isEditing, setIsEditing] = useState(false)
-  const [userName, setUserName] = useState(user?.user_metadata?.name || 'User')
+  const [userName, setUserName] = useState(user?.user_metadata?.name || 'You')
   const [profileImage, setProfileImage] = useState<string | null>(initialProfileImage || null)
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)

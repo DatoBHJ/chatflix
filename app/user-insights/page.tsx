@@ -29,9 +29,9 @@ export default function UserInsightsPage() {
         }
         
         setCurrentUserId(user.id);
-        setUserName(user.user_metadata?.name || "Explorer");
+        setUserName(user.user_metadata?.name || "You");
         await fetchProfileImage(user.id);
-        await loadUserInsights(user.id, user.user_metadata?.name || "Explorer");
+        await loadUserInsights(user.id, user.user_metadata?.name || "You");
       } catch (error) {
         console.error('Authentication error:', error);
       } finally {
@@ -672,7 +672,7 @@ export default function UserInsightsPage() {
   const mostActiveHour = userData.hourlyStats.hour || 12;
   const { avg_session_length = 0, longest_session = 0 } = userData.sessionStats;
   const { top_percentile = 0, message_count = 0 } = userData.userPercentile || {};
-  const displayName = userData.displayName || "Explorer";
+  const displayName = userData.displayName || "You";
   
   // Process days of week data
   const allDaysData = userData.allDaysOfWeek || [];
@@ -729,7 +729,7 @@ export default function UserInsightsPage() {
   
   // Calculate model diversity level (for display)
   const getModelDiversityLevel = (score: number) => {
-    if (score >= 80) return 'Explorer';
+    if (score >= 80) return 'You';
     if (score >= 60) return 'Adventurer';
     if (score >= 40) return 'Experimenter';
     if (score >= 20) return 'Casual';
@@ -741,7 +741,7 @@ export default function UserInsightsPage() {
   // 다양성 유형 설명을 위한 함수 추가
   const getModelVarietyDescription = (level: string) => {
     switch(level) {
-      case 'Explorer':
+      case 'You':
         return 'You love trying different AI models and have experienced most of what Chatflix offers';
       case 'Adventurer':
         return 'You regularly explore new models and enjoy a wide range of AI experiences';
