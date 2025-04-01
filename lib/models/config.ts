@@ -508,10 +508,10 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level5',
     },
-    isWebSearchEnabled: true,
+    isWebSearchEnabled: false,
     supportsPDFs: false,
     isEnabled: true,
-    isActivated: true,
+    isActivated: false,
     contextWindow: 128000,
     tps: 14,
     intelligenceIndex: 51,
