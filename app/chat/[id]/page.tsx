@@ -38,6 +38,7 @@ export default function Chat({ params }: PageProps) {
   const [isSessionLoaded, setIsSessionLoaded] = useState(false)
   const [rateLimitedLevels, setRateLimitedLevels] = useState<string[]>([])
   const [isWebSearchEnabled, setIsWebSearchEnabled] = useState(false)
+  const [isMessageLimitReached, setIsMessageLimitReached] = useState(false)
 
   const isFullyLoaded = !isModelLoading && isSessionLoaded && !!currentModel
 
@@ -311,6 +312,12 @@ export default function Chat({ params }: PageProps) {
             setMessages(sortedMessages)
             setIsInitialized(true)
 
+            // Check if message limit is reached
+            const maxSequence = Math.max(...existingMessages.map(msg => msg.sequence_number || 0))
+            if (maxSequence >= 100) {
+              setIsMessageLimitReached(true)
+            }
+
             if (sortedMessages.length === 1 && sortedMessages[0].role === 'user') {
               // console.log('[Debug] Chat page - Reloading with initial message, web search:', shouldEnableWebSearch);
               
@@ -446,6 +453,12 @@ export default function Chat({ params }: PageProps) {
                   setMessages(allMessages.slice(0, -1).map(convertMessage))
                   return
                 }
+              }
+
+              // Check if message limit is reached
+              const maxSequence = Math.max(...allMessages.map(msg => msg.sequence_number || 0))
+              if (maxSequence >= 100) {
+                setIsMessageLimitReached(true)
               }
 
               setMessages(allMessages.map(convertMessage))
@@ -916,17 +929,30 @@ export default function Chat({ params }: PageProps) {
                 disabledLevels={rateLimitedLevels}
                 isWebSearchEnabled={isWebSearchEnabled}
               />
-              <ChatInput
-                input={input}
-                handleInputChange={handleInputChange}
-                handleSubmit={handleModelSubmit}
-                isLoading={isLoading}
-                stop={handleStop}
-                user={user}
-                modelId={nextModel}
-                isWebSearchEnabled={isWebSearchEnabled}
-                setIsWebSearchEnabled={setIsWebSearchEnabled}
-              />
+              {isMessageLimitReached ? (
+                <div className="bg-secondary/50 rounded-lg p-6 text-center mt-4">
+                  <p className="text-lg font-medium mb-2">Message limit reached</p>
+                  <p className="text-muted-foreground mb-4">This conversation has reached the maximum message limit.</p>
+                  <button 
+                    onClick={() => router.push('/')}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md transition-colors"
+                  >
+                    Start a new chat
+                  </button>
+                </div>
+              ) : (
+                <ChatInput
+                  input={input}
+                  handleInputChange={handleInputChange}
+                  handleSubmit={handleModelSubmit}
+                  isLoading={isLoading}
+                  stop={handleStop}
+                  user={user}
+                  modelId={nextModel}
+                  isWebSearchEnabled={isWebSearchEnabled}
+                  setIsWebSearchEnabled={setIsWebSearchEnabled}
+                />
+              )}
             </div>
           </div>
         </div>
