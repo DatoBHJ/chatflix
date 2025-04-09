@@ -1451,16 +1451,23 @@ export default function Chat({ params }: PageProps) {
     
     console.log("[DEBUG-WOLFRAM] No Wolfram Alpha data found for message:", message.id);
     
-    // 쿼리가 있다면 최소한 오류 메시지라도 보여주기
-    const query = (message.content || "").toString();
-    if (query && query.includes("solve") || query.includes("compute") || query.includes("calculate")) {
-      return {
-        query: query,
-        pods: [],
-        error: "No results were found for this query."
-      };
+    // Check if this is an agent message with tool results
+    const isAgentMessage = !!(message as any).tool_results;
+    
+    // 계산 관련 쿼리일 경우, 에이전트 모드에서만 오류 메시지 표시
+    if (isAgentMessage) {
+      const query = (message.content || "").toString();
+      if (query && (query.includes("solve") || query.includes("compute") || query.includes("calculate") || 
+                   query.includes("math") || query.includes("equation"))) {
+        return {
+          query: query,
+          pods: [],
+          error: "No Wolfram Alpha results were found for this query."
+        };
+      }
     }
     
+    // 일반 모드에서는 항상 null 반환 (UI 표시 안함)
     return null;
   };
   

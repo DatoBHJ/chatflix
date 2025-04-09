@@ -486,29 +486,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     multilingual:86,
     HLE: 3.6
   },
-  // {
-  //   id: 'gpt-4.5-preview',
-  //   name: 'GPT-4.5',
-  //   country: 'US',
-  //   description: 'Latest and most capable GPT model yet by OpenAI',
-  //   provider: 'openai',
-  //   supportsVision: true,
-  //   censored: true,
-  //   rateLimit: {
-  //     level: 'level5',
-  //   },
-  //   isAgentEnabled: false,
-  //   supportsPDFs: false,
-  //   isEnabled: true,
-  //   isActivated: false,
-  //   contextWindow: 128000,
-  //   tps: 14,
-  //   intelligenceIndex: 51,
-  //   MMLU_Pro: 89.6,  // estimated
-  //   // Coding: , // unknown
-  //   // MATH: // unknown,
-  //   GPQA: 71
-  // },
   {
     id: 'gpt-4o-mini',
     name: 'GPT-4o Mini',
@@ -524,7 +501,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     isActivated: true,
     isNew: true,
-
+    isAgentEnabled: true,
     contextWindow: 128000,
     tps: 77,
     intelligenceIndex: 36,
@@ -617,6 +594,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
+    isAgentEnabled: true,
     contextWindow: 128000,
     tps: 67, 
     intelligenceIndex: 39,
