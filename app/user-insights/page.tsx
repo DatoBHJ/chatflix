@@ -273,9 +273,9 @@ export default function UserInsightsPage() {
 
   const loadUserInsights = async (userId: string, displayName: string) => {
     try {
-      // Get user's profile data from user_profiles table
+      // Get user's profile data from active_user_profiles table
       const { data: profileData, error: profileError } = await supabase
-        .from('user_profiles')
+        .from('active_user_profiles')
         .select('*')
         .eq('user_id', userId)
         .single();

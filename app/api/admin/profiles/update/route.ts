@@ -127,7 +127,7 @@ export async function POST(request: Request) {
       console.log(`[Profile Update] Starting batch with size=${batchSize}, offset=${offset}, min_new_messages=${minNewMessages}`);
       
       // 대상 사용자 조회 (프로필이 있고 새 메시지가 충분한 사용자)
-      const { data: users, error: usersError } = await supabase.from('user_profiles')
+      const { data: users, error: usersError } = await supabase.from('active_user_profiles')
         .select('user_id, last_analyzed_message_id')
         .limit(1000);
       
@@ -208,7 +208,7 @@ export async function POST(request: Request) {
         try {
           // 기존 프로필 조회
           const { data: profile, error: profileError } = await supabase
-            .from('user_profiles')
+            .from('active_user_profiles')
             .select('*')
             .eq('user_id', user.user_id)
             .single();
@@ -248,7 +248,7 @@ export async function POST(request: Request) {
           
           // 프로필 업데이트
           const { data: updatedData, error: updateError } = await supabase
-            .from('user_profiles')
+            .from('active_user_profiles')
             .update({
               profile_data: updatedProfile.profileData,
               profile_summary: updatedProfile.profileSummary,

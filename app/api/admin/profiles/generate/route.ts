@@ -136,7 +136,7 @@ export async function POST(request: Request) {
       
       // 프로필이 이미 있는 사용자 제외 (증분 업데이트와 중복 방지)
       const { data: existingProfiles } = await supabase
-        .from('user_profiles')
+        .from('active_user_profiles')
         .select('user_id');
       
       const existingProfileIds = new Set(existingProfiles?.map(p => p.user_id) || []);
@@ -232,7 +232,7 @@ export async function POST(request: Request) {
           
           // 프로필 저장
           const { data: profile, error: profileError } = await supabase
-            .from('user_profiles')
+            .from('active_user_profiles')
             .upsert({
               user_id: user.user_id,
               profile_data: profileData.profileData,

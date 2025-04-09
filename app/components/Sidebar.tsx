@@ -349,7 +349,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
     try {
       const formattedName = newName.trim().replace(/\s+/g, '_')
 
-      if (editingId) {
+      if (editingId && editingId !== 'new') {
         // Update existing shortcut
         const { error } = await supabase
           .from('prompt_shortcuts')
