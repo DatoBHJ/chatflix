@@ -263,27 +263,6 @@ export default function Home() {
       // 사용자가 선택한 모델 사용
       const modelToUse = nextModel;
 
-      // Start API request first (prefetch the response)
-      const chatController = new AbortController();
-      
-      // Start API request in background immediately
-      fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [{
-            id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 15)}`,
-            role: 'user',
-            content: input.trim(),
-            experimental_attachments: attachments
-          }],
-          model: modelToUse,
-          saveToDb: true, // We'll still save to DB from the API
-          isAgentEnabled,
-        }),
-        signal: chatController.signal
-      });
-
       // First create the session and wait for it to complete
       const { error: sessionError } = await supabase
         .from('chat_sessions')
