@@ -668,6 +668,7 @@ interface ModelSelectorProps {
   disabledLevel?: string; // Level that should be disabled (legacy)
   disabledLevels?: string[]; // Array of levels that should be disabled
   isAgentEnabled?: boolean; // Add prop for web search toggle
+  onAgentAvailabilityChange?: (hasAgentModels: boolean) => void; // Callback to notify parent if agent models are available
 }
 
 export function ModelSelector({ 
@@ -679,7 +680,8 @@ export function ModelSelector({
   disabledModels = [],
   disabledLevel,
   disabledLevels = [],
-  isAgentEnabled = false // Default to false
+  isAgentEnabled = false, // Default to false
+  onAgentAvailabilityChange
 }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -1003,16 +1005,43 @@ export function ModelSelector({
       (isAgentEnabled && currentModelData?.isAgentEnabled !== true) ||
       (currentModelData?.isActivated === false)
     ) {
-      // Find the first web search enabled and activated model
-      const firstAvailableModel = allModels.find(model => 
-        (!isAgentEnabled || model.isAgentEnabled === true) && model.isActivated
+      // When switching to agent mode, find a non-rate-limited agent-enabled model
+      const nonRateLimitedAgentModels = allModels.filter(model => 
+        model.isAgentEnabled === true && 
+        model.isActivated && 
+        !disabledLevels.includes(model.rateLimit.level)
       );
       
-      if (firstAvailableModel) {
-        setNextModel(firstAvailableModel.id);
+      // If we have non-rate-limited agent models, use the first one
+      if (nonRateLimitedAgentModels.length > 0) {
+        setNextModel(nonRateLimitedAgentModels[0].id);
+      } else {
+        // If all agent models are rate-limited, find any non-rate-limited model
+        const anyNonRateLimitedModel = allModels.find(model => 
+          model.isActivated && !disabledLevels.includes(model.rateLimit.level)
+        );
+        
+        if (anyNonRateLimitedModel) {
+          setNextModel(anyNonRateLimitedModel.id);
+        }
       }
     }
-  }, [isAgentEnabled, nextModel, allModels, setNextModel]);
+  }, [isAgentEnabled, nextModel, allModels, setNextModel, disabledLevels]);
+
+  // Check if we have any non-rate-limited agent models
+  // This can be used to disable the agent toggle button
+  const hasNonRateLimitedAgentModels = allModels.some(model => 
+    model.isAgentEnabled === true && 
+    model.isActivated && 
+    !disabledLevels.includes(model.rateLimit.level)
+  );
+
+  // Notify parent if agent models are available
+  useEffect(() => {
+    if (onAgentAvailabilityChange) {
+      onAgentAvailabilityChange(hasNonRateLimitedAgentModels);
+    }
+  }, [hasNonRateLimitedAgentModels, onAgentAvailabilityChange]);
 
   return (
     <div className="relative" ref={containerRef}>

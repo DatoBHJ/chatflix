@@ -22,7 +22,24 @@ export default function Home() {
   const [isModelLoading, setIsModelLoading] = useState(true) // 모델 로딩 상태 추가
   const [rateLimitedLevels, setRateLimitedLevels] = useState<string[]>([])
   const [isAgentEnabled, setisAgentEnabled] = useState(false)
+  const [hasAgentModels, setHasAgentModels] = useState(true)
   const supabase = createClient()
+
+  // Handle toggling the agent with rate-limit awareness
+  const handleAgentToggle = (newState: boolean) => {
+    // Only allow enabling agent if agent models are available
+    if (newState && !hasAgentModels) {
+      console.warn('Cannot enable agent: No non-rate-limited agent models available')
+      return
+    }
+    setisAgentEnabled(newState)
+  }
+
+  // Create a handler that matches the Dispatch<SetStateAction<boolean>> type
+  const setAgentEnabledHandler: React.Dispatch<React.SetStateAction<boolean>> = (value) => {
+    const newValue = typeof value === 'function' ? value(isAgentEnabled) : value;
+    handleAgentToggle(newValue);
+  };
 
   // Check for rate limited levels from localStorage
   useEffect(() => {
@@ -373,6 +390,7 @@ export default function Home() {
               disabled={isSubmitting}
               disabledLevels={rateLimitedLevels}
               isAgentEnabled={isAgentEnabled}
+              onAgentAvailabilityChange={setHasAgentModels}
             />
             <ChatInput
               input={input}
@@ -381,12 +399,10 @@ export default function Home() {
               isLoading={isLoading}
               stop={stop}
               disabled={isSubmitting}
-              placeholder="Chat is this real?"
-              user={user}
-              modelId={nextModel}
-              popupPosition="bottom"
+              user={{...user, hasAgentModels}}
+              modelId={currentModel}
               isAgentEnabled={isAgentEnabled}
-              setisAgentEnabled={setisAgentEnabled}
+              setisAgentEnabled={setAgentEnabledHandler}
             />
             {/* <div className={`text-base px-4 text-[var(--muted)] h-6 text-center mt-2 transition-opacity duration-200 ${input ? 'opacity-60' : 'opacity-0'}`}>
             (Experimental) Start your prompt with <strong className="text-[var(--foreground)] font-bold">/image</strong> to generate <strong className="text-[var(--foreground)] font-bold">images</strong>

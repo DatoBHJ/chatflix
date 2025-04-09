@@ -61,14 +61,14 @@ async function updateMemoryBankInBackground(
         const finalPrompt = `${statusUpdatePrompt}\n\nCurrent status:\n${currentStatus}\n\nLatest conversation:\nUser: ${userMessage}\nAI: ${aiMessage}`;
         
         // API 호출
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        const response = await fetch('https://api.x.ai/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+            'Authorization': `Bearer ${process.env.XAI_API_KEY}`
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: 'grok-2-latest',
             messages: [
               { role: 'system', content: 'Generate a concise project status update based on the conversation.' },
               { role: 'user', content: finalPrompt }
@@ -103,14 +103,14 @@ async function updateMemoryBankInBackground(
         console.log("[DEBUG-AGENT-BG] Starting progress update");
         const progressPrompt = `Based on the status update, create a structured project progress document in markdown format. Include current phase, completed items, and next steps.\n\nStatus update:\n${statusText}`;
         
-        const progressResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        const progressResponse = await fetch('https://api.x.ai/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+            'Authorization': `Bearer ${process.env.XAI_API_KEY}`
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: 'grok-2-latest',
             messages: [
               { role: 'system', content: 'Create a structured project progress document in markdown format.' },
               { role: 'user', content: progressPrompt }
@@ -140,14 +140,14 @@ async function updateMemoryBankInBackground(
         console.log("[DEBUG-AGENT-BG] Starting conversation summary generation");
         const summaryPrompt = `Summarize the key points of this conversation related to the project and tasks. Include any decisions made and action items.\n\nConversation:\n${conversationText}`;
         
-        const summaryResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        const summaryResponse = await fetch('https://api.x.ai/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+            'Authorization': `Bearer ${process.env.XAI_API_KEY}`
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: 'grok-2-latest',
             messages: [
               { role: 'system', content: 'Create a concise summary of the conversation focusing on project-related information.' },
               { role: 'user', content: summaryPrompt }
@@ -177,14 +177,14 @@ async function updateMemoryBankInBackground(
         console.log("[DEBUG-AGENT-BG] Starting project overview update");
         const overviewPrompt = `Based on the current project state and conversation, provide a comprehensive project overview in markdown format. Include the project's purpose, goals, and scope.\n\nConversation:\n${conversationText}`;
         
-        const overviewResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        const overviewResponse = await fetch('https://api.x.ai/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+            'Authorization': `Bearer ${process.env.XAI_API_KEY}`
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: 'grok-2-latest',
             messages: [
               { role: 'system', content: 'Create a comprehensive project overview focusing on purpose, goals, and scope.' },
               { role: 'user', content: overviewPrompt }
@@ -214,14 +214,14 @@ async function updateMemoryBankInBackground(
         console.log("[DEBUG-AGENT-BG] Starting architecture update");
         const architecturePrompt = `Based on the current project state and conversation, provide a detailed description of the system architecture in markdown format. Include technical details, design decisions, and component relationships.\n\nConversation:\n${conversationText}`;
         
-        const architectureResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        const architectureResponse = await fetch('https://api.x.ai/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+            'Authorization': `Bearer ${process.env.XAI_API_KEY}`
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: 'grok-2-latest',
             messages: [
               { role: 'system', content: 'Create a detailed description of the system architecture and design decisions.' },
               { role: 'user', content: architecturePrompt }
@@ -251,14 +251,14 @@ async function updateMemoryBankInBackground(
         console.log("[DEBUG-AGENT-BG] Starting decisions update");
         const decisionsPrompt = `Extract any key decisions or important choices made in this conversation. Format as a markdown list with rationales for each decision.\n\nConversation:\n${conversationText}`;
         
-        const decisionsResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        const decisionsResponse = await fetch('https://api.x.ai/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+            'Authorization': `Bearer ${process.env.XAI_API_KEY}`
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: 'grok-2-latest',
             messages: [
               { role: 'system', content: 'Extract key decisions and their rationales from the conversation.' },
               { role: 'user', content: decisionsPrompt }
@@ -689,38 +689,31 @@ export async function POST(req: Request) {
             // 첫 번째 단계: 라우팅 - 필요한 도구 결정 (스트리밍 방식으로 변경)
             const routerStream = streamObject({ 
               model: providers.languageModel('grok-2-vision-latest'), 
-              system: `Analyze the query efficiently to determine which tools are needed:
-1: Web search - For factual info or current events
-2: Calculator - For simple math calculations  
-3: Link reader - For URL content extraction
-4: Image generator - For generating images from text 
-5: Academic search - For scholarly articles and research papers
-6: X search - For X (Twitter) posts or just general social media posts
-7: YouTube search - For searching YouTube videos and extracting video information
-8: YouTube link analyzer - For extracting detailed information and transcripts from specific YouTube video URLs
-9. Wolfram Alpha: Complex mathematical calculations, scientific problems, engineering computations, statistical analysis, equation solving, graph generation, unit conversions, chemical formula analysis, etc.
+              system: `Determine which tools are needed based on user intent, not just keywords:
+1: Web search - Factual info, current events
+2: Calculator - Math calculations  
+3: Link reader - URL content extraction
+4: Image generator - Creating images
+5: Academic search - Scholarly research
+6: X search - Social media content
+7: YouTube search - Video search
+8: YouTube link analyzer - Video analysis with transcript
+9: Wolfram Alpha - Complex calculations, scientific analysis
 
-Use minimal reasoning. Focus on:
-- Query keywords suggesting specific tools
-- Explicit mentions of URLs, calculations, or information needs
-- Previous context indicating tool requirements
+IMPORTANT: Distinguish between:
+- Questions ABOUT tools vs requests TO USE tools
+- Conversational queries vs information needs
 
-Important guidelines:
-- Always use both Web Search and X Search for current events/news-related queries
-- X search is particularly valuable for real-time updates, public opinions, and emerging trends
-- For controversial topics or developing stories, X search provides diverse perspectives that complement web search
-- For video tutorials, how-to guides, or visually-oriented instructions, use YouTube search
-- When user explicitly mentions "YouTube", "video", "watch", "tutorial", "lecture", or "channel", enable YouTube search
-- When user provides specific YouTube links or video URLs, use YouTube link analyzer to extract detailed information and transcripts
-- Wolfram Alpha trigger keywords: equations, calculus, statistics, physics laws, chemical formulas, graphs, unit conversions, mathematical proofs, scientific constants, calculation steps
-- For math/science problems requiring step-by-step solutions, utilize Wolfram Alpha's 'step-by-step' format
+For specific contexts:
+- Use Web+X Search together for current events
+- YouTube tools for video content needs
+- Wolfram Alpha for law/math/science/engineering problems
 
-**IMPORTANT: Always generate reasoning in user's language. If the user's language is Korean, generate reasoning in Korean. If the user's language is Spanish, generate reasoning in Spanish.**
-`,
+Generate reasoning in user's language (Korean for Korean queries, etc.).`,
               prompt: userQuery,
               schema: routingSchema,
-              temperature: 0.1, // 낮은 temperature로 결정적 응답 유도
-              maxTokens: 300, // 짧은 응답 제한으로 속도 향상
+              temperature: 0.1,
+              maxTokens: 300,
             });
             
             // 부분적인 객체가 생성될 때마다 클라이언트에 전송
@@ -1177,7 +1170,8 @@ Always try to give the most accurate and helpful response.
             if (routingDecision.needsYouTubeSearch) activeTools.push('youtube_search');
             if (routingDecision.needsYouTubeLinkAnalyzer) activeTools.push('youtube_link_analyzer');
             if (routingDecision.needsWolframAlpha) activeTools.push('wolfram_alpha');
-            const step1 = streamText({
+            
+            const finalstep = streamText({
               model: providers.languageModel(model),
               system: agentSystemPrompt,
               maxTokens: 10000,
@@ -1296,7 +1290,7 @@ Always try to give the most accurate and helpful response.
               }
             });
             
-            step1.mergeIntoDataStream(dataStream, {
+            finalstep.mergeIntoDataStream(dataStream, {
               experimental_sendFinish: true,
             });
           } else {

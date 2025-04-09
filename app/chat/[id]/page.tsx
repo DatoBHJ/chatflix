@@ -170,6 +170,7 @@ export default function Chat({ params }: PageProps) {
   const [isSessionLoaded, setIsSessionLoaded] = useState(false)
   const [rateLimitedLevels, setRateLimitedLevels] = useState<string[]>([])
   const [isAgentEnabled, setisAgentEnabled] = useState(false)
+  const [hasAgentModels, setHasAgentModels] = useState(true)
   const isFullyLoaded = !isModelLoading && isSessionLoaded && !!currentModel
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, stop, setMessages, reload } = useChat({
@@ -1283,6 +1284,7 @@ export default function Chat({ params }: PageProps) {
     return youtubeAnalysisAnnotations.length > 0 ? { analysisResults: youtubeAnalysisAnnotations } : null;
   };
 
+  
   // Extract agent reasoning data from annotations and tool_results
   function getAgentReasoningData(messages: Message[]) {
     const reasoningData = messages.flatMap(message => {
@@ -1603,6 +1605,22 @@ export default function Chat({ params }: PageProps) {
     checkEnvironmentVariables();
   }, []);
 
+  // Handle toggling the agent with rate-limit awareness
+  const handleAgentToggle = (newState: boolean) => {
+    // Only allow enabling agent if agent models are available
+    if (newState && !hasAgentModels) {
+      console.warn('Cannot enable agent: No non-rate-limited agent models available')
+      return
+    }
+    setisAgentEnabled(newState)
+  }
+  
+  // Create a handler that matches the Dispatch<SetStateAction<boolean>> type
+  const setAgentEnabledHandler: React.Dispatch<React.SetStateAction<boolean>> = (value) => {
+    const newValue = typeof value === 'function' ? value(isAgentEnabled) : value;
+    handleAgentToggle(newValue);
+  };
+
   // 모든 데이터가 로드되기 전에는 로딩 화면 표시
   if (!isFullyLoaded || !user) {
     return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
@@ -1754,6 +1772,7 @@ export default function Chat({ params }: PageProps) {
                 position="top"
                 disabledLevels={rateLimitedLevels}
                 isAgentEnabled={isAgentEnabled}
+                onAgentAvailabilityChange={setHasAgentModels}
               />
               <ChatInput
                 input={input}
@@ -1761,10 +1780,10 @@ export default function Chat({ params }: PageProps) {
                 handleSubmit={handleModelSubmit}
                 isLoading={isLoading}
                 stop={handleStop}
-                user={user}
+                user={{...user, hasAgentModels}}
                 modelId={nextModel}
                 isAgentEnabled={isAgentEnabled}
-                setisAgentEnabled={setisAgentEnabled}
+                setisAgentEnabled={setAgentEnabledHandler}
               />
             </div>
           </div>

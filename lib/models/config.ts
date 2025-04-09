@@ -605,14 +605,14 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     isActivated: true,
     isAgentEnabled: true,
-    contextWindow: 128000,
+    contextWindow: 131000,
     tps: 67, 
     intelligenceIndex: 39,
-    MMLU_Pro: 70,
-    Coding: 28,
-    MATH: 46,
-    GPQA: 51,
-    HLE: 3.8
+    // MMLU_Pro: 70,
+    // Coding: 28,
+    // MATH: 46,
+    // GPQA: 51,
+    // HLE: 3.8
   },
   {
     id: 'llama-3.3-70b-versatile',

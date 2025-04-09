@@ -807,9 +807,16 @@ export function ChatInput({
                 className={`input-btn transition-all duration-300 flex items-center justify-center relative rounded-md w-9 h-9 ${
                   isAgentEnabled ? 
                     'input-btn-active' : 
-                    'text-background'
+                    user?.hasAgentModels === false && !isAgentEnabled ? 
+                      'opacity-40 cursor-not-allowed' : 
+                      'text-background'
                 }`}
-                title={isAgentEnabled ? "Disable Agent" : "Enable Agent"}
+                disabled={user?.hasAgentModels === false && !isAgentEnabled}
+                title={
+                  user?.hasAgentModels === false && !isAgentEnabled 
+                    ? "Agent mode not available - No non-rate-limited agent models available" 
+                    : isAgentEnabled ? "Disable Agent" : "Enable Agent"
+                }
               >
                 <Brain className="h-5 w-5 transition-transform duration-300" strokeWidth={1.2} />
                 {isAgentEnabled && (
