@@ -574,44 +574,46 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
 
   // Memoize the plugins to avoid recreating them on every render
   const remarkPlugins = useMemo(() => [remarkGfm, remarkMath], []);
-  const rehypePlugins = useMemo(() => [
-    rehypeRaw, 
-    rehypeSanitize,
-    [rehypeKatex, { 
-      throwOnError: false, 
-      output: 'html',
-      displayMode: false, // 디스플레이 모드 비활성화 (인라인 수식 우선)
-      leqno: false, // 왼쪽 정렬된 방정식 번호
-      fleqn: false, // 왼쪽 정렬된 디스플레이 수식
-      strict: false, // Throw errors for bad syntax
-      trust: true, // 특수 KaTeX 확장 허용
-      macros: { // 사용자 정의 매크로
-        // 수학 기호
-        "\\R": "\\mathbb{R}",
-        "\\N": "\\mathbb{N}",
-        "\\Z": "\\mathbb{Z}",
-        "\\C": "\\mathbb{C}",
-        // 벡터 표기 간소화
-        "\\vec": "\\boldsymbol",
-        "\\vb": "\\boldsymbol",
-        // 편미분 기호
-        "\\pd": "\\partial",
-        // 화학식 지원
-        "\\ch": "\\ce",
-        // 물리 단위 지원
-        "\\unit": "\\text",
-        // 일반적인 수학 기호
-        "\\half": "\\frac{1}{2}",
-        "\\e": "\\mathrm{e}",
-        "\\i": "\\mathrm{i}",
-        "\\d": "\\mathrm{d}",
-        // 행렬 매크로
-        "\\bmat": "\\begin{bmatrix}#1\\end{bmatrix}",
-        "\\pmat": "\\begin{pmatrix}#1\\end{pmatrix}",
-      },
-    }],
-    rehypeHighlight
-  ], []);
+  const rehypePlugins = useMemo(() => {
+    return [
+      rehypeRaw, 
+      rehypeSanitize,
+      [rehypeKatex, { 
+        throwOnError: false, 
+        output: 'html',
+        displayMode: false, // 디스플레이 모드 비활성화 (인라인 수식 우선)
+        leqno: false, // 왼쪽 정렬된 방정식 번호
+        fleqn: false, // 왼쪽 정렬된 디스플레이 수식
+        strict: false, // Throw errors for bad syntax
+        trust: true, // 특수 KaTeX 확장 허용
+        macros: { // 사용자 정의 매크로
+          // 수학 기호
+          "\\R": "\\mathbb{R}",
+          "\\N": "\\mathbb{N}",
+          "\\Z": "\\mathbb{Z}",
+          "\\C": "\\mathbb{C}",
+          // 벡터 표기 간소화
+          "\\vec": "\\boldsymbol",
+          "\\vb": "\\boldsymbol",
+          // 편미분 기호
+          "\\pd": "\\partial",
+          // 화학식 지원
+          "\\ch": "\\ce",
+          // 물리 단위 지원
+          "\\unit": "\\text",
+          // 일반적인 수학 기호
+          "\\half": "\\frac{1}{2}",
+          "\\e": "\\mathrm{e}",
+          "\\i": "\\mathrm{i}",
+          "\\d": "\\mathrm{d}",
+          // 행렬 매크로
+          "\\bmat": "\\begin{bmatrix}#1\\end{bmatrix}",
+          "\\pmat": "\\begin{pmatrix}#1\\end{pmatrix}",
+        },
+      }],
+      rehypeHighlight
+    ] as any;
+  }, []);
 
   // Process the content to handle math expressions
   const processedContent = useMemo(() => {
