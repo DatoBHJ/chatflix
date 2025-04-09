@@ -659,10 +659,21 @@ export async function POST(req: Request) {
               if (typeof msg.content === 'string') {
                 return msg.content;
               } else if (Array.isArray(msg.content)) {
-                return msg.content
+                // 이미지 첨부 여부 확인
+                const hasImage = msg.content.some((part: any) => part.type === 'image');
+                
+                // 텍스트 부분 추출
+                const textContent = msg.content
                   .filter((part: any) => part.type === 'text')
                   .map((part: any) => part.text)
                   .join('\n');
+                
+                // 텍스트가 있으면 그대로 반환, 없고 이미지만 있으면 이미지 존재 표시
+                if (textContent) {
+                  return hasImage ? `${textContent}\n[IMAGE ATTACHED]` : textContent;
+                } else if (hasImage) {
+                  return "[IMAGE ANALYSIS REQUESTED]";
+                }
               }
               return '';
             };
@@ -709,6 +720,8 @@ For specific contexts:
 - YouTube tools for video content needs
 - Wolfram Alpha for law/math/science/engineering problems
 
+If you see "[IMAGE ATTACHED]" or "[IMAGE ANALYSIS REQUESTED]" in the prompt, the user has included an image, and you should enable web search to provide context.
+
 Generate reasoning in user's language (Korean for Korean queries, etc.).`,
               prompt: userQuery,
               schema: routingSchema,
@@ -754,6 +767,23 @@ Generate reasoning in user's language (Korean for Korean queries, etc.).`,
             // 최종 결과 기다리기
             const routingDecision = await routerStream.object;
             console.log("[DEBUG-AGENT] Router decision:", JSON.stringify(routingDecision));
+            
+            // 이미지가 있으면 라우팅 결정에 관계없이 이미지 처리 관련 도구 활성화 플래그 설정
+            const hasImage = optimizedMessages.some(msg => {
+              if (Array.isArray(msg.content)) {
+                return msg.content.some(part => part.type === 'image');
+              }
+              return false;
+            });
+            
+            // 이미지가 있으면 라우팅 결정에 관계없이 이미지 처리 관련 도구 활성화 플래그 설정
+            if (hasImage) {
+              // 이미지 있을 때 웹 검색 활성화 (컨텍스트 제공을 위해)
+              if (!routingDecision.needsWebSearch) {
+                routingDecision.needsWebSearch = true;
+                routingDecision.reasoning += "\n\nImage was detected in the message, enabling web search to provide context for the image."
+              }
+            }
             
             // 최종 라우팅 결정에 대한 추론 과정을 사용자에게 표시
             const agentReasoningAnnotation = {
@@ -1153,6 +1183,14 @@ You are a helpful problem-solving assistant${[
   routingDecision.needsWolframAlpha && "solve complex computational problems"
 ].filter(Boolean).join(", ")}` : ""}.
 ${toolSpecificPrompts.join("\n\n")}
+
+${hasImage ? `
+IMPORTANT: I see the user has attached an image. Please analyze it carefully and:
+1. Describe what you see in the image
+2. Provide context and insights about the image contents
+3. Answer any questions related to the image
+4. Use web search if needed to provide more information about elements in the image
+` : ''}
 
 Always try to give the most accurate and helpful response.
 **IMPORTANT: Always generate reasoning in user's language. If the user's language is Korean, generate reasoning in Korean. If the user's language is Spanish, generate reasoning in Spanish.**
