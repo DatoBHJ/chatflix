@@ -1000,12 +1000,12 @@ export function ModelSelector({
     const currentModelData = allModels.find(m => m.id === nextModel);
     
     if (
-      (isAgentEnabled && currentModelData?.isAgentEnabled === false) ||
+      (isAgentEnabled && currentModelData?.isAgentEnabled !== true) ||
       (currentModelData?.isActivated === false)
     ) {
       // Find the first web search enabled and activated model
       const firstAvailableModel = allModels.find(model => 
-        (!isAgentEnabled || model.isAgentEnabled) && model.isActivated
+        (!isAgentEnabled || model.isAgentEnabled === true) && model.isActivated
       );
       
       if (firstAvailableModel) {
