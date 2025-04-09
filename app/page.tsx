@@ -21,7 +21,7 @@ export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isModelLoading, setIsModelLoading] = useState(true) // 모델 로딩 상태 추가
   const [rateLimitedLevels, setRateLimitedLevels] = useState<string[]>([])
-  const [isWebSearchEnabled, setIsWebSearchEnabled] = useState(false)
+  const [isAgentEnabled, setisAgentEnabled] = useState(false)
   const supabase = createClient()
 
   // Check for rate limited levels from localStorage
@@ -213,7 +213,7 @@ export default function Home() {
     body: {
       model: currentModel,
       experimental_attachments: true,
-      isWebSearchEnabled,
+      isAgentEnabled,
     }
   })
 
@@ -225,7 +225,7 @@ export default function Home() {
 
     try {
       // 디버깅: 웹 검색 상태 확인
-      console.log('[Debug] Home page - Web search enabled:', isWebSearchEnabled);
+      console.log('[Debug] Home page - Agent enabled:', isAgentEnabled);
       
       // Generate session ID immediately
       const sessionId = Date.now().toString();
@@ -262,7 +262,7 @@ export default function Home() {
           }],
           model: modelToUse,
           saveToDb: true, // We'll still save to DB from the API
-          isWebSearchEnabled,
+          isAgentEnabled,
         }),
         signal: chatController.signal
       });
@@ -304,17 +304,17 @@ export default function Home() {
         return;
       }
 
-      // Before redirect, save web search state to localStorage
-      if (isWebSearchEnabled) {
-        localStorage.setItem(`websearch_${sessionId}`, 'true');
-        console.log('[Debug] Home page - Saved web search state to localStorage:', sessionId);
+      // Before redirect, save Agent state to localStorage
+      if (isAgentEnabled) {
+        localStorage.setItem(`Agent_${sessionId}`, 'true');
+        console.log('[Debug] Home page - Saved Agent state to localStorage:', sessionId);
       }
 
       // 디버깅: 리다이렉트 URL 출력
-      const redirectUrl = `/chat/${sessionId}${isWebSearchEnabled ? '?web_search=true' : ''}`;
+      const redirectUrl = `/chat/${sessionId}${isAgentEnabled ? '?Agent=true' : ''}`;
       console.log('[Debug] Home page - Redirecting to:', redirectUrl);
       
-      // Redirect to chat page with query parameter to indicate web search
+      // Redirect to chat page with query parameter to indicate Agent
       router.push(redirectUrl);
       
     } catch (error) {
@@ -372,7 +372,7 @@ export default function Home() {
               }}
               disabled={isSubmitting}
               disabledLevels={rateLimitedLevels}
-              isWebSearchEnabled={isWebSearchEnabled}
+              isAgentEnabled={isAgentEnabled}
             />
             <ChatInput
               input={input}
@@ -385,12 +385,12 @@ export default function Home() {
               user={user}
               modelId={nextModel}
               popupPosition="bottom"
-              isWebSearchEnabled={isWebSearchEnabled}
-              setIsWebSearchEnabled={setIsWebSearchEnabled}
+              isAgentEnabled={isAgentEnabled}
+              setisAgentEnabled={setisAgentEnabled}
             />
-            <div className={`text-base px-4 text-[var(--muted)] h-6 text-center mt-2 transition-opacity duration-200 ${input ? 'opacity-60' : 'opacity-0'}`}>
+            {/* <div className={`text-base px-4 text-[var(--muted)] h-6 text-center mt-2 transition-opacity duration-200 ${input ? 'opacity-60' : 'opacity-0'}`}>
             (Experimental) Start your prompt with <strong className="text-[var(--foreground)] font-bold">/image</strong> to generate <strong className="text-[var(--foreground)] font-bold">images</strong>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>

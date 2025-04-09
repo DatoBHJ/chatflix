@@ -29,7 +29,7 @@ export default function ModelStatsSummary() {
   const featureStats = {
     vision: MODEL_CONFIGS.filter(m => m.supportsVision).length,
     pdf: MODEL_CONFIGS.filter(m => m.supportsPDFs).length,
-    webSearch: MODEL_CONFIGS.filter(m => m.isWebSearchEnabled).length,
+    Agent: MODEL_CONFIGS.filter(m => m.isAgentEnabled).length,
     reasoning: MODEL_CONFIGS.filter(m => m.reasoning?.enabled).length
   };
 
@@ -149,7 +149,7 @@ export default function ModelStatsSummary() {
           </div>
           <div className="flex justify-between items-center">
             <span>Web Search</span>
-            <span className="font-semibold text-lg">{featureStats.webSearch}</span>
+            <span className="font-semibold text-lg">{featureStats.Agent}</span>
           </div>
           <div className="flex justify-between items-center">
             <span>Reasoning</span>

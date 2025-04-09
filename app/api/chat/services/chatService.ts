@@ -30,19 +30,12 @@ export const handlePromptShortcuts = async (supabase: any, message: MultiModalMe
   // Handle multimodal messages (array content)
   if (Array.isArray(message.content)) {
     const updatedContent = [...message.content];
-    let useImageSystemPrompt = false;
-
+    
     // Process each text part in the array
     for (let i = 0; i < updatedContent.length; i++) {
       const part = updatedContent[i];
       if (part.type === 'text' && typeof part.text === 'string') {
         let updatedText = part.text;
-
-        // Handle /image command
-        if (updatedText.trim().startsWith('/image')) {
-          useImageSystemPrompt = true;
-          updatedText = updatedText.replace(/^\/image\s*/, '').trim();
-        }
 
         // Process shortcuts and mentions
         try {
@@ -81,20 +74,12 @@ export const handlePromptShortcuts = async (supabase: any, message: MultiModalMe
 
     return {
       ...processedMessage,
-      content: updatedContent,
-      useImageSystemPrompt
+      content: updatedContent
     };
   } 
   // Handle string content (original implementation)
   else {
     let updatedContent = typeof message.content === 'string' ? message.content : '';
-    let useImageSystemPrompt = false;
-
-    // Handle /image command
-    if (updatedContent.trim().startsWith('/image')) {
-      useImageSystemPrompt = true;
-      updatedContent = updatedContent.replace(/^\/image\s*/, '').trim();
-    }
 
     try {
       const jsonMatch = updatedContent.match(/\{"displayName":"[^"]+","promptContent":"[^"]+"}/g);
@@ -124,8 +109,7 @@ export const handlePromptShortcuts = async (supabase: any, message: MultiModalMe
 
     return {
       ...processedMessage,
-      content: updatedContent,
-      useImageSystemPrompt
+      content: updatedContent
     };
   }
 };
@@ -260,44 +244,38 @@ export const handleStreamCompletion = async (
   model: string,
   provider: string,
   completion: CompletionResult,
-  isRegeneration: boolean = false
+  isRegeneration: boolean = false,
+  extraData: any = {}
 ) => {
+  // finalContent 결정 - 우선순위: full_text > steps > parts > text
   let finalContent = '';
   let finalReasoning = '';
-
-  if (completion.steps?.[0]) {
-    const step = completion.steps[0];
-    finalContent = step.text || '';
-    finalReasoning = step.reasoning || '';
+  
+  if (extraData.full_text) {
+    finalContent = extraData.full_text;
+  } else if (completion.steps && completion.steps.length > 0) {
+    finalContent = completion.steps.map(step => step.text || '').join('\n\n');
+    finalReasoning = completion.steps
+      .filter(step => step.reasoning)
+      .map(step => step.reasoning)
+      .join('\n\n');
   } else if (completion.parts) {
+    // 텍스트 파트 추출
     finalContent = completion.parts
       .filter(part => part.type === 'text')
       .map(part => part.text)
       .join('\n');
     
+    // 추론 파트 추출
     const reasoningParts = completion.parts.filter(part => part.type === 'reasoning') as any[];
-    
     if (reasoningParts.length > 0) {
       finalReasoning = reasoningParts.map(part => part.reasoning).join('\n');
-      
-      if (!finalReasoning && reasoningParts.some(part => part.details)) {
-        finalReasoning = reasoningParts
-          .flatMap(part => 
-            part.details?.filter((detail: any) => detail.type === 'text')
-              .map((detail: any) => detail.text) || []
-          )
-          .join('\n');
-      }
     }
   } else {
     finalContent = completion.text || '';
-    const reasoningMatch = finalContent.match(/<think>(.*?)<\/think>/s);
-    if (reasoningMatch) {
-      finalReasoning = reasoningMatch[1].trim();
-      finalContent = finalContent.replace(/<think>.*?<\/think>/s, '').trim();
-    }
   }
 
+  // 데이터베이스 업데이트
   await supabase
     .from('messages')
     .update({
@@ -305,7 +283,8 @@ export const handleStreamCompletion = async (
       reasoning: finalReasoning && finalReasoning !== finalContent ? finalReasoning : null,
       model,
       host: provider,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      tool_results: extraData.tool_results || null
     })
     .eq('id', messageId)
     .eq('user_id', userId);

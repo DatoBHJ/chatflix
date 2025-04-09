@@ -21,8 +21,8 @@ export interface ChatInputProps {
   user: any;
   modelId: string;
   popupPosition?: 'top' | 'bottom';
-  isWebSearchEnabled?: boolean;
-  setIsWebSearchEnabled?: React.Dispatch<React.SetStateAction<boolean>>;
+  isAgentEnabled?: boolean;
+  setisAgentEnabled?: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export interface FilePreviewProps {

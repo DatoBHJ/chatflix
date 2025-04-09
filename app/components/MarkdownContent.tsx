@@ -1,58 +1,154 @@
-import { useState, useMemo, memo, useCallback } from 'react';
+import { useState, useMemo, memo, useCallback, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import rehypeHighlight from 'rehype-highlight';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 interface MarkdownContentProps {
   content: string;
 }
 
-// 이미지 컴포넌트를 분리하여 로딩 상태를 관리
-const ImageWithLoading = memo(({ src, alt, className, ...props }: { src: string, alt?: string, className?: string, [key: string]: any }) => {
-  const [isLoading, setIsLoading] = useState(true);
+// Image component with loading state
+const ImageWithLoading = memo(function ImageWithLoadingComponent({ 
+  src, 
+  alt, 
+  className = "",
+  ...props 
+}: React.ImgHTMLAttributes<HTMLImageElement>) {
+  const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  
+  // 로딩 애니메이션 효과를 위한 상태
+  const [loadingTime, setLoadingTime] = useState(0);
+  
+  // 로딩이 시작되면 진행 상태를 시뮬레이션
+  useEffect(() => {
+    if (!isLoaded && !error) {
+      const timer = setInterval(() => {
+        setLoadingTime(prev => {
+          const newTime = prev + 1;
+          // 진행률 계산 (0-95% 범위, 실제 로딩 완료 시 100%로 점프)
+          const progress = Math.min(95, Math.floor(newTime * 1.5));
+          setLoadingProgress(progress);
+          return newTime;
+        });
+      }, 100);
+      
+      return () => clearInterval(timer);
+    }
+  }, [isLoaded, error]);
+  
+  // URL이 유효한지 확인 (간단한 체크)
+  const isValidUrl = src && (
+    src.startsWith('http://') || 
+    src.startsWith('https://') || 
+    src.startsWith('data:')
+  );
 
-  // 이미지 로드 완료 핸들러
-  const handleImageLoaded = () => {
-    setIsLoading(false);
-  };
-
-  // 이미지 로드 에러 핸들러
-  const handleImageError = () => {
-    setIsLoading(false);
-    setError(true);
-  };
-
+  if (!isValidUrl) {
+    return (
+      <div className="bg-[var(--accent)] rounded-lg p-4 text-center text-[var(--muted)]">
+        <svg className="w-8 h-8 mx-auto mb-2 text-[var(--muted)]" fill="none" strokeWidth="1.5" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+        </svg>
+        <p>Invalid image URL</p>
+      </div>
+    );
+  }
+  
   return (
-    <div className="relative">
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[var(--accent)] bg-opacity-20 rounded-lg">
-          <div className="flex flex-col items-center justify-center p-4">
-            <div className="w-8 h-8 border-4 border-[var(--muted)] border-t-[var(--foreground)] rounded-full animate-spin mb-2"></div>
-            <div className="text-xs text-[var(--muted)]">Loading image...</div>
+    <div className="relative w-full">
+      {!isLoaded && !error && (
+        <div className="bg-[var(--accent)] animate-pulse rounded-lg overflow-hidden" style={{ aspectRatio: "16/9" }}>
+          {/* 스켈레톤 로딩 효과 */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
+            {/* 이미지 로딩 아이콘 */}
+            <svg 
+              className="w-12 h-12 text-[var(--muted)] mb-2 animate-spin" 
+              fill="none" 
+              strokeWidth="1.5" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+              style={{ animationDuration: '2s' }}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+            </svg>
+            
+            {/* 로딩 텍스트 */}
+            <p className="text-[var(--muted)] text-sm font-medium">
+              Loading image... {loadingProgress}%
+            </p>
+            
+            {/* 로딩 진행 표시기 */}
+            <div className="w-3/4 h-1.5 bg-[var(--muted)] bg-opacity-20 rounded-full mt-3 overflow-hidden">
+              <div 
+                className="h-full bg-[var(--muted)] rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${loadingProgress}%` }}
+              ></div>
+            </div>
+            
+            {/* 이미지 설명 표시 (있는 경우) */}
+            {alt && (
+              <div className="mt-3 text-xs text-[var(--muted)] italic opacity-70">
+                {alt}
+              </div>
+            )}
+          </div>
+          
+          {/* 배경 패턴 */}
+          <div className="absolute inset-0 opacity-5">
+            <div className="h-full w-full" 
+              style={{ 
+                backgroundImage: 'radial-gradient(var(--muted) 1px, transparent 1px)', 
+                backgroundSize: '20px 20px' 
+              }}>
+            </div>
           </div>
         </div>
       )}
       
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[var(--accent)] bg-opacity-20 rounded-lg">
-          <div className="text-center p-4">
-            <div className="text-sm text-[var(--foreground)]">Unable to load image</div>
-            <div className="text-xs text-[var(--muted)] mt-1">Click the link to open directly</div>
-          </div>
+        <div className="bg-[var(--accent)] rounded-lg p-6 text-center text-[var(--muted)]">
+          <svg className="w-10 h-10 mx-auto mb-3 text-[var(--muted)]" fill="none" strokeWidth="1.5" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+          <p className="mb-1">Image failed to load</p>
+          {alt && <p className="text-sm italic mb-2 opacity-75">{alt}</p>}
+          {src && (
+            <a 
+              href={src}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-[var(--muted-foreground)] hover:underline mt-1 block"
+            >
+              View image directly
+            </a>
+          )}
         </div>
       )}
       
-      <img 
-        src={src} 
-        alt={alt || "Generated image"} 
-        className={`${className || 'rounded-lg max-w-full'} ${isLoading ? 'min-h-[200px]' : ''}`}
-        onLoad={handleImageLoaded}
-        onError={handleImageError}
-        {...props} 
+      <img
+        src={src}
+        alt={alt || ""}
+        className={`${className} ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 rounded-lg`}
+        onLoad={() => {
+          setLoadingProgress(100);
+          setTimeout(() => setIsLoaded(true), 200); // 약간의 지연으로 부드러운 전환 효과
+        }}
+        onError={() => {
+          console.log('Image load error:', src);
+          setError(true);
+          setIsLoaded(true);
+        }}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        {...props}
       />
     </div>
   );
@@ -61,6 +157,31 @@ const ImageWithLoading = memo(({ src, alt, className, ...props }: { src: string,
 // Memoize the MarkdownContent component to prevent unnecessary re-renders
 export const MarkdownContent = memo(function MarkdownContentComponent({ content }: MarkdownContentProps) {
   const [copied, setCopied] = useState<{[key: string]: boolean}>({});
+
+  // 수식 표현이 있는지 확인하는 함수
+  const hasMathExpression = useCallback((text: string) => {
+    // 수학 수식, 화학식, 물리량 표현 감지
+    return /\$(.*?)\$|\$\$(.*?)\$\$|\\ce\{.*?\}|\\SI\{.*?\}\{.*?\}/g.test(text);
+  }, []);
+
+  // 수식 표현을 처리하는 함수 (inline/block 수식, 화학식, 물리량)
+  const processMathExpressions = useCallback((text: string) => {
+    if (!hasMathExpression(text)) return text;
+    
+    // 화학식 변환 처리 (만약 화학식이 처리되지 않는 경우 사용)
+    // \ce{...} -> $\ce{...}$
+    const withChemistry = text.replace(/\\ce\{(.*?)\}/g, (match, p1) => {
+      return `$\\ce{${p1}}$`;
+    });
+    
+    // 물리량 변환 처리 (만약 SI 단위가 처리되지 않는 경우 사용)
+    // \SI{...}{...} -> $\SI{...}{...}$
+    const withPhysicalUnits = withChemistry.replace(/\\SI\{(.*?)\}\{(.*?)\}/g, (match, p1, p2) => {
+      return `$\\SI{${p1}}{${p2}}$`;
+    });
+    
+    return withPhysicalUnits;
+  }, [hasMathExpression]);
 
   const handleCopy = useCallback(async (text: string) => {
     try {
@@ -130,8 +251,8 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
   const styleImageUrls = useCallback((text: string) => {
     if (!text.includes('image.pollinations.ai')) return text; // Quick check to avoid unnecessary regex processing
     
-    // Detect full pollinations.ai URLs in text
-    const pollinationsUrlRegex = /(https:\/\/image\.pollinations\.ai\/prompt\/[^\s]+)/g;
+    // Detect any pollinations.ai URLs in text (확장된 정규식)
+    const pollinationsUrlRegex = /(https:\/\/image\.pollinations\.ai\/[^\s]+)/g;
     
     const parts = [];
     let lastIndex = 0;
@@ -172,22 +293,38 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
     if (node?.props?.children) return extractText(node.props.children);
     return '';
   }, []);
+  
+  // 인라인 코드에 수식이 있는지 확인하고 처리하는 함수 추가
+  const processInlineCode = useCallback((children: any) => {
+    if (typeof children !== 'string') return children;
+    
+    // 인라인 코드에 수식 표현이 있는지 확인
+    if (hasMathExpression(children)) {
+      // KaTeX로 렌더링하기 위해 마크다운 형식으로 변환
+      return processMathExpressions(children);
+    }
+    
+    return children;
+  }, [hasMathExpression, processMathExpressions]);
 
   // Memoize the components object to avoid recreating it on every render
   const components = useMemo<Components>(() => ({
     p: ({ children, ...props }) => {
       // Process text content to detect image generation links
       if (typeof children === 'string') {
-        // Check for image pollinations link pattern
-        const pollinationsRegex = /!\[([^\]]+)\]\((https:\/\/image\.pollinations\.ai\/prompt\/[^)]+\?width=\d+&height=\d+)[^)]*\)/g;
+        // 두 가지 형식의 이미지 URL 패턴을 모두 처리합니다:
+        // 1. ![alt](url) 형식의 표준 마크다운 이미지
+        // 2. 일반 URL 텍스트 형식으로 제공되는 이미지
+        
+        // 이미지 마크다운 패턴 감지 (개선된 정규식)
+        const pollinationsRegex = /!\[([^\]]*)\]\((https:\/\/image\.pollinations\.ai\/[^)]+)\)/g;
         const match = pollinationsRegex.exec(children);
         
         if (match) {
           const [fullMatch, altText, imageUrl] = match;
           const decodedUrl = decodeURIComponent(imageUrl);
           
-          // Return a clickable image with link
-          // Using a div at the root to avoid nesting p inside p
+          // 반환된 이미지에 CORS 이슈가 있을 수 있으므로 referrerPolicy를 설정합니다
           return (
             <div className="my-4">
               <a 
@@ -207,7 +344,44 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
           );
         }
         
-        // Process for raw image URLs
+        // 직접 URL로만 제공되는 이미지 처리 (image.pollinations.ai 포함)
+        const rawPollinationsRegex = /(https:\/\/image\.pollinations\.ai\/[^\s)]+)/g;
+        const rawMatch = rawPollinationsRegex.exec(children);
+        
+        if (rawMatch) {
+          const [, imageUrl] = rawMatch;
+          const decodedUrl = decodeURIComponent(imageUrl);
+          
+          return (
+            <div className="my-4">
+              <a 
+                href={decodedUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <ImageWithLoading 
+                  src={decodedUrl} 
+                  alt="Generated image" 
+                  className="rounded-lg max-w-full hover:opacity-90 transition-opacity cursor-pointer border border-[var(--accent)] shadow-md" 
+                />
+              </a>
+              <div className="text-sm text-[var(--muted)] mt-2 italic text-center">Generated Image</div>
+            </div>
+          );
+        }
+        
+        // 인라인 수식 처리 (` $ ` 패턴 감지)
+        if (hasMathExpression(children)) {
+          try {
+            const processedText = processMathExpressions(children);
+            return <p className="my-3 leading-relaxed" {...props}>{processedText}</p>;
+          } catch (e) {
+            console.error('Failed to process math expression:', e);
+          }
+        }
+        
+        // Process for raw image URLs (그 외의 패턴 처리)
         const processedContent = styleImageUrls(children);
         
         // Check if we got back an array with image links that need special handling
@@ -269,8 +443,8 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
       return <p className="my-3 leading-relaxed" {...props}>{children}</p>;
     },
     img: ({ src, alt, ...props }) => {
-      // Check if it's a pollinations.ai image URL
-      if (src && src.includes('image.pollinations.ai/prompt')) {
+      // Agent 도구에서 생성된 이미지 URL을 처리합니다
+      if (src && (src.includes('image.pollinations.ai'))) {
         return (
           <a 
             href={src} 
@@ -311,15 +485,26 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
       const match = /language-(\w+)/.exec(className || '');
       const isInline = !match;
       
-      const codeText = extractText(children);
-      
+      // 수식 표현이 있는 인라인 코드인 경우 특별하게 처리
       if (isInline) {
+        const processedChildren = processInlineCode(children);
+        if (processedChildren !== children) {
+          // 수식 콘텐츠를 포함하는 코드에 대한 특별 스타일링
+          return (
+            <span className="math-inline">
+              {processedChildren}
+            </span>
+          );
+        }
+        // 일반 인라인 코드 처리는 그대로 유지
         return (
           <code className="font-mono text-sm bg-[var(--inline-code-bg)] text-[var(--inline-code-text)] px-1.5 py-0.5 rounded" {...props}>
             {children}
           </code>
         );
       }
+      
+      const codeText = extractText(children);
       
       return (
         <div className="message-code group relative my-6 max-w-full overflow-hidden">
@@ -385,20 +570,62 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
     h3: ({ children, ...props }) => (
       <h3 className="text-lg font-bold mt-5 mb-2" {...props}>{children}</h3>
     ),
-  }), [styleMentions, styleImageUrls, extractText, handleCopy, copied]);
+  }), [styleMentions, styleImageUrls, extractText, handleCopy, copied, processInlineCode, hasMathExpression, processMathExpressions]);
 
   // Memoize the plugins to avoid recreating them on every render
-  const remarkPlugins = useMemo(() => [remarkGfm], []);
-  const rehypePlugins = useMemo(() => [rehypeRaw, rehypeSanitize, rehypeHighlight], []);
+  const remarkPlugins = useMemo(() => [remarkGfm, remarkMath], []);
+  const rehypePlugins = useMemo(() => [
+    rehypeRaw, 
+    rehypeSanitize,
+    [rehypeKatex, { 
+      throwOnError: false, 
+      output: 'html',
+      displayMode: false, // 디스플레이 모드 비활성화 (인라인 수식 우선)
+      leqno: false, // 왼쪽 정렬된 방정식 번호
+      fleqn: false, // 왼쪽 정렬된 디스플레이 수식
+      strict: false, // Throw errors for bad syntax
+      trust: true, // 특수 KaTeX 확장 허용
+      macros: { // 사용자 정의 매크로
+        // 수학 기호
+        "\\R": "\\mathbb{R}",
+        "\\N": "\\mathbb{N}",
+        "\\Z": "\\mathbb{Z}",
+        "\\C": "\\mathbb{C}",
+        // 벡터 표기 간소화
+        "\\vec": "\\boldsymbol",
+        "\\vb": "\\boldsymbol",
+        // 편미분 기호
+        "\\pd": "\\partial",
+        // 화학식 지원
+        "\\ch": "\\ce",
+        // 물리 단위 지원
+        "\\unit": "\\text",
+        // 일반적인 수학 기호
+        "\\half": "\\frac{1}{2}",
+        "\\e": "\\mathrm{e}",
+        "\\i": "\\mathrm{i}",
+        "\\d": "\\mathrm{d}",
+        // 행렬 매크로
+        "\\bmat": "\\begin{bmatrix}#1\\end{bmatrix}",
+        "\\pmat": "\\begin{pmatrix}#1\\end{pmatrix}",
+      },
+    }],
+    rehypeHighlight
+  ], []);
+
+  // Process the content to handle math expressions
+  const processedContent = useMemo(() => {
+    return processMathExpressions(content);
+  }, [content, processMathExpressions]);
 
   return (
     <ReactMarkdown
-      className="message-content"
+      className="message-content break-words"
       remarkPlugins={remarkPlugins}
       rehypePlugins={rehypePlugins}
       components={components}
     >
-      {content}
+      {processedContent}
     </ReactMarkdown>
   );
 }); 

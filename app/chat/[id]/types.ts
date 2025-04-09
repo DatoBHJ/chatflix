@@ -10,4 +10,5 @@ export interface ExtendedMessage extends Message {
   model?: string;
   isEditing?: boolean;
   sequence_number?: number;
+  tool_results?: any;
 } 

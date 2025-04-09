@@ -781,3 +781,43 @@ body {
   background-color: rgba(245, 245, 245, 0.5);
 }
 
+/* KaTeX 수식 스타일링 */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5rem 0;
+  margin: 1rem 0;
+}
+
+.katex {
+  font-size: 1.1em;
+  line-height: 1.2;
+}
+
+/* 인라인 수식 스타일링 */
+.math-inline .katex {
+  font-size: 1.05em;
+  padding: 0 0.1em;
+}
+
+/* 디스플레이 수식(block) 스타일링 */
+.math-display {
+  display: block;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5rem;
+  margin: 1rem 0;
+  background-color: rgba(var(--accent-rgb), 0.05);
+  border-radius: 0.5rem;
+}
+
+/* KaTeX 에러 스타일 */
+.katex-error {
+  color: var(--red);
+  background-color: rgba(var(--red-rgb), 0.1);
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+

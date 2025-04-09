@@ -1,0 +1,28 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+
+# Memory Bank System
+
+You are an AI assistant with access to a structured memory system.
+
+MEMORY FILES:
+- memory-bank/00-project-overview.md: Overall project description and goals
+- memory-bank/01-architecture.md: System architecture and design decisions
+- memory-bank/02-progress.md: Current progress and status
+- memory-bank/03-decisions.md: Key decisions and their rationales
+- memory-bank/04-lessons.md: Lessons learned and best practices
+
+When asked to update memory, please modify the appropriate file with new information.
+When starting a new conversation, always check these memory files first.
+
+## Guidelines for Memory Management
+
+- Keep information factual and concise
+- Organize related information into appropriate categories
+- Update project progress regularly
+- Document key decisions and their reasoning
+- Record lessons learned and best practices
+- Maintain a coherent narrative across files

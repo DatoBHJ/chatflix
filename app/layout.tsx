@@ -1,7 +1,12 @@
+import 'prismjs/themes/prism-tomorrow.css'
 import './globals.css'
 import RootLayoutClient from './RootLayoutClient'
 import { PWAInstallPrompt } from './components/PWAInstallPrompt'
 import { Analytics } from '@vercel/analytics/react'
+import { Inter } from 'next/font/google'
+import Script from 'next/script'
+
+const inter = Inter({ subsets: ['latin'] })
 
 export const viewport = {
   width: 'device-width',
@@ -111,14 +116,26 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <ThemeInitScript />
+        <meta property="og:url" content="https://chatflix.app" />
         <link rel="canonical" href="https://chatflix.app" />
       </head>
-      <body>
+      <body className={inter.className}>
         <RootLayoutClient>
           {children}
           <PWAInstallPrompt />
           <Analytics />
         </RootLayoutClient>
+        
+        {/* Warmup script */}
+        <Script id="model-warmup">{`
+          // 앱 로드 시 웜업 API 호출 (딜레이 추가하여 초기 렌더링 방해 최소화)
+          setTimeout(() => {
+            fetch('/api/warmup')
+              .then(res => res.json())
+              .then(data => console.log('Model warmup:', data.message))
+              .catch(err => console.warn('Warmup failed:', err));
+          }, 3000);
+        `}</Script>
       </body>
     </html>
   )

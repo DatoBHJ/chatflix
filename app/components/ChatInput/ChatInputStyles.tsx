@@ -16,6 +16,25 @@ export function useChatInputStyles() {
           transition: all 0.2s ease;
         }
         
+        /* 에이전트 버튼 스타일 */
+        .input-btn-active svg {
+          filter: drop-shadow(0 0 2px var(--accent));
+        }
+        
+        /* 에이전트 활성화 효과 */
+        button[title="Disable Agent"] svg {
+          animation: pulseGlow 2s infinite alternate;
+        }
+        
+        @keyframes pulseGlow {
+          0% {
+            filter: drop-shadow(0 0 1px var(--accent));
+          }
+          100% {
+            filter: drop-shadow(0 0 3px var(--accent));
+          }
+        }
+        
         /* 퓨처리스틱 입력 필드 스타일 */
         .futuristic-input {
           position: relative;

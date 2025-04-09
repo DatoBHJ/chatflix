@@ -57,22 +57,33 @@ export const uploadFile = async (file: File) => {
 export const uploadImage = uploadFile;
 
 export const convertMessage = (msg: DatabaseMessage): ExtendedMessage => {
-  const baseMessage = {
+  const baseMessage: any = {
     id: msg.id,
     content: msg.content,
     role: msg.role as 'user' | 'assistant' | 'system',
     createdAt: new Date(msg.created_at),
-    model: msg.model
+    model: msg.model,
+    tool_results: msg.tool_results,
+    annotations: msg.annotations || []
   };
 
   // Add experimental_attachments if they exist
   if (msg.experimental_attachments && msg.experimental_attachments.length > 0) {
-    return {
-      ...baseMessage,
-      experimental_attachments: msg.experimental_attachments
-    };
+    baseMessage.experimental_attachments = msg.experimental_attachments;
   }
 
+  // Add stored agent reasoning as annotation for consistent UI handling
+  if (msg.tool_results && 
+      typeof msg.tool_results === 'object' && 
+      msg.tool_results.agentReasoning && 
+      !baseMessage.annotations.some((a: any) => a.type === 'agent_reasoning')) {
+    baseMessage.annotations.push({
+      type: 'agent_reasoning',
+      data: msg.tool_results.agentReasoning
+    });
+  }
+
+  // Handle reasoning parts if present
   if (msg.role === 'assistant' && msg.reasoning) {
     return {
       ...baseMessage,
@@ -80,17 +91,9 @@ export const convertMessage = (msg: DatabaseMessage): ExtendedMessage => {
         {
           type: 'reasoning' as const,
           reasoning: msg.reasoning,
-          details: [
-            {
-              type: 'text',
-              text: msg.reasoning
-            }
-          ]
+          details: [{ type: 'text', text: msg.reasoning }]
         },
-        {
-          type: 'text' as const,
-          text: msg.content
-        }
+        { type: 'text' as const, text: msg.content }
       ]
     };
   }

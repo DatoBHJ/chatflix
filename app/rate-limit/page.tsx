@@ -101,7 +101,7 @@ export default function RateLimitPage() {
   const [chatTitle, setChatTitle] = useState<string>('')
   const [isSubscribing, setIsSubscribing] = useState(false)
   const [showTooltip, setShowTooltip] = useState(false)
-  const [isWebSearchEnabled, setIsWebSearchEnabled] = useState(false)
+  const [isAgentEnabled, setisAgentEnabled] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [isCheckingSubscription, setIsCheckingSubscription] = useState(true)
   
@@ -737,7 +737,7 @@ export default function RateLimitPage() {
                 }}
                 disabled={isSubmitting}
                 disabledLevels={isSubscribed ? [] : rateLimitedLevels}
-                isWebSearchEnabled={isWebSearchEnabled}
+                isAgentEnabled={isAgentEnabled}
               />
             </div>
 

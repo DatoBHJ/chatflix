@@ -1,6 +1,6 @@
 import { Message } from 'ai';
-import { getModelById } from '@/lib/models/config';
 import { AIMessageContent, MessageRole } from '../types';
+import { getModelById } from '@/lib/models/config';
 
 export const generateMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -218,3 +218,39 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
     content: parts
   };
 }; 
+
+export const validateAndUpdateSession = async (supabase: any, chatId: string | undefined, userId: string, messages: Message[]) => {
+  if (!chatId) return;
+
+  const { data: existingSession, error: sessionError } = await supabase
+    .from('chat_sessions')
+    .select()
+    .eq('id', chatId)
+    .eq('user_id', userId)
+    .single();
+
+  if (sessionError || !existingSession) {
+    throw new Error('Chat session not found');
+  }
+
+  const { data: sessionMessages, error: messagesError } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('chat_session_id', chatId)
+    .eq('user_id', userId)
+    .order('sequence_number', { ascending: true });
+
+  if (!messagesError && sessionMessages) {
+    messages.forEach((msg, index) => {
+      const dbMessage = sessionMessages.find((dbMsg: any) => dbMsg.id === msg.id);
+      if (dbMessage) {
+        if (dbMessage.is_edited) {
+          messages[index].content = dbMessage.content;
+        }
+        if (dbMessage.experimental_attachments?.length > 0) {
+          messages[index].experimental_attachments = dbMessage.experimental_attachments;
+        }
+      }
+    });
+  }
+};

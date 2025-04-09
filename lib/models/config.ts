@@ -2,7 +2,7 @@ export interface ModelConfig {
   id: string;
   name: string;
   country: string;
-  description: string;
+  description?: string;
   provider: 'anthropic' | 'openai' | 'google' | 'deepseek' | 'together' | 'groq' | 'xai';
   supportsVision: boolean;
   supportsPDFs: boolean;
@@ -12,7 +12,7 @@ export interface ModelConfig {
   };
   isEnabled: boolean;
   isActivated: boolean; // Whether the model is activated for selection
-  isWebSearchEnabled: boolean;
+  isAgentEnabled: boolean;
   isNew?: boolean; // Mark model as new
   isHot?: boolean; // Mark model as hot/trending
   reasoning?: {
@@ -40,17 +40,17 @@ export const RATE_LIMITS = {
   level1: {
     hourly: {
       requests: 10,    
-      window: '2 h'
+      window: '4 h'
     },
     daily: {
-      requests: 50,    
+      requests: 24,    
       window: '24 h'
     }
   },
   level2: {
     hourly: {
-      requests: 7,
-      window: '3 h'
+      requests: 10,
+      window: '4 h'
     },
     daily: {
       requests: 24,
@@ -59,8 +59,8 @@ export const RATE_LIMITS = {
   },
   level3: {
     hourly: {
-      requests: 7,    
-      window: '3 h'
+      requests: 10,    
+      window: '4 h'
     },
     daily: {
       requests: 24,
@@ -69,21 +69,21 @@ export const RATE_LIMITS = {
   },
   level4: {
     hourly: {
-      requests: 5,    
-      window: '3 h'
+      requests: 10,    
+      window: '4 h'
     },
     daily: {
-      requests: 15,
+      requests: 24,
       window: '24 h'
     }
   },
   level5: {
     hourly: {
-      requests: 5,    
-      window: '3 h'
+      requests: 10,    
+      window: '4 h'
     },
     daily: {
-      requests: 15,
+      requests: 24,
       window: '24 h'
     }
   },
@@ -261,13 +261,11 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Google\'s most powerful thinking model. Reasoning tokens used in its chain-of-thought process are hidden by Google and not included in the visible output.',
     provider: 'google',
     supportsVision: true,
-    censored: true,
+    // censored: true,
     rateLimit: {
-      level: 'level4',
+      level: 'level1',
     },
-    isNew: true,
-    isHot: true,
-    isWebSearchEnabled: false,
+    isAgentEnabled: false,
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
@@ -287,11 +285,11 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Latest 2.0 flash model with 1m context window by Google',
     provider: 'google',
     supportsVision: true,
-    censored: true,
+    // censored: true,
     rateLimit: {
       level: 'level1',
     },
-    isWebSearchEnabled: true,
+    isAgentEnabled: true,
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
@@ -314,7 +312,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level4',
     },
-    isWebSearchEnabled: false,
+    isAgentEnabled: false,
     supportsPDFs: false,
     censored: true,
     isEnabled: true,
@@ -346,7 +344,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level4',
     },
-    isWebSearchEnabled: true,
+    isAgentEnabled: true,
     isHot: true,
     isEnabled: true,
     isActivated: true,
@@ -370,7 +368,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level4',
     },
-    isWebSearchEnabled: true,
+    isAgentEnabled: true,
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
@@ -395,7 +393,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level1',
     },
-    isWebSearchEnabled: false,
+    isAgentEnabled: false,
     supportsPDFs: false,
     reasoning: {
       enabled: true,
@@ -426,9 +424,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level1',
     },
-    isWebSearchEnabled: true,
+    isAgentEnabled: false,
     supportsPDFs: false,
-    isNew: true,
     isEnabled: true,
     isActivated: true,
     contextWindow: 128000,
@@ -452,7 +449,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level3',
     },
-    isWebSearchEnabled: false,
+    isAgentEnabled: false,
     supportsPDFs: false,
     reasoning: {
       enabled: true,
@@ -483,7 +480,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level3',
     },
-    isWebSearchEnabled: true,
+    isAgentEnabled: false,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -497,28 +494,50 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     multilingual:86,
     HLE: 3.6
   },
+  // {
+  //   id: 'gpt-4.5-preview',
+  //   name: 'GPT-4.5',
+  //   country: 'US',
+  //   description: 'Latest and most capable GPT model yet by OpenAI',
+  //   provider: 'openai',
+  //   supportsVision: true,
+  //   censored: true,
+  //   rateLimit: {
+  //     level: 'level5',
+  //   },
+  //   isAgentEnabled: false,
+  //   supportsPDFs: false,
+  //   isEnabled: true,
+  //   isActivated: false,
+  //   contextWindow: 128000,
+  //   tps: 14,
+  //   intelligenceIndex: 51,
+  //   MMLU_Pro: 89.6,  // estimated
+  //   // Coding: , // unknown
+  //   // MATH: // unknown,
+  //   GPQA: 71
+  // },
   {
-    id: 'gpt-4.5-preview',
-    name: 'GPT-4.5',
+    id: 'gpt-4o-mini',
+    name: 'GPT-4o Mini',
     country: 'US',
-    description: 'Latest and most capable GPT model yet by OpenAI',
+    description: 'Fast and small model for focused tasks by OpenAI',
     provider: 'openai',
     supportsVision: true,
-    censored: true,
+    // censored: true,
     rateLimit: {
-      level: 'level5',
+      level: 'level2',
     },
-    isWebSearchEnabled: false,
+    isAgentEnabled: true,
     supportsPDFs: false,
     isEnabled: true,
-    isActivated: false,
+    isActivated: true,
+    isNew: true,
+
     contextWindow: 128000,
-    tps: 14,
-    intelligenceIndex: 51,
-    MMLU_Pro: 89.6,  // estimated
-    // Coding: , // unknown
-    // MATH: // unknown,
-    GPQA: 71
+    tps: 77,
+    intelligenceIndex: 36,
+    multilingual: 80
   },
   {
     id: 'chatgpt-4o-latest',
@@ -527,11 +546,11 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Latest version of GPT-4o used in ChatGPT',
     provider: 'openai',
     supportsVision: true,
-    censored: true,
+    // censored: true,
     rateLimit: {
       level: 'level5',
     },
-    isWebSearchEnabled: true,
+    isAgentEnabled: false,
     supportsPDFs: false,
     isHot: true,
     isEnabled: true,
@@ -557,7 +576,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       "level": "level5",
     },
     // isHot: true,
-    isWebSearchEnabled: true,
+    isAgentEnabled: false,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -582,7 +601,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     "rateLimit": {
       "level": "level5",
     },
-    isWebSearchEnabled: true,
+    isAgentEnabled: false,
     supportsPDFs: false,
     isEnabled: true,
     // isHot: true,
@@ -607,7 +626,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level1',
     },
-    isWebSearchEnabled: true,
+    isAgentEnabled: true,
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
@@ -624,13 +643,13 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     id: 'llama-3.3-70b-versatile',
     name: 'Llama 3.3 70B',
     country: 'US',
-    description: 'Developed by Meta hosted by Groq. Lightning fast and smart.',
+    description: 'Developed by Meta hosted by Groq. Fast and smart.',
     provider: 'groq',
     supportsVision: false,
     rateLimit: {
       level: 'level2',
     },
-    isWebSearchEnabled: true,
+    isAgentEnabled: false,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -643,6 +662,46 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     GPQA: 50,
     multilingual:84,
     HLE: 4.0
+  },
+  // {
+  //   id: 'meta-llama/llama-4-maverick-17b-128e-instruct',
+  //   name: 'Llama 4 Maverick',
+  //   country: 'US',
+  //   // description: 'Developed by Meta hosted by Groq. Lightning fast and smart.',
+  //   provider: 'groq',
+  //   supportsVision: false,
+  //   rateLimit: {
+  //     level: 'level2',
+  //   },
+  //   isAgentEnabled: false,
+  //   supportsPDFs: false,
+  //   isEnabled: true,
+  //   isActivated: true,
+  //   contextWindow: 128000,
+  //   tps: 275,
+  //   intelligenceIndex: 49,
+  //   multilingual:84,
+  // },
+  {
+    id: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    name: 'Llama 4 Scout',
+    country: 'US',
+    description: 'Meta\'s latest model. Fast but dumb. Hosted by Groq.',
+    provider: 'groq',
+    supportsVision: true,
+    rateLimit: {
+      level: 'level2',
+    },
+    isAgentEnabled: false,
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: true,
+    isNew: true,
+    // isHot: true,
+    contextWindow: 131072,
+    tps: 460,
+    intelligenceIndex: 36,
+    // multilingual:84,
   },
   {
     id: 'qwen-qwq-32b',
@@ -664,7 +723,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     isActivated: true,
     supportsPDFs: false,
-    isWebSearchEnabled: false,
+    isAgentEnabled: false,
     contextWindow: 131000,
     tps: 399,
     intelligenceIndex: 58,

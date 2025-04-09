@@ -44,6 +44,27 @@ type QueryCompletion = {
   };
 };
 
+// Utility function to filter and deduplicate images
+const getUniqueValidImages = (images: SearchImage[]) => {
+  if (!images || images.length === 0) return [];
+  
+  // Apply filtering
+  const filtered = images.filter(img => 
+    img?.url && 
+    typeof img.url === 'string' && 
+    !img.url.startsWith('data:') && 
+    img.url.match(/\.(jpe?g|png|gif|webp|svg)(\?.*)?$/i)
+  );
+  
+  // Remove duplicates
+  const uniqueUrls = new Set();
+  return filtered.filter(img => {
+    if (uniqueUrls.has(img.url)) return false;
+    uniqueUrls.add(img.url);
+    return true;
+  });
+};
+
 // Domain extraction helper
 const extractDomain = (url: string): string => {
   try {
@@ -67,11 +88,14 @@ const SearchLoadingState = ({
   annotations: QueryCompletion[];
 }) => {
   const completedQueries = annotations.length;
-  const totalResults = annotations.reduce((sum, a) => sum + a.data.resultsCount, 0);
+  const totalResults = annotations.reduce((sum, a) => sum + (a.data?.resultsCount || 0), 0);
+  const totalImages = annotations.reduce((sum, a) => sum + (a.data?.imagesCount || 0), 0);
+  const hasCompletedQueries = completedQueries > 0;
 
   return (
     <div className="w-full space-y-4 my-4">
-      <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
+      <div className="p-4 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
+        {/* Header */}
         <div className="flex items-center justify-between w-full mb-4">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-lg bg-gradient-to-br from-[color-mix(in_srgb,var(--foreground)_7%,transparent)] to-[color-mix(in_srgb,var(--foreground)_3%,transparent)]">
@@ -81,7 +105,10 @@ const SearchLoadingState = ({
           </div>
           <div className="rounded-full px-3.5 py-1.5 bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_7%,transparent)] to-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex items-center gap-2 border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] shadow-sm">
             <Search className="h-3 w-3" strokeWidth={1.5} />
-            <span className="text-sm">{totalResults} Results</span>
+            <span className="text-sm flex items-center gap-1">
+              <span className="animate-pulse">{completedQueries}/{queries.length}</span> 
+              {totalResults > 0 && <span>({totalResults} Results)</span>}
+            </span>
           </div>
         </div>
         
@@ -89,27 +116,30 @@ const SearchLoadingState = ({
         <div className="mb-2 text-xs uppercase tracking-wide text-[var(--muted)] px-1">Search Queries</div>
         <div className="flex flex-wrap gap-2 mb-4">
           {queries.map((query, i) => {
-            const annotation = annotations.find(a => a.data.query === query);
+            const isCompleted = annotations.some(a => a.data?.query === query);
+            const annotation = annotations.find(a => a.data?.query === query);
+            
             return (
               <div
                 key={i}
-                className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition-all duration-200 break-keep
-                  ${annotation 
-                    ? "bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_15%,transparent)] to-[color-mix(in_srgb,var(--foreground)_10%,transparent)] shadow-sm border border-[color-mix(in_srgb,var(--foreground)_20%,transparent)]" 
-                    : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] border border-transparent"
-                  }`}
+                className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition-all duration-200 break-keep ${
+                  isCompleted ? "bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_15%,transparent)] to-[color-mix(in_srgb,var(--foreground)_10%,transparent)] shadow-sm border border-[color-mix(in_srgb,var(--foreground)_20%,transparent)]" 
+                  : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] border border-transparent"
+                }`}
               >
-                <div className={`p-1.5 rounded-full ${annotation ? "bg-[color-mix(in_srgb,var(--foreground)_25%,transparent)]" : "bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)]"} transition-colors flex items-center justify-center`}>
-                  {annotation ? (
+                {/* Status indicator */}
+                <div className={`p-1.5 rounded-full ${isCompleted ? "bg-[color-mix(in_srgb,var(--foreground)_25%,transparent)]" : "bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)]"} transition-colors flex items-center justify-center`}>
+                  {isCompleted ? (
                     <span className="h-3 w-3 flex items-center justify-center">✓</span>
                   ) : (
                     <div className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
                   )}
                 </div>
                 
+                {/* Query info */}
                 <div className="flex flex-col leading-tight">
                   <span className="font-medium text-sm">{query}</span>
-                  {annotation && (
+                  {annotation?.data && (
                     <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
                       <div className="flex items-center gap-1">
                         <span>{annotation.data.resultsCount}</span>
@@ -131,13 +161,17 @@ const SearchLoadingState = ({
           })}
         </div>
 
-        {/* Small image results skeleton */}
+        {/* Image results preview */}
         <div className="mt-1">
           <div className="flex items-center gap-2 mb-1.5 px-1">
             <div className="p-1 rounded-lg bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
               <ImageIcon className="h-3 w-3 text-[var(--foreground)]" strokeWidth={1.5} />
             </div>
-            <div className="h-3.5 bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-md animate-pulse w-24" />
+            {totalImages > 0 ? (
+              <span className="text-xs text-[var(--muted)]">{totalImages} images found</span>
+            ) : (
+              <div className="h-3.5 bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-md animate-pulse w-24" />
+            )}
           </div>
           
           <div className="grid grid-cols-4 gap-1 h-[60px] overflow-hidden">
@@ -145,6 +179,17 @@ const SearchLoadingState = ({
               <div key={index} className="h-full bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] rounded-md animate-pulse" />
             ))}
           </div>
+
+          {totalResults > 0 && (
+            <div className="flex justify-end mt-1">
+              <button
+                className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1"
+              >
+                <span>Show All ({totalResults})</span>
+                <ExternalLink className="h-3 w-3" strokeWidth={1.5} />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -270,10 +315,24 @@ const SearchSidebar = ({
   totalResults: number;
 }) => {
   const [expanded, setExpanded] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   
-  if (!isOpen) return null;
+  // Handle mounting for portal
+  useEffect(() => {
+    setIsMounted(true);
+    return () => setIsMounted(false);
+  }, []);
   
-  return (
+  // Validate and deduplicate images
+  const validImages = useMemo(() => {
+    return getUniqueValidImages(images);
+  }, [images]);
+  
+  const hasImages = validImages.length > 0;
+  
+  if (!isOpen || !isMounted) return null;
+  
+  const sidebarContent = (
     <>
       {/* Backdrop for mobile */}
       <div 
@@ -305,6 +364,51 @@ const SearchSidebar = ({
         
         {/* Content - using sidebar-scroll class for proper scrolling */}
         <div className="flex-1 overflow-y-auto sidebar-scroll px-4 py-4">
+          {/* Image thumbnails if available */}
+          {hasImages && (
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium flex items-center gap-1.5">
+                  <ImageIcon className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  <span>Images ({validImages.length})</span>
+                </h3>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {validImages.slice(0, 8).map((image, idx) => (
+                  <a 
+                    key={idx}
+                    href={image.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block aspect-square bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] rounded-md overflow-hidden hover:opacity-90 transition-opacity"
+                  >
+                    <img 
+                      src={image.url} 
+                      alt={image.description || ''} 
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                      loading="lazy"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  </a>
+                ))}
+              </div>
+              {validImages.length > 8 && (
+                <div className="flex justify-end mt-1">
+                  <button
+                    onClick={() => setExpanded(!expanded)}
+                    className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1"
+                  >
+                    <span>View all {validImages.length} images</span>
+                    <ExternalLink className="h-3 w-3" strokeWidth={1.5} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          
           {/* Domain groups results */}
           <div className="space-y-3">
             {domainGroups.map(([domain, results]) => (
@@ -319,6 +423,8 @@ const SearchSidebar = ({
       </div>
     </>
   );
+  
+  return createPortal(sidebarContent, document.body);
 };
 
 // Image grid component
@@ -390,19 +496,21 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
     setSelectedIndex(newIndex);
   };
   
-  // Early return after all hooks are declared
-  if (!images || images.length === 0) return null;
-  
   // Validate the images array to make sure each item has a valid URL
-  const validImages = images.filter(img => img && img.url);
-  if (validImages.length === 0) return null;
+  const validImages = useMemo(() => {
+    return getUniqueValidImages(images);
+  }, [images]);
   
   // Determine number of images to display based on total count
-  const displayCount = validImages.length <= 8 ? validImages.length : (expanded ? validImages.length : 8);
-  const displayImages = validImages.slice(0, displayCount);
+  const displayImages = useMemo(() => {
+    const count = validImages.length <= 8 ? validImages.length : (expanded ? validImages.length : 8);
+    return validImages.slice(0, count);
+  }, [validImages, expanded]);
   
-  // Return null if no valid images to display
-  if (displayImages.length === 0) return null;
+  // Return early if there are no valid images
+  if (!validImages || validImages.length === 0) {
+    return null;
+  }
   
   // Modal content to be rendered in the portal
   const modalContent = selectedImage && (
@@ -465,7 +573,7 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
           <h4 className="similar-images-title">Related Images</h4>
           
           <div className="similar-images-grid">
-            {images.filter(img => img.url !== selectedImage.url).slice(0, 12).map((image, idx) => (
+            {validImages.filter(img => img.url !== selectedImage.url).slice(0, 12).map((image, idx) => (
               <div key={idx} className="relative">
                 <img
                   src={image.url}
@@ -476,7 +584,7 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    const newIndex = images.findIndex(img => img.url === image.url);
+                    const newIndex = validImages.findIndex(img => img.url === image.url);
                     setSelectedImage(image);
                     setSelectedIndex(newIndex);
                   }}
@@ -489,16 +597,19 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
     </div>
   );
   
+  // Only show header if we have valid images
+  if (validImages.length === 0) return null;
+
+  console.log("Image Grid - valid images:", validImages.length); // Debug
+  
   return (
-    <div className=" space-y-2 px-4">
+    <div className="space-y-2 px-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
-            <ImageIcon className="h-3.5 w-3.5 text-[var(--foreground)]" strokeWidth={1.5} />
-          </div>
-          <h3 className="text-sm font-medium">Image Results ({images.length})</h3>
+          <ImageIcon className="h-3.5 w-3.5 text-[var(--foreground)]" strokeWidth={1.5} />
+          <h3 className="text-sm font-medium">Images ({validImages.length})</h3>
         </div>
-        {images.length > 8 && (
+        {validImages.length > 8 && (
           <button 
             onClick={() => setExpanded(!expanded)}
             className="flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors px-2 py-1 rounded-md bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)]"
@@ -512,8 +623,8 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
             ) : (
               <>
                 <ChevronDown className="h-3 w-3" strokeWidth={1.5} />
-                <span className="hidden sm:inline">Show More ({images.length - 8})</span>
-                <span className="sm:hidden">More ({images.length - 8})</span>
+                <span className="hidden sm:inline">Show More ({validImages.length - 8})</span>
+                <span className="sm:hidden">More ({validImages.length - 8})</span>
               </>
             )}
           </button>
@@ -755,6 +866,10 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
                 className="tetris-img"
                 loading="lazy"
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  // Hide images that fail to load
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
               />
               {image.description && (
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-2 flex items-end rounded-lg">
@@ -778,7 +893,7 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
 // Main MultiSearch component
 const MultiSearch: React.FC<{ 
   result: MultiSearchResponse | null; 
-  args: MultiSearchArgs;
+  args: MultiSearchArgs | null;
   annotations?: QueryCompletion[];
 }> = ({
   result,
@@ -788,11 +903,44 @@ const MultiSearch: React.FC<{
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
-  // Calculate all images from search results
+  // Show loading state if we have args and annotations but no results yet
+  const isLoading = !result && args && annotations.length >= 0;
+  
+  // Get the queries from args or from result if available
+  const queries = useMemo(() => {
+    if (args && args.queries) {
+      return args.queries;
+    }
+    if (result) {
+      return result.searches.map(s => s.query);
+    }
+    return [];
+  }, [args, result]);
+  
+  // Calculate total images from all search results
   const allImages = useMemo(() => {
-    return result?.searches.reduce<SearchImage[]>((acc, search) => {
-      return [...acc, ...search.images];
-    }, []) || [];
+    if (!result || !result.searches) return [];
+    
+    // Extract all valid images with source information
+    const images = result.searches.flatMap((search, searchIndex) => {
+      if (!search.images) return [];
+      
+      // First, filter valid images
+      return getUniqueValidImages(search.images)
+        .map(img => ({
+          ...img,
+          sourceQuery: search.query || 'Search Result',
+          searchIndex
+        }));
+    });
+    
+    // Remove duplicates across all searches
+    const uniqueUrls = new Set();
+    return images.filter(img => {
+      if (uniqueUrls.has(img.url)) return false;
+      uniqueUrls.add(img.url);
+      return true;
+    });
   }, [result]);
 
   // Group all results by domain
@@ -834,53 +982,56 @@ const MultiSearch: React.FC<{
   const displayImages = useMemo(() => {
     if (!result) return [];
     
-    return activeFilter
-      ? result.searches.find(s => s.query === activeFilter)?.images || []
-      : allImages;
+    if (activeFilter) {
+      // For individual query, apply the same filtering as allImages
+      const search = result.searches.find(s => s.query === activeFilter);
+      if (!search) return [];
+      
+      const validFilteredImages = getUniqueValidImages(search.images);
+      return validFilteredImages.map(img => ({
+        ...img,
+        sourceQuery: search.query || 'Search Result',
+        searchIndex: result.searches.findIndex(s => s.query === activeFilter)
+      }));
+    }
+    
+    // For "All Queries", return deduplicated images
+    return allImages;
   }, [result, activeFilter, allImages]);
 
   // Early return for loading state
-  if (!result) {
-    return <SearchLoadingState queries={args.queries} annotations={annotations} />;
+  if (isLoading) {
+    return <SearchLoadingState queries={queries} annotations={annotations} />;
+  }
+
+  // If no args or results, don't render anything
+  if (!result && (!args || !args.queries || args.queries.length === 0)) {
+    return null;
+  }
+
+  // Show loading state if we just have results without content
+  if (!result || !result.searches || result.searches.length === 0) {
+    return <SearchLoadingState queries={queries} annotations={annotations} />;
   }
 
   return (
     <div className="w-full space-y-4 my-4">
-      <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
-        <div className="flex items-center justify-between w-full mb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-[color-mix(in_srgb,var(--foreground)_7%,transparent)] to-[color-mix(in_srgb,var(--foreground)_3%,transparent)]">
-              <Globe className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-            </div>
-            <h2 className="font-medium text-left tracking-tight">Chatflix Search</h2>
-          </div>
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="rounded-full px-3.5 py-1.5 bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_7%,transparent)] to-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:from-[color-mix(in_srgb,var(--foreground)_10%,transparent)] hover:to-[color-mix(in_srgb,var(--foreground)_8%,transparent)] transition-all duration-300 flex items-center gap-2 border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] shadow-sm hover:shadow"
-          >
-            <Search className="h-3 w-3" strokeWidth={1.5} />
-            <span className="text-sm">{totalResults} Results</span>
-          </button>
-        </div>
-
+      <div className="p-4 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)]">
         {/* Query filter pills */}
-        <div className="mb-2 text-xs uppercase tracking-wide text-[var(--muted)] px-1">Search Queries</div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 mb-4">
           <div
             onClick={() => {
               setActiveFilter(null);
               setSidebarOpen(true);
             }}
-            className={`group px-3.5 py-2 rounded-lg flex-shrink-0 flex items-center gap-2 cursor-pointer transition-all duration-200
+            className={`px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all
                       ${activeFilter === null 
-                        ? "bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_15%,transparent)] to-[color-mix(in_srgb,var(--foreground)_10%,transparent)] shadow-sm translate-y-0 border border-[color-mix(in_srgb,var(--foreground)_20%,transparent)]" 
-                        : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)] border border-transparent hover:border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] hover:-translate-y-0.5 hover:shadow-sm"
+                        ? "bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_15%,transparent)] to-[color-mix(in_srgb,var(--foreground)_10%,transparent)]" 
+                        : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
                       }`}
           >
-            <div className={`p-1.5 rounded-full ${activeFilter === null ? "bg-[color-mix(in_srgb,var(--foreground)_25%,transparent)]" : "bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] group-hover:bg-[color-mix(in_srgb,var(--foreground)_15%,transparent)]"} transition-colors`}>
-              <Search className="h-3 w-3" strokeWidth={1.5} />
-            </div>
-            <span className="font-medium">All Queries</span>
+            <Search className="h-3.5 w-3.5 min-w-[14px] min-h-[14px]" strokeWidth={1.5} />
+            <span className="text-xs font-medium">All Queries</span>
           </div>
 
           {result.searches.map((search, i) => (
@@ -890,39 +1041,23 @@ const MultiSearch: React.FC<{
                 setActiveFilter(search.query === activeFilter ? null : search.query);
                 setSidebarOpen(true);
               }}
-              className={`group px-3.5 py-2 rounded-lg flex items-center gap-2 cursor-pointer transition-all duration-200 break-keep
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all break-keep
                         ${search.query === activeFilter 
-                          ? "bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_15%,transparent)] to-[color-mix(in_srgb,var(--foreground)_10%,transparent)] shadow-sm translate-y-0 border border-[color-mix(in_srgb,var(--foreground)_20%,transparent)]" 
-                          : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)] border border-transparent hover:border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] hover:-translate-y-0.5 hover:shadow-sm"
+                          ? "bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_15%,transparent)] to-[color-mix(in_srgb,var(--foreground)_10%,transparent)]" 
+                          : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
                         }`}
             >
-              <div className={`p-1.5 rounded-full ${search.query === activeFilter ? "bg-[color-mix(in_srgb,var(--foreground)_25%,transparent)]" : "bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] group-hover:bg-[color-mix(in_srgb,var(--foreground)_15%,transparent)]"} transition-colors`}>
-                <Search className="h-3 w-3" strokeWidth={1.5} />
-              </div>
-              
-              <div className="flex flex-col leading-tight">
-                <span className="font-medium text-sm">{search.query}</span>
-                <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
-                  <div className="flex items-center gap-1">
-                    <span>{search.results.length}</span>
-                    <span className="hidden sm:inline">results</span>
-                  </div>
-                  
-                  {search.images && search.images.length > 0 && (
-                    <div className="flex items-center gap-1">
-                      <ImageIcon className="h-3 w-3" strokeWidth={1.5} />
-                      <span>{search.images.length}</span>
-                      <span className="hidden sm:inline">images</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <Search className="h-3.5 w-3.5 min-w-[14px] min-h-[14px]" strokeWidth={1.5} />
+              <span className="text-xs font-medium">{search.query}</span>
+              {search.results.length > 0 && (
+                <span className="text-xs text-[var(--muted)]">({search.results.length})</span>
+              )}
             </div>
           ))}
         </div>
       </div>
       
-      {/* Right sidebar with results */}
+      {/* Right sidebar with results - now rendered at document root level via portal */}
       <SearchSidebar 
         isOpen={sidebarOpen} 
         onClose={() => setSidebarOpen(false)} 

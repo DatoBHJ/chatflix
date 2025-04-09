@@ -463,42 +463,42 @@ const ModelBarChart = ({
         >
           Context
         </button>
-        <button 
+        {/* <button 
           onClick={() => setSelectedMetric('MMLU_Pro')}
           className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'MMLU_Pro' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
         >
           Knowledge
-        </button>
-        <button 
+        </button> */}
+        {/* <button 
           onClick={() => setSelectedMetric('Coding')}
           className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'Coding' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
         >
           Coding
-        </button>
-        <button 
+        </button> */}
+        {/* <button 
           onClick={() => setSelectedMetric('MATH')}
           className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'MATH' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
         >
           Math
-        </button>
-        <button 
+        </button> */}
+        {/* <button 
           onClick={() => setSelectedMetric('GPQA')}
           className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'GPQA' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
         >
           Science
-        </button>
+        </button> */}
         <button 
           onClick={() => setSelectedMetric('multilingual')}
           className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'multilingual' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
         >
           Multilingual
         </button>
-        <button 
+        {/* <button 
           onClick={() => setSelectedMetric('HLE')}
           className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'HLE' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
         >
           Reasoning
-        </button>
+        </button> */}
       </div>
       
       <div className="text-xs text-[var(--muted)] mb-6 text-center px-10">
@@ -667,7 +667,7 @@ interface ModelSelectorProps {
   disabledModels?: string[]; // Array of model IDs that should be disabled
   disabledLevel?: string; // Level that should be disabled (legacy)
   disabledLevels?: string[]; // Array of levels that should be disabled
-  isWebSearchEnabled?: boolean; // Add prop for web search toggle
+  isAgentEnabled?: boolean; // Add prop for web search toggle
 }
 
 export function ModelSelector({ 
@@ -679,7 +679,7 @@ export function ModelSelector({
   disabledModels = [],
   disabledLevel,
   disabledLevels = [],
-  isWebSearchEnabled = false // Default to false
+  isAgentEnabled = false // Default to false
 }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -998,19 +998,19 @@ export function ModelSelector({
     const currentModelData = allModels.find(m => m.id === nextModel);
     
     if (
-      (isWebSearchEnabled && currentModelData?.isWebSearchEnabled === false) ||
+      (isAgentEnabled && currentModelData?.isAgentEnabled === false) ||
       (currentModelData?.isActivated === false)
     ) {
       // Find the first web search enabled and activated model
       const firstAvailableModel = allModels.find(model => 
-        (!isWebSearchEnabled || model.isWebSearchEnabled) && model.isActivated
+        (!isAgentEnabled || model.isAgentEnabled) && model.isActivated
       );
       
       if (firstAvailableModel) {
         setNextModel(firstAvailableModel.id);
       }
     }
-  }, [isWebSearchEnabled, nextModel, allModels, setNextModel]);
+  }, [isAgentEnabled, nextModel, allModels, setNextModel]);
 
   return (
     <div className="relative" ref={containerRef}>
@@ -1136,7 +1136,7 @@ export function ModelSelector({
                       // Check if this model is disabled (either by ID, by level, or doesn't support web search)
                       const isModelDisabled = disabledModels.includes(option.id) || 
                                              (allDisabledLevels.length > 0 && allDisabledLevels.includes(option.rateLimit.level)) ||
-                                             (isWebSearchEnabled && !option.isWebSearchEnabled) ||
+                                             (isAgentEnabled && !option.isAgentEnabled) ||
                                              !option.isActivated;
                       
                       return (

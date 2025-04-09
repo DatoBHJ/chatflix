@@ -57,6 +57,8 @@ export interface DatabaseMessage {
   chat_session_id: string;
   attachments?: Attachment[];
   experimental_attachments?: Attachment[];
+  tool_results?: any;
+  annotations?: any[];
 }
 
 // UI 타입

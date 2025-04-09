@@ -672,7 +672,7 @@ export default function AdminModelsPage() {
                           <span className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-800">Vision</span>}
                         {model.supportsPDFs && 
                           <span className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-800">PDF</span>}
-                        {model.isWebSearchEnabled && 
+                        {model.isAgentEnabled && 
                           <span className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-800">Web</span>}
                       </div>
                     </td>

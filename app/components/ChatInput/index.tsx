@@ -7,7 +7,7 @@ import { useChatInputStyles } from './ChatInputStyles';
 import { FileUploadButton, FilePreview, fileHelpers } from './FileUpload';
 import { PromptShortcuts } from './PromptShortcuts';
 import { DragDropOverlay, ErrorToast } from './DragDropOverlay';
-import { Globe } from 'lucide-react';
+import { Brain } from 'lucide-react';
 // import { InlineTrendingTerms } from './InlineTrendingTerms';
 
 export function ChatInput({
@@ -21,8 +21,8 @@ export function ChatInput({
   user,
   modelId,
   popupPosition = 'top',
-  isWebSearchEnabled,
-  setIsWebSearchEnabled
+  isAgentEnabled,
+  setisAgentEnabled
 }: ChatInputProps) {
   // 기본 상태 및 참조
   const inputRef = useRef<HTMLDivElement>(null);
@@ -726,9 +726,9 @@ export function ChatInput({
     } as React.ChangeEvent<HTMLTextAreaElement>;
     handleInputChange(event);
     
-    // Ensure web search is enabled
-    if (setIsWebSearchEnabled && !isWebSearchEnabled) {
-      setIsWebSearchEnabled(true);
+    // Ensure agent mode is enabled
+    if (setisAgentEnabled && !isAgentEnabled) {
+      setisAgentEnabled(true);
     }
     
     // Focus the input field
@@ -747,10 +747,10 @@ export function ChatInput({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {/* Only show trending terms when web search is enabled. do not erase this code even if it is not used yet */}
-        {/* {isWebSearchEnabled && (
+        {/* Only show trending terms when agent is enabled. do not erase this code even if it is not used yet */}
+        {/* {isAgentEnabled && (
           <InlineTrendingTerms 
-            isVisible={isWebSearchEnabled === true} 
+            isVisible={isAgentEnabled === true} 
             onTermClick={handleTrendingTermClick} 
           />
         )} */}
@@ -800,19 +800,19 @@ export function ChatInput({
             className="flex gap-1 items-center rounded-lg transition-all duration-300 px-2 py-1 bg-[color-mix(in_srgb,var(--foreground)_100%,transparent)]"
           >
             {/* Web Search Toggle - improved for visibility */}
-            {setIsWebSearchEnabled && (
+            {setisAgentEnabled && (
               <button
                 type="button"
-                onClick={() => setIsWebSearchEnabled(!isWebSearchEnabled)}
+                onClick={() => setisAgentEnabled(!isAgentEnabled)}
                 className={`input-btn transition-all duration-300 flex items-center justify-center relative rounded-md w-9 h-9 ${
-                  isWebSearchEnabled ? 
+                  isAgentEnabled ? 
                     'input-btn-active' : 
                     'text-background'
                 }`}
-                title={isWebSearchEnabled ? "Disable web search" : "Enable web search"}
+                title={isAgentEnabled ? "Disable Agent" : "Enable Agent"}
               >
-                <Globe className="h-4 w-4 transition-transform duration-300" strokeWidth={1.2} />
-                {isWebSearchEnabled && (
+                <Brain className="h-5 w-5 transition-transform duration-300" strokeWidth={1.2} />
+                {isAgentEnabled && (
                   <span className="absolute top-1 right-1 bg-[var(--foreground)] rounded-sm w-1.5 h-1.5"></span>
                 )}
               </button>
