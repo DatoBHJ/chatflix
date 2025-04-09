@@ -21,6 +21,7 @@ import { updateMemoryBank, initializeMemoryBank, getAllMemoryBank } from '@/util
 import { estimateTokenCount } from '@/utils/context-manager';
 import { SupabaseClient } from '@supabase/supabase-js';
 
+
 /**
  * 백그라운드에서 메모리 뱅크 업데이트를 수행하는 함수
  */

@@ -587,6 +587,7 @@ export default function AdminModelsPage() {
             borderColor: 'var(--border)'
           }}
         >
+          <option value="level0">Level 0</option>
           <option value="level1">Level 1</option>
           <option value="level2">Level 2</option>
           <option value="level3">Level 3</option>

@@ -12,7 +12,7 @@ export interface ModelConfig {
   };
   isEnabled: boolean;
   isActivated: boolean; // Whether the model is activated for selection
-  isAgentEnabled: boolean;
+  isAgentEnabled?: boolean;
   isNew?: boolean; // Mark model as new
   isHot?: boolean; // Mark model as hot/trending
   reasoning?: {
@@ -265,7 +265,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level1',
     },
-    isAgentEnabled: false,
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
@@ -289,7 +288,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level1',
     },
-    isAgentEnabled: true,
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
@@ -312,7 +310,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level4',
     },
-    isAgentEnabled: false,
     supportsPDFs: false,
     censored: true,
     isEnabled: true,
@@ -368,7 +365,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level4',
     },
-    isAgentEnabled: true,
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
@@ -393,7 +389,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level1',
     },
-    isAgentEnabled: false,
     supportsPDFs: false,
     reasoning: {
       enabled: true,
@@ -424,7 +419,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level1',
     },
-    isAgentEnabled: false,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -449,7 +443,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level3',
     },
-    isAgentEnabled: false,
     supportsPDFs: false,
     reasoning: {
       enabled: true,
@@ -480,7 +473,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level3',
     },
-    isAgentEnabled: false,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -528,7 +520,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level2',
     },
-    isAgentEnabled: true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -550,7 +541,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level5',
     },
-    isAgentEnabled: false,
     supportsPDFs: false,
     isHot: true,
     isEnabled: true,
@@ -576,7 +566,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       "level": "level5",
     },
     // isHot: true,
-    isAgentEnabled: false,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -601,7 +590,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     "rateLimit": {
       "level": "level5",
     },
-    isAgentEnabled: false,
     supportsPDFs: false,
     isEnabled: true,
     // isHot: true,
@@ -626,7 +614,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level1',
     },
-    isAgentEnabled: true,
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
@@ -649,7 +636,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level2',
     },
-    isAgentEnabled: false,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -692,7 +678,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level2',
     },
-    isAgentEnabled: false,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -723,7 +708,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     isActivated: true,
     supportsPDFs: false,
-    isAgentEnabled: false,
     contextWindow: 131000,
     tps: 399,
     intelligenceIndex: 58,

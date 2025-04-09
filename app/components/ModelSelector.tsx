@@ -689,7 +689,9 @@ export function ModelSelector({
 
   // Get all models and filter based on web search enabled state
   const allModels = getEnabledModels();
-  const MODEL_OPTIONS = allModels; // Show all models regardless of web search support
+  const MODEL_OPTIONS = isAgentEnabled 
+    ? allModels.filter(model => model.isAgentEnabled) 
+    : allModels;
 
   // Combine disabledLevel and disabledLevels for backward compatibility
   const allDisabledLevels = [...disabledLevels];
@@ -1136,7 +1138,6 @@ export function ModelSelector({
                       // Check if this model is disabled (either by ID, by level, or doesn't support web search)
                       const isModelDisabled = disabledModels.includes(option.id) || 
                                              (allDisabledLevels.length > 0 && allDisabledLevels.includes(option.rateLimit.level)) ||
-                                             (isAgentEnabled && !option.isAgentEnabled) ||
                                              !option.isActivated;
                       
                       return (

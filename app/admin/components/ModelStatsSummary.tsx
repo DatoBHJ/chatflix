@@ -120,11 +120,12 @@ export default function ModelStatsSummary() {
                   <div 
                     className="w-2 h-2 rounded-full mr-2"
                     style={{ 
-                      backgroundColor: level === 'LEVEL1' ? '#4ade80' : 
-                                      level === 'LEVEL2' ? '#22d3ee' : 
-                                      level === 'LEVEL3' ? '#a78bfa' : 
-                                      level === 'LEVEL4' ? '#fb923c' : 
-                                      level === 'LEVEL5' ? '#f87171' : '#94a3b8'
+                      backgroundColor: level === 'LEVEL0' ? '#4ade80' : 
+                                      level === 'LEVEL1' ? '#22d3ee' : 
+                                      level === 'LEVEL2' ? '#a78bfa' : 
+                                      level === 'LEVEL3' ? '#fb923c' : 
+                                      level === 'LEVEL4' ? '#f87171' : 
+                                      level === 'LEVEL5' ? '#94a3b8' : '#94a3b8'
                     }}
                   ></div>
                   <span className="uppercase">{level}</span>
