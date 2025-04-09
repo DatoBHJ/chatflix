@@ -8,7 +8,7 @@ interface RateLimitDetailsProps {
 
 export default function RateLimitDetails({ level = 'level3' }: RateLimitDetailsProps) {
   // Handle invalid level
-  if (!['level1', 'level2', 'level3', 'level4', 'level5'].includes(level)) {
+  if (!['level0', 'level1', 'level2', 'level3', 'level4', 'level5'].includes(level)) {
     return <div className="text-red-500">Invalid rate limit level: {level}</div>;
   }
 
