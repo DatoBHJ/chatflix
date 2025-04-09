@@ -17,8 +17,8 @@ export function getPolarConfig(): PolarConfig {
   const isDevelopment = process.env.NODE_ENV === 'development';
   
   // // Log environment variables for debugging
-  // console.log('Environment:', process.env.NODE_ENV);
-  // console.log('Access Token:', isDevelopment ? process.env.POLAR_DEV_ACCESS_TOKEN : process.env.POLAR_PROD_ACCESS_TOKEN);
+  console.log('Environment:', process.env.NODE_ENV);
+  console.log('Access Token:', isDevelopment ? process.env.POLAR_DEV_ACCESS_TOKEN : process.env.POLAR_PROD_ACCESS_TOKEN);
   
   if (isDevelopment) {
     const config = {
