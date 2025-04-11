@@ -276,6 +276,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level1',
     },
     supportsPDFs: true,
+    isNew: true,
     isEnabled: true,
     isActivated: true,
     contextWindow: 1024000,
