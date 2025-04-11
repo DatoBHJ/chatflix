@@ -281,13 +281,9 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isActivated: true,
     contextWindow: 1024000,
     isAgentEnabled: true,
-    // tps: 195,
-    // intelligenceIndex: 48,
-    // MMLU_Pro: 86,
-    // Coding: 32,
-    // MATH: 94,
-    // GPQA: 83,
-    // HLE: 17.7
+    tps: 159,
+    intelligenceIndex: 68,
+
   },
   {
     id: 'gemini-2.0-flash',
@@ -307,11 +303,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 1024000,
     tps: 258,
     intelligenceIndex: 48,
-    MMLU_Pro: 78,
-    Coding: 32,
-    MATH: 63,
-    GPQA: 62,
-    HLE: 5.3
   },
   {
     id: 'claude-3-7-sonnet-20250219',
