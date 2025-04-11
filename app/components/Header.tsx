@@ -47,7 +47,7 @@ export function Header({ isSidebarOpen, onSidebarToggle, showBackButton, user }:
             </button>
           )}
           
-          <div className="hidden md:flex items-center gap-2 cursor-pointer" onClick={() => router.push('/user-insights')}>
+          {/* <div className="hidden md:flex items-center gap-2 cursor-pointer" onClick={() => router.push('/user-insights')}>
             {profileImage ? (
               <div className="w-7 h-7 rounded-full overflow-hidden relative">
                 <Image 
@@ -64,7 +64,7 @@ export function Header({ isSidebarOpen, onSidebarToggle, showBackButton, user }:
               </div>
             )}
             <span className="text-sm font-medium">{userName}</span>
-          </div>
+          </div> */}
         </div>
 
         <div className="flex items-center gap-5">
