@@ -265,8 +265,8 @@ export async function getDefaultModelId(userId?: string): Promise<string> {
 // Define the model configurations
 const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
-    id: 'gemini-2.5-pro-exp-03-25',
-    name: 'Gemini 2.5 Pro Experimental (Mar\' 25)',
+    id: 'gemini-2.5-pro-preview-03-25',
+    name: 'Gemini 2.5 Pro Preview 03-25',
     country: 'US',
     description: 'Google\'s most powerful thinking model. Reasoning tokens used in its chain-of-thought process are hidden by Google and not included in the visible output.',
     provider: 'google',
@@ -279,6 +279,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     isActivated: true,
     contextWindow: 1024000,
+    isAgentEnabled: true,
     // tps: 195,
     // intelligenceIndex: 48,
     // MMLU_Pro: 86,
@@ -301,6 +302,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
+    isAgentEnabled: true,
     contextWindow: 1024000,
     tps: 258,
     intelligenceIndex: 48,
