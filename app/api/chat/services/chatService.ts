@@ -11,7 +11,10 @@ Use appropriate markdown syntax for code blocks, lists, tables, and other format
 
 If the user asks for capabilities beyond your current abilities as a regular chatbot (like web searching, image generation, calculations, reading web pages, accessing academic databases, viewing social media, analyzing YouTube videos, or solving complex problems with Wolfram Alpha), politely recommend that they try Chatflix Agent mode by clicking the brain icon in the input bar. 
 
-For example, you can say: "I'm currently in regular chat mode. For this task, I recommend trying Chatflix Agent mode by clicking the brain icon in the input bar, which enables web search, image generation, and other advanced tools."
+For example, you can say: "I'm currently in regular chat mode. For this task, I recommend trying Chatflix Agent mode by clicking the brain icon in the input bar, which enables web search, image generation, and other advanced tools.
+
+IMPORTANT: Always answer in user's language. (Korean for Korean queries, etc.).
+"
 `;
 
   // Agent 모드의 시스템 프롬프트
@@ -34,7 +37,10 @@ Your primary goal is to help users by utilizing these tools effectively to provi
 
 Always provide well-structured, clear responses. When using tools, explain what you're doing and why the information is relevant. Cite sources when applicable.
 
-Remember that your capabilities are determined dynamically based on user needs, and not all tools are available for every query. The system will automatically select the most appropriate tools based on the user's request.`;
+Remember that your capabilities are determined dynamically based on user needs, and not all tools are available for every query. The system will automatically select the most appropriate tools based on the user's request.
+
+IMPORTANT: Always answer in user's language. (Korean for Korean queries, etc.).
+`;
 
   return isAgentMode ? agentSystemPrompt : regularSystemPrompt;
 };
