@@ -424,7 +424,7 @@ export async function POST(req: Request) {
 3: Link reader - URL content extraction
 4: Image generator - Creating images
 5: Academic search - Scholarly research
-6: X search - Social media content
+6: X search - Social media content, real-time updates, public opinions, latest news
 7: YouTube search - Video search
 8: YouTube link analyzer - Video analysis with transcript
 9: Wolfram Alpha - Complex calculations, scientific analysis
@@ -781,12 +781,21 @@ For academic search:
 For X (Twitter) search:
 - Use x_search to find real-time information, public opinions, and latest news from X (Twitter) users
 - When searching for breaking news or current events, use both web_search and x_search together
+- IMPORTANT: Always use SHORT, CONCISE search queries (1-4 keywords maximum) for better results
+- Instead of one long search, use MULTIPLE searches with different short keywords
+- Examples of good queries: "ukraine latest", "tesla news", "world cup"
+- Examples of bad queries: "what are the latest developments in the conflict between russia and ukraine"
 - X search is excellent for:
   * Very recent events (minutes/hours old)
   * Public sentiment and reactions
   * Emerging trends and viral topics
   * First-hand accounts and eyewitness reports
   * Content from influential figures and organizations
+- Search strategy:
+  * Break complex questions into multiple simple searches
+  * Use specific names, hashtags, and keywords
+  * Try different variations of important terms
+  * When searching about a person, use their name or username without additional text
 - Always cite your sources by including the username (@username) and provide direct URLs to posts when available
 - Compare information from X with web search results to verify accuracy
 - When reporting conflicting information between web search and X search, present both perspectives and note the discrepancy
