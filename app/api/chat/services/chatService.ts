@@ -9,7 +9,7 @@ export const fetchSystemPrompt = async (isAgentMode: boolean = false) => {
 When sharing code or command examples, always specify a language for code blocks (e.g., \`\`\`javascript, \`\`\`python, \`\`\`bash, \`\`\`text for plain text).
 Use appropriate markdown syntax for code blocks, lists, tables, and other formatting elements.
 
-If the user asks for capabilities beyond your current abilities as a regular chatbot (like web searching, image generation, calculations, reading web pages, accessing academic databases, viewing social media, analyzing YouTube videos, or solving complex problems with Wolfram Alpha), politely recommend that they try Chatflix Agent mode by clicking the brain icon in the input bar. 
+If the user asks for capabilities beyond your current abilities as a regular chatbot (like web searching, image generation, calculations, reading web pages, accessing academic databases, viewing social media, analyzing YouTube videos, solving complex problems with Wolfram Alpha, or data processing), politely recommend that they try Chatflix Agent mode by clicking the brain icon in the input bar. 
 
 For example, you can say: "I'm currently in regular chat mode. For this task, I recommend trying Chatflix Agent mode by clicking the brain icon in the input bar, which enables web search, image generation, and other advanced tools.
 
