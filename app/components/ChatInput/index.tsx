@@ -801,7 +801,7 @@ export function ChatInput({
             ref={inputContainerRef}
             className="flex gap-1 items-center rounded-lg transition-all duration-300 px-2 py-1 bg-[color-mix(in_srgb,var(--foreground)_100%,transparent)]"
           >
-            {setisAgentEnabled && (
+            {/* {setisAgentEnabled && (
               <button
                 type="button"
                 onClick={() => setisAgentEnabled(!isAgentEnabled)}
@@ -824,7 +824,7 @@ export function ChatInput({
                   <span className="absolute top-1 right-1 bg-[var(--foreground)] rounded-sm w-1.5 h-1.5"></span>
                 )}
               </button>
-            )}
+            )} */}
 
             {/* File upload button */}
             <FileUploadButton 
