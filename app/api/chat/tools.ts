@@ -5,6 +5,8 @@ import { deduplicateResults, normalizeUrl, getPageTitle } from './utils/toolers'
 import * as mathjs from 'mathjs';
 import Exa from 'exa-js';
 import dotenv from 'dotenv';
+import * as papa from 'papaparse';  // Import PapaParse for CSV processing
+import { processPythonData, isPythonDataProcessorAvailable } from './data-processor-python';
 
 // Environment variables
 dotenv.config({
@@ -91,8 +93,108 @@ const toolDefinitions = {
       units: 'Unit system to use for results (metric or imperial).',
       domain: 'Academic domain to optimize the query for (math, physics, chemistry, etc.).'
     }
+  },
+  dataProcessor: {
+    description: 'Process CSV or JSON data for analysis. Can handle parsing, filtering, transforming and extracting insights from structured data.',
+    parameters: {
+      data: 'The CSV or JSON data string to process. For CSV, include headers. For JSON, provide valid JSON string or array.',
+      format: 'The format of the input data ("csv" or "json").',
+      operation: 'The operation to perform: "parse" (convert to object), "filter" (select rows/items), "aggregate" (summarize data), "transform" (modify structure), or "analyze" (extract insights).',
+      options: 'Additional options as a JSON object: for filter: {field, value, operator}, for aggregate: {groupBy, metrics}, for transform: {select, rename}, for analyze: {insights}.'
+    }
   }
 };
+
+// Store Python availability status
+let pythonProcessorAvailable: boolean | null = null;
+
+// Check Python availability only once at the beginning
+async function checkPythonAvailability() {
+  if (pythonProcessorAvailable === null) {
+    pythonProcessorAvailable = await isPythonDataProcessorAvailable();
+    console.log(`Python data processor ${pythonProcessorAvailable ? 'is' : 'is not'} available`);
+  }
+  return pythonProcessorAvailable;
+}
+
+// Initialize the check (don't wait for result)
+checkPythonAvailability();
+
+// Helper function to determine field types from a dataset
+function getFieldTypes(data: any[]): Record<string, 'number' | 'string' | 'boolean' | 'date' | 'mixed' | 'null'> {
+  if (!data || data.length === 0) return {};
+  
+  const fieldTypes: Record<string, 'number' | 'string' | 'boolean' | 'date' | 'mixed' | 'null'> = {};
+  
+  // Get all field names from the first record
+  const fields = Object.keys(data[0]);
+  
+  fields.forEach(field => {
+    // Get all values for this field
+    const values = data.map(item => item[field]);
+    
+    // Determine the field type
+    fieldTypes[field] = getFieldType(values);
+  });
+  
+  return fieldTypes;
+}
+
+// Helper function to determine field type from values
+function getFieldType(values: any[]): 'number' | 'string' | 'boolean' | 'date' | 'mixed' | 'null' {
+  if (values.length === 0) return 'null';
+  
+  const types = values.map(v => {
+    if (v === null || v === undefined) return 'null';
+    if (typeof v === 'number') return 'number';
+    if (typeof v === 'boolean') return 'boolean';
+    if (typeof v === 'string') {
+      // Check if it's a date string
+      if (!isNaN(Date.parse(v))) return 'date';
+      return 'string';
+    }
+    return typeof v;
+  });
+  
+  // Filter out null values for type determination
+  const nonNullTypes = types.filter(t => t !== 'null');
+  if (nonNullTypes.length === 0) return 'null';
+  
+  // Check if all non-null values are the same type
+  const uniqueTypes = [...new Set(nonNullTypes)];
+  if (uniqueTypes.length === 1) return uniqueTypes[0] as any;
+  
+  return 'mixed';
+}
+
+// Helper function to calculate correlation coefficient
+function calculateCorrelation(x: number[], y: number[]): number {
+  // Ensure arrays are of the same length
+  const n = Math.min(x.length, y.length);
+  if (n === 0) return 0;
+  
+  // Calculate means
+  const xMean = x.reduce((sum, val) => sum + val, 0) / n;
+  const yMean = y.reduce((sum, val) => sum + val, 0) / n;
+  
+  // Calculate correlation
+  let numerator = 0;
+  let xSS = 0;
+  let ySS = 0;
+  
+  for (let i = 0; i < n; i++) {
+    const xDiff = x[i] - xMean;
+    const yDiff = y[i] - yMean;
+    numerator += xDiff * yDiff;
+    xSS += xDiff * xDiff;
+    ySS += yDiff * yDiff;
+  }
+  
+  // Avoid division by zero
+  if (xSS === 0 || ySS === 0) return 0;
+  
+  return numerator / Math.sqrt(xSS * ySS);
+}
 
 // Web Search 도구 생성 함수
 export function createWebSearchTool(processMessages: any[], dataStream: any) {
@@ -1689,4 +1791,95 @@ export function createWolframAlphaUltimateTool(dataStream: any) {
 
   // Return the tool with query results
   return Object.assign(wolframAlphaUltimateTool, { queryResults });
+}
+
+// Data Processing Tool creation function
+export function createDataProcessorTool(dataStream: any) {
+  // 처리 결과를 저장할 배열
+  const processingResults: any[] = [];
+  
+  const dataProcessorTool = tool({
+    description: toolDefinitions.dataProcessor.description,
+    parameters: z.object({
+      data: z.string().describe(toolDefinitions.dataProcessor.parameters.data),
+      format: z.enum(['csv', 'json']).describe(toolDefinitions.dataProcessor.parameters.format),
+      operation: z.enum(['parse', 'filter', 'aggregate', 'transform', 'analyze']).describe(toolDefinitions.dataProcessor.parameters.operation),
+      options: z.any().optional().describe(toolDefinitions.dataProcessor.parameters.options),
+    }),
+    execute: async ({ data, format, operation, options }) => {
+      console.log(`Data processor executing ${operation} operation on ${format} data...`);
+      const startTime = Date.now();
+      
+      try {
+        // Python 처리기 사용 가능 여부 확인
+        const isPythonAvailable = await checkPythonAvailability();
+        
+        if (!isPythonAvailable) {
+          throw new Error('Python data processor is not available. Please install pandas and numpy.');
+        }
+        
+        console.log('Using Python data processor for high-performance data processing');
+        
+        // Python 처리기로 데이터 처리
+        const result = await processPythonData({
+          data,
+          format: format as 'csv' | 'json',
+          operation: operation as 'parse' | 'filter' | 'aggregate' | 'transform' | 'analyze',
+          options: options || {}
+        });
+        
+        // 결과 저장
+        processingResults.push(result);
+        
+        // 클라이언트에 처리 완료 알림 전송
+        dataStream.writeMessageAnnotation({
+          type: 'data_processing_complete',
+          data: {
+            operation,
+            format,
+            timestamp: new Date().toISOString(),
+            result,
+            executionTimeMs: Date.now() - startTime
+          }
+        });
+        
+        // 결과 반환
+        return result;
+      } catch (error) {
+        console.error('Data processor error:', error);
+        
+        // 에러 결과 생성
+        const errorResult = {
+          timestamp: new Date().toISOString(),
+          operation,
+          format,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          summary: {
+            executionTimeMs: Date.now() - startTime
+          }
+        };
+        
+        // 에러 저장
+        processingResults.push(errorResult);
+        
+        // 클라이언트에 에러 알림 전송
+        dataStream.writeMessageAnnotation({
+          type: 'data_processing_complete',
+          data: {
+            operation,
+            format,
+            timestamp: new Date().toISOString(),
+            error: error instanceof Error ? error.message : 'Unknown error',
+            executionTimeMs: Date.now() - startTime
+          }
+        });
+        
+        // 에러 결과 반환
+        return errorResult;
+      }
+    }
+  });
+  
+  // 데이터 처리 도구와 처리 결과 리스트를 함께 반환
+  return Object.assign(dataProcessorTool, { processingResults });
 }

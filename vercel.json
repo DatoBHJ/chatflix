@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "app/api/chat/**/*.ts": {
+      "runtime": "nodejs18.x"
+    }
+  },
+  "buildCommand": "pip install -r requirements.txt && next build",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "outputDirectory": ".next"
+} 

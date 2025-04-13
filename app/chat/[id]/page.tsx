@@ -21,111 +21,6 @@ import { VirtuosoHandle } from 'react-virtuoso';
 import VirtuosoWrapper from '@/app/components/VirtuosoWrapper';
 import Canvas from '@/app/components/Canvas';
 
-// Define data type structures for annotations
-type AgentReasoningData = {
-  reasoning: string;
-  needsWebSearch: boolean;
-  needsCalculator: boolean;
-  needsLinkReader: boolean;
-  needsImageGenerator: boolean;
-  needsAcademicSearch: boolean;
-  needsXSearch: boolean;
-  needsYouTubeSearch?: boolean;
-  needsYouTubeLinkAnalyzer?: boolean;
-  timestamp: string;
-  isComplete?: boolean;
-};
-
-type AgentReasoningProgressData = {
-  reasoning: string;
-  needsWebSearch: boolean;
-  needsCalculator: boolean;
-  needsLinkReader: boolean;
-  needsImageGenerator: boolean;
-  needsAcademicSearch: boolean;
-  needsXSearch: boolean;
-  needsYouTubeSearch?: boolean;
-  needsYouTubeLinkAnalyzer?: boolean;
-  timestamp: string;
-  isComplete: boolean;
-};
-
-// Define data type for X search results
-type XSearchData = {
-  xResults: {
-    query: string;
-    timestamp?: string;
-    results: {
-      text: string;
-      username: string;
-      url: string;
-      date?: string;
-    }[];
-  }[];
-};
-
-// Define data type for YouTube search results
-type YouTubeSearchData = {
-  youtubeResults: {
-    query: string;
-    timestamp?: string;
-    results: {
-      videoId: string;
-      url: string;
-      details?: {
-        title?: string;
-        description?: string;
-        channelName?: string;
-        publishDate?: string;
-        viewCount?: number;
-        duration?: string;
-        thumbnailUrl?: string;
-      };
-      captions?: string;
-      timestamps?: {
-        time: string;
-        text: string;
-      }[];
-    }[];
-  }[];
-};
-
-// Define data type for YouTube link analysis results
-type YouTubeLinkAnalysisData = {
-  analysisResults: {
-    url: string;
-    videoId: string;
-    timestamp: string;
-    details?: {
-      title?: string;
-      description?: string;
-      author?: string;
-      publishedTime?: string;
-      views?: number;
-      likes?: number;
-      category?: string;
-      duration?: number;
-    };
-    channel?: {
-      name?: string;
-      id?: string;
-      subscribers?: string;
-      link?: string;
-    };
-    transcript?: {
-      language: string;
-      segments: {
-        timestamp: string;
-        start: number;
-        duration: number;
-        text: string;
-      }[];
-      fullText: string;
-    };
-    transcriptError?: string;
-    error?: string;
-  }[];
-};
 
 // Define data type for Wolfram Alpha results
 type WolframAlphaData = {
@@ -145,6 +40,18 @@ type WolframAlphaData = {
   }[];
   error?: string;
   timing?: string;
+};
+
+// Define data type for Data Processor results
+type DataProcessorData = {
+  processingResults: Array<{
+    operation: string; // 'parse' | 'filter' | 'aggregate' | 'transform' | 'analyze'
+    format: string; // 'csv' | 'json'
+    timestamp: string;
+    data: any;
+    summary: any;
+    error?: string;
+  }>;
 };
 
 // Define a type for the annotations
@@ -1354,6 +1261,7 @@ export default function Chat({ params }: PageProps) {
       needsYouTubeSearch: Boolean(data.needsYouTubeSearch),
       needsYouTubeLinkAnalyzer: Boolean(data.needsYouTubeLinkAnalyzer),
       needsWolframAlpha: Boolean(data.needsWolframAlpha),
+      needsDataProcessor: Boolean(data.needsDataProcessor),
       timestamp: data.timestamp,
       isComplete: data.isComplete ?? true
     });
@@ -1507,6 +1415,113 @@ export default function Chat({ params }: PageProps) {
     }
     
     // 일반 모드에서는 항상 null 반환 (UI 표시 안함)
+    return null;
+  };
+  
+  // Extract data processor results from message annotations and tool_results
+  const getDataProcessorData = (message: Message): DataProcessorData | null => {
+    // 1. Check stored results in database (tool_results.dataProcessorResults)
+    if ((message as any).tool_results?.dataProcessorResults) {
+      const processingResults = (message as any).tool_results.dataProcessorResults;
+      if (Array.isArray(processingResults) && processingResults.length > 0) {
+        return { processingResults };
+      }
+    }
+    
+    // 2. Check snake case variant (data_processor_results)
+    if ((message as any).tool_results?.data_processor_results) {
+      const processingResults = (message as any).tool_results.data_processor_results;
+      if (Array.isArray(processingResults) && processingResults.length > 0) {
+        return { processingResults };
+      }
+    }
+    
+    // 3. Check if stored directly in tools object
+    if ((message as any).tool_results?.tools?.data_processor?.processingResults) {
+      const processingResults = (message as any).tool_results.tools.data_processor.processingResults;
+      if (Array.isArray(processingResults) && processingResults.length > 0) {
+        return { processingResults };
+      }
+    }
+    
+    // 4. Check real-time annotations
+    if (message.annotations && message.annotations.length > 0) {
+      // Check for completed data processing annotations
+      const dataProcessorAnnotations = (message.annotations as any[])
+        .filter(a => a && typeof a === 'object' && a.type === 'data_processing_complete')
+        .map(a => a.data)
+        .filter(Boolean);
+      
+      if (dataProcessorAnnotations.length > 0) {
+        // Convert annotation format to processingResults format
+        const processingResults = dataProcessorAnnotations.map(annotation => {
+          // Convert to consistent format
+          return {
+            operation: annotation.operation || 'parse',
+            format: annotation.format || 'json',
+            timestamp: annotation.timestamp || new Date().toISOString(),
+            data: annotation.result?.data || annotation.data || {},
+            summary: annotation.result?.summary || annotation.summary || {},
+            error: annotation.error || undefined
+          };
+        });
+        
+        return { processingResults };
+      }
+      
+      // Check for annotations of operations in progress
+      const startAnnotations = (message.annotations as any[])
+        .filter(a => a && typeof a === 'object' && a.type === 'data_processing_start')
+        .map(a => a.data)
+        .filter(Boolean);
+      
+      if (startAnnotations.length > 0) {
+        // Include only information about started operations
+        const processingResults = startAnnotations.map(annotation => ({
+          operation: annotation.operation || 'parse',
+          format: annotation.format || 'json',
+          timestamp: annotation.timestamp || new Date().toISOString(),
+          data: {}, // Use empty object instead of null
+          summary: { status: 'processing' },
+          error: undefined
+        }));
+        
+        return { processingResults };
+      }
+    }
+    
+    // 5. Check for tool calls in parts object
+    if (message.parts && message.parts.length > 0) {
+      const dataProcessorInvocations = message.parts
+        .filter(part => part?.type === 'tool-invocation' && 
+                (part as any).toolInvocation?.toolName === 'data_processor')
+        .map(part => {
+          const invocation = (part as any).toolInvocation;
+          try {
+            const args = invocation.args ? JSON.parse(JSON.stringify(invocation.args)) : {};
+            const result = invocation.result ? JSON.parse(JSON.stringify(invocation.result)) : {};
+            
+            return {
+              operation: args.operation || 'parse',
+              format: args.format || 'json',
+              timestamp: result.timestamp || new Date().toISOString(),
+              data: result.data || {},
+              summary: result.summary || {},
+              error: result.error || undefined
+            };
+          } catch (e) {
+            console.error('Error parsing data processor invocation:', e);
+            return null;
+          }
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+      
+      if (dataProcessorInvocations.length > 0) {
+        return { processingResults: dataProcessorInvocations };
+      }
+    }
+    
+    // No data processor results
     return null;
   };
   
@@ -1705,10 +1720,11 @@ export default function Chat({ params }: PageProps) {
                 const youTubeSearchData = getYouTubeSearchData(message);
                 const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(message);
                 const wolframAlphaData = getWolframAlphaData(message);
+                const dataProcessorData = getDataProcessorData(message);
                 
                 return (
                   <>
-                    {(webSearchData || mathCalculationData || linkReaderData || imageGeneratorData || academicSearchData || agentReasoningData || agentReasoningProgress.length > 0 || xSearchData || youTubeSearchData || youTubeLinkAnalysisData || wolframAlphaData) && (
+                    {(webSearchData || mathCalculationData || linkReaderData || imageGeneratorData || academicSearchData || agentReasoningData || agentReasoningProgress.length > 0 || xSearchData || youTubeSearchData || youTubeLinkAnalysisData || wolframAlphaData || dataProcessorData) && (
                       <Canvas 
                         webSearchData={webSearchData}
                         mathCalculationData={mathCalculationData}
@@ -1721,6 +1737,7 @@ export default function Chat({ params }: PageProps) {
                         youTubeSearchData={youTubeSearchData}
                         youTubeLinkAnalysisData={youTubeLinkAnalysisData}
                         wolframAlphaData={wolframAlphaData}
+                        dataProcessorData={dataProcessorData}
                       />
                     )}
                     <MessageComponent
@@ -1754,9 +1771,10 @@ export default function Chat({ params }: PageProps) {
               const youTubeSearchData = getYouTubeSearchData(message);
               const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(message);
               const wolframAlphaData = getWolframAlphaData(message);
+              const dataProcessorData = getDataProcessorData(message);
               return (
                 <div key={message.id}>
-                  {(webSearchData || mathCalculationData || linkReaderData || imageGeneratorData || academicSearchData || agentReasoningData || agentReasoningProgress.length > 0 || xSearchData || youTubeSearchData || youTubeLinkAnalysisData || wolframAlphaData) && (
+                  {(webSearchData || mathCalculationData || linkReaderData || imageGeneratorData || academicSearchData || agentReasoningData || agentReasoningProgress.length > 0 || xSearchData || youTubeSearchData || youTubeLinkAnalysisData || wolframAlphaData || dataProcessorData) && (
                     <Canvas 
                       webSearchData={webSearchData}
                       mathCalculationData={mathCalculationData}
@@ -1769,6 +1787,7 @@ export default function Chat({ params }: PageProps) {
                       youTubeSearchData={youTubeSearchData}
                       youTubeLinkAnalysisData={youTubeLinkAnalysisData}
                       wolframAlphaData={wolframAlphaData}
+                      dataProcessorData={dataProcessorData}
                     />
                   )}
                   <MessageComponent

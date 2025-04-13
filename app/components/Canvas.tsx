@@ -2,12 +2,13 @@ import React, { useState, useMemo, useEffect, memo, useRef } from 'react';
 import MultiSearch from './MultiSearch';
 import MathCalculation from './MathCalculation';
 import LinkReader from './LinkReader';
-import { ChevronUp, ChevronDown, Brain, Link2, Image as ImageIcon, AlertTriangle, X, ChevronLeft, ChevronRight, ExternalLink, Search, Calculator, BookOpen, FileSearch, Youtube } from 'lucide-react';
+import { ChevronUp, ChevronDown, Brain, Link2, Image as ImageIcon, AlertTriangle, X, ChevronLeft, ChevronRight, ExternalLink, Search, Calculator, BookOpen, FileSearch, Youtube, Database } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { Tweet } from 'react-tweet';
 import { motion } from 'framer-motion';
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import DataProcessorCanvas from './data-processor-canvas';
 
 // Wolfram Alpha logo component
 const WolframAlphaLogo = ({ size = 24, className = "", strokeWidth = 1.5 }: { size?: number, className?: string, strokeWidth?: number }) => {
@@ -416,6 +417,8 @@ type CanvasProps = {
     needsXSearch?: boolean;
     needsYouTubeSearch?: boolean;
     needsYouTubeLinkAnalyzer?: boolean;
+    needsWolframAlpha?: boolean;
+    needsDataProcessor?: boolean;
     timestamp: string;
     isComplete?: boolean;
   } | null;
@@ -429,6 +432,8 @@ type CanvasProps = {
     needsXSearch?: boolean;
     needsYouTubeSearch?: boolean;
     needsYouTubeLinkAnalyzer?: boolean;
+    needsWolframAlpha?: boolean;
+    needsDataProcessor?: boolean;
     timestamp: string;
     isComplete: boolean;
   }[];
@@ -540,6 +545,16 @@ type CanvasProps = {
     }[];
     error?: string;
     timing?: string;
+  } | null;
+  dataProcessorData?: {
+    processingResults: Array<{
+      operation: string;
+      format: string;
+      timestamp: string;
+      data: any;
+      summary: any;
+      error?: string;
+    }>;
   } | null;
 };
 
@@ -681,10 +696,11 @@ export default function Canvas({
   xSearchData, 
   youTubeSearchData, 
   youTubeLinkAnalysisData,
-  wolframAlphaData
+  wolframAlphaData,
+  dataProcessorData
 }: CanvasProps) {
   // Don't render if there's no data to display
-  if (!webSearchData && !mathCalculationData && !linkReaderData && !agentReasoningData && agentReasoningProgress.length === 0 && !imageGeneratorData && !academicSearchData && !xSearchData && !youTubeSearchData && !youTubeLinkAnalysisData && !wolframAlphaData) return null;
+  if (!webSearchData && !mathCalculationData && !linkReaderData && !agentReasoningData && agentReasoningProgress.length === 0 && !imageGeneratorData && !academicSearchData && !xSearchData && !youTubeSearchData && !youTubeLinkAnalysisData && !wolframAlphaData && !dataProcessorData) return null;
 
   // Manage expanded/collapsed state for each section
   const [webSearchExpanded, setWebSearchExpanded] = useState(true);
@@ -696,6 +712,7 @@ export default function Canvas({
   const [xSearchExpanded, setXSearchExpanded] = useState(true);
   const [youTubeSearchExpanded, setYouTubeSearchExpanded] = useState(true);
   const [youTubeLinkAnalysisExpanded, setYouTubeLinkAnalysisExpanded] = useState(true);
+  const [dataProcessorExpanded, setDataProcessorExpanded] = useState(true);
   
   // State for image viewer modal
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(-1);
@@ -713,6 +730,8 @@ export default function Canvas({
     needsXSearch?: boolean;
     needsYouTubeSearch?: boolean;
     needsYouTubeLinkAnalyzer?: boolean;
+    needsWolframAlpha?: boolean;
+    needsDataProcessor?: boolean;
     timestamp: string;
     isComplete: boolean;
   } | null>(null);
@@ -907,6 +926,15 @@ export default function Canvas({
                   }`}>
                     <WolframAlphaLogo size={14} className={currentReasoning.needsWolframAlpha ? "text-green-500" : "text-[var(--muted)]"} strokeWidth={1.5} />
                     <span className={`text-xs font-medium ${currentReasoning.needsWolframAlpha ? "text-green-500" : ""}`}>Wolfram Alpha</span>
+                  </div>
+                  
+                  <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all ${
+                    currentReasoning.needsDataProcessor 
+                      ? "bg-gradient-to-r from-green-500/20 to-green-500/10 shadow-sm border border-green-500/20" 
+                      : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] border border-transparent"
+                  }`}>
+                    <Database size={14} className={currentReasoning.needsDataProcessor ? "text-green-500" : "text-[var(--muted)]"} strokeWidth={1.5} />
+                    <span className={`text-xs font-medium ${currentReasoning.needsDataProcessor ? "text-green-500" : ""}`}>Data Processor</span>
                   </div>
         
                 </div>
@@ -1337,6 +1365,32 @@ export default function Canvas({
 
       {wolframAlphaData && (
         <WolframAlphaResults data={wolframAlphaData} />
+      )}
+      
+      {/* Data Processor Results */}
+      {dataProcessorData && (
+        <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
+          <div 
+            className="flex items-center justify-between w-full mb-4 cursor-pointer"
+            onClick={() => setDataProcessorExpanded(!dataProcessorExpanded)}
+          >
+            <div className="flex items-center gap-2.5">
+              <Database className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
+              <h2 className="font-medium text-left tracking-tight">Data Processor</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="rounded-full p-1 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors">
+                {dataProcessorExpanded ? 
+                  <ChevronUp size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" /> : 
+                  <ChevronDown size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" />
+                }
+              </div>
+            </div>
+          </div>
+          {dataProcessorExpanded && (
+            <DataProcessorCanvas data={dataProcessorData} />
+          )}
+        </div>
       )}
 
       {/* Image viewer modal - portal to body to avoid z-index issues */}

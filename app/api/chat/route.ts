@@ -11,7 +11,18 @@ import {
   handleStreamCompletion
 } from './services/chatService';
 import { generateMessageId, convertMessageForAI, validateAndUpdateSession } from './utils/messageUtils';
-import { createWebSearchTool, createJinaLinkReaderTool, createImageGeneratorTool, createCalculatorTool, createAcademicSearchTool, createXSearchTool, createYouTubeSearchTool, createYouTubeLinkAnalyzerTool, createWolframAlphaUltimateTool } from './tools';
+import { 
+  createWebSearchTool, 
+  createJinaLinkReaderTool, 
+  createImageGeneratorTool, 
+  createCalculatorTool, 
+  createAcademicSearchTool, 
+  createXSearchTool, 
+  createYouTubeSearchTool, 
+  createYouTubeLinkAnalyzerTool, 
+  createWolframAlphaUltimateTool,
+  createDataProcessorTool 
+} from './tools';
 import { handleRateLimiting } from './utils/ratelimit';
 import { z } from 'zod';
 
@@ -138,6 +149,7 @@ const routingSchema = z.object({
   needsYouTubeSearch: z.boolean().optional(),
   needsYouTubeLinkAnalyzer: z.boolean().optional(),
   needsWolframAlpha: z.boolean().optional(),
+  needsDataProcessor: z.boolean().optional(),
   reasoning: z.string()
 });
 
@@ -416,6 +428,7 @@ export async function POST(req: Request) {
 7: YouTube search - Video search
 8: YouTube link analyzer - Video analysis with transcript
 9: Wolfram Alpha - Complex calculations, scientific analysis
+10: Data processor - CSV/JSON data analysis, filtering, and transformation
 
 IMPORTANT: Distinguish between:
 - Questions ABOUT tools vs requests TO USE tools
@@ -425,9 +438,11 @@ For specific contexts:
 - Use Web+X Search together for current events
 - YouTube tools for video content needs
 - Wolfram Alpha for law/math/science/engineering problems
+- Data processor for analyzing data from CSV or JSON files
 
 If you see "[IMAGE ATTACHED]" or "[FILE ATTACHED]" in the prompt, it means the user has included images or files.
-Analyze the user's intent and determine the attached files or images requires additional tools.
+Analyze the user's intent and determine if the attached files or images requires additional tools.
+Enable Data processor if the user wants to process, analyze, or transform data from CSV/JSON files.
 
 Generate reasoning in user's language (Korean for Korean queries, etc.).`,
               prompt: userQuery,
@@ -504,6 +519,7 @@ Generate reasoning in user's language (Korean for Korean queries, etc.).`,
                 needsYouTubeSearch: routingDecision.needsYouTubeSearch,
                 needsYouTubeLinkAnalyzer: routingDecision.needsYouTubeLinkAnalyzer,
                 needsWolframAlpha: routingDecision.needsWolframAlpha,
+                needsDataProcessor: routingDecision.needsDataProcessor,
                 timestamp: new Date().toISOString(),
                 isComplete: true
               }))
@@ -524,6 +540,7 @@ Generate reasoning in user's language (Korean for Korean queries, etc.).`,
               needsYouTubeSearch: routingDecision.needsYouTubeSearch,
               needsYouTubeLinkAnalyzer: routingDecision.needsYouTubeLinkAnalyzer,
               needsWolframAlpha: routingDecision.needsWolframAlpha,
+              needsDataProcessor: routingDecision.needsDataProcessor,
               timestamp: new Date().toISOString(),
               isComplete: true
             };
@@ -538,7 +555,8 @@ Generate reasoning in user's language (Korean for Korean queries, etc.).`,
                 routingDecision.needsXSearch && "x_search",
                 routingDecision.needsYouTubeSearch && "youtube_search",
                 routingDecision.needsYouTubeLinkAnalyzer && "youtube_link_analyzer",
-                routingDecision.needsWolframAlpha && "wolfram_alpha"
+                routingDecision.needsWolframAlpha && "wolfram_alpha",
+                routingDecision.needsDataProcessor && "data_processor"
               ].filter(Boolean).join(", ") || "none"
             );
             
@@ -854,6 +872,46 @@ For advanced computational knowledge and problem-solving:
 - If results seem incomplete or incorrect, try rephrasing the query with more precise terminology
 - Remember to generate explanations in the user's preferred language`);
             }
+            
+            if (routingDecision.needsDataProcessor) {
+              const dataProcessorTool = createDataProcessorTool(dataStream);
+              tools.data_processor = dataProcessorTool;
+              
+              toolSpecificPrompts.push(`
+For processing and analyzing structured data:
+
+Always inform the user that the data processor is powered by Python for high-performance data processing so that it could take a while to process the data.
+Then start the data processing.
+
+- Use data_processor to parse, filter, transform, and analyze CSV or JSON data
+- The data_processor tool is powered by Python pandas for high-performance data processing
+- The tool can perform 5 main operations:
+  * parse - Convert raw CSV/JSON to structured data
+  * filter - Select specific rows/items based on criteria
+  * aggregate - Group data and calculate metrics like count, sum, average
+  * transform - Select or rename fields to restructure data
+  * analyze - Extract statistical insights and correlations from the data
+
+- Format options:
+  * You must specify either 'csv' or 'json' format depending on input data
+  * For CSV data, assume it includes headers and use proper delimiter
+
+- Common usage patterns:
+  * For initial data exploration, use the 'parse' operation
+  * For filtering specific records, use 'filter' with options like {"field": "column_name", "value": "target_value", "operator": "eq"} (operators: eq, neq, gt, gte, lt, lte, contains, starts_with, ends_with)
+  * For grouping data, use 'aggregate' with options like {"groupBy": "category_field", "metrics": [{"field": "value_field", "function": "sum"}]}
+  * For reshaping data, use 'transform' with options like {"select": ["field1", "field2"], "rename": {"old_name": "new_name"}}
+  * For statistical analysis, use 'analyze' to get comprehensive insights including field types, correlations, and distributions
+
+- When handling data:
+  * Always describe the structure of data before processing
+  * Explain what operation you're performing and why
+  * Summarize the results clearly with relevant metrics
+  * Present structured data in tables when possible
+  * When dealing with large datasets, focus on key findings
+  * The Python backend handles large datasets efficiently, so you can process millions of rows
+  * Present numerical results with appropriate precision and units`);
+            }
               
             // 날짜 정보 추가
             const todayDate = new Date().toLocaleDateString("en-US", { 
@@ -877,7 +935,8 @@ You are a helpful problem-solving assistant${[
   routingDecision.needsXSearch && "search for X (Twitter) posts or just general social media posts",
   routingDecision.needsYouTubeSearch && "search for YouTube videos",
   routingDecision.needsYouTubeLinkAnalyzer && "analyze specific YouTube videos",
-  routingDecision.needsWolframAlpha && "solve complex computational problems"
+  routingDecision.needsWolframAlpha && "solve complex computational problems",
+  routingDecision.needsDataProcessor && "process and analyze structured data"
 ].filter(Boolean).join(", ") ? ` that can ${[
   routingDecision.needsWebSearch && "search the web",
   routingDecision.needsCalculator && "do calculations", 
@@ -887,7 +946,8 @@ You are a helpful problem-solving assistant${[
   routingDecision.needsXSearch && "search for X (Twitter) posts or just general social media posts",
   routingDecision.needsYouTubeSearch && "search for YouTube videos",
   routingDecision.needsYouTubeLinkAnalyzer && "analyze specific YouTube videos",
-  routingDecision.needsWolframAlpha && "solve complex computational problems"
+  routingDecision.needsWolframAlpha && "solve complex computational problems",
+  routingDecision.needsDataProcessor && "process and analyze structured data"
 ].filter(Boolean).join(", ")}` : ""}.
 ${toolSpecificPrompts.join("\n\n")}
 
@@ -923,6 +983,7 @@ Always try to give the most accurate and helpful response.
             if (routingDecision.needsYouTubeSearch) activeTools.push('youtube_search');
             if (routingDecision.needsYouTubeLinkAnalyzer) activeTools.push('youtube_link_analyzer');
             if (routingDecision.needsWolframAlpha) activeTools.push('wolfram_alpha');
+            if (routingDecision.needsDataProcessor) activeTools.push('data_processor');
             
             const finalstep = streamText({
               model: providers.languageModel(model),
@@ -1003,6 +1064,12 @@ Always try to give the most accurate and helpful response.
                     tools.wolfram_alpha.queryResults && 
                     tools.wolfram_alpha.queryResults.length > 0) {
                   toolResults.wolframAlphaResults = tools.wolfram_alpha.queryResults;
+                }
+
+                if (routingDecision.needsDataProcessor && 
+                    tools.data_processor.processingResults && 
+                    tools.data_processor.processingResults.length > 0) {
+                  toolResults.dataProcessorResults = tools.data_processor.processingResults;
                 }
 
                 // 먼저 DB에 저장하여 응답을 완료
