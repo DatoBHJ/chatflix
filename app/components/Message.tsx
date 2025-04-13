@@ -27,6 +27,7 @@ interface MessageProps {
   userName?: string
   profileImage?: string | null
   chatId?: string
+  isStreaming?: boolean
 }
 
 // Create a memoized Message component to prevent unnecessary re-renders
@@ -45,7 +46,8 @@ const Message = memo(function MessageComponent({
   setEditingContent,
   userName: propUserName,
   profileImage: propProfileImage,
-  chatId
+  chatId,
+  isStreaming = false
 }: MessageProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -304,6 +306,13 @@ const Message = memo(function MessageComponent({
                       return (
                         <React.Fragment key={index}>
                           <MarkdownContent content={shouldTruncate ? truncateMessage(part.text) : part.text} />
+                          {isAssistant && isStreaming && message.parts && index === message.parts.length - 1 && (
+                            <div className="loading-dots text-sm inline-block ml-0">
+                              <span>.</span>
+                              <span>.</span>
+                              <span>.</span>
+                            </div>
+                          )}
                           {shouldTruncate && isLongMessage && (
                             <div 
                               onClick={() => toggleMessageExpansion(message.id)}
@@ -329,6 +338,13 @@ const Message = memo(function MessageComponent({
               ) : (
                 <>
                   <MarkdownContent content={isUser && !isEditing && !expandedMessages[message.id] ? truncateMessage(message.content) : message.content} />
+                  {isAssistant && isStreaming && (
+                    <div className="loading-dots text-sm inline-block ml-1">
+                      <span>.</span>
+                      <span>.</span>
+                      <span>.</span>
+                    </div>
+                  )}
                   {isUser && !isEditing && message.content.length > 300 && (
                     <div 
                       onClick={() => toggleMessageExpansion(message.id)}

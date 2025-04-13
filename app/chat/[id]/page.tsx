@@ -1754,6 +1754,7 @@ export default function Chat({ params }: PageProps) {
                       onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
                       setEditingContent={setEditingContent}
                       chatId={chatId}
+                      isStreaming={isLoading && message.role === 'assistant' && message.id === messages[messages.length - 1]?.id}
                     />
                   </>
                 );
@@ -1804,6 +1805,7 @@ export default function Chat({ params }: PageProps) {
                     onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
                     setEditingContent={setEditingContent}
                     chatId={chatId}
+                    isStreaming={isLoading && message.role === 'assistant' && message.id === messages[messages.length - 1]?.id}
                   />
                 </div>
               );
