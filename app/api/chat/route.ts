@@ -417,7 +417,7 @@ export async function POST(req: Request) {
             
             // 첫 번째 단계: 라우팅 - 필요한 도구 결정 (스트리밍 방식으로 변경)
             const routerStream = streamObject({ 
-              model: providers.languageModel('gpt-4o-mini'), 
+              model: providers.languageModel('gemini-2.0-flash'), 
               system: `Determine which tools are needed based on user intent, not just keywords:
 1: Web search - Factual info, current events
 2: Calculator - Math calculations  

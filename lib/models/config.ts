@@ -299,7 +299,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: true,
+    // isAgentEnabled: true,
     contextWindow: 1024000,
     tps: 258,
     intelligenceIndex: 48,
