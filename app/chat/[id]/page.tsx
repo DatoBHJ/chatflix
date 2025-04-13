@@ -1756,6 +1756,30 @@ export default function Chat({ params }: PageProps) {
                       chatId={chatId}
                       isStreaming={isLoading && message.role === 'assistant' && message.id === messages[messages.length - 1]?.id}
                     />
+                    {/* Add loading message at the end if the last message is from the user and we're loading */}
+                    {isLoading && index === messages.length - 1 && message.role === 'user' && (
+                      <MessageComponent
+                        message={{
+                          id: 'loading-message',
+                          role: 'assistant',
+                          content: '',
+                          createdAt: new Date()
+                        }}
+                        currentModel={currentModel}
+                        isRegenerating={false}
+                        editingMessageId={null}
+                        editingContent={''}
+                        copiedMessageId={null}
+                        onRegenerate={() => () => {}}
+                        onCopy={() => {}}
+                        onEditStart={() => {}}
+                        onEditCancel={() => {}}
+                        onEditSave={() => {}}
+                        setEditingContent={() => {}}
+                        chatId={chatId}
+                        isStreaming={true}
+                      />
+                    )}
                   </>
                 );
               }}
@@ -1810,6 +1834,32 @@ export default function Chat({ params }: PageProps) {
                 </div>
               );
             })
+          )}
+          {/* Show immediate loading response after sending message */}
+          {isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'user' && (
+            <div>
+              <MessageComponent
+                message={{
+                  id: 'loading-message',
+                  role: 'assistant',
+                  content: '',
+                  createdAt: new Date()
+                }}
+                currentModel={currentModel}
+                isRegenerating={false}
+                editingMessageId={null}
+                editingContent={''}
+                copiedMessageId={null}
+                onRegenerate={() => () => {}}
+                onCopy={() => {}}
+                onEditStart={() => {}}
+                onEditCancel={() => {}}
+                onEditSave={() => {}}
+                setEditingContent={() => {}}
+                chatId={chatId}
+                isStreaming={true}
+              />
+            </div>
           )}
           <div ref={messagesEndRef} className="h-px" />
         </div>
