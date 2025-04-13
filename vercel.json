@@ -1,7 +1,7 @@
 {
   "functions": {
     "app/api/chat/**/*.ts": {
-      "runtime": "nodejs18.x"
+      "runtime": "@vercel/node@3.0.0"
     }
   },
   "buildCommand": "pip install -r requirements.txt && next build",
