@@ -160,27 +160,52 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
 
   // 수식 표현이 있는지 확인하는 함수
   const hasMathExpression = useCallback((text: string) => {
-    // 수학 수식, 화학식, 물리량 표현 감지
-    return /\$(.*?)\$|\$\$(.*?)\$\$|\\ce\{.*?\}|\\SI\{.*?\}\{.*?\}/g.test(text);
+    // 수학 수식, 화학식, 물리량 표현 감지 (패턴 확장)
+    return /\$(.*?)\$|\$\$(.*?)\$\$|\\ce\{.*?\}|\\SI\{.*?\}\{.*?\}|\\begin\{(equation|align|matrix|pmatrix|bmatrix|cases)\}|\\frac\{.*?\}\{.*?\}|\\sum|\\int/g.test(text);
   }, []);
 
   // 수식 표현을 처리하는 함수 (inline/block 수식, 화학식, 물리량)
   const processMathExpressions = useCallback((text: string) => {
     if (!hasMathExpression(text)) return text;
     
+    // 블록 수식이 제대로 표시되도록 변환 ($$...$$)
+    let processed = text.replace(/\$\$(.*?)\$\$/gs, (match, p1) => {
+      // 줄바꿈이 있으면 displayMode로 처리하기 위해 특별 마커 추가
+      if (p1.includes('\n')) {
+        return `\n\n$$${p1}$$\n\n`;
+      }
+      return match;
+    });
+    
     // 화학식 변환 처리 (만약 화학식이 처리되지 않는 경우 사용)
     // \ce{...} -> $\ce{...}$
-    const withChemistry = text.replace(/\\ce\{(.*?)\}/g, (match, p1) => {
+    processed = processed.replace(/\\ce\{(.*?)\}/g, (match, p1) => {
       return `$\\ce{${p1}}$`;
     });
     
     // 물리량 변환 처리 (만약 SI 단위가 처리되지 않는 경우 사용)
     // \SI{...}{...} -> $\SI{...}{...}$
-    const withPhysicalUnits = withChemistry.replace(/\\SI\{(.*?)\}\{(.*?)\}/g, (match, p1, p2) => {
+    processed = processed.replace(/\\SI\{(.*?)\}\{(.*?)\}/g, (match, p1, p2) => {
       return `$\\SI{${p1}}{${p2}}$`;
     });
     
-    return withPhysicalUnits;
+    // 분수 표현 처리 개선
+    processed = processed.replace(/\\frac\{(.*?)\}\{(.*?)\}/g, (match) => {
+      if (!match.startsWith('$')) {
+        return `$${match}$`;
+      }
+      return match;
+    });
+    
+    // 특수 수학 기호 처리 (백틱으로 감싸져 있지 않은 경우만)
+    processed = processed.replace(/(?<!\`)(\\sum|\\int|\\prod|\\lim)(?!\`)/g, (match) => {
+      if (!match.startsWith('$')) {
+        return `$${match}$`;
+      }
+      return match;
+    });
+    
+    return processed;
   }, [hasMathExpression]);
 
   const handleCopy = useCallback(async (text: string) => {
@@ -581,11 +606,13 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
       [rehypeKatex, { 
         throwOnError: false, 
         output: 'html',
-        displayMode: false, // 디스플레이 모드 비활성화 (인라인 수식 우선)
+        displayMode: false, // 인라인 수식용 기본 설정
         leqno: false, // 왼쪽 정렬된 방정식 번호
         fleqn: false, // 왼쪽 정렬된 디스플레이 수식
-        strict: false, // Throw errors for bad syntax
+        strict: false, // 문법 오류에 대해 엄격하지 않게 처리
         trust: true, // 특수 KaTeX 확장 허용
+        errorColor: 'var(--muted)', // 오류 시 색상
+        minRuleThickness: 0.08, // 분수 선 두께 개선
         macros: { // 사용자 정의 매크로
           // 수학 기호
           "\\R": "\\mathbb{R}",
@@ -603,12 +630,22 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
           "\\unit": "\\text",
           // 일반적인 수학 기호
           "\\half": "\\frac{1}{2}",
+          "\\third": "\\frac{1}{3}",
+          "\\quarter": "\\frac{1}{4}",
           "\\e": "\\mathrm{e}",
           "\\i": "\\mathrm{i}",
           "\\d": "\\mathrm{d}",
           // 행렬 매크로
           "\\bmat": "\\begin{bmatrix}#1\\end{bmatrix}",
           "\\pmat": "\\begin{pmatrix}#1\\end{pmatrix}",
+          // 미분 연산자
+          "\\dx": "\\,\\mathrm{d}x",
+          "\\dy": "\\,\\mathrm{d}y",
+          "\\dz": "\\,\\mathrm{d}z",
+          "\\dt": "\\,\\mathrm{d}t",
+          // 기타 유용한 매크로
+          "\\norm": "\\left\\lVert#1\\right\\rVert",
+          "\\abs": "\\left|#1\\right|",
         },
       }],
       rehypeHighlight
