@@ -4,8 +4,9 @@
       "runtime": "@vercel/node@3.0.0"
     }
   },
-  "buildCommand": "pip install -r requirements.txt && next build",
+  "buildCommand": "next build",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "crons": []
 } 
