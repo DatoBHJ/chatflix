@@ -1812,9 +1812,77 @@ export function createDataProcessorTool(dataStream: any) {
       
       try {
         // Python 처리기 사용 가능 여부 확인
+        console.log('Checking Python data processor availability...');
         const isPythonAvailable = await checkPythonAvailability();
+        console.log(`Python data processor availability: ${isPythonAvailable ? 'AVAILABLE' : 'NOT AVAILABLE'}`);
         
         if (!isPythonAvailable) {
+          // Vercel 환경에서 실행 중인지 확인
+          const isVercelEnv = process.env.VERCEL || process.env.VERCEL_ENV;
+          console.log(`Running in Vercel environment: ${isVercelEnv ? 'YES' : 'NO'}`);
+          
+          if (isVercelEnv) {
+            // Vercel 환경에서만 간단한 처리 제공 (제한된 기능)
+            console.log('Using simplified data processor for Vercel environment');
+            
+            // 간단한 데이터 파싱 및 처리 로직
+            let parsedData;
+            
+            try {
+              if (format === 'json') {
+                parsedData = JSON.parse(data);
+              } else if (format === 'csv') {
+                // CSV 데이터를 간단히 파싱 (헤더 행 + 데이터 행)
+                const rows = data.split('\n');
+                const header = rows[0].split(',');
+                
+                parsedData = rows.slice(1).map(row => {
+                  const values = row.split(',');
+                  const item: Record<string, string> = {};
+                  
+                  header.forEach((key, index) => {
+                    item[key.trim()] = values[index]?.trim() ?? '';
+                  });
+                  
+                  return item;
+                });
+              }
+              
+              // 간단한 분석 결과 생성
+              const result = {
+                timestamp: new Date().toISOString(),
+                operation,
+                format,
+                data: parsedData.slice(0, 10), // 최대 10개 항목만 반환
+                summary: {
+                  recordCount: Array.isArray(parsedData) ? parsedData.length : 1,
+                  fields: Array.isArray(parsedData) && parsedData.length > 0 
+                    ? Object.keys(parsedData[0]) 
+                    : Object.keys(parsedData || {}),
+                  note: "Limited functionality in serverless environment. For full analysis, run locally or with Python environment."
+                }
+              };
+              
+              processingResults.push(result);
+              
+              // 클라이언트에 처리 완료 알림 전송
+              dataStream.writeMessageAnnotation({
+                type: 'data_processing_complete',
+                data: {
+                  operation,
+                  format,
+                  timestamp: new Date().toISOString(),
+                  result,
+                  executionTimeMs: Date.now() - startTime
+                }
+              });
+              
+              return result;
+            } catch (parseError: any) {
+              throw new Error(`Failed to parse ${format} data: ${parseError.message}`);
+            }
+          }
+          
           throw new Error('Python data processor is not available. Please install pandas and numpy.');
         }
         
