@@ -305,8 +305,8 @@ export default function BookmarksPage() {
   return (
     <main className="min-h-screen bg-[var(--background)]">
       <div className="max-w-2xl mx-auto py-8 px-4">
-        <div className="flex items-center mb-0 sm:mb-6">
-          <Link href="/" className="mr-4">
+        <div className="flex items-center mb-0 sm:mb-6 mt-10">
+          {/* <Link href="/" className="mr-4">
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
               width="20" 
@@ -322,7 +322,7 @@ export default function BookmarksPage() {
               <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
           </Link>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">Bookmarks</h1>
+          <h1 className="text-2xl font-bold text-[var(--foreground)]">Bookmarks</h1> */}
         </div>
         
         {/* 북마크 타입 선택 탭 */}
