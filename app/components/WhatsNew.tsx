@@ -10,8 +10,6 @@ export interface FeatureUpdate {
   date: string;
   timestamp: number; // Unix timestamp in milliseconds for versioning
   images?: string[];
-  highlights?: string[];
-  instructions?: string[];
 }
 
 // 이미지 갤러리 컴포넌트
@@ -213,34 +211,6 @@ const WhatsNew: React.FC<WhatsNewProps> = ({
                     <div className={styles.updateDescription}>
                       {currentUpdate.description}
                     </div>
-                    
-                    {currentUpdate.highlights && currentUpdate.highlights.length > 0 && (
-                      <div className={styles.highlightsList}>
-                        <h4 className={styles.sectionTitle}>Highlights</h4>
-                        <ul>
-                          {currentUpdate.highlights.map((highlight, index) => (
-                            <li key={index} className={styles.listItem}>
-                              <span className={styles.listNumber}>{index + 1}</span>
-                              <span>{highlight}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    
-                    {currentUpdate.instructions && currentUpdate.instructions.length > 0 && (
-                      <div className={styles.instructionsList}>
-                        <h4 className={styles.sectionTitle}>How to use</h4>
-                        <ol>
-                          {currentUpdate.instructions.map((instruction, index) => (
-                            <li key={index} className={styles.listItem}>
-                              <span className={styles.listNumber}>{index + 1}</span>
-                              <span>{instruction}</span>
-                            </li>
-                          ))}
-                        </ol>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>

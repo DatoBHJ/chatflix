@@ -571,6 +571,16 @@ export default function AdminModelsPage() {
           >
             Usage Analytics
           </Link>
+          <Link 
+            href="/admin/whats-new"
+            className="px-4 py-2 rounded transition-colors text-sm"
+            style={{ 
+              backgroundColor: 'var(--foreground)', 
+              color: 'var(--background)'
+            }}
+          >
+            What's New
+          </Link>
         </div>
       </div>
       

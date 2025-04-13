@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import Image from 'next/image';
+import { fetchUserName, updateUserName } from '@/app/components/AccountDialog';
 
 export default function UserInsightsPage() {
   const [isLoading, setIsLoading] = useState(true);
@@ -29,9 +30,10 @@ export default function UserInsightsPage() {
         }
         
         setCurrentUserId(user.id);
-        setUserName(user.user_metadata?.name || "You");
+        const name = await fetchUserName(user.id, supabase);
+        setUserName(name);
         await fetchProfileImage(user.id);
-        await loadUserInsights(user.id, user.user_metadata?.name || "You");
+        await loadUserInsights(user.id, name);
       } catch (error) {
         console.error('Authentication error:', error);
       } finally {
@@ -68,6 +70,26 @@ export default function UserInsightsPage() {
       }
     } catch (error) {
       console.error('Error fetching profile image:', error);
+    }
+  };
+
+  const handleUpdateUserName = async () => {
+    if (!currentUserId) return;
+
+    try {
+      await updateUserName(currentUserId, userName, supabase);
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error updating user name:', error);
+      alert(`Error updating name: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleEditToggle = () => {
+    if (isEditing) {
+      handleUpdateUserName();
+    } else {
+      setIsEditing(true);
     }
   };
 
@@ -241,33 +263,6 @@ export default function UserInsightsPage() {
       alert(`Error uploading image: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsUploading(false);
-    }
-  };
-
-  const updateUserName = async () => {
-    if (!currentUserId) return;
-
-    try {
-      const { error } = await supabase.auth.updateUser({
-        data: { name: userName }
-      });
-
-      if (error) {
-        console.error('Error updating user name:', error);
-        return;
-      }
-
-      setIsEditing(false);
-    } catch (error) {
-      console.error('Error updating user name:', error);
-    }
-  };
-
-  const handleEditToggle = () => {
-    if (isEditing) {
-      updateUserName();
-    } else {
-      setIsEditing(true);
     }
   };
 
@@ -729,7 +724,7 @@ export default function UserInsightsPage() {
   
   // Calculate model diversity level (for display)
   const getModelDiversityLevel = (score: number) => {
-    if (score >= 80) return 'You';
+    if (score >= 80) return 'Connoisseur';
     if (score >= 60) return 'Adventurer';
     if (score >= 40) return 'Experimenter';
     if (score >= 20) return 'Casual';
@@ -741,7 +736,7 @@ export default function UserInsightsPage() {
   // 다양성 유형 설명을 위한 함수 추가
   const getModelVarietyDescription = (level: string) => {
     switch(level) {
-      case 'You':
+      case 'Connoisseur':
         return 'You love trying different AI models and have experienced most of what Chatflix offers';
       case 'Adventurer':
         return 'You regularly explore new models and enjoy a wide range of AI experiences';
@@ -853,11 +848,12 @@ export default function UserInsightsPage() {
                     type="text"
                     value={userName}
                     onChange={(e) => setUserName(e.target.value)}
-                    className="text-xl sm:text-2xl md:text-3xl font-bold bg-transparent border-b border-[var(--foreground)] text-center focus:outline-none"
+                    className="text-xl sm:text-2xl font-bold bg-transparent border-b border-[var(--foreground)] text-center focus:outline-none"
                     autoFocus
+                    maxLength={30}
                   />
                 ) : (
-                  <h2 className="text-xl sm:text-2xl md:text-3xl font-bold">{userName}</h2>
+                  <h2 className="text-xl sm:text-2xl font-bold">{userName}</h2>
                 )}
                 
                 <button 
@@ -876,18 +872,18 @@ export default function UserInsightsPage() {
                 <div className="text-3xl sm:text-4xl md:text-5xl font-bold mb-2 text-[var(--foreground)] tabular-nums">
                   {total_messages.toLocaleString()}
                 </div>
-                <div className="text-xs sm:text-sm uppercase tracking-wider text-[var(--muted)]">Messages Exchanged</div>
+                <div className="text-xs sm:text-sm uppercase tracking-wider text-[var(--muted)] truncate">Messages Exchanged</div>
               </div>
               
               <div className="bg-[var(--background)] p-4 sm:p-6 rounded-xl">
                 <div className="text-3xl sm:text-4xl md:text-5xl font-bold mb-2 text-[var(--foreground)] tabular-nums">
                   {total_sessions}
                 </div>
-                <div className="text-xs sm:text-sm uppercase tracking-wider text-[var(--muted)]">Conversations Started</div>
+                <div className="text-xs sm:text-sm uppercase tracking-wider text-[var(--muted)] truncate">Conversations Started</div>
               </div>
               
               <div className="bg-[var(--background)] p-4 sm:p-6 rounded-xl">
-                <div className="text-3xl sm:text-4xl md:text-5xl font-bold mb-2 text-[var(--foreground)] tabular-nums">
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 text-[var(--foreground)] tabular-nums" title={modelDiversityLevel}>
                   {modelDiversityLevel}
                 </div>
                 <div className="text-xs sm:text-sm tracking-wider text-[var(--muted)]">is your AI personality type</div>
@@ -1042,8 +1038,10 @@ export default function UserInsightsPage() {
               </div>
               
               <div className="mb-5 sm:mb-6">
-                <div className="text-4xl sm:text-5xl font-bold mb-2 tabular-nums">{formatHour(mostActiveHour)}</div>
-                <p className="text-xs sm:text-sm text-[var(--muted)]">When you're most active</p>
+                <div className="text-4xl sm:text-5xl font-bold mb-2 tabular-nums truncate" title={formatHour(mostActiveHour)}>
+                  {formatHour(mostActiveHour)}
+                </div>
+                <p className="text-xs sm:text-sm text-[var(--muted)] truncate">When you're most active</p>
               </div>
               
               <div className="flex items-center text-xs sm:text-sm text-[var(--muted)]">
@@ -1069,23 +1067,31 @@ export default function UserInsightsPage() {
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <div className="text-2xl sm:text-3xl font-bold mb-1 tabular-nums">{avg_session_length}</div>
-                  <p className="text-xs sm:text-sm text-[var(--muted)]">Messages per conversation</p>
+                  <div className="text-2xl sm:text-3xl font-bold mb-1 tabular-nums truncate" title={avg_session_length.toString()}>
+                    {avg_session_length}
+                  </div>
+                  <p className="text-xs sm:text-sm text-[var(--muted)] truncate">Messages per conversation</p>
                 </div>
                 
                 <div>
-                  <div className="text-2xl sm:text-3xl font-bold mb-1 tabular-nums">{longest_session}</div>
-                  <p className="text-xs sm:text-sm text-[var(--muted)]">Your deepest conversation</p>
+                  <div className="text-2xl sm:text-3xl font-bold mb-1 tabular-nums truncate" title={longest_session.toString()}>
+                    {longest_session}
+                  </div>
+                  <p className="text-xs sm:text-sm text-[var(--muted)] truncate">Your deepest conversation</p>
                 </div>
                 
                 <div>
-                  <div className="text-2xl sm:text-3xl font-bold mb-1 tabular-nums">{Math.round(total_messages / (days_since_first_chat || 1))}</div>
-                  <p className="text-xs sm:text-sm text-[var(--muted)]">Messages Per Day</p>
+                  <div className="text-2xl sm:text-3xl font-bold mb-1 tabular-nums truncate" title={Math.round(total_messages / (days_since_first_chat || 1)).toString()}>
+                    {Math.round(total_messages / (days_since_first_chat || 1))}
+                  </div>
+                  <p className="text-xs sm:text-sm text-[var(--muted)] truncate">Messages Per Day</p>
                 </div>
                 
                 <div>
-                  <div className="text-2xl sm:text-3xl font-bold mb-1 tabular-nums">{Math.floor(days_since_first_chat)}</div>
-                  <p className="text-xs sm:text-sm text-[var(--muted)]">Days Since First Chat</p>
+                  <div className="text-2xl sm:text-3xl font-bold mb-1 tabular-nums truncate" title={Math.floor(days_since_first_chat).toString()}>
+                    {Math.floor(days_since_first_chat)}
+                  </div>
+                  <p className="text-xs sm:text-sm text-[var(--muted)] truncate">Days Since First Chat</p>
                 </div>
               </div>
             </div>
@@ -1107,8 +1113,10 @@ export default function UserInsightsPage() {
               </div>
               
               <div className="mb-5 sm:mb-6">
-                <div className="text-4xl sm:text-5xl font-bold mb-2">{getDayOfWeek(mostActiveDay)}</div>
-                <p className="text-xs sm:text-sm text-[var(--muted)]">The day you chat the most</p>
+                <div className="text-4xl sm:text-5xl font-bold mb-2 truncate" title={getDayOfWeek(mostActiveDay)}>
+                  {getDayOfWeek(mostActiveDay)}
+                </div>
+                <p className="text-xs sm:text-sm text-[var(--muted)] truncate">The day you chat the most</p>
               </div>
               
               {/* New Weekly Activity Chart */}
@@ -1163,8 +1171,8 @@ export default function UserInsightsPage() {
               
               <div className="mb-5">
                 <div className="flex justify-between items-end mb-2">
-                  <span className="text-sm">You ask questions</span>
-                  <span className="text-2xl font-bold">{questionPercentage}%</span>
+                  <span className="text-sm truncate">You ask questions</span>
+                  <span className="text-2xl font-bold truncate">{questionPercentage}%</span>
                 </div>
                 <div className="w-full bg-[var(--background)] h-3 rounded-full overflow-hidden">
                   <div 
@@ -1172,7 +1180,9 @@ export default function UserInsightsPage() {
                     style={{ width: `${questionPercentage}%` }}
                   ></div>
                 </div>
-                <div className="mt-1 text-xs text-[var(--muted)]">
+                <div className="mt-1 text-xs text-[var(--muted)] line-clamp-2" title={questionPercentage > 50 
+                  ? 'You\'re curious! You ask a lot of questions.' 
+                  : 'You\'re direct! You make a lot of statements.'}>
                   {questionPercentage > 50 
                     ? 'You\'re curious! You ask a lot of questions.' 
                     : 'You\'re direct! You make a lot of statements.'}

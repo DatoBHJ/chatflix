@@ -3,15 +3,12 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { DatabaseMessage, Chat } from '@/lib/types'
-// import { SystemPromptDialog } from './SystemPromptDialog'
+import { Chat } from '@/lib/types'
 import { AccountDialog } from './AccountDialog'
 import { deleteChat } from '@/app/chat/[id]/utils'
-// import { getModelById } from '@/lib/models/config'
 import Link from 'next/link'
 import Image from 'next/image'
 import { defaultPromptShortcuts } from '../lib/defaultPromptShortcuts'
-// import { User as UserType } from '@supabase/supabase-js'
 import { useUser } from '@/app/lib/UserContext'
 
 interface SidebarProps {
@@ -32,20 +29,13 @@ export function Sidebar({ user, onClose }: SidebarProps) {
   const [chats, setChats] = useState<Chat[]>([])
   const supabase = createClient()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [isSystemPromptOpen, setIsSystemPromptOpen] = useState(false)
   const [isAccountOpen, setIsAccountOpen] = useState(false)
   const { profileImage, userName } = useUser()
   const [isExpanded, setIsExpanded] = useState(false)
   const [isExpandedSystem, setIsExpandedSystem] = useState(false)
   const [isExpandedShortcuts, setIsExpandedShortcuts] = useState(false)
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false)
-  
-  // System Prompt 관련 상태
-  const [prompt, setPrompt] = useState('')
-  const [originalPrompt, setOriginalPrompt] = useState('')
-  const [promptId, setPromptId] = useState<string | null>(null)
-  const [isResetting, setIsResetting] = useState(false)
-  
+
   // Shortcuts 관련 상태
   const [shortcuts, setShortcuts] = useState<any[]>([])
   const [newName, setNewName] = useState('')
@@ -144,6 +134,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
         .select('*, messages:messages(*)')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
+        .limit(30)  // Limit to 30 most recent chat sessions
 
       if (sessionsError) {
         console.error('Error loading chat sessions:', sessionsError)
@@ -225,85 +216,6 @@ export function Sidebar({ user, onClose }: SidebarProps) {
     } catch (error) {
       console.error('Failed to delete all chats:', error)
       alert('Failed to delete chats.')
-    }
-  }
-
-  // 시스템 프롬프트 관련 함수들
-  async function loadSystemPrompt() {
-    try {
-      const { data: funcData, error: funcError } = await supabase
-        .rpc('get_or_create_system_prompt', {
-          p_user_id: user.id
-        })
-
-      if (funcError) {
-        console.error('Error in get_or_create_system_prompt:', funcError)
-        return
-      }
-
-      const { data, error } = await supabase
-        .from('system_prompts')
-        .select('id, content')
-        .eq('user_id', user.id)
-        .single()
-
-      if (error) {
-        console.error('Error fetching system prompt:', error)
-        return
-      }
-
-      setPromptId(data.id)
-      setPrompt(data.content || '')
-      setOriginalPrompt(data.content || '')
-    } catch (error) {
-      console.error('Error loading system prompt:', error)
-    }
-  }
-
-  async function handleSaveSystemPrompt() {
-    if (!promptId) {
-      console.error('No prompt ID found')
-      return
-    }
-
-    try {
-      const { error } = await supabase
-        .from('system_prompts')
-        .update({
-          content: prompt
-        })
-        .eq('id', promptId)
-        .eq('user_id', user.id)
-
-      if (error) throw error
-      setOriginalPrompt(prompt)
-      setIsExpandedSystem(false)
-    } catch (error) {
-      console.error('Error saving system prompt:', error)
-    }
-  }
-
-  async function handleResetSystemPrompt() {
-    if (!promptId) {
-      console.error('No prompt ID found')
-      return
-    }
-
-    try {
-      setIsResetting(true)
-      const { data, error } = await supabase
-        .rpc('reset_system_prompt', {
-          p_user_id: user.id
-        })
-
-      if (error) throw error
-      
-      setPrompt(data)
-      setOriginalPrompt(data)
-    } catch (error) {
-      console.error('Error resetting system prompt:', error)
-    } finally {
-      setIsResetting(false)
     }
   }
 
@@ -413,13 +325,6 @@ export function Sidebar({ user, onClose }: SidebarProps) {
     }
   }
 
-  // Add effects for loading data when panels are expanded
-  useEffect(() => {
-    if (isExpandedSystem && user) {
-      loadSystemPrompt();
-    }
-  }, [isExpandedSystem, user]);
-
   useEffect(() => {
     if (isExpandedShortcuts && user) {
       loadShortcuts();
@@ -437,20 +342,6 @@ export function Sidebar({ user, onClose }: SidebarProps) {
       setIsSidebarExpanded(true);
       setIsExpanded(true);
       setIsExpandedSystem(false);
-      setIsExpandedShortcuts(false);
-    }
-  };
-
-  const toggleSystemPrompt = () => {
-    if (isExpandedSystem) {
-      setIsExpandedSystem(false);
-      if (!isExpanded && !isExpandedShortcuts) {
-        setIsSidebarExpanded(false);
-      }
-    } else {
-      setIsSidebarExpanded(true);
-      setIsExpandedSystem(true);
-      setIsExpanded(false);
       setIsExpandedShortcuts(false);
     }
   };
@@ -597,45 +488,6 @@ export function Sidebar({ user, onClose }: SidebarProps) {
                   No chats yet
                 </div>
               )}
-            </div>
-          )}
-
-          {isExpandedSystem && (
-            <div className="space-y-3 pb-4 pl-0 ml-4 border-l border-[var(--sidebar-divider)] relative">
-              <div className="bg-[var(--accent)]/5 rounded-lg p-4 space-y-3">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-sm font-medium">System Prompt</h3>
-                  <div className="text-xs text-[var(--muted)]">
-                    {prompt.length > 0 ? `${prompt.length} characters` : 'Default'}
-                  </div>
-                </div>
-                <textarea
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  className="w-full h-64 md:h-80 p-3 bg-[var(--accent)] text-sm focus:outline-none rounded-lg resize-none"
-                  placeholder="Enter system prompt..."
-                  spellCheck={false}
-                />
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleSaveSystemPrompt}
-                    disabled={prompt.trim() === originalPrompt.trim()}
-                    className="flex-1 py-2.5 text-xs uppercase tracking-wider bg-[var(--foreground)] text-[var(--background)] hover:opacity-90 transition-opacity disabled:opacity-50 rounded-lg font-medium"
-                    type="button"
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={handleResetSystemPrompt}
-                    disabled={isResetting}
-                    className="w-24 py-2.5 text-xs uppercase tracking-wider bg-[var(--accent)] hover:opacity-90 transition-opacity disabled:opacity-50 rounded-lg font-medium"
-                    type="button"
-                  >
-                    Reset
-                  </button>
-                </div>
-              </div>
             </div>
           )}
 
@@ -830,31 +682,26 @@ export function Sidebar({ user, onClose }: SidebarProps) {
             </span>
           </button>
           
-          <button
-            onClick={toggleSystemPrompt}
-            className="flex items-center group w-full text-left"
-            type="button"
-          >
-            <div className={`min-w-[40px] h-10 rounded-lg flex items-center justify-center transition-all duration-200 ${isExpandedSystem ? 'bg-[var(--foreground)]/10' : 'hover:bg-[var(--accent)]'}`}>
+          <Link href="/bookmarks" className="flex items-center group">
+            <div className="min-w-[40px] h-10 rounded-lg flex items-center justify-center hover:bg-[var(--accent)] transition-all duration-200">
               <svg 
                 width="20" 
                 height="20" 
                 viewBox="0 0 24 24" 
                 fill="none" 
-                stroke={isExpandedSystem ? "var(--foreground)" : "currentColor"}
+                stroke="currentColor" 
                 strokeWidth="2" 
                 strokeLinecap="round" 
                 strokeLinejoin="round" 
-                className={`${isExpandedSystem ? 'scale-110' : 'group-hover:scale-110'} transition-transform duration-200`}
+                className="group-hover:scale-110 transition-transform duration-200"
               >
-                <path d="M12 20h9" />
-                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
               </svg>
             </div>
-            <span className={`ml-3 whitespace-nowrap ${isSidebarExpanded ? 'block' : 'hidden'} ${isExpandedSystem ? 'font-bold text-base text-[var(--foreground)]' : 'font-medium text-sm'}`}>
-              System Prompt
+            <span className={`ml-3 text-sm font-medium whitespace-nowrap ${isSidebarExpanded ? 'block' : 'hidden'}`}>
+              Bookmarks
             </span>
-          </button>
+          </Link>
           
           <Link href="/user-insights" onClick={onClose} className="flex items-center group">
             <div className="min-w-[40px] h-10 rounded-lg flex items-center justify-center hover:bg-[var(--accent)] transition-all duration-200">

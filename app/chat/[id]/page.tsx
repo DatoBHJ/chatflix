@@ -3,7 +3,7 @@
 import { useChat } from '@ai-sdk/react';
 import { Message } from 'ai'
 import { useState, useEffect, use, useRef, useCallback, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { ModelSelector } from '../../components/ModelSelector'
 import { Header } from '../../components/Header'
@@ -14,6 +14,7 @@ import { Attachment } from '@/lib/types'
 import { useMessages } from '@/app/hooks/useMessages'
 import { getDefaultModelId, getSystemDefaultModelId, MODEL_CONFIGS } from '@/lib/models/config'
 import '@/app/styles/attachments.css'
+import '@/app/styles/loading-dots.css'
 import { Message as MessageComponent } from '@/app/components/Message'
 import { ChatInput } from '@/app/components/ChatInput/index';
 import { VirtuosoHandle } from 'react-virtuoso';
@@ -155,6 +156,8 @@ type Annotation = {
 export default function Chat({ params }: PageProps) {
   const { id: chatId } = use(params)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const scrollToMessageId = searchParams.get('scrollToMessage')
   const [currentModel, setCurrentModel] = useState('')
   const [nextModel, setNextModel] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -315,6 +318,40 @@ export default function Chat({ params }: PageProps) {
       messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
     }
   }, [messages.length]);
+
+  // 특정 메시지로 스크롤하는 함수
+  const scrollToMessage = useCallback((messageId: string) => {
+    if (!messageId) return;
+    
+    // 메시지 요소 찾기
+    const messageElement = document.getElementById(messageId);
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      // 메시지 강조 효과
+      messageElement.classList.add('highlight-message');
+      setTimeout(() => {
+        messageElement.classList.remove('highlight-message');
+      }, 2000);
+    }
+  }, []);
+
+  // URL 쿼리 파라미터로 지정된 메시지로 스크롤
+  useEffect(() => {
+    if (scrollToMessageId && messages.length > 0) {
+      // 모든 메시지가 렌더링된 후 스크롤하기 위해 짧은 지연 추가
+      setTimeout(() => {
+        scrollToMessage(scrollToMessageId);
+        
+        // 스크롤 작업 후 URL에서 쿼리 파라미터 제거
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('scrollToMessage');
+          window.history.replaceState({}, '', url.pathname);
+        }
+      }, 500);
+    }
+  }, [scrollToMessageId, messages.length, scrollToMessage]);
 
   useEffect(() => {
     const getUser = async () => {
@@ -1699,6 +1736,7 @@ export default function Chat({ params }: PageProps) {
                       onEditCancel={handleEditCancel}
                       onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
                       setEditingContent={setEditingContent}
+                      chatId={chatId}
                     />
                   </>
                 );
@@ -1746,6 +1784,7 @@ export default function Chat({ params }: PageProps) {
                     onEditCancel={handleEditCancel}
                     onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
                     setEditingContent={setEditingContent}
+                    chatId={chatId}
                   />
                 </div>
               );

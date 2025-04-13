@@ -1,6 +1,9 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { getAllMemoryBank } from './memory-bank';
 import { getProjectStatus } from './status-tracker';
+import { 
+  fetchSystemPrompt,
+} from '@/app/api/chat/services/chatService';
 
 // 메시지 타입 정의 (실제 프로젝트의 타입에 맞게 조정)
 export interface Message {
@@ -25,18 +28,6 @@ export function estimateTokenCount(text: string): number {
 }
 
 /**
- * 시스템 프롬프트 조회 함수
- */
-export async function fetchSystemPrompt(
-  supabase: SupabaseClient,
-  userId: string
-): Promise<string> {
-  // 실제 구현에서는 데이터베이스에서 사용자별 시스템 프롬프트를 조회
-  // 여기서는 기본 프롬프트 반환
-  return `You are a helpful AI assistant that helps with coding and software development tasks.`;
-}
-
-/**
  * 향상된 컨텍스트 생성 함수
  */
 export async function getEnhancedContext(
@@ -44,7 +35,8 @@ export async function getEnhancedContext(
   chatId: string,
   userId: string,
   messages: Message[],
-  maxTokens: number = 8000
+  maxTokens: number = 8000,
+  isAgentMode: boolean = true
 ): Promise<{ enhancedSystemPrompt: string; contextMessages: Message[] }> {
   // 1. 메모리 뱅크 조회
   const { data: memoryData } = await getAllMemoryBank(supabase, userId);
@@ -52,8 +44,8 @@ export async function getEnhancedContext(
   // 2. 프로젝트 상태 조회
   const statusContent = await getProjectStatus(supabase, chatId, userId);
   
-  // 3. 시스템 프롬프트 조회
-  const systemPrompt = await fetchSystemPrompt(supabase, userId);
+  // 3. 시스템 프롬프트 조회 - Agent 모드 파라미터 전달
+  const systemPrompt = await fetchSystemPrompt(isAgentMode);
   
   // 4. 메모리 컨텍스트 구성
   const memoryContext = memoryData ? 

@@ -89,7 +89,7 @@ export function SubscriptionButton({ user }: SubscriptionButtonProps) {
         aria-label="Get Premium Access"
       >
         <span className="text-sm font-bold tracking-wide relative z-10">
-          <span className="opacity-70 text-xs ">PRICING</span>
+          <span className="opacity-70 text-xs ">UPGRADE</span>
         </span>
           {/* <span className="opacity-70 text-xs line-through mr-1">$4</span>
           $0.8

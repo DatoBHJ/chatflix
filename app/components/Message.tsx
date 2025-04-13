@@ -5,11 +5,11 @@ import { MarkdownContent } from './MarkdownContent'
 import { ExtendedMessage } from '../chat/[id]/types'
 import { getModelById } from '@/lib/models/config'
 import { Attachment } from '@/lib/types'
-import React, { memo, useCallback, useState } from 'react'
+import React, { memo, useCallback, useState, useEffect } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@/app/lib/UserContext'
-
+import { createClient } from '@/utils/supabase/client'
 
 interface MessageProps {
   message: AIMessage & { experimental_attachments?: Attachment[] }
@@ -26,6 +26,7 @@ interface MessageProps {
   setEditingContent: (content: string) => void
   userName?: string
   profileImage?: string | null
+  chatId?: string
 }
 
 // Create a memoized Message component to prevent unnecessary re-renders
@@ -43,16 +44,22 @@ const Message = memo(function MessageComponent({
   onEditSave,
   setEditingContent,
   userName: propUserName,
-  profileImage: propProfileImage
+  profileImage: propProfileImage,
+  chatId
 }: MessageProps) {
   const router = useRouter();
+  const supabase = createClient();
   // Context에서 사용자 정보 가져오기
-  const { userName: contextUserName, profileImage: contextProfileImage } = useUser();
+  const { user, userName: contextUserName, profileImage: contextProfileImage } = useUser();
   
   // Props와 Context 중 우선순위를 결정하여 최종 값 설정
   const userName = propUserName || contextUserName;
   const profileImage = propProfileImage || contextProfileImage;
   
+  // Bookmark state
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
+
   // Function to truncate long messages
   const truncateMessage = useCallback((content: string, maxLength: number = 300) => {
     if (content.length <= maxLength) return content;
@@ -82,13 +89,112 @@ const Message = memo(function MessageComponent({
   const hasAttachments = message.experimental_attachments && message.experimental_attachments.length > 0;
   const hasContent = message.content && message.content.trim().length > 0;
 
-  // 어시스턴트 메시지이고 내용이 없으면 렌더링하지 않음
+  // Check if message is bookmarked when component mounts
+  useEffect(() => {
+    if (!user || !isAssistant || !message.id) return;
+    
+    const checkBookmarkStatus = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('message_bookmarks')
+          .select('id')
+          .eq('message_id', message.id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+          
+        if (!error && data) {
+          setIsBookmarked(true);
+        }
+      } catch (error) {
+        console.error('Error checking bookmark status:', error);
+      }
+    };
+    
+    checkBookmarkStatus();
+  }, [user, message.id, isAssistant, supabase]);
+
+  // Toggle bookmark function
+  const toggleBookmark = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!user || !message.id || !chatId || isBookmarkLoading) return;
+    
+    setIsBookmarkLoading(true);
+    
+    try {
+      if (isBookmarked) {
+        // Remove bookmark
+        const { error } = await supabase
+          .from('message_bookmarks')
+          .delete()
+          .eq('message_id', message.id)
+          .eq('user_id', user.id);
+          
+        if (error) throw error;
+        setIsBookmarked(false);
+      } else {
+        // Add bookmark
+        const { error } = await supabase
+          .from('message_bookmarks')
+          .insert({
+            message_id: message.id,
+            user_id: user.id,
+            chat_session_id: chatId,
+            content: message.content,
+            model: (message as ExtendedMessage).model || currentModel,
+            created_at: new Date().toISOString()
+          });
+          
+        if (error) throw error;
+        setIsBookmarked(true);
+      }
+    } catch (error) {
+      console.error('Error toggling bookmark:', error);
+    } finally {
+      setIsBookmarkLoading(false);
+    }
+  };
+
+  // Function to navigate to the specific message in the chat
+  const navigateToMessage = useCallback((messageId: string, chatSessionId: string) => {
+    if (!chatSessionId) return;
+    router.push(`/chat/${chatSessionId}#${messageId}`);
+  }, [router]);
+
+  // 어시스턴트 메시지이고 내용이 없으면 로딩 표시기 보여줌
   if (isAssistant && !hasContent) {
-    return null;
+    return (
+      <div className="message-group group animate-fade-in overflow-hidden">
+        <div className="message-role">
+          <div className="inline-flex items-center gap-2">
+            <div className="w-5 h-5 rounded-full overflow-hidden relative inline-block align-middle">
+              <Image 
+                src="/favicon-32x32.png" 
+                alt="Chatflix" 
+                width={20}
+                height={20}
+                className="object-cover"
+              />
+            </div>
+            <span>Chatflix.app</span>
+          </div>
+        </div>
+        <div className="flex justify-start">
+          <div className="message-assistant max-w-full">
+            <div className="loading-dots text-xl">
+              <span>.</span>
+              <span>.</span>
+              <span>.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="message-group group animate-fade-in overflow-hidden">
+    <div className="message-group group animate-fade-in overflow-hidden" id={message.id}>
       <div className={`message-role ${isUser ? 'text-right' : ''}`}>
         {isAssistant ? (
           <div className="inline-flex items-center gap-2">
@@ -261,6 +367,29 @@ const Message = memo(function MessageComponent({
             ) : (
               <IconCopy className="w-3 h-3" />
             )}
+          </button>
+          <button
+            onClick={toggleBookmark}
+            className={`text-xs transition-colors flex items-center gap-2 ${
+              isBookmarked ? 'text-blue-500' : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+            } ${isBookmarkLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            title={isBookmarked ? "Remove bookmark" : "Bookmark message"}
+            disabled={isBookmarkLoading}
+          >
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="12" 
+              height="12" 
+              viewBox="0 0 24 24" 
+              fill={isBookmarked ? "currentColor" : "none"}
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+              className={isBookmarkLoading ? "animate-pulse" : ""}
+            >
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+            </svg>
           </button>
           <div className="text-xs text-[var(--muted)] uppercase tracking-wider">
             {getModelById((message as ExtendedMessage).model || currentModel)?.name || 

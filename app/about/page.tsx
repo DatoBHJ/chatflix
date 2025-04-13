@@ -48,7 +48,7 @@ export default function About() {
               </h1>
               <div className="space-y-2">
                 <p className="text-base font-light">
-                  Minimalist AI chat interface.
+                  Minimalist AI
                 </p>
                 <p className="text-base text-[var(--muted)] font-light leading-relaxed">
                   Focused on simplicity and efficiency in every interaction.
@@ -58,6 +58,18 @@ export default function About() {
 
             {/* Core Features */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-12">
+              <div className="space-y-6">
+                <div className="h-[1px] w-8 bg-[var(--muted)]" />
+                <div className="space-y-3">
+                  <div className="text-xs uppercase tracking-wider text-[var(--muted)]">
+                    Agent Mode
+                  </div>
+                  <div className="text-sm leading-relaxed">
+                    Advanced reasoning capabilities with dynamic tool selection for web search, calculations, link reading, image generation, and more, all while maintaining context through memory banks.
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-6">
                 <div className="h-[1px] w-8 bg-[var(--muted)]" />
                 <div className="space-y-3">
@@ -111,14 +123,14 @@ export default function About() {
                 </a>
                  */}
                 <a 
-                  href="mailto:datobhj@gmail.com" 
+                  href="mailto:sply@chatflix.app" 
                   className="flex items-center gap-2 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
                     <polyline points="22,6 12,13 2,6" />
                   </svg>
-                  <span className="tracking-wider">DATOBHJ@GMAIL.COM</span>
+                  <span className="tracking-wider">SPLY@CHATFLIX.APP</span>
                 </a>
               </div>
               

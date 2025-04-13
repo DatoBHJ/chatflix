@@ -27,7 +27,10 @@ const nextConfig = {
   },
   reactStrictMode: true,
   images: {
-    domains: ['jgkrhazygwcvbzkwkhnj.supabase.co'],
+    domains: [
+      'jgkrhazygwcvbzkwkhnj.supabase.co',
+      'lh3.googleusercontent.com'
+    ],
   }
 }
 

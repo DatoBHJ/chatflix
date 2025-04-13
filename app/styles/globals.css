@@ -8,4 +8,20 @@
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Chrome, Safari and Opera */
+}
+
+/* 북마크된 메시지 강조 효과 */
+.highlight-message {
+  animation: highlight-pulse 2s ease-in-out;
+  outline: 2px solid var(--highlight-color, #3b82f6);
+  border-radius: 0.5rem;
+}
+
+@keyframes highlight-pulse {
+  0%, 100% {
+    background-color: transparent;
+  }
+  50% {
+    background-color: var(--highlight-bg-color, rgba(59, 130, 246, 0.1));
+  }
 } 

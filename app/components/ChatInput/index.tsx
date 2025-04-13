@@ -17,7 +17,7 @@ export function ChatInput({
   isLoading,
   stop,
   disabled,
-  placeholder = "Type @ for shortcuts ...",
+  placeholder = "Chat is this real?",
   user,
   modelId,
   popupPosition = 'top',
@@ -799,7 +799,6 @@ export function ChatInput({
             ref={inputContainerRef}
             className="flex gap-1 items-center rounded-lg transition-all duration-300 px-2 py-1 bg-[color-mix(in_srgb,var(--foreground)_100%,transparent)]"
           >
-            {/* Web Search Toggle - improved for visibility */}
             {setisAgentEnabled && (
               <button
                 type="button"

@@ -4,6 +4,85 @@ import { createClient } from '@/utils/supabase/client'
 import { getCustomerPortalUrl, checkSubscription } from '@/lib/polar'
 import Image from 'next/image'
 
+// Export these functions to be used elsewhere
+export const fetchUserName = async (userId: string, supabase: any) => {
+  try {
+    // First try to get name from all_user table
+    const { data, error } = await supabase
+      .from('all_user')
+      .select('name')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      // If not found in all_user, use name from auth metadata
+      const { data: { user } } = await supabase.auth.getUser();
+      return user?.user_metadata?.name || 'You';
+    } else if (data) {
+      return data.name;
+    }
+    return 'You';
+  } catch (error) {
+    console.error('Error fetching user name:', error);
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.user_metadata?.name || 'You';
+  }
+};
+
+export const updateUserName = async (userId: string, userName: string, supabase: any) => {
+  try {
+    // First update the auth metadata
+    const { error: authError } = await supabase.auth.updateUser({
+      data: { name: userName }
+    });
+
+    if (authError) {
+      console.error('Error updating user name in auth:', authError);
+      throw new Error(authError.message);
+    }
+
+    // Then check if user exists in all_user table
+    const { data: userData, error: userCheckError } = await supabase
+      .from('all_user')
+      .select('id')
+      .eq('id', userId)
+      .single();
+
+    if (userCheckError && userCheckError.code !== 'PGRST116') { // PGRST116 is "not found"
+      console.error('Error checking if user exists:', userCheckError);
+      throw new Error(userCheckError.message);
+    }
+
+    // If user exists in all_user table, update it
+    if (userData) {
+      const { error: updateError } = await supabase
+        .from('all_user')
+        .update({ name: userName })
+        .eq('id', userId);
+
+      if (updateError) {
+        console.error('Error updating user name in all_user:', updateError);
+        throw new Error(updateError.message);
+      }
+    } else {
+      // If user doesn't exist in all_user table, insert it
+      const { error: insertError } = await supabase
+        .from('all_user')
+        .insert([{ id: userId, name: userName }]);
+
+      if (insertError) {
+        console.error('Error inserting user name to all_user:', insertError);
+        throw new Error(insertError.message);
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error updating user name:', error);
+    throw error;
+  }
+};
+
 interface AccountDialogProps {
   user: any;
   isOpen: boolean;
@@ -33,6 +112,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     if (user && isOpen) {
       checkUserSubscription();
       fetchProfileImage(user.id);
+      loadUserName(user.id);
     }
   }, [user, isOpen]);
 
@@ -46,6 +126,11 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
       setDeleteReason('');
     }
   }, [isOpen]);
+
+  const loadUserName = async (userId: string) => {
+    const name = await fetchUserName(userId, supabase);
+    setUserName(name);
+  };
 
   const fetchProfileImage = async (userId: string) => {
     try {
@@ -284,20 +369,11 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     }
   };
 
-  const updateUserName = async () => {
+  const handleUpdateUserName = async () => {
     if (!user) return;
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        data: { name: userName }
-      });
-
-      if (error) {
-        console.error('Error updating user name:', error);
-        alert(`Failed to update name: ${error.message}`);
-        return;
-      }
-
+      await updateUserName(user.id, userName, supabase);
       setIsEditing(false);
     } catch (error) {
       console.error('Error updating user name:', error);
@@ -307,7 +383,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
 
   const handleEditToggle = () => {
     if (isEditing) {
-      updateUserName();
+      handleUpdateUserName();
     } else {
       setIsEditing(true);
     }

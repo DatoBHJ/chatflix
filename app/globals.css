@@ -821,3 +821,83 @@ body {
   font-size: 0.9em;
 }
 
+/* Mobile dropdown styles */
+@media (max-width: 767px) {
+  .mobile-dropdown {
+    position: fixed !important;
+    z-index: 1000 !important;
+    top: 60px !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: calc(100% - 20px) !important;
+    max-width: none !important;
+  }
+}
+
+/* Adjacent posts in Twitter-style feed */
+.adjacent-post {
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.adjacent-post:hover {
+  opacity: 0.95;
+  transform: translateY(-1px);
+}
+
+.adjacent-post::after {
+  content: '';
+  position: absolute;
+  left: 18px;
+  width: 2px;
+  background-color: var(--subtle-divider);
+  z-index: 1;
+}
+
+.adjacent-post.previous::after {
+  top: 50%;
+  bottom: -12px;
+}
+
+.adjacent-post.next::after {
+  top: -12px;
+  bottom: 50%;
+}
+
+/* Page transition animations */
+@keyframes fadeInPage {
+  from {
+    opacity: 0.8;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-transition-in {
+  animation: fadeInPage 0.3s ease-out forwards;
+}
+
+/* Loading state styling */
+.app-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+}
+
+.app-loading .app-name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.app-loading .loading-text {
+  font-size: 0.875rem;
+  color: var(--muted);
+  opacity: 0.8;
+}
+

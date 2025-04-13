@@ -16,289 +16,10 @@ import { handleRateLimiting } from './utils/ratelimit';
 import { z } from 'zod';
 
 // Agent 모드에서만 사용할 메모리 관련 import
-import { updateProjectStatus, getProjectStatus } from '@/utils/status-tracker';
-import { updateMemoryBank, initializeMemoryBank, getAllMemoryBank } from '@/utils/memory-bank';
+import { getProjectStatus } from '@/utils/status-tracker';
+import { initializeMemoryBank, getAllMemoryBank } from '@/utils/memory-bank';
 import { estimateTokenCount } from '@/utils/context-manager';
-import { SupabaseClient } from '@supabase/supabase-js';
-
-
-/**
- * 백그라운드에서 메모리 뱅크 업데이트를 수행하는 함수
- */
-async function updateMemoryBankInBackground(
-  supabase: SupabaseClient,
-  userId: string,
-  chatId: string,
-  messages: MultiModalMessage[],
-  userMessage: string,
-  aiMessage: string
-): Promise<void> {
-  try {
-    console.log("[DEBUG-AGENT-BG] Starting background memory update in parallel");
-    
-    // 대화 내용 준비 (최신 5개 메시지만 사용)
-    const recentMessages = messages.slice(-5);
-    const conversationText = recentMessages.map(msg => {
-      const role = msg.role.charAt(0).toUpperCase() + msg.role.slice(1);
-      const content = typeof msg.content === 'string' 
-        ? msg.content 
-        : Array.isArray(msg.content) 
-          ? msg.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
-          : JSON.stringify(msg.content);
-      return `${role}: ${content}`;
-    }).join('\n\n');
-    
-    // 1. 프로젝트 상태 업데이트 함수
-    const updateProjectStatusAsync = async () => {
-      try {
-        console.log("[DEBUG-AGENT-BG] Starting project status update");
-        const statusUpdatePrompt = `Based on our conversation, please provide a concise update to the project status in markdown format. Focus only on what has changed.`;
-        
-        // 현재 상태 가져오기
-        const currentStatus = await getProjectStatus(supabase, chatId, userId);
-        
-        // 프롬프트 생성
-        const finalPrompt = `${statusUpdatePrompt}\n\nCurrent status:\n${currentStatus}\n\nLatest conversation:\nUser: ${userMessage}\nAI: ${aiMessage}`;
-        
-        // API 호출
-        const response = await fetch('https://api.x.ai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.XAI_API_KEY}`
-          },
-          body: JSON.stringify({
-            model: 'grok-2-latest',
-            messages: [
-              { role: 'system', content: 'Generate a concise project status update based on the conversation.' },
-              { role: 'user', content: finalPrompt }
-            ],
-            max_tokens: 300,
-            temperature: 0.3
-          })
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          const statusText = data.choices?.[0]?.message?.content || '';
-          
-          if (statusText) {
-            await updateProjectStatus(supabase, chatId, userId, statusText);
-            console.log("[DEBUG-AGENT-BG] Project status updated in database");
-            return statusText; // 상태 텍스트 반환 (02-progress 업데이트에 사용)
-          }
-        }
-        return null;
-      } catch (error) {
-        console.error("[DEBUG-AGENT-BG] Error updating project status:", error);
-        return null;
-      }
-    };
-    
-    // 2. 진행 상황(02-progress) 업데이트 함수
-    const updateProgressAsync = async (statusText: string | null) => {
-      if (!statusText) return;
-      
-      try {
-        console.log("[DEBUG-AGENT-BG] Starting progress update");
-        const progressPrompt = `Based on the status update, create a structured project progress document in markdown format. Include current phase, completed items, and next steps.\n\nStatus update:\n${statusText}`;
-        
-        const progressResponse = await fetch('https://api.x.ai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.XAI_API_KEY}`
-          },
-          body: JSON.stringify({
-            model: 'grok-2-latest',
-            messages: [
-              { role: 'system', content: 'Create a structured project progress document in markdown format.' },
-              { role: 'user', content: progressPrompt }
-            ],
-            max_tokens: 500,
-            temperature: 0.3
-          })
-        });
-        
-        if (progressResponse.ok) {
-          const progressData = await progressResponse.json();
-          const progressText = progressData.choices?.[0]?.message?.content || '';
-          
-          if (progressText) {
-            await updateMemoryBank(supabase, userId, '02-progress', progressText);
-            console.log("[DEBUG-AGENT-BG] Memory bank 02-progress updated");
-          }
-        }
-      } catch (error) {
-        console.error("[DEBUG-AGENT-BG] Error updating progress:", error);
-      }
-    };
-    
-    // 3. 대화 요약(01-summary) 업데이트 함수
-    const updateSummaryAsync = async () => {
-      try {
-        console.log("[DEBUG-AGENT-BG] Starting conversation summary generation");
-        const summaryPrompt = `Summarize the key points of this conversation related to the project and tasks. Include any decisions made and action items.\n\nConversation:\n${conversationText}`;
-        
-        const summaryResponse = await fetch('https://api.x.ai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.XAI_API_KEY}`
-          },
-          body: JSON.stringify({
-            model: 'grok-2-latest',
-            messages: [
-              { role: 'system', content: 'Create a concise summary of the conversation focusing on project-related information.' },
-              { role: 'user', content: summaryPrompt }
-            ],
-            max_tokens: 500,
-            temperature: 0.3
-          })
-        });
-        
-        if (summaryResponse.ok) {
-          const summaryData = await summaryResponse.json();
-          const summaryText = summaryData.choices?.[0]?.message?.content || '';
-          
-          if (summaryText) {
-            await updateMemoryBank(supabase, userId, '01-summary', summaryText);
-            console.log("[DEBUG-AGENT-BG] Memory bank 01-summary updated successfully");
-          }
-        }
-      } catch (error) {
-        console.error("[DEBUG-AGENT-BG] Error updating memory bank summary:", error);
-      }
-    };
-    
-    // 4. 프로젝트 개요(00-project-overview) 업데이트 함수
-    const updateOverviewAsync = async () => {
-      try {
-        console.log("[DEBUG-AGENT-BG] Starting project overview update");
-        const overviewPrompt = `Based on the current project state and conversation, provide a comprehensive project overview in markdown format. Include the project's purpose, goals, and scope.\n\nConversation:\n${conversationText}`;
-        
-        const overviewResponse = await fetch('https://api.x.ai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.XAI_API_KEY}`
-          },
-          body: JSON.stringify({
-            model: 'grok-2-latest',
-            messages: [
-              { role: 'system', content: 'Create a comprehensive project overview focusing on purpose, goals, and scope.' },
-              { role: 'user', content: overviewPrompt }
-            ],
-            max_tokens: 500,
-            temperature: 0.3
-          })
-        });
-        
-        if (overviewResponse.ok) {
-          const overviewData = await overviewResponse.json();
-          const overviewText = overviewData.choices?.[0]?.message?.content || '';
-          
-          if (overviewText) {
-            await updateMemoryBank(supabase, userId, '00-project-overview', overviewText);
-            console.log("[DEBUG-AGENT-BG] Memory bank 00-project-overview updated successfully");
-          }
-        }
-      } catch (error) {
-        console.error("[DEBUG-AGENT-BG] Error updating project overview:", error);
-      }
-    };
-    
-    // 5. 아키텍처(01-architecture) 업데이트 함수
-    const updateArchitectureAsync = async () => {
-      try {
-        console.log("[DEBUG-AGENT-BG] Starting architecture update");
-        const architecturePrompt = `Based on the current project state and conversation, provide a detailed description of the system architecture in markdown format. Include technical details, design decisions, and component relationships.\n\nConversation:\n${conversationText}`;
-        
-        const architectureResponse = await fetch('https://api.x.ai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.XAI_API_KEY}`
-          },
-          body: JSON.stringify({
-            model: 'grok-2-latest',
-            messages: [
-              { role: 'system', content: 'Create a detailed description of the system architecture and design decisions.' },
-              { role: 'user', content: architecturePrompt }
-            ],
-            max_tokens: 500,
-            temperature: 0.3
-          })
-        });
-        
-        if (architectureResponse.ok) {
-          const architectureData = await architectureResponse.json();
-          const architectureText = architectureData.choices?.[0]?.message?.content || '';
-          
-          if (architectureText) {
-            await updateMemoryBank(supabase, userId, '01-architecture', architectureText);
-            console.log("[DEBUG-AGENT-BG] Memory bank 01-architecture updated successfully");
-          }
-        }
-      } catch (error) {
-        console.error("[DEBUG-AGENT-BG] Error updating architecture:", error);
-      }
-    };
-    
-    // 6. 결정사항(03-decisions) 업데이트 함수
-    const updateDecisionsAsync = async () => {
-      try {
-        console.log("[DEBUG-AGENT-BG] Starting decisions update");
-        const decisionsPrompt = `Extract any key decisions or important choices made in this conversation. Format as a markdown list with rationales for each decision.\n\nConversation:\n${conversationText}`;
-        
-        const decisionsResponse = await fetch('https://api.x.ai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.XAI_API_KEY}`
-          },
-          body: JSON.stringify({
-            model: 'grok-2-latest',
-            messages: [
-              { role: 'system', content: 'Extract key decisions and their rationales from the conversation.' },
-              { role: 'user', content: decisionsPrompt }
-            ],
-            max_tokens: 500,
-            temperature: 0.3
-          })
-        });
-        
-        if (decisionsResponse.ok) {
-          const decisionsData = await decisionsResponse.json();
-          const decisionsText = decisionsData.choices?.[0]?.message?.content || '';
-          
-          if (decisionsText) {
-            await updateMemoryBank(supabase, userId, '03-decisions', decisionsText);
-            console.log("[DEBUG-AGENT-BG] Memory bank 03-decisions updated successfully");
-          }
-        }
-      } catch (error) {
-        console.error("[DEBUG-AGENT-BG] Error updating decisions:", error);
-      }
-    };
-
-    // 프로젝트 상태 업데이트를 먼저 실행 (02-progress가 이에 의존하기 때문)
-    const statusText = await updateProjectStatusAsync();
-    
-    // 나머지 모든 업데이트를 병렬로 실행
-    await Promise.all([
-      updateProgressAsync(statusText), // 프로젝트 상태에 따라 달라지는 유일한 업데이트
-      updateSummaryAsync(),
-      updateOverviewAsync(),
-      updateArchitectureAsync(),
-      updateDecisionsAsync()
-    ]);
-    
-    console.log("[DEBUG-AGENT-BG] All memory bank updates completed in parallel");
-  } catch (error) {
-    console.error("[DEBUG-AGENT-BG] Memory update process failed:", error);
-  }
-}
+import { updateAllMemoryBanks } from './services/memoryService';
 
 const getProviderFromModel = (model: string): string => {
   const selectedModel = providers.languageModel(model);
@@ -563,7 +284,7 @@ export async function POST(req: Request) {
           // Now wait for the processed message and system prompt
           const [processedLastMessage, systemPrompt] = await Promise.all([
             processedLastMessagePromise,
-            fetchSystemPrompt(supabase, user.id)
+            fetchSystemPrompt(isAgentEnabled)
           ]);
           
           processMessages[processMessages.length - 1] = processedLastMessage;
@@ -584,7 +305,7 @@ export async function POST(req: Request) {
           }
           
           // Use the system prompt as is for regular chat
-          let currentSystemPrompt = systemPrompt;
+          let currentSystemPrompt: string = systemPrompt as string;
           
           if (isAgentEnabled) {
             // 에이전트 모드에서만 메모리 뱅크 초기화 완료 대기
@@ -602,10 +323,10 @@ export async function POST(req: Request) {
             
             // 3. 향상된 시스템 프롬프트 (메모리 뱅크 컨텍스트 추가)
             if (memoryData) {
-              currentSystemPrompt = `${systemPrompt}\n\n## MEMORY BANK\n\n${memoryData}\n\n## PROJECT STATUS\n\n${statusContent}`;
+              currentSystemPrompt = `${systemPrompt as string}\n\n## MEMORY BANK\n\n${memoryData}\n\n## PROJECT STATUS\n\n${statusContent}`;
               console.log("[DEBUG-AGENT] Enhanced system prompt with memory bank");
             } else {
-              currentSystemPrompt = `${systemPrompt}\n\n## PROJECT STATUS\n\n${statusContent}`;
+              currentSystemPrompt = `${systemPrompt as string}\n\n## PROJECT STATUS\n\n${statusContent}`;
               console.log("[DEBUG-AGENT] Enhanced system prompt without memory bank");
             }
             
@@ -1003,6 +724,8 @@ For extracting content from web pages:
               tools.image_generator = imageGeneratorTool;
               
               toolSpecificPrompts.push(`
+If user requests to generate images, you must use the image_generator tool. 
+
 For image generation:
 - Use image_generator to create visuals from text descriptions
 - Provide detailed, descriptive prompts for best results
@@ -1141,7 +864,7 @@ For advanced computational knowledge and problem-solving:
             });
             
             // 결합된 시스템 프롬프트 구성 (enhancedSystemPrompt 사용)
-            const agentSystemPrompt = `${currentSystemPrompt}
+            const agentSystemPrompt: string = `${currentSystemPrompt}
 
 Today's Date: ${todayDate}
 
@@ -1306,7 +1029,7 @@ Always try to give the most accurate and helpful response.
                   const aiMessage = completion.text;
                   
                   // 백그라운드에서 비동기 메모리 업데이트 실행
-                  updateMemoryBankInBackground(
+                  updateAllMemoryBanks(
                     supabase, 
                     user.id, 
                     chatId, 

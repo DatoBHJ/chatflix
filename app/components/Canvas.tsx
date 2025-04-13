@@ -1026,7 +1026,11 @@ export default function Canvas({
           </div>
           {imageGenExpanded && (
             <div className="p-1">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div className={`grid gap-5 ${
+                imageGeneratorData.generatedImages.length === 1 
+                  ? 'grid-cols-1' 
+                  : 'grid-cols-1 sm:grid-cols-2'
+              }`}>
                 {imageGeneratorData.generatedImages.map((image, index) => (
                   <div 
                     key={index} 
@@ -1429,12 +1433,12 @@ export default function Canvas({
                   </svg>
                 </button>
                 
-                {/* Image caption overlay - hidden by default, shown on hover or click */}
+                {/* Image caption overlay - hidden by default, shown only on click */}
                 {(() => {
                   const selectedImage = imageGeneratorData.generatedImages[selectedImageIndex];
                   return selectedImage.prompt && (
-                    <div className="prompt-overlay absolute inset-0 bg-black/60 backdrop-blur-sm text-white rounded-md p-4 flex flex-col justify-center items-center text-center opacity-0 transition-opacity duration-300 group-hover:opacity-100 overflow-auto pointer-events-none">
-                      <p className="text-base md:text-lg">{selectedImage.prompt}</p>
+                    <div className="prompt-overlay absolute inset-0 bg-black/75 backdrop-blur-md text-white rounded-md p-6 flex flex-col justify-center items-center text-center opacity-0 transition-opacity duration-300 overflow-auto pointer-events-none">
+                      <p className="text-base md:text-lg font-medium">{selectedImage.prompt}</p>
                       {selectedImage.model && (
                         <p className="text-xs text-gray-300 mt-3">Model: {selectedImage.model}</p>
                       )}
@@ -1444,8 +1448,13 @@ export default function Canvas({
               </div>
               
               {/* Instruction text below the image (not overlaying) */}
-              <div className="text-center text-white text-xs mt-4 z-10">
-                Click for prompt
+              <div className="text-center text-white text-sm mt-4 z-10 bg-black/30 py-2 px-4 rounded-md flex items-center gap-2 justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="16" x2="12" y2="12"></line>
+                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+                Click image to view prompt
               </div>
             </div>
           </div>

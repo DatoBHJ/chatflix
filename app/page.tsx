@@ -9,6 +9,7 @@ import { Header } from './components/Header'
 import { Sidebar } from './components/Sidebar'
 import { uploadFile } from '@/app/chat/[id]/utils'
 import { Attachment } from '@/lib/types'
+import { nanoid } from 'nanoid'
 import { getDefaultModelId, getSystemDefaultModelId, updateUserDefaultModel, MODEL_CONFIGS } from '@/lib/models/config'
 import { ChatInput } from '@/app/components/ChatInput/index'
 
@@ -244,8 +245,8 @@ export default function Home() {
       // 디버깅: 웹 검색 상태 확인
       console.log('[Debug] Home page - Agent enabled:', isAgentEnabled);
       
-      // Generate session ID immediately
-      const sessionId = Date.now().toString();
+      // Create session ID
+      const sessionId = nanoid();
       
       // Upload files first if they exist
       let attachments: Attachment[] = [];
