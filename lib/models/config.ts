@@ -278,7 +278,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isNew: true,
     isHot: true,
     isEnabled: true,
-    isActivated: true,
+    isActivated: false,
     contextWindow: 1024000,
     isAgentEnabled: true,
     tps: 159,
