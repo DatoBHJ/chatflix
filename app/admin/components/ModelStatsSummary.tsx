@@ -6,31 +6,37 @@ import { useState } from 'react';
 export default function ModelStatsSummary() {
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   
-  // Calculate statistics
-  const totalModels = MODEL_CONFIGS.length;
-  const enabledModels = MODEL_CONFIGS.filter(model => model.isEnabled).length;
+  // Calculate statistics - only count enabled models for the main count
+  const enabledModels = MODEL_CONFIGS.filter(model => model.isEnabled);
+  const totalAllModels = MODEL_CONFIGS.length; // Total number of all models including disabled
+  const totalModels = enabledModels.length; // Only count enabled models for Total Models display
   const activatedModels = MODEL_CONFIGS.filter(model => model.isEnabled && model.isActivated).length;
+  const disabledModels = MODEL_CONFIGS.filter(model => !model.isEnabled).length;
+  const deactivatedModels = MODEL_CONFIGS.filter(model => model.isEnabled && !model.isActivated).length;
   
-  // Count models by provider
-  const providerCounts = MODEL_CONFIGS.reduce((counts: Record<string, number>, model) => {
+  // Only use activated models for the statistics
+  const activeModels = MODEL_CONFIGS.filter(model => model.isEnabled && model.isActivated);
+  
+  // Count models by provider (only enabled and activated models)
+  const providerCounts = activeModels.reduce((counts: Record<string, number>, model) => {
     const provider = model.provider;
     counts[provider] = (counts[provider] || 0) + 1;
     return counts;
   }, {});
   
-  // Count models by level
-  const levelCounts = MODEL_CONFIGS.reduce((counts: Record<string, number>, model) => {
+  // Count models by level (only enabled and activated models)
+  const levelCounts = activeModels.reduce((counts: Record<string, number>, model) => {
     const level = model.rateLimit.level;
     counts[level.toUpperCase()] = (counts[level.toUpperCase()] || 0) + 1;
     return counts;
   }, {});
 
-  // Calculate feature stats
+  // Calculate feature stats (only enabled and activated models)
   const featureStats = {
-    vision: MODEL_CONFIGS.filter(m => m.supportsVision).length,
-    pdf: MODEL_CONFIGS.filter(m => m.supportsPDFs).length,
-    Agent: MODEL_CONFIGS.filter(m => m.isAgentEnabled).length,
-    reasoning: MODEL_CONFIGS.filter(m => m.reasoning?.enabled).length
+    vision: activeModels.filter(m => m.supportsVision).length,
+    pdf: activeModels.filter(m => m.supportsPDFs).length,
+    Agent: activeModels.filter(m => m.isAgentEnabled).length,
+    reasoning: activeModels.filter(m => m.reasoning?.enabled).length
   };
 
   const statCardStyle = {
@@ -54,15 +60,26 @@ export default function ModelStatsSummary() {
       {/* Total Models */}
       <div className="p-5 shadow-sm hover:shadow-md" style={statCardStyle}>
         <h3 className="text-lg font-bold mb-3">Total Models</h3>
-        <p className="text-4xl font-bold mb-3">{totalModels}</p>
-        <div className="flex gap-3 text-sm">
+        <div className="flex justify-between items-center mb-3">
+          <p className="text-4xl font-bold">{totalModels}</p>
+          <p className="text-sm text-gray-500">(총 {totalAllModels}개)</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-sm">
           <div className="flex items-center">
             <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
-            <span>{enabledModels} Enabled</span>
+            <span>{enabledModels.length} Enabled</span>
           </div>
           <div className="flex items-center">
             <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
             <span>{activatedModels} Activated</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
+            <span>{disabledModels} Disabled</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-3 h-3 rounded-full bg-gray-400 mr-2"></div>
+            <span>{deactivatedModels} Deactivated</span>
           </div>
         </div>
       </div>

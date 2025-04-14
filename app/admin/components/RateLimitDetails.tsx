@@ -3,10 +3,29 @@
 import { RATE_LIMITS } from '@/lib/models/config';
 
 interface RateLimitDetailsProps {
-  level?: string;
+  level?: string | null;
 }
 
 export default function RateLimitDetails({ level = 'level3' }: RateLimitDetailsProps) {
+  // Handle null level (All Levels selected)
+  if (level === null) {
+    return (
+      <div className="rounded-lg p-4 mb-4" style={{
+        backgroundColor: 'var(--background)',
+        color: 'var(--foreground)',
+        borderBottom: '1px solid var(--subtle-divider)',
+        boxShadow: '0 1px 3px var(--overlay)'
+      }}>
+        <h3 className="text-lg font-medium mb-3" style={{ color: 'var(--foreground)' }}>
+          Rate Limit Details - ALL LEVELS
+        </h3>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>
+          Select a specific level to see detailed rate limits.
+        </p>
+      </div>
+    );
+  }
+  
   // Handle invalid level
   if (!['level0', 'level1', 'level2', 'level3', 'level4', 'level5'].includes(level)) {
     return <div className="text-red-500">Invalid rate limit level: {level}</div>;

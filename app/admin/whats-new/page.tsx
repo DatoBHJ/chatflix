@@ -338,11 +338,6 @@ export default function WhatsNewAdmin() {
     return <div className="p-4">You must be logged in to access this page.</div>;
   }
 
-  // Check for admin permission
-  if (user.id !== '9b682bce-11c0-4373-b954-08ec55731312') {
-    return <div className="p-4">You don't have permission to access this page.</div>;
-  }
-
   return (
     <div className="max-w-2xl mx-auto py-6 px-4">
       <div className="flex items-center justify-between mb-6">

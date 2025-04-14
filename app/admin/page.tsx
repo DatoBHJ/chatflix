@@ -9,14 +9,11 @@ import RateLimitDetails from './components/RateLimitDetails';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
-// Admin Supabase ID
-const ADMIN_ID = '9b682bce-11c0-4373-b954-08ec55731312';
-
 export default function AdminModelsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [selectedLevel, setSelectedLevel] = useState('level3');
+  const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
   const [filterProvider, setFilterProvider] = useState<string | null>(null);
   const [models, setModels] = useState(MODEL_CONFIGS);
   const [searchTerm, setSearchTerm] = useState('');
@@ -430,13 +427,6 @@ export default function AdminModelsPage() {
         // TEMPORARY: Allow all users to access the admin page for development
         setIsAuthorized(true);
         
-        // Production check - uncomment when deploying
-        // if (user?.id === ADMIN_ID) {
-        //   setIsAuthorized(true);
-        // } else {
-        //   router.push('/');
-        // }
-        
       } catch (error) {
         console.error('Authentication error:', error);
         // Don't redirect for development
@@ -451,7 +441,15 @@ export default function AdminModelsPage() {
 
   // Filter models when filters change
   useEffect(() => {
+    // Start with all models including disabled ones for the admin view
     let filteredModels = [...MODEL_CONFIGS];
+    
+    // Apply level filter
+    if (selectedLevel) {
+      filteredModels = filteredModels.filter(model => 
+        model.rateLimit.level === selectedLevel
+      );
+    }
     
     // Apply provider filter
     if (filterProvider) {
@@ -470,7 +468,7 @@ export default function AdminModelsPage() {
     }
     
     setModels(filteredModels);
-  }, [filterProvider, searchTerm]);
+  }, [selectedLevel, filterProvider, searchTerm]);
 
   // Get unique providers for filter
   const providers = Array.from(new Set(MODEL_CONFIGS.map(model => model.provider)));
@@ -588,8 +586,8 @@ export default function AdminModelsPage() {
 
       <div className="my-8 flex flex-wrap gap-3">
         <select 
-          value={selectedLevel} 
-          onChange={(e) => setSelectedLevel(e.target.value)}
+          value={selectedLevel || ''}
+          onChange={(e) => setSelectedLevel(e.target.value || null)}
           className="px-3 py-2 rounded border"
           style={{
             backgroundColor: 'var(--background)',
@@ -597,6 +595,7 @@ export default function AdminModelsPage() {
             borderColor: 'var(--border)'
           }}
         >
+          <option value="">All Levels</option>
           <option value="level0">Level 0</option>
           <option value="level1">Level 1</option>
           <option value="level2">Level 2</option>
@@ -657,23 +656,41 @@ export default function AdminModelsPage() {
             <tbody>
               {models.length > 0 ? (
                 models.map(model => (
-                  <tr key={model.id} className="hover:opacity-90 transition-opacity" 
-                      style={{ borderBottom: '1px solid var(--subtle-divider)' }}>
-                    <td className="px-4 py-3 font-mono text-sm">{model.id}</td>
+                  <tr key={model.id} 
+                      className="hover:opacity-90 transition-opacity" 
+                      style={{ 
+                        borderBottom: '1px solid var(--subtle-divider)',
+                        opacity: model.isEnabled ? 1 : 0.7,
+                        backgroundColor: !model.isEnabled 
+                          ? 'rgba(255, 0, 0, 0.05)' 
+                          : (!model.isActivated 
+                            ? 'rgba(100, 100, 100, 0.05)' 
+                            : 'transparent') 
+                      }}>
+                    <td className="px-4 py-3 font-mono text-sm">
+                      {model.id}
+                      {!model.isEnabled && (
+                        <span className="ml-2 inline-block px-1.5 py-0.5 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 text-xs rounded">
+                          Disabled
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="font-medium">{model.name}</div>
-                      {(model.isNew || model.isHot) && (
-                        <div className="flex space-x-2 mt-1">
-                          {model.isNew && <span className="text-xs px-2 py-1 rounded-full" style={{ 
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)', 
-                            color: 'rgb(59, 130, 246)' 
-                          }}>New</span>}
-                          {model.isHot && <span className="text-xs px-2 py-1 rounded-full" style={{ 
-                            backgroundColor: 'rgba(239, 68, 68, 0.1)', 
-                            color: 'rgb(239, 68, 68)' 
-                          }}>Hot</span>}
-                        </div>
-                      )}
+                      <div className="flex flex-wrap space-x-2 mt-1">
+                        {model.isNew && <span className="text-xs px-2 py-1 rounded-full" style={{ 
+                          backgroundColor: 'rgba(59, 130, 246, 0.1)', 
+                          color: 'rgb(59, 130, 246)' 
+                        }}>New</span>}
+                        {model.isHot && <span className="text-xs px-2 py-1 rounded-full" style={{ 
+                          backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+                          color: 'rgb(239, 68, 68)' 
+                        }}>Hot</span>}
+                        {!model.isActivated && <span className="text-xs px-2 py-1 rounded-full" style={{ 
+                          backgroundColor: 'rgba(100, 100, 100, 0.1)', 
+                          color: 'rgb(100, 100, 100)' 
+                        }}>Deactivated</span>}
+                      </div>
                     </td>
                     <td className="px-4 py-3">{model.provider}</td>
                     <td className="px-4 py-3 uppercase">{model.rateLimit.level}</td>
