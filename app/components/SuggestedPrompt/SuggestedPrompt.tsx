@@ -1,6 +1,32 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
+// 기본 영어 예시 쿼리 목록
+const DEFAULT_EXAMPLE_PROMPTS = [
+  // "How does photosynthesis work?",
+  // "Write a summary of quantum computing",
+  // "Explain the basics of machine learning",
+  // "What are the major events of World War II?",
+  // "How do I improve my programming skills?",
+  // "Tell me about the history of artificial intelligence",
+  // "What's the difference between a virus and bacteria?",
+  // "How do electric cars work?",
+  // "Explain blockchain technology in simple terms",
+  // "What are the main causes of climate change?",
+  // "What can you do?",
+  "What are the key features of Chatflix?",
+  // 도구 사용을 유도하는 질문 추가
+  "Search the web for the latest news about AI development",
+  "Can you generate an image of a sunset over mountains?",
+  "Calculate the derivative of x^2 * sin(x)",
+  "Find academic papers about renewable energy",
+  "What are people saying on X about climate change?",
+  "Summarize this YouTube video: https://www.youtube.com/watch?v=AJpK3YTTKZ4",
+  "Read and summarize this article: https://www.anthropic.com/news/claude-3-7-sonnet",
+  "Convert 250 kg to pounds and calculate 15% of the result",
+  "Solve the equation 3x^2 - 12x + 7 = 0"
+];
+
 export interface SuggestedPromptProps {
   userId: string;
   onPromptClick: (prompt: string) => void;
@@ -33,6 +59,9 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '' }: Sugge
       
       let allPrompts: string[] = [];
       
+      // 항상 기본 예시 프롬프트를 추가 (모든 사용자에게 표시)
+      allPrompts = [...allPrompts, ...DEFAULT_EXAMPLE_PROMPTS];
+      
       // Add user-specific prompts from profile if available
       if (!profileError && profileData && profileData.profile_data?.suggested_prompts) {
         const profilePrompts = profileData.profile_data.suggested_prompts;
@@ -50,10 +79,13 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '' }: Sugge
         });
       }
       
-      // Select random prompt if we have any
-      if (allPrompts.length > 0) {
-        const randomIndex = Math.floor(Math.random() * allPrompts.length);
-        setSuggestedPrompt(allPrompts[randomIndex]);
+      // 중복 제거 (Set 사용)
+      const uniquePrompts = [...new Set(allPrompts)];
+      
+      // 사용자 프롬프트가 없는 경우에도 기본 예시는 이미 추가되어 있음
+      if (uniquePrompts.length > 0) {
+        const randomIndex = Math.floor(Math.random() * uniquePrompts.length);
+        setSuggestedPrompt(uniquePrompts[randomIndex]);
         
         // Small delay before showing to ensure smooth transition
         setTimeout(() => {
