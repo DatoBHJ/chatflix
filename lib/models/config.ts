@@ -280,7 +280,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     isActivated: true,
     contextWindow: 1024000,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     tps: 159,
     intelligenceIndex: 68,
   },
