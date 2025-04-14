@@ -3,28 +3,28 @@ import { createClient } from '@/utils/supabase/client';
 
 // 기본 영어 예시 쿼리 목록
 const DEFAULT_EXAMPLE_PROMPTS = [
-  // "How does photosynthesis work?",
-  // "Write a summary of quantum computing",
-  // "Explain the basics of machine learning",
-  // "What are the major events of World War II?",
-  // "How do I improve my programming skills?",
-  // "Tell me about the history of artificial intelligence",
-  // "What's the difference between a virus and bacteria?",
-  // "How do electric cars work?",
-  // "Explain blockchain technology in simple terms",
-  // "What are the main causes of climate change?",
-  // "What can you do?",
+  "What can you do?",
   "What are the key features of Chatflix?",
   // 도구 사용을 유도하는 질문 추가
   "Search the web for the latest news about AI development",
   "Can you generate an image of a sunset over mountains?",
+  "Generate an image of Donald Trump wearing a bikini",
   "Calculate the derivative of x^2 * sin(x)",
   "Find academic papers about renewable energy",
-  "What are people saying on X about climate change?",
+  "What are people saying on X about Tesla?",
   "Summarize this YouTube video: https://www.youtube.com/watch?v=AJpK3YTTKZ4",
   "Read and summarize this article: https://www.anthropic.com/news/claude-3-7-sonnet",
   "Convert 250 kg to pounds and calculate 15% of the result",
-  "Solve the equation 3x^2 - 12x + 7 = 0"
+  "Solve the equation 3x^2 - 12x + 7 = 0",
+  // 복합적인 도구 사용을 유도하는 질문 추가
+  "Calculate the combined net worth of the five richest people in the world",
+  "Research the 3 most fuel-efficient electric cars, compare their prices, and calculate the 5-year cost of ownership",
+  "Find a popular TED talk about AI, summarize its key points, and research the speaker's background",
+  "Look up the nutritional information for avocados, calculate how many I need to eat to get 30g of protein",
+  "Find recent SpaceX launch news, summarize it, and analyze related social media reactions",
+  "Research the population growth of Tokyo over the last 50 years and create a graph showing the trend",
+  "Find the top 5 cryptocurrencies by market cap and calculate what $1000 invested equally would be worth",
+  "Search for the most viewed YouTube videos of all time and analyze what they have in common"
 ];
 
 export interface SuggestedPromptProps {
