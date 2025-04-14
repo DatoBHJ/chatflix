@@ -712,7 +712,7 @@ export function ChatInput({
     setFiles(prevFiles => prevFiles.filter(file => (file as any).id !== fileId));
   };
 
-  // Add a new method to handle trending term clicks
+  // Add a method to handle trending term clicks
   const handleTrendingTermClick = (term: string) => {
     if (!inputRef.current) return;
     
@@ -880,6 +880,8 @@ export function ChatInput({
               </button>
             )}
           </div>
+          
+         
         </div>
 
         {/* Drag & drop overlay */}

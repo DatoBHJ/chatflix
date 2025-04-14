@@ -17,7 +17,7 @@ export interface ModelConfig {
   isHot?: boolean; // Mark model as hot/trending
   reasoning?: {
     enabled: boolean;
-    provider?: 'groq' | 'together' | 'anthropic' | 'deepseek' | 'google';  
+    provider?: 'groq' | 'together' | 'anthropic' | 'deepseek' | 'google' | 'xai';  
     baseModelId?: string; 
     tagName?: string; 
     budgetTokens?: number;
@@ -277,7 +277,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     },
     supportsPDFs: false,
     isEnabled: true,
-    isActivated: false,
+    isActivated: true,
     isAgentEnabled: true,
     isNew: true,
     contextWindow: 131072,
@@ -288,7 +288,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     id: 'grok-3',
     name: 'Grok 3',
     country: 'US',
-    description: 'Grok 3 by xAI',
+    description: 'Grok 3 by xAI. Use this model for queries requiring deep domain expertise or world knowledge (eg healthcare, legal, finance).',
     provider: 'xai',
     supportsVision: false,
     censored: false,
@@ -297,7 +297,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     },
     supportsPDFs: false,
     isEnabled: true,
-    isActivated: false,
+    isActivated: true,
     isAgentEnabled: true,
     isNew: true,
     contextWindow: 131072,
@@ -306,19 +306,25 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   },
   {
     id: 'grok-3-mini-fast',
-    name: 'Grok 3 Mini Fast',
+    name: 'Grok 3 Mini Fast (Thinking)',
     country: 'US',
-    description: 'High-speed version of Grok 3 Mini',
+    description: 'High-speed version of Grok 3 Mini.',
     provider: 'xai',
     supportsVision: false,
     censored: false,
     rateLimit: {
       level: 'level0',
     },
+    reasoning: {
+      enabled: true,
+      // provider: 'xai',
+      // baseModelId: 'grok-3-mini',
+      // budgetTokens: 12000
+    },
     supportsPDFs: false,
     isEnabled: true,
-    isActivated: false,
-    isAgentEnabled: true,
+    isActivated: true,
+    isAgentEnabled: false,
     isNew: true,
     contextWindow: 131072,
     // tps: 67, 
@@ -326,19 +332,25 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   },
   {
     id: 'grok-3-mini',
-    name: 'Grok 3 Mini',
+    name: 'Grok 3 Mini (Thinking)',
     country: 'US',
-    description: 'Grok 3 Mini by xAI',
+    description: 'Grok 3 Mini by xAI. Use this model for tasks that can benefit from logical reasoning (such as meeting scheduling or math problems)',
     provider: 'xai',
     supportsVision: false,
     censored: false,
     rateLimit: {
       level: 'level0',
     },
+    reasoning: {
+      enabled: true,
+      // provider: 'xai',
+      // baseModelId: 'grok-3-mini',
+      // budgetTokens: 12000
+    },
     supportsPDFs: false,
     isEnabled: true,
-    isActivated: false,
-    isAgentEnabled: true,
+    isActivated: true,
+    isAgentEnabled: false,
     isNew: true,
     contextWindow: 131072,
     // tps: 67, 

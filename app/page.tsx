@@ -12,7 +12,7 @@ import { Attachment } from '@/lib/types'
 import { nanoid } from 'nanoid'
 import { getDefaultModelId, getSystemDefaultModelId, updateUserDefaultModel, MODEL_CONFIGS } from '@/lib/models/config'
 import { ChatInput } from '@/app/components/ChatInput/index'
-
+import { SuggestedPrompt } from '@/app/components/SuggestedPrompt/SuggestedPrompt'
 export default function Home() {
   const router = useRouter()
   const [currentModel, setCurrentModel] = useState(getSystemDefaultModelId()) // 초기값으로 시스템 기본 모델 사용
@@ -321,6 +321,82 @@ export default function Home() {
     }
   }
 
+  // Add a handler for suggested prompts
+  const handleSuggestedPromptClick = async (prompt: string) => {
+    if (isSubmitting || !user) return;
+    setIsSubmitting(true);
+
+    try {
+      // Enable agent mode if needed but don't wait for state to update
+      let useAgent = isAgentEnabled;
+      if (!isAgentEnabled && hasAgentModels) {
+        useAgent = true;
+        setisAgentEnabled(true);
+      }
+
+      console.log('[Debug] Submitting suggested prompt directly:', prompt);
+      
+      // Create session ID
+      const sessionId = nanoid();
+      
+      // Use the selected model
+      const modelToUse = nextModel;
+
+      // Create the session directly
+      const { error: sessionError } = await supabase
+        .from('chat_sessions')
+        .insert([{
+          id: sessionId,
+          title: prompt.trim(),
+          current_model: modelToUse,
+          initial_message: prompt.trim(),
+          user_id: user.id,
+        }]);
+
+      if (sessionError) {
+        console.error('Failed to create session:', sessionError);
+        return;
+      }
+
+      // Save the message directly
+      const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 15)}`;
+      const { error: messageError } = await supabase
+        .from('messages')
+        .insert([{
+          id: messageId,
+          content: prompt.trim(),
+          role: 'user',
+          created_at: new Date().toISOString(),
+          model: modelToUse,
+          host: 'user',
+          chat_session_id: sessionId,
+          user_id: user.id,
+          experimental_attachments: []
+        }]);
+
+      if (messageError) {
+        console.error('Failed to save message:', messageError);
+        return;
+      }
+
+      // Save Agent state to localStorage if needed
+      if (useAgent) {
+        localStorage.setItem(`Agent_${sessionId}`, 'true');
+        console.log('[Debug] Saved Agent state to localStorage:', sessionId);
+      }
+
+      // Redirect to chat page
+      const redirectUrl = `/chat/${sessionId}${useAgent ? '?Agent=true' : ''}`;
+      console.log('[Debug] Redirecting to:', redirectUrl);
+      router.push(redirectUrl);
+      
+    } catch (error) {
+      console.error('Error in handleSuggestedPromptClick:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // 로딩 중이거나 사용자 정보가 없는 경우 로딩 화면 표시
   if (isModelLoading || !user) {
     return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
@@ -384,9 +460,13 @@ export default function Home() {
               isAgentEnabled={isAgentEnabled}
               setisAgentEnabled={setAgentEnabledHandler}
             />
-            {/* <div className={`text-base px-4 text-[var(--muted)] h-6 text-center mt-2 transition-opacity duration-200 ${input ? 'opacity-60' : 'opacity-0'}`}>
-            (Experimental) Start your prompt with <strong className="text-[var(--foreground)] font-bold">/image</strong> to generate <strong className="text-[var(--foreground)] font-bold">images</strong>
-            </div> */}
+            {/* Display suggested prompt below the chat input */}
+            {user?.id && (
+              <SuggestedPrompt 
+                userId={user.id} 
+                onPromptClick={handleSuggestedPromptClick} 
+              />
+            )}
           </div>
         </div>
       </div>

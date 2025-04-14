@@ -1121,6 +1121,7 @@ Always try to give the most accurate and helpful response.
             
             finalstep.mergeIntoDataStream(dataStream, {
               experimental_sendFinish: true,
+              sendReasoning: false
             });
           } else {
             // 일반 채팅 흐름 - 원래 코드 사용에 토큰 제한 최적화 추가

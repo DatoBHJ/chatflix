@@ -20,6 +20,7 @@ import { ChatInput } from '@/app/components/ChatInput/index';
 import { VirtuosoHandle } from 'react-virtuoso';
 import VirtuosoWrapper from '@/app/components/VirtuosoWrapper';
 import Canvas from '@/app/components/Canvas';
+import { FollowUpQuestions } from '@/app/components/FollowUpQuestions';
 
 
 // Define data type for Wolfram Alpha results
@@ -81,6 +82,7 @@ export default function Chat({ params }: PageProps) {
   const [rateLimitedLevels, setRateLimitedLevels] = useState<string[]>([])
   const [isAgentEnabled, setisAgentEnabled] = useState(false)
   const [hasAgentModels, setHasAgentModels] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const isFullyLoaded = !isModelLoading && isSessionLoaded && !!currentModel
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, stop, setMessages, reload } = useChat({
@@ -1673,6 +1675,73 @@ export default function Chat({ params }: PageProps) {
     handleAgentToggle(newValue);
   };
 
+  // Add a handler for follow-up question clicks
+  const handleFollowUpQuestionClick = async (question: string) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    
+    try {
+      // Skip updating the input value first and go straight to submission
+      console.log('[Debug] Directly submitting follow-up question:', question);
+      
+      // Create a message ID for the new message
+      const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 15)}`;
+      
+      // Get the latest sequence number first
+      const { data: currentMax } = await supabase
+        .from('messages')
+        .select('sequence_number')
+        .eq('chat_session_id', chatId)
+        .eq('user_id', user.id)
+        .order('sequence_number', { ascending: false })
+        .limit(1)
+        .single();
+
+      const sequence = (currentMax?.sequence_number || 0) + 1;
+      
+      // Add the question to the message list directly
+      const newMessage = {
+        id: messageId,
+        content: question,
+        role: 'user',
+        createdAt: new Date(),
+        sequence_number: sequence
+      } as Message;
+      
+      // Add to UI messages right away
+      setMessages(prev => [...prev, newMessage]);
+      
+      // Save to database with sequence number
+      await supabase
+        .from('messages')
+        .insert([{
+          id: messageId,
+          content: question,
+          role: 'user',
+          created_at: new Date().toISOString(),
+          model: nextModel,
+          host: 'user',
+          chat_session_id: chatId,
+          user_id: user.id,
+          sequence_number: sequence
+        }]);
+      
+      // Trigger the AI response via the chat API
+      reload({
+        body: {
+          model: nextModel,
+          chatId,
+          experimental_attachments: [],
+          isAgentEnabled
+        }
+      });
+    } catch (error) {
+      console.error('Error submitting follow-up question:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // 모든 데이터가 로드되기 전에는 로딩 화면 표시
   if (!isFullyLoaded || !user) {
     return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
@@ -1780,6 +1849,16 @@ export default function Chat({ params }: PageProps) {
                         isStreaming={true}
                       />
                     )}
+                    
+                    {/* Add follow-up questions after the last assistant message */}
+                    {useVirtualization && !isLoading && index === messages.length - 1 && message.role === 'assistant' && user && (
+                      <FollowUpQuestions 
+                        chatId={chatId} 
+                        userId={user.id} 
+                        messages={messages} 
+                        onQuestionClick={handleFollowUpQuestionClick} 
+                      />
+                    )}
                   </>
                 );
               }}
@@ -1861,6 +1940,17 @@ export default function Chat({ params }: PageProps) {
               />
             </div>
           )}
+          
+          {/* Add follow-up questions only if virtualization is not used */}
+          {!useVirtualization && !isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && user && (
+            <FollowUpQuestions 
+              chatId={chatId} 
+              userId={user.id} 
+              messages={messages} 
+              onQuestionClick={handleFollowUpQuestionClick} 
+            />
+          )}
+          
           <div ref={messagesEndRef} className="h-px" />
         </div>
       </div>

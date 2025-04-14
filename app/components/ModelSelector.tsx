@@ -3,6 +3,23 @@ import { getEnabledModels } from '@/lib/models/config';
 import Image from 'next/image';
 import type { ModelConfig } from '@/lib/models/config';
 
+/**
+ * Model Types Guide:
+ * 
+ * 1. Thinking/Reasoning Models (marked with "Thinking"):
+ *    - Best for: Complex multi-step problems, math, coding challenges, scientific reasoning
+ *    - Use when: You need detailed problem-solving, step-by-step logic, or high accuracy
+ *    - Examples: Planning meetings, solving equations, analyzing data, debugging code
+ * 
+ * 2. Regular Models:
+ *    - Best for: Everyday tasks, creative content, summarization, simple Q&A
+ *    - Use when: You need fast responses, general knowledge, or creative ideas
+ *    - Examples: Drafting emails, brainstorming, casual conversation, content creation
+ * 
+ * Note: Thinking models use more computational resources but excel at complex reasoning,
+ * while regular models are faster and more efficient for everyday tasks.
+ */
+
 // Helper function to get the logo path based on provider
 const getProviderLogo = (provider: ModelConfig['provider']) => {
   const logoMap: Partial<Record<ModelConfig['provider'], string>> = {
@@ -688,12 +705,22 @@ export function ModelSelector({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  // Add model filter state
+  const [modelFilter, setModelFilter] = useState<'all' | 'thinking' | 'regular'>('all');
 
-  // Get all models and filter based on web search enabled state
+  // Get all models and filter based on web search enabled state and model filter
   const allModels = getEnabledModels();
-  const MODEL_OPTIONS = isAgentEnabled 
+  const filteredModels = isAgentEnabled 
     ? allModels.filter(model => model.isAgentEnabled) 
     : allModels;
+    
+  // Apply thinking/regular filter
+  const MODEL_OPTIONS = (() => {
+    if (modelFilter === 'all') return filteredModels;
+    if (modelFilter === 'thinking') return filteredModels.filter(model => model.name.includes('(Thinking)'));
+    if (modelFilter === 'regular') return filteredModels.filter(model => !model.name.includes('(Thinking)'));
+    return filteredModels;
+  })();
 
   // Combine disabledLevel and disabledLevels for backward compatibility
   const allDisabledLevels = [...disabledLevels];
@@ -711,6 +738,25 @@ export function ModelSelector({
     window.addEventListener('resize', checkIfMobile);
     return () => window.removeEventListener('resize', checkIfMobile);
   }, []);
+
+  // Update selected model when filter changes
+  useEffect(() => {
+    if (modelFilter === 'all') return;
+    
+    const isCurrentModelInFilter = (() => {
+      if (modelFilter === 'thinking') {
+        return MODEL_OPTIONS.some(model => model.id === nextModel && model.name.includes('(Thinking)'));
+      } else if (modelFilter === 'regular') {
+        return MODEL_OPTIONS.some(model => model.id === nextModel && !model.name.includes('(Thinking)'));
+      }
+      return true;
+    })();
+    
+    // If current model doesn't match filter, select first model in filtered list
+    if (!isCurrentModelInFilter && MODEL_OPTIONS.length > 0) {
+      setNextModel(MODEL_OPTIONS[0].id);
+    }
+  }, [modelFilter, nextModel, MODEL_OPTIONS, setNextModel]);
 
   // Handle click outside to close dropdown
   useEffect(() => {
@@ -809,7 +855,7 @@ export function ModelSelector({
         animation: fadeIn 0.2s ease;
         z-index: 1000 !important;
         backdrop-filter: blur(10px);
-        background: var(--background);
+        background: linear-gradient(to bottom right, var(--background), color-mix(in srgb, var(--background-secondary) 30%, transparent));
         overflow: hidden;
         display: flex;
         flex-direction: column;
@@ -994,7 +1040,8 @@ export function ModelSelector({
     };
   }, []);
 
-  const currentModelOption = MODEL_OPTIONS.find(option => option.id === nextModel);
+  const currentModelOption = MODEL_OPTIONS.find(option => option.id === nextModel) || 
+    allModels.find(model => model.id === nextModel);
 
   // Update nextModel if current model doesn't support web search when web search is enabled
   // or if the model is deactivated
@@ -1085,8 +1132,8 @@ export function ModelSelector({
                 model-dropdown
                 ${isFullscreen ? 'fullscreen' : 
                   isMobile 
-                    ? 'fixed inset-x-0 bottom-0 w-full max-h-[80vh] overflow-y-auto pb-6 model-selector-scroll rounded-t-xl bg-[var(--background)]' 
-                    : `absolute left-1 ${position === 'top' ? 'bottom-full mb-2 w-[592px] max-h-[600px]' : 'top-full mt-20 w-[600px] max-h-[400px]'} left-0   overflow-y-auto model-selector-scroll rounded-md bg-[var(--background)]/95 backdrop-blur-xl`
+                    ? 'fixed inset-x-0 bottom-0 w-full max-h-[80vh] overflow-y-auto pb-6 model-selector-scroll rounded-t-xl bg-gradient-to-br from-[var(--background)] to-[var(--background-secondary)]/30 backdrop-blur-lg' 
+                    : `absolute left-1 ${position === 'top' ? 'bottom-full mb-2 w-[592px] max-h-[600px]' : 'top-full mt-20 w-[600px] max-h-[400px]'} left-0   overflow-y-auto model-selector-scroll rounded-md bg-gradient-to-br from-[var(--background)] to-[var(--background-secondary)]/30 backdrop-blur-lg`
                 }
                 z-50
               `}
@@ -1117,18 +1164,8 @@ export function ModelSelector({
                   <div className="flex items-center justify-between px-4 mt-2">
                     <div className="flex flex-col">
                       <span className="text-xs uppercase tracking-wider opacity-70">Models</span>
-                      <span className="mt-2 text-xs italic text-[var(--muted)]">Chatflix: The Ultimate Collection of Excellence</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {/* <button 
-                        onClick={() => setIsFullscreen(true)}
-                        className="expand-button"
-                        aria-label="Expand to fullscreen"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" fill="currentColor"/>
-                        </svg>
-                      </button> */}
                       <button 
                         onClick={() => setIsOpen(false)}
                         className="text-[var(--muted)] hover:text-[var(--foreground)] text-xs"
@@ -1142,7 +1179,7 @@ export function ModelSelector({
               
               {/* Desktop mode - add expand button */}
               {!isMobile && !isFullscreen && (
-                <div className="sticky top-0 z-10 bg-[var(--background)] pb-2 pt-2 px-4">
+                <div className="sticky top-0 z-20 bg-[var(--background)] pb-2 pt-2 px-4">
                   <div className="flex items-center justify-between">
                     <span className="text-xs italic text-[var(--muted)]">Chatflix: The Ultimate Collection of Excellence</span>
                     <button 
@@ -1157,6 +1194,115 @@ export function ModelSelector({
                   </div>
                 </div>
               )}
+              
+              {/* Model types explanation - Ultra Modern Design */}
+              <div className={`py-5 sm:py-10 px-7 relative overflow-hidden ${isMobile && !isFullscreen ? 'mt-4 bg-[var(--background)]/95 backdrop-blur-sm' : 'mt-2 bg-[var(--background)]/80 backdrop-blur-sm z-10'} ${isFullscreen ? 'max-w-4xl mx-auto rounded-xl' : ''}`}>
+                {/* Abstract background elements for futuristic feel */}
+                <div className="absolute inset-0 opacity-5">
+                  <div className="absolute top-0 left-1/4 w-32 h-32 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 blur-2xl"></div>
+                  <div className="absolute bottom-0 right-1/4 w-24 h-24 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 blur-2xl"></div>
+                </div>
+
+                <div className="relative z-10">
+                  {/* Header with light bulb emoji and filter info */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 flex items-center justify-center">
+                        <span className="text-lg">💡</span>
+                      </div>
+                      <p className="text-xs font-medium tracking-wide text-[var(--foreground)] uppercase">Model Selection Guide</p>
+                    </div>
+                    
+                    {/* Show current filter and reset button */}
+                    {modelFilter !== 'all' && (
+                      <button 
+                        onClick={() => setModelFilter('all')}
+                        className="text-[10px] px-2 py-1 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] flex items-center gap-1 hover:bg-[var(--accent)]/20 transition-colors"
+                      >
+                        <span>All Models</span>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z" fill="currentColor"/>
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+
+        
+
+                  {/* Model cards with modern, sleek design */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                    {/* Thinking model card - clickable */}
+                    <div 
+                      className={`bg-gradient-to-br from-[var(--background)] to-[var(--background-secondary)]/30 rounded-xl p-3.5 backdrop-blur-lg shadow-sm relative overflow-hidden cursor-pointer transition-all
+                        ${modelFilter === 'thinking' ? 'ring-2 ring-blue-500/50' : 'hover:bg-[var(--background-secondary)]/50'}
+                      `}
+                      onClick={() => setModelFilter(modelFilter === 'thinking' ? 'all' : 'thinking')}
+                    >
+                      {/* Selected indicator */}
+                      {modelFilter === 'thinking' && (
+                        <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" fill="white"/>
+                          </svg>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-start gap-3">
+                        <div className="w-7 h-7 flex-shrink-0 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-blue-500">
+                            <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" fill="currentColor"/>
+                            <path d="M13 7H11V13H17V11H13V7Z" fill="currentColor"/>
+                          </svg>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs font-semibold text-[var(--foreground)]">Models with "(Thinking)"</h4>
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-blue-500/10 text-blue-500">REASONING</span>
+                          </div>
+                          <p className="text-[11px] leading-relaxed text-[var(--muted)] mt-1.5">
+                            Best for complex reasoning: math problems, coding tasks, detailed planning, and step-by-step analysis. More thorough but takes more time.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Regular model card - clickable */}
+                    <div 
+                      className={`bg-gradient-to-br from-[var(--background)] to-[var(--background-secondary)]/30 rounded-xl p-3.5 backdrop-blur-lg shadow-sm relative overflow-hidden cursor-pointer transition-all
+                        ${modelFilter === 'regular' ? 'ring-2 ring-emerald-500/50' : 'hover:bg-[var(--background-secondary)]/50'}
+                      `}
+                      onClick={() => setModelFilter(modelFilter === 'regular' ? 'all' : 'regular')}
+                    >
+                      {/* Selected indicator */}
+                      {modelFilter === 'regular' && (
+                        <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" fill="white"/>
+                          </svg>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-start gap-3">
+                        <div className="w-7 h-7 flex-shrink-0 bg-emerald-500/10 rounded-lg flex items-center justify-center">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-emerald-500">
+                            <path d="M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="currentColor" strokeWidth="2"/>
+                            <path d="M16 11L12 15L10 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs font-semibold text-[var(--foreground)]">Regular Models</h4>
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-emerald-500/10 text-emerald-500">BALANCED</span>
+                          </div>
+                          <p className="text-[11px] leading-relaxed text-[var(--muted)] mt-1.5">
+                            Perfect for everyday tasks: creative content, general questions, summarization, and brainstorming. Faster responses with good efficiency.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
               
               {/* Fullscreen content container */}
               <div className={isFullscreen ? "fullscreen-content" : ""}>
@@ -1291,7 +1437,7 @@ export function ModelSelector({
                               {!option.isActivated && (
                                 <div className="rounded-full px-1.5 py-0.5 text-[9px] uppercase font-medium flex items-center gap-0.5 bg-[#FF6B6B]/20">
                                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
-                                    <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                                    <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" clipRule="evenodd" />
                                   </svg>
                                   <span>Temporarily Deactivated</span>
                                 </div>

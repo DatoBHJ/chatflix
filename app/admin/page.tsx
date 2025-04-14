@@ -27,6 +27,19 @@ export default function AdminModelsPage() {
   const [isAutoBatchMode, setIsAutoBatchMode] = useState(false);
   const [autoBatchProgress, setAutoBatchProgress] = useState<{current: number, total: number} | null>(null);
   const [updateTimer, setUpdateTimer] = useState<NodeJS.Timeout | null>(null);
+  const [isGeneratingPrompts, setIsGeneratingPrompts] = useState(false);
+  const [generatedPrompts, setGeneratedPrompts] = useState<string[]>([]);
+  const [detectedLanguage, setDetectedLanguage] = useState<string>("");
+  const [promptOperation, setPromptOperation] = useState<string>("");
+  const [promptBatchSize, setPromptBatchSize] = useState(10);
+  const [promptProcessingStats, setPromptProcessingStats] = useState<{
+    processed: number;
+    skipped: number;
+    failed: number;
+    total: number;
+    hasMore: boolean;
+    nextOffset: number | null;
+  } | null>(null);
   const router = useRouter();
 
   // 클라이언트 측 진행 업데이트 타이머 상태 추가
@@ -232,6 +245,78 @@ export default function AdminModelsPage() {
     setIsGeneratingProfiles(false);
     setIsUpdatingProfiles(false);
     toast.info('배치 처리 상태가 초기화되었습니다.');
+  };
+  
+  // 추천 프롬프트 생성 함수
+  const generateSuggestedPrompts = async () => {
+    try {
+      setIsGeneratingPrompts(true);
+      setGeneratedPrompts([]);
+      setDetectedLanguage("");
+      setPromptOperation("");
+      setPromptProcessingStats(null);
+      
+      toast.info('추천 프롬프트 생성 중...');
+      
+      const response = await fetch('/api/admin/suggested-prompts/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify({
+          limit: promptBatchSize,
+          offset: 0,
+          auto_batch: isAutoBatchMode
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        const errorText = result.error || `${response.status} ${response.statusText}`;
+        toast.error(`추천 프롬프트 생성 실패: ${errorText}`);
+        console.error("API 응답 오류:", result);
+        return;
+      }
+      
+      if (result.success && result.results) {
+        // 처리 결과 표시
+        const stats = {
+          processed: result.results.processed,
+          skipped: result.results.skipped,
+          failed: result.results.failed,
+          total: result.results.processed + result.results.skipped + result.results.failed,
+          hasMore: result.results.pagination?.has_more || false,
+          nextOffset: result.results.pagination?.next_offset || null
+        };
+        
+        setPromptProcessingStats(stats);
+        
+        const successResults = result.results.userResults?.filter((r: any) => r.status === 'success') || [];
+        
+        if (successResults.length > 0) {
+          // 첫 번째 성공한 결과를 표시 (예시)
+          setGeneratedPrompts(successResults[0].prompts || []);
+          setDetectedLanguage(successResults[0].language || "Unknown");
+          setPromptOperation(isAutoBatchMode ? 'batch' : 'updated');
+          
+          const totalProcessed = result.results.pagination?.processed_users || result.results.processed;
+          const totalUsers = result.results.pagination?.total_users || stats.total;
+          
+          toast.success(`${stats.processed}명의 사용자에 대한 추천 프롬프트 생성 완료 (건너뜀: ${stats.skipped}, 실패: ${stats.failed}, 총 처리: ${totalProcessed}/${totalUsers})`);
+        } else {
+          toast.warning('생성된 프롬프트가 없습니다.');
+        }
+      } else {
+        toast.error('응답 형식이 잘못되었습니다.');
+      }
+    } catch (error) {
+      console.error('Error generating suggested prompts:', error);
+      toast.error('추천 프롬프트 생성 중 오류가 발생했습니다.');
+    } finally {
+      setIsGeneratingPrompts(false);
+    }
   };
   
   // 프로필 업데이트 함수
@@ -1022,6 +1107,132 @@ export default function AdminModelsPage() {
           </p>
         </div>
       )}
+      
+      {/* 추천 프롬프트 생성 섹션 */}
+      <div className="mt-12 mb-8">
+        <h2 className="text-2xl font-semibold mb-4">추천 프롬프트 생성</h2>
+        <div className="p-6 rounded-lg" style={{ backgroundColor: 'var(--accent)', border: '1px solid var(--border)' }}>
+          <p className="mb-4">
+            사용자의 최근 메시지를 기반으로 추천 프롬프트를 생성합니다.
+          </p>
+          
+          <div className="p-4 rounded-lg border shadow-sm mb-4" style={{ backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}>
+            <h3 className="text-lg font-medium mb-3">배치 설정</h3>
+            <div className="flex items-center gap-4">
+              <div>
+                <label className="block text-sm mb-1" style={{ color: 'var(--muted)' }}>
+                  배치 크기:
+                </label>
+                <select 
+                  value={promptBatchSize} 
+                  onChange={(e) => setPromptBatchSize(Number(e.target.value))}
+                  className="px-3 py-2 rounded border w-24"
+                  style={{
+                    backgroundColor: 'var(--background)',
+                    color: 'var(--foreground)',
+                    borderColor: 'var(--border)'
+                  }}
+                  disabled={isGeneratingPrompts}
+                >
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </div>
+              
+              {/* 자동 배치 처리 체크박스 추가 */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="prompt-auto-batch"
+                  checked={isAutoBatchMode}
+                  onChange={(e) => setIsAutoBatchMode(e.target.checked)}
+                  disabled={isGeneratingPrompts}
+                  className="rounded border-gray-300"
+                />
+                <label htmlFor="prompt-auto-batch" className="text-sm">
+                  자동 배치 처리 (전체 사용자)
+                </label>
+              </div>
+              
+              {promptProcessingStats && (
+                <div className="text-sm" style={{ color: 'var(--muted)' }}>
+                  <p>생성: {promptProcessingStats.processed}명</p>
+                  <p>건너뜀: {promptProcessingStats.skipped}명</p>
+                  <p>실패: {promptProcessingStats.failed}명</p>
+                  <p>전체: {promptProcessingStats.total}명</p>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="p-4 rounded-lg border shadow-sm" style={{ backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium">프롬프트 생성</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={generateSuggestedPrompts}
+                  disabled={isGeneratingPrompts}
+                  className="px-4 py-2 rounded transition-colors text-sm font-semibold"
+                  style={{ 
+                    backgroundColor: isGeneratingPrompts ? 'var(--muted)' : 'var(--foreground)', 
+                    color: 'var(--background)',
+                    cursor: isGeneratingPrompts ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {isGeneratingPrompts ? '생성 중...' : '추천 프롬프트 생성'}
+                </button>
+              </div>
+            </div>
+            <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
+              각 사용자의 최근 10개 메시지를 분석하여 5개의 추천 프롬프트를 생성합니다.
+              메시지가 이전과 동일한 경우에는 건너뜁니다.
+            </p>
+            
+            {generatedPrompts.length > 0 && (
+              <div className="mt-4">
+                <h4 className="text-md font-medium mb-2">
+                  생성된 추천 프롬프트: 
+                  {detectedLanguage && (
+                    <span className="ml-2 text-sm font-normal" style={{ color: 'var(--muted)' }}>
+                      (감지된 언어: {detectedLanguage})
+                    </span>
+                  )}
+                  {promptOperation && (
+                    <span className="ml-2 text-xs px-2 py-0.5 rounded" style={{ 
+                      backgroundColor: promptOperation === 'updated' ? 'rgba(59, 130, 246, 0.1)' : 
+                                       promptOperation === 'previous' ? 'rgba(251, 191, 36, 0.1)' :
+                                       promptOperation === 'batch' ? 'rgba(139, 92, 246, 0.1)' :
+                                       'rgba(34, 197, 94, 0.1)', 
+                      color: promptOperation === 'updated' ? 'rgb(59, 130, 246)' : 
+                             promptOperation === 'previous' ? 'rgb(251, 191, 36)' :
+                             promptOperation === 'batch' ? 'rgb(139, 92, 246)' :
+                             'rgb(34, 197, 94)'
+                    }}>
+                      {promptOperation === 'updated' ? '업데이트됨' : 
+                       promptOperation === 'previous' ? '이전 생성됨' : 
+                       promptOperation === 'batch' ? '배치 처리됨' :
+                       '새로 생성됨'}
+                    </span>
+                  )}
+                </h4>
+                <div className="p-3 rounded-lg border" style={{ borderColor: 'var(--border)' }}>
+                  <p className="text-sm mb-2" style={{ color: 'var(--muted)' }}>
+                    첫 번째 성공한 사용자의 결과를 예시로 표시합니다.
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    {generatedPrompts.map((prompt, index) => (
+                      <li key={index} className="text-sm">{prompt}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 } 
