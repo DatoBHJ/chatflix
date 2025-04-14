@@ -716,10 +716,20 @@ export function ModelSelector({
     
   // Apply thinking/regular filter
   const MODEL_OPTIONS = (() => {
-    if (modelFilter === 'all') return filteredModels;
-    if (modelFilter === 'thinking') return filteredModels.filter(model => model.name.includes('(Thinking)'));
-    if (modelFilter === 'regular') return filteredModels.filter(model => !model.name.includes('(Thinking)'));
-    return filteredModels;
+    // First filter models based on the model type filter
+    let filteredByType: ModelConfig[] = [];
+    if (modelFilter === 'all') filteredByType = filteredModels;
+    if (modelFilter === 'thinking') filteredByType = filteredModels.filter(model => model.name.includes('(Thinking)'));
+    if (modelFilter === 'regular') filteredByType = filteredModels.filter(model => !model.name.includes('(Thinking)'));
+    
+    // Now sort to ensure new models appear at the top
+    return [...filteredByType].sort((a, b) => {
+      // If one is new and the other isn't, prioritize the new one
+      if (a.isNew && !b.isNew) return -1;
+      if (!a.isNew && b.isNew) return 1;
+      // If both are new or both are not new, maintain original order
+      return 0;
+    });
   })();
 
   // Combine disabledLevel and disabledLevels for backward compatibility
