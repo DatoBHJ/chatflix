@@ -5,9 +5,6 @@ import LinkReader from './LinkReader';
 import { ChevronUp, ChevronDown, Brain, Link2, Image as ImageIcon, AlertTriangle, X, ChevronLeft, ChevronRight, ExternalLink, Search, Calculator, BookOpen, FileSearch, Youtube, Database } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { Tweet } from 'react-tweet';
-import { motion } from 'framer-motion';
-import { useRouter } from "next/navigation";
-import Image from "next/image";
 import DataProcessorCanvas from './data-processor-canvas';
 
 // Wolfram Alpha logo component
