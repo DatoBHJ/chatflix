@@ -22,6 +22,10 @@ export interface ModelConfig {
     tagName?: string; 
     budgetTokens?: number;
   };
+  safetySettings?: {
+    categories: string;
+    threshold: string;
+  };
   contextWindow?: number;
   tps?: number; // Tokens per second received while the model is generating tokens (ie. after first chunk has been received from the API for models which support streaming).
   intelligenceIndex?: number; // Artificial Analysis Intelligence Index: Combination metric covering multiple dimensions of intelligence - the simplest way to compare how smart models are. Version 2 was released in Feb '25 and includes: MMLU_Pro-Pro, GPQA Diamond, HLE's Last Exam, LiveCodeBench, SciCode, AIME, MATH-500. See Intelligence Index methodology for further details, including a breakdown of each evaluation and how we run them.
@@ -264,7 +268,7 @@ export async function getDefaultModelId(userId?: string): Promise<string> {
 
 // Define the model configurations
 const MODEL_CONFIG_DATA: ModelConfig[] = [
-  
+  // Gemini 2.5 Pro Preview 03-25 (Thinking)
   {
     id: 'gemini-2.5-pro-preview-03-25',
     name: 'Gemini 2.5 Pro Preview 03-25 (Thinking)',
@@ -272,12 +276,15 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Google\'s most powerful thinking model. Reasoning tokens used in its chain-of-thought process are hidden by Google and not included in the visible output.',
     provider: 'google',
     supportsVision: true,
+    censored: false,
     rateLimit: {
       level: 'level1',
     },
+    safetySettings: {
+      categories: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+      threshold: 'BLOCK_NONE'
+    },
     supportsPDFs: true,
-    // isNew: true,
-    // isHot: true,
     isEnabled: true,
     isActivated: true,
     contextWindow: 1024000,
@@ -285,6 +292,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 159,
     intelligenceIndex: 68,
   },
+  // Gemini 2.0 Flash (Thinking)
   {
     id: 'gemini-2.0-flash',
     name: 'Gemini 2.0 Flash',
@@ -292,18 +300,23 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Latest 2.0 flash model with 1m context window by Google',
     provider: 'google',
     supportsVision: true,
-    // censored: true,
+    censored: false,
     rateLimit: {
-      level: 'level1',
+      level: 'level0',
+    },
+    safetySettings: {
+      categories: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+      threshold: 'BLOCK_NONE'
     },
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
-    // isAgentEnabled: true,
+    isAgentEnabled: true,
     contextWindow: 1024000,
     tps: 258,
     intelligenceIndex: 48,
   },
+  // Claude 3.7 Sonnet (Thinking)
   {
     id: 'claude-3-7-sonnet-20250219',
     name: 'Claude 3.7 Sonnet (Thinking)',
@@ -314,7 +327,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level4',
     },
-    supportsPDFs: false,
+    supportsPDFs: true,
     censored: true,
     isEnabled: true,
     isActivated: true,
@@ -334,6 +347,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     GPQA: 77,
     HLE: 10.3
   },
+  // Claude 3.7 Sonnet 
   {
     id: 'claude-3-7-sonnet-latest',
     name: 'Claude 3.7 Sonnet',
@@ -359,6 +373,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     GPQA: 66,
     HLE: 4.8
   },
+  // DeepSeek R1 (Thinking)
   {
     id: 'deepseek-reasoner',
     name: 'DeepSeek R1 (Thinking)',
@@ -383,6 +398,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     intelligenceIndex: 60,
     multilingual:86,
   },
+  // DeepSeek V3 (Mar' 25)
   {
     id: 'deepseek-chat',
     name: "DeepSeek V3 (Mar' 25)",
@@ -402,6 +418,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     intelligenceIndex: 53,
     multilingual:86
   },
+  // DeepSeek R1 (Thinking)
   {
     id: 'deepseek-ai/DeepSeek-R1',
     name: 'DeepSeek R1 (Thinking)',
@@ -427,6 +444,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     intelligenceIndex: 60,
     multilingual:86,
   },
+  // DeepSeek V3 (Mar' 25)
   {
     id: 'deepseek-ai/DeepSeek-V3',
     name: 'DeepSeek V3',
@@ -445,6 +463,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     intelligenceIndex: 46,
     multilingual:86,
   },
+  // ChatGPT-4o (Nov '24)
   {
     id: 'chatgpt-4o-latest',
     name: 'ChatGPT-4o',
@@ -464,6 +483,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 174,
     intelligenceIndex: 50,
   },
+  // GPT-4o (Nov '24)
   {
     id: 'gpt-4o-2024-11-20',
     name: 'GPT-4o (Nov \'24)',
@@ -484,6 +504,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     intelligenceIndex: 41,
     multilingual: 84
   },
+  // o1 (Thinking)
   {
     id: "o1",
     name: "o1 (Thinking)",
@@ -505,6 +526,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 36,
     intelligenceIndex: 62,
   },
+  // o3-mini (Thinking)
   {
     id: "o3-mini",
     name: "o3-mini (Thinking)",
@@ -523,6 +545,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 188,
     intelligenceIndex: 63,
   },
+  // GPT-4o Mini
   {
     id: 'gpt-4o-mini',
     name: 'GPT-4o Mini',
@@ -543,6 +566,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     intelligenceIndex: 36,
     multilingual: 80
   },
+  // Grok 3 Fast
   {
     id: 'grok-3-fast',
     name: 'Grok 3 Fast',
@@ -563,6 +587,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     // tps: 67, 
     intelligenceIndex: 50,
   },
+  // Grok 3
   {
     id: 'grok-3',
     name: 'Grok 3',
@@ -583,6 +608,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     // tps: 67, 
     intelligenceIndex: 50,
   },
+  // Grok 3 Mini Fast (Thinking)
   {
     id: 'grok-3-mini-fast',
     name: 'Grok 3 Mini Fast (Thinking)',
@@ -606,6 +632,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     // tps: 67, 
     intelligenceIndex: 66,
   },
+  // Grok 3 Mini (Thinking)
   {
     id: 'grok-3-mini',
     name: 'Grok 3 Mini (Thinking)',
@@ -629,6 +656,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     // tps: 67, 
     intelligenceIndex: 66,
   },
+  // Grok 2 Vision
   {
     id: 'grok-2-vision-latest',
     name: 'Grok 2 Vision',
@@ -648,6 +676,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 67, 
     intelligenceIndex: 39,
   },
+  // QwQ-32B (Thinking)
   {
     id: 'qwen-qwq-32b',
     name: 'QwQ-32B (Thinking)',
@@ -676,6 +705,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     GPQA: 59,
     HLE: 8.2
   },
+  // Llama 3.3 70B
   {
     id: 'llama-3.3-70b-versatile',
     name: 'Llama 3.3 70B',
@@ -699,6 +729,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     multilingual:84,
     HLE: 4.0
   },
+  // Llama 4 Scout
   {
     id: 'meta-llama/llama-4-scout-17b-16e-instruct',
     name: 'Llama 4 Scout',
