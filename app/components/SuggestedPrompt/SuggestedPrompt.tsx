@@ -21,7 +21,6 @@ const DEFAULT_EXAMPLE_PROMPTS = [
   "Find a popular TED talk about AI, summarize its key points, and research the speaker's background",
   "Look up the nutritional information for avocados, calculate how many I need to eat to get 30g of protein",
   "Find recent SpaceX launch news, summarize it, and analyze related social media reactions",
-  "Research the population growth of Tokyo over the last 50 years and create a graph showing the trend",
   "Find the top 5 cryptocurrencies by market cap and calculate what $1000 invested equally would be worth",
   "Search for the most viewed YouTube videos of all time and analyze what they have in common"
 ];

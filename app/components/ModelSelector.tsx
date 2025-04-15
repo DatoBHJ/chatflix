@@ -1206,15 +1206,13 @@ export function ModelSelector({
               )}
               
               {/* Model types explanation - Ultra Modern Design */}
-              <div className={`py-5 sm:py-10 px-7 relative overflow-hidden ${isMobile && !isFullscreen ? 'mt-4 bg-[var(--background)]/95 backdrop-blur-sm' : 'mt-2 bg-[var(--background)]/80 backdrop-blur-sm z-10'} ${isFullscreen ? 'max-w-4xl mx-auto rounded-xl' : ''}`}>
-                {/* Abstract background elements for futuristic feel */}
+              {/* <div className={`py-5 sm:py-10 px-7 relative overflow-hidden ${isMobile && !isFullscreen ? 'mt-4 bg-[var(--background)]/95 backdrop-blur-sm' : 'mt-2 bg-[var(--background)]/80 backdrop-blur-sm z-10'} ${isFullscreen ? 'max-w-4xl mx-auto rounded-xl' : ''}`}>
                 <div className="absolute inset-0 opacity-5">
                   <div className="absolute top-0 left-1/4 w-32 h-32 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 blur-2xl"></div>
                   <div className="absolute bottom-0 right-1/4 w-24 h-24 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 blur-2xl"></div>
                 </div>
 
                 <div className="relative z-10">
-                  {/* Header with light bulb emoji and filter info */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 flex items-center justify-center">
@@ -1223,7 +1221,6 @@ export function ModelSelector({
                       <p className="text-xs font-medium tracking-wide text-[var(--foreground)] uppercase">Model Selection Guide</p>
                     </div>
                     
-                    {/* Show current filter and reset button */}
                     {modelFilter !== 'all' && (
                       <button 
                         onClick={() => setModelFilter('all')}
@@ -1239,16 +1236,13 @@ export function ModelSelector({
 
         
 
-                  {/* Model cards with modern, sleek design */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                    {/* Thinking model card - clickable */}
                     <div 
                       className={`bg-gradient-to-br from-[var(--background)] to-[var(--background-secondary)]/30 rounded-xl p-3.5 backdrop-blur-lg shadow-sm relative overflow-hidden cursor-pointer transition-all
                         ${modelFilter === 'thinking' ? 'ring-2 ring-blue-500/50' : 'hover:bg-[var(--background-secondary)]/50'}
                       `}
                       onClick={() => setModelFilter(modelFilter === 'thinking' ? 'all' : 'thinking')}
                     >
-                      {/* Selected indicator */}
                       {modelFilter === 'thinking' && (
                         <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
                           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1276,14 +1270,12 @@ export function ModelSelector({
                       </div>
                     </div>
 
-                    {/* Regular model card - clickable */}
                     <div 
                       className={`bg-gradient-to-br from-[var(--background)] to-[var(--background-secondary)]/30 rounded-xl p-3.5 backdrop-blur-lg shadow-sm relative overflow-hidden cursor-pointer transition-all
                         ${modelFilter === 'regular' ? 'ring-2 ring-emerald-500/50' : 'hover:bg-[var(--background-secondary)]/50'}
                       `}
                       onClick={() => setModelFilter(modelFilter === 'regular' ? 'all' : 'regular')}
                     >
-                      {/* Selected indicator */}
                       {modelFilter === 'regular' && (
                         <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
                           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1312,7 +1304,7 @@ export function ModelSelector({
                     </div>
                   </div>
                 </div>
-              </div>
+              </div> */}
               
               {/* Fullscreen content container */}
               <div className={isFullscreen ? "fullscreen-content" : ""}>
