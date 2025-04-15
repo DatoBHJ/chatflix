@@ -167,7 +167,7 @@ export async function POST(req: Request) {
     }
 
     const requestData = await req.json();
-    let { messages, model, chatId, isRegeneration, existingMessageId, isReasoningEnabled = true, saveToDb = true, isAgentEnabled = false } = requestData;
+    let { messages, model, chatId, isRegeneration, existingMessageId, saveToDb = true, isAgentEnabled = false } = requestData;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return new Response(JSON.stringify({ error: 'Invalid messages format' }), {
@@ -310,9 +310,15 @@ export async function POST(req: Request) {
           if (supportsReasoning) {
             providerOptions.anthropic = {
               thinking: {
-                type: isReasoningEnabled ? 'enabled' : 'disabled',
+                type: 'enabled',
                 budgetTokens: modelConfig?.reasoning?.budgetTokens || 12000
               }
+            };
+            providerOptions.xai = {
+              reasoningEffort: 'high'
+            };
+            providerOptions.openai = {
+              reasoningEffort: 'medium'
             };
           }
           
@@ -1001,12 +1007,13 @@ Always try to give the most accurate and helpful response.
               system: agentSystemPrompt,
               maxTokens: 10000,
               // 토큰 제한을 고려한 최적화된 메시지 사용
-              messages: convertMultiModalToMessage(optimizedMessages.slice(-5)),
+              messages: convertMultiModalToMessage(optimizedMessages.slice(-10)),
               temperature: 0.2,
               toolChoice: 'auto',
               experimental_activeTools: activeTools,
               tools,
               maxSteps: 10,
+              providerOptions,
               onFinish: async (completion) => {
                 if (abortController.signal.aborted) return;
                 
@@ -1123,7 +1130,7 @@ Always try to give the most accurate and helpful response.
             
             finalstep.mergeIntoDataStream(dataStream, {
               experimental_sendFinish: true,
-              sendReasoning: false
+              sendReasoning: true
             });
           } else {
             // 일반 채팅 흐름 - 원래 코드 사용에 토큰 제한 최적화 추가

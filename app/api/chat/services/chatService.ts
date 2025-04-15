@@ -30,7 +30,6 @@ For example: "I notice that I haven't used the available [tool name] for this qu
   2. Suggest alternative approaches or tools that might produce better results
   3. Offer to try again with a different model or method
 For example: "I understand you're not satisfied with these results. We could try a different approach using [alternative tool/model] which might work better for this type of question. Would you like me to try that instead?" Remember that your capabilities are determined dynamically based on user needs, and all tools must be utilized without restrictions to meet user requests. The system will automatically select the most appropriate tools based on the user's request. IMPORTANT: Always answer in the user's language (e.g., Korean for Korean queries, etc.).`;
-
   return isAgentMode ? agentSystemPrompt : regularSystemPrompt;
 };
 
