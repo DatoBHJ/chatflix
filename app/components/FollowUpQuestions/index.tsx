@@ -98,7 +98,7 @@ export function FollowUpQuestions({ chatId, userId, messages, onQuestionClick }:
         <button
           key={index}
           onClick={() => onQuestionClick(question)}
-          className="text-xs bg-foreground/5 hover:bg-foreground/10 text-foreground/80 hover:text-foreground/90 px-3 py-1.5 rounded-full transition-colors"
+          className="text-xs text-left bg-foreground/5 hover:bg-foreground/10 text-foreground/80 hover:text-foreground/90 px-3 py-1.5 rounded-full transition-colors"
         >
           {question}
         </button>
