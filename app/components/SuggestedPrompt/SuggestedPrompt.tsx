@@ -13,7 +13,7 @@ const DEFAULT_EXAMPLE_PROMPTS = [
   "Find academic papers about renewable energy",
   "What are people saying on X about Tesla?",
   "Summarize this YouTube video: https://www.youtube.com/watch?v=AJpK3YTTKZ4",
-  "Read and summarize this article: https://www.anthropic.com/news/claude-3-7-sonnet",
+  // "Read and summarize this article: https://www.anthropic.com/news/claude-3-7-sonnet",
   "Convert 250 kg to pounds and calculate 15% of the result",
   "Solve the equation 3x^2 - 12x + 7 = 0",
   // 복합적인 도구 사용을 유도하는 질문 추가
