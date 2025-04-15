@@ -8,6 +8,7 @@ const DEFAULT_EXAMPLE_PROMPTS = [
   // 도구 사용을 유도하는 질문 추가
   "Search the web for the latest news about AI development",
   "Can you generate an image of a sunset over mountains?",
+  "Draw a picture of Darth Vader wearing a bikini",
   "Calculate the derivative of x^2 * sin(x)",
   "Find academic papers about renewable energy",
   "What are people saying on X about Tesla?",

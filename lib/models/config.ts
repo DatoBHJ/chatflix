@@ -271,7 +271,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'High-speed version of Grok 3',
     provider: 'xai',
     supportsVision: false,
-    // censored: false,
+    censored: false,
     rateLimit: {
       level: 'level0',
     },
@@ -291,7 +291,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Grok 3 by xAI. Use this model for queries requiring deep domain expertise or world knowledge (eg healthcare, legal, finance).',
     provider: 'xai',
     supportsVision: false,
-    // censored: false,
+    censored: false,
     rateLimit: {
       level: 'level0',
     },
@@ -311,7 +311,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'High-speed version of Grok 3 Mini.',
     provider: 'xai',
     supportsVision: false,
-    // censored: false,
+    censored: false,
     rateLimit: {
       level: 'level0',
     },
@@ -337,7 +337,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Grok 3 Mini by xAI. Use this model for tasks that can benefit from logical reasoning (such as meeting scheduling or math problems)',
     provider: 'xai',
     supportsVision: false,
-    // censored: false,
+    censored: false,
     rateLimit: {
       level: 'level0',
     },
