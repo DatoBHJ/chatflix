@@ -8,8 +8,8 @@ import { Attachment } from '@/lib/types'
 import React, { memo, useCallback, useState, useEffect } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { useUser } from '@/app/lib/UserContext'
 import { createClient } from '@/utils/supabase/client'
+import { fetchUserName } from './AccountDialog'
 
 interface MessageProps {
   message: AIMessage & { experimental_attachments?: Attachment[] }
@@ -51,16 +51,66 @@ const Message = memo(function MessageComponent({
 }: MessageProps) {
   const router = useRouter();
   const supabase = createClient();
-  // Context에서 사용자 정보 가져오기
-  const { user, userName: contextUserName, profileImage: contextProfileImage } = useUser();
   
-  // Props와 Context 중 우선순위를 결정하여 최종 값 설정
-  const userName = propUserName || contextUserName;
-  const profileImage = propProfileImage || contextProfileImage;
+  // Replace context with direct state management
+  const [userName, setUserName] = useState(propUserName || 'You');
+  const [profileImage, setProfileImage] = useState<string | null>(propProfileImage || null);
   
   // Bookmark state
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
+
+  // Get current user
+  const [user, setUser] = useState<any>(null);
+
+  // Fetch user data when component mounts
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+
+      if (user && !propUserName) {
+        // If userName wasn't provided as prop, fetch it from database
+        const name = await fetchUserName(user.id, supabase);
+        setUserName(name);
+      }
+
+      if (user && !propProfileImage) {
+        // If profileImage wasn't provided as prop, fetch it from storage
+        fetchProfileImage(user.id);
+      }
+    };
+
+    fetchUser();
+  }, [propUserName, propProfileImage]);
+
+  // Function to fetch profile image
+  const fetchProfileImage = async (userId: string) => {
+    try {
+      // Try to get profile image from storage
+      const { data: profileData, error: profileError } = await supabase
+        .storage
+        .from('profile-pics')
+        .list(`${userId}`);
+
+      if (profileError) {
+        console.error('Error fetching profile image:', profileError);
+        return;
+      }
+
+      // If profile image exists, get public URL
+      if (profileData && profileData.length > 0) {
+        const { data } = supabase
+          .storage
+          .from('profile-pics')
+          .getPublicUrl(`${userId}/${profileData[0].name}`);
+        
+        setProfileImage(data.publicUrl);
+      }
+    } catch (error) {
+      console.error('Error fetching profile image:', error);
+    }
+  };
 
   // Function to truncate long messages
   const truncateMessage = useCallback((content: string, maxLength: number = 300) => {

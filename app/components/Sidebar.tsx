@@ -4,12 +4,11 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { Chat } from '@/lib/types'
-import { AccountDialog } from './AccountDialog'
+import { AccountDialog, fetchUserName } from './AccountDialog'
 import { deleteChat } from '@/app/chat/[id]/utils'
 import Link from 'next/link'
 import Image from 'next/image'
 import { defaultPromptShortcuts } from '../lib/defaultPromptShortcuts'
-import { useUser } from '@/app/lib/UserContext'
 
 interface SidebarProps {
   user: any;  // You might want to define a proper User type
@@ -30,7 +29,8 @@ export function Sidebar({ user, onClose }: SidebarProps) {
   const supabase = createClient()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isAccountOpen, setIsAccountOpen] = useState(false)
-  const { profileImage, userName } = useUser()
+  const [profileImage, setProfileImage] = useState<string | null>(null)
+  const [userName, setUserName] = useState('You')
   const [isExpanded, setIsExpanded] = useState(false)
   const [isExpandedSystem, setIsExpandedSystem] = useState(false)
   const [isExpandedShortcuts, setIsExpandedShortcuts] = useState(false)
@@ -44,6 +44,48 @@ export function Sidebar({ user, onClose }: SidebarProps) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  // Add function to fetch profile image
+  const fetchProfileImage = async (userId: string) => {
+    try {
+      // Try to get profile image from storage
+      const { data: profileData, error: profileError } = await supabase
+        .storage
+        .from('profile-pics')
+        .list(`${userId}`);
+
+      if (profileError) {
+        console.error('Error fetching profile image:', profileError);
+        return;
+      }
+
+      // If profile image exists, get public URL
+      if (profileData && profileData.length > 0) {
+        const { data } = supabase
+          .storage
+          .from('profile-pics')
+          .getPublicUrl(`${userId}/${profileData[0].name}`);
+        
+        setProfileImage(data.publicUrl);
+      }
+    } catch (error) {
+      console.error('Error fetching profile image:', error);
+    }
+  };
+
+  // Load user info when component mounts or user changes
+  useEffect(() => {
+    if (user) {
+      // Load user name from all_user table
+      const loadUserData = async () => {
+        const name = await fetchUserName(user.id, supabase);
+        setUserName(name);
+        fetchProfileImage(user.id);
+      };
+      
+      loadUserData();
+    }
+  }, [user]);
 
   // Effect to scroll to top when editing starts
   useEffect(() => {
@@ -762,6 +804,15 @@ export function Sidebar({ user, onClose }: SidebarProps) {
           isOpen={isAccountOpen}
           onClose={() => {
             setIsAccountOpen(false);
+            // After closing the dialog, refresh user data in case it was updated
+            if (user) {
+              const refreshUserData = async () => {
+                const name = await fetchUserName(user.id, supabase);
+                setUserName(name);
+                fetchProfileImage(user.id);
+              };
+              refreshUserData();
+            }
             // Check if no panels are expanded before collapsing sidebar
             if (!isExpanded && !isExpandedSystem && !isExpandedShortcuts) {
               setIsSidebarExpanded(false);
