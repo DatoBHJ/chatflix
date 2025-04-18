@@ -30,7 +30,7 @@ export async function updateProjectStatus(
   aiMessage: string
 ): Promise<string | null> {
   try {
-    console.log("[DEBUG-AGENT-BG] Starting project status update");
+    // console.log("[DEBUG-AGENT-BG] Starting project status update");
     const statusUpdatePrompt = `Based on our conversation, please provide a concise update to the project status in markdown format. Focus only on what has changed.`;
     
     // 현재 상태 가져오기
@@ -50,13 +50,13 @@ export async function updateProjectStatus(
     
     if (statusText) {
       await updateStatus(supabase, chatId, userId, statusText);
-      console.log("[DEBUG-AGENT-BG] Project status updated in database");
+      // console.log("[DEBUG-AGENT-BG] Project status updated in database");
       return statusText;
     }
     
     return null;
   } catch (error) {
-    console.error("[DEBUG-AGENT-BG] Error updating project status:", error);
+    // console.error("[DEBUG-AGENT-BG] Error updating project status:", error);
     return null;
   }
 }
@@ -72,7 +72,7 @@ export async function updateProgress(
   if (!statusText) return;
   
   try {
-    console.log("[DEBUG-AGENT-BG] Starting progress update");
+    // console.log("[DEBUG-AGENT-BG] Starting progress update");
     const progressPrompt = `Based on the status update, create a structured project progress document in markdown format. Include current phase, completed items, and next steps.\n\nStatus update:\n${statusText}`;
     
     const progressText = await callMemoryBankUpdate(
@@ -85,10 +85,10 @@ export async function updateProgress(
     
     if (progressText) {
       await updateMemoryBank(supabase, userId, '02-progress', progressText);
-      console.log("[DEBUG-AGENT-BG] Memory bank 02-progress updated");
+      // console.log("[DEBUG-AGENT-BG] Memory bank 02-progress updated");
     }
   } catch (error) {
-    console.error("[DEBUG-AGENT-BG] Error updating progress:", error);
+    // console.error("[DEBUG-AGENT-BG] Error updating progress:", error);
   }
 }
 
@@ -101,7 +101,7 @@ export async function updateSummary(
   messages: MultiModalMessage[]
 ): Promise<void> {
   try {
-    console.log("[DEBUG-AGENT-BG] Starting conversation summary generation");
+    // console.log("[DEBUG-AGENT-BG] Starting conversation summary generation");
     const recentMessages = messages.slice(-5);
     const conversationText = convertMessagesToText(recentMessages);
     
@@ -117,10 +117,10 @@ export async function updateSummary(
     
     if (summaryText) {
       await updateMemoryBank(supabase, userId, '01-summary', summaryText);
-      console.log("[DEBUG-AGENT-BG] Memory bank 01-summary updated successfully");
+      // console.log("[DEBUG-AGENT-BG] Memory bank 01-summary updated successfully");
     }
   } catch (error) {
-    console.error("[DEBUG-AGENT-BG] Error updating memory bank summary:", error);
+    // console.error("[DEBUG-AGENT-BG] Error updating memory bank summary:", error);
   }
 }
 
@@ -133,7 +133,7 @@ export async function updateOverview(
   messages: MultiModalMessage[]
 ): Promise<void> {
   try {
-    console.log("[DEBUG-AGENT-BG] Starting project overview update");
+    // console.log("[DEBUG-AGENT-BG] Starting project overview update");
     const recentMessages = messages.slice(-5);
     const conversationText = convertMessagesToText(recentMessages);
     
@@ -149,10 +149,10 @@ export async function updateOverview(
     
     if (overviewText) {
       await updateMemoryBank(supabase, userId, '00-project-overview', overviewText);
-      console.log("[DEBUG-AGENT-BG] Memory bank 00-project-overview updated successfully");
+      // console.log("[DEBUG-AGENT-BG] Memory bank 00-project-overview updated successfully");
     }
   } catch (error) {
-    console.error("[DEBUG-AGENT-BG] Error updating project overview:", error);
+    // console.error("[DEBUG-AGENT-BG] Error updating project overview:", error);
   }
 }
 
@@ -165,7 +165,7 @@ export async function updateArchitecture(
   messages: MultiModalMessage[]
 ): Promise<void> {
   try {
-    console.log("[DEBUG-AGENT-BG] Starting architecture update");
+    // console.log("[DEBUG-AGENT-BG] Starting architecture update");
     const recentMessages = messages.slice(-5);
     const conversationText = convertMessagesToText(recentMessages);
     
@@ -181,10 +181,10 @@ export async function updateArchitecture(
     
     if (architectureText) {
       await updateMemoryBank(supabase, userId, '01-architecture', architectureText);
-      console.log("[DEBUG-AGENT-BG] Memory bank 01-architecture updated successfully");
+      // console.log("[DEBUG-AGENT-BG] Memory bank 01-architecture updated successfully");
     }
   } catch (error) {
-    console.error("[DEBUG-AGENT-BG] Error updating architecture:", error);
+    // console.error("[DEBUG-AGENT-BG] Error updating architecture:", error);
   }
 }
 
@@ -197,7 +197,7 @@ export async function updateDecisions(
   messages: MultiModalMessage[]
 ): Promise<void> {
   try {
-    console.log("[DEBUG-AGENT-BG] Starting decisions update");
+    // console.log("[DEBUG-AGENT-BG] Starting decisions update");
     const recentMessages = messages.slice(-5);
     const conversationText = convertMessagesToText(recentMessages);
     
@@ -213,10 +213,10 @@ export async function updateDecisions(
     
     if (decisionsText) {
       await updateMemoryBank(supabase, userId, '03-decisions', decisionsText);
-      console.log("[DEBUG-AGENT-BG] Memory bank 03-decisions updated successfully");
+      // console.log("[DEBUG-AGENT-BG] Memory bank 03-decisions updated successfully");
     }
   } catch (error) {
-    console.error("[DEBUG-AGENT-BG] Error updating decisions:", error);
+    // console.error("[DEBUG-AGENT-BG] Error updating decisions:", error);
   }
 }
 
@@ -232,7 +232,7 @@ export async function updateAllMemoryBanks(
   aiMessage: string
 ): Promise<void> {
   try {
-    console.log("[DEBUG-AGENT-BG] Starting background memory update in parallel");
+    // console.log("[DEBUG-AGENT-BG] Starting background memory update in parallel");
     
     // 프로젝트 상태 먼저 업데이트 (02-progress가 이에 의존하기 때문)
     const statusText = await updateProjectStatus(supabase, userId, chatId, userMessage, aiMessage);
@@ -246,8 +246,8 @@ export async function updateAllMemoryBanks(
       updateDecisions(supabase, userId, messages)
     ]);
     
-    console.log("[DEBUG-AGENT-BG] All memory bank updates completed in parallel");
+    // console.log("[DEBUG-AGENT-BG] All memory bank updates completed in parallel");
   } catch (error) {
-    console.error("[DEBUG-AGENT-BG] Memory update process failed:", error);
+    // console.error("[DEBUG-AGENT-BG] Memory update process failed:", error);
   }
 } 

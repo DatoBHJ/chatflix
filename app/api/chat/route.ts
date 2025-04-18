@@ -20,7 +20,6 @@ import {
   createXSearchTool, 
   createYouTubeSearchTool, 
   createYouTubeLinkAnalyzerTool, 
-  createWolframAlphaUltimateTool,
   createDataProcessorTool 
 } from './tools';
 import { handleRateLimiting } from './utils/ratelimit';
@@ -148,7 +147,6 @@ const routingSchema = z.object({
   needsXSearch: z.boolean().optional(),
   needsYouTubeSearch: z.boolean().optional(),
   needsYouTubeLinkAnalyzer: z.boolean().optional(),
-  needsWolframAlpha: z.boolean().optional(),
   needsDataProcessor: z.boolean().optional(),
   reasoning: z.string()
 });
@@ -434,8 +432,7 @@ export async function POST(req: Request) {
 6. X Search - For social media content, real-time updates, public opinions, and latest news.
 7. YouTube Search - For video content search.
 8. YouTube Link Analyzer - For video analysis, including transcript summaries.
-9. Wolfram Alpha - For complex calculations, scientific analysis, and solving law/math/science/engineering problems.
-10. Data Processor - For CSV/JSON data analysis, filtering, and transformation.
+9. Data Processor - For CSV/JSON data analysis, filtering, and transformation.
 
 **Important Guidelines**:
 - Distinguish between questions about tools and requests to use tools.
@@ -444,7 +441,6 @@ export async function POST(req: Request) {
 - In specific contexts:
   - Use Web Search + X Search together for current events.
   - Use YouTube tools for video content needs.
-  - Use Wolfram Alpha for law/math/science/engineering problems.
   - Enable Data Processor for analyzing data from CSV/JSON files.
 - If "[IMAGE ATTACHED]" or "[FILE ATTACHED]" is included in the prompt, assume the user has attached images or files. Analyze the user's intent and select the appropriate tools. Enable Data Processor if the user requests processing, analysis, or transformation of CSV/JSON files.
 
@@ -482,7 +478,6 @@ export async function POST(req: Request) {
                         needsXSearch: partial.needsXSearch ?? false,
                         needsYouTubeSearch: partial.needsYouTubeSearch ?? false,
                         needsYouTubeLinkAnalyzer: partial.needsYouTubeLinkAnalyzer ?? false,
-                        needsWolframAlpha: partial.needsWolframAlpha ?? false,
                         timestamp: new Date().toISOString(),
                         isComplete: false
                       }
@@ -526,7 +521,6 @@ export async function POST(req: Request) {
                 needsXSearch: routingDecision.needsXSearch,
                 needsYouTubeSearch: routingDecision.needsYouTubeSearch,
                 needsYouTubeLinkAnalyzer: routingDecision.needsYouTubeLinkAnalyzer,
-                needsWolframAlpha: routingDecision.needsWolframAlpha,
                 needsDataProcessor: routingDecision.needsDataProcessor,
                 timestamp: new Date().toISOString(),
                 isComplete: true
@@ -547,7 +541,6 @@ export async function POST(req: Request) {
               needsXSearch: routingDecision.needsXSearch,
               needsYouTubeSearch: routingDecision.needsYouTubeSearch,
               needsYouTubeLinkAnalyzer: routingDecision.needsYouTubeLinkAnalyzer,
-              needsWolframAlpha: routingDecision.needsWolframAlpha,
               needsDataProcessor: routingDecision.needsDataProcessor,
               timestamp: new Date().toISOString(),
               isComplete: true
@@ -563,7 +556,6 @@ export async function POST(req: Request) {
                 routingDecision.needsXSearch && "x_search",
                 routingDecision.needsYouTubeSearch && "youtube_search",
                 routingDecision.needsYouTubeLinkAnalyzer && "youtube_link_analyzer",
-                routingDecision.needsWolframAlpha && "wolfram_alpha",
                 routingDecision.needsDataProcessor && "data_processor"
               ].filter(Boolean).join(", ") || "none"
             );
@@ -851,44 +843,6 @@ For analyzing specific YouTube videos:
 - Present video information in a clear, structured format
 - Summarize long transcripts and focus on the most relevant sections based on the user's query`);
             }
-
-            if (routingDecision.needsWolframAlpha) {
-              const wolframAlphaTool = createWolframAlphaUltimateTool(dataStream);
-              tools.wolfram_alpha = wolframAlphaTool;
-              
-              toolSpecificPrompts.push(`
-For advanced computational knowledge and problem-solving:
-- Use wolfram_alpha for complex calculations, mathematical problems, scientific questions, and academic queries
-- Wolfram Alpha is excellent for:
-  * Mathematical problem-solving with step-by-step solutions (equations, calculus, algebra, geometry)
-  * Physics calculations, laws, constants, and formulas
-  * Chemistry equations, molecular data, and chemical reactions
-  * Engineering calculations and simulations
-  * Statistical analysis and probability
-  * Data visualization and plotting
-  * Unit conversions and dimensional analysis
-  * Date and time calculations
-  * Financial calculations and economic data
-  * Astronomy and space data
-
-- Format options to consider:
-  * Use 'simple' format for quick answers
-  * Use 'detailed' format for comprehensive information
-  * Use 'step-by-step' format for educational explanations of solutions
-
-- Domain specification:
-  * Specify the domain (math, physics, chemistry, etc.) for more accurate results
-  * Set units to 'metric' or 'imperial' based on user preference
-
-- Always explain the results from Wolfram Alpha in a clear, structured way
-- When dealing with mathematical problems, show the steps and explain the reasoning
-- For scientific calculations, include units and explain the physical meaning
-- Present visual results like plots and diagrams when they're included in the response
-- Wolfram Alpha can process queries in natural language, so phrase your requests clearly
-- For complex formulas and equations, use appropriate formatting
-- If results seem incomplete or incorrect, try rephrasing the query with more precise terminology
-- Remember to generate explanations in the user's preferred language`);
-            }
             
             if (routingDecision.needsDataProcessor) {
               const dataProcessorTool = createDataProcessorTool(dataStream);
@@ -952,7 +906,6 @@ You are a helpful problem-solving assistant${[
   routingDecision.needsXSearch && "search for X (Twitter) posts or just general social media posts",
   routingDecision.needsYouTubeSearch && "search for YouTube videos",
   routingDecision.needsYouTubeLinkAnalyzer && "analyze specific YouTube videos",
-  routingDecision.needsWolframAlpha && "solve complex computational problems",
   routingDecision.needsDataProcessor && "process and analyze structured data"
 ].filter(Boolean).join(", ") ? ` that can ${[
   routingDecision.needsWebSearch && "search the web",
@@ -963,7 +916,6 @@ You are a helpful problem-solving assistant${[
   routingDecision.needsXSearch && "search for X (Twitter) posts or just general social media posts",
   routingDecision.needsYouTubeSearch && "search for YouTube videos",
   routingDecision.needsYouTubeLinkAnalyzer && "analyze specific YouTube videos",
-  routingDecision.needsWolframAlpha && "solve complex computational problems",
   routingDecision.needsDataProcessor && "process and analyze structured data"
 ].filter(Boolean).join(", ")}` : ""}.
 ${toolSpecificPrompts.join("\n\n")}
@@ -999,7 +951,6 @@ Always try to give the most accurate and helpful response.
             if (routingDecision.needsXSearch) activeTools.push('x_search');
             if (routingDecision.needsYouTubeSearch) activeTools.push('youtube_search');
             if (routingDecision.needsYouTubeLinkAnalyzer) activeTools.push('youtube_link_analyzer');
-            if (routingDecision.needsWolframAlpha) activeTools.push('wolfram_alpha');
             if (routingDecision.needsDataProcessor) activeTools.push('data_processor');
             
             const finalstep = streamText({
@@ -1078,11 +1029,6 @@ Always try to give the most accurate and helpful response.
                   toolResults.youtubeLinkAnalysisResults = tools.youtube_link_analyzer.analysisResults;
                 }
 
-                if (routingDecision.needsWolframAlpha && 
-                    tools.wolfram_alpha.queryResults && 
-                    tools.wolfram_alpha.queryResults.length > 0) {
-                  toolResults.wolframAlphaResults = tools.wolfram_alpha.queryResults;
-                }
 
                 if (routingDecision.needsDataProcessor && 
                     tools.data_processor.processingResults && 

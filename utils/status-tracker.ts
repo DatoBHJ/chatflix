@@ -8,7 +8,7 @@ export async function getProjectStatus(
   chat_session_id: string,
   userId: string
 ): Promise<string> {
-  console.log("[DEBUG-STATUS] Getting project status for user:", userId, "chat:", chat_session_id);
+  // console.log("[DEBUG-STATUS] Getting project status for user:", userId, "chat:", chat_session_id);
   
   const { data, error } = await supabase
     .from('project_status')
@@ -18,12 +18,12 @@ export async function getProjectStatus(
     .single();
   
   if (error || !data) {
-    console.log("[DEBUG-STATUS] No existing status found, creating default");
+    // console.log("[DEBUG-STATUS] No existing status found, creating default");
     // 기본 상태 템플릿 생성
     return createDefaultStatus();
   }
   
-  console.log("[DEBUG-STATUS] Existing status found");
+  // console.log("[DEBUG-STATUS] Existing status found");
   return data.content;
 }
 
@@ -36,8 +36,8 @@ export async function updateProjectStatus(
   userId: string,
   content: string
 ): Promise<{ data: any; error: any }> {
-  console.log("[DEBUG-STATUS] Updating project status for user:", userId, "chat:", chat_session_id);
-  console.log("[DEBUG-STATUS] Content:", content.substring(0, 100) + "...");
+  // console.log("[DEBUG-STATUS] Updating project status for user:", userId, "chat:", chat_session_id);
+  // console.log("[DEBUG-STATUS] Content:", content.substring(0, 100) + "...");
   
   const { data, error } = await supabase
     .from('project_status')
@@ -49,9 +49,9 @@ export async function updateProjectStatus(
     }, { onConflict: 'chat_session_id,user_id' });
   
   if (error) {
-    console.error("[DEBUG-STATUS] Error updating project status:", error);
+    // console.error("[DEBUG-STATUS] Error updating project status:", error);
   } else {
-    console.log("[DEBUG-STATUS] Project status update successful, data:", data);
+    // console.log("[DEBUG-STATUS] Project status update successful, data:", data);
   }
   
   return { data, error };
