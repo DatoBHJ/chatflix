@@ -9,96 +9,89 @@ interface FollowUpQuestionsProps {
   onQuestionClick: (question: string) => void;
 }
 
+// Assistant message의 확장된 타입 정의
+interface ExtendedMessage extends Message {
+  annotations?: any[];
+  tool_results?: {
+    structuredResponse?: {
+      response?: {
+        followup_questions?: string[];
+      };
+    };
+  };
+}
+
 export function FollowUpQuestions({ chatId, userId, messages, onQuestionClick }: FollowUpQuestionsProps) {
   const [followUpQuestions, setFollowUpQuestions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const supabase = createClient();
 
-  // Update follow-up questions whenever messages change
+  // Get follow-up questions from the last assistant message's annotations
   useEffect(() => {
-    if (!chatId || !userId || messages.length === 0) return;
+    if (!messages || messages.length === 0) return;
 
-    const generateFollowUpQuestions = async () => {
+    // Find the last assistant message
+    const lastAssistantMessage = [...messages].reverse().find(msg => msg.role === 'assistant') as ExtendedMessage | undefined;
+    if (!lastAssistantMessage) return;
+
+    // Extract follow-up questions from structured response
+    const getFollowUpQuestions = () => {
       setIsLoading(true);
+      
       try {
-        // Get the last 3 messages for context
-        const recentMessages = messages.slice(-3).map(msg => ({
-          role: msg.role,
-          content: msg.content
-        }));
-
-        // First check if we have existing questions
-        const { data: sessionData } = await supabase
-          .from('chat_sessions')
-          .select('followupQuestion')
-          .eq('id', chatId)
-          .single();
-
-        // If we have questions and they're still relevant, use them
-        if (sessionData?.followupQuestion?.questions && 
-            Array.isArray(sessionData.followupQuestion.questions) && 
-            sessionData.followupQuestion.questions.length > 0 &&
-            sessionData.followupQuestion.messageCount === messages.length) {
-          setFollowUpQuestions(sessionData.followupQuestion.questions);
-          setIsLoading(false);
+        // 1. Check in structured_response annotation
+        const structuredResponseAnnotation = lastAssistantMessage.annotations?.find(
+          (annotation: any) => annotation.type === 'structured_response'
+        );
+        
+        if (structuredResponseAnnotation?.data?.response?.followup_questions) {
+          setFollowUpQuestions(structuredResponseAnnotation.data.response.followup_questions);
           return;
         }
-
-        // Generate new questions through API
-        const response = await fetch('/api/generate-followup', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            messages: recentMessages,
-            chatId,
-            userId
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to generate follow-up questions');
-        }
-
-        const data = await response.json();
         
-        if (data.questions && Array.isArray(data.questions)) {
-          setFollowUpQuestions(data.questions);
-          
-          // Store the questions in the database
-          await supabase
-            .from('chat_sessions')
-            .update({
-              followupQuestion: {
-                questions: data.questions,
-                messageCount: messages.length,
-                updatedAt: new Date().toISOString()
-              }
-            })
-            .eq('id', chatId);
+        // 2. Check in tool_results
+        if (lastAssistantMessage.tool_results?.structuredResponse?.response?.followup_questions) {
+          setFollowUpQuestions(lastAssistantMessage.tool_results.structuredResponse.response.followup_questions);
+          return;
         }
+        
+        // 3. Check in progress annotations (latest one)
+        const progressAnnotations = lastAssistantMessage.annotations?.filter(
+          (annotation: any) => annotation.type === 'structured_response_progress'
+        );
+        
+        if (progressAnnotations && progressAnnotations.length > 0) {
+          const latestProgress = progressAnnotations[progressAnnotations.length - 1];
+          if (latestProgress && latestProgress.data?.response?.followup_questions) {
+            setFollowUpQuestions(latestProgress.data.response.followup_questions);
+            return;
+          }
+        }
+        
+        // No follow-up questions found, clear any existing ones
+        setFollowUpQuestions([]);
       } catch (error) {
-        console.error('Error generating follow-up questions:', error);
+        console.error('Error extracting follow-up questions:', error);
+        setFollowUpQuestions([]);
       } finally {
         setIsLoading(false);
       }
     };
 
-    generateFollowUpQuestions();
-  }, [chatId, userId, messages]);
+    getFollowUpQuestions();
+  }, [messages]);
 
   if (isLoading || followUpQuestions.length === 0) {
     return null;
   }
 
   return (
-    <div className="flex flex-wrap gap-2 py-2 px-0 mt-0">
+    <div className="flex flex-wrap gap-2 py-2 pb-6 px-0 mt-0">
       {followUpQuestions.map((question, index) => (
         <button
           key={index}
           onClick={() => onQuestionClick(question)}
-          className="text-xs text-left bg-foreground/5 hover:bg-foreground/10 text-foreground/80 hover:text-foreground/90 px-3 py-1.5 rounded-full transition-colors"
+          className="text-sm text-left bg-foreground/5 hover:bg-foreground/10 text-foreground/80 hover:text-foreground/90 px-3 py-1.5 rounded-full transition-colors"
         >
           {question}
         </button>

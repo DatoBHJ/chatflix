@@ -203,29 +203,28 @@ const ResultCard = ({ result }: { result: SearchResult }) => {
       href={result.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="block py-3 px-3 hover:bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] transition-colors duration-200"
-    >
-      <div className="flex items-center gap-2.5 mb-1.5">
-        <div className="w-5 h-5 rounded-md bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex items-center justify-center overflow-hidden">
-          <img
-            src={`https://www.google.com/s2/favicons?sz=128&domain=${new URL(result.url).hostname}`}
-            alt=""
-            className="w-3.5 h-3.5 object-contain"
-            onError={(e) => {
-              e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='16'/%3E%3Cline x1='8' y1='12' x2='16' y2='12'/%3E%3C/svg%3E";
-            }}
-          />
-        </div>
-        <span className="text-xs text-[var(--muted)] truncate">
-          {new URL(result.url).hostname}
-        </span>
-      </div>
-
-      <h3 className="font-medium text-sm mb-1.5 line-clamp-2">
+      className="block py-3 cursor-pointer transition-all duration-300 rounded-md group hover:scale-[1.01] origin-left"
+    > 
+    {/* <div className="flex items-center gap-2.5 mb-1.5">
+    <div className="w-5 h-5 rounded-md bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex items-center justify-center overflow-hidden">
+      <img
+        src={`https://www.google.com/s2/favicons?sz=128&domain=${new URL(result.url).hostname}`}
+        alt=""
+        className="w-3.5 h-3.5 object-contain"
+        onError={(e) => {
+          e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='16'/%3E%3Cline x1='8' y1='12' x2='16' y2='12'/%3E%3C/svg%3E";
+        }}
+      />
+    </div>
+    <span className="text-xs text-[var(--muted)] truncate">
+      {new URL(result.url).hostname}
+    </span>
+  </div> */}
+      <h3 className="font-medium text-sm mb-1.5 line-clamp-2 group-hover:text-[color-mix(in_srgb,var(--foreground)_100%,transparent)] transition-colors duration-300">
         {result.title}
       </h3>
 
-      <p className="text-sm text-[var(--muted)] mb-2 line-clamp-3 break-words overflow-hidden overflow-wrap-anywhere hyphens-auto max-w-full" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+      <p className="text-sm text-[var(--muted)] mb-2 line-clamp-3 break-words overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
         {result.content}
       </p>
 
@@ -247,14 +246,13 @@ const DomainGroup = ({
   domain: string; 
   results: SearchResult[];
 }) => {
-  // Create domain URL
   const domainUrl = `https://${domain}`;
   
   return (
-    <div className="mb-3 last:mb-0 bg-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] rounded-lg border border-[color-mix(in_srgb,var(--foreground)_3%,transparent)] shadow-sm">
-      <div className="flex items-center justify-between py-2.5 px-3 border-b border-[color-mix(in_srgb,var(--foreground)_3%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_1%,transparent)]">
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <div className="w-6 h-6 rounded-md bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex items-center justify-center overflow-hidden flex-shrink-0">
+    <div className="group mb-10 last:mb-0">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <div className="w-6 h-6 rounded-full bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] flex items-center justify-center overflow-hidden flex-shrink-0">
             <img
               src={`https://www.google.com/s2/favicons?sz=128&domain=${domain}`}
               alt=""
@@ -264,167 +262,25 @@ const DomainGroup = ({
               }}
             />
           </div>
-          <div className="truncate min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <a 
-                href={domainUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm font-medium hover:underline flex items-center gap-1.5 group truncate"
-              >
-                {domain}
-                <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-              </a>
-              <span className="text-xs text-[var(--muted)] flex-shrink-0">({results.length})</span>
-            </div>
-          </div>
+          <a 
+            href={domainUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium hover:underline flex items-center gap-1.5 group-hover:text-[var(--foreground)] transition-colors"
+          >
+            {domain}
+            <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+          </a>
         </div>
-        
-        <a 
-          href={domainUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] px-2.5 py-1 rounded-md transition-colors text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1 flex-shrink-0"
-        >
-          Visit
-          <ExternalLink className="h-2.5 w-2.5" />
-        </a>
       </div>
       
-      <div className="divide-y divide-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+      <div className="space-y-0 pl-8">
         {results.map((result, index) => (
           <ResultCard key={`${domain}-${index}`} result={result} />
         ))}
       </div>
     </div>
   );
-};
-
-// Right sidebar for search results and images
-const SearchSidebar = ({ 
-  isOpen, 
-  onClose, 
-  domainGroups, 
-  images, 
-  totalResults 
-}: { 
-  isOpen: boolean; 
-  onClose: () => void;
-  domainGroups: [string, SearchResult[]][];
-  images: SearchImage[];
-  totalResults: number;
-}) => {
-  const [expanded, setExpanded] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-  
-  // Handle mounting for portal
-  useEffect(() => {
-    setIsMounted(true);
-    return () => setIsMounted(false);
-  }, []);
-  
-  // Validate and deduplicate images
-  const validImages = useMemo(() => {
-    return getUniqueValidImages(images);
-  }, [images]);
-  
-  const hasImages = validImages.length > 0;
-  
-  if (!isOpen || !isMounted) return null;
-  
-  const sidebarContent = (
-    <>
-      {/* Backdrop for mobile */}
-      <div 
-        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 md:hidden" 
-        onClick={onClose}
-      />
-      
-      {/* Sidebar */}
-      <div className={`
-        fixed top-0 right-0 h-full z-50 w-full max-w-[420px] transform transition-transform duration-300
-        bg-[var(--background)] shadow-lg border-l border-[color-mix(in_srgb,var(--foreground)_7%,transparent)]
-        flex flex-col
-        ${isOpen ? 'translate-x-0' : 'translate-x-full'}
-      `}>
-        {/* Header */}
-        <div className="px-4 py-4 border-b border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex justify-between items-center flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <Search className="h-4 w-4" strokeWidth={1.5} />
-            <h2 className="font-medium">Search Results</h2>
-            <span className="text-sm text-[var(--muted)]">({totalResults})</span>
-          </div>
-          <button 
-            onClick={onClose}
-            className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors"
-          >
-            <X className="h-4 w-4" strokeWidth={1.5} />
-          </button>
-        </div>
-        
-        {/* Content - using sidebar-scroll class for proper scrolling */}
-        <div className="flex-1 overflow-y-auto sidebar-scroll px-4 py-4">
-          {/* Image thumbnails if available */}
-          {hasImages && (
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium flex items-center gap-1.5">
-                  <ImageIcon className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  <span>Images ({validImages.length})</span>
-                </h3>
-              </div>
-              <div className="grid grid-cols-4 gap-2">
-                {validImages.slice(0, 8).map((image, idx) => (
-                  <a 
-                    key={idx}
-                    href={image.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block aspect-square bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] rounded-md overflow-hidden hover:opacity-90 transition-opacity"
-                  >
-                    <img 
-                      src={image.url} 
-                      alt={image.description || ''} 
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                      loading="lazy"
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = 'none';
-                      }}
-                    />
-                  </a>
-                ))}
-              </div>
-              {validImages.length > 8 && (
-                <div className="flex justify-end mt-1">
-                  <button
-                    onClick={() => setExpanded(!expanded)}
-                    className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1"
-                  >
-                    <span>View all {validImages.length} images</span>
-                    <ExternalLink className="h-3 w-3" strokeWidth={1.5} />
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-          
-          {/* Domain groups results */}
-          <div className="space-y-3">
-            {domainGroups.map(([domain, results]) => (
-              <DomainGroup 
-                key={domain} 
-                domain={domain} 
-                results={results}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-    </>
-  );
-  
-  return createPortal(sidebarContent, document.body);
 };
 
 // Image grid component
@@ -434,6 +290,7 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const [isMounted, setIsMounted] = useState(false);
   const metaTagRef = useRef<HTMLMetaElement | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   
   // Check if we're in the browser environment for portal rendering
   useEffect(() => {
@@ -496,6 +353,11 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
     setSelectedIndex(newIndex);
   };
   
+  // Function to toggle expanded state
+  const toggleExpanded = () => {
+    setExpanded(!expanded);
+  };
+  
   // Validate the images array to make sure each item has a valid URL
   const validImages = useMemo(() => {
     return getUniqueValidImages(images);
@@ -503,7 +365,8 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
   
   // Determine number of images to display based on total count
   const displayImages = useMemo(() => {
-    const count = validImages.length <= 8 ? validImages.length : (expanded ? validImages.length : 8);
+    // When not expanded, show one less to make room for the "Show More" button
+    const count = validImages.length <= 8 ? validImages.length : (expanded ? validImages.length : 7);
     return validImages.slice(0, count);
   }, [validImages, expanded]);
   
@@ -599,75 +462,186 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
   
   // Only show header if we have valid images
   if (validImages.length === 0) return null;
-
-  console.log("Image Grid - valid images:", validImages.length); // Debug
   
   return (
-    <div className="space-y-2 px-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ImageIcon className="h-3.5 w-3.5 text-[var(--foreground)]" strokeWidth={1.5} />
-          <h3 className="text-sm font-medium">Images ({validImages.length})</h3>
+    <div className="mb-8" ref={gridRef}>
+      {/* Minimal header with just image count and toggle button */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-1.5">
+          <ImageIcon className="h-3.5 w-3.5 text-[color-mix(in_srgb,var(--foreground)_70%,transparent)]" strokeWidth={1.5} />
+          <span className="text-xs text-[color-mix(in_srgb,var(--foreground)_70%,transparent)]">images</span>
         </div>
-        {validImages.length > 8 && (
-          <button 
-            onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors px-2 py-1 rounded-md bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)]"
-          >
-            {expanded ? (
-              <>
-                <ChevronUp className="h-3 w-3" strokeWidth={1.5} />
-                <span className="hidden sm:inline">Show Less</span>
-                <span className="sm:hidden">Less</span>
-              </>
-            ) : (
-              <>
-                <ChevronDown className="h-3 w-3" strokeWidth={1.5} />
-                <span className="hidden sm:inline">Show More ({validImages.length - 8})</span>
-                <span className="sm:hidden">More ({validImages.length - 8})</span>
-              </>
-            )}
-          </button>
-        )}
+        
+        {/* Always show toggle button in header */}
+        <button 
+          onClick={toggleExpanded} 
+          className="text-xs flex items-center gap-1.5 text-[color-mix(in_srgb,var(--foreground)_70%,transparent)] hover:text-[color-mix(in_srgb,var(--foreground)_90%,transparent)] transition-colors"
+        >
+          {expanded ? (
+            <>
+              <ChevronUp className="h-3 w-3" strokeWidth={2} />
+              <span className="hidden sm:inline">Collapse</span>
+              <span className="sm:hidden">Less</span>
+            </>
+          ) : (
+            <>
+              <ChevronDown className="h-3 w-3" strokeWidth={2} />
+              <span className="hidden sm:inline">View All</span>
+              <span className="sm:hidden">More</span>
+            </>
+          )}
+        </button>
       </div>
       
       <style jsx global>{`
         .tetris-grid {
-          column-count: 2;
-          column-gap: 8px;
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+          gap: 12px;
           width: 100%;
         }
         
         @media (min-width: 640px) {
           .tetris-grid {
-            column-count: 3;
-          }
-        }
-        
-        @media (min-width: 768px) {
-          .tetris-grid {
-            column-count: 4;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
           }
         }
         
         .tetris-item {
-          break-inside: avoid;
-          margin-bottom: 8px;
-          display: block;
           position: relative;
-          width: 100%;
+          aspect-ratio: 1 / 1;
+          overflow: hidden;
+          border-radius: 12px;
+          transition: all 0.3s ease;
+          transform: translateY(0);
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        }
+        
+        .tetris-item:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
         }
         
         .tetris-img {
-          display: block;
           width: 100%;
-          height: auto;
-          border-radius: 8px;
-          background-color: color-mix(in srgb, var(--foreground) 3%, transparent);
-          max-height: 240px;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.5s ease;
+        }
+        
+        .tetris-item:hover .tetris-img {
+          transform: scale(1.05);
+        }
+        
+        .image-overlay {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          padding: 15px;
+          background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
+          color: white;
+          opacity: 0;
+          transition: opacity 0.3s ease;
+        }
+        
+        .tetris-item:hover .image-overlay {
+          opacity: 1;
+        }
+        
+        .show-more-card {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(145deg, color-mix(in srgb, var(--foreground) 5%, transparent), color-mix(in srgb, var(--foreground) 12%, transparent));
+          cursor: pointer;
+          font-weight: 500;
+          position: relative;
+          overflow: hidden;
+        }
+        
+        .show-more-card:hover {
+          background: linear-gradient(145deg, color-mix(in srgb, var(--foreground) 8%, transparent), color-mix(in srgb, var(--foreground) 18%, transparent));
+        }
+        
+        .show-more-content {
+          position: relative;
+          z-index: 10;
+          width: 100%;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--foreground) 15%, transparent) 100%);
+          backdrop-filter: blur(2px);
+          padding: 1rem;
+        }
+        
+        .thumbnail-mosaic {
+          position: absolute;
+          inset: 0;
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          grid-template-rows: repeat(2, 1fr);
+          opacity: 0.4;
+        }
+        
+        .thumbnail-mosaic img {
+          width: 100%;
+          height: 100%;
           object-fit: cover;
         }
         
+        .collapse-button {
+          position: fixed;
+          bottom: 20px;
+          right: 20px;
+          z-index: 100;
+          background: linear-gradient(135deg, color-mix(in srgb, var(--foreground) 20%, transparent), color-mix(in srgb, var(--foreground) 30%, transparent));
+          border-radius: 24px;
+          height: 48px;
+          padding: 0 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          cursor: pointer;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+          transform: translateY(0);
+          transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+          opacity: 0.95;
+          color: var(--background);
+          font-weight: 500;
+          font-size: 14px;
+          backdrop-filter: blur(5px);
+          border: 1px solid color-mix(in srgb, var(--foreground) 40%, transparent);
+        }
+        
+        .collapse-button:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+          opacity: 1;
+        }
+        
+        @keyframes pulseButton {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+          100% { transform: scale(1); }
+        }
+        
+        .collapse-button:after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: 24px;
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--foreground) 40%, transparent);
+          opacity: 0;
+          animation: pulseButton 2s infinite;
+        }
+        
+        /* Keep existing modal styles */
         .image-modal {
           position: fixed;
           top: 0;
@@ -850,14 +824,14 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
         }
       `}</style>
       
-      <div className={`tetris-grid transition-all duration-300 ${expanded ? '' : 'max-h-[200px] overflow-hidden'}`}>
+      <div className={`tetris-grid transition-all duration-500 ease-in-out ${expanded ? '' : 'max-h-[425px] overflow-hidden'}`}>
         {displayImages.map((image, index) => (
           <div key={index} className="tetris-item">
             <a
               href={image.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="block group hover:opacity-90 transition-opacity cursor-pointer"
+              className="block h-full"
               onClick={(e) => handleImageClick(image, index, e)}
             >
               <img
@@ -872,14 +846,50 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
                 }}
               />
               {image.description && (
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-2 flex items-end rounded-lg">
-                  <p className="text-xs text-white line-clamp-2">{image.description}</p>
+                <div className="image-overlay">
+                  <p className="text-xs line-clamp-2">{image.description}</p>
                 </div>
               )}
             </a>
           </div>
         ))}
+        
+        {/* Show More card replaces the last image when not expanded */}
+        {!expanded && validImages.length > 8 && (
+          <div 
+            className="tetris-item show-more-card"
+            onClick={toggleExpanded}
+          >
+            <div className="thumbnail-mosaic">
+              {validImages.slice(7, 11).map((img, idx) => (
+                <img 
+                  key={idx} 
+                  src={img.url} 
+                  alt="" 
+                  loading="lazy" 
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+              ))}
+            </div>
+            <div className="show-more-content">
+              <span className="text-2xl font-semibold mb-2">+{validImages.length - 7}</span>
+              <span className="text-sm mb-1">View All Images</span>
+              <ChevronDown className="h-4 w-4 mt-1 animate-bounce" strokeWidth={2} />
+            </div>
+          </div>
+        )}
       </div>
+      
+      {/* Floating collapse button - only shows when expanded */}
+      {expanded && validImages.length > 8 && (
+        <div className="collapse-button" onClick={toggleExpanded}>
+          <ChevronUp className="h-5 w-5" strokeWidth={2} />
+          <span>Collapse Gallery</span>
+        </div>
+      )}
       
       {/* Render the modal in a portal */}
       {isMounted && selectedImage && createPortal(
@@ -901,7 +911,6 @@ const MultiSearch: React.FC<{
   annotations = []
 }) => {
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   
   // Show loading state if we have args and annotations but no results yet
   const isLoading = !result && args && annotations.length >= 0;
@@ -1016,14 +1025,11 @@ const MultiSearch: React.FC<{
 
   return (
     <div className="w-full space-y-4 my-4">
-      <div className="p-4 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)]">
+      <div className="px-0 sm:px-4">
         {/* Query filter pills */}
-        <div className="flex flex-wrap gap-2 mb-4">
+        <div className="flex flex-wrap gap-2 mb-8">
           <div
-            onClick={() => {
-              setActiveFilter(null);
-              setSidebarOpen(true);
-            }}
+            onClick={() => setActiveFilter(null)}
             className={`px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all
                       ${activeFilter === null 
                         ? "bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_15%,transparent)] to-[color-mix(in_srgb,var(--foreground)_10%,transparent)]" 
@@ -1031,16 +1037,13 @@ const MultiSearch: React.FC<{
                       }`}
           >
             <Search className="h-3.5 w-3.5 min-w-[14px] min-h-[14px]" strokeWidth={1.5} />
-            <span className="text-xs font-medium">All Queries</span>
+            <span className="text-sm font-medium">All Queries</span>
           </div>
 
           {result.searches.map((search, i) => (
             <div
               key={i}
-              onClick={() => {
-                setActiveFilter(search.query === activeFilter ? null : search.query);
-                setSidebarOpen(true);
-              }}
+              onClick={() => setActiveFilter(search.query === activeFilter ? null : search.query)}
               className={`px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all break-keep
                         ${search.query === activeFilter 
                           ? "bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_15%,transparent)] to-[color-mix(in_srgb,var(--foreground)_10%,transparent)]" 
@@ -1048,26 +1051,38 @@ const MultiSearch: React.FC<{
                         }`}
             >
               <Search className="h-3.5 w-3.5 min-w-[14px] min-h-[14px]" strokeWidth={1.5} />
-              <span className="text-xs font-medium">{search.query}</span>
+              <span className="text-sm font-medium">{search.query}</span>
               {search.results.length > 0 && (
                 <span className="text-xs text-[var(--muted)]">({search.results.length})</span>
               )}
             </div>
           ))}
         </div>
+        
+        {/* Image Gallery */}
+        {displayImages.length > 0 && (
+          <ImageGrid images={displayImages} />
+        )}
+        
+        {/* Web Results header */}
+        <div className="flex items-center my-4">
+          {/* <div className="flex items-center gap-1.5">
+            <Globe className="h-3.5 w-3.5 text-[color-mix(in_srgb,var(--foreground)_70%,transparent)]" strokeWidth={1.5} />
+            <span className="text-xs text-[color-mix(in_srgb,var(--foreground)_70%,transparent)]">Web Results</span>
+          </div> */}
+        </div>
+        
+        {/* Display search results directly in the main area */}
+        <div className="mt-4 space-y-10">
+          {domainGroups.map(([domain, results]) => (
+            <DomainGroup 
+              key={domain} 
+              domain={domain} 
+              results={results}
+            />
+          ))}
+        </div>
       </div>
-      
-      {/* Right sidebar with results - now rendered at document root level via portal */}
-      <SearchSidebar 
-        isOpen={sidebarOpen} 
-        onClose={() => setSidebarOpen(false)} 
-        domainGroups={domainGroups} 
-        images={displayImages}
-        totalResults={totalResults}
-      />
-      
-      {/* Image viewer modal */}
-      <ImageGrid images={displayImages} />
     </div>
   );
 };

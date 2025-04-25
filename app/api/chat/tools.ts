@@ -120,82 +120,6 @@ async function checkPythonAvailability() {
 // Initialize the check (don't wait for result)
 checkPythonAvailability();
 
-// Helper function to determine field types from a dataset
-function getFieldTypes(data: any[]): Record<string, 'number' | 'string' | 'boolean' | 'date' | 'mixed' | 'null'> {
-  if (!data || data.length === 0) return {};
-  
-  const fieldTypes: Record<string, 'number' | 'string' | 'boolean' | 'date' | 'mixed' | 'null'> = {};
-  
-  // Get all field names from the first record
-  const fields = Object.keys(data[0]);
-  
-  fields.forEach(field => {
-    // Get all values for this field
-    const values = data.map(item => item[field]);
-    
-    // Determine the field type
-    fieldTypes[field] = getFieldType(values);
-  });
-  
-  return fieldTypes;
-}
-
-// Helper function to determine field type from values
-function getFieldType(values: any[]): 'number' | 'string' | 'boolean' | 'date' | 'mixed' | 'null' {
-  if (values.length === 0) return 'null';
-  
-  const types = values.map(v => {
-    if (v === null || v === undefined) return 'null';
-    if (typeof v === 'number') return 'number';
-    if (typeof v === 'boolean') return 'boolean';
-    if (typeof v === 'string') {
-      // Check if it's a date string
-      if (!isNaN(Date.parse(v))) return 'date';
-      return 'string';
-    }
-    return typeof v;
-  });
-  
-  // Filter out null values for type determination
-  const nonNullTypes = types.filter(t => t !== 'null');
-  if (nonNullTypes.length === 0) return 'null';
-  
-  // Check if all non-null values are the same type
-  const uniqueTypes = [...new Set(nonNullTypes)];
-  if (uniqueTypes.length === 1) return uniqueTypes[0] as any;
-  
-  return 'mixed';
-}
-
-// Helper function to calculate correlation coefficient
-function calculateCorrelation(x: number[], y: number[]): number {
-  // Ensure arrays are of the same length
-  const n = Math.min(x.length, y.length);
-  if (n === 0) return 0;
-  
-  // Calculate means
-  const xMean = x.reduce((sum, val) => sum + val, 0) / n;
-  const yMean = y.reduce((sum, val) => sum + val, 0) / n;
-  
-  // Calculate correlation
-  let numerator = 0;
-  let xSS = 0;
-  let ySS = 0;
-  
-  for (let i = 0; i < n; i++) {
-    const xDiff = x[i] - xMean;
-    const yDiff = y[i] - yMean;
-    numerator += xDiff * yDiff;
-    xSS += xDiff * xDiff;
-    ySS += yDiff * yDiff;
-  }
-  
-  // Avoid division by zero
-  if (xSS === 0 || ySS === 0) return 0;
-  
-  return numerator / Math.sqrt(xSS * ySS);
-}
-
 // Web Search 도구 생성 함수
 export function createWebSearchTool(processMessages: any[], dataStream: any) {
   // 검색 결과를 저장할 배열
@@ -395,13 +319,28 @@ export function createWebSearchTool(processMessages: any[], dataStream: any) {
   return Object.assign(webSearchTool, { searchResults });
 }
 // jina.ai 링크 리더 도구 생성 함수
-export function createJinaLinkReaderTool() {
-  return tool({
+export function createJinaLinkReaderTool(dataStream?: any) {
+  // Define the tool type with linkAttempts property
+  interface JinaLinkReaderTool {
+    description: string;
+    parameters: z.ZodObject<any, any, any, any>;
+    execute: ({ url }: { url: string }, options?: any) => Promise<any>;
+    linkAttempts: Array<{
+      url: string;
+      timestamp: string;
+      status: 'in_progress' | 'success' | 'failed';
+      title?: string;
+      error?: string;
+    }>;
+  }
+
+  const tool: JinaLinkReaderTool = {
     description: toolDefinitions.jina_link_reader.description,
     parameters: z.object({
       url: z.string().url().describe(toolDefinitions.jina_link_reader.parameters.url),
     }),
-    execute: async ({ url }: { url: string }) => {
+    linkAttempts: [],
+    execute: async ({ url }: { url: string }, options?: any) => {
       try {
         if (!url) {
           throw new Error("URL parameter is required");
@@ -412,6 +351,24 @@ export function createJinaLinkReaderTool() {
         const jinaUrl = `https://r.jina.ai/${targetUrl}`;
         
         console.log(`[DEBUG-JINA] Fetching content from: ${jinaUrl}`);
+        
+        // Track link reading attempts if dataStream is available
+        const attempt = {
+          url: url,
+          timestamp: new Date().toISOString(),
+          status: 'in_progress' as const,
+        };
+        
+        if (dataStream) {
+          // Store the attempt
+          tool.linkAttempts.push(attempt);
+          
+          // Send real-time update about attempt start
+          dataStream.writeMessageAnnotation({
+            type: 'link_reader_attempt',
+            data: attempt
+          });
+        }
         
         // 내용 가져오기
         const response = await fetch(jinaUrl, {
@@ -461,21 +418,97 @@ export function createJinaLinkReaderTool() {
         
         console.log(`[DEBUG-JINA] Successfully fetched content, length: ${content.length} characters`);
         
-        return {
+        const result = {
           content,
           url: targetUrl,
           title: title || getPageTitle(content) || targetUrl,
           contentType
         };
+        
+        // Handle success tracking if dataStream is available
+        if (dataStream) {
+          const lastIndex = tool.linkAttempts.length - 1;
+          const updatedAttempt = {
+            url: url,
+            title: result.title,
+            status: 'success' as const,
+            timestamp: new Date().toISOString()
+          };
+          
+          // Update stored attempt
+          Object.assign(tool.linkAttempts[lastIndex], updatedAttempt);
+          
+          // Send update
+          dataStream.writeMessageAnnotation({
+            type: 'link_reader_attempt_update',
+            data: updatedAttempt
+          });
+          
+          // Return simplified success result to model
+          const contentPreview = result.content && result.content.length > 0 
+            ? `${result.content.substring(0, 150)}...` 
+            : "(No text content available)";
+          
+          return {
+            success: true,
+            url: url,
+            title: result.title,
+            contentType: result.contentType,
+            contentLength: result.content ? result.content.length : 0,
+            contentPreview,
+            message: `Successfully read content from ${url} (${result.content ? result.content.length : 0} characters)`
+          };
+        }
+        
+        return result;
       } catch (error) {
         console.error('[DEBUG-JINA] Error fetching URL:', error);
+        
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        
+        // Handle error tracking if dataStream is available
+        if (dataStream) {
+          const lastIndex = tool.linkAttempts.length - 1;
+          
+          const updatedAttempt = {
+            url: url,
+            error: errorMessage,
+            status: 'failed' as const,
+            timestamp: new Date().toISOString()
+          };
+          
+          // Update stored attempt
+          Object.assign(tool.linkAttempts[lastIndex], updatedAttempt);
+          
+          // Send update
+          dataStream.writeMessageAnnotation({
+            type: 'link_reader_attempt_update',
+            data: updatedAttempt
+          });
+          
+          // Return simplified error result to model
         return {
-          error: error instanceof Error ? error.message : 'Unknown error occurred',
+            success: false,
+            url: url,
+            error: errorMessage,
+            message: `Failed to read content from ${url}: ${errorMessage}`
+          };
+        }
+        
+        return {
+          error: errorMessage,
           url
         };
       }
     }
-  });
+  };
+  
+  // Initialize linkAttempts array if dataStream is provided
+  if (dataStream) {
+    tool.linkAttempts = [];
+  }
+  
+  return tool;
 }
 
 // 이미지 생성 도구 생성 함수
@@ -1228,7 +1261,167 @@ export function createYouTubeLinkAnalyzerTool(dataStream: any) {
   return Object.assign(youtubeAnalyzerTool, { analysisResults });
 }
 
-// Wolfram Alpha Ultimate tool creation function
+
+// Data Processing Tool creation function
+export function createDataProcessorTool(dataStream: any) {
+  // 처리 결과를 저장할 배열
+  const processingResults: any[] = [];
+  
+  const dataProcessorTool = tool({
+    description: toolDefinitions.dataProcessor.description,
+    parameters: z.object({
+      data: z.string().describe(toolDefinitions.dataProcessor.parameters.data),
+      format: z.enum(['csv', 'json']).describe(toolDefinitions.dataProcessor.parameters.format),
+      operation: z.enum(['parse', 'filter', 'aggregate', 'transform', 'analyze']).describe(toolDefinitions.dataProcessor.parameters.operation),
+      options: z.any().optional().describe(toolDefinitions.dataProcessor.parameters.options),
+    }),
+    execute: async ({ data, format, operation, options }) => {
+      console.log(`Data processor executing ${operation} operation on ${format} data...`);
+      const startTime = Date.now();
+      
+      try {
+        // Python 처리기 사용 가능 여부 확인
+        console.log('Checking Python data processor availability...');
+        const isPythonAvailable = await checkPythonAvailability();
+        console.log(`Python data processor availability: ${isPythonAvailable ? 'AVAILABLE' : 'NOT AVAILABLE'}`);
+        
+        if (!isPythonAvailable) {
+          // Vercel 환경에서 실행 중인지 확인
+          const isVercelEnv = process.env.VERCEL || process.env.VERCEL_ENV;
+          console.log(`Running in Vercel environment: ${isVercelEnv ? 'YES' : 'NO'}`);
+          
+          if (isVercelEnv) {
+            // Vercel 환경에서만 간단한 처리 제공 (제한된 기능)
+            console.log('Using simplified data processor for Vercel environment');
+            
+            // 간단한 데이터 파싱 및 처리 로직
+            let parsedData;
+            
+            try {
+              if (format === 'json') {
+                parsedData = JSON.parse(data);
+              } else if (format === 'csv') {
+                // CSV 데이터를 간단히 파싱 (헤더 행 + 데이터 행)
+                const rows = data.split('\n');
+                const header = rows[0].split(',');
+                
+                parsedData = rows.slice(1).map(row => {
+                  const values = row.split(',');
+                  const item: Record<string, string> = {};
+                  
+                  header.forEach((key, index) => {
+                    item[key.trim()] = values[index]?.trim() ?? '';
+                  });
+                  
+                  return item;
+                });
+              }
+              
+              // 간단한 분석 결과 생성
+              const result = {
+                timestamp: new Date().toISOString(),
+                operation,
+                format,
+                data: parsedData.slice(0, 10), // 최대 10개 항목만 반환
+                summary: {
+                  recordCount: Array.isArray(parsedData) ? parsedData.length : 1,
+                  fields: Array.isArray(parsedData) && parsedData.length > 0 
+                    ? Object.keys(parsedData[0]) 
+                    : Object.keys(parsedData || {}),
+                  note: "Limited functionality in serverless environment. For full analysis, run locally or with Python environment."
+                }
+              };
+              
+              processingResults.push(result);
+              
+              // 클라이언트에 처리 완료 알림 전송
+              dataStream.writeMessageAnnotation({
+                type: 'data_processing_complete',
+                data: {
+                  operation,
+                  format,
+                  timestamp: new Date().toISOString(),
+                  result,
+                  executionTimeMs: Date.now() - startTime
+                }
+              });
+              
+              return result;
+            } catch (parseError: any) {
+              throw new Error(`Failed to parse ${format} data: ${parseError.message}`);
+            }
+          }
+          
+          throw new Error('Python data processor is not available. Please install pandas and numpy.');
+        }
+        
+        console.log('Using Python data processor for high-performance data processing');
+        
+        // Python 처리기로 데이터 처리
+        const result = await processPythonData({
+          data,
+          format: format as 'csv' | 'json',
+          operation: operation as 'parse' | 'filter' | 'aggregate' | 'transform' | 'analyze',
+          options: options || {}
+        });
+        
+        // 결과 저장
+        processingResults.push(result);
+        
+        // 클라이언트에 처리 완료 알림 전송
+        dataStream.writeMessageAnnotation({
+          type: 'data_processing_complete',
+          data: {
+            operation,
+            format,
+            timestamp: new Date().toISOString(),
+            result,
+            executionTimeMs: Date.now() - startTime
+          }
+        });
+        
+        // 결과 반환
+        return result;
+      } catch (error) {
+        console.error('Data processor error:', error);
+        
+        // 에러 결과 생성
+        const errorResult = {
+          timestamp: new Date().toISOString(),
+          operation,
+          format,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          summary: {
+            executionTimeMs: Date.now() - startTime
+          }
+        };
+        
+        // 에러 저장
+        processingResults.push(errorResult);
+        
+        // 클라이언트에 에러 알림 전송
+        dataStream.writeMessageAnnotation({
+          type: 'data_processing_complete',
+          data: {
+            operation,
+            format,
+            timestamp: new Date().toISOString(),
+            error: error instanceof Error ? error.message : 'Unknown error',
+            executionTimeMs: Date.now() - startTime
+          }
+        });
+        
+        // 에러 결과 반환
+        return errorResult;
+      }
+    }
+  });
+  
+  // 데이터 처리 도구와 처리 결과 리스트를 함께 반환
+  return Object.assign(dataProcessorTool, { processingResults });
+}
+
+// Wolfram Alpha Ultimate tool creation function -- NOT USED YET
 export function createWolframAlphaUltimateTool(dataStream: any) {
   // Array to store query results
   const queryResults: any[] = [];
@@ -1791,163 +1984,4 @@ export function createWolframAlphaUltimateTool(dataStream: any) {
 
   // Return the tool with query results
   return Object.assign(wolframAlphaUltimateTool, { queryResults });
-}
-
-// Data Processing Tool creation function
-export function createDataProcessorTool(dataStream: any) {
-  // 처리 결과를 저장할 배열
-  const processingResults: any[] = [];
-  
-  const dataProcessorTool = tool({
-    description: toolDefinitions.dataProcessor.description,
-    parameters: z.object({
-      data: z.string().describe(toolDefinitions.dataProcessor.parameters.data),
-      format: z.enum(['csv', 'json']).describe(toolDefinitions.dataProcessor.parameters.format),
-      operation: z.enum(['parse', 'filter', 'aggregate', 'transform', 'analyze']).describe(toolDefinitions.dataProcessor.parameters.operation),
-      options: z.any().optional().describe(toolDefinitions.dataProcessor.parameters.options),
-    }),
-    execute: async ({ data, format, operation, options }) => {
-      console.log(`Data processor executing ${operation} operation on ${format} data...`);
-      const startTime = Date.now();
-      
-      try {
-        // Python 처리기 사용 가능 여부 확인
-        console.log('Checking Python data processor availability...');
-        const isPythonAvailable = await checkPythonAvailability();
-        console.log(`Python data processor availability: ${isPythonAvailable ? 'AVAILABLE' : 'NOT AVAILABLE'}`);
-        
-        if (!isPythonAvailable) {
-          // Vercel 환경에서 실행 중인지 확인
-          const isVercelEnv = process.env.VERCEL || process.env.VERCEL_ENV;
-          console.log(`Running in Vercel environment: ${isVercelEnv ? 'YES' : 'NO'}`);
-          
-          if (isVercelEnv) {
-            // Vercel 환경에서만 간단한 처리 제공 (제한된 기능)
-            console.log('Using simplified data processor for Vercel environment');
-            
-            // 간단한 데이터 파싱 및 처리 로직
-            let parsedData;
-            
-            try {
-              if (format === 'json') {
-                parsedData = JSON.parse(data);
-              } else if (format === 'csv') {
-                // CSV 데이터를 간단히 파싱 (헤더 행 + 데이터 행)
-                const rows = data.split('\n');
-                const header = rows[0].split(',');
-                
-                parsedData = rows.slice(1).map(row => {
-                  const values = row.split(',');
-                  const item: Record<string, string> = {};
-                  
-                  header.forEach((key, index) => {
-                    item[key.trim()] = values[index]?.trim() ?? '';
-                  });
-                  
-                  return item;
-                });
-              }
-              
-              // 간단한 분석 결과 생성
-              const result = {
-                timestamp: new Date().toISOString(),
-                operation,
-                format,
-                data: parsedData.slice(0, 10), // 최대 10개 항목만 반환
-                summary: {
-                  recordCount: Array.isArray(parsedData) ? parsedData.length : 1,
-                  fields: Array.isArray(parsedData) && parsedData.length > 0 
-                    ? Object.keys(parsedData[0]) 
-                    : Object.keys(parsedData || {}),
-                  note: "Limited functionality in serverless environment. For full analysis, run locally or with Python environment."
-                }
-              };
-              
-              processingResults.push(result);
-              
-              // 클라이언트에 처리 완료 알림 전송
-              dataStream.writeMessageAnnotation({
-                type: 'data_processing_complete',
-                data: {
-                  operation,
-                  format,
-                  timestamp: new Date().toISOString(),
-                  result,
-                  executionTimeMs: Date.now() - startTime
-                }
-              });
-              
-              return result;
-            } catch (parseError: any) {
-              throw new Error(`Failed to parse ${format} data: ${parseError.message}`);
-            }
-          }
-          
-          throw new Error('Python data processor is not available. Please install pandas and numpy.');
-        }
-        
-        console.log('Using Python data processor for high-performance data processing');
-        
-        // Python 처리기로 데이터 처리
-        const result = await processPythonData({
-          data,
-          format: format as 'csv' | 'json',
-          operation: operation as 'parse' | 'filter' | 'aggregate' | 'transform' | 'analyze',
-          options: options || {}
-        });
-        
-        // 결과 저장
-        processingResults.push(result);
-        
-        // 클라이언트에 처리 완료 알림 전송
-        dataStream.writeMessageAnnotation({
-          type: 'data_processing_complete',
-          data: {
-            operation,
-            format,
-            timestamp: new Date().toISOString(),
-            result,
-            executionTimeMs: Date.now() - startTime
-          }
-        });
-        
-        // 결과 반환
-        return result;
-      } catch (error) {
-        console.error('Data processor error:', error);
-        
-        // 에러 결과 생성
-        const errorResult = {
-          timestamp: new Date().toISOString(),
-          operation,
-          format,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          summary: {
-            executionTimeMs: Date.now() - startTime
-          }
-        };
-        
-        // 에러 저장
-        processingResults.push(errorResult);
-        
-        // 클라이언트에 에러 알림 전송
-        dataStream.writeMessageAnnotation({
-          type: 'data_processing_complete',
-          data: {
-            operation,
-            format,
-            timestamp: new Date().toISOString(),
-            error: error instanceof Error ? error.message : 'Unknown error',
-            executionTimeMs: Date.now() - startTime
-          }
-        });
-        
-        // 에러 결과 반환
-        return errorResult;
-      }
-    }
-  });
-  
-  // 데이터 처리 도구와 처리 결과 리스트를 함께 반환
-  return Object.assign(dataProcessorTool, { processingResults });
 }

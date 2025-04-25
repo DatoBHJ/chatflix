@@ -6,6 +6,7 @@ import { MODEL_CONFIGS } from '@/lib/models/config'
 
 export function useMessages(chatId: string, userId: string) {
   const [isRegenerating, setIsRegenerating] = useState(false)
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState('')
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
@@ -42,13 +43,62 @@ export function useMessages(chatId: string, userId: string) {
 
   const handleCopyMessage = async (message: Message) => {
     try {
-      const textToCopy = message.parts
+      // Extract structured response main_response
+      let structuredMainResponse = null;
+      
+      // Check in annotations - use type assertion to treat annotations as any type
+      const annotations = (message.annotations || []) as any[];
+      const structuredResponseAnnotation = annotations.find(
+        annotation => annotation.type === 'structured_response'
+      );
+      
+      // Use type assertions to safely access nested properties
+      if (structuredResponseAnnotation) {
+        if (structuredResponseAnnotation.data?.response?.main_response) {
+          structuredMainResponse = structuredResponseAnnotation.data.response.main_response;
+        }
+      }
+      
+      // If not found in annotations, check in tool_results
+      const messageWithTools = message as any;
+      if (!structuredMainResponse && messageWithTools.tool_results) {
+        const toolResults = messageWithTools.tool_results;
+        if (toolResults.structuredResponse?.response?.main_response) {
+          structuredMainResponse = toolResults.structuredResponse.response.main_response;
+        }
+      }
+      
+      // If still not found, check progress annotations
+      if (!structuredMainResponse) {
+        const progressAnnotations = annotations.filter(
+          annotation => annotation.type === 'structured_response_progress'
+        );
+        
+        if (progressAnnotations.length > 0) {
+          const latestProgress = progressAnnotations[progressAnnotations.length - 1];
+          if (latestProgress && latestProgress.data?.response?.main_response) {
+            structuredMainResponse = latestProgress.data.response.main_response;
+          }
+        }
+      }
+
+      // Get regular message content
+      let textToCopy = message.parts
         ? message.parts
             .filter(part => part.type === 'text')
             .map(part => (part as { text: string }).text || '')
             .join('\n')
             .trim()
         : message.content
+
+      // Add structured main response if available
+      if (structuredMainResponse && message.role === 'assistant') {
+        if (textToCopy) {
+          textToCopy += '\n\n' + structuredMainResponse;
+        } else {
+          textToCopy = structuredMainResponse;
+        }
+      }
 
       await navigator.clipboard.writeText(textToCopy)
       setCopiedMessageId(message.id)
@@ -79,6 +129,14 @@ export function useMessages(chatId: string, userId: string) {
       messageContent: editingContent.substring(0, 100) + '...'
     });
     
+    // Add guard to prevent re-entry
+    if (isSavingEdit) {
+      console.log('Edit save already in progress, skipping')
+      return
+    }
+    
+    setIsSavingEdit(true)
+    
     try {
       if (!messageId || !userId || !chatId) {
         throw new Error('Missing required parameters for edit save operation');
@@ -91,6 +149,9 @@ export function useMessages(chatId: string, userId: string) {
         setEditingMessageId(null);
         setEditingContent('');
         return;
+      }
+      else {
+        console.log('Message found in local state:', localMessage);
       }
 
       const messageIndex = messages.findIndex(msg => msg.id === messageId);
@@ -110,6 +171,7 @@ export function useMessages(chatId: string, userId: string) {
       let existingMessage = existingMessages?.[0];
       
       if (!existingMessage) {
+        console.log('Message not found in database, inserting new message');
         const { data: insertedMessage, error: insertError } = await supabase
           .from('messages')
           .insert([{
@@ -131,6 +193,7 @@ export function useMessages(chatId: string, userId: string) {
         if (insertError) throw insertError;
         existingMessage = insertedMessage;
       } else {
+        console.log('Message found in database, updating message', existingMessage);
         const { error: updateError } = await supabase
           .from('messages')
           .update({
@@ -156,39 +219,43 @@ export function useMessages(chatId: string, userId: string) {
             }
           : msg
       );
+      console.log('Updated messages:', updatedMessages);
 
       setMessages(updatedMessages);
       setEditingMessageId(null);
       setEditingContent('');
 
-      const { error: deleteError } = await supabase
-        .from('messages')
-        .delete()
-        .eq('chat_session_id', chatId)
-        .eq('user_id', userId)
-        .gt('sequence_number', existingMessage.sequence_number);
+      // const { error: deleteError } = await supabase
+      //   .from('messages')
+      //   .delete()
+      //   .eq('chat_session_id', chatId)
+      //   .eq('user_id', userId)
+      //   .gt('sequence_number', existingMessage.sequence_number);
 
-      if (deleteError) {
-        console.error('Error deleting subsequent messages:', deleteError);
-      }
+      // if (deleteError) {
+      //   console.error('Error deleting subsequent messages:', deleteError);
+      // }
+      // else {
+      //   console.log('Subsequent messages deleted successfully');
+      // }
 
       const assistantMessageId = generateMessageId();
 
-      const { error: insertError } = await supabase
-        .from('messages')
-        .insert([{
-          id: assistantMessageId,
-          role: 'assistant',
-          content: '',
-          created_at: new Date().toISOString(),
-          model: currentModel,
-          host: 'assistant',
-          chat_session_id: chatId,
-          user_id: userId,
-          sequence_number: existingMessage.sequence_number + 1
-        }]);
+      // const { error: insertError } = await supabase
+      //   .from('messages')
+      //   .insert([{
+      //     id: assistantMessageId,
+      //     role: 'assistant',
+      //     content: '',
+      //     created_at: new Date().toISOString(),
+      //     model: currentModel,
+      //     host: 'assistant',
+      //     chat_session_id: chatId,
+      //     user_id: userId,
+      //     sequence_number: existingMessage.sequence_number + 1
+      //   }]);
 
-      if (insertError) throw insertError;
+      // if (insertError) throw insertError;
 
       // Check if current model is rate limited
       let modelToUse = currentModel;
@@ -246,6 +313,7 @@ export function useMessages(chatId: string, userId: string) {
       }
 
       try {
+        console.log('Reloading with model:', modelToUse);
         await reload({
           body: {
             messages: updatedMessages,
@@ -256,6 +324,7 @@ export function useMessages(chatId: string, userId: string) {
           }
         });
       } catch (error: any) {
+        console.error('Error reloading:', error);
         if (!handleRateLimitError(error, modelToUse)) {
           throw error;
         }
@@ -276,6 +345,8 @@ export function useMessages(chatId: string, userId: string) {
       setEditingMessageId(messageId);
       const originalContent = messages.find(msg => msg.id === messageId)?.content || '';
       setEditingContent(originalContent);
+    } finally {
+      setIsSavingEdit(false)
     }
   }
 
@@ -289,6 +360,13 @@ export function useMessages(chatId: string, userId: string) {
     });
     
     e.preventDefault()
+    
+    // Add a guard to prevent re-entry
+    if (isRegenerating) {
+      console.log('Regeneration already in progress, skipping')
+      return
+    }
+    
     setIsRegenerating(true)
     
     try {
@@ -442,10 +520,11 @@ export function useMessages(chatId: string, userId: string) {
     } finally {
       setIsRegenerating(false)
     }
-  }, [chatId, userId, handleRateLimitError, supabase])
+  }, [chatId, userId, handleRateLimitError, supabase, isRegenerating])
 
   return {
     isRegenerating,
+    isSavingEdit,
     editingMessageId,
     editingContent,
     copiedMessageId,

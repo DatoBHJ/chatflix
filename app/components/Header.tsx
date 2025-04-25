@@ -47,6 +47,13 @@ export function Header({ isSidebarOpen, onSidebarToggle, showBackButton, user }:
             </button>
           )}
           
+          <span 
+            className="text-xs font-bold py-0.5 text-[var(--foreground)] opacity-50 cursor-pointer"
+            onClick={() => router.push('/')}
+          >
+            BETA
+          </span>
+          
           {/* <div className="hidden md:flex items-center gap-2 cursor-pointer" onClick={() => router.push('/user-insights')}>
             {profileImage ? (
               <div className="w-7 h-7 rounded-full overflow-hidden relative">

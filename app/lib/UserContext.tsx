@@ -46,13 +46,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
               });
               
             if (!profileError && profileData && profileData.length > 0) {
-              const { data: imageUrlData } = await supabase
-                .storage
-                .from('profile-pics')
-                .getPublicUrl(`${user.id}/${profileData[0].name}`);
+              try {
+                const { data: imageUrlData } = await supabase
+                  .storage
+                  .from('profile-pics')
+                  .getPublicUrl(`${user.id}/${profileData[0].name}`);
                 
-              if (imageUrlData) {
-                setProfileImage(imageUrlData.publicUrl);
+                if (imageUrlData) {
+                  setProfileImage(imageUrlData.publicUrl);
+                }
+              } catch (urlError) {
+                console.error('Error getting public URL for profile image:', urlError);
               }
             }
           } catch (profileError) {

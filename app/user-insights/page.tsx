@@ -61,12 +61,16 @@ export default function UserInsightsPage() {
 
       // If profile image exists, get public URL
       if (profileData && profileData.length > 0) {
-        const { data } = supabase
-          .storage
-          .from('profile-pics')
-          .getPublicUrl(`${userId}/${profileData[0].name}`);
-        
-        setProfileImage(data.publicUrl);
+        try {
+          const { data } = supabase
+            .storage
+            .from('profile-pics')
+            .getPublicUrl(`${userId}/${profileData[0].name}`);
+          
+          setProfileImage(data.publicUrl);
+        } catch (error) {
+          console.error('Error getting public URL for profile image:', error);
+        }
       }
     } catch (error) {
       console.error('Error fetching profile image:', error);

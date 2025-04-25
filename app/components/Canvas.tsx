@@ -26,34 +26,6 @@ type CanvasProps = {
       timestamp?: string;
     }[];
   } | null;
-  agentReasoningData?: {
-    reasoning: string;
-    needsWebSearch: boolean;
-    needsCalculator: boolean;
-    needsLinkReader?: boolean;
-    needsImageGenerator?: boolean;
-    needsAcademicSearch?: boolean;
-    needsXSearch?: boolean;
-    needsYouTubeSearch?: boolean;
-    needsYouTubeLinkAnalyzer?: boolean;
-    needsDataProcessor?: boolean;
-    timestamp: string;
-    isComplete?: boolean;
-  } | null;
-  agentReasoningProgress?: {
-    reasoning: string;
-    needsWebSearch: boolean;
-    needsCalculator: boolean;
-    needsLinkReader?: boolean;
-    needsImageGenerator?: boolean;
-    needsAcademicSearch?: boolean;
-    needsXSearch?: boolean;
-    needsYouTubeSearch?: boolean;
-    needsYouTubeLinkAnalyzer?: boolean;
-    needsDataProcessor?: boolean;
-    timestamp: string;
-    isComplete: boolean;
-  }[];
   imageGeneratorData?: {
     generatedImages: {
       imageUrl: string;
@@ -165,8 +137,6 @@ export default function Canvas({
   webSearchData, 
   mathCalculationData, 
   linkReaderData, 
-  agentReasoningData, 
-  agentReasoningProgress = [], 
   imageGeneratorData, 
   academicSearchData, 
   xSearchData, 
@@ -175,13 +145,13 @@ export default function Canvas({
   dataProcessorData
 }: CanvasProps) {
   // Don't render if there's no data to display
-  if (!webSearchData && !mathCalculationData && !linkReaderData && !agentReasoningData && agentReasoningProgress.length === 0 && !imageGeneratorData && !academicSearchData && !xSearchData && !youTubeSearchData && !youTubeLinkAnalysisData && !dataProcessorData) return null;
+  if (!webSearchData && !mathCalculationData && !linkReaderData && !imageGeneratorData && !academicSearchData && !xSearchData && !youTubeSearchData && !youTubeLinkAnalysisData && !dataProcessorData) return null;
 
   // Manage expanded/collapsed state for each section
   const [webSearchExpanded, setWebSearchExpanded] = useState(true);
   const [mathCalcExpanded, setMathCalcExpanded] = useState(true);
   const [linkReaderExpanded, setLinkReaderExpanded] = useState(true);
-  const [reasoningExpanded, setReasoningExpanded] = useState(true);
+  // const [reasoningExpanded, setReasoningExpanded] = useState(true);
   const [imageGenExpanded, setImageGenExpanded] = useState(true);
   const [academicSearchExpanded, setAcademicSearchExpanded] = useState(true);
   const [xSearchExpanded, setXSearchExpanded] = useState(true);
@@ -189,30 +159,93 @@ export default function Canvas({
   const [youTubeLinkAnalysisExpanded, setYouTubeLinkAnalysisExpanded] = useState(true);
   const [dataProcessorExpanded, setDataProcessorExpanded] = useState(true);
   
+  // Content height refs and states for animations
+  const webSearchContentRef = useRef<HTMLDivElement>(null);
+  const mathCalcContentRef = useRef<HTMLDivElement>(null);
+  const linkReaderContentRef = useRef<HTMLDivElement>(null);
+  const imageGenContentRef = useRef<HTMLDivElement>(null);
+  const academicSearchContentRef = useRef<HTMLDivElement>(null);
+  const xSearchContentRef = useRef<HTMLDivElement>(null);
+  const youTubeSearchContentRef = useRef<HTMLDivElement>(null);
+  const youTubeLinkAnalysisContentRef = useRef<HTMLDivElement>(null);
+  const dataProcessorContentRef = useRef<HTMLDivElement>(null);
+  
+  const [webSearchContentHeight, setWebSearchContentHeight] = useState<number | undefined>(undefined);
+  const [mathCalcContentHeight, setMathCalcContentHeight] = useState<number | undefined>(undefined);
+  const [linkReaderContentHeight, setLinkReaderContentHeight] = useState<number | undefined>(undefined);
+  const [imageGenContentHeight, setImageGenContentHeight] = useState<number | undefined>(undefined);
+  const [academicSearchContentHeight, setAcademicSearchContentHeight] = useState<number | undefined>(undefined);
+  const [xSearchContentHeight, setXSearchContentHeight] = useState<number | undefined>(undefined);
+  const [youTubeSearchContentHeight, setYouTubeSearchContentHeight] = useState<number | undefined>(undefined);
+  const [youTubeLinkAnalysisContentHeight, setYouTubeLinkAnalysisContentHeight] = useState<number | undefined>(undefined);
+  const [dataProcessorContentHeight, setDataProcessorContentHeight] = useState<number | undefined>(undefined);
+  
+  // Measure web search content height
+  useEffect(() => {
+    if (webSearchContentRef.current && webSearchData) {
+      setWebSearchContentHeight(webSearchContentRef.current.scrollHeight);
+    }
+  }, [webSearchData, webSearchExpanded]);
+  
+  // Measure math calc content height
+  useEffect(() => {
+    if (mathCalcContentRef.current && mathCalculationData) {
+      setMathCalcContentHeight(mathCalcContentRef.current.scrollHeight);
+    }
+  }, [mathCalculationData, mathCalcExpanded]);
+  
+  // Measure link reader content height
+  useEffect(() => {
+    if (linkReaderContentRef.current && linkReaderData) {
+      setLinkReaderContentHeight(linkReaderContentRef.current.scrollHeight);
+    }
+  }, [linkReaderData, linkReaderExpanded]);
+  
+  // Measure image gen content height
+  useEffect(() => {
+    if (imageGenContentRef.current && imageGeneratorData) {
+      setImageGenContentHeight(imageGenContentRef.current.scrollHeight);
+    }
+  }, [imageGeneratorData, imageGenExpanded]);
+  
+  // Measure academic search content height
+  useEffect(() => {
+    if (academicSearchContentRef.current && academicSearchData) {
+      setAcademicSearchContentHeight(academicSearchContentRef.current.scrollHeight);
+    }
+  }, [academicSearchData, academicSearchExpanded]);
+  
+  // Measure X search content height
+  useEffect(() => {
+    if (xSearchContentRef.current && xSearchData) {
+      setXSearchContentHeight(xSearchContentRef.current.scrollHeight);
+    }
+  }, [xSearchData, xSearchExpanded]);
+  
+  // Measure YouTube search content height
+  useEffect(() => {
+    if (youTubeSearchContentRef.current && youTubeSearchData) {
+      setYouTubeSearchContentHeight(youTubeSearchContentRef.current.scrollHeight);
+    }
+  }, [youTubeSearchData, youTubeSearchExpanded]);
+  
+  // Measure YouTube link analysis content height
+  useEffect(() => {
+    if (youTubeLinkAnalysisContentRef.current && youTubeLinkAnalysisData) {
+      setYouTubeLinkAnalysisContentHeight(youTubeLinkAnalysisContentRef.current.scrollHeight);
+    }
+  }, [youTubeLinkAnalysisData, youTubeLinkAnalysisExpanded]);
+  
+  // Measure data processor content height
+  useEffect(() => {
+    if (dataProcessorContentRef.current && dataProcessorData) {
+      setDataProcessorContentHeight(dataProcessorContentRef.current.scrollHeight);
+    }
+  }, [dataProcessorData, dataProcessorExpanded]);
+  
   // State for image viewer modal
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(-1);
   const [isMounted, setIsMounted] = useState(false);
-  
-  // State to store the latest reasoning data (either complete or in progress)
-  const [currentReasoning, setCurrentReasoning] = useState<{
-    [x: string]: any;
-    reasoning: string;
-    needsWebSearch: boolean;
-    needsCalculator: boolean;
-    needsLinkReader?: boolean;
-    needsImageGenerator?: boolean;
-    needsAcademicSearch?: boolean;
-    needsXSearch?: boolean;
-    needsYouTubeSearch?: boolean;
-    needsYouTubeLinkAnalyzer?: boolean;
-    needsDataProcessor?: boolean;
-    timestamp: string;
-    isComplete: boolean;
-  } | null>(null);
-
-  // // Use ref to track previous data
-  // const prevReasoningDataRef = useRef<typeof agentReasoningData>(null);
-  // const prevProgressRef = useRef<typeof agentReasoningProgress>([]);
 
   // Check if we're in browser environment for portal rendering
   useEffect(() => {
@@ -243,30 +276,6 @@ export default function Canvas({
     };
   }, [selectedImageIndex, imageGeneratorData]);
 
-  // Effect to handle reasoning data updates (both complete and in progress)
-  useEffect(() => {
-    // 1. isComplete가 true인 완료된 데이터가 이미 있으면 우선 보존
-    if (currentReasoning?.isComplete) {
-      return;
-    }
-    
-    // 2. 완료된 새 데이터가 있으면 업데이트
-    if (agentReasoningData) {
-      const newReasoning = {
-        ...agentReasoningData,
-        isComplete: agentReasoningData.isComplete ?? true
-      };
-      setCurrentReasoning(newReasoning);
-      return;
-    }
-    
-    // 3. 진행 중인 데이터만 있고 현재 데이터가 없는 경우에만 업데이트
-    if (agentReasoningProgress?.length > 0 && !currentReasoning) {
-      const latestProgress = agentReasoningProgress[agentReasoningProgress.length - 1];
-      setCurrentReasoning(latestProgress);
-    }
-  }, [agentReasoningData, agentReasoningProgress, currentReasoning]);
-  
   // Image viewer functions
   const openImageViewer = (index: number) => {
     setSelectedImageIndex(index);
@@ -289,125 +298,6 @@ export default function Canvas({
 
   return (
     <div className="tool-results-canvas my-4 space-y-4">
-      {/* Agent Reasoning Section */}
-      {currentReasoning && (
-        <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
-          <div 
-            className="flex items-center justify-between w-full mb-4 cursor-pointer"
-            onClick={() => setReasoningExpanded(!reasoningExpanded)}
-          >
-            <div className="flex items-center gap-2.5">
-              <Brain className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-              <h2 className="font-medium text-left tracking-tight">Chatflix Agent Analysis</h2>
-            </div>
-            <div className="flex items-center gap-2">
-              {!currentReasoning.isComplete && 
-                <span className="text-xs font-normal text-blue-500 animate-pulse mr-2">(thinking...)</span>
-              }
-              <div className="rounded-full p-1 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors">
-                {reasoningExpanded ? 
-                  <ChevronUp size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" /> : 
-                  <ChevronDown size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" />
-                }
-              </div>
-            </div>
-          </div>
-          {reasoningExpanded && (
-            <div className="px-0">
-              <div className="mb-3">
-                {/* <div className="text-xs uppercase tracking-wide text-[var(--muted)] mb-2">Reasoning Process</div> */}
-                <p className="text-sm whitespace-pre-wrap text-[color-mix(in_srgb,var(--foreground)_85%,transparent)]">{currentReasoning.reasoning}</p>
-              </div>
-              <div className="mt-4">
-                {/* <div className="text-xs uppercase tracking-wide text-[var(--muted)] mb-2">Tool Selection</div> */}
-                <div className="flex flex-wrap items-start gap-2 text-sm">
-                  <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all ${
-                    currentReasoning.needsWebSearch 
-                      ? "bg-gradient-to-r from-green-500/20 to-green-500/10 shadow-sm border border-green-500/20" 
-                      : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] border border-transparent"
-                  }`}>
-                    <Search size={14} className={currentReasoning.needsWebSearch ? "text-green-500" : "text-[var(--muted)]"} strokeWidth={1.5} />
-                    <span className={`text-xs font-medium ${currentReasoning.needsWebSearch ? "text-green-500" : ""}`}>Web Search</span>
-                  </div>
-                  
-                  <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all ${
-                    currentReasoning.needsCalculator 
-                      ? "bg-gradient-to-r from-green-500/20 to-green-500/10 shadow-sm border border-green-500/20" 
-                      : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] border border-transparent"
-                  }`}>
-                    <Calculator size={14} className={currentReasoning.needsCalculator ? "text-green-500" : "text-[var(--muted)]"} strokeWidth={1.5} />
-                    <span className={`text-xs font-medium ${currentReasoning.needsCalculator ? "text-green-500" : ""}`}>Calculator</span>
-                  </div>
-                  
-                  <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all ${
-                    currentReasoning.needsLinkReader 
-                      ? "bg-gradient-to-r from-green-500/20 to-green-500/10 shadow-sm border border-green-500/20" 
-                      : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] border border-transparent"
-                  }`}>
-                    <Link2 size={14} className={currentReasoning.needsLinkReader ? "text-green-500" : "text-[var(--muted)]"} strokeWidth={1.5} />
-                    <span className={`text-xs font-medium ${currentReasoning.needsLinkReader ? "text-green-500" : ""}`}>Link Reader</span>
-                  </div>
-                  
-                  <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all ${
-                    currentReasoning.needsImageGenerator 
-                      ? "bg-gradient-to-r from-green-500/20 to-green-500/10 shadow-sm border border-green-500/20" 
-                      : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] border border-transparent"
-                  }`}>
-                    <ImageIcon size={14} className={currentReasoning.needsImageGenerator ? "text-green-500" : "text-[var(--muted)]"} strokeWidth={1.5} />
-                    <span className={`text-xs font-medium ${currentReasoning.needsImageGenerator ? "text-green-500" : ""}`}>Image Gen</span>
-                  </div>
-                  
-                  <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all ${
-                    currentReasoning.needsAcademicSearch 
-                      ? "bg-gradient-to-r from-green-500/20 to-green-500/10 shadow-sm border border-green-500/20" 
-                      : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] border border-transparent"
-                  }`}>
-                    <BookOpen size={14} className={currentReasoning.needsAcademicSearch ? "text-green-500" : "text-[var(--muted)]"} strokeWidth={1.5} />
-                    <span className={`text-xs font-medium ${currentReasoning.needsAcademicSearch ? "text-green-500" : ""}`}>Academic Search</span>
-                  </div>
-                  
-                  <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all ${
-                    currentReasoning.needsXSearch 
-                      ? "bg-gradient-to-r from-green-500/20 to-green-500/10 shadow-sm border border-green-500/20" 
-                      : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] border border-transparent"
-                  }`}>
-                    <XLogo size={14} className={currentReasoning.needsXSearch ? "text-green-500" : "text-[var(--muted)]"} strokeWidth={1.5} />
-                    <span className={`text-xs font-medium ${currentReasoning.needsXSearch ? "text-green-500" : ""}`}>X Search</span>
-                  </div>
-                  
-                  <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all ${
-                    currentReasoning.needsYouTubeSearch 
-                      ? "bg-gradient-to-r from-green-500/20 to-green-500/10 shadow-sm border border-green-500/20" 
-                      : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] border border-transparent"
-                  }`}>
-                    <YouTubeLogo size={14} className={currentReasoning.needsYouTubeSearch ? "text-green-500" : "text-[var(--muted)]"} strokeWidth={1.5} />
-                    <span className={`text-xs font-medium ${currentReasoning.needsYouTubeSearch ? "text-green-500" : ""}`}>YouTube</span>
-                </div>
-
-                  <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all ${
-                    currentReasoning.needsYouTubeLinkAnalyzer 
-                      ? "bg-gradient-to-r from-green-500/20 to-green-500/10 shadow-sm border border-green-500/20" 
-                      : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] border border-transparent"
-                  }`}>
-                    <YouTubeLogo size={14} className={currentReasoning.needsYouTubeLinkAnalyzer ? "text-green-500" : "text-[var(--muted)]"} strokeWidth={1.5} />
-                    <span className={`text-xs font-medium ${currentReasoning.needsYouTubeLinkAnalyzer ? "text-green-500" : ""}`}>Video Analysis</span>
-                  </div>
-                  <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all ${
-                    currentReasoning.needsDataProcessor 
-                      ? "bg-gradient-to-r from-green-500/20 to-green-500/10 shadow-sm border border-green-500/20" 
-                      : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] border border-transparent"
-                  }`}>
-                    <Database size={14} className={currentReasoning.needsDataProcessor ? "text-green-500" : "text-[var(--muted)]"} strokeWidth={1.5} />
-                    <span className={`text-xs font-medium ${currentReasoning.needsDataProcessor ? "text-green-500" : ""}`}>Data Processor</span>
-                  </div>
-        
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-      
       {/* Web Search Results or Loading State */}
       {webSearchData && (
         <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
@@ -428,15 +318,33 @@ export default function Canvas({
               </div>
             </div>
           </div>
-          {webSearchExpanded && (
-            <div className="overflow-hidden">
-            <MultiSearch 
-              result={webSearchData.result} 
-              args={webSearchData.args}
-              annotations={webSearchData.annotations}
-            />
+          <div 
+            className="overflow-hidden transition-all duration-200 ease-in-out"
+            style={{ 
+              maxHeight: webSearchExpanded ? (webSearchContentHeight ? `${webSearchContentHeight}px` : '2000px') : '0px',
+            }}
+          >
+            <div
+              ref={webSearchContentRef}
+              className="transition-opacity duration-200 ease-in-out"
+              style={{
+                opacity: webSearchExpanded ? 1 : 0,
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none'
+              }}
+            >
+              <style jsx>{`
+                div::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
+              <MultiSearch 
+                result={webSearchData.result} 
+                args={webSearchData.args}
+                annotations={webSearchData.annotations}
+              />
             </div>
-          )}
+          </div>
         </div>
       )}
       
@@ -460,11 +368,31 @@ export default function Canvas({
               </div>
             </div>
           </div>
-          {mathCalcExpanded && (
-            <MathCalculation
-              calculationSteps={mathCalculationData.calculationSteps}
-            />
-          )}
+          <div 
+            className="overflow-hidden transition-all duration-200 ease-in-out"
+            style={{ 
+              maxHeight: mathCalcExpanded ? (mathCalcContentHeight ? `${mathCalcContentHeight}px` : '2000px') : '0px',
+            }}
+          >
+            <div
+              ref={mathCalcContentRef}
+              className="transition-opacity duration-200 ease-in-out"
+              style={{
+                opacity: mathCalcExpanded ? 1 : 0,
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none'
+              }}
+            >
+              <style jsx>{`
+                div::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
+              <MathCalculation
+                calculationSteps={mathCalculationData.calculationSteps}
+              />
+            </div>
+          </div>
         </div>
       )}
       
@@ -488,11 +416,31 @@ export default function Canvas({
               </div>
             </div>
           </div>
-          {linkReaderExpanded && (
-            <LinkReader
-              linkAttempts={linkReaderData.linkAttempts}
-            />
-          )}
+          <div 
+            className="overflow-hidden transition-all duration-200 ease-in-out"
+            style={{ 
+              maxHeight: linkReaderExpanded ? (linkReaderContentHeight ? `${linkReaderContentHeight}px` : '2000px') : '0px',
+            }}
+          >
+            <div
+              ref={linkReaderContentRef}
+              className="transition-opacity duration-200 ease-in-out"
+              style={{
+                opacity: linkReaderExpanded ? 1 : 0,
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none'
+              }}
+            >
+              <style jsx>{`
+                div::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
+              <LinkReader
+                linkAttempts={linkReaderData.linkAttempts}
+              />
+            </div>
+          </div>
         </div>
       )}
 
@@ -516,8 +464,26 @@ export default function Canvas({
               </div>
             </div>
           </div>
-          {imageGenExpanded && (
-            <div className="p-1">
+          <div 
+            className="overflow-hidden transition-all duration-200 ease-in-out"
+            style={{ 
+              maxHeight: imageGenExpanded ? (imageGenContentHeight ? `${imageGenContentHeight}px` : '2000px') : '0px',
+            }}
+          >
+            <div
+              ref={imageGenContentRef}
+              className="transition-opacity duration-200 ease-in-out p-1"
+              style={{
+                opacity: imageGenExpanded ? 1 : 0,
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none'
+              }}
+            >
+              <style jsx>{`
+                div::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
               <div className={`grid gap-5 ${
                 imageGeneratorData.generatedImages.length === 1 
                   ? 'grid-cols-1' 
@@ -547,7 +513,7 @@ export default function Canvas({
                 ))}
               </div>
             </div>
-          )}
+          </div>
         </div>
       )}
       
@@ -571,8 +537,26 @@ export default function Canvas({
               </div>
             </div>
           </div>
-          {academicSearchExpanded && (
-            <div className="px-1">
+          <div 
+            className="overflow-hidden transition-all duration-200 ease-in-out"
+            style={{ 
+              maxHeight: academicSearchExpanded ? (academicSearchContentHeight ? `${academicSearchContentHeight}px` : '2000px') : '0px',
+            }}
+          >
+            <div
+              ref={academicSearchContentRef}
+              className="transition-opacity duration-200 ease-in-out px-1"
+              style={{
+                opacity: academicSearchExpanded ? 1 : 0,
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none'
+              }}
+            >
+              <style jsx>{`
+                div::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
               {academicSearchData.academicResults.map((searchResult, index) => (
                 <div key={index} className="mb-4">
                   <div className="flex items-center gap-2 mb-2">
@@ -605,7 +589,7 @@ export default function Canvas({
                 </div>
               ))}
             </div>
-          )}
+          </div>
         </div>
       )}
       
@@ -629,8 +613,26 @@ export default function Canvas({
               </div>
             </div>
           </div>
-          {xSearchExpanded && (
-            <div className="px-1">
+          <div 
+            className="overflow-hidden transition-all duration-200 ease-in-out"
+            style={{ 
+              maxHeight: xSearchExpanded ? (xSearchContentHeight ? `${xSearchContentHeight}px` : '2000px') : '0px',
+            }}
+          >
+            <div
+              ref={xSearchContentRef}
+              className="transition-opacity duration-200 ease-in-out px-1"
+              style={{
+                opacity: xSearchExpanded ? 1 : 0,
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none'
+              }}
+            >
+              <style jsx>{`
+                div::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
               {xSearchData.xResults.map((searchResult, index) => (
                 <div key={index} className="mb-6">
                   <div className="flex items-center gap-2 mb-2">
@@ -679,7 +681,7 @@ export default function Canvas({
                 </div>
               ))}
             </div>
-          )}
+          </div>
         </div>
       )}
       
@@ -703,8 +705,26 @@ export default function Canvas({
               </div>
             </div>
           </div>
-          {youTubeSearchExpanded && (
-            <div className="space-y-6">
+          <div 
+            className="overflow-hidden transition-all duration-200 ease-in-out"
+            style={{ 
+              maxHeight: youTubeSearchExpanded ? (youTubeSearchContentHeight ? `${youTubeSearchContentHeight}px` : '2000px') : '0px',
+            }}
+          >
+            <div
+              ref={youTubeSearchContentRef}
+              className="transition-opacity duration-200 ease-in-out space-y-6"
+              style={{
+                opacity: youTubeSearchExpanded ? 1 : 0,
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none'
+              }}
+            >
+              <style jsx>{`
+                div::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
               {youTubeSearchData.youtubeResults.map((searchResult, index) => (
                 <div key={index} className="space-y-4">
                   <div className="text-sm font-medium text-[color-mix(in_srgb,var(--foreground)_90%,transparent)]">
@@ -752,7 +772,7 @@ export default function Canvas({
                 </div>
               ))}
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -776,8 +796,26 @@ export default function Canvas({
               </div>
             </div>
           </div>
-          {youTubeLinkAnalysisExpanded && (
-            <div className="space-y-6">
+          <div 
+            className="overflow-hidden transition-all duration-200 ease-in-out"
+            style={{ 
+              maxHeight: youTubeLinkAnalysisExpanded ? (youTubeLinkAnalysisContentHeight ? `${youTubeLinkAnalysisContentHeight}px` : '2000px') : '0px',
+            }}
+          >
+            <div
+              ref={youTubeLinkAnalysisContentRef}
+              className="transition-opacity duration-200 ease-in-out space-y-6"
+              style={{
+                opacity: youTubeLinkAnalysisExpanded ? 1 : 0,
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none'
+              }}
+            >
+              <style jsx>{`
+                div::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
               {youTubeLinkAnalysisData.analysisResults.map((result, index) => (
                 <div key={index} className="space-y-4">
                   {result.error ? (
@@ -825,7 +863,7 @@ export default function Canvas({
                 </div>
               ))}
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -837,7 +875,7 @@ export default function Canvas({
             onClick={() => setDataProcessorExpanded(!dataProcessorExpanded)}
           >
             <div className="flex items-center gap-2.5">
-              <Database className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
+              <Database size={14} className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
               <h2 className="font-medium text-left tracking-tight">Data Processor</h2>
             </div>
             <div className="flex items-center gap-2">
@@ -849,9 +887,29 @@ export default function Canvas({
               </div>
             </div>
           </div>
-          {dataProcessorExpanded && (
-            <DataProcessorCanvas data={dataProcessorData} />
-          )}
+          <div 
+            className="overflow-hidden transition-all duration-200 ease-in-out"
+            style={{ 
+              maxHeight: dataProcessorExpanded ? (dataProcessorContentHeight ? `${dataProcessorContentHeight}px` : '2000px') : '0px',
+            }}
+          >
+            <div
+              ref={dataProcessorContentRef}
+              className="transition-opacity duration-200 ease-in-out"
+              style={{
+                opacity: dataProcessorExpanded ? 1 : 0,
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none'
+              }}
+            >
+              <style jsx>{`
+                div::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
+              <DataProcessorCanvas data={dataProcessorData} />
+            </div>
+          </div>
         </div>
       )}
 

@@ -22,6 +22,7 @@ import VirtuosoWrapper from '@/app/components/VirtuosoWrapper';
 import Canvas from '@/app/components/Canvas';
 import { FollowUpQuestions } from '@/app/components/FollowUpQuestions';
 import { getDataProcessorData, getYouTubeLinkAnalysisData, getYouTubeSearchData, getXSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getAcademicSearchData } from '@/app/hooks/toolFunction';
+import { StructuredResponse } from '@/app/components/StructuredResponse';
 
 
 // Define a type for the annotations
@@ -40,6 +41,7 @@ export default function Chat({ params }: PageProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);  // 캔버스 컨테이너 참조 추가
   const [isInitialized, setIsInitialized] = useState(false)
   const initialMessageSentRef = useRef(false)
   const [user, setUser] = useState<any>(null)
@@ -53,6 +55,13 @@ export default function Chat({ params }: PageProps) {
   const [hasAgentModels, setHasAgentModels] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const isFullyLoaded = !isModelLoading && isSessionLoaded && !!currentModel
+  
+  // 활성화된 캔버스 패널과 관련 메시지 ID 상태 관리
+  const [activePanelMessageId, setActivePanelMessageId] = useState<string | null>(null)
+  // 사용자가 패널 상태를 명시적으로 제어했는지 추적하는 상태
+  const [userPanelPreference, setUserPanelPreference] = useState<boolean | null>(null)
+  // 마지막으로 생성된 패널 데이터가 있는 메시지 ID
+  const [lastPanelDataMessageId, setLastPanelDataMessageId] = useState<string | null>(null)
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, stop, setMessages, reload } = useChat({
     api: '/api/chat',
@@ -186,6 +195,7 @@ export default function Chat({ params }: PageProps) {
     setEditingContent
   } = useMessages(chatId, user?.id)
 
+  // 스크롤 함수 개선 - 채팅과 캔버스 모두 스크롤
   const scrollToBottom = useCallback(() => {
     if (virtuosoRef.current) {
       virtuosoRef.current.scrollToIndex({
@@ -195,9 +205,14 @@ export default function Chat({ params }: PageProps) {
     } else if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
     }
+    
+    // 캔버스도 맨 아래로 스크롤
+    if (canvasContainerRef.current) {
+      canvasContainerRef.current.scrollTop = canvasContainerRef.current.scrollHeight;
+    }
   }, [messages.length]);
 
-  // 특정 메시지로 스크롤하는 함수
+  // 특정 메시지로 스크롤하는 함수 개선 - 캔버스 동기화
   const scrollToMessage = useCallback((messageId: string) => {
     if (!messageId) return;
     
@@ -211,7 +226,39 @@ export default function Chat({ params }: PageProps) {
       setTimeout(() => {
         messageElement.classList.remove('highlight-message');
       }, 2000);
+      
+      // 관련 캔버스 요소 찾기 및 스크롤
+      const canvasElement = document.getElementById(`canvas-${messageId}`);
+      if (canvasElement && canvasContainerRef.current) {
+        canvasContainerRef.current.scrollTo({
+          top: canvasElement.offsetTop - 20,
+          behavior: 'smooth'
+        });
+      }
     }
+  }, []);
+
+  // 스크롤바 숨기는 CSS 클래스를 추가
+  const hideScrollbarClass = "scrollbar-hide";
+
+  // 스타일 추가를 위한 useEffect
+  useEffect(() => {
+    // 스크롤바 숨기는 스타일을 적용할 스타일시트 추가
+    const style = document.createElement('style');
+    style.textContent = `
+      .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+      }
+      .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
   }, []);
 
   // URL 쿼리 파라미터로 지정된 메시지로 스크롤
@@ -598,7 +645,6 @@ export default function Chat({ params }: PageProps) {
     }
   }, [isInitialized, isFullyLoaded, scrollToBottom]);
 
-
   const handleModelChange = async (newModel: string) => {
     try {
       // Check if the selected model is in a rate-limited level
@@ -802,7 +848,6 @@ export default function Chat({ params }: PageProps) {
     }
   }, [stop, messages, currentModel, chatId, user?.id, setMessages])
 
-
   // Handle toggling the agent with rate-limit awareness
   const handleAgentToggle = (newState: boolean) => {
     // Only allow enabling agent if agent models are available
@@ -887,12 +932,127 @@ export default function Chat({ params }: PageProps) {
     }
   };
 
+  // 단순화된 함수 - 도구 사용 여부와 상관없이 마지막 메시지가 로딩 중이면 항상 "..." 표시
+  const isWaitingForToolResults = (message: Message) => {
+    // 어시스턴트 메시지이고 마지막 메시지이면 항상 로딩 중으로 표시
+    if (message.role === 'assistant' && isLoading && message.id === messages[messages.length - 1]?.id) {
+      // 완료를 나타내는 최종 구조화된 응답이 있는지 확인
+      const annotations = (message.annotations || []) as Annotation[];
+      const hasStructuredResponse = annotations.some(a => a.type === 'structured_response');
+      
+      // 구조화된 응답이 없으면 계속 로딩 중
+      return !hasStructuredResponse;
+    }
+    
+    return false;
+  };
+
+
+  // 패널 토글 함수 - 사용자 선호도 기록
+  const togglePanel = (messageId: string) => {
+    if (activePanelMessageId === messageId) {
+      // 패널 닫기
+      setActivePanelMessageId(null);
+      setUserPanelPreference(false); // 사용자가 패널 닫기를 선호함
+    } else {
+      // 패널 열기
+      setActivePanelMessageId(messageId);
+      setUserPanelPreference(true); // 사용자가 패널 열기를 선호함
+    }
+  };
+
+  // 입력을 보내는 시점에 사용자 패널 선호도 초기화 (새 대화 시작)
+  const handleModelSubmitWithReset = useCallback(async (e: React.FormEvent, files?: FileList) => {
+    // 패널 상태 선호도 초기화 - 새 데이터에 대해 자동 표시 허용
+    setUserPanelPreference(null);
+    
+    // 기존 handleModelSubmit 호출
+    await handleModelSubmit(e, files);
+  }, [handleModelSubmit]);
+
+  // 해당 메시지에 캔버스 데이터가 있는지 확인하는 함수
+  const hasCanvasData = (message: Message) => {
+    // StructuredResponse에 데이터가 있는지 확인
+    const hasStructuredResponseFiles = () => {
+      // 1. annotations에서 확인
+      const annotations = message.annotations as Annotation[] | undefined;
+      const structuredResponseAnnotation = annotations?.find(
+        (annotation) => annotation.type === 'structured_response'
+      );
+      
+      if (structuredResponseAnnotation?.data?.response?.files?.length > 0) {
+        return true;
+      }
+      
+      // 2. tool_results에서 확인
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const toolResults = (message as any).tool_results;
+      if (toolResults?.structuredResponse?.response?.files?.length > 0) {
+        return true;
+      }
+      
+      // 3. 진행 중인 응답 확인
+      const progressAnnotations = annotations?.filter(
+        (annotation) => annotation.type === 'structured_response_progress'
+      );
+      
+      if (progressAnnotations && progressAnnotations.length > 0) {
+        const latestProgress = progressAnnotations[progressAnnotations.length - 1];
+        if (latestProgress?.data?.response?.files?.length > 0) {
+          return true;
+        }
+      }
+      
+      return false;
+    };
+
+    return !!(
+      getWebSearchResults(message) || 
+      getMathCalculationData(message) || 
+      getLinkReaderData(message) || 
+      getImageGeneratorData(message) || 
+      getAcademicSearchData(message) || 
+      getXSearchData(message) || 
+      getYouTubeSearchData(message) || 
+      getYouTubeLinkAnalysisData(message) || 
+      getDataProcessorData(message) ||
+      hasStructuredResponseFiles()
+    );
+  };
+  // 새 메시지가 추가되거나 메시지 내용이 변경될 때 패널 데이터 업데이트
+  useEffect(() => {
+    // 모바일 환경 여부 확인
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+    
+    // 마지막 어시스턴트 메시지 찾기
+    const lastAssistantMessages = messages.filter(msg => msg.role === 'assistant');
+    if (lastAssistantMessages.length === 0) return;
+    
+    const lastAssistantMessage = lastAssistantMessages[lastAssistantMessages.length - 1];
+    
+    // 마지막 메시지에 패널 데이터가 있는지 확인
+    if (hasCanvasData(lastAssistantMessage)) {
+      // 이 메시지가 새 패널 데이터를 가진 메시지인지 확인
+      if (lastPanelDataMessageId !== lastAssistantMessage.id) {
+        setLastPanelDataMessageId(lastAssistantMessage.id);
+        
+        // 패널 자동 열기 규칙:
+        // 1. 사용자가 명시적으로 패널 열기를 선택했거나
+        // 2. 사용자가 아직 선호도를 설정하지 않았고, 모바일이 아닌 환경
+        if (userPanelPreference === true || (userPanelPreference === null && !isMobile)) {
+          // 패널 열기
+          setActivePanelMessageId(lastAssistantMessage.id);
+        }
+        // userPanelPreference가 false이거나 모바일 환경에서는 패널을 열지 않음
+      }
+    }
+  }, [messages, userPanelPreference, lastPanelDataMessageId]);
+
   // 모든 데이터가 로드되기 전에는 로딩 화면 표시
   if (!isFullyLoaded || !user) {
     return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
   }
 
-    
   // Extract agent reasoning data from annotations and tool_results
   function getAgentReasoningData(messages: Message[]) {
     const reasoningData = messages.flatMap(message => {
@@ -916,6 +1076,8 @@ export default function Chat({ params }: PageProps) {
     
     const formatReasoningData = (data: any) => ({
       reasoning: data.reasoning || '',
+      plan: data.plan || '',
+      selectionReasoning: data.selectionReasoning || '',
       needsWebSearch: Boolean(data.needsWebSearch),
       needsCalculator: Boolean(data.needsCalculator),
       needsLinkReader: Boolean(data.needsLinkReader),
@@ -956,186 +1118,249 @@ export default function Chat({ params }: PageProps) {
         onClick={() => setIsSidebarOpen(false)}
       />
 
-      <div className="flex-1 overflow-y-auto pb-4 sm:pb-12 pt-10 sm:pt-16" style={{ height: 'calc(100vh - 76px)' }}>
-        <div 
-          className="messages-container py-4 max-w-2xl mx-auto px-4 sm:px-6 w-full"
-          ref={messagesContainerRef}
-        >
-          {useVirtualization ? (
-            <VirtuosoWrapper
-              messages={messages}
-              messagesEndRef={messagesEndRef}
-              parentContainerRef={messagesContainerRef}
-              renderMessage={(message, index) => {
-                const webSearchData = getWebSearchResults(message);
-                const mathCalculationData = getMathCalculationData(message);
-                const linkReaderData = getLinkReaderData(message);
-                const imageGeneratorData = getImageGeneratorData(message);
-                const academicSearchData = getAcademicSearchData(message);
-                const { completeData: agentReasoningData, progressData: agentReasoningProgress } = getAgentReasoningData([message]);
-                const xSearchData = getXSearchData(message);
-                const youTubeSearchData = getYouTubeSearchData(message);
-                const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(message);
-                const dataProcessorData = getDataProcessorData(message);
-                
-                return (
-                  <>
-                    {(webSearchData || mathCalculationData || linkReaderData || imageGeneratorData || academicSearchData || agentReasoningData || agentReasoningProgress.length > 0 || xSearchData || youTubeSearchData || youTubeLinkAnalysisData || dataProcessorData) && (
+      {/* Main content area - adjusted to account for header height */}
+      <div className="pt-[76px] h-[calc(100vh-76px)]">
+        {/* 주 컨텐츠 영역 */}
+        <div className="flex flex-col sm:flex-row h-full sm:px-10 relative">
+          {/* 채팅 패널 - 항상 표시 */}
+          <div 
+            className={`overflow-y-auto pb-4 sm:pb-4 mx-auto max-w-3xl w-full 
+              ${activePanelMessageId ? 'sm:w-2/6' : ''} 
+              ${hideScrollbarClass}
+              transition-all duration-300 ease-in-out`}
+            style={{ height: '100%' }}
+          >
+            <div 
+              className="messages-container"
+              ref={messagesContainerRef}
+            >
+              {useVirtualization ? (
+                <VirtuosoWrapper
+                  messages={messages}
+                  messagesEndRef={messagesEndRef}
+                  parentContainerRef={messagesContainerRef}
+                  renderMessage={(message, index) => {
+                    // 메시지에 캔버스 데이터가 있는지 확인
+                    const messageHasCanvasData = hasCanvasData(message);
+                    
+                    return (
+                      <>
+                        <div className="relative">
+                          <MessageComponent
+                            message={message}
+                            currentModel={currentModel}
+                            isRegenerating={isRegenerating}
+                            editingMessageId={editingMessageId}
+                            editingContent={editingContent}
+                            copiedMessageId={copiedMessageId}
+                            onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
+                            onCopy={handleCopyMessage}
+                            onEditStart={handleEditStart}
+                            onEditCancel={handleEditCancel}
+                            onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
+                            setEditingContent={setEditingContent}
+                            chatId={chatId}
+                            isStreaming={isLoading && message.role === 'assistant' && message.id === messages[messages.length - 1]?.id}
+                            isWaitingForToolResults={isWaitingForToolResults(message)}
+                            agentReasoning={getAgentReasoningData([message]).completeData}
+                            agentReasoningProgress={getAgentReasoningData([message]).progressData}
+                            messageHasCanvasData={messageHasCanvasData}
+                            activePanelMessageId={activePanelMessageId}
+                            togglePanel={togglePanel}
+                          />
+                        </div>
+                        
+                        {/* Add loading message at the end if the last message is from the user and we're loading */}
+                        {isLoading && index === messages.length - 1 && message.role === 'user' && (
+                          <MessageComponent
+                            message={{
+                              id: 'loading-message',
+                              role: 'assistant',
+                              content: '',
+                              createdAt: new Date()
+                            }}
+                            currentModel={currentModel}
+                            isRegenerating={false}
+                            editingMessageId={null}
+                            editingContent={''}
+                            copiedMessageId={null}
+                            onRegenerate={() => () => {}}
+                            onCopy={() => {}}
+                            onEditStart={() => {}}
+                            onEditCancel={() => {}}
+                            onEditSave={() => {}}
+                            setEditingContent={() => {}}
+                            chatId={chatId}
+                            isStreaming={true}
+                            isWaitingForToolResults={true}
+                            agentReasoning={null}
+                            agentReasoningProgress={[]}
+                            messageHasCanvasData={false}
+                            activePanelMessageId={activePanelMessageId}
+                            togglePanel={togglePanel}
+                          />
+                        )}
+                        
+                        {/* Add follow-up questions after the last assistant message */}
+                        {useVirtualization && !isLoading && index === messages.length - 1 && message.role === 'assistant' && user && (
+                          <FollowUpQuestions 
+                            chatId={chatId} 
+                            userId={user.id} 
+                            messages={messages} 
+                            onQuestionClick={handleFollowUpQuestionClick} 
+                          />
+                        )}
+                      </>
+                    );
+                  }}
+                />
+              ) : (
+                messages.map((message) => {
+                  // 메시지에 캔버스 데이터가 있는지 확인
+                  const messageHasCanvasData = hasCanvasData(message);
+                  
+                  return (
+                    <div key={message.id}>
+                      <div className="relative">
+                        <MessageComponent
+                          message={message}
+                          currentModel={currentModel}
+                          isRegenerating={isRegenerating}
+                          editingMessageId={editingMessageId}
+                          editingContent={editingContent}
+                          copiedMessageId={copiedMessageId}
+                          onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
+                          onCopy={handleCopyMessage}
+                          onEditStart={handleEditStart}
+                          onEditCancel={handleEditCancel}
+                          onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
+                          setEditingContent={setEditingContent}
+                          chatId={chatId}
+                          isStreaming={isLoading && message.role === 'assistant' && message.id === messages[messages.length - 1]?.id}
+                          isWaitingForToolResults={isWaitingForToolResults(message)}
+                          agentReasoning={getAgentReasoningData([message]).completeData}
+                          agentReasoningProgress={getAgentReasoningData([message]).progressData}
+                          messageHasCanvasData={messageHasCanvasData}
+                          activePanelMessageId={activePanelMessageId}
+                          togglePanel={togglePanel}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              {/* Show immediate loading response after sending message */}
+              {isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'user' && (
+                <div>
+                  <MessageComponent
+                    message={{
+                      id: 'loading-message',
+                      role: 'assistant',
+                      content: '',
+                      createdAt: new Date()
+                    }}
+                    currentModel={currentModel}
+                    isRegenerating={false}
+                    editingMessageId={null}
+                    editingContent={''}
+                    copiedMessageId={null}
+                    onRegenerate={() => () => {}}
+                    onCopy={() => {}}
+                    onEditStart={() => {}}
+                    onEditCancel={() => {}}
+                    onEditSave={() => {}}
+                    setEditingContent={() => {}}
+                    chatId={chatId}
+                    isStreaming={true}
+                    isWaitingForToolResults={true}
+                    agentReasoning={null}
+                    agentReasoningProgress={[]}
+                    messageHasCanvasData={false}
+                    activePanelMessageId={activePanelMessageId}
+                    togglePanel={togglePanel}
+                  />
+                </div>
+              )}
+              
+              {/* Add follow-up questions only if virtualization is not used */}
+              {!useVirtualization && !isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && user && (
+                <FollowUpQuestions 
+                  chatId={chatId} 
+                  userId={user.id} 
+                  messages={messages} 
+                  onQuestionClick={handleFollowUpQuestionClick} 
+                />
+              )}
+              
+              <div ref={messagesEndRef} className="h-px" />
+            </div>
+          </div>
+
+          {/* 우측 사이드 패널 - 조건부 렌더링이 아닌 항상 렌더링하되 상태에 따라 표시/숨김 */}
+          <div 
+            className={`fixed sm:relative top-[76px] sm:top-0 right-0 bottom-0 
+              w-full sm:w-4/6 bg-[var(--background)] sm:border-l 
+              border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] 
+              overflow-y-auto z-0 
+              transition-all duration-300 ease-in-out transform 
+              ${activePanelMessageId ? 'translate-x-0 opacity-100 sm:max-w-[66.666667%]' : 'translate-x-full sm:translate-x-0 sm:max-w-0 sm:opacity-0 sm:overflow-hidden'} 
+              ${hideScrollbarClass}`}
+            style={{ 
+              height: 'calc(100vh - 76px)',
+              maxHeight: '100%'
+            }}
+            ref={canvasContainerRef}
+          >
+            {/* 모바일 전용 헤더 */}
+            <div className="px-4 pl-6 flex justify-between items-center sm:hidden">
+              <h3 className="text-lg">Canvas</h3>
+              <button 
+                onClick={() => setActivePanelMessageId(null)}
+                className="w-8 h-8 flex items-center justify-center"
+                aria-label="Close panel"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            
+            {/* 패널 내용 - 선택된 메시지의 캔버스 데이터만 표시 */}
+            <div className="px-4">
+              {messages
+                .filter(message => message.id === activePanelMessageId)
+                .map((message) => {
+                  const webSearchData = getWebSearchResults(message);
+                  const mathCalculationData = getMathCalculationData(message);
+                  const linkReaderData = getLinkReaderData(message);
+                  const imageGeneratorData = getImageGeneratorData(message);
+                  const academicSearchData = getAcademicSearchData(message);
+                  const xSearchData = getXSearchData(message);
+                  const youTubeSearchData = getYouTubeSearchData(message);
+                  const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(message);
+                  const dataProcessorData = getDataProcessorData(message);
+
+                  return (
+                    <div key={`canvas-${message.id}`}>
                       <Canvas 
                         webSearchData={webSearchData}
                         mathCalculationData={mathCalculationData}
                         linkReaderData={linkReaderData}
                         imageGeneratorData={imageGeneratorData}
                         academicSearchData={academicSearchData}
-                        agentReasoningData={agentReasoningData}
-                        agentReasoningProgress={agentReasoningProgress}
                         xSearchData={xSearchData}
                         youTubeSearchData={youTubeSearchData}
                         youTubeLinkAnalysisData={youTubeLinkAnalysisData}
                         dataProcessorData={dataProcessorData}
                       />
-                    )}
-                    <MessageComponent
-                      message={message}
-                      currentModel={currentModel}
-                      isRegenerating={isRegenerating}
-                      editingMessageId={editingMessageId}
-                      editingContent={editingContent}
-                      copiedMessageId={copiedMessageId}
-                      onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
-                      onCopy={handleCopyMessage}
-                      onEditStart={handleEditStart}
-                      onEditCancel={handleEditCancel}
-                      onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
-                      setEditingContent={setEditingContent}
-                      chatId={chatId}
-                      isStreaming={isLoading && message.role === 'assistant' && message.id === messages[messages.length - 1]?.id}
-                    />
-                    {/* Add loading message at the end if the last message is from the user and we're loading */}
-                    {isLoading && index === messages.length - 1 && message.role === 'user' && (
-                      <MessageComponent
-                        message={{
-                          id: 'loading-message',
-                          role: 'assistant',
-                          content: '',
-                          createdAt: new Date()
-                        }}
-                        currentModel={currentModel}
-                        isRegenerating={false}
-                        editingMessageId={null}
-                        editingContent={''}
-                        copiedMessageId={null}
-                        onRegenerate={() => () => {}}
-                        onCopy={() => {}}
-                        onEditStart={() => {}}
-                        onEditCancel={() => {}}
-                        onEditSave={() => {}}
-                        setEditingContent={() => {}}
-                        chatId={chatId}
-                        isStreaming={true}
-                      />
-                    )}
-                    
-                    {/* Add follow-up questions after the last assistant message */}
-                    {useVirtualization && !isLoading && index === messages.length - 1 && message.role === 'assistant' && user && (
-                      <FollowUpQuestions 
-                        chatId={chatId} 
-                        userId={user.id} 
-                        messages={messages} 
-                        onQuestionClick={handleFollowUpQuestionClick} 
-                      />
-                    )}
-                  </>
-                );
-              }}
-            />
-          ) : (
-            messages.map((message) => {
-              const webSearchData = getWebSearchResults(message);
-              const mathCalculationData = getMathCalculationData(message);
-              const linkReaderData = getLinkReaderData(message);
-              const imageGeneratorData = getImageGeneratorData(message);
-              const academicSearchData = getAcademicSearchData(message);
-              const { completeData: agentReasoningData, progressData: agentReasoningProgress } = getAgentReasoningData([message]);
-              const xSearchData = getXSearchData(message);
-              const youTubeSearchData = getYouTubeSearchData(message);
-              const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(message);
-              const dataProcessorData = getDataProcessorData(message);
-              return (
-                <div key={message.id}>
-                  {(webSearchData || mathCalculationData || linkReaderData || imageGeneratorData || academicSearchData || agentReasoningData || agentReasoningProgress.length > 0 || xSearchData || youTubeSearchData || youTubeLinkAnalysisData || dataProcessorData) && (
-                    <Canvas 
-                      webSearchData={webSearchData}
-                      mathCalculationData={mathCalculationData}
-                      linkReaderData={linkReaderData}
-                      imageGeneratorData={imageGeneratorData}
-                      academicSearchData={academicSearchData}
-                      agentReasoningData={agentReasoningData}
-                      agentReasoningProgress={agentReasoningProgress}
-                      xSearchData={xSearchData}
-                      youTubeSearchData={youTubeSearchData}
-                      youTubeLinkAnalysisData={youTubeLinkAnalysisData}
-                      dataProcessorData={dataProcessorData}
-                    />
-                  )}
-                  <MessageComponent
-                    message={message}
-                    currentModel={currentModel}
-                    isRegenerating={isRegenerating}
-                    editingMessageId={editingMessageId}
-                    editingContent={editingContent}
-                    copiedMessageId={copiedMessageId}
-                    onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
-                    onCopy={handleCopyMessage}
-                    onEditStart={handleEditStart}
-                    onEditCancel={handleEditCancel}
-                    onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
-                    setEditingContent={setEditingContent}
-                    chatId={chatId}
-                    isStreaming={isLoading && message.role === 'assistant' && message.id === messages[messages.length - 1]?.id}
-                  />
-                </div>
-              );
-            })
-          )}
-          {/* Show immediate loading response after sending message */}
-          {isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'user' && (
-            <div>
-              <MessageComponent
-                message={{
-                  id: 'loading-message',
-                  role: 'assistant',
-                  content: '',
-                  createdAt: new Date()
-                }}
-                currentModel={currentModel}
-                isRegenerating={false}
-                editingMessageId={null}
-                editingContent={''}
-                copiedMessageId={null}
-                onRegenerate={() => () => {}}
-                onCopy={() => {}}
-                onEditStart={() => {}}
-                onEditCancel={() => {}}
-                onEditSave={() => {}}
-                setEditingContent={() => {}}
-                chatId={chatId}
-                isStreaming={true}
-              />
+                      {/* 구조화된 응답 컴포넌트 추가 */}
+                      <StructuredResponse message={message} />
+                    </div>
+                  );
+                })}
             </div>
-          )}
-          
-          {/* Add follow-up questions only if virtualization is not used */}
-          {!useVirtualization && !isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && user && (
-            <FollowUpQuestions 
-              chatId={chatId} 
-              userId={user.id} 
-              messages={messages} 
-              onQuestionClick={handleFollowUpQuestionClick} 
-            />
-          )}
-          
-          <div ref={messagesEndRef} className="h-px" />
+          </div>
         </div>
       </div>
 
@@ -1161,7 +1386,7 @@ export default function Chat({ params }: PageProps) {
               <ChatInput
                 input={input}
                 handleInputChange={handleInputChange}
-                handleSubmit={handleModelSubmit}
+                handleSubmit={handleModelSubmitWithReset}
                 isLoading={isLoading}
                 stop={handleStop}
                 user={{...user, hasAgentModels}}

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { MarkdownContent } from './MarkdownContent';
+import { Brain, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface ReasoningSectionProps {
   content: string;
@@ -8,6 +9,13 @@ interface ReasoningSectionProps {
 export function ReasoningSection({ content }: ReasoningSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const contentRef = useRef<HTMLDivElement>(null);
+  const [contentHeight, setContentHeight] = useState<number | undefined>(undefined);
+  
+  useEffect(() => {
+    if (contentRef.current) {
+      setContentHeight(contentRef.current.scrollHeight);
+    }
+  }, [content, isExpanded]);
   
   useEffect(() => {
     if (contentRef.current && isExpanded) {
@@ -32,34 +40,45 @@ export function ReasoningSection({ content }: ReasoningSectionProps) {
   }, [content, isExpanded]);
 
   return (
-    <div className="message-reasoning">
+    <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm mb-8">
       <div 
-        className="message-reasoning-header"
+        className="flex items-center justify-between w-full mb-4 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <span>Thinking</span>
-        <svg 
-          className={`message-reasoning-icon ${isExpanded ? 'expanded' : ''}`}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
+        <div className="flex items-center gap-2.5">
+          <Brain className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
+          <h2 className="font-medium text-left tracking-tight">Thinking</h2>
+        </div>
+        <div className="rounded-full p-1 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors">
+          {isExpanded ? 
+            <ChevronUp size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" /> : 
+            <ChevronDown size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" />
+          }
+        </div>
       </div>
+      
       <div 
-        ref={contentRef}
-        className={`message-reasoning-content ${isExpanded ? 'expanded' : ''}`}
+        className="overflow-hidden transition-all duration-500 ease-in-out"
         style={{ 
-          height: isExpanded ? 'auto' : '0',
-          marginTop: isExpanded ? '0.5rem' : '0',
-          opacity: isExpanded ? 1 : 0
+          maxHeight: isExpanded ? (contentHeight ? `${contentHeight}px` : '400px') : '0px',
         }}
       >
+        <div
+          ref={contentRef}
+          className="max-h-[400px] overflow-auto transition-opacity duration-500 ease-in-out px-4 sm:px-10 py-4 sm:py-6"
+          style={{
+            opacity: isExpanded ? 1 : 0,
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none'
+          }}
+        >
+          <style jsx>{`
+            div::-webkit-scrollbar {
+              display: none;
+            }
+          `}</style>
         <MarkdownContent content={content} />
+        </div>
       </div>
     </div>
   );

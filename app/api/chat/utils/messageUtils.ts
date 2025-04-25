@@ -1,6 +1,8 @@
 import { Message } from 'ai';
-import { AIMessageContent, MessageRole } from '../types';
+import { AIMessageContent, MessageRole, MultiModalMessage } from '../types';
 import { getModelById } from '@/lib/models/config';
+import { providers } from '@/lib/providers';
+import { estimateTokenCount } from '@/utils/context-manager';
 
 export const generateMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -254,3 +256,104 @@ export const validateAndUpdateSession = async (supabase: any, chatId: string | u
     });
   }
 };
+
+export const getProviderFromModel = (model: string): string => {
+  const selectedModel = providers.languageModel(model);
+  return selectedModel?.provider || 'Unknown Provider';
+};
+
+// MultiModalMessage를 Message로 변환하는 함수 추가
+export function convertMultiModalToMessage(messages: MultiModalMessage[]): Message[] {
+  return messages.map(msg => {
+    // id, role, content 속성만 포함하도록 변환
+    return {
+      id: msg.id,
+      role: msg.role === 'data' ? 'function' : msg.role, // 'data' 역할을 'function'으로 변환
+      content: msg.content
+    } as Message;
+  });
+}
+
+/**
+ * 토큰 제한 내에서 메시지 선택
+ */
+export function selectMessagesWithinTokenLimit(messages: MultiModalMessage[], maxTokens: number, isAttachmentsHeavy: boolean = false): MultiModalMessage[] {
+  let tokenCount = 0;
+  const selectedMessages: MultiModalMessage[] = [];
+  
+  // 파일 첨부물이 많은 경우 추가 안전 마진 적용
+  const safetyMargin = isAttachmentsHeavy ? 0.7 : 0.85; // 70% 또는 85%만 사용
+  const adjustedMaxTokens = Math.floor(maxTokens * safetyMargin);
+    
+  // 필수 포함 메시지 (마지막 사용자 메시지는 항상 포함)
+  const lastUserMessageIndex = [...messages].reverse().findIndex(msg => msg.role === 'user');
+  const lastUserMessage = lastUserMessageIndex >= 0 ? messages[messages.length - 1 - lastUserMessageIndex] : null;
+  
+  // 필수 메시지의 토큰 수 계산
+  let reservedTokens = 0;
+  if (lastUserMessage) {
+    const content = typeof lastUserMessage.content === 'string' ? lastUserMessage.content : JSON.stringify(lastUserMessage.content);
+    reservedTokens = estimateTokenCount(content);
+  }
+  
+  // 실제 사용 가능한 토큰 수 계산
+  const availableTokens = adjustedMaxTokens - reservedTokens;
+  
+  // 멀티모달 콘텐츠의 토큰 수 추정 함수
+  const estimateMultiModalTokens = (msg: MultiModalMessage): number => {
+    // 텍스트 콘텐츠
+    if (typeof msg.content === 'string') {
+      return estimateTokenCount(msg.content);
+    }
+    
+    // 멀티모달 콘텐츠 (이미지, 파일 등)
+    if (Array.isArray(msg.content)) {
+      let total = 0;
+      
+      for (const part of msg.content) {
+        if (part.type === 'text') {
+          total += estimateTokenCount(part.text || '');
+        } else if (part.type === 'image') {
+          // 이미지는 약 1000 토큰으로 추정
+          total += 1000;
+        } else if (part.type === 'file') {
+          // 파일 내용에 따라 다르지만 평균적으로 파일당 3000~5000 토큰으로 추정
+          total += 5000;
+        }
+      }
+      
+      return total;
+    }
+    
+    // 기타 형식
+    return estimateTokenCount(JSON.stringify(msg.content));
+  };
+  
+  // 최신 메시지부터 역순으로 추가 (중요 대화 컨텍스트 보존)
+  const reversedMessages = [...messages].reverse();
+  
+  // 마지막 사용자 메시지는 별도로 처리했으므로 제외
+  const remainingMessages = lastUserMessage 
+    ? reversedMessages.filter(msg => msg.id !== lastUserMessage.id)
+    : reversedMessages;
+  
+  // 남은 메시지들에 대해 토큰 계산 및 선택
+  for (const message of remainingMessages) {
+    const msgTokens = estimateMultiModalTokens(message);
+    
+    // 토큰 한도 초과 시 중단
+    if (tokenCount + msgTokens > availableTokens) {
+      break;
+    }
+    
+    tokenCount += msgTokens;
+    selectedMessages.unshift(message); // 원래 순서대로 추가
+  }
+  
+  // 마지막 사용자 메시지 추가 (있는 경우)
+  if (lastUserMessage && !selectedMessages.some(msg => msg.id === lastUserMessage.id)) {
+    selectedMessages.push(lastUserMessage);
+  }
+    
+  return selectedMessages;
+}

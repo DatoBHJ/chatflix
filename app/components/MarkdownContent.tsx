@@ -9,6 +9,152 @@ import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 
+// Add global styles for LaTeX rendering
+// This should be added to your global CSS file
+const addKatexStyles = () => {
+  if (typeof document !== 'undefined') {
+    // Only run in browser environment
+    const styleId = 'katex-custom-styles';
+    
+    // Check if style already exists to avoid duplicates
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.innerHTML = `
+        /* Base KaTeX styling */
+        .katex { 
+          font-size: 1.1em !important; 
+          font-family: KaTeX_Main, 'Times New Roman', serif;
+        }
+        
+        /* Display math (block equations) */
+        .katex-display { 
+          margin: 1.5em 0 !important;
+          overflow-x: auto;
+          overflow-y: hidden;
+          padding: 8px 0;
+          background: rgba(0, 0, 0, 0.02);
+          border-radius: 4px;
+        }
+        .katex-display > .katex { 
+          font-size: 1.21em !important;
+          text-align: center;
+        }
+        
+        /* Inline math */
+        .katex-inline {
+          padding: 0 3px;
+        }
+        
+        /* Better spacing for fraction lines */
+        .katex .frac-line {
+          border-bottom-width: 0.1em !important;
+        }
+        
+        /* Better matrices */
+        .katex .mathnormal {
+          font-style: normal;
+        }
+        
+        /* Improved spacing in matrices */
+        .katex .mord.matrix {
+          margin: 0.1em 0;
+        }
+        
+        /* Better vector arrows */
+        .katex .vec-arrow {
+          position: relative;
+          top: -0.1em !important;
+        }
+        
+        /* Improved subscript and superscript spacing */
+        .katex .msupsub {
+          text-align: left;
+        }
+        
+        /* Improve display of cases environment */
+        .katex .cases-l {
+          margin-right: 0.2em !important;
+        }
+        .katex .cases-r {
+          margin-left: 0.2em !important;
+        }
+        
+        /* Improve alignment in align environment */
+        .katex .align {
+          display: flex;
+          flex-direction: column;
+        }
+        
+        /* Improve multiline equations */
+        .katex-display .katex .base {
+          margin: 0.25em 0;
+        }
+        
+        /* Improve integral appearance */
+        .katex .mop-limits {
+          margin-top: 0.1em !important;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }
+};
+
+// Helper function to escape dollar signs in currency strings but leave math intact
+function escapeCurrencyDollars(text: string): string {
+  // Don't process if no dollar sign
+  if (!text.includes('$')) return text;
+  
+  // Store math expressions to protect them
+  const mathExpressions: string[] = [];
+  
+  // First, protect block math ($$...$$) including multi-line expressions
+  let processedText = text.replace(/\$\$([\s\S]*?)\$\$/g, (match) => {
+    mathExpressions.push(match);
+    return `__BLOCK_MATH_${mathExpressions.length - 1}__`;
+  });
+  
+  // Then identify and protect ONLY CLEAR math expressions with unambiguous math syntax
+  // This pattern is much more strict about what it considers math - must have clear math operators
+  const strictMathPattern = /\$((?:[^$]|\\\$)*?(?:[+\-*\/^=<>~]|\\[a-zA-Z]{2,}|\\(?:sum|int|frac|sqrt|lim|infty))[^$]*?)\$/g;
+  processedText = processedText.replace(strictMathPattern, (match) => {
+    mathExpressions.push(match);
+    return `__INLINE_MATH_${mathExpressions.length - 1}__`;
+  });
+  
+  // Now aggressively handle ALL currency and number patterns
+  
+  // 1. Dollar sign followed by digits (with optional comma/period) - most common currency case
+  processedText = processedText.replace(/\$\s*[\d,\.]+/g, (match) => {
+    return match.replace('$', '&#36;');
+  });
+  
+  // 2. Dollar amounts with text immediately after, or parentheses ($73,950median, $73,950(median))
+  processedText = processedText.replace(/\$[\d,\.]+\s*(?:\([a-zA-Z\s]+\)|[a-zA-Z]+)/g, (match) => {
+    return match.replace('$', '&#36;');
+  });
+  
+  // 3. Handle specific case with "to" between amounts ($73,950to$75,400)
+  processedText = processedText.replace(/\$[\d,\.]+\s*(?:to|-)\s*\$[\d,\.]+/g, (match) => {
+    return match.replace(/\$/g, '&#36;');
+  });
+  
+  // 4. Catch any remaining dollar sign with numbers that wasn't caught as math
+  processedText = processedText.replace(/\$(?!\s*[a-zA-Z\\{}_^])([\d,\.\s]+)/g, (match, p1) => {
+    return '&#36;' + p1;
+  });
+  
+  // Restore math expressions in reverse order to avoid nested placeholder issues
+  for (let i = mathExpressions.length - 1; i >= 0; i--) {
+    processedText = processedText
+      .replace(`__INLINE_MATH_${i}__`, mathExpressions[i])
+      .replace(`__BLOCK_MATH_${i}__`, mathExpressions[i]);
+  }
+  
+  return processedText;
+}
+
 interface MarkdownContentProps {
   content: string;
 }
@@ -156,73 +302,15 @@ const ImageWithLoading = memo(function ImageWithLoadingComponent({
 
 // Memoize the MarkdownContent component to prevent unnecessary re-renders
 export const MarkdownContent = memo(function MarkdownContentComponent({ content }: MarkdownContentProps) {
-  const [copied, setCopied] = useState<{[key: string]: boolean}>({});
-
-  // 수식 표현이 있는지 확인하는 함수
-  const hasMathExpression = useCallback((text: string) => {
-    // 수학 수식, 화학식, 물리량 표현 감지 (패턴 확장)
-    return /\$(.*?)\$|\$\$(.*?)\$\$|\\ce\{.*?\}|\\SI\{.*?\}\{.*?\}|\\begin\{(equation|align|matrix|pmatrix|bmatrix|cases)\}|\\frac\{.*?\}\{.*?\}|\\sum|\\int/g.test(text);
+  // Add Katex styles on component mount
+  useEffect(() => {
+    addKatexStyles();
   }, []);
 
-  // 수식 표현을 처리하는 함수 (inline/block 수식, 화학식, 물리량)
-  const processMathExpressions = useCallback((text: string) => {
-    if (!hasMathExpression(text)) return text;
-    
-    // 블록 수식이 제대로 표시되도록 변환 ($$...$$)
-    let processed = text.replace(/\$\$(.*?)\$\$/gs, (match, p1) => {
-      // 줄바꿈이 있으면 displayMode로 처리하기 위해 특별 마커 추가
-      if (p1.includes('\n')) {
-        return `\n\n$$${p1}$$\n\n`;
-      }
-      return match;
-    });
-    
-    // 화학식 변환 처리 (만약 화학식이 처리되지 않는 경우 사용)
-    // \ce{...} -> $\ce{...}$
-    processed = processed.replace(/\\ce\{(.*?)\}/g, (match, p1) => {
-      return `$\\ce{${p1}}$`;
-    });
-    
-    // 물리량 변환 처리 (만약 SI 단위가 처리되지 않는 경우 사용)
-    // \SI{...}{...} -> $\SI{...}{...}$
-    processed = processed.replace(/\\SI\{(.*?)\}\{(.*?)\}/g, (match, p1, p2) => {
-      return `$\\SI{${p1}}{${p2}}$`;
-    });
-    
-    // 분수 표현 처리 개선
-    processed = processed.replace(/\\frac\{(.*?)\}\{(.*?)\}/g, (match) => {
-      if (!match.startsWith('$')) {
-        return `$${match}$`;
-      }
-      return match;
-    });
-    
-    // 특수 수학 기호 처리 (백틱으로 감싸져 있지 않은 경우만)
-    processed = processed.replace(/(?<!\`)(\\sum|\\int|\\prod|\\lim)(?!\`)/g, (match) => {
-      if (!match.startsWith('$')) {
-        return `$${match}$`;
-      }
-      return match;
-    });
-    
-    return processed;
-  }, [hasMathExpression]);
-
-  const handleCopy = useCallback(async (text: string) => {
-    try {
-      const cleanText = typeof text === 'string' 
-        ? text.replace(/\u200B/g, '').trim()
-        : '';
-        
-      await navigator.clipboard.writeText(cleanText);
-      setCopied(prev => ({ ...prev, [text]: true }));
-      setTimeout(() => {
-        setCopied(prev => ({ ...prev, [text]: false }));
-      }, 2000);
-    } catch (error) {
-      console.error('Failed to copy code:', error);
-    }
-  }, []);
+  // Pre-process the content to escape currency dollar signs
+  const processedContent = useMemo(() => {
+    return escapeCurrencyDollars(content);
+  }, [content]);
 
   // Memoize the styleMentions function to avoid recreating it on every render
   const styleMentions = useCallback((text: string) => {
@@ -272,11 +360,10 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
     return parts.length > 0 ? parts : text;
   }, []);
 
-  // Function to detect and convert plain image URLs to clickable images
+  // Function to detect image URLs (from original code)
   const styleImageUrls = useCallback((text: string) => {
-    if (!text.includes('image.pollinations.ai')) return text; // Quick check to avoid unnecessary regex processing
+    if (!text.includes('image.pollinations.ai')) return text;
     
-    // Detect any pollinations.ai URLs in text (확장된 정규식)
     const pollinationsUrlRegex = /(https:\/\/image\.pollinations\.ai\/[^\s]+)/g;
     
     const parts = [];
@@ -291,9 +378,6 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
       const imageUrl = match[1];
       const decodedUrl = decodeURIComponent(imageUrl);
       
-      // Create a link that includes the actual image with loading state
-      // Instead of returning a span with divs inside (which would cause issues when rendered in a p tag),
-      // we'll signal that this needs special handling at the component level
       parts.push({
         type: 'image_link',
         key: match.index,
@@ -318,30 +402,33 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
     if (node?.props?.children) return extractText(node.props.children);
     return '';
   }, []);
-  
-  // 인라인 코드에 수식이 있는지 확인하고 처리하는 함수 추가
-  const processInlineCode = useCallback((children: any) => {
-    if (typeof children !== 'string') return children;
+
+  // 복사 기능 구현 - 텍스트 변경만 적용
+  const handleCopy = useCallback((text: string, event: React.MouseEvent<HTMLButtonElement>) => {
+    const btn = event.currentTarget;
     
-    // 인라인 코드에 수식 표현이 있는지 확인
-    if (hasMathExpression(children)) {
-      // KaTeX로 렌더링하기 위해 마크다운 형식으로 변환
-      return processMathExpressions(children);
-    }
-    
-    return children;
-  }, [hasMathExpression, processMathExpressions]);
+    // 텍스트 복사
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        // 복사 성공 시 텍스트만 변경 (색상 변경 없음)
+        btn.textContent = 'Copied!';
+        
+        // 2초 후 원래 상태로 복원
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+        }, 2000);
+      })
+      .catch(err => {
+        console.error('Failed to copy code:', err);
+      });
+  }, []);
 
   // Memoize the components object to avoid recreating it on every render
   const components = useMemo<Components>(() => ({
     p: ({ children, ...props }) => {
       // Process text content to detect image generation links
       if (typeof children === 'string') {
-        // 두 가지 형식의 이미지 URL 패턴을 모두 처리합니다:
-        // 1. ![alt](url) 형식의 표준 마크다운 이미지
-        // 2. 일반 URL 텍스트 형식으로 제공되는 이미지
-        
-        // 이미지 마크다운 패턴 감지 (개선된 정규식)
+        // Handle image markdown pattern
         const pollinationsRegex = /!\[([^\]]*)\]\((https:\/\/image\.pollinations\.ai\/[^)]+)\)/g;
         const match = pollinationsRegex.exec(children);
         
@@ -349,7 +436,6 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
           const [fullMatch, altText, imageUrl] = match;
           const decodedUrl = decodeURIComponent(imageUrl);
           
-          // 반환된 이미지에 CORS 이슈가 있을 수 있으므로 referrerPolicy를 설정합니다
           return (
             <div className="my-4">
               <a 
@@ -369,7 +455,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
           );
         }
         
-        // 직접 URL로만 제공되는 이미지 처리 (image.pollinations.ai 포함)
+        // Process raw image URLs
         const rawPollinationsRegex = /(https:\/\/image\.pollinations\.ai\/[^\s)]+)/g;
         const rawMatch = rawPollinationsRegex.exec(children);
         
@@ -396,27 +482,15 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
           );
         }
         
-        // 인라인 수식 처리 (` $ ` 패턴 감지)
-        if (hasMathExpression(children)) {
-          try {
-            const processedText = processMathExpressions(children);
-            return <p className="my-3 leading-relaxed" {...props}>{processedText}</p>;
-          } catch (e) {
-            console.error('Failed to process math expression:', e);
-          }
-        }
-        
-        // Process for raw image URLs (그 외의 패턴 처리)
+        // Process for raw image URLs
         const processedContent = styleImageUrls(children);
         
-        // Check if we got back an array with image links that need special handling
+        // Handle special image links
         if (Array.isArray(processedContent)) {
-          // We need to render each part appropriately
           const elements = processedContent.map((part, index) => {
             if (typeof part === 'string') {
               return <span key={index}>{styleMentions(part)}</span>;
             } else if (part && typeof part === 'object' && 'type' in part && part.type === 'image_link') {
-              // This is our special image link that shouldn't be inside a p tag
               return (
                 <div key={part.key} className="my-4">
                   <a 
@@ -440,31 +514,14 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
             return null;
           });
           
-          // Return a fragment instead of a p to avoid nesting issues
           return <>{elements}</>;
         }
         
-        // Handle plain text with styleMentions for regular paragraphs
+        // For regular text, just render with styleMentions
         return <p className="my-3 leading-relaxed" {...props}>{styleMentions(children)}</p>;
       }
       
-      // If children is not a string, we need to be careful about potential nesting issues
-      if (Array.isArray(children)) {
-        // Check if any of the children would cause invalid nesting
-        const hasComplexChildren = children.some(child => 
-          typeof child === 'object' && 
-          child !== null && 
-          'type' in child && 
-          (typeof child.type === 'string' && 
-           ['div', 'p', 'table', 'ul', 'ol', 'blockquote'].includes(child.type as string))
-        );
-        
-        if (hasComplexChildren) {
-          // Use a fragment to avoid invalid nesting
-          return <>{children}</>;
-        }
-      }
-      
+      // If children is not a string, render as-is
       return <p className="my-3 leading-relaxed" {...props}>{children}</p>;
     },
     img: ({ src, alt, ...props }) => {
@@ -510,18 +567,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
       const match = /language-(\w+)/.exec(className || '');
       const isInline = !match;
       
-      // 수식 표현이 있는 인라인 코드인 경우 특별하게 처리
       if (isInline) {
-        const processedChildren = processInlineCode(children);
-        if (processedChildren !== children) {
-          // 수식 콘텐츠를 포함하는 코드에 대한 특별 스타일링
-          return (
-            <span className="math-inline">
-              {processedChildren}
-            </span>
-          );
-        }
-        // 일반 인라인 코드 처리는 그대로 유지
         return (
           <code className="font-mono text-sm bg-[var(--inline-code-bg)] text-[var(--inline-code-text)] px-1.5 py-0.5 rounded" {...props}>
             {children}
@@ -538,18 +584,12 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
               {match?.[1] || 'text'}
             </span>
             <button
-              onClick={() => handleCopy(codeText)}
+              onClick={(e) => handleCopy(codeText, e)}
               className="text-xs uppercase tracking-wider px-2 py-1 
                        text-[var(--muted)] hover:text-[var(--foreground)] 
-                       transition-colors flex items-center gap-1 whitespace-nowrap ml-2"
+                       transition-colors whitespace-nowrap ml-2"
             >
-              {copied[codeText] ? (
-                <>
-                  <span className="">Copied</span>
-                </>
-              ) : (
-                <>Copy</>
-              )}
+              Copy
             </button>
           </div>
           <pre className="overflow-x-auto p-4 m-0 bg-[var(--code-bg)] text-[var(--code-text)] max-w-full whitespace-pre-wrap break-all">
@@ -595,67 +635,85 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
     h3: ({ children, ...props }) => (
       <h3 className="text-lg font-bold mt-5 mb-2" {...props}>{children}</h3>
     ),
-  }), [styleMentions, styleImageUrls, extractText, handleCopy, copied, processInlineCode, hasMathExpression, processMathExpressions]);
+  }), [styleMentions, styleImageUrls, extractText, handleCopy]);
 
-  // Memoize the plugins to avoid recreating them on every render
+  // Memoize the remarkPlugins and rehypePlugins
   const remarkPlugins = useMemo(() => [remarkGfm, remarkMath], []);
+  
+  // Updated rehypePlugins with enhanced configuration
   const rehypePlugins = useMemo(() => {
-    return [
+    const plugins = [
       rehypeRaw, 
       rehypeSanitize,
+      rehypeHighlight,
+      // Enhance KaTeX configuration for better math rendering
       [rehypeKatex, { 
-        throwOnError: false, 
+        throwOnError: false,
         output: 'html',
-        displayMode: false, // 인라인 수식용 기본 설정
-        leqno: false, // 왼쪽 정렬된 방정식 번호
-        fleqn: false, // 왼쪽 정렬된 디스플레이 수식
-        strict: false, // 문법 오류에 대해 엄격하지 않게 처리
-        trust: true, // 특수 KaTeX 확장 허용
-        errorColor: 'var(--muted)', // 오류 시 색상
-        minRuleThickness: 0.08, // 분수 선 두께 개선
-        macros: { // 사용자 정의 매크로
-          // 수학 기호
+        displayMode: false,
+        trust: true,
+        strict: false,
+        macros: {
+          // Common mathematical sets
           "\\R": "\\mathbb{R}",
           "\\N": "\\mathbb{N}",
           "\\Z": "\\mathbb{Z}",
           "\\C": "\\mathbb{C}",
-          // 벡터 표기 간소화
+          "\\Q": "\\mathbb{Q}",
+          
+          // Vector notation
           "\\vec": "\\boldsymbol",
           "\\vb": "\\boldsymbol",
-          // 편미분 기호
+          "\\grad": "\\nabla",
+          
+          // Differential operators
           "\\pd": "\\partial",
-          // 화학식 지원
-          "\\ch": "\\ce",
-          // 물리 단위 지원
-          "\\unit": "\\text",
-          // 일반적인 수학 기호
+          "\\d": "\\mathrm{d}",
+          "\\dd": "\\mathrm{d}",
+          "\\div": "\\nabla \\cdot",
+          "\\curl": "\\nabla \\times",
+          "\\laplacian": "\\nabla^2",
+          
+          // Common constants
+          "\\e": "\\mathrm{e}",
+          "\\i": "\\mathrm{i}",
+          "\\j": "\\mathrm{j}",
+          
+          // Probability and statistics
+          "\\E": "\\mathbb{E}",
+          "\\Var": "\\text{Var}",
+          "\\Cov": "\\text{Cov}",
+          "\\Prob": "\\mathbb{P}",
+          
+          // Shortcuts for common constructs
           "\\half": "\\frac{1}{2}",
           "\\third": "\\frac{1}{3}",
           "\\quarter": "\\frac{1}{4}",
-          "\\e": "\\mathrm{e}",
-          "\\i": "\\mathrm{i}",
-          "\\d": "\\mathrm{d}",
-          // 행렬 매크로
+          
+          // Matrix notation
+          "\\mat": "\\mathbf",
           "\\bmat": "\\begin{bmatrix}#1\\end{bmatrix}",
           "\\pmat": "\\begin{pmatrix}#1\\end{pmatrix}",
-          // 미분 연산자
-          "\\dx": "\\,\\mathrm{d}x",
-          "\\dy": "\\,\\mathrm{d}y",
-          "\\dz": "\\,\\mathrm{d}z",
-          "\\dt": "\\,\\mathrm{d}t",
-          // 기타 유용한 매크로
-          "\\norm": "\\left\\lVert#1\\right\\rVert",
-          "\\abs": "\\left|#1\\right|",
+          "\\vmat": "\\begin{vmatrix}#1\\end{vmatrix}",
+          
+          // Quantum mechanics
+          "\\ket": "\\left|#1\\right\\rangle",
+          "\\bra": "\\left\\langle#1\\right|",
+          "\\braket": "\\left\\langle#1|#2\\right\\rangle",
+          
+          // Calculus shorthands
+          "\\dv": "\\frac{d}{d#1}",
+          "\\pdv": "\\frac{\\partial}{\\partial #1}"
         },
-      }],
-      rehypeHighlight
-    ] as any;
+        errorColor: '#ff5555',
+        minRuleThickness: 0.08,
+        colorIsTextColor: true,
+        maxExpand: 1000,
+        maxSize: 500
+      }] as any
+    ];
+    return plugins;
   }, []);
-
-  // Process the content to handle math expressions
-  const processedContent = useMemo(() => {
-    return processMathExpressions(content);
-  }, [content, processMathExpressions]);
 
   return (
     <ReactMarkdown

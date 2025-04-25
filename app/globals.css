@@ -223,11 +223,11 @@ body {
 
 /* Message Container Styles */
 .messages-container {
-  @apply max-w-2xl mx-auto w-full px-8 sm:px-4 overflow-hidden pt-10;
+  @apply max-w-2xl mx-auto w-full px-6 sm:px-4 overflow-hidden pb-10;
 }
 
 .message-group {
-  @apply py-8 first:pt-4 last:pb-4 max-w-[calc(100vw-2rem)] overflow-hidden mx-auto;
+  @apply py-8 first:pt-14 last:pb-4 max-w-[calc(100vw-2rem)] overflow-hidden mx-auto;
 }
 
 .message-group:last-child {
@@ -236,7 +236,7 @@ body {
 
 /* Message Role Indicators */
 .message-role {
-  @apply text-xs uppercase tracking-wider mb-3 px-1;
+  @apply text-xs uppercase tracking-wider mb-0 px-1;
   color: var(--muted);
 }
 
@@ -255,9 +255,9 @@ body {
 }
 
 .message-assistant {
-  @apply p-6 rounded-none max-w-full
+  @apply p-2 sm:p-4 rounded-none max-w-full
          hover:opacity-95 transition-[var(--transition)];
-  background-color: var(--accent);
+  /* background-color: var(--accent); */
   /* box-shadow: 0 1px 2px rgba(0,0,0,0.1); */
   /* border-bottom: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent); */
 
@@ -498,7 +498,7 @@ body {
 
 .message-reasoning-header {
   @apply flex items-center justify-between gap-2 text-xs uppercase tracking-wider cursor-pointer 
-         hover:text-[var(--foreground)] transition-[var(--transition)] p-6;
+         hover:text-[var(--foreground)] transition-[var(--transition)] p-6 px-10;
   color: var(--muted);
   /* border-bottom: 1px solid color-mix(in srgb, var(--foreground) 15%, transparent); */
   position: relative;
@@ -507,7 +507,7 @@ body {
 }
 
 .message-reasoning-content {
-  @apply overflow-y-auto px-3 py-2 relative;
+  @apply overflow-y-auto px-8 relative;
   max-height: 300px;
   transition: all 0.3s ease;
   scroll-behavior: smooth;
