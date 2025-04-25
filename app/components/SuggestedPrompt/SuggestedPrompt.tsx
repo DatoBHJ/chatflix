@@ -130,7 +130,6 @@ import { useState, useEffect } from 'react';
 const DEFAULT_EXAMPLE_PROMPTS = [
   "Introduce yourself",
   "What can you do?",
-  "What are the key features of Chatflix?",
   // 도구 사용 유도 예시 질문
   "Latest news on US stock",
   "Draw a picture of Darth Vader wearing a bikini",
