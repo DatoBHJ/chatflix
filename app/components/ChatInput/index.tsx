@@ -838,10 +838,12 @@ export function ChatInput({
               onInput={handleInputWithShortcuts}
               onPaste={handlePaste}
               onKeyDown={handleKeyDown}
-              className="futuristic-input empty flex-1 transition-colors duration-300 py-3 px-3 rounded-md outline-none text-sm sm:text-base bg-transparent"
+              className="futuristic-input empty flex-1 transition-colors duration-300 py-3 px-3 rounded-md outline-none text-sm sm:text-base bg-transparent overflow-y-auto overflow-x-hidden"
               data-placeholder={placeholder}
               suppressContentEditableWarning
+              style={{ maxHeight: '300px', wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: 'pre-wrap' }}
             ></div>
+
 
             {isLoading ? (
               <button 
