@@ -5,7 +5,7 @@
     }
   },
   "buildCommand": "next build",
-  "installCommand": "npm install",
+  "installCommand": "npm install --legacy-peer-deps",
   "framework": "nextjs",
   "outputDirectory": ".next"
 } 
