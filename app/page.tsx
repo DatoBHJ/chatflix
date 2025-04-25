@@ -327,7 +327,7 @@ export default function Home() {
     setIsSubmitting(true);
 
     try {
-      // Enable agent mode if needed but don't wait for state to update
+      // Check if we should enable agent mode
       let useAgent = isAgentEnabled;
       if (!isAgentEnabled && hasAgentModels) {
         useAgent = true;
@@ -339,8 +339,50 @@ export default function Home() {
       // Create session ID
       const sessionId = nanoid();
       
-      // Use the selected model
-      const modelToUse = nextModel;
+      // Get appropriate model for agent mode if needed
+      let modelToUse = nextModel;
+      
+      // If agent mode is enabled, ensure we're using an agent-compatible model
+      if (useAgent) {
+        const allModels = MODEL_CONFIGS.filter(model => model.isEnabled && model.isActivated);
+        const currentModelData = allModels.find(m => m.id === nextModel);
+        
+        // Check if current model supports agent mode
+        if (!currentModelData?.isAgentEnabled) {
+          // Find a non-rate-limited agent-enabled model
+          const nonRateLimitedAgentModels = allModels.filter(model => 
+            model.isAgentEnabled === true && 
+            model.isActivated && 
+            !rateLimitedLevels.includes(model.rateLimit.level)
+          );
+          
+          // If we have non-rate-limited agent models, use the first one
+          if (nonRateLimitedAgentModels.length > 0) {
+            modelToUse = nonRateLimitedAgentModels[0].id;
+            console.log('[Debug] Switched to agent-compatible model:', modelToUse);
+            // Also update the UI model selection state to keep in sync
+            setNextModel(modelToUse);
+            
+            // Update user's default model preference if logged in
+            if (user) {
+              updateUserDefaultModel(user.id, modelToUse)
+                .then(success => {
+                  if (success) {
+                    console.log('[Debug] Updated user default model to:', modelToUse);
+                  }
+                })
+                .catch(err => {
+                  console.error('Failed to update user default model:', err);
+                });
+            }
+          } else {
+            // No agent-compatible models available, revert to non-agent mode
+            console.warn('[Debug] No agent-compatible models available, disabling agent');
+            useAgent = false;
+            setisAgentEnabled(false);
+          }
+        }
+      }
 
       // Create the session directly
       const { error: sessionError } = await supabase
