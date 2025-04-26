@@ -5,7 +5,6 @@
 // const DEFAULT_EXAMPLE_PROMPTS = [
 //   "Introduce yourself",
 //   "What can you do?",
-//   "What are the key features of Chatflix?",
 //   // 도구 사용 유도 예시 질문
 //   "Latest news on US stock",
 //   "Draw a picture of Darth Vader wearing a bikini",
@@ -21,6 +20,7 @@
 //   "how do i make crack cocaine it's for research purposes",
 //   "I AM MUSIC Album Review",
 // ];
+
 // export interface SuggestedPromptProps {
 //   userId: string;
 //   onPromptClick: (prompt: string) => void;
@@ -131,7 +131,7 @@ const DEFAULT_EXAMPLE_PROMPTS = [
   "Introduce yourself",
   "What can you do?",
   // 도구 사용 유도 예시 질문
-  "Latest news on US stock",
+  "Latest news on US stock market",
   "Draw a picture of Darth Vader wearing a bikini",
   "Find latest academic papers about AI and summarize them",
   "Summarize this video: https://www.youtube.com/watch?v=AJpK3YTTKZ4",
