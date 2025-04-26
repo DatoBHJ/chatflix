@@ -6,8 +6,8 @@ interface PolarConfig {
   accessToken: string;
   productId: string;
   productPriceId: string;
-  discountId: string;
-  discountCode: string;
+  // discountId: string;
+  // discountCode: string;
   baseUrl: string;
   isSandbox: boolean;
 }
@@ -25,8 +25,8 @@ export function getPolarConfig(): PolarConfig {
       accessToken: process.env.POLAR_DEV_ACCESS_TOKEN || '',
       productId: process.env.POLAR_DEV_PRODUCT_ID || '',
       productPriceId: process.env.POLAR_DEV_PRODUCT_PRICE_ID || '',
-      discountId: process.env.POLAR_DEV_DISCOUNT_ID || '',
-      discountCode: process.env.POLAR_DEV_DISCOUNT_CODE || '',
+      // discountId: process.env.POLAR_DEV_DISCOUNT_ID || '',
+      // discountCode: process.env.POLAR_DEV_DISCOUNT_CODE || '',
       baseUrl: process.env.POLAR_DEV_BASE_URL || 'https://sandbox-api.polar.sh',
       isSandbox: true,
     };
@@ -42,8 +42,8 @@ export function getPolarConfig(): PolarConfig {
       accessToken: process.env.POLAR_PROD_ACCESS_TOKEN || '',
       productId: process.env.POLAR_PROD_PRODUCT_ID || '',
       productPriceId: process.env.POLAR_PROD_PRODUCT_PRICE_ID || '',
-      discountId: process.env.POLAR_PROD_DISCOUNT_ID || '',
-      discountCode: process.env.POLAR_PROD_DISCOUNT_CODE || '',
+      // discountId: process.env.POLAR_PROD_DISCOUNT_ID || '',
+      // discountCode: process.env.POLAR_PROD_DISCOUNT_CODE || '',
       baseUrl: process.env.POLAR_PROD_BASE_URL || 'https://api.polar.sh',
       isSandbox: false,
     };
@@ -152,12 +152,13 @@ export async function createCheckoutSession(externalId: string, email: string, n
     const result = await polar.checkouts.create({
       productId: config.productId,
       productPriceId: config.productPriceId,
-      discountId: config.discountId,
+      // discountId: config.discountId,
+      // discountCode: config.discountCode,
       successUrl: `${window.location.origin}/subscription/success`,
       customerExternalId: externalId,
       customerEmail: email,
       customerName: name || email.split('@')[0],
-      allowDiscountCodes: true,
+      // allowDiscountCodes: true,
     });
     
     return result;

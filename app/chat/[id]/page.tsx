@@ -580,7 +580,7 @@ export default function Chat({ params }: PageProps) {
           
           // Filter out expired levels and collect valid ones
           const validLevels = Object.entries(levelsData)
-            .filter(([_, data]: [string, any]) => data.reset > currentTime)
+            .filter(([_, data]: [string, any]) => data?.reset > currentTime)
             .map(([level, _]: [string, any]) => level)
           
           if (validLevels.length > 0) {
@@ -589,10 +589,10 @@ export default function Chat({ params }: PageProps) {
             // If current model is rate limited, switch to a different model
             if (currentModel) {
               const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel)
-              if (currentModelConfig && validLevels.includes(currentModelConfig.rateLimit.level)) {
+              if (currentModelConfig?.rateLimit?.level && validLevels.includes(currentModelConfig.rateLimit.level)) {
                 // Find a model from a different level that's not rate limited
                 const alternativeModel = MODEL_CONFIGS.find(m => 
-                  m.isEnabled && !validLevels.includes(m.rateLimit.level)
+                  m.isEnabled && !validLevels.includes(m.rateLimit?.level || '')
                 )
                 if (alternativeModel) {
                   setNextModel(alternativeModel.id)
@@ -938,7 +938,7 @@ export default function Chat({ params }: PageProps) {
     if (message.role === 'assistant' && isLoading && message.id === messages[messages.length - 1]?.id) {
       // 완료를 나타내는 최종 구조화된 응답이 있는지 확인
       const annotations = (message.annotations || []) as Annotation[];
-      const hasStructuredResponse = annotations.some(a => a.type === 'structured_response');
+      const hasStructuredResponse = annotations.some(a => a?.type === 'structured_response');
       
       // 구조화된 응답이 없으면 계속 로딩 중
       return !hasStructuredResponse;
@@ -977,7 +977,7 @@ export default function Chat({ params }: PageProps) {
       // 1. annotations에서 확인
       const annotations = message.annotations as Annotation[] | undefined;
       const structuredResponseAnnotation = annotations?.find(
-        (annotation) => annotation.type === 'structured_response'
+        (annotation) => annotation?.type === 'structured_response'
       );
       
       if (structuredResponseAnnotation?.data?.response?.files?.length > 0) {
@@ -993,7 +993,7 @@ export default function Chat({ params }: PageProps) {
       
       // 3. 진행 중인 응답 확인
       const progressAnnotations = annotations?.filter(
-        (annotation) => annotation.type === 'structured_response_progress'
+        (annotation) => annotation?.type === 'structured_response_progress'
       );
       
       if (progressAnnotations && progressAnnotations.length > 0) {
@@ -1057,7 +1057,7 @@ export default function Chat({ params }: PageProps) {
   function getAgentReasoningData(messages: Message[]) {
     const reasoningData = messages.flatMap(message => {
       const annotations = ((message.annotations || []) as Annotation[])
-        .filter(a => a.type === 'agent_reasoning' || a.type === 'agent_reasoning_progress');
+        .filter(a => a?.type === 'agent_reasoning' || a?.type === 'agent_reasoning_progress');
         
       const toolResultsReasoning = (message as any).tool_results?.agentReasoning 
         ? [{ type: 'agent_reasoning', data: (message as any).tool_results.agentReasoning }] 
@@ -1067,28 +1067,28 @@ export default function Chat({ params }: PageProps) {
     });
     
     const completeAnnotation = reasoningData.find(a => 
-      a.type === 'agent_reasoning' && (a.data.isComplete === true || a.data.isComplete === undefined)
+      a?.type === 'agent_reasoning' && (a?.data?.isComplete === true || a?.data?.isComplete === undefined)
     );
     
     const progressAnnotations = reasoningData
-      .filter(a => a.type === 'agent_reasoning_progress')
-      .sort((a, b) => new Date(a.data.timestamp).getTime() - new Date(b.data.timestamp).getTime());
+      .filter(a => a?.type === 'agent_reasoning_progress')
+      .sort((a, b) => new Date(a?.data?.timestamp || 0).getTime() - new Date(b?.data?.timestamp || 0).getTime());
     
     const formatReasoningData = (data: any) => ({
-      reasoning: data.reasoning || '',
-      plan: data.plan || '',
-      selectionReasoning: data.selectionReasoning || '',
-      needsWebSearch: Boolean(data.needsWebSearch),
-      needsCalculator: Boolean(data.needsCalculator),
-      needsLinkReader: Boolean(data.needsLinkReader),
-      needsImageGenerator: Boolean(data.needsImageGenerator),
-      needsAcademicSearch: Boolean(data.needsAcademicSearch),
-      needsXSearch: Boolean(data.needsXSearch),
-      needsYouTubeSearch: Boolean(data.needsYouTubeSearch),
-      needsYouTubeLinkAnalyzer: Boolean(data.needsYouTubeLinkAnalyzer),
-      needsDataProcessor: Boolean(data.needsDataProcessor),
-      timestamp: data.timestamp,
-      isComplete: data.isComplete ?? true
+      reasoning: data?.reasoning || '',
+      plan: data?.plan || '',
+      selectionReasoning: data?.selectionReasoning || '',
+      needsWebSearch: Boolean(data?.needsWebSearch),
+      needsCalculator: Boolean(data?.needsCalculator),
+      needsLinkReader: Boolean(data?.needsLinkReader),
+      needsImageGenerator: Boolean(data?.needsImageGenerator),
+      needsAcademicSearch: Boolean(data?.needsAcademicSearch),
+      needsXSearch: Boolean(data?.needsXSearch),
+      needsYouTubeSearch: Boolean(data?.needsYouTubeSearch),
+      needsYouTubeLinkAnalyzer: Boolean(data?.needsYouTubeLinkAnalyzer),
+      needsDataProcessor: Boolean(data?.needsDataProcessor),
+      timestamp: data?.timestamp,
+      isComplete: data?.isComplete ?? true
     });
     
     return {

@@ -244,7 +244,8 @@ export async function POST(req: Request) {
               reasoningEffort: 'high'
             };
             providerOptions.openai = {
-              reasoningEffort: 'medium'
+              reasoningEffort: 'high',
+              // reasoningSummary: 'detailed'
             };
             providerOptions.google = {
               thinkingConfig: {
@@ -986,7 +987,7 @@ IMPORTANT:
             });
             
             finalstep.mergeIntoDataStream(dataStream, {
-              experimental_sendFinish: true,
+              // experimental_sendFinish: true,
               sendReasoning: true
             });
 
@@ -1040,7 +1041,7 @@ IMPORTANT:
             });
 
             const stream = result.mergeIntoDataStream(dataStream, {
-              experimental_sendStart: false,
+              // experimental_sendStart: false,
               sendReasoning: true
             });
 
