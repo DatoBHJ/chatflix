@@ -278,7 +278,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: true,
     censored: false,
     rateLimit: {
-      level: 'level1',
+      level: 'level3',
     },
     safetySettings: {
       categories: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
@@ -303,13 +303,13 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: true,
     censored: false,
     rateLimit: {
-      level: 'level0',
+      level: 'level1',
     },
     safetySettings: {
       categories: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
       threshold: 'BLOCK_NONE'
     },
-    isNew: true,
+    // isNew: true,
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
@@ -328,7 +328,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: true,
     censored: false,
     rateLimit: {
-      level: 'level0',
+      level: 'level1',
     },
     safetySettings: {
       categories: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
@@ -357,7 +357,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     censored: true,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: true,
+    isAgentEnabled: false,
     reasoning: {
       enabled: true,
       provider: 'anthropic',
@@ -499,7 +499,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level0',
     },
     supportsPDFs: true,
-    isEnabled: true,
+    isEnabled: false,
     isActivated: true,
     isAgentEnabled: true,
     contextWindow: 131000,
@@ -546,34 +546,52 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     intelligenceIndex: 41,
     multilingual: 84
   },
-  // o1 (Thinking)
-  {
-    id: "o1",
-    name: "o1 (Thinking)",
-    country: 'US',
-    description: "High-intelligence reasoning model by OpenAI. Reasoning tokens used in its chain-of-thought process are hidden by OpenAI and not included in the visible output.",
-    provider: "openai",
-    supportsVision: true,
-    rateLimit: {
-      level: "level5",
-    },
-    reasoning: {
-      provider: 'openai',
-    },
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: false,
-    contextWindow: 200000,
-    tps: 36,
-    intelligenceIndex: 62,
-  },
+  // o4-Mini (Thinking)
+  // {
+  //   id: "o4-mini",
+  //   name: "o4-Mini (High)",
+  //   country: 'US',
+  //   description: "Highest intelligence model in Chatflix",
+  //   provider: "openai",
+  //   supportsVision: true,
+  //   rateLimit: {
+  //     level: "level0",
+  //   },
+  //   supportsPDFs: false,
+  //   isEnabled: true,
+  //   isActivated: true,
+  //   isNew: true,
+  //   isAgentEnabled: false,
+  //   contextWindow: 200000,
+  //   tps: 130,
+  //   intelligenceIndex: 96,
+  // },
+  // o3 (Thinking)
+  // {
+  //   id: "o3",
+  //   name: "o3 (Thinking)",
+  //   country: 'US',
+  //   description: "OpenAI's most powerful reasoning model",
+  //   provider: "openai",
+  //   supportsVision: true,
+  //   rateLimit: {
+  //     level: "level0",
+  //   },
+  //   supportsPDFs: false,
+  //   isEnabled: true,
+  //   isActivated: true,
+  //   isNew: true,
+  //   isAgentEnabled: false,
+  //   contextWindow: 200000,
+  //   // tps: 188,
+  //   intelligenceIndex: 67,
+  // },
   // o3-mini (Thinking)
   {
     id: "o3-mini",
-    name: "o3-mini (Thinking)",
+    name: "o3-mini (High)",
     country: 'US',
-    description: "Fast, flexible, intelligent reasoning model by OpenAI. Reasoning tokens used in its chain-of-thought process are hidden by OpenAI and not included in the visible output.",
+    description: "A small model alternative to o3",
     provider: "openai",
     supportsVision: false,
     rateLimit: {
@@ -587,26 +605,68 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 188,
     intelligenceIndex: 63,
   },
-  // GPT-4o Mini
+  // GPT-4.1
   {
-    id: 'gpt-4o-mini',
-    name: 'GPT-4o Mini',
+    id: 'gpt-4.1',
+    name: 'GPT-4.1',
     country: 'US',
-    description: 'Fast and small model for focused tasks by OpenAI',
+    description: 'Flagship GPT model for complex tasks. Well suited for problem solving across domains.',
     provider: 'openai',
     supportsVision: true,
     rateLimit: {
-      level: 'level2',
+      level: 'level5',
     },
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
-    // isNew: true,
-    isAgentEnabled: false,
-    contextWindow: 128000,
-    tps: 77,
-    intelligenceIndex: 36,
-    multilingual: 80
+    isNew: true,
+    isAgentEnabled: true,
+    contextWindow: 1047576,
+    tps: 84,
+    intelligenceIndex: 53,
+    // multilingual: 80
+  },
+  // GPT-4.1 Mini
+  {
+    id: 'gpt-4.1-mini',
+    name: 'GPT-4.1 Mini',
+    country: 'US',
+    description: 'Balanced for intelligence and speed. Well suited for general tasks.',
+    provider: 'openai',
+    supportsVision: true,
+    rateLimit: {
+      level: 'level1',
+    },
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: true,
+    isNew: true,
+    isAgentEnabled: true,
+    contextWindow: 1047576,
+    tps: 84,
+    intelligenceIndex: 53,
+    // multilingual: 80
+  },
+  // GPT-4.1 Nano
+  {
+    id: 'gpt-4.1-nano',
+    name: 'GPT-4.1 Nano',
+    country: 'US',
+    description: 'Fastest, most cost-effective GPT-4.1 model.',
+    provider: 'openai',
+    supportsVision: true,
+    rateLimit: {
+      level: 'level1',
+    },
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: true,
+    isNew: true,
+    isAgentEnabled: true,
+    contextWindow: 1047576,
+    tps: 261,
+    intelligenceIndex: 41,
+    // multilingual: 80
   },
   // QwQ-32B (Thinking)
   {
@@ -745,7 +805,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       baseModelId: 'deepseek-ai/DeepSeek-R1',
       tagName: 'think'
     },
-    isEnabled: true,
+    isEnabled: false,
     isActivated: true,
     contextWindow: 128000,
     tps: 96,
@@ -764,7 +824,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level3',
     },
     supportsPDFs: false,
-    isEnabled: true,
+    isEnabled: false,
     isActivated: true,
     contextWindow: 128000,
     tps: 72,
