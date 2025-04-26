@@ -727,6 +727,7 @@ export default function RateLimitPage() {
                     handleModelChange(model);
                   }
                 }}
+                setCurrentModel={setNextModel}
                 disabled={isSubmitting}
                 disabledLevels={isSubscribed ? [] : rateLimitedLevels}
                 isAgentEnabled={isAgentEnabled}

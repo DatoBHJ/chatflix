@@ -208,8 +208,9 @@ export default function Home() {
       }
     }
     
-    // 모델 상태 업데이트
+    // 모델 상태 업데이트 - 즉시 currentModel도 업데이트
     setNextModel(newModel)
+    setCurrentModel(newModel)
     
     // 사용자가 로그인한 경우에만 기본 모델 업데이트
     if (user) {
@@ -262,7 +263,7 @@ export default function Home() {
       }
 
       // 사용자가 선택한 모델 사용
-      const modelToUse = nextModel;
+      const modelToUse = currentModel;
 
       // First create the session and wait for it to complete
       const { error: sessionError } = await supabase
@@ -360,8 +361,9 @@ export default function Home() {
           if (nonRateLimitedAgentModels.length > 0) {
             modelToUse = nonRateLimitedAgentModels[0].id;
             console.log('[Debug] Switched to agent-compatible model:', modelToUse);
-            // Also update the UI model selection state to keep in sync
+            // Also update the UI model selection states to keep in sync
             setNextModel(modelToUse);
+            setCurrentModel(modelToUse);
             
             // Update user's default model preference if logged in
             if (user) {
@@ -439,6 +441,37 @@ export default function Home() {
     }
   };
 
+  // Effect to handle model compatibility with agent mode
+  useEffect(() => {
+    // If we just enabled agent mode, check if current model supports it
+    if (isAgentEnabled) {
+      const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel);
+      
+      // If current model doesn't support agent, find a compatible one
+      if (!currentModelConfig?.isAgentEnabled) {
+        // Find non-rate-limited agent-enabled models
+        const nonRateLimitedAgentModels = MODEL_CONFIGS.filter(model => 
+          model.isAgentEnabled === true && 
+          model.isActivated && 
+          model.isEnabled && 
+          !rateLimitedLevels.includes(model.rateLimit.level)
+        );
+        
+        // Switch to first available agent-compatible model
+        if (nonRateLimitedAgentModels.length > 0) {
+          const newModelId = nonRateLimitedAgentModels[0].id;
+          setCurrentModel(newModelId);
+          setNextModel(newModelId);
+          console.log('[Debug] Switched to agent-compatible model:', newModelId);
+        } else {
+          // No agent models available, disable agent mode
+          setisAgentEnabled(false);
+          console.warn('[Debug] No agent-compatible models available, disabling agent');
+        }
+      }
+    }
+  }, [isAgentEnabled, currentModel, rateLimitedLevels]);
+
   // 로딩 중이거나 사용자 정보가 없는 경우 로딩 화면 표시
   if (isModelLoading || !user) {
     return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
@@ -485,6 +518,7 @@ export default function Home() {
                   handleModelChange(model);
                 }
               }}
+              setCurrentModel={setCurrentModel}
               disabled={isSubmitting}
               disabledLevels={rateLimitedLevels}
               isAgentEnabled={isAgentEnabled}

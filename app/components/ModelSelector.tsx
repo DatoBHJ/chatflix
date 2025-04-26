@@ -679,6 +679,7 @@ interface ModelSelectorProps {
   currentModel: string;
   nextModel: string;
   setNextModel: Dispatch<SetStateAction<string>>;
+  setCurrentModel?: Dispatch<SetStateAction<string>>; // Add prop to set currentModel
   disabled?: boolean;
   position?: 'top' | 'bottom';
   disabledModels?: string[]; // Array of model IDs that should be disabled
@@ -692,6 +693,7 @@ export function ModelSelector({
   currentModel, 
   nextModel, 
   setNextModel, 
+  setCurrentModel,
   disabled, 
   position = 'bottom',
   disabledModels = [],
@@ -1071,7 +1073,12 @@ export function ModelSelector({
       
       // If we have non-rate-limited agent models, use the first one
       if (nonRateLimitedAgentModels.length > 0) {
-        setNextModel(nonRateLimitedAgentModels[0].id);
+        const newModelId = nonRateLimitedAgentModels[0].id;
+        setNextModel(newModelId);
+        // Also update currentModel if the prop is provided
+        if (setCurrentModel) {
+          setCurrentModel(newModelId);
+        }
       } else {
         // If all agent models are rate-limited, find any non-rate-limited model
         const anyNonRateLimitedModel = allModels.find(model => 
@@ -1079,11 +1086,16 @@ export function ModelSelector({
         );
         
         if (anyNonRateLimitedModel) {
-          setNextModel(anyNonRateLimitedModel.id);
+          const newModelId = anyNonRateLimitedModel.id;
+          setNextModel(newModelId);
+          // Also update currentModel if the prop is provided
+          if (setCurrentModel) {
+            setCurrentModel(newModelId);
+          }
         }
       }
     }
-  }, [isAgentEnabled, nextModel, allModels, setNextModel, disabledLevels]);
+  }, [isAgentEnabled, nextModel, allModels, setNextModel, setCurrentModel, disabledLevels]);
 
   // Check if we have any non-rate-limited agent models
   // This can be used to disable the agent toggle button
@@ -1330,6 +1342,10 @@ export function ModelSelector({
                           onClick={() => {
                             if (!isModelDisabled) {
                               setNextModel(option.id);
+                              // Also update currentModel if the prop is provided
+                              if (setCurrentModel) {
+                                setCurrentModel(option.id);
+                              }
                               setIsOpen(false);
                             }
                           }}

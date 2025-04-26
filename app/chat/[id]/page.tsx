@@ -1378,6 +1378,7 @@ export default function Chat({ params }: PageProps) {
                 currentModel={currentModel}
                 nextModel={nextModel}
                 setNextModel={setNextModel}
+                setCurrentModel={setCurrentModel}
                 position="top"
                 disabledLevels={rateLimitedLevels}
                 isAgentEnabled={isAgentEnabled}
