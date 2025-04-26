@@ -179,6 +179,13 @@ const Message = memo(function MessageComponent({
   const [reasoningContentHeight, setReasoningContentHeight] = useState<number | undefined>(undefined);
   const reasoningContentRef = useRef<HTMLDivElement>(null);
   
+  // 프리미엄 업그레이드 버튼 클릭 핸들러 (최상위 레벨에 배치)
+  const handleUpgradeClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    router.push('/pricing');
+  }, [router]);
+  
   // Measure reasoning content height when content changes
   useEffect(() => {
     if (reasoningContentRef.current && currentReasoning) {
@@ -423,8 +430,13 @@ const Message = memo(function MessageComponent({
     URL.revokeObjectURL(url);
   }, []);
   
-  // 로딩 상태에서도 Agent Reasoning 표시
+  // 로딩 상태에서도 Agent Reasoning 표시 (isAssistant + 로딩 중)
   if (isAssistant && (!hasAnyContent || isWaitingForToolResults || isStreaming)) {
+    // 구독 상태 확인
+    const subscriptionAnnotation = message.annotations?.find(
+      (annotation) => annotation && typeof annotation === 'object' && 'type' in annotation && annotation.type === 'subscription_status'
+    ) as any;
+
     return (
       <div className="message-group group animate-fade-in overflow-hidden" id={message.id}>
         <div className="message-role">
@@ -626,10 +638,25 @@ const Message = memo(function MessageComponent({
                 </div>
               </div>
             ) : (
-              <div className="loading-dots text-xl">
-                <span>.</span>
-                <span>.</span>
-                <span>.</span>
+              <div className="flex items-center">
+                <div className="loading-dots text-xl inline-flex mr-1">
+                  <span>.</span>
+                  <span>.</span>
+                  <span>.</span>
+                </div>
+                
+                {/* 구독 상태 메시지 (로딩 중이고 비구독자일 때만 표시) */}
+                {subscriptionAnnotation && subscriptionAnnotation.data && !subscriptionAnnotation.data.isSubscribed && (
+                  <span className="text-foreground text-sm inline-flex items-center">
+                    &nbsp;slow request,&nbsp;
+                    <button 
+                      onClick={handleUpgradeClick}
+                      className="text-blue-500 underline font-medium"
+                    >
+                      get fast access here
+                    </button>
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -1040,10 +1067,6 @@ const Message = memo(function MessageComponent({
                   {/* 파일 목록 표시 - 파일이 있는 경우에만 */}
                   {structuredFiles && structuredFiles.length > 0 && (
                     <div className="mt-4">
-                      {/* <div className="flex items-center gap-2.5 mb-3">
-                        <FileText className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-                        <h2 className="text-sm font-medium">Generated Files</h2>
-                      </div> */}
                       <div className="space-y-3">
                         {structuredFiles.map((file, index) => (
                           <div key={index} className="border border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] rounded-lg overflow-hidden shadow-sm transition-all hover:shadow-md hover:border-[color-mix(in_srgb,var(--foreground)_10%,transparent)]">
