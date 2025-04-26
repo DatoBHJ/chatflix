@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { User } from '@supabase/supabase-js'
+import { fetchUserName } from '@/app/components/AccountDialog'
 
 type UserContextType = {
   user: User | null
@@ -25,6 +26,35 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const supabase = createClient()
 
+  const fetchProfileImage = async (userId: string) => {
+    try {
+      const { data: profileData, error: profileError } = await supabase
+        .storage
+        .from('profile-pics')
+        .list(`${userId}`);
+
+      if (profileError) {
+        console.error('Error fetching profile image:', profileError);
+        return;
+      }
+
+      if (profileData && profileData.length > 0) {
+        try {
+          const { data } = supabase
+            .storage
+            .from('profile-pics')
+            .getPublicUrl(`${userId}/${profileData[0].name}`);
+          
+          setProfileImage(data.publicUrl);
+        } catch (error) {
+          console.error('Error getting public URL for profile image:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching profile image:', error);
+    }
+  };
+
   useEffect(() => {
     const getUser = async () => {
       try {
@@ -32,39 +62,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setUser(user)
         
         if (user) {
-          // 사용자 이름 설정
-          setUserName(user.user_metadata?.name || 'You')
+          const name = await fetchUserName(user.id, supabase);
+          setUserName(name);
           
-          // 프로필 이미지 로드
-          try {
-            const { data: profileData, error: profileError } = await supabase
-              .storage
-              .from('profile-pics')
-              .list(`${user.id}/`, {
-                limit: 1,
-                sortBy: { column: 'created_at', order: 'desc' }
-              });
-              
-            if (!profileError && profileData && profileData.length > 0) {
-              try {
-                const { data: imageUrlData } = await supabase
-                  .storage
-                  .from('profile-pics')
-                  .getPublicUrl(`${user.id}/${profileData[0].name}`);
-                
-                if (imageUrlData) {
-                  setProfileImage(imageUrlData.publicUrl);
-                }
-              } catch (urlError) {
-                console.error('Error getting public URL for profile image:', urlError);
-              }
-            }
-          } catch (profileError) {
-            console.error('프로필 이미지 로딩 중 오류:', profileError);
-          }
+          fetchProfileImage(user.id);
         }
       } catch (error) {
-        console.error('사용자 정보 로딩 중 오류:', error)
+        console.error('Error loading user information:', error)
       } finally {
         setIsLoading(false)
       }
@@ -76,7 +80,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
       async (event, session) => {
         setUser(session?.user || null)
         if (session?.user) {
-          setUserName(session.user.user_metadata?.name || 'You')
+          const name = await fetchUserName(session.user.id, supabase);
+          setUserName(name);
+          fetchProfileImage(session.user.id);
         }
       }
     )

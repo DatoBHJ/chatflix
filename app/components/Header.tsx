@@ -47,15 +47,13 @@ export function Header({ isSidebarOpen, onSidebarToggle, showBackButton, user }:
             </button>
           )}
           
-          <span 
+          {/* <span 
             className="text-xs font-bold py-0.5 px-0 flex items-center gap-1 text-[var(--foreground)] cursor-pointer" 
             onClick={() => router.push('/')}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--foreground)]"></span>
             BETA
-          </span>
-
-          {user && <SubscriptionButton user={user} />}
+          </span> */}
 
           {/* <div className="hidden md:flex items-center gap-2 cursor-pointer" onClick={() => router.push('/user-insights')}>
             {profileImage ? (
@@ -75,6 +73,8 @@ export function Header({ isSidebarOpen, onSidebarToggle, showBackButton, user }:
             )}
             <span className="text-sm font-medium">{userName}</span>
           </div> */}
+          {user && <SubscriptionButton user={user} />}
+
         </div>
 
         <div className="flex items-center gap-5">

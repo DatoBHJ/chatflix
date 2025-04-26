@@ -364,7 +364,7 @@ async function generateUserProfile(userId: string, messages: any[]) {
     `;
     
     // 토큰 제한 적용
-    const truncatedPrompt = truncateToFitContextWindow("gpt-4o-mini", extractionPrompt, 4096);
+    const truncatedPrompt = truncateToFitContextWindow("gpt-4.1-mini", extractionPrompt, 4096);
     
     // API 호출 및 재시도 로직
     for (let attempt = 1; attempt <= 3; attempt++) {
@@ -373,7 +373,7 @@ async function generateUserProfile(userId: string, messages: any[]) {
         
         const response = await openai.chat.completions.create({
           messages: [{ role: 'user', content: truncatedPrompt }],
-          model: "gpt-4o-mini",
+          model: "gpt-4.1-mini",
           temperature: 0.6,
           max_tokens: 4096,
           top_p: 0.95,
