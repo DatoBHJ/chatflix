@@ -741,8 +741,8 @@ ${hasFile ? `
 
                 try {
                   // 최종 결과 기다리기 
-                  // const finalResult = await finalstep.text;
-                  // console.log('finalResult', finalResult, '\n\n');
+                  const finalResult = await finalstep.text;
+                  console.log('finalResult', finalResult, '\n\n');
 
                   // 도구 결과 요약을 위한 객체 생성
                   const toolSummaries = [];
@@ -836,7 +836,7 @@ ${routingDecision.selectionReasoning}
 ## Information Gathered by Tools Execution:
 ${toolSummaries.join('\n\n')}
 ## Analysis of the Information Gathered by Tools Execution:
-${finalstep.text}
+${finalResult}
 
 # Stage 3: Response Creation - You're here
 ## Response Requirements
@@ -898,6 +898,7 @@ IMPORTANT:
 - NEVER use HTML tags in file content unless the user's request requires it - use ONLY standard Markdown syntax.
 `;
 
+console.log('responsePrompt', responsePrompt);
 
                   // 구조화된 응답 생성
                   const objectResult = await streamObject({
