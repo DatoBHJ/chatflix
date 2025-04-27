@@ -49,7 +49,10 @@ export function Header({ isSidebarOpen, onSidebarToggle, showBackButton, user }:
           
           <span 
             className="text-xs font-bold py-0.5 px-0 flex items-center gap-1 text-[var(--foreground)] cursor-pointer" 
-            onClick={() => router.push('/')}
+            onClick={() => {
+              // Use window.location for direct navigation to avoid loading state issues
+              window.location.href = '/'
+            }}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--foreground)]"></span>
             BETA
