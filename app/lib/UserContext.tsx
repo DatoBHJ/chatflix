@@ -34,24 +34,41 @@ export function UserProvider({ children }: { children: ReactNode }) {
         .list(`${userId}`);
 
       if (profileError) {
-        console.error('Error fetching profile image:', profileError);
+        console.error('Error fetching profile image list:', profileError);
         return;
       }
 
       if (profileData && profileData.length > 0) {
         try {
+          const fileName = profileData[0].name;
+          const filePath = `${userId}/${fileName}`;
+          
+          if (!fileName || typeof fileName !== 'string') {
+            console.error('Invalid file name returned from storage');
+            return;
+          }
+          
           const { data } = supabase
             .storage
             .from('profile-pics')
-            .getPublicUrl(`${userId}/${profileData[0].name}`);
+            .getPublicUrl(filePath);
           
-          setProfileImage(data.publicUrl);
+          if (data && data.publicUrl) {
+            try {
+              new URL(data.publicUrl);
+              setProfileImage(data.publicUrl);
+            } catch (urlError) {
+              console.error('Invalid URL format:', urlError);
+            }
+          } else {
+            console.error('No valid public URL returned');
+          }
         } catch (error) {
           console.error('Error getting public URL for profile image:', error);
         }
       }
     } catch (error) {
-      console.error('Error fetching profile image:', error);
+      console.error('Error in profile image fetch process:', error);
     }
   };
 
