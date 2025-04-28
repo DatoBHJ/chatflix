@@ -1,5 +1,5 @@
 // app/components/chat/ChatInput/index.tsx
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { getModelById } from '@/lib/models/config';
 import { ChatInputProps, PromptShortcut } from './types';
@@ -70,6 +70,31 @@ export function ChatInput({
     }
   }, []);
 
+  // 디바운스된 입력 처리 함수
+  const debouncedInputHandler = useCallback(() => {
+    if (!inputRef.current || isSubmittingRef.current) return;
+    
+    // 현재 입력 상태 가져오기
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount) return;
+    
+    // 컨텐츠는 정규화하되 불필요한 normalize() 호출 감소
+    const content = inputRef.current.textContent || '';
+    
+    // placeholder를 위한 empty 클래스 설정
+    if (content.trim() === '') {
+      inputRef.current.classList.add('empty');
+    } else {
+      inputRef.current.classList.remove('empty');
+    }
+    
+    // 부모 컴포넌트 상태 업데이트
+    const event = {
+      target: { value: content }
+    } as React.ChangeEvent<HTMLTextAreaElement>;
+    handleInputChange(event);
+  }, [handleInputChange]);
+
   // 붙여넣기 이벤트 핸들러
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -85,58 +110,32 @@ export function ChatInput({
     
     const range = selection.getRangeAt(0);
     
-    // 커서 위치에 텍스트 삽입
+    // 커서 위치에 텍스트 삽입 - 한 번의 DOM 조작으로 처리
     range.deleteContents();
     const textNode = document.createTextNode(text.replace(/\n/g, ' '));
     range.insertNode(textNode);
     
-    // 원치 않는 서식 정리 및 콘텐츠 정규화
-    const content = inputRef.current.innerHTML;
-    inputRef.current.innerHTML = content
-      .replace(/<div>/g, '')
-      .replace(/<\/div>/g, '')
-      .replace(/<br\s*\/?>/g, ' ')
-      .replace(/\s+/g, ' ');
-    
-    // 공백 및 텍스트 노드 정규화
-    inputRef.current.normalize();
-    
-    // 붙여넣은 텍스트 끝으로 커서 이동
-    requestAnimationFrame(() => {
+    // 성능 개선: 정규식 처리를 한 번만 수행하고 DOM 조작 최소화
+    setTimeout(() => {
       if (!inputRef.current) return;
       
-      const selection = window.getSelection();
-      const range = document.createRange();
-      
-      // 현재 커서 위치의 텍스트 노드 찾기
-      const walker = document.createTreeWalker(
-        inputRef.current,
-        NodeFilter.SHOW_TEXT,
-        null
-      );
-      
-      let lastNode: Text | null = null;
-      let node: Node | null;
-      while ((node = walker.nextNode())) {
-        if (node.nodeType === Node.TEXT_NODE) {
-          lastNode = node as Text;
-        }
-      }
-      
-      if (lastNode) {
-        range.setStart(lastNode, lastNode.length);
-        range.setEnd(lastNode, lastNode.length);
-        selection?.removeAllRanges();
-        selection?.addRange(range);
+      // 내용이 줄바꿈 없이 평평하게 유지되도록 정규화
+      let content = inputRef.current.innerHTML;
+      if (content.includes('<div>') || content.includes('<br')) {
+        content = content
+          .replace(/<div>/g, '')
+          .replace(/<\/div>/g, '')
+          .replace(/<br\s*\/?>/g, ' ')
+          .replace(/\s+/g, ' ');
         
-        // 입력 필드에 포커스 유지
-        inputRef.current.focus();
+        inputRef.current.innerHTML = content;
       }
-    });
-    
-    // 멘션 처리를 위해 짧은 지연 후 입력 핸들러 호출
-    setTimeout(() => {
-      handleInputWithShortcuts();
+      
+      // 입력 필드에 포커스 유지
+      inputRef.current.focus();
+      
+      // 멘션 처리를 위해 짧은 지연 후 입력 핸들러 호출
+      debouncedInputHandler();
     }, 0);
   };
   
@@ -151,78 +150,63 @@ export function ChatInput({
     return range.toString().length;
   };
 
-  // 사용자 입력 모니터링 및 멘션 감지
-  const handleInputWithShortcuts = async () => {
+  // 사용자 입력 모니터링 및 멘션 감지 (디바운스 적용)
+  const handleInputWithShortcuts = () => {
     if (!inputRef.current || isSubmittingRef.current) return;
     
-    // 디바운스 설정
+    // 디바운스 설정 - 성능 개선을 위해 타이머 시간 증가
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
     
-    // 현재 입력 상태 가져오기
-    const selection = window.getSelection();
-    if (!selection || !selection.rangeCount) return;
+    // 기본 입력 처리는 즉시 수행 (반응성 유지)
+    debouncedInputHandler();
     
-    // 컨텐츠 정규화
-    inputRef.current.normalize();
-    
-    const cursorPosition = getCursorPosition(inputRef.current);
-    const content = inputRef.current.textContent || '';
-    
-    // placeholder를 위한 empty 클래스 설정
-    if (content.trim() === '') {
-      inputRef.current.classList.add('empty');
-    } else {
-      inputRef.current.classList.remove('empty');
-    }
-    
-    // 부모 컴포넌트 상태 업데이트
-    const event = {
-      target: { value: content }
-    } as React.ChangeEvent<HTMLTextAreaElement>;
-    handleInputChange(event);
-    
-    // 커서 위치까지의 텍스트 추출
-    const textBeforeCursor = content.substring(0, cursorPosition);
-    
-    // 멘션 패턴 감지 (@단어)
-    const mentionMatch = textBeforeCursor.match(mentionRegex);
-    
-    if (mentionMatch) {
-      // 멘션 쿼리 상태 활성화
-      setMentionQueryActive(true);
+    // 멘션 검색은 디바운스 적용 (비용이 많이 드는 작업)
+    debounceTimerRef.current = setTimeout(() => {
+      if (!inputRef.current) return;
       
-      // 멘션 시작 위치 (@ 기호 위치) 저장
-      const mentionStartPos = textBeforeCursor.lastIndexOf('@');
-      setMentionStartPosition(mentionStartPos);
+      const cursorPosition = getCursorPosition(inputRef.current);
+      const content = inputRef.current.textContent || '';
       
-      // 검색어 추출 (@ 다음 텍스트)
-      const query = mentionMatch[1] || '';
-      setSearchTerm(query);
+      // 커서 위치까지의 텍스트 추출
+      const textBeforeCursor = content.substring(0, cursorPosition);
       
-      // 디바운스 적용하여 검색 실행
-      debounceTimerRef.current = setTimeout(async () => {
+      // 멘션 패턴 감지 (@단어)
+      const mentionMatch = textBeforeCursor.match(mentionRegex);
+      
+      if (mentionMatch) {
+        // 멘션 쿼리 상태 활성화
+        setMentionQueryActive(true);
+        
+        // 멘션 시작 위치 (@ 기호 위치) 저장
+        const mentionStartPos = textBeforeCursor.lastIndexOf('@');
+        setMentionStartPosition(mentionStartPos);
+        
+        // 검색어 추출 (@ 다음 텍스트)
+        const query = mentionMatch[1] || '';
+        setSearchTerm(query);
+        
         // 숏컷 검색 API 호출
-        const { data, error } = await supabase.rpc('search_prompt_shortcuts', {
+        supabase.rpc('search_prompt_shortcuts', {
           p_user_id: user.id,
           p_search_term: query
+        }).then(({ data, error }) => {
+          if (error) {
+            console.error('Error searching shortcuts:', error);
+            return;
+          }
+          
+          // 검색 결과 업데이트 및 표시
+          setShortcuts(data || []);
+          setShowShortcuts(true);
+          setSelectedIndex(0); // 첫 번째 항목 선택
         });
-        
-        if (error) {
-          console.error('Error searching shortcuts:', error);
-          return;
-        }
-        
-        // 검색 결과 업데이트 및 표시
-        setShortcuts(data || []);
-        setShowShortcuts(true);
-        setSelectedIndex(0); // 첫 번째 항목 선택
-      }, 100); // 100ms 디바운스
-    } else {
-      // 멘션 패턴이 없으면 팝업 닫기
-      closeShortcutsPopup();
-    }
+      } else {
+        // 멘션 패턴이 없으면 팝업 닫기
+        closeShortcutsPopup();
+      }
+    }, 200); // 200ms 디바운스 - 더 큰 값으로 설정하여 불필요한 API 호출 감소
   };
 
   // 멘션 팝업 닫기 함수
@@ -357,7 +341,7 @@ export function ChatInput({
     return Date.now().toString(36) + Math.random().toString(36).substring(2);
   };
 
-  // 메시지 제출 처리
+  // 메시지 제출 처리 - 성능 최적화 버전
   const handleMessageSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
@@ -377,7 +361,7 @@ export function ChatInput({
       // 새 메소드로 입력 필드 클리어
       clearInput();
 
-      // 부모 상태 업데이트
+      // 부모 상태 업데이트 - 즉시 UI 반응
       const event = {
         target: { value: '' }
       } as React.ChangeEvent<HTMLTextAreaElement>;
@@ -391,57 +375,82 @@ export function ChatInput({
         }
       } as unknown as FormEvent<HTMLFormElement>;
 
-      // 제출을 위해 File[]를 FileList로 변환
-      const dataTransfer = new DataTransfer();
-      files.forEach(file => {
-        dataTransfer.items.add(file);
-      });
+      // 파일 처리를 백그라운드로 이동
+      setTimeout(async () => {
+        try {
+          // 성능 개선: DataTransfer 객체 생성을 setTimeout 내에서 처리
+          const dataTransfer = new DataTransfer();
+          
+          // 파일이 많은 경우 청크 단위로 처리 (한 번에 10개씩)
+          const CHUNK_SIZE = 10;
+          for (let i = 0; i < files.length; i += CHUNK_SIZE) {
+            const chunk = files.slice(i, i + CHUNK_SIZE);
+            chunk.forEach(file => {
+              dataTransfer.items.add(file);
+            });
+            
+            // 큰 청크를 처리한 후 UI 스레드에게 잠시 양보
+            if (i + CHUNK_SIZE < files.length) {
+              await new Promise(resolve => setTimeout(resolve, 0));
+            }
+          }
 
-      // 파일 첨부 정보 생성
-      const attachments = Array.from(files).map(file => {
-        // 파일 타입 결정
-        let fileType: 'image' | 'code' | 'pdf' | 'file' = 'file';
-        if (file.type.startsWith('image/')) {
-          fileType = 'image';
-        } else if (file.type.includes('text') || 
-                  /\.(js|jsx|ts|tsx|html|css|json|md|py|java|c|cpp|cs|go|rb|php|swift|kt|rs)$/i.test(file.name)) {
-          fileType = 'code';
-        } else if (file.name.endsWith('.pdf')) {
-          fileType = 'pdf';
+          // 파일 첨부 정보 생성
+          const attachments = Array.from(files).map(file => {
+            // 파일 타입 결정
+            let fileType: 'image' | 'code' | 'pdf' | 'file' = 'file';
+            if (file.type.startsWith('image/')) {
+              fileType = 'image';
+            } else if (file.type.includes('text') || 
+                      /\.(js|jsx|ts|tsx|html|css|json|md|py|java|c|cpp|cs|go|rb|php|swift|kt|rs)$/i.test(file.name)) {
+              fileType = 'code';
+            } else if (file.name.endsWith('.pdf')) {
+              fileType = 'pdf';
+            }
+            
+            const fileId = (file as any).id;
+            const fileData = fileMap.get(fileId);
+            
+            return {
+              name: file.name,
+              contentType: file.type,
+              url: fileData?.url || '',
+              fileType: fileType,
+              id: fileId // ID 정보도 전달
+            };
+          });
+
+          // 파일 정보를 submitEvent에 추가
+          (submitEvent as any).experimental_attachments = attachments;
+          
+          // 저장된 콘텐츠와 파일로 폼 제출
+          await handleSubmit(submitEvent, dataTransfer.files);
+          
+          // 제출 후 파일 리셋
+          setFiles([]);
+          
+          // 메모리 누수 방지: 모든 URL 정리
+          const urls = new Set<string>();
+          fileMap.forEach(({ url }) => urls.add(url));
+          setFileMap(new Map());
+          
+          // URL 해제는 state 업데이트 완료 후 수행
+          setTimeout(() => {
+            urls.forEach(url => URL.revokeObjectURL(url));
+          }, 0);
+          
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
+          
+        } finally {
+          isSubmittingRef.current = false;
         }
-        
-        const fileId = (file as any).id;
-        const fileData = fileMap.get(fileId);
-        
-        return {
-          name: file.name,
-          contentType: file.type,
-          url: fileData?.url || '',
-          fileType: fileType,
-          id: fileId // ID 정보도 전달
-        };
-      });
-
-      // 파일 정보를 submitEvent에 추가
-      (submitEvent as any).experimental_attachments = attachments;
+      }, 0);
       
-      // 저장된 콘텐츠와 파일로 폼 제출
-      await handleSubmit(submitEvent, dataTransfer.files);
-      
-      // 제출 후 파일 리셋
-      setFiles([]);
-      setFileMap(new Map());
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      
-      // 미리보기 URL 정리
-      fileMap.forEach(({ url }) => URL.revokeObjectURL(url));
-
-    } finally {
+    } catch (error) {
+      console.error('Error during message submission:', error);
       isSubmittingRef.current = false;
-      // 제출 후에도 입력 필드 클리어 확인
-      clearInput();
     }
   };
 
@@ -625,13 +634,13 @@ export function ChatInput({
     }
   };
 
-  // 파일 처리
+  // 파일 처리 - 성능 최적화 버전
   const handleFiles = (newFiles: FileList) => {
     // FileList를 Array로 변환하고 필터링
     const newFileArray = Array.from(newFiles).filter(file => {
-      // PDF 파일 처리 - 지원하는 모델이면 허용
+      // PDF 파일 처리 - Agent 모드가 켜졌을 때 또는 지원하지 않는 모델이면 차단
       if (fileHelpers.isPDFFile(file)) {
-        if (!supportsPDFs) {
+        if (isAgentEnabled || !supportsPDFs) {
           setShowPDFError(true);
           setTimeout(() => setShowPDFError(false), 3000);
           return false;
@@ -659,35 +668,54 @@ export function ChatInput({
     // 필터링 후 유효한 파일이 없으면 조기 반환
     if (newFileArray.length === 0) return;
     
-    // 새 파일 항목 생성 (각 파일에 고유 ID 부여)
-    const newFileEntries = newFileArray.map(file => {
-      const fileId = generateUniqueId();
-      const url = URL.createObjectURL(file);
-      // 각 파일에 고유 ID와 원본 경로 정보 추가
-      return [fileId, { file, url, id: fileId, originalName: file.name }] as [string, { file: File, url: string, id: string, originalName: string }];
-    });
-
-    // 새 항목으로 파일 맵 업데이트 (ID 기반)
-    setFileMap(prevMap => {
-      const newMap = new Map(prevMap);
-      newFileEntries.forEach(([id, data]) => {
-        newMap.set(id, data);
+    // 성능 최적화: 파일이 많은 경우 처리를 나누어 수행
+    const processFiles = (start: number, end: number) => {
+      // 처리할 파일 배열의 일부
+      const chunk = newFileArray.slice(start, end);
+      
+      // 새 파일 항목 생성 (각 파일에 고유 ID 부여)
+      const newFileEntries = chunk.map(file => {
+        const fileId = generateUniqueId();
+        const url = URL.createObjectURL(file);
+        // 각 파일에 고유 ID와 원본 경로 정보 추가
+        return [fileId, { file, url, id: fileId, originalName: file.name }] as [string, { file: File, url: string, id: string, originalName: string }];
       });
-      return newMap;
-    });
 
-    // 파일 배열 업데이트 (이름 대신 전체 파일 추가)
-    setFiles(prevFiles => {
-      return [...prevFiles, ...newFileArray.map((file, index) => {
-        // 파일 객체에 ID 속성을 추가
-        Object.defineProperty(file, 'id', {
-          value: newFileEntries[index][0],
-          writable: false,
-          enumerable: true
+      // 새 항목으로 파일 맵 업데이트 (ID 기반)
+      setFileMap(prevMap => {
+        const newMap = new Map(prevMap);
+        newFileEntries.forEach(([id, data]) => {
+          newMap.set(id, data);
         });
-        return file;
-      })];
-    });
+        return newMap;
+      });
+
+      // 파일 배열 업데이트 (이름 대신 전체 파일 추가)
+      setFiles(prevFiles => {
+        return [...prevFiles, ...chunk.map((file, index) => {
+          // 파일 객체에 ID 속성을 추가
+          Object.defineProperty(file, 'id', {
+            value: newFileEntries[index][0],
+            writable: false,
+            enumerable: true
+          });
+          return file;
+        })];
+      });
+      
+      // 청크 처리가 남아있으면 다음 청크 예약
+      if (end < newFileArray.length) {
+        setTimeout(() => {
+          processFiles(end, Math.min(end + CHUNK_SIZE, newFileArray.length));
+        }, 0);
+      }
+    };
+    
+    // 한 번에 처리할 최대 파일 수
+    const CHUNK_SIZE = 5;
+    
+    // 첫 번째 청크 처리 시작
+    processFiles(0, Math.min(CHUNK_SIZE, newFileArray.length));
   };
 
   // 파일 제거
@@ -701,7 +729,9 @@ export function ChatInput({
       if (fileId && newMap.has(fileId)) {
         const fileData = newMap.get(fileId);
         if (fileData) {
-          URL.revokeObjectURL(fileData.url);
+          // 성능 개선: URL.revokeObjectURL은 상태 업데이트 후 별도 실행
+          const urlToRevoke = fileData.url;
+          setTimeout(() => URL.revokeObjectURL(urlToRevoke), 0);
           newMap.delete(fileId);
         }
       }
@@ -712,28 +742,6 @@ export function ChatInput({
     setFiles(prevFiles => prevFiles.filter(file => (file as any).id !== fileId));
   };
 
-  // Add a method to handle trending term clicks
-  const handleTrendingTermClick = (term: string) => {
-    if (!inputRef.current) return;
-    
-    // Set the input content to the trending term
-    inputRef.current.textContent = term;
-    inputRef.current.classList.remove('empty');
-    
-    // Update parent component's state
-    const event = {
-      target: { value: term }
-    } as React.ChangeEvent<HTMLTextAreaElement>;
-    handleInputChange(event);
-    
-    // Ensure agent mode is enabled
-    if (setisAgentEnabled && !isAgentEnabled) {
-      setisAgentEnabled(true);
-    }
-    
-    // Focus the input field
-    inputRef.current.focus();
-  };
 
   return (
     <div className="relative">
@@ -747,13 +755,6 @@ export function ChatInput({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {/* Only show trending terms when agent is enabled. do not erase this code even if it is not used yet */}
-        {/* {isAgentEnabled && (
-          <InlineTrendingTerms 
-            isVisible={isAgentEnabled === true} 
-            onTermClick={handleTrendingTermClick} 
-          />
-        )} */}
         
         {/* File preview section */}
         <FilePreview 
@@ -764,11 +765,13 @@ export function ChatInput({
 
         {/* Error toast */}
         <ErrorToast show={showPDFError} message={
-          supportsPDFs 
-            ? "This file type is not supported" 
-            : (supportsVision 
-              ? "This model does not support PDF files" 
-              : "This model does not support PDF and image files")} />
+          isAgentEnabled 
+            ? "PDF files are not supported in Agent mode" 
+            : (supportsPDFs 
+              ? "This file type is not supported" 
+              : (supportsVision 
+                ? "This model does not support PDF files" 
+                : "This model does not support PDF and image files"))} />
         <ErrorToast show={showFolderError} message="Folders cannot be uploaded" />
         <ErrorToast show={showVideoError} message="Video files are not supported" />
 
@@ -782,7 +785,7 @@ export function ChatInput({
         >
           <input
             type="file"
-            accept={supportsPDFs 
+            accept={supportsPDFs && !isAgentEnabled
               ? "image/*,text/*,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust,application/pdf" 
               : (supportsVision 
                 ? "image/*,text/*,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust" 

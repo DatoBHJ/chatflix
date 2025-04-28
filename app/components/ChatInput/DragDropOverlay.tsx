@@ -1,7 +1,12 @@
 // app/components/chat/ChatInput/DragDropOverlay.tsx
+import { memo } from 'react';
 import { DragDropOverlayProps } from './types';
 
-export function DragDropOverlay({ dragActive, supportsPDFs = false }: DragDropOverlayProps) {
+// 메모이제이션된 DragDropOverlay 컴포넌트
+export const DragDropOverlay = memo(function DragDropOverlay({ 
+  dragActive, 
+  supportsPDFs = false 
+}: DragDropOverlayProps) {
   if (!dragActive) return null;
 
   return (
@@ -26,10 +31,16 @@ export function DragDropOverlay({ dragActive, supportsPDFs = false }: DragDropOv
       </div>
     </div>
   );
-}
+});
 
-// 에러 토스트 컴포넌트
-export function ErrorToast({ show, message }: { show: boolean; message: string }) {
+// 메모이제이션된 ErrorToast 컴포넌트
+export const ErrorToast = memo(function ErrorToast({ 
+  show, 
+  message 
+}: { 
+  show: boolean; 
+  message: string 
+}) {
   if (!show) return null;
 
   return (
@@ -44,4 +55,4 @@ export function ErrorToast({ show, message }: { show: boolean; message: string }
       </div>
     </div>
   );
-}
+});

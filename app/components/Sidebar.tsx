@@ -55,25 +55,44 @@ export function Sidebar({ user, onClose }: SidebarProps) {
         .list(`${userId}`);
 
       if (profileError) {
-        console.error('Error fetching profile image:', profileError);
+        console.error('Error fetching profile image list:', profileError);
         return;
       }
 
       // If profile image exists, get public URL
       if (profileData && profileData.length > 0) {
         try {
+          const fileName = profileData[0].name;
+          const filePath = `${userId}/${fileName}`;
+          
+          // 유효성 검사 추가
+          if (!fileName || typeof fileName !== 'string') {
+            console.error('Invalid file name returned from storage');
+            return;
+          }
+          
           const { data } = supabase
             .storage
             .from('profile-pics')
-            .getPublicUrl(`${userId}/${profileData[0].name}`);
+            .getPublicUrl(filePath);
           
-          setProfileImage(data.publicUrl);
+          if (data && data.publicUrl) {
+            // URL이 유효한지 검사
+            try {
+              new URL(data.publicUrl);
+              setProfileImage(data.publicUrl);
+            } catch (urlError) {
+              console.error('Invalid URL format:', urlError);
+            }
+          } else {
+            console.error('No valid public URL returned');
+          }
         } catch (error) {
           console.error('Error getting public URL for profile image:', error);
         }
       }
     } catch (error) {
-      console.error('Error fetching profile image:', error);
+      console.error('Error in profile image fetch process:', error);
     }
   };
 

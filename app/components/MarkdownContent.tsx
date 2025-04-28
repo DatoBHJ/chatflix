@@ -103,6 +103,9 @@ const addKatexStyles = () => {
 
 // Helper function to escape dollar signs in currency strings but leave math intact
 function escapeCurrencyDollars(text: string): string {
+  // Enhanced check for undefined or null - return empty string for any falsy value
+  if (text === undefined || text === null || text === '') return '';
+  
   // Don't process if no dollar sign
   if (!text.includes('$')) return text;
   

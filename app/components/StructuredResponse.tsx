@@ -293,7 +293,7 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
                     }
                   `}</style>
                   <div className="prose prose-sm dark:prose-invert max-w-none break-words">
-                    <MarkdownContent content={file.content} />
+                    <MarkdownContent content={file.content || ''} />
                   </div>
                 </div>
               </div>

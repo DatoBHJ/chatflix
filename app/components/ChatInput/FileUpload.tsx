@@ -1,5 +1,5 @@
 // app/components/chat/ChatInput/FileUpload.tsx
-import { ReactNode, memo, useState, useEffect, useRef } from 'react';
+import { ReactNode, memo, useState, useEffect, useRef, useMemo } from 'react';
 import { FilePreviewProps, FileUploadButtonProps, FileHelpers } from './types';
 
 // 파일 관련 유틸리티 함수들
@@ -109,6 +109,65 @@ export const FileUploadButton = memo(function FileUploadButton({
   );
 });
 
+// LazyImage 컴포넌트 - 이미지를 지연 로딩
+const LazyImage = memo(function LazyImage({ 
+  src, 
+  alt,
+  onLoad
+}: { 
+  src: string; 
+  alt: string; 
+  onLoad: () => void;
+}) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [isInView, setIsInView] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+  
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    
+    if (imgRef.current) {
+      observer.observe(imgRef.current);
+    }
+    
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+  
+  const handleLoad = () => {
+    setIsLoaded(true);
+    onLoad();
+  };
+  
+  return (
+    <div className="w-full h-full flex items-center justify-center overflow-hidden" ref={imgRef}>
+      {isInView && (
+        <img 
+          src={src} 
+          alt={alt} 
+          className={`w-full h-full object-contain transition-all duration-300 ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+          onLoad={handleLoad}
+          loading="lazy"
+        />
+      )}
+      {(!isInView || !isLoaded) && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-5 h-5 border-none rounded-full animate-spin opacity-40"></div>
+        </div>
+      )}
+    </div>
+  );
+});
+
 // 개별 파일 아이템 컴포넌트
 const FileItem = memo(function FileItem({ 
   file, 
@@ -124,8 +183,11 @@ const FileItem = memo(function FileItem({
   const isImage = file.type.startsWith('image/');
   const fileExt = file.name.split('.').pop()?.toUpperCase() || 'FILE';
   
+  // 파일 확장자 캐싱 (불필요한 문자열 작업 방지)
+  const fileExtension = useMemo(() => file.name.split('.').pop()?.toUpperCase() || 'FILE', [file.name]);
+  
   // 모바일과 데스크톱 환경에 따른 삭제 버튼 스타일 계산
-  const deleteButtonClasses = [
+  const deleteButtonClasses = useMemo(() => [
     "absolute top-1.5 right-1.5 w-7 h-7 md:w-6 md:h-6 md:top-2 md:right-2",
     "flex items-center justify-center rounded-full",
     "bg-[color-mix(in_srgb,var(--background)_80%,var(--foreground)_20%)]",
@@ -136,7 +198,7 @@ const FileItem = memo(function FileItem({
     "opacity-70 md:opacity-0",
     // 데스크톱에서 호버 시 표시
     hovered ? "md:opacity-90" : ""
-  ].filter(Boolean).join(" ");
+  ].filter(Boolean).join(" "), [hovered]);
   
   // 파일 타입에 따른 아이콘 결정
   let fileIcon;
@@ -145,19 +207,12 @@ const FileItem = memo(function FileItem({
     const imageUrl = fileData?.url;
     if (imageUrl) {
       fileIcon = (
-        <div className="relative w-full h-full flex items-center justify-center overflow-hidden ">
-          <img 
+        <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+          <LazyImage 
             src={imageUrl} 
             alt={file.name} 
-            className={`w-full h-full object-contain transition-all duration-300 ${loaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
             onLoad={() => setLoaded(true)}
-            loading="lazy"
           />
-          {!loaded && (
-            <div className="absolute inset-0 flex items-center justify-center ">
-              <div className="w-5 h-5 border-none rounded-full animate-spin opacity-40"></div>
-            </div>
-          )}
         </div>
       );
     }
@@ -165,28 +220,24 @@ const FileItem = memo(function FileItem({
            /\.(js|jsx|ts|tsx|html|css|json|md|py|java|c|cpp|cs|go|rb|php|swift|kt|rs)$/i.test(file.name)) {
     fileIcon = (
       <div className="flex flex-col items-center justify-center text-center p-3 h-full">
-        {/* <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="background" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="16 18 22 12 16 6"></polyline>
-          <polyline points="8 6 2 12 8 18"></polyline>
-        </svg> */}
         <span className="text-[10px] text-background font-mono mt-2 px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--background)_7%,transparent)]">
-          {fileExt}
+          {fileExtension}
         </span>
       </div>
     );
   } else {
     fileIcon = (
       <div className="flex flex-col items-center justify-center text-center p-3 h-full">
-        {/* <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="background" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
-          <polyline points="13 2 13 9 20 9"></polyline>
-        </svg> */}
         <span className="text-[10px] text-background font-mono mt-2 px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--background)_7%,transparent)]">
-          {fileExt}
+          {fileExtension}
         </span>
       </div>
     );
   }
+  
+  const handleRemove = () => {
+    removeFile(file);
+  };
   
   return (
     <div 
@@ -200,7 +251,7 @@ const FileItem = memo(function FileItem({
       onMouseLeave={() => setHovered(false)}
     >
       <button
-        onClick={() => removeFile(file)}
+        onClick={handleRemove}
         className={deleteButtonClasses}
         aria-label={`Remove file ${file.name}`}
         title={`Remove ${file.name}`}
@@ -224,6 +275,59 @@ const FileItem = memo(function FileItem({
         </div>
       </div>
     </div>
+  );
+});
+
+// 청크 단위로 파일 렌더링하는 메모이제이션 컴포넌트
+const ChunkedFileItems = memo(function ChunkedFileItems({
+  files,
+  fileMap,
+  removeFile,
+  chunkSize = 5
+}: {
+  files: File[];
+  fileMap: Map<string, { file: File, url: string }>;
+  removeFile: (file: File) => void;
+  chunkSize?: number;
+}) {
+  const [renderedCount, setRenderedCount] = useState(chunkSize);
+  
+  // 더 많은 파일 렌더링
+  useEffect(() => {
+    if (renderedCount < files.length) {
+      const timer = setTimeout(() => {
+        setRenderedCount(prev => Math.min(prev + chunkSize, files.length));
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [renderedCount, files.length, chunkSize]);
+  
+  // 파일 수가 변경될 때 렌더링 수 리셋
+  useEffect(() => {
+    setRenderedCount(Math.min(chunkSize, files.length));
+  }, [files.length, chunkSize]);
+  
+  // 현재 렌더링할 파일들
+  const visibleFiles = files.slice(0, renderedCount);
+  
+  return (
+    <>
+      {visibleFiles.map((file, index) => {
+        // 파일 ID로 맵에서 데이터 찾기
+        const fileId = (file as any).id;
+        const fileData = fileMap.get(fileId);
+        
+        return (
+          <div key={fileId} style={{ '--index': index } as React.CSSProperties}>
+            <FileItem 
+              file={file}
+              fileData={fileData}
+              removeFile={removeFile}
+            />
+          </div>
+        );
+      })}
+    </>
   );
 });
 
@@ -251,10 +355,6 @@ export function FilePreview({ files, fileMap, removeFile }: FilePreviewProps) {
       ref={previewRef}
       className={`file-preview-wrapper -mx-2 px-4 pt-4 pb-1 mt-3 mb-3 relative transition-all duration-300 ${fadeEffect ? 'opacity-95' : 'opacity-100'}`}
     >
-      {/* <div className="mb-3 text-xs uppercase tracking-wider text-[var(--muted)] flex justify-between items-center">
-        <span>첨부된 파일 ({files.length})</span>
-      </div>
-       */}
       <div 
         className={`file-preview-container grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 gap-y-3
                    ${shouldScroll ? 'max-h-[240px] overflow-y-auto pr-2 pb-8 pt-1' : 'pb-2'}`}
@@ -265,21 +365,12 @@ export function FilePreview({ files, fileMap, removeFile }: FilePreviewProps) {
           msOverflowStyle: 'none', /* IE and Edge */
         }}
       >
-        {files.map((file, index) => {
-          // 파일 ID로 맵에서 데이터 찾기
-          const fileId = (file as any).id;
-          const fileData = fileMap.get(fileId);
-          
-          return (
-            <div key={fileId} style={{ '--index': index } as React.CSSProperties}>
-              <FileItem 
-                file={file}
-                fileData={fileData}
-                removeFile={removeFile}
-              />
-            </div>
-          );
-        })}
+        <ChunkedFileItems 
+          files={files}
+          fileMap={fileMap}
+          removeFile={removeFile}
+          chunkSize={8} // 한 번에 8개씩 렌더링
+        />
       </div>
       
 
