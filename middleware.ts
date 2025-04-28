@@ -4,10 +4,112 @@ import { getRateLimiter, createRateLimitKey } from '@/lib/ratelimit'
 import { getModelById } from '@/lib/models/config'
 import { createServerClient } from '@supabase/ssr'
 
+// 프로덕션 환경 체크 함수
+const isProduction = process.env.NODE_ENV === 'production';
+// 유지보수 모드 체크 (환경 변수로 제어 가능)
+const isMaintenanceMode = process.env.MAINTENANCE_MODE === 'true';
+
+// 유지보수 모드 HTML
+const maintenanceHTML = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatflix - Maintenance</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #0a0a0a;
+      color: #ffffff;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      font-weight: 700;
+    }
+    p {
+      font-size: 1.25rem;
+      opacity: 0.8;
+    }
+    .logo {
+      margin-bottom: 2rem;
+      font-size: 2rem;
+      font-weight: 800;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">CHATFLIX</div>
+    <h1>Chatflix will be back</h1>
+    <p>We're currently performing maintenance to improve your experience.</p>
+    <p>Please check back soon.</p>
+  </div>
+</body>
+</html>
+`;
+
 export async function middleware(request: NextRequest) {
+  // 유지보수 모드가 활성화된 경우 처리
+  if (isMaintenanceMode || (isProduction && process.env.FORCE_MAINTENANCE === 'true')) {
+    // 정적 리소스는 그대로 처리
+    if (request.nextUrl.pathname.match(/\.(js|css|ico|png|jpg|jpeg|svg|gif|webp)$/) ||
+        request.nextUrl.pathname.startsWith('/_next/') ||
+        request.nextUrl.pathname === '/favicon.ico') {
+      return await updateSession(request);
+    }
+    
+    // 관리자 경로는 예외 처리 - 관리자는 유지보수 모드에서도 접근 가능
+    if (request.nextUrl.pathname.startsWith('/admin')) {
+      return await updateSession(request);
+    }
+    
+    // API 요청에 대해서는 JSON 응답 반환
+    if (request.nextUrl.pathname.startsWith('/api/')) {
+      return new NextResponse(
+        JSON.stringify({
+          error: 'Service unavailable',
+          message: 'Chatflix is currently under maintenance. Please try again later.'
+        }),
+        {
+          status: 503,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': '3600',
+          },
+        }
+      );
+    }
+    
+    // 그 외의 모든 요청에 대해 유지보수 페이지 반환
+    return new NextResponse(maintenanceHTML, {
+      status: 503, // Service Unavailable
+      headers: {
+        'Content-Type': 'text/html',
+        'Retry-After': '3600', // 1시간 후 재시도 (초 단위)
+      },
+    });
+  }
+
   // Skip rate limiting for static files and images
   if (request.nextUrl.pathname.match(/\.(js|css|ico|png|jpg|jpeg|svg|gif)$/)) {
     return await updateSession(request)
+  }
+
+  // Skip for /api/chat/demo - 데모 API는 인증 없이 접근 가능하도록 함
+  if (request.nextUrl.pathname === '/api/chat/demo') {
+    return NextResponse.next();
   }
 
   // Skip rate limiting for the chat API - it's already handled in the route handler
