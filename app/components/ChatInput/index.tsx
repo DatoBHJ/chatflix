@@ -1,5 +1,5 @@
 // app/components/chat/ChatInput/index.tsx
-import { FormEvent, useEffect, useRef, useState, useCallback } from 'react';
+import { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { getModelById } from '@/lib/models/config';
 import { ChatInputProps, PromptShortcut } from './types';
@@ -8,7 +8,11 @@ import { FileUploadButton, FilePreview, fileHelpers } from './FileUpload';
 import { PromptShortcuts } from './PromptShortcuts';
 import { DragDropOverlay, ErrorToast } from './DragDropOverlay';
 import { Brain } from 'lucide-react';
-// import { InlineTrendingTerms } from './InlineTrendingTerms';
+
+// 상수 정의
+const MAX_MENTION_SEARCH_LENGTH = 500; // 멘션 검색을 위한 최대 문자 수
+const MENTION_CONTEXT_RANGE = 200; // 커서 주변 검색 범위 (앞뒤로)
+const DEBOUNCE_TIME = 200; // 디바운스 시간 (ms)
 
 export function ChatInput({
   input,
@@ -32,6 +36,7 @@ export function ChatInput({
   const isSubmittingRef = useRef(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const inputContainerRef = useRef<HTMLDivElement>(null);
+  const lastTextContentRef = useRef<string>(''); // 마지막 텍스트 콘텐츠 저장
   
   // 상태 관리
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -70,16 +75,46 @@ export function ChatInput({
     }
   }, []);
 
+  // 최적화된 멘션 검색 함수
+  const findMention = useCallback((text: string, cursorPosition: number): { match: RegExpMatchArray | null, startPos: number | null } => {
+    // 커서 위치 주변 컨텍스트 검색 (앞뒤로 MENTION_CONTEXT_RANGE만큼)
+    const startIndex = Math.max(0, cursorPosition - MENTION_CONTEXT_RANGE);
+    const endIndex = Math.min(text.length, cursorPosition + MENTION_CONTEXT_RANGE);
+    
+    // 커서 앞부분의 텍스트만 검색 (@ 기호부터 커서까지)
+    const searchText = text.substring(startIndex, cursorPosition);
+    
+    // @로 시작하는 마지막 단어 찾기
+    const lastAtSymbolPos = searchText.lastIndexOf('@');
+    
+    if (lastAtSymbolPos === -1) {
+      return { match: null, startPos: null };
+    }
+    
+    // @ 기호 이후의 텍스트 추출
+    const mentionText = searchText.substring(lastAtSymbolPos);
+    const match = mentionText.match(mentionRegex);
+    
+    if (!match) {
+      return { match: null, startPos: null };
+    }
+    
+    // 실제 전체 텍스트에서의 시작 위치 계산
+    const globalStartPos = startIndex + lastAtSymbolPos;
+    
+    return { match, startPos: globalStartPos };
+  }, []);
+
   // 디바운스된 입력 처리 함수
   const debouncedInputHandler = useCallback(() => {
     if (!inputRef.current || isSubmittingRef.current) return;
     
-    // 현재 입력 상태 가져오기
-    const selection = window.getSelection();
-    if (!selection || !selection.rangeCount) return;
-    
-    // 컨텐츠는 정규화하되 불필요한 normalize() 호출 감소
+    // 현재 텍스트 콘텐츠 가져오기
     const content = inputRef.current.textContent || '';
+    
+    // 이전 텍스트와 동일하면 처리 스킵 (불필요한 처리 방지)
+    if (content === lastTextContentRef.current) return;
+    lastTextContentRef.current = content;
     
     // placeholder를 위한 empty 클래스 설정
     if (content.trim() === '') {
@@ -116,7 +151,7 @@ export function ChatInput({
     range.insertNode(textNode);
     
     // 성능 개선: 정규식 처리를 한 번만 수행하고 DOM 조작 최소화
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       if (!inputRef.current) return;
       
       // 내용이 줄바꿈 없이 평평하게 유지되도록 정규화
@@ -131,26 +166,54 @@ export function ChatInput({
         inputRef.current.innerHTML = content;
       }
       
+      // 커서를 텍스트 끝으로 이동 (수정된 부분)
+      const selection = window.getSelection();
+      const range = document.createRange();
+      
+      // 마지막 텍스트 노드 찾기
+      const walker = document.createTreeWalker(
+        inputRef.current,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+      
+      let lastNode: Text | null = null;
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          lastNode = node as Text;
+        }
+      }
+      
+      if (lastNode) {
+        // 커서를 마지막 텍스트 노드의 끝으로 이동
+        range.setStart(lastNode, lastNode.length);
+        range.collapse(true);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+      }
+      
       // 입력 필드에 포커스 유지
       inputRef.current.focus();
       
       // 멘션 처리를 위해 짧은 지연 후 입력 핸들러 호출
       debouncedInputHandler();
-    }, 0);
+    });
   };
   
-  // 커서 위치 얻기 함수
+  // 커서 위치 얻기 함수 (성능 최적화)
   const getCursorPosition = (element: HTMLElement): number => {
     const selection = window.getSelection();
     if (!selection?.rangeCount) return 0;
     
-    const range = document.createRange();
+    // 범위 내 문자열 길이로 위치 계산 (최적화)
+    const range = selection.getRangeAt(0).cloneRange();
     range.selectNodeContents(element);
     range.setEnd(selection.anchorNode!, selection.anchorOffset);
     return range.toString().length;
   };
 
-  // 사용자 입력 모니터링 및 멘션 감지 (디바운스 적용)
+  // 사용자 입력 모니터링 및 멘션 감지 (성능 최적화)
   const handleInputWithShortcuts = () => {
     if (!inputRef.current || isSubmittingRef.current) return;
     
@@ -166,21 +229,17 @@ export function ChatInput({
     debounceTimerRef.current = setTimeout(() => {
       if (!inputRef.current) return;
       
-      const cursorPosition = getCursorPosition(inputRef.current);
       const content = inputRef.current.textContent || '';
+      const cursorPosition = getCursorPosition(inputRef.current);
       
-      // 커서 위치까지의 텍스트 추출
-      const textBeforeCursor = content.substring(0, cursorPosition);
-      
-      // 멘션 패턴 감지 (@단어)
-      const mentionMatch = textBeforeCursor.match(mentionRegex);
+      // 최적화된 멘션 검색 - 커서 위치 주변 컨텍스트 활용
+      const { match: mentionMatch, startPos: mentionStartPos } = findMention(content, cursorPosition);
       
       if (mentionMatch) {
         // 멘션 쿼리 상태 활성화
         setMentionQueryActive(true);
         
-        // 멘션 시작 위치 (@ 기호 위치) 저장
-        const mentionStartPos = textBeforeCursor.lastIndexOf('@');
+        // 멘션 시작 위치 저장
         setMentionStartPosition(mentionStartPos);
         
         // 검색어 추출 (@ 다음 텍스트)
@@ -206,7 +265,7 @@ export function ChatInput({
         // 멘션 패턴이 없으면 팝업 닫기
         closeShortcutsPopup();
       }
-    }, 200); // 200ms 디바운스 - 더 큰 값으로 설정하여 불필요한 API 호출 감소
+    }, DEBOUNCE_TIME);
   };
 
   // 멘션 팝업 닫기 함수
@@ -256,27 +315,32 @@ export function ChatInput({
     // 멘션 태그에 추가
     mentionTag.appendChild(mentionInner);
     
-    // 새 컨텐츠 구성
-    inputRef.current.innerHTML = '';
+    // 새 컨텐츠 구성 (불필요한 DOM 조작 감소)
+    const newContent = document.createDocumentFragment();
     
     // 멘션 이전 텍스트 추가
     if (beforeMention) {
-      inputRef.current.appendChild(document.createTextNode(beforeMention));
+      newContent.appendChild(document.createTextNode(beforeMention));
     }
     
     // 멘션 태그 추가
-    inputRef.current.appendChild(mentionTag);
+    newContent.appendChild(mentionTag);
     
     // 공백 추가 (멘션 후 띄어쓰기)
-    inputRef.current.appendChild(document.createTextNode(' '));
+    newContent.appendChild(document.createTextNode(' '));
     
     // 나머지 텍스트 추가
     if (afterMention && !mentionQueryActive) {
-      inputRef.current.appendChild(document.createTextNode(afterMention));
+      newContent.appendChild(document.createTextNode(afterMention));
     }
+    
+    // 한 번의 작업으로 내용 교체
+    inputRef.current.innerHTML = '';
+    inputRef.current.appendChild(newContent);
     
     // 부모 컴포넌트 상태 업데이트
     const updatedText = inputRef.current.textContent || '';
+    lastTextContentRef.current = updatedText; // 참조 업데이트
     handleInputChange({
       target: { value: updatedText }
     } as React.ChangeEvent<HTMLTextAreaElement>);
@@ -313,6 +377,7 @@ export function ChatInput({
     if (inputRef.current) {
       // 모든 콘텐츠 및 빈 노드 제거
       inputRef.current.innerHTML = '';
+      lastTextContentRef.current = ''; // 참조 업데이트
       
       // 빈 상태 클래스 추가
       inputRef.current.classList.add('empty');
@@ -341,60 +406,49 @@ export function ChatInput({
     return Date.now().toString(36) + Math.random().toString(36).substring(2);
   };
 
-  // 메시지 제출 처리 - 성능 최적화 버전
-  const handleMessageSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    
-    if (isSubmittingRef.current || isLoading) return;
-    
-    if (!inputRef.current) return;
+  // 성능 최적화된 메시지 제출 함수
+  const submitMessage = useCallback(async () => {
+    if (isSubmittingRef.current || isLoading || !inputRef.current) return;
     
     const content = inputRef.current?.textContent || '';
     if (!content.trim() && files.length === 0) return;
-
+    
     try {
       isSubmittingRef.current = true;
-
-      // 제출 전 콘텐츠 저장
+      
+      // 텍스트 내용 저장 후 입력 클리어
       const messageContent = content.trim();
-
-      // 새 메소드로 입력 필드 클리어
       clearInput();
-
-      // 부모 상태 업데이트 - 즉시 UI 반응
-      const event = {
+      
+      // UI 반응성을 위한 부모 상태 즉시 업데이트
+      handleInputChange({
         target: { value: '' }
-      } as React.ChangeEvent<HTMLTextAreaElement>;
-      handleInputChange(event);
-
-      // 저장된 콘텐츠로 새 제출 이벤트 생성
-      const submitEvent = {
-        preventDefault: () => {},
-        target: {
-          value: messageContent
-        }
-      } as unknown as FormEvent<HTMLFormElement>;
-
-      // 파일 처리를 백그라운드로 이동
+      } as React.ChangeEvent<HTMLTextAreaElement>);
+      
+      // 본격적인 메시지 처리는 다음 틱으로 지연
       setTimeout(async () => {
         try {
-          // 성능 개선: DataTransfer 객체 생성을 setTimeout 내에서 처리
-          const dataTransfer = new DataTransfer();
+          // 제출 이벤트 생성
+          const submitEvent = {
+            preventDefault: () => {},
+            target: { value: messageContent }
+          } as unknown as FormEvent<HTMLFormElement>;
           
-          // 파일이 많은 경우 청크 단위로 처리 (한 번에 10개씩)
+          // 파일 처리
+          const dataTransfer = new DataTransfer();
           const CHUNK_SIZE = 10;
+          
+          // 파일이 많은 경우 청크로 처리
           for (let i = 0; i < files.length; i += CHUNK_SIZE) {
             const chunk = files.slice(i, i + CHUNK_SIZE);
-            chunk.forEach(file => {
-              dataTransfer.items.add(file);
-            });
+            chunk.forEach(file => dataTransfer.items.add(file));
             
-            // 큰 청크를 처리한 후 UI 스레드에게 잠시 양보
+            // 큰 청크를 처리한 후 다음 틱 대기
             if (i + CHUNK_SIZE < files.length) {
               await new Promise(resolve => setTimeout(resolve, 0));
             }
           }
-
+          
           // 파일 첨부 정보 생성
           const attachments = Array.from(files).map(file => {
             // 파일 타입 결정
@@ -416,32 +470,31 @@ export function ChatInput({
               contentType: file.type,
               url: fileData?.url || '',
               fileType: fileType,
-              id: fileId // ID 정보도 전달
+              id: fileId
             };
           });
-
-          // 파일 정보를 submitEvent에 추가
+          
+          // 파일 정보 추가
           (submitEvent as any).experimental_attachments = attachments;
           
-          // 저장된 콘텐츠와 파일로 폼 제출
+          // 메시지 제출
           await handleSubmit(submitEvent, dataTransfer.files);
           
-          // 제출 후 파일 리셋
-          setFiles([]);
-          
-          // 메모리 누수 방지: 모든 URL 정리
+          // 파일 상태 정리
           const urls = new Set<string>();
           fileMap.forEach(({ url }) => urls.add(url));
-          setFileMap(new Map());
           
-          // URL 해제는 state 업데이트 완료 후 수행
-          setTimeout(() => {
-            urls.forEach(url => URL.revokeObjectURL(url));
-          }, 0);
+          setFiles([]);
+          setFileMap(new Map());
           
           if (fileInputRef.current) {
             fileInputRef.current.value = '';
           }
+          
+          // URL 리소스 해제
+          setTimeout(() => {
+            urls.forEach(url => URL.revokeObjectURL(url));
+          }, 0);
           
         } finally {
           isSubmittingRef.current = false;
@@ -452,9 +505,15 @@ export function ChatInput({
       console.error('Error during message submission:', error);
       isSubmittingRef.current = false;
     }
+  }, [handleInputChange, handleSubmit, files, fileMap, isLoading]);
+
+  // 메시지 제출 핸들러 (폼 제출 이벤트)
+  const handleMessageSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    submitMessage();
   };
 
-  // 스크롤 함수 개선 - 부드러운 스크롤 지원
+  // 스크롤 함수 - 부드러운 스크롤 지원
   const scrollToItem = (index: number) => {
     if (!shortcutsListRef.current) return;
     
@@ -471,20 +530,20 @@ export function ChatInput({
       // 아래로 스크롤 필요
       const scrollDistance = itemRect.bottom - listRect.bottom;
       listElement.scrollBy({ 
-        top: scrollDistance + 8, // 여유 공간 추가
-        behavior: 'smooth'       // 부드러운 스크롤
+        top: scrollDistance + 8,
+        behavior: 'smooth'
       });
     } else if (itemRect.top < listRect.top) {
       // 위로 스크롤 필요
       const scrollDistance = listRect.top - itemRect.top;
       listElement.scrollBy({ 
-        top: -scrollDistance - 8, // 여유 공간 추가
-        behavior: 'smooth'        // 부드러운 스크롤
+        top: -scrollDistance - 8,
+        behavior: 'smooth'
       });
     }
   };
 
-  // 키보드 네비게이션
+  // 개선된 키보드 이벤트 핸들러
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     // 숏컷 목록이 열려있고 항목이 있는 경우
     if (showShortcuts && shortcuts.length > 0) {
@@ -493,7 +552,6 @@ export function ChatInput({
           e.preventDefault();
           setSelectedIndex((prev) => {
             const newIndex = (prev + 1) % shortcuts.length;
-            // 부드러운 스크롤로 선택 항목 표시
             scrollToItem(newIndex);
             return newIndex;
           });
@@ -503,7 +561,6 @@ export function ChatInput({
           e.preventDefault();
           setSelectedIndex((prev) => {
             const newIndex = (prev - 1 + shortcuts.length) % shortcuts.length;
-            // 부드러운 스크롤로 선택 항목 표시
             scrollToItem(newIndex);
             return newIndex;
           });
@@ -530,7 +587,6 @@ export function ChatInput({
           break;
           
         default:
-          // 다른 키는 기본 동작 유지
           setLastTypedChar(e.key);
           break;
       }
@@ -560,12 +616,13 @@ export function ChatInput({
           inputRef.current.dispatchEvent(event);
         }
       } else {
-        // 일반 Enter: 메시지 제출
+        // 일반 Enter: 메시지 제출 - 직접 함수 호출로 이벤트 큐 건너뛰기
         e.preventDefault();
         if (!isSubmittingRef.current && !isLoading) {
-          formRef.current?.dispatchEvent(
-            new Event('submit', { cancelable: true, bubbles: true })
-          );
+          // 중요: requestAnimationFrame 사용하여 다음 렌더링 프레임에 제출 처리
+          requestAnimationFrame(() => {
+            submitMessage();
+          });
         }
       }
     }

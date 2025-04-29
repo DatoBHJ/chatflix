@@ -127,7 +127,7 @@ export default function RootLayout({
         </RootLayoutClient>
         
         {/* Warmup script */}
-        <Script id="model-warmup">{`
+        {/* <Script id="model-warmup">{`
           // 앱 로드 시 웜업 API 호출 (딜레이 추가하여 초기 렌더링 방해 최소화)
           setTimeout(() => {
             fetch('/api/warmup')
@@ -135,7 +135,7 @@ export default function RootLayout({
               .then(data => console.log('Model warmup:', data.message))
               .catch(err => console.warn('Warmup failed:', err));
           }, 3000);
-        `}</Script>
+        `}</Script> */}
       </body>
     </html>
   )

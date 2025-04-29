@@ -288,6 +288,7 @@ export default function Chat({ params }: PageProps) {
           router.push('/login')
           return
         }
+        console.log('user', user)
         setUser(user)
         
         // 사용자의 기본 모델 가져오기

@@ -8,7 +8,7 @@ import { PromptShortcutsDialog } from './components/PromptShortcutsDialog'
 import { Header } from './components/Header'
 import Announcement from './components/Announcement'
 import useAnnouncement from './hooks/useAnnouncement'
-import { UserProvider } from './lib/UserContext'
+import { fetchUserName } from '@/app/components/AccountDialog'
 import { Toaster } from 'sonner'
 
 export default function RootLayoutClient({
@@ -19,6 +19,8 @@ export default function RootLayoutClient({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
+  const [profileImage, setProfileImage] = useState<string | null>(null)
+  const [userName, setUserName] = useState('You')
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -28,22 +30,86 @@ export default function RootLayoutClient({
     setIsSidebarOpen(prev => !prev)
   }
 
+  const fetchProfileImage = async (userId: string) => {
+    try {
+      const { data: profileData, error: profileError } = await supabase
+        .storage
+        .from('profile-pics')
+        .list(`${userId}`);
+
+      if (profileError) {
+        console.error('Error fetching profile image list:', profileError);
+        return;
+      }
+
+      if (profileData && profileData.length > 0) {
+        try {
+          const fileName = profileData[0].name;
+          const filePath = `${userId}/${fileName}`;
+          
+          if (!fileName || typeof fileName !== 'string') {
+            console.error('Invalid file name returned from storage');
+            return;
+          }
+          
+          const { data } = supabase
+            .storage
+            .from('profile-pics')
+            .getPublicUrl(filePath);
+          
+          if (data && data.publicUrl) {
+            try {
+              new URL(data.publicUrl);
+              setProfileImage(data.publicUrl);
+            } catch (urlError) {
+              console.error('Invalid URL format:', urlError);
+            }
+          } else {
+            console.error('No valid public URL returned');
+          }
+        } catch (error) {
+          console.error('Error getting public URL for profile image:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error in profile image fetch process:', error);
+    }
+  };
+
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setIsLoading(false)
-      setUser(user)
-      if (!user && pathname !== '/login') {
-        router.push('/login')
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+        setIsLoading(false)
+        
+        if (user) {
+          const name = await fetchUserName(user.id, supabase);
+          setUserName(name);
+          fetchProfileImage(user.id);
+        }
+        
+        if (!user && pathname !== '/login') {
+          router.push('/login')
+        }
+      } catch (error) {
+        console.error('Error loading user information:', error)
+        setIsLoading(false)
       }
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         setUser(null)
+        setProfileImage(null)
+        setUserName('You')
         router.push('/login')
       } else if (event === 'SIGNED_IN') {
         setUser(session?.user || null)
+        if (session?.user) {
+          fetchUserName(session.user.id, supabase).then(name => setUserName(name));
+          fetchProfileImage(session.user.id);
+        }
       }
     })
 
@@ -53,53 +119,6 @@ export default function RootLayoutClient({
       subscription.unsubscribe()
     }
   }, [supabase, router, pathname])
-
-  // announcements 
-  useEffect(() => {
-    if (user) {
-      // Uncomment to show multiple announcements
-      // showAnnouncement(
-      //   "Tip: Gemini 2.0 Flash supports million-token context windows for larger documents and multiple files, with faster processing and improved accuracy (76.4% MMLU_Pro, 70.7% MMMU)",
-      //   "info",
-      //   "Gemini-2-flash-tip"
-      // ); 
-      // showAnnouncement(
-      //   "Due to high demand on anthropic models, there may be some delays in response time. We are working on it. Try other models if you are experiencing delays.",
-      //   "warning",
-      //   "anthropic-models-high-request-3"
-      // ); 
-      // showAnnouncement(
-      //   "Due to high demand on Anthropic models, we're temporarily setting high limits on Anthropic models for free users. Please subscribe to get unlimited access. 80% off for the first month.",
-      //   "error",
-      //   "anthropic model high limits"
-      // );
-      // showAnnouncement(
-      //   "PDF uploads have been temporarily disabled for Anthropic models due to an ongoing issue with PDF reading. We expect to restore this functionality soon.",
-      //   "error",
-      //   "pdf-read-disabled"
-      // );
-      // showAnnouncement(
-      //   "Anthropic models are currently down. We are working on it. In the meantime, please try other models.",
-      //   "error",
-      //   "Anthropic-disabled"
-      // );
-      // showAnnouncement(
-      //   "SYSTEM UPDATE: chatflix_0.0.1: rate limit update, backend updates, and more",
-      //   "info",
-      //   "major-update-v3"
-      // );
-      // showAnnouncement(
-      //   "(Experimental) New Feature: PDF support",
-      //   "info",
-      //   "NEW FEATURE: PDF support -1"
-      // );
-      // showAnnouncement(
-      //   "We're currently rolling out a major system update. You may experience temporary issues, bugs, or service interruptions during this period. Thank you for your patience and understanding.",
-      //   "warning",
-      //   "major-update-in-progress-1"
-      // );
-    }
-  }, [user, showAnnouncement]);
 
   if (isLoading) {
     return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
@@ -114,51 +133,52 @@ export default function RootLayoutClient({
   }
 
   return (
-    <UserProvider>
-      <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)] overflow-x-hidden">
-        <Toaster position="top-right" richColors />
-        <Announcement
-          announcements={announcements || []}
-          onClose={hideAnnouncement}
+    <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)] overflow-x-hidden">
+      <Toaster position="top-right" richColors />
+      <Announcement
+        announcements={announcements || []}
+        onClose={hideAnnouncement}
+      />
+      {user && (
+        <Header 
+          isSidebarOpen={isSidebarOpen}
+          onSidebarToggle={toggleSidebar}
+          user={user}
         />
-        {user && (
-          <Header 
-            isSidebarOpen={isSidebarOpen}
-            onSidebarToggle={toggleSidebar}
-            user={user}
+      )}
+      
+      {/* Sidebar with improved transition */}
+      {user && (
+        <div 
+          className={`fixed left-0 top-0 h-full transform transition-all duration-300 ease-out z-40 ${
+            isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'
+          }`}
+        >
+          <Sidebar 
+            user={user} 
+            onClose={() => setIsSidebarOpen(false)} 
           />
-        )}
-        
-        {/* Sidebar with improved transition */}
-        {user && (
-          <div 
-            className={`fixed left-0 top-0 h-full transform transition-all duration-300 ease-out z-40 ${
-              isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'
-            }`}
-          >
-            <Sidebar user={user} onClose={() => setIsSidebarOpen(false)} />
-          </div>
-        )}
-
-        {/* Main Content */}
-        <div className="flex-1">
-          {children}
         </div>
+      )}
 
-        {/* Overlay with improved transition */}
-        {user && (
-          <div
-            className={`fixed inset-0 backdrop-blur-[1px] bg-black transition-all duration-300 ease-out z-30 ${
-              isSidebarOpen 
-                ? 'opacity-30 pointer-events-auto' 
-                : 'opacity-0 pointer-events-none'
-            }`}
-            onClick={() => setIsSidebarOpen(false)}
-          />
-        )}
-
-        {user && <PromptShortcutsDialog user={user} />}
+      {/* Main Content */}
+      <div className="flex-1">
+        {children}
       </div>
-    </UserProvider>
+
+      {/* Overlay with improved transition */}
+      {user && (
+        <div
+          className={`fixed inset-0 backdrop-blur-[1px] bg-black transition-all duration-300 ease-out z-30 ${
+            isSidebarOpen 
+              ? 'opacity-30 pointer-events-auto' 
+              : 'opacity-0 pointer-events-none'
+          }`}
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {user && <PromptShortcutsDialog user={user} />}
+    </div>
   )
 } 

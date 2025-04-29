@@ -5,9 +5,10 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import { useUser } from '@/app/lib/UserContext';
+// import { useUser } from '@/app/lib/UserContext';
 import { getModelById } from '@/lib/models/config';
 import { FeatureUpdate } from '@/app/components/WhatsNew';
+import { User } from '@supabase/supabase-js';
 
 // 북마크된 업데이트 타입 정의
 interface BookmarkedUpdate extends FeatureUpdate {
@@ -37,9 +38,37 @@ export default function BookmarksPage() {
   const [updateBookmarks, setUpdateBookmarks] = useState<BookmarkedUpdate[]>([]);
   const [messageBookmarks, setMessageBookmarks] = useState<BookmarkedMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
   const supabase = createClient();
-  const { user } = useUser();
   const router = useRouter();
+  
+  // Fetch user data
+  useEffect(() => {
+    const getUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+      } catch (error) {
+        console.error('Error loading user:', error);
+        setUser(null);
+      }
+    };
+
+    getUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        router.push('/login');
+      } else if (event === 'SIGNED_IN') {
+        setUser(session?.user || null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase, router]);
   
   // 북마크 데이터 가져오기
   useEffect(() => {

@@ -235,8 +235,6 @@ export function Sidebar({ user, onClose }: SidebarProps) {
   const handleDeleteChat = async (chatId: string, e: React.MouseEvent) => {
     e.stopPropagation()
     
-    if (!confirm('Do you want to delete this chat?')) return
-
     try {
       await deleteChat(chatId);
 

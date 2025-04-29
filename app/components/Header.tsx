@@ -4,9 +4,6 @@ import { useRouter } from 'next/navigation'
 import { ThemeToggle } from './ThemeToggle'
 import { SubscriptionButton } from './SubscriptionButton'
 import WhatsNewContainer from './WhatsNewContainer'
-import { useUser } from '@/app/lib/UserContext'
-import Image from 'next/image'
-
 export interface HeaderProps {
   isSidebarOpen: boolean;
   onSidebarToggle: () => void;
@@ -16,7 +13,6 @@ export interface HeaderProps {
 
 export function Header({ isSidebarOpen, onSidebarToggle, showBackButton, user }: HeaderProps) {
   const router = useRouter()
-  const { userName, profileImage } = useUser()
 
   return (
     <header className="fixed top-0 left-0 right-0 z-40 bg-[var(--background)]">
@@ -48,34 +44,12 @@ export function Header({ isSidebarOpen, onSidebarToggle, showBackButton, user }:
           )}
           
           <span 
-            className="text-xs font-bold py-0.5 px-0 flex items-center gap-1 text-[var(--foreground)] cursor-pointer" 
-            onClick={() => {
-              // Use window.location for direct navigation to avoid loading state issues
-              window.location.href = '/'
-            }}
+            className="text-xs font-bold py-0.5 px-0 flex items-center gap-1 text-[var(--foreground)]"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--foreground)]"></span>
             BETA
           </span>
 
-          {/* <div className="hidden md:flex items-center gap-2 cursor-pointer" onClick={() => router.push('/user-insights')}>
-            {profileImage ? (
-              <div className="w-7 h-7 rounded-full overflow-hidden relative">
-                <Image 
-                  src={profileImage} 
-                  alt={userName} 
-                  width={28}
-                  height={28}
-                  className="object-cover"
-                />
-              </div>
-            ) : (
-              <div className="w-7 h-7 rounded-full bg-[var(--foreground)] text-[var(--background)] inline-flex items-center justify-center text-sm font-medium">
-                {userName.charAt(0).toUpperCase()}
-              </div>
-            )}
-            <span className="text-sm font-medium">{userName}</span>
-          </div> */}
           {user && <SubscriptionButton user={user} />}
 
         </div>

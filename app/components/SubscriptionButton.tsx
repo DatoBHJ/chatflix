@@ -9,8 +9,8 @@ interface SubscriptionButtonProps {
 
 export function SubscriptionButton({ user }: SubscriptionButtonProps) {
   const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showTooltip, setShowTooltip] = useState(false);
+  // const [isLoading, setIsLoading] = useState(false);
+  // const [showTooltip, setShowTooltip] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -30,26 +30,26 @@ export function SubscriptionButton({ user }: SubscriptionButtonProps) {
     }
   };
 
-  const handleSubscribe = async () => {
-    if (!user) return;
+  // const handleSubscribe = async () => {
+  //   if (!user) return;
     
-    setIsLoading(true);
-    try {
-      const checkout = await createCheckoutSession(
-        user.id,
-        user.email,
-        user.user_metadata?.full_name
-      );
+  //   setIsLoading(true);
+  //   try {
+  //     const checkout = await createCheckoutSession(
+  //       user.id,
+  //       user.email,
+  //       user.user_metadata?.full_name
+  //     );
       
-      // Redirect to checkout URL
-      window.location.href = checkout.url;
-    } catch (error) {
-      console.error('Error creating checkout session:', error);
-      alert('Failed to create checkout session. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  //     // Redirect to checkout URL
+  //     window.location.href = checkout.url;
+  //   } catch (error) {
+  //     console.error('Error creating checkout session:', error);
+  //     alert('Failed to create checkout session. Please try again.');
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
   // Loading state
   if (isSubscribed === null) {
