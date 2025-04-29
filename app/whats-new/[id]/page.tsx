@@ -170,6 +170,34 @@ const SkeletonLoader = () => {
   );
 };
 
+// Function to convert URLs in text to clickable links
+const convertLinksToHtml = (text: string) => {
+  if (!text) return '';
+  
+  // URL regex pattern to detect links
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  
+  // Replace URLs with anchor tags
+  return text.split(urlRegex).map((part, i) => {
+    // Check if this part matches a URL
+    if (urlRegex.test(part)) {
+      return (
+        <a 
+          key={i} 
+          href={part} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:underline break-words"
+        >
+          {part}
+        </a>
+      );
+    }
+    // Return regular text
+    return part;
+  });
+};
+
 export default function SingleUpdatePage() {
   const params = useParams();
   const router = useRouter();
@@ -573,7 +601,9 @@ export default function SingleUpdatePage() {
                       </div>
                       
                       <h3 className="font-medium text-lg md:text-xl mt-2 md:mt-3">{currentUpdate.title}</h3>
-                      <p className="mt-2 md:mt-3 text-sm md:text-base text-[var(--foreground)]">{currentUpdate.description}</p>
+                      <p className="mt-2 md:mt-3 text-sm md:text-base text-[var(--foreground)]">
+                        {convertLinksToHtml(currentUpdate.description)}
+                      </p>
                       
                       {currentUpdate.images && currentUpdate.images.length > 0 && (
                         <div className="mt-3 md:mt-5 rounded-xl overflow-hidden border border-[var(--subtle-divider)]">
