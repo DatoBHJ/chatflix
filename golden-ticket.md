@@ -2,8 +2,6 @@
 
 ![Golden Ticket Access - Subscribe Now](https://www.chatflix.app/previous/drake-meme.png)
 
-> ## ***"UNLOCK EVERYTHING 4 $4 4EVER!!"***
-
 ---
 
 ## **THE MATH IS SIMPLE:**
@@ -17,4 +15,3 @@
 | **CHATFLIX** | **$4** | **ALL IN ONE** |
 
 > ##  ***"Lock In This Price Forever! This is a limited-time offer. Price will increase soon."***
-
