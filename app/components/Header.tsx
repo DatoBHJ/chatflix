@@ -56,12 +56,12 @@ export function Header({ isSidebarOpen, onSidebarToggle, showBackButton, user }:
 
         <div className="flex items-center gap-5">
           {/* 이부분에 PRICING 버튼 추가 */}
-          {/* <button
+          <button
             onClick={() => router.push('/pricing')}
             className="text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
           >
             PRICING
-          </button> */}
+          </button>
           <WhatsNewContainer />
           <ThemeToggle />
         </div>
