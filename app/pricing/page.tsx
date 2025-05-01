@@ -2,35 +2,91 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useUser } from '@/app/lib/UserContext'
+import Image from 'next/image'
+import { createClient } from '@/utils/supabase/client'
+import { User } from '@supabase/supabase-js'
+// import { useUser } from '@/app/lib/UserContext'
 import { createCheckoutSession, checkSubscription } from '@/lib/polar'
 
 export default function PricingPage() {
   const router = useRouter()
-  const { user } = useUser()
+  const supabase = createClient()
+  // const { user } = useUser()
+  const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(false)
+  const [isUserLoading, setIsUserLoading] = useState(true)
   const [isCheckingSubscription, setIsCheckingSubscription] = useState(true)
 
+  // Fetch user data
   useEffect(() => {
-    async function checkUserSubscription() {
-      if (!user || !user.id) {
-        setIsCheckingSubscription(false)
-        return
-      }
-      
+    const getUser = async () => {
+      setIsUserLoading(true)
       try {
-        const hasSubscription = await checkSubscription(user.id)
-        setIsSubscribed(hasSubscription)
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+        
+        // Only check subscription if we have a user
+        if (user && user.id) {
+          try {
+            const hasSubscription = await checkSubscription(user.id)
+            setIsSubscribed(hasSubscription)
+          } catch (error) {
+            console.error('Error checking subscription:', error)
+          } finally {
+            setIsCheckingSubscription(false)
+          }
+        } else {
+          setIsCheckingSubscription(false)
+        }
       } catch (error) {
-        console.error('Error checking subscription:', error)
-      } finally {
+        console.error('Error loading user:', error)
+        setUser(null)
         setIsCheckingSubscription(false)
+      } finally {
+        setIsUserLoading(false)
       }
     }
-    
-    checkUserSubscription()
-  }, [user])
+
+    getUser()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsUserLoading(true)
+      setIsCheckingSubscription(true)
+      
+      if (event === 'SIGNED_OUT') {
+        setUser(null)
+        setIsSubscribed(false)
+        setIsUserLoading(false)
+        setIsCheckingSubscription(false)
+      } else if (event === 'SIGNED_IN') {
+        const newUser = session?.user || null
+        setUser(newUser)
+        
+        // Check subscription status when user signs in
+        if (newUser && newUser.id) {
+          checkSubscription(newUser.id)
+            .then(hasSubscription => {
+              setIsSubscribed(hasSubscription)
+            })
+            .catch(error => {
+              console.error('Error checking subscription:', error)
+            })
+            .finally(() => {
+              setIsUserLoading(false)
+              setIsCheckingSubscription(false)
+            })
+        } else {
+          setIsUserLoading(false)
+          setIsCheckingSubscription(false)
+        }
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [supabase])
 
   const handleSubscribe = async () => {
     if (!user || !user.email || !user.id) {
@@ -55,10 +111,14 @@ export default function PricingPage() {
     }
   }
 
-  if (isCheckingSubscription) {
+  // Show loading indicator while fetching user info or checking subscription
+  if (isUserLoading || isCheckingSubscription) {
     return (
       <div className="min-h-screen pt-28 pb-20 px-6 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[var(--foreground)] border-t-transparent rounded-full animate-spin"></div>
+        <div className="flex flex-col items-center">
+          <div className="w-8 h-8 border-2 border-[var(--foreground)] border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-[var(--muted)]">Loading pricing information...</p>
+        </div>
       </div>
     )
   }
@@ -189,6 +249,19 @@ export default function PricingPage() {
               
               <h2 className="text-xl font-bold mb-2">Unlimited</h2>
               <p className="text-[var(--muted)] mb-6">Full access without limits</p>
+              
+              {/* Drake Meme */}
+              <div className="mb-6 rounded-md overflow-hidden border border-[var(--subtle-divider)] shadow-sm">
+                <Image 
+                  src="/previous/drake-meme.png" 
+                  alt="Drake meme showing expensive individual AI services vs our all-in-one solution"
+                  width={600}
+                  height={600}
+                  className="w-full h-auto object-contain scale-150 transform-gpu"
+                  style={{ aspectRatio: '1/1', objectPosition: 'center' }}
+                  priority
+                />
+              </div>
               
               <div className="mb-2">
                 <div className="text-3xl font-bold mb-1">$4</div>

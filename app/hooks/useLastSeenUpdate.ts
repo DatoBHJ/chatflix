@@ -1,13 +1,42 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { useUser } from '@/app/lib/UserContext';
+// import { useUser } from '@/app/lib/UserContext';
+import { User } from '@supabase/supabase-js';
 
 export const useLastSeenUpdate = () => {
   const [lastSeenUpdateId, setLastSeenUpdateId] = useState<string | null>(null);
   const [lastSeenTimestamp, setLastSeenTimestamp] = useState<number>(0);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
   const supabase = createClient();
-  const { user } = useUser();
+  // const { user } = useUser();
+
+  // Fetch user data
+  useEffect(() => {
+    const getUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+      } catch (error) {
+        console.error('Error loading user:', error);
+        setUser(null);
+      }
+    };
+
+    getUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+      } else if (event === 'SIGNED_IN') {
+        setUser(session?.user || null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   // Load from Supabase on mount and when user changes
   useEffect(() => {
@@ -50,7 +79,7 @@ export const useLastSeenUpdate = () => {
     };
 
     fetchLastSeen();
-  }, [user]);
+  }, [user, supabase]);
 
   // Function to update the last seen update
   const updateLastSeen = async (updateId: string, timestamp?: number) => {

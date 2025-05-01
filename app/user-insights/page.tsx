@@ -858,6 +858,7 @@ export default function UserInsightsPage() {
                       src={profileImage} 
                       alt="Profile" 
                       fill 
+                      sizes="96px"
                       className="object-cover"
                     />
                   ) : (

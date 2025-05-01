@@ -5,7 +5,8 @@ import { createClient } from '@/utils/supabase/client';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/app/lib/UserContext';
+// import { useUser } from '@/app/lib/UserContext';
+import { User } from '@supabase/supabase-js';
 
 // FeatureUpdate 타입을 확장하여 필요한 필드 추가
 interface ExtendedFeatureUpdate extends FeatureUpdate {
@@ -25,7 +26,35 @@ const WhatsNewContainer: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const { user } = useUser();
+  // const { user } = useUser();
+  const [user, setUser] = useState<User | null>(null);
+  
+  // Fetch user data
+  useEffect(() => {
+    const getUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+      } catch (error) {
+        console.error('Error loading user:', error);
+        setUser(null);
+      }
+    };
+
+    getUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+      } else if (event === 'SIGNED_IN') {
+        setUser(session?.user || null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
   
   // Fetch updates from Supabase
   useEffect(() => {

@@ -6,7 +6,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import SocialActions from '@/app/components/SocialActions';
-import { useUser } from '@/app/lib/UserContext';
+// import { useUser } from '@/app/lib/UserContext';
+import { User } from '@supabase/supabase-js';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface FeatureUpdate {
@@ -219,7 +220,35 @@ export default function SingleUpdatePage() {
   const containerRef = useRef<HTMLDivElement>(null);
   
   const supabase = createClient();
-  const { user } = useUser();
+  // const { user } = useUser();
+  const [user, setUser] = useState<User | null>(null);
+
+  // Fetch user data
+  useEffect(() => {
+    const getUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+      } catch (error) {
+        console.error('Error loading user:', error);
+        setUser(null);
+      }
+    };
+
+    getUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+      } else if (event === 'SIGNED_IN') {
+        setUser(session?.user || null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   useEffect(() => {
     const fetchUpdate = async () => {

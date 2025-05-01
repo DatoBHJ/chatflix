@@ -5,7 +5,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-// import { useUser } from '@/app/lib/UserContext';
 import { getModelById } from '@/lib/models/config';
 import { FeatureUpdate } from '@/app/components/WhatsNew';
 import { User } from '@supabase/supabase-js';

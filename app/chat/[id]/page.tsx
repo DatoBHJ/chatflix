@@ -113,6 +113,8 @@ export default function Chat({ params }: PageProps) {
         const limit = errorData?.limit || 10;
         const level = errorData?.level || '';
         const modelId = errorData?.model || nextModel;
+        const resetTime = new Date(reset);
+        const minutesUntilReset = Math.max(1, Math.ceil((resetTime.getTime() - Date.now()) / 60000));
         
         // Update rate limit information in localStorage
         if (level) {
@@ -152,14 +154,34 @@ export default function Chat({ params }: PageProps) {
           }
         }
         
-        // Include chatId and level in the redirect URL
-        router.push(`/rate-limit?${new URLSearchParams({
-          limit: limit.toString(),
-          reset,
-          model: modelId,
-          chatId: chatId,
-          level: level
-        }).toString()}`);
+        // 리다이렉션 대신 메시지 추가
+        setMessages(prevMessages => [
+          ...prevMessages,
+          {
+            id: `rate-limit-${Date.now()}`,
+            role: 'assistant',
+            content: '',
+            createdAt: new Date(),
+            annotations: [
+              {
+                type: 'rate_limit_status',
+                data: {
+                  message: `Rate limit reached. Try again in ${minutesUntilReset} minutes or upgrade for higher limits`,
+                  reset: reset,
+                  limit: limit,
+                  level: level,
+                  model: modelId,
+                  upgradeUrl: '/pricing'
+                }
+              }
+            ]
+          } as Message
+        ]);
+        
+        // 새로운 rate limit 상태 설정
+        setRateLimitedLevels(prev => 
+          level && !prev.includes(level) ? [...prev, level] : prev
+        );
         
         return;
       }

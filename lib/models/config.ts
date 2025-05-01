@@ -38,7 +38,7 @@ export interface ModelConfig {
 }
 
 // Default model configuration
-export const DEFAULT_MODEL_ID = 'gemini-2.0-flash'; 
+export const DEFAULT_MODEL_ID = 'gpt-4.1-mini'; 
 
 export const RATE_LIMITS = {
   level0: {

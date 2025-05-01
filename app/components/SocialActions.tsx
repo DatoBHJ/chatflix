@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { useUser } from '@/app/lib/UserContext';
+// import { useUser } from '@/app/lib/UserContext';
+import { User } from '@supabase/supabase-js';
 
 interface SocialActionsProps {
   updateId: string;
@@ -26,8 +27,36 @@ const SocialActions: React.FC<SocialActionsProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isActionInProgress, setIsActionInProgress] = useState(false);
   
-  const { user } = useUser();
+  // const { user } = useUser();
+  const [user, setUser] = useState<User | null>(null);
   const supabase = createClient();
+
+  // Fetch user data
+  useEffect(() => {
+    const getUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+      } catch (error) {
+        console.error('Error loading user:', error);
+        setUser(null);
+      }
+    };
+
+    getUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+      } else if (event === 'SIGNED_IN') {
+        setUser(session?.user || null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   // Fetch like count and user's like/bookmark status
   useEffect(() => {

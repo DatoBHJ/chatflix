@@ -455,6 +455,11 @@ const Message = memo(function MessageComponent({
     const subscriptionAnnotation = message.annotations?.find(
       (annotation) => annotation && typeof annotation === 'object' && 'type' in annotation && annotation.type === 'subscription_status'
     ) as any;
+    
+    // rate limit 상태 확인
+    const rateLimitAnnotation = message.annotations?.find(
+      (annotation) => annotation && typeof annotation === 'object' && 'type' in annotation && annotation.type === 'rate_limit_status'
+    ) as any;
 
     return (
       <div className="message-group group animate-fade-in overflow-hidden" id={message.id}>
@@ -637,6 +642,19 @@ const Message = memo(function MessageComponent({
               </div>
             )}
             
+            {/* Rate Limit 메시지 표시 */}
+            {rateLimitAnnotation && rateLimitAnnotation.data && (
+              <div className="text-sm text-[color-mix(in_srgb,var(--foreground)_70%,transparent)] mb-2">
+                {rateLimitAnnotation.data.message.replace('upgrade for higher limits', 'get higher limits')}&nbsp;
+                <button 
+                  onClick={handleUpgradeClick}
+                  className="text-blue-500 hover:underline font-medium"
+                >
+                  here
+                </button>
+              </div>
+            )}
+            
             {hasAnyContent ? (
               <div className="flex flex-col gap-2">
                 {structuredMainResponse ? (
@@ -650,29 +668,33 @@ const Message = memo(function MessageComponent({
                 ) : (
                   <MarkdownContent content={message.content} />
                 )}
-                <div className="loading-dots text-xl">
-                  <span>.</span>
-                  <span>.</span>
-                  <span>.</span>
-                </div>
+                {!rateLimitAnnotation && (
+                  <div className="loading-dots text-xl">
+                    <span>.</span>
+                    <span>.</span>
+                    <span>.</span>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex items-center">
-                <div className="loading-dots text-xl inline-flex mr-1">
-                  <span>.</span>
-                  <span>.</span>
-                  <span>.</span>
-                </div>
+                {!rateLimitAnnotation && (
+                  <div className="loading-dots text-xl inline-flex mr-1">
+                    <span>.</span>
+                    <span>.</span>
+                    <span>.</span>
+                  </div>
+                )}
                 
                 {/* 구독 상태 메시지 (로딩 중이고 비구독자일 때만 표시) */}
-                {subscriptionAnnotation && subscriptionAnnotation.data && !subscriptionAnnotation.data.isSubscribed && (
-                  <span className="text-foreground text-sm inline-flex items-center">
-                    &nbsp;slow request,&nbsp;
+                {!rateLimitAnnotation && subscriptionAnnotation && subscriptionAnnotation.data && !subscriptionAnnotation.data.isSubscribed && (
+                  <span className="text-[color-mix(in_srgb,var(--foreground)_70%,transparent)] text-sm inline-flex items-center">
+                    &nbsp;slow request, get fast access&nbsp;
                     <button 
                       onClick={handleUpgradeClick}
-                      className="text-blue-500 underline font-medium"
+                      className="text-blue-500 hover:underline font-medium"
                     >
-                      get fast access here
+                      here
                     </button>
                   </span>
                 )}
@@ -782,6 +804,7 @@ const Message = memo(function MessageComponent({
                   src={profileImage} 
                   alt={userName} 
                   fill 
+                  sizes="20px"
                   className="object-cover"
                 />
               </div>

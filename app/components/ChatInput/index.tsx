@@ -71,7 +71,7 @@ export function ChatInput({
   // 초기 렌더링 시 자동 포커스
   useEffect(() => {
     if (inputRef.current) {
-      inputRef.current.focus();
+      inputRef.current.focus({ preventScroll: true });
     }
   }, []);
 
@@ -397,7 +397,7 @@ export function ChatInput({
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.classList.add('empty');
-      inputRef.current.focus();
+      inputRef.current.focus({ preventScroll: true });
     }
   }, []);
 

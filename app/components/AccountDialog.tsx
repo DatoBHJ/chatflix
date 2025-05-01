@@ -552,6 +552,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
                           src={profileImage} 
                           alt={userName} 
                           fill 
+                          sizes="96px"
                           className="object-cover"
                         />
                       ) : (
