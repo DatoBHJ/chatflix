@@ -574,40 +574,66 @@ export default function UserInsightsPage() {
       
       setUserData({
         profileData: profileData || null,
-        chatStats: chatStats?.[0] || {},
+        chatStats: chatStats?.[0] || {
+          total_messages: 0,
+          total_sessions: 0,
+          models_used: 0,
+          first_chat: null,
+          last_chat: null,
+          days_since_first_chat: 0
+        },
         modelStats: modelStats || [],
-        hourlyStats: hourlyStats?.[0] || {},
-        sessionStats: sessionStats?.[0] || {},
-        userPercentile: userPercentile?.[0] || { top_percentile: 0 },
+        hourlyStats: hourlyStats?.[0] || { hour: 12 },
+        sessionStats: sessionStats?.[0] || { avg_session_length: 0, longest_session: 0 },
+        userPercentile: userPercentile?.[0] || { top_percentile: 0, message_count: 0 },
         displayName: displayName,
         allDaysOfWeek: allDaysOfWeek || [],
         weekdayPattern: weekdayPattern || [],
         questionRatio: questionRatio || [],
         responseLengths: responseLengths || [],
-        modelDiversity: modelDiversity?.[0] || {}
+        modelDiversity: modelDiversity?.[0] || {
+          unique_models: 0,
+          model_families_used: 0,
+          model_exploration_score: 0,
+          primary_model: '',
+          primary_model_percentage: 0
+        }
       });
     } catch (error) {
       console.error('Error loading user insights:', error);
       setUserData({
         profileData: null,
-        chatStats: {},
+        chatStats: {
+          total_messages: 0,
+          total_sessions: 0,
+          models_used: 0,
+          first_chat: null,
+          last_chat: null,
+          days_since_first_chat: 0
+        },
         modelStats: [],
-        hourlyStats: {},
-        sessionStats: {},
-        userPercentile: { top_percentile: 0 },
+        hourlyStats: { hour: 12 },
+        sessionStats: { avg_session_length: 0, longest_session: 0 },
+        userPercentile: { top_percentile: 0, message_count: 0 },
         displayName: displayName,
         allDaysOfWeek: [],
         weekdayPattern: [],
         questionRatio: [],
         responseLengths: [],
-        modelDiversity: {}
+        modelDiversity: {
+          unique_models: 0,
+          model_families_used: 0,
+          model_exploration_score: 0,
+          primary_model: '',
+          primary_model_percentage: 0
+        }
       });
     }
   };
 
   // Format date nicely
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '';
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Not available';
     const date = new Date(dateString);
     // Convert to local timezone
     return date.toLocaleDateString('en-US', { 
@@ -1090,15 +1116,15 @@ export default function UserInsightsPage() {
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <div className="text-2xl sm:text-3xl font-bold mb-1 tabular-nums truncate" title={avg_session_length.toString()}>
-                    {avg_session_length}
+                  <div className="text-2xl sm:text-3xl font-bold mb-1 tabular-nums truncate" title={(avg_session_length || 0).toString()}>
+                    {avg_session_length || 0}
                   </div>
                   <p className="text-xs sm:text-sm text-[var(--muted)] truncate">Messages per conversation</p>
                 </div>
                 
                 <div>
-                  <div className="text-2xl sm:text-3xl font-bold mb-1 tabular-nums truncate" title={longest_session.toString()}>
-                    {longest_session}
+                  <div className="text-2xl sm:text-3xl font-bold mb-1 tabular-nums truncate" title={(longest_session || 0).toString()}>
+                    {longest_session || 0}
                   </div>
                   <p className="text-xs sm:text-sm text-[var(--muted)] truncate">Your deepest conversation</p>
                 </div>
@@ -1310,7 +1336,9 @@ export default function UserInsightsPage() {
               
               <div className="flex-1 bg-[var(--background)] p-4 rounded-xl">
                 <div className="text-center mb-4">
-                  <div className="text-xl sm:text-2xl font-bold mb-1 truncate">{primary_model || "No favorite yet"}</div>
+                  <div className="text-2xl sm:text-3xl font-bold mb-1 truncate" title={primary_model || "No favorite yet"}>
+                    {primary_model || "No favorite yet"}
+                  </div>
                   <div className="text-xs sm:text-sm text-[var(--muted)]">Your MVP</div>
                 </div>
                 
@@ -1334,9 +1362,9 @@ export default function UserInsightsPage() {
                   </div>
                   
                   <div className="mt-4 text-center text-xs text-[var(--muted)]">
-                    {primary_model_percentage > 75 
+                    {(primary_model_percentage || 0) > 75 
                       ? "You're very loyal to your favorite!" 
-                      : primary_model_percentage > 50 
+                      : (primary_model_percentage || 0) > 50 
                       ? "You have a clear favorite but like variety too."
                       : "You enjoy a diverse cast of AI models."}
                   </div>
