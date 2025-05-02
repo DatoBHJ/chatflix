@@ -31,7 +31,7 @@ import {
   createDataProcessorTool,
 } from './tools';
 import { handleRateLimiting } from './utils/ratelimit';
-import { toolPrompts, toolNameToPromptKey } from './prompts/toolPrompts';
+import { toolPrompts } from './prompts/toolPrompts';
 import { checkSubscription } from '@/lib/polar';
 
 // Agent 모드에서만 사용할 메모리 관련 import

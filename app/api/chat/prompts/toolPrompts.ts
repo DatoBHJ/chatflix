@@ -150,16 +150,3 @@ Then start the data processing.
   * The Python backend handles large datasets efficiently, so you can process millions of rows
   * Present numerical results with appropriate precision and units`
 };
-
-// 도구 이름과 프롬프트 맵핑 정보
-export const toolNameToPromptKey: Record<string, keyof typeof toolPrompts> = {
-  'web_search': 'webSearch',
-  'calculate': 'calculator',
-  'link_reader': 'linkReader',
-  'image_generator': 'imageGenerator',
-  'academic_search': 'academicSearch',
-  'x_search': 'xSearch',
-  'youtube_search': 'youtubeSearch',
-  'youtube_link_analyzer': 'youtubeLinkAnalyzer',
-  'data_processor': 'dataProcessor'
-}; 
