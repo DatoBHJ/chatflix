@@ -1,7 +1,7 @@
 import { getRateLimiter, createRateLimitKey } from '@/lib/ratelimit';
 import { getModelById, RATE_LIMITS } from '@/lib/models/config';
 
-export const handleRateLimiting = async (userId: string, model: string, email: string) => {
+export const handleRateLimiting = async (userId: string, model: string) => {
     if (!userId) {
       throw new Error('User ID is required for rate limiting');
     }
@@ -14,7 +14,7 @@ export const handleRateLimiting = async (userId: string, model: string, email: s
     const now = new Date();
     console.log(`[DEBUG-RATELIMIT][${now.toISOString()}] Checking rate limit for user ${userId}, model ${model}, level ${modelConfig.rateLimit.level}`);
     
-    const rateLimiters = await getRateLimiter(model, userId, email);
+    const rateLimiters = await getRateLimiter(model, userId);
     const level = modelConfig.rateLimit.level;
     
     // 시간당 제한 체크

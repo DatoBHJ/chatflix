@@ -106,7 +106,7 @@ export async function POST(req: Request) {
     }
 
     // 구독 상태 확인
-    const isSubscribed = await checkSubscription(user.id, user.email || '');
+    const isSubscribed = await checkSubscription(user.id);
     
     // 사용자의 오늘 요청 횟수 확인
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD 형식
@@ -127,7 +127,7 @@ export async function POST(req: Request) {
     const shouldDelay = !isSubscribed && currentRequestCount >= REQUEST_THRESHOLD;
 
     // Check rate limiting with potentially updated model
-    const rateLimitResult = await handleRateLimiting(user.id, model, user.email || '');
+    const rateLimitResult = await handleRateLimiting(user.id, model);
     if (!rateLimitResult.success) {
       const { error } = rateLimitResult;
       

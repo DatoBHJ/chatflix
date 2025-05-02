@@ -360,7 +360,7 @@ export default function RateLimitPage() {
         // Check subscription status
         setIsCheckingSubscription(true)
         try {
-          const hasSubscription = await checkSubscription(user.id, user.email || '')
+          const hasSubscription = await checkSubscription(user.id)
           setIsSubscribed(hasSubscription)
         } catch (error) {
           console.error('Error checking subscription status:', error)

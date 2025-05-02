@@ -68,7 +68,7 @@ export function createPolarClient() {
 }
 
 // Check if a user has an active subscription
-export async function checkSubscription(externalId: string, email?: string): Promise<boolean> {
+export async function checkSubscription(externalId: string): Promise<boolean> {
   try {
     const polar = createPolarClient();
     const config = getPolarConfig();
@@ -79,74 +79,21 @@ export async function checkSubscription(externalId: string, email?: string): Pro
         setTimeout(() => reject(new Error('Polar API request timed out')), 5000);
       });
       
-      // Try to get subscription status using external ID first
-      let result: any;
-      let isSubscribed = false;
-      let subscriptionCheckMethod = '';
+      const resultPromise = polar.customers.getStateExternal({
+        externalId,
+      });
       
-      try {
-        const resultPromise = polar.customers.getStateExternal({
-          externalId,
-        });
-        
-        // Race between the API call and timeout
-        result = await Promise.race([resultPromise, timeoutPromise]) as any;
-        
-        // Check if user has any active subscriptions
-        isSubscribed = result.activeSubscriptions && result.activeSubscriptions.length > 0;
-        subscriptionCheckMethod = 'externalId';
-        
-        console.log(`[polar.ts]: Subscription check via externalId successful for ${externalId}`);
-      } catch (externalIdError: any) {
-        console.log(`[polar.ts]: Could not check subscription via externalId: ${externalIdError.message}`);
-        
-        // If external ID check fails and email is provided, try to find customer by email
-        if (email) {
-          console.log(`[polar.ts]: Attempting to check subscription via email for ${email}`);
-          
-          try {
-            // Try to list customers with the provided email
-            const customersPromise = polar.customers.list({
-              email: email
-            });
-            
-            const customers = await Promise.race([customersPromise, timeoutPromise]) as any;
-            
-            // If any customers found with this email
-            if (customers.items && customers.items.length > 0) {
-              const customer = customers.items[0];
-              console.log(`[polar.ts]: Found customer via email: ${customer.id}`);
-              
-              // Get customer state to check subscriptions
-              const customerStatePromise = polar.customers.getState({
-                id: customer.id
-              });
-              
-              const customerState = await Promise.race([customerStatePromise, timeoutPromise]) as any;
-              
-              // Check if user has any active subscriptions
-              isSubscribed = customerState.activeSubscriptions && customerState.activeSubscriptions.length > 0;
-              subscriptionCheckMethod = 'email';
-              
-              // Update result for further processing
-              result = customerState;
-              console.log(`[polar.ts]: Subscription check via email successful. Active subscriptions: ${isSubscribed ? 'Yes' : 'No'}`);
-            } else {
-              console.log(`[polar.ts]: No customers found with email: ${email}`);
-            }
-          } catch (emailError: any) {
-            console.error(`[polar.ts]: Failed to check subscription via email: ${emailError.message}`);
-          }
-        }
-      }
+      // Race between the API call and timeout
+      const result = await Promise.race([resultPromise, timeoutPromise]) as any;
+      
+      // Check if user has any active subscriptions
+      const isSubscribed = result.activeSubscriptions && result.activeSubscriptions.length > 0;
       
       // Get previously cached subscription status if available
       let previousStatus = false;
-      const cacheKey = subscriptionCheckMethod === 'email' ? `subscription_status_email_${email}` : `subscription_status_${externalId}`;
-      
       if (typeof window !== 'undefined') {
         try {
-          const cachedStatus = localStorage.getItem(cacheKey);
+          const cachedStatus = localStorage.getItem(`subscription_status_${externalId}`);
           previousStatus = cachedStatus === 'true';
         } catch (e) {
           // Ignore errors when accessing localStorage
@@ -162,7 +109,7 @@ export async function checkSubscription(externalId: string, email?: string): Pro
       // Cache the current status
       if (typeof window !== 'undefined') {
         try {
-          localStorage.setItem(cacheKey, String(isSubscribed));
+          localStorage.setItem(`subscription_status_${externalId}`, String(isSubscribed));
         } catch (e) {
           // Ignore errors when accessing localStorage
         }
