@@ -89,11 +89,18 @@ export default function PricingPage() {
   }, [supabase])
 
   const handleSubscribe = async () => {
-    if (!user || !user.email || !user.id) {
+    // Check if user is logged in
+    if (!user) {
       router.push('/login')
       return
     }
     
+    // Verify user has the required data
+    if (!user.id || !user.email) {
+      alert('Your account information is incomplete. Please log out and sign in again.')
+      return
+    }
+        
     setIsLoading(true)
     try {
       const checkout = await createCheckoutSession(
@@ -101,8 +108,13 @@ export default function PricingPage() {
         user.email,
         user.user_metadata?.full_name || user.email.split('@')[0]
       )
-      
-      window.location.href = checkout.url
+            
+      // Only redirect if we got a valid checkout URL
+      if (checkout && checkout.url) {
+        window.location.href = checkout.url
+      } else {
+        throw new Error('Invalid checkout response')
+      }
     } catch (error) {
       console.error('Error creating checkout session:', error)
       alert('Failed to create checkout session. Please try again.')
@@ -110,6 +122,7 @@ export default function PricingPage() {
       setIsLoading(false)
     }
   }
+  
 
   // Show loading indicator while fetching user info or checking subscription
   if (isUserLoading || isCheckingSubscription) {
