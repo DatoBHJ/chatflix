@@ -173,7 +173,7 @@ const dailyRateLimiters = {
 const subscriptionCache = new Map<string, { isSubscribed: boolean, timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
 
-async function isUserSubscribed(userId: string): Promise<boolean> {
+async function isUserSubscribed(userId: string, email: string): Promise<boolean> {
   // If no userId is provided, return false (not subscribed)
   if (!userId) return false;
   
@@ -187,7 +187,7 @@ async function isUserSubscribed(userId: string): Promise<boolean> {
   
   // Check subscription status
   try {
-    const isSubscribed = await checkSubscription(userId);
+    const isSubscribed = await checkSubscription(userId, email);
     subscriptionCache.set(userId, { isSubscribed, timestamp: now });
     return isSubscribed;
   } catch (error) {
@@ -203,7 +203,7 @@ async function isUserSubscribed(userId: string): Promise<boolean> {
 }
 
 // Function to get rate limiter for a specific model
-export async function getRateLimiter(model: string, userId?: string): Promise<{hourly: Ratelimit, daily: Ratelimit}> {
+export async function getRateLimiter(model: string, userId?: string, email?: string): Promise<{hourly: Ratelimit, daily: Ratelimit}> {
   if (!model) {
     throw new Error('Model parameter is required');
   }
@@ -215,7 +215,7 @@ export async function getRateLimiter(model: string, userId?: string): Promise<{h
   
   // Check if user has an active subscription
   if (userId) {
-    const isSubscribed = await isUserSubscribed(userId);
+    const isSubscribed = await isUserSubscribed(userId, email || '');
     if (isSubscribed) {
       const unlimitedLimiter = new Ratelimit({
         redis,

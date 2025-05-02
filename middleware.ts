@@ -173,6 +173,7 @@ export async function middleware(request: NextRequest) {
 
   // Try to get the user ID for subscription and rate limiting
   let userId: string | undefined;
+  let email: string | undefined;
   try {
     // Create a Supabase client for the middleware
     const supabase = createServerClient(
@@ -193,6 +194,7 @@ export async function middleware(request: NextRequest) {
     // Get the user
     const { data: { user } } = await supabase.auth.getUser()
     userId = user?.id
+    email = user?.email
   } catch (error) {
     console.error('Error getting user in middleware:', error)
     // Continue without user ID if there's an error
@@ -231,7 +233,7 @@ export async function middleware(request: NextRequest) {
           
           // Get hourly and daily rate limiters
           console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Using level ${level} for model ${modelId}`);
-          const rateLimiters = await getRateLimiter(modelId, userId);
+          const rateLimiters = await getRateLimiter(modelId, userId, email);
           
           // Check if the user is subscribed
           let isSubscribed = false;

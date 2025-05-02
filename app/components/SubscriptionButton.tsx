@@ -22,7 +22,7 @@ export function SubscriptionButton({ user }: SubscriptionButtonProps) {
     if (!user) return;
     
     try {
-      const hasSubscription = await checkSubscription(user.id);
+      const hasSubscription = await checkSubscription(user.id, user.email || '');
       setIsSubscribed(hasSubscription);
     } catch (error) {
       // console.error('Error checking subscription:', error);
