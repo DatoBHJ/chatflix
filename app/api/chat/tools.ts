@@ -785,6 +785,8 @@ export function createXSearchTool(dataStream: any) {
           startPublishedDate: startDate,
           endPublishedDate: endDate,
         });
+
+        console.log('[X Search] Result:', result);
         
         // Extract tweet ID from URL
         const extractTweetId = (url: string): string | null => {

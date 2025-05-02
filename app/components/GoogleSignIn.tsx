@@ -100,8 +100,8 @@ export function GoogleSignIn() {
       
       {/* Fallback while button is loading */}
       {!buttonRendered && (
-        <div className="w-[280px] h-[40px] border border-gray-300 rounded-md flex items-center justify-center">
-          <span className="text-sm text-gray-600">Loading Google Sign-In...</span>
+        <div className="w-[280px] h-[40px] border border-[var(--subtle-divider)] rounded-md flex items-center justify-center">
+          <span className="text-sm text-[var(--muted)]">Loading Google Sign-In...</span>
         </div>
       )}
       
