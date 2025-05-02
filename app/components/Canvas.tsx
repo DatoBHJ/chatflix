@@ -216,11 +216,11 @@ export default function Canvas({
   }, [academicSearchData, academicSearchExpanded]);
   
   // Measure X search content height
-  useEffect(() => {
-    if (xSearchContentRef.current && xSearchData) {
-      setXSearchContentHeight(xSearchContentRef.current.scrollHeight);
-    }
-  }, [xSearchData, xSearchExpanded]);
+  // useEffect(() => {
+  //   if (xSearchContentRef.current && xSearchData) {
+  //     setXSearchContentHeight(xSearchContentRef.current.scrollHeight);
+  //   }
+  // }, [xSearchData, xSearchExpanded]);
   
   // Measure YouTube search content height
   useEffect(() => {
@@ -594,7 +594,7 @@ export default function Canvas({
       )}
       
       {/* X Search Results */}
-      {xSearchData && xSearchData.xResults.length > 0 && (
+      {/* {xSearchData && xSearchData.xResults.length > 0 && (
         <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
           <div 
             className="flex items-center justify-between w-full mb-4 cursor-pointer"
@@ -640,19 +640,15 @@ export default function Canvas({
                     <h4 className="text-sm font-medium">"{searchResult.query}"</h4>
                   </div>
                   
-                  {/* Tweet display section */}
                   <div className="mb-4">
-                    {/* Tweets with embedded rendering if tweetId exists */}
                     <div className="grid grid-cols-1 gap-4">
                       {searchResult.results.map((post, postIndex) => (
                         <div key={postIndex} className="w-full overflow-hidden transition-all hover:shadow-md rounded-lg">
                           {post.tweetId ? (
-                            // If tweetId is available, use the Tweet component
                             <div className="w-full [&>div]:w-full [&>div]:mx-auto rounded-lg overflow-hidden [&_a]:!text-[color-mix(in_srgb,var(--foreground)_75%,transparent)] [&_a:hover]:!text-[color-mix(in_srgb,var(--foreground)_90%,transparent)] [&_.react-tweet-theme]:!bg-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] dark:[&_.react-tweet-theme]:!bg-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] [&_.react-tweet-border]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_hr]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_div[data-separator]]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_.react-tweet-header-border]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_.react-tweet-footer-border]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_*]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)]">
                               <Tweet id={post.tweetId} />
                             </div>
                           ) : (
-                            // Fallback to text representation if no tweetId
                             <div className="p-3 border border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] rounded-lg bg-[color-mix(in_srgb,var(--foreground)_1%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)] transition-colors">
                               <div className="flex gap-2 mb-1">
                                 <span className="text-sm font-medium">@{post.username}</span>
@@ -683,7 +679,7 @@ export default function Canvas({
             </div>
           </div>
         </div>
-      )}
+      )} */}
       
       {/* YouTube Search Results */}
       {youTubeSearchData && (

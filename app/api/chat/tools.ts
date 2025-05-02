@@ -745,110 +745,108 @@ export function createAcademicSearchTool(dataStream: any) {
 }
 
 // X (Twitter) 검색 도구 생성 함수
-export function createXSearchTool(dataStream: any) {
-  // 검색 결과를 저장할 배열
-  const searchResults: any[] = [];
+// export function createXSearchTool(dataStream: any) {
+//   // 검색 결과를 저장할 배열
+//   const searchResults: any[] = [];
   
-  const xSearchTool = tool({
-    description: toolDefinitions.xSearch.description,
-    parameters: z.object({
-      query: z.string().describe(toolDefinitions.xSearch.parameters.query),
-      startDate: z.string().optional().describe(toolDefinitions.xSearch.parameters.startDate),
-      endDate: z.string().optional().describe(toolDefinitions.xSearch.parameters.endDate),
-    }),
-    execute: async ({
-      query,
-      startDate,
-      endDate,
-    }: {
-      query: string;
-      startDate?: string;
-      endDate?: string;
-    }) => {
-      try {
-        const apiKey = process.env.EXA_API_KEY;
-        if (!apiKey) {
-          throw new Error('EXA_API_KEY is not defined in environment variables');
-        }
+//   const xSearchTool = tool({
+//     description: toolDefinitions.xSearch.description,
+//     parameters: z.object({
+//       query: z.string().describe(toolDefinitions.xSearch.parameters.query),
+//       startDate: z.string().optional().describe(toolDefinitions.xSearch.parameters.startDate),
+//       endDate: z.string().optional().describe(toolDefinitions.xSearch.parameters.endDate),
+//     }),
+//     execute: async ({
+//       query,
+//       startDate,
+//       endDate,
+//     }: {
+//       query: string;
+//       startDate?: string;
+//       endDate?: string;
+//     }) => {
+//       try {
+//         const apiKey = process.env.EXA_API_KEY;
+//         if (!apiKey) {
+//           throw new Error('EXA_API_KEY is not defined in environment variables');
+//         }
         
-        console.log('[X Search] Searching for posts on:', query);
+//         console.log('[X Search] Searching for posts on:', query);
         
-        const exa = new Exa(apiKey);
+//         const exa = new Exa(apiKey);
         
-        // Search X (Twitter) posts
-        const result = await exa.searchAndContents(query, {
-          type: 'keyword',
-          numResults: 20,
-          text: true,
-          highlights: true,
-          includeDomains: ['twitter.com', 'x.com'],
-          startPublishedDate: startDate,
-          endPublishedDate: endDate,
-        });
-
-        console.log('[X Search] Result:', result);
+//         // Search X (Twitter) posts
+//         const result = await exa.searchAndContents(query, {
+//           type: 'keyword',
+//           numResults: 20,
+//           text: true,
+//           highlights: true,
+//           includeDomains: ['twitter.com', 'x.com'],
+//           startPublishedDate: startDate,
+//           endPublishedDate: endDate,
+//         });
         
-        // Extract tweet ID from URL
-        const extractTweetId = (url: string): string | null => {
-          const match = url.match(/(?:twitter\.com|x\.com)\/\w+\/status\/(\d+)/);
-          return match ? match[1] : null;
-        };
+//         // Extract tweet ID from URL
+//         const extractTweetId = (url: string): string | null => {
+//           const match = url.match(/(?:twitter\.com|x\.com)\/\w+\/status\/(\d+)/);
+//           return match ? match[1] : null;
+//         };
         
-        // Process and filter results
-        const processedResults = result.results.reduce<any[]>((acc, post) => {
-          const tweetId = extractTweetId(post.url);
-          if (tweetId) {
-            acc.push({
-              ...post,
-              tweetId,
-              title: post.title || '',
-            });
-          }
-          return acc;
-        }, []);
+//         // Process and filter results
+//         const processedResults = result.results.reduce<any[]>((acc, post) => {
+//           const tweetId = extractTweetId(post.url);
+//           if (tweetId) {
+//             acc.push({
+//               ...post,
+//               tweetId,
+//               title: post.title || '',
+//             });
+//           }
+//           return acc;
+//         }, []);
         
-        // Track this search in our array
-        const searchData = {
-          query,
-          timestamp: new Date().toISOString(),
-          results: processedResults
-        };
+//         // Track this search in our array
+//         const searchData = {
+//           query,
+//           timestamp: new Date().toISOString(),
+//           results: processedResults
+//         };
         
-        searchResults.push(searchData);
+//         searchResults.push(searchData);
         
-        // Send annotation for visualization in the UI
-        dataStream.writeMessageAnnotation({
-          type: 'x_search_complete',
-          data: searchData
-        });
+//         // Send annotation for visualization in the UI
+//         dataStream.writeMessageAnnotation({
+//           type: 'x_search_complete',
+//           data: searchData
+//         });
         
-        return {
-          results: processedResults,
-        };
-      } catch (error) {
-        console.error('X search error:', error);
+//         return {
+//           results: processedResults,
+//         };
+//       } catch (error) {
+//         console.error('X search error:', error);
         
-        // Send error annotation
-        dataStream.writeMessageAnnotation({
-          type: 'x_search_error',
-          data: {
-            query,
-            timestamp: new Date().toISOString(),
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }
-        });
+//         // Send error annotation
+//         dataStream.writeMessageAnnotation({
+//           type: 'x_search_error',
+//           data: {
+//             query,
+//             timestamp: new Date().toISOString(),
+//             error: error instanceof Error ? error.message : 'Unknown error'
+//           }
+//         });
         
-        return {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          results: []
-        };
-      }
-    },
-  });
+//         return {
+//           error: error instanceof Error ? error.message : 'Unknown error',
+//           results: []
+//         };
+//       }
+//     },
+//   });
   
-  // X 검색 도구와 저장된 결과 배열을 함께 반환
-  return Object.assign(xSearchTool, { searchResults });
-}
+//   // X 검색 도구와 저장된 결과 배열을 함께 반환
+//   return Object.assign(xSearchTool, { searchResults });
+// }
 
 // YouTube 검색 도구 생성 함수
 export function createYouTubeSearchTool(dataStream: any) {

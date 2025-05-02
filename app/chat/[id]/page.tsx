@@ -1035,7 +1035,7 @@ export default function Chat({ params }: PageProps) {
       getLinkReaderData(message) || 
       getImageGeneratorData(message) || 
       getAcademicSearchData(message) || 
-      getXSearchData(message) || 
+      // getXSearchData(message) || 
       getYouTubeSearchData(message) || 
       getYouTubeLinkAnalysisData(message) || 
       getDataProcessorData(message) ||
@@ -1106,7 +1106,7 @@ export default function Chat({ params }: PageProps) {
       needsLinkReader: Boolean(data?.needsLinkReader),
       needsImageGenerator: Boolean(data?.needsImageGenerator),
       needsAcademicSearch: Boolean(data?.needsAcademicSearch),
-      needsXSearch: Boolean(data?.needsXSearch),
+      // needsXSearch: Boolean(data?.needsXSearch),
       needsYouTubeSearch: Boolean(data?.needsYouTubeSearch),
       needsYouTubeLinkAnalyzer: Boolean(data?.needsYouTubeLinkAnalyzer),
       needsDataProcessor: Boolean(data?.needsDataProcessor),
@@ -1359,7 +1359,7 @@ export default function Chat({ params }: PageProps) {
                   const linkReaderData = getLinkReaderData(message);
                   const imageGeneratorData = getImageGeneratorData(message);
                   const academicSearchData = getAcademicSearchData(message);
-                  const xSearchData = getXSearchData(message);
+                  // const xSearchData = getXSearchData(message);
                   const youTubeSearchData = getYouTubeSearchData(message);
                   const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(message);
                   const dataProcessorData = getDataProcessorData(message);
@@ -1372,7 +1372,7 @@ export default function Chat({ params }: PageProps) {
                         linkReaderData={linkReaderData}
                         imageGeneratorData={imageGeneratorData}
                         academicSearchData={academicSearchData}
-                        xSearchData={xSearchData}
+                        // xSearchData={xSearchData}
                         youTubeSearchData={youTubeSearchData}
                         youTubeLinkAnalysisData={youTubeLinkAnalysisData}
                         dataProcessorData={dataProcessorData}

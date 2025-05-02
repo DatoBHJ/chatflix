@@ -582,13 +582,13 @@ const Message = memo(function MessageComponent({
                       </div>
                       
                       {/* X 검색 */}
-                      <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                      {/* <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
                         currentReasoning.needsXSearch 
                           ? 'bg-green-500/15 text-green-500 font-medium'
                           : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
                       }`}>
                         <XLogo size={14} /> X Search
-                      </div>
+                      </div> */}
                       
                       {/* YouTube 검색 */}
                       <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
@@ -924,13 +924,13 @@ const Message = memo(function MessageComponent({
                     </div>
                     
                     {/* X 검색 */}
-                    <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                    {/* <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
                       currentReasoning.needsXSearch 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
                     }`}>
                       <XLogo size={14} /> X Search
-                    </div>
+                    </div> */}
                     
                     {/* YouTube 검색 */}
                     <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${

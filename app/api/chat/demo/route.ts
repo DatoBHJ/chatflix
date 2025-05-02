@@ -21,7 +21,7 @@ import {
   createImageGeneratorTool, 
   createCalculatorTool, 
   createAcademicSearchTool, 
-  createXSearchTool, 
+  // createXSearchTool, 
   createYouTubeSearchTool, 
   createYouTubeLinkAnalyzerTool, 
   createDataProcessorTool
@@ -57,8 +57,8 @@ function initializeTool(type: string, dataStream: any, processMessages: any[] = 
       return createImageGeneratorTool(dataStream);
     case 'academic_search':
       return createAcademicSearchTool(dataStream);
-    case 'x_search':
-      return createXSearchTool(dataStream);
+    // case 'x_search':
+    //   return createXSearchTool(dataStream);
     case 'youtube_search':
       return createYouTubeSearchTool(dataStream);
     case 'youtube_link_analyzer':
@@ -220,10 +220,9 @@ Available tools:
 3. Link Reader - For extracting and summarizing content from URLs
 4. Image Generator - For creating images based on text descriptions
 5. Academic Search - For scholarly research materials
-6. X Search - For social media content, real-time updates, public opinions
-7. YouTube Search - Find relevant videos on specific topics
-8. YouTube Link Analyzer - For video analysis, including transcript summaries, and detailed information from YouTube videos
-9. Data Processor - For CSV/JSON data analysis, filtering, and transformation
+6. YouTube Search - Find relevant videos on specific topics
+7. YouTube Link Analyzer - For video analysis, including transcript summaries, and detailed information from YouTube videos
+8. Data Processor - For CSV/JSON data analysis, filtering, and transformation
 
 Guidelines:
 - Focus on creating an efficient, practical plan that directly addresses the user's needs
@@ -273,7 +272,7 @@ Remember: The plan should outline HOW you will solve the problem, not just WHAT 
                         needsLinkReader: !!partial.needsLinkReader,
                         needsImageGenerator: !!partial.needsImageGenerator,
                         needsAcademicSearch: !!partial.needsAcademicSearch,
-                        needsXSearch: !!partial.needsXSearch,
+                        // needsXSearch: !!partial.needsXSearch,
                         needsYouTubeSearch: !!partial.needsYouTubeSearch,
                         needsYouTubeLinkAnalyzer: !!partial.needsYouTubeLinkAnalyzer,
                         timestamp: new Date().toISOString(),
@@ -302,7 +301,7 @@ Remember: The plan should outline HOW you will solve the problem, not just WHAT 
                 needsLinkReader: routingDecision.needsLinkReader,
                 needsImageGenerator: routingDecision.needsImageGenerator,
                 needsAcademicSearch: routingDecision.needsAcademicSearch,
-                needsXSearch: routingDecision.needsXSearch,
+                // needsXSearch: routingDecision.needsXSearch,
                 needsYouTubeSearch: routingDecision.needsYouTubeSearch,
                 needsYouTubeLinkAnalyzer: routingDecision.needsYouTubeLinkAnalyzer,
                 needsDataProcessor: routingDecision.needsDataProcessor,
@@ -341,10 +340,10 @@ Remember: The plan should outline HOW you will solve the problem, not just WHAT 
               toolSpecificPrompts.push(toolPrompts.academicSearch);
             }
 
-            if (routingDecision.needsXSearch) {
-              tools.x_search = initializeTool('x_search', dataStream);
-              toolSpecificPrompts.push(toolPrompts.xSearch);
-            }
+            // if (routingDecision.needsXSearch) {
+            //   tools.x_search = initializeTool('x_search', dataStream);
+            //   toolSpecificPrompts.push(toolPrompts.xSearch);
+            // }
 
             if (routingDecision.needsYouTubeSearch) {
               tools.youtube_search = initializeTool('youtube_search', dataStream);
@@ -433,7 +432,7 @@ ${toolSpecificPrompts.join("\n\n")}
             if (routingDecision.needsLinkReader) activeTools.push('link_reader');
             if (routingDecision.needsImageGenerator) activeTools.push('image_generator');
             if (routingDecision.needsAcademicSearch) activeTools.push('academic_search');
-            if (routingDecision.needsXSearch) activeTools.push('x_search');
+            // if (routingDecision.needsXSearch) activeTools.push('x_search');
             if (routingDecision.needsYouTubeSearch) activeTools.push('youtube_search');
             if (routingDecision.needsYouTubeLinkAnalyzer) activeTools.push('youtube_link_analyzer');
             if (routingDecision.needsDataProcessor) activeTools.push('data_processor');
@@ -474,7 +473,7 @@ ${toolSpecificPrompts.join("\n\n")}
                   needsLinkReader: routingDecision.needsLinkReader,
                   needsImageGenerator: routingDecision.needsImageGenerator,
                   needsAcademicSearch: routingDecision.needsAcademicSearch,
-                  needsXSearch: routingDecision.needsXSearch,
+                  // needsXSearch: routingDecision.needsXSearch,
                   needsYouTubeSearch: routingDecision.needsYouTubeSearch,
                   needsYouTubeLinkAnalyzer: routingDecision.needsYouTubeLinkAnalyzer,
                   needsDataProcessor: routingDecision.needsDataProcessor,
@@ -503,9 +502,9 @@ ${toolSpecificPrompts.join("\n\n")}
                   toolResults.academicSearchResults = tools.academic_search.searchResults;
                 }
                 
-                if (routingDecision.needsXSearch && tools.x_search?.searchResults?.length > 0) {
-                  toolResults.xSearchResults = tools.x_search.searchResults;
-                }
+                // if (routingDecision.needsXSearch && tools.x_search?.searchResults?.length > 0) {
+                //   toolResults.xSearchResults = tools.x_search.searchResults;
+                // }
                 
                 if (routingDecision.needsYouTubeSearch && tools.youtube_search?.searchResults?.length > 0) {
                   toolResults.youtubeSearchResults = tools.youtube_search.searchResults;
@@ -573,9 +572,9 @@ ${toolSpecificPrompts.join("\n\n")}
                     toolSummaries.push(`ACADEMIC SEARCH RESULTS: ${JSON.stringify(toolResults.academicSearchResults)}`);
                   }
                   
-                  if (toolResults.xSearchResults && toolResults.xSearchResults.length > 0) {
-                    toolSummaries.push(`X SEARCH RESULTS: ${JSON.stringify(toolResults.xSearchResults)}`);
-                  }
+                  // if (toolResults.xSearchResults && toolResults.xSearchResults.length > 0) {
+                  //   toolSummaries.push(`X SEARCH RESULTS: ${JSON.stringify(toolResults.xSearchResults)}`);
+                  // }
                   
                   if (toolResults.youtubeSearchResults && toolResults.youtubeSearchResults.length > 0) {
                     toolSummaries.push(`YOUTUBE SEARCH RESULTS: ${JSON.stringify(toolResults.youtubeSearchResults)}`);
@@ -592,7 +591,7 @@ ${toolSpecificPrompts.join("\n\n")}
                   // 구조화된 응답 생성 프롬프트
                   const responsePrompt = `
 You are an advanced AI assistant 'Chatflix Agent' with access to various tools and capabilities. 
-You can search the web, perform calculations, read content from web pages, generate images, search for research papers, search for X (Twitter) posts, search for YouTube videos, analyze specific YouTube videos, process and analyze structured data.
+You can search the web, perform calculations, read content from web pages, generate images, search for research papers, search for YouTube videos, analyze specific YouTube videos, process and analyze structured data.
 As Chatflix Agent, your primary goal is to assist users to the fullest extent possible.
 
 # Original User Query
