@@ -5,51 +5,92 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { createClient } from '@/utils/supabase/client'
 import { User } from '@supabase/supabase-js'
-import { useUser } from '@/app/lib/UserContext'
+// import { useUser } from '@/app/lib/UserContext'
 import { createCheckoutSession, checkSubscription } from '@/lib/polar'
 
 export default function PricingPage() {
   const router = useRouter()
   const supabase = createClient()
-  const { user, isLoading: isUserLoading } = useUser()
+  // const { user } = useUser()
+  const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(false)
+  const [isUserLoading, setIsUserLoading] = useState(true)
   const [isCheckingSubscription, setIsCheckingSubscription] = useState(true)
 
-  // Check subscription status when user data is available
+  // Fetch user data
   useEffect(() => {
-    const checkUserSubscription = async () => {
-      setIsCheckingSubscription(true)
-      if (user && user.id) {
-        try {
-          const hasSubscription = await checkSubscription(user.id)
-          setIsSubscribed(hasSubscription)
-        } catch (error) {
-          console.error('Error checking subscription:', error)
-        } finally {
+    const getUser = async () => {
+      setIsUserLoading(true)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+        
+        // Only check subscription if we have a user
+        if (user && user.id) {
+          try {
+            const hasSubscription = await checkSubscription(user.id)
+            setIsSubscribed(hasSubscription)
+          } catch (error) {
+            console.error('Error checking subscription:', error)
+          } finally {
+            setIsCheckingSubscription(false)
+          }
+        } else {
           setIsCheckingSubscription(false)
         }
-      } else {
-        setIsSubscribed(false)
+      } catch (error) {
+        console.error('Error loading user:', error)
+        setUser(null)
         setIsCheckingSubscription(false)
+      } finally {
+        setIsUserLoading(false)
       }
     }
 
-    // Only run subscription check when user data is not loading
-    if (!isUserLoading) {
-      checkUserSubscription()
+    getUser()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsUserLoading(true)
+      setIsCheckingSubscription(true)
+      
+      if (event === 'SIGNED_OUT') {
+        setUser(null)
+        setIsSubscribed(false)
+        setIsUserLoading(false)
+        setIsCheckingSubscription(false)
+      } else if (event === 'SIGNED_IN') {
+        const newUser = session?.user || null
+        setUser(newUser)
+        
+        // Check subscription status when user signs in
+        if (newUser && newUser.id) {
+          checkSubscription(newUser.id)
+            .then(hasSubscription => {
+              setIsSubscribed(hasSubscription)
+            })
+            .catch(error => {
+              console.error('Error checking subscription:', error)
+            })
+            .finally(() => {
+              setIsUserLoading(false)
+              setIsCheckingSubscription(false)
+            })
+        } else {
+          setIsUserLoading(false)
+          setIsCheckingSubscription(false)
+        }
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
     }
-  }, [user, isUserLoading])
+  }, [supabase])
 
   const handleSubscribe = async () => {
     if (!user || !user.email || !user.id) {
       router.push('/login')
-      return
-    }
-
-    if (typeof user.id !== 'string' || user.id.trim() === '') {
-      console.error('Invalid user ID detected:', user.id)
-      alert('Your user account information is incomplete. Please try logging out and back in.')
       return
     }
     
