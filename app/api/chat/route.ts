@@ -120,8 +120,8 @@ export async function POST(req: Request) {
     // 현재 요청 횟수 (없으면 0으로 시작)
     const currentRequestCount = userRequests?.count || 0;
     
-    // 임계값 설정: 일일 2회 요청
-    const REQUEST_THRESHOLD = 2;
+    // 임계값 설정: 일일 5회 요청
+    const REQUEST_THRESHOLD = 5;
     
     // 구독하지 않았고 임계값 이상이면 지연 효과 적용 예정
     const shouldDelay = !isSubscribed && currentRequestCount >= REQUEST_THRESHOLD;
@@ -199,8 +199,8 @@ Promise.resolve().then(async () => {
               }
             });
             
-            // 인위적 지연 적용 (약 15초)
-            await new Promise(resolve => setTimeout(resolve, 15000));
+            // 인위적 지연 적용 (약 20초)
+            await new Promise(resolve => setTimeout(resolve, 20000));
           }
           else {
             console.log(`No delay needed: ${isSubscribed ? 'Subscribed' : `Free tier (${currentRequestCount}/${REQUEST_THRESHOLD})`}`);
