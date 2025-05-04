@@ -22,6 +22,7 @@ type SearchQueryResult = {
 };
 
 type MultiSearchResponse = {
+  searchId?: string;
   searches: SearchQueryResult[];
 };
 
@@ -35,10 +36,11 @@ type MultiSearchArgs = {
 type QueryCompletion = {
   type: 'query_completion';
   data: {
+    searchId?: string;
     query: string;
     index: number;
     total: number;
-    status: 'completed';
+    status: 'completed' | 'in_progress';
     resultsCount: number;
     imagesCount: number;
   };
@@ -79,123 +81,6 @@ const extractDomain = (url: string): string => {
   }
 };
 
-// Loading state component
-const SearchLoadingState = ({ 
-  queries,
-  annotations 
-}: { 
-  queries: string[];
-  annotations: QueryCompletion[];
-}) => {
-  const completedQueries = annotations.length;
-  const totalResults = annotations.reduce((sum, a) => sum + (a.data?.resultsCount || 0), 0);
-  const totalImages = annotations.reduce((sum, a) => sum + (a.data?.imagesCount || 0), 0);
-  const hasCompletedQueries = completedQueries > 0;
-
-  return (
-    <div className="w-full space-y-4 my-4">
-      <div className="p-4 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
-        {/* Header */}
-        <div className="flex items-center justify-between w-full mb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-[color-mix(in_srgb,var(--foreground)_7%,transparent)] to-[color-mix(in_srgb,var(--foreground)_3%,transparent)]">
-              <Globe className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-            </div>
-            <h2 className="font-medium text-left tracking-tight">Chatflix Search</h2>
-          </div>
-          <div className="rounded-full px-3.5 py-1.5 bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_7%,transparent)] to-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex items-center gap-2 border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] shadow-sm">
-            <Search className="h-3 w-3" strokeWidth={1.5} />
-            <span className="text-sm flex items-center gap-1">
-              <span className="animate-pulse">{completedQueries}/{queries.length}</span> 
-              {totalResults > 0 && <span>({totalResults} Results)</span>}
-            </span>
-          </div>
-        </div>
-        
-        {/* Query filter pills */}
-        <div className="mb-2 text-xs uppercase tracking-wide text-[var(--muted)] px-1">Search Queries</div>
-        <div className="flex flex-wrap gap-2 mb-4">
-          {queries.map((query, i) => {
-            const isCompleted = annotations.some(a => a.data?.query === query);
-            const annotation = annotations.find(a => a.data?.query === query);
-            
-            return (
-              <div
-                key={i}
-                className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition-all duration-200 break-keep ${
-                  isCompleted ? "bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_15%,transparent)] to-[color-mix(in_srgb,var(--foreground)_10%,transparent)] shadow-sm border border-[color-mix(in_srgb,var(--foreground)_20%,transparent)]" 
-                  : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] border border-transparent"
-                }`}
-              >
-                {/* Status indicator */}
-                <div className={`p-1.5 rounded-full ${isCompleted ? "bg-[color-mix(in_srgb,var(--foreground)_25%,transparent)]" : "bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)]"} transition-colors flex items-center justify-center`}>
-                  {isCompleted ? (
-                    <span className="h-3 w-3 flex items-center justify-center">✓</span>
-                  ) : (
-                    <div className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                  )}
-                </div>
-                
-                {/* Query info */}
-                <div className="flex flex-col leading-tight">
-                  <span className="font-medium text-sm">{query}</span>
-                  {annotation?.data && (
-                    <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
-                      <div className="flex items-center gap-1">
-                        <span>{annotation.data.resultsCount}</span>
-                        <span className="hidden sm:inline">results</span>
-                      </div>
-                      
-                      {annotation.data.imagesCount > 0 && (
-                        <div className="flex items-center gap-1">
-                          <ImageIcon className="h-3 w-3" strokeWidth={1.5} />
-                          <span>{annotation.data.imagesCount}</span>
-                          <span className="hidden sm:inline">images</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Image results preview */}
-        <div className="mt-1">
-          <div className="flex items-center gap-2 mb-1.5 px-1">
-            <div className="p-1 rounded-lg bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
-              <ImageIcon className="h-3 w-3 text-[var(--foreground)]" strokeWidth={1.5} />
-            </div>
-            {totalImages > 0 ? (
-              <span className="text-xs text-[var(--muted)]">{totalImages} images found</span>
-            ) : (
-              <div className="h-3.5 bg-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-md animate-pulse w-24" />
-            )}
-          </div>
-          
-          <div className="grid grid-cols-4 gap-1 h-[60px] overflow-hidden">
-            {[...Array(4)].map((_, index) => (
-              <div key={index} className="h-full bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] rounded-md animate-pulse" />
-            ))}
-          </div>
-
-          {totalResults > 0 && (
-            <div className="flex justify-end mt-1">
-              <button
-                className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1"
-              >
-                <span>Show All ({totalResults})</span>
-                <ExternalLink className="h-3 w-3" strokeWidth={1.5} />
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // Result card component
 const ResultCard = ({ result }: { result: SearchResult }) => {
   return (
@@ -205,21 +90,6 @@ const ResultCard = ({ result }: { result: SearchResult }) => {
       rel="noopener noreferrer"
       className="block py-3 cursor-pointer transition-all duration-300 rounded-md group hover:scale-[1.01] origin-left"
     > 
-    {/* <div className="flex items-center gap-2.5 mb-1.5">
-    <div className="w-5 h-5 rounded-md bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex items-center justify-center overflow-hidden">
-      <img
-        src={`https://www.google.com/s2/favicons?sz=128&domain=${new URL(result.url).hostname}`}
-        alt=""
-        className="w-3.5 h-3.5 object-contain"
-        onError={(e) => {
-          e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='16'/%3E%3Cline x1='8' y1='12' x2='16' y2='12'/%3E%3C/svg%3E";
-        }}
-      />
-    </div>
-    <span className="text-xs text-[var(--muted)] truncate">
-      {new URL(result.url).hostname}
-    </span>
-  </div> */}
       <h3 className="font-medium text-sm mb-1.5 line-clamp-2 group-hover:text-[color-mix(in_srgb,var(--foreground)_100%,transparent)] transition-colors duration-300">
         {result.title}
       </h3>
@@ -905,33 +775,236 @@ const MultiSearch: React.FC<{
   result: MultiSearchResponse | null; 
   args: MultiSearchArgs | null;
   annotations?: QueryCompletion[];
+  results?: Array<{
+    searchId: string;
+    searches: SearchQueryResult[];
+    isComplete: boolean;
+    annotations?: QueryCompletion[];
+  }>;
 }> = ({
   result,
   args,
-  annotations = []
+  annotations = [],
+  results = []
 }) => {
+  // 1. 모든 useState 훅을 상단에 배치
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   
-  // Show loading state if we have args and annotations but no results yet
-  const isLoading = !result && args && annotations.length >= 0;
+  // 초기 쿼리 순서를 저장하는 ref
+  const initialQueryOrderRef = useRef<string[]>([]);
   
-  // Get the queries from args or from result if available
-  const queries = useMemo(() => {
-    if (args && args.queries) {
-      return args.queries;
+  // 2. 모든 useMemo를 조건 없이 호출 (Hook 순서 일관성 유지)
+  // Track if we're loading results for any searchId
+  const hasActiveSearch = useMemo(() => results.some(r => !r.isComplete), [results]);
+  
+  // Combine all searches from all completed results
+  const allCompletedSearches = useMemo(() => {
+    // Get all completed searches from the results array
+    const completedSearches = results
+      .filter(r => r.isComplete)
+      .flatMap(r => r.searches);
+    
+    // If there's a single result object (legacy format), also include it
+    if (result && (!results.length || !results.some(r => r.searchId === result.searchId))) {
+      completedSearches.push(...(result.searches || []));
     }
-    if (result) {
-      return result.searches.map(s => s.query);
+    
+    // Remove duplicates based on query
+    const uniqueQueries = new Map<string, SearchQueryResult>();
+    completedSearches.forEach(search => {
+      if (!uniqueQueries.has(search.query)) {
+        uniqueQueries.set(search.query, search);
+      } else {
+        // If duplicate, merge results and images
+        const existingSearch = uniqueQueries.get(search.query)!;
+        
+        // Deduplicate results by URL
+        const urlSet = new Set(existingSearch.results.map(r => r.url));
+        search.results.forEach(result => {
+          if (!urlSet.has(result.url)) {
+            existingSearch.results.push(result);
+            urlSet.add(result.url);
+          }
+        });
+        
+        // Deduplicate images by URL
+        const imageUrlSet = new Set(existingSearch.images.map(img => 
+          typeof img === 'string' ? img : img.url
+        ));
+        search.images.forEach(image => {
+          const imageUrl = typeof image === 'string' ? image : image.url;
+          if (!imageUrlSet.has(imageUrl)) {
+            existingSearch.images.push(image);
+            imageUrlSet.add(imageUrl);
+          }
+        });
+      }
+    });
+    
+    return Array.from(uniqueQueries.values());
+  }, [result, results]);
+  
+  // Get all queries from in-progress results
+  const loadingQueries = useMemo(() => {
+    const inProgressResults = results.filter(r => !r.isComplete);
+    const queriesSet = new Set<string>(); // Set을 사용하여 중복 제거
+    
+    inProgressResults.forEach(result => {
+      // Try to get queries from the result's searches array first
+      if (result.searches) {
+        result.searches
+          .filter(search => search.query)
+          .forEach(search => queriesSet.add(search.query));
+      }
+      
+      // Also try to extract from annotations
+      if (result.annotations && result.annotations.length > 0) {
+        result.annotations
+          .filter(a => a.data?.query)
+          .forEach(a => queriesSet.add(a.data.query));
+      }
+    });
+    
+    return Array.from(queriesSet);
+  }, [results]);
+  
+  // 항상 일관된 훅 호출 순서를 유지하기 위해 모든 경우에 useMemo 사용
+  const shouldShowLoading = useMemo(() => {
+    // Always show loading if we have loading queries from in-progress results
+    return loadingQueries.length > 0 ||
+      // Or if we have arguments but no results yet (initial loading)
+      (!result && args && args.queries && args.queries.length > 0);
+  }, [loadingQueries.length, result, args]);
+  
+  // Get relevant annotations for loading queries - useMemo 사용 (함수로 변경하지 않고 훅 순서 유지)
+  const loadingAnnotations = useMemo(() => {
+    const loadingResultsAnnotations: QueryCompletion[] = [];
+    
+    results.filter(r => !r.isComplete).forEach(result => {
+      if (result.annotations && result.annotations.length > 0) {
+        // 진행 중인 상태를 표시하기 위해 status 필드 추가
+        const annotationsWithStatus = result.annotations.map(a => {
+          // 복사본 생성 후 status 설정
+          const updatedAnnotation = {...a};
+          if (updatedAnnotation.data && !updatedAnnotation.data.status) {
+            updatedAnnotation.data = {...updatedAnnotation.data, status: 'in_progress'};
+          }
+          return updatedAnnotation;
+        });
+        
+        loadingResultsAnnotations.push(...annotationsWithStatus);
+      }
+    });
+    
+    return loadingResultsAnnotations;
+  }, [results]);
+  
+  // 쿼리 문자열로 완료된 쿼리들 추적 (Set 사용해 중복 제거)
+  const completedQueryStrings = useMemo(() => {
+    // 1. annotations에서 완료된 상태의 쿼리 수집
+    const fromAnnotations = new Set(
+      loadingAnnotations
+        .filter(a => a.data?.status === 'completed')
+        .map(a => a.data?.query || '')
+        .filter(Boolean)
+    );
+    
+    // 2. 모든 annotations에서 완료된 상태의 쿼리도 확인
+    if (annotations && annotations.length > 0) {
+      annotations
+        .filter(a => a.data?.status === 'completed')
+        .forEach(a => {
+          if (a.data?.query) {
+            fromAnnotations.add(a.data.query);
+          }
+        });
     }
-    return [];
-  }, [args, result]);
+    
+    // 3. 검색 결과가 있는 쿼리들도 완료된 것으로 간주
+    allCompletedSearches.forEach(search => {
+      if (search.query) {
+        fromAnnotations.add(search.query);
+      }
+    });
+    
+    return fromAnnotations;
+  }, [loadingAnnotations, annotations, allCompletedSearches]);
+  
+  // 모든 쿼리를 통합 (완료된 쿼리 + 로딩 중인 쿼리)
+  const allQueries = useMemo(() => {
+    // 완료된 쿼리 
+    const completedQueries = allCompletedSearches.map(s => s.query);
+    
+    // 모든 쿼리 통합 (중복 제거)
+    const allQueriesSet = new Set([
+      ...completedQueries,
+      ...loadingQueries,
+      ...(args?.queries || [])
+    ].filter(Boolean));
+    
+    // 새로운 쿼리 배열 (Set에서 배열로 변환)
+    const allQueriesArray = Array.from(allQueriesSet);
+    
+    // 초기화: 처음으로 쿼리가 생겼을 때 순서 저장
+    if (initialQueryOrderRef.current.length === 0 && allQueriesArray.length > 0) {
+      initialQueryOrderRef.current = [...allQueriesArray];
+    }
+    // 새 쿼리가 추가된 경우: 기존 순서는 보존하고 새 쿼리만 추가
+    else if (allQueriesArray.length > initialQueryOrderRef.current.length) {
+      const newQueries = allQueriesArray.filter(q => !initialQueryOrderRef.current.includes(q));
+      initialQueryOrderRef.current = [...initialQueryOrderRef.current, ...newQueries];
+    }
+    
+    // 저장된 순서에 따라 쿼리 정렬
+    return allQueriesArray.sort((a, b) => {
+      const indexA = initialQueryOrderRef.current.indexOf(a);
+      const indexB = initialQueryOrderRef.current.indexOf(b);
+      // 둘 다 initialQueryOrderRef에 있는 경우, 원래 순서대로 정렬
+      if (indexA >= 0 && indexB >= 0) {
+        return indexA - indexB;
+      }
+      // 새로 추가된 쿼리는 뒤에 붙임
+      if (indexA >= 0) return -1;
+      if (indexB >= 0) return 1;
+      return 0;
+    });
+  }, [allCompletedSearches, loadingQueries, args]);
+  
+  // 쿼리별 상태 (완료 vs 진행 중)를 추적하는 맵
+  const queryStatusMap = useMemo(() => {
+    const statusMap = new Map<string, 'completed' | 'in_progress'>();
+    
+    // 1. 먼저 모든 쿼리를 진행 중으로 초기화
+    allQueries.forEach(query => {
+      statusMap.set(query, 'in_progress');
+    });
+    
+    // 2. 완료된 쿼리 업데이트
+    completedQueryStrings.forEach(query => {
+      statusMap.set(query, 'completed');
+    });
+    
+    // 3. 결과가 있는 쿼리도 완료된 것으로 표시
+    allCompletedSearches.forEach(search => {
+      if (search.query) {
+        statusMap.set(search.query, 'completed');
+    }
+    });
+    
+    return statusMap;
+  }, [allQueries, completedQueryStrings, allCompletedSearches]);
   
   // Calculate total images from all search results
   const allImages = useMemo(() => {
-    if (!result || !result.searches) return [];
+    // Use allCompletedSearches if available
+    const searchesToUse = allCompletedSearches.length > 0 
+      ? allCompletedSearches 
+      : (result && result.searches ? result.searches : []);
+    
+    if (!searchesToUse.length) return [];
     
     // Extract all valid images with source information
-    const images = result.searches.flatMap((search, searchIndex) => {
+    const images = searchesToUse.flatMap((search, searchIndex) => {
       if (!search.images) return [];
       
       // First, filter valid images
@@ -950,18 +1023,23 @@ const MultiSearch: React.FC<{
       uniqueUrls.add(img.url);
       return true;
     });
-  }, [result]);
+  }, [allCompletedSearches, result]);
 
   // Group all results by domain
   const domainGroups = useMemo(() => {
-    if (!result) return [];
+    // Use allCompletedSearches if available
+    const searchesToUse = allCompletedSearches.length > 0 
+      ? allCompletedSearches 
+      : (result && result.searches ? result.searches : []);
+    
+    if (!searchesToUse.length) return [];
     
     const groups: Record<string, SearchResult[]> = {};
     
     // If filter is active, only include results from that search query
     const filteredSearches = activeFilter 
-      ? result.searches.filter(search => search.query === activeFilter)
-      : result.searches;
+      ? searchesToUse.filter(search => search.query === activeFilter)
+      : searchesToUse;
     
     filteredSearches.forEach(search => {
       search.results.forEach(result => {
@@ -976,57 +1054,78 @@ const MultiSearch: React.FC<{
     // Sort by result count
     return Object.entries(groups)
       .sort(([, resultsA], [, resultsB]) => resultsB.length - resultsA.length);
-  }, [result, activeFilter]);
+  }, [allCompletedSearches, result, activeFilter]);
 
   // Calculate total results based on active filter
   const totalResults = useMemo(() => {
-    if (!result) return 0;
+    // Use allCompletedSearches if available
+    const searchesToUse = allCompletedSearches.length > 0 
+      ? allCompletedSearches 
+      : (result && result.searches ? result.searches : []);
+    
+    if (!searchesToUse.length) return 0;
     
     return activeFilter
-      ? result.searches.find(s => s.query === activeFilter)?.results.length || 0
-      : result.searches.reduce((sum, search) => sum + search.results.length, 0);
-  }, [result, activeFilter]);
+      ? searchesToUse.find(s => s.query === activeFilter)?.results.length || 0
+      : searchesToUse.reduce((sum, search) => sum + search.results.length, 0);
+  }, [allCompletedSearches, result, activeFilter]);
 
   // Get filtered images based on active filter
   const displayImages = useMemo(() => {
-    if (!result) return [];
+    // Use allCompletedSearches if available
+    const searchesToUse = allCompletedSearches.length > 0 
+      ? allCompletedSearches 
+      : (result && result.searches ? result.searches : []);
+    
+    if (!searchesToUse.length) return [];
     
     if (activeFilter) {
       // For individual query, apply the same filtering as allImages
-      const search = result.searches.find(s => s.query === activeFilter);
+      const search = searchesToUse.find(s => s.query === activeFilter);
       if (!search) return [];
       
       const validFilteredImages = getUniqueValidImages(search.images);
       return validFilteredImages.map(img => ({
         ...img,
         sourceQuery: search.query || 'Search Result',
-        searchIndex: result.searches.findIndex(s => s.query === activeFilter)
+        searchIndex: searchesToUse.findIndex(s => s.query === activeFilter)
       }));
     }
     
     // For "All Queries", return deduplicated images
     return allImages;
-  }, [result, activeFilter, allImages]);
+  }, [allCompletedSearches, result, activeFilter, allImages]);
 
-  // Early return for loading state
-  if (isLoading) {
-    return <SearchLoadingState queries={queries} annotations={annotations} />;
+  // 쿼리가 진행 중인지 확인하는 함수 (개별 쿼리별로 상태 확인)
+  const isQueryLoading = (query: string): boolean => {
+    // 1. 상태 맵에서 직접 확인 (가장 신뢰성 높음)
+    const status = queryStatusMap.get(query);
+    if (status === 'completed') return false;
+    
+    // 2. 이미 완료된 검색 결과가 있는지 확인
+    const hasResults = allCompletedSearches.some(s => s.query === query);
+    if (hasResults) return false;
+    
+    // 3. annotations에서 완료 상태 확인
+    const isCompletedInAnnotations = completedQueryStrings.has(query);
+    if (isCompletedInAnnotations) return false;
+    
+    // 4. 로딩 중인 쿼리인지 확인 - 다른 조건에 해당하지 않으면 로딩 중
+    return loadingQueries.includes(query);
+  };
+  
+  // 로딩 쿼리 또는 결과가 하나도 없을 경우
+  if (!result && !results.length && (!args || !args.queries || args.queries.length === 0) && !shouldShowLoading) {
+    return <div className="hidden"></div>;
   }
-
-  // If no args or results, don't render anything
-  if (!result && (!args || !args.queries || args.queries.length === 0)) {
-    return null;
-  }
-
-  // Show loading state if we just have results without content
-  if (!result || !result.searches || result.searches.length === 0) {
-    return <SearchLoadingState queries={queries} annotations={annotations} />;
-  }
+  
+  // 로딩 쿼리만 있고 완료된 검색이 없는 경우도 화면을 보여줌
+  // 빈 화면으로 돌아가지 않고 내용을 표시
 
   return (
     <div className="w-full space-y-4 my-4">
       <div className="px-0 sm:px-4">
-        {/* Query filter pills */}
+        {/* 통합된 쿼리 필터 (완료된 쿼리 + 로딩 중인 쿼리) */}
         <div className="flex flex-wrap gap-2 mb-8">
           <div
             onClick={() => setActiveFilter(null)}
@@ -1040,23 +1139,39 @@ const MultiSearch: React.FC<{
             <span className="text-sm font-medium">All Queries</span>
           </div>
 
-          {result.searches.map((search, i) => (
-            <div
-              key={i}
-              onClick={() => setActiveFilter(search.query === activeFilter ? null : search.query)}
-              className={`px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all break-keep
-                        ${search.query === activeFilter 
-                          ? "bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_15%,transparent)] to-[color-mix(in_srgb,var(--foreground)_10%,transparent)]" 
-                          : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
-                        }`}
-            >
-              <Search className="h-3.5 w-3.5 min-w-[14px] min-h-[14px]" strokeWidth={1.5} />
-              <span className="text-sm font-medium">{search.query}</span>
-              {search.results.length > 0 && (
-                <span className="text-xs text-[var(--muted)]">({search.results.length})</span>
-              )}
-            </div>
-          ))}
+          {/* 모든 쿼리 표시: 완료된 것과 로딩 중인 것 모두 표시 */}
+          {allQueries.map((query, i) => {
+            // 이 쿼리에 대한 결과가 있는지 확인
+            const searchResult = allCompletedSearches.find(s => s.query === query);
+            const isLoading = isQueryLoading(query);
+            
+            return (
+              <div
+                key={i}
+                onClick={() => !isLoading && setActiveFilter(query === activeFilter ? null : query)}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all break-keep
+                          ${query === activeFilter 
+                            ? "bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_15%,transparent)] to-[color-mix(in_srgb,var(--foreground)_10%,transparent)]" 
+                            : isLoading
+                              ? "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)]" 
+                              : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
+                          }`}
+              >
+                <Search className="h-3.5 w-3.5 min-w-[14px] min-h-[14px]" strokeWidth={1.5} />
+                <span className="text-sm font-medium">{query}</span>
+                
+                {/* 로딩 중인 경우 스피너 표시 */}
+                {isLoading && (
+                  <div className="ml-0.5 h-3 w-3 rounded-full border-t-transparent border-[1.5px] border-current animate-spin opacity-70" />
+                )}
+                
+                {/* 검색 결과가 있는 경우 결과 수 표시 */}
+                {searchResult && searchResult.results.length > 0 && (
+                  <span className="text-xs text-[var(--muted)]">({searchResult.results.length})</span>
+                )}
+              </div>
+            );
+          })}
         </div>
         
         {/* Image Gallery */}
@@ -1064,16 +1179,8 @@ const MultiSearch: React.FC<{
           <ImageGrid images={displayImages} />
         )}
         
-        {/* Web Results header */}
-        <div className="flex items-center my-4">
-          {/* <div className="flex items-center gap-1.5">
-            <Globe className="h-3.5 w-3.5 text-[color-mix(in_srgb,var(--foreground)_70%,transparent)]" strokeWidth={1.5} />
-            <span className="text-xs text-[color-mix(in_srgb,var(--foreground)_70%,transparent)]">Web Results</span>
-          </div> */}
-        </div>
-        
         {/* Display search results directly in the main area */}
-        <div className="mt-4 space-y-10">
+        <div className="mt-4 space-y-10 min-h-[150px]">
           {domainGroups.map(([domain, results]) => (
             <DomainGroup 
               key={domain} 
@@ -1081,6 +1188,11 @@ const MultiSearch: React.FC<{
               results={results}
             />
           ))}
+          
+          {/* 검색 결과가 없을 경우 공간 유지를 위한 빈 요소 */}
+          {domainGroups.length === 0 && allCompletedSearches.length === 0 && loadingQueries.length > 0 && (
+            <div className="py-12"></div>
+          )}
         </div>
       </div>
     </div>

@@ -1029,8 +1029,17 @@ export default function Chat({ params }: PageProps) {
       return false;
     };
 
+    // Check if webSearchData exists and has content
+    const webSearchData = getWebSearchResults(message);
+    const hasWebSearchData = !!webSearchData && (
+      // Check for results array (new format)
+      (webSearchData.results && webSearchData.results.length > 0) ||
+      // Check for legacy result object
+      (webSearchData.result && (webSearchData.result as any)?.searches && (webSearchData.result as any).searches.length > 0)
+    );
+
     return !!(
-      getWebSearchResults(message) || 
+      hasWebSearchData || 
       getMathCalculationData(message) || 
       getLinkReaderData(message) || 
       getImageGeneratorData(message) || 

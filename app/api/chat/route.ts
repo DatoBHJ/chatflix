@@ -723,7 +723,7 @@ ${hasFile ? `
             const toolResults: any = {};
             
             const finalstep = streamText({
-              model: providers.languageModel('gpt-4.1-mini'),
+              model: providers.languageModel(model),
               system: agentSystemPrompt,
               maxTokens: 10000,
               // 토큰 제한을 고려한 최적화된 메시지 사용

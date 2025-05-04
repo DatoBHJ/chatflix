@@ -14,6 +14,7 @@ type CanvasProps = {
     result: any;
     args: any;
     annotations: any[];
+    results: any[];
   } | null;
   mathCalculationData: {
     calculationSteps: any[];
@@ -342,6 +343,7 @@ export default function Canvas({
                 result={webSearchData.result} 
                 args={webSearchData.args}
                 annotations={webSearchData.annotations}
+                results={webSearchData.results}
               />
             </div>
           </div>

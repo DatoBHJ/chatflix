@@ -5,7 +5,6 @@ import { deduplicateResults, normalizeUrl, getPageTitle } from './utils/toolers'
 import * as mathjs from 'mathjs';
 import Exa from 'exa-js';
 import dotenv from 'dotenv';
-import * as papa from 'papaparse';  // Import PapaParse for CSV processing
 import { processPythonData, isPythonDataProcessorAvailable } from './data-processor-python';
 
 // Environment variables
@@ -161,11 +160,15 @@ export function createWebSearchTool(processMessages: any[], dataStream: any) {
         throw new Error('TAVILY_API_KEY is not defined in environment variables');
       }
       
+      // Generate a unique search ID for this search attempt
+      const searchId = `search_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      
       const tvly = tavily({ apiKey });
       const includeImageDescriptions = true;
       
       // Debug logging for web search
       console.log('=== Web Search Debug Info ===');
+      console.log('Search ID:', searchId);
       console.log('Last user message:', processMessages[processMessages.length - 1].content);
       console.log('Generated search queries:', queries);
       console.log('Search parameters:', {
@@ -175,9 +178,33 @@ export function createWebSearchTool(processMessages: any[], dataStream: any) {
         exclude_domains
       });
       
+      // 쿼리 중복 상태 알림 방지를 위한 추적 세트
+      const annotatedQueries = new Set<string>();
+      
       // Execute searches in parallel
       const searchPromises = queries.map(async (query, index) => {
         try {
+          // 중복 체크 - 이미 처리한 쿼리는 건너뜀
+          const queryKey = `${query}-${index}`;
+          if (!annotatedQueries.has(queryKey)) {
+            // 각 쿼리 검색 시작 시 in_progress 상태 알림
+            dataStream.writeMessageAnnotation({
+              type: 'query_completion',
+              data: {
+                searchId,
+                query,
+                index,
+                total: queries.length,
+                status: 'in_progress',
+                resultsCount: 0,
+                imagesCount: 0
+              }
+            });
+            
+            // 처리한 쿼리 추적에 추가
+            annotatedQueries.add(queryKey);
+          }
+          
           // console.log(`\nExecuting search ${index + 1}/${queries.length}:`, query);
           const data = await tvly.search(query, {
             topic: topics[index] || topics[0] || 'general',
@@ -196,17 +223,23 @@ export function createWebSearchTool(processMessages: any[], dataStream: any) {
           // 이미지에서 중복 제거 (대신 이미지는 URL만 중복 제거)
           const deduplicatedImages = data.images ? deduplicateResults(data.images) : [];
           // Add annotation for query completion
-          dataStream.writeMessageAnnotation({
-            type: 'query_completion',
-            data: {
-              query,
-              index,
-              total: queries.length,
-              status: 'completed',
-              resultsCount: deduplicatedResults.length,
-              imagesCount: deduplicatedImages.length
-            }
-          });
+          const completedQueryKey = `${query}-${index}-completed`;
+          if (!annotatedQueries.has(completedQueryKey)) {
+            dataStream.writeMessageAnnotation({
+              type: 'query_completion',
+              data: {
+                searchId,
+                query,
+                index,
+                total: queries.length,
+                status: 'completed',
+                resultsCount: deduplicatedResults.length,
+                imagesCount: deduplicatedImages.length
+              }
+            });
+            // 완료 상태 쿼리 추적에 추가
+            annotatedQueries.add(completedQueryKey);
+          }
           
           return {
             query,
@@ -217,18 +250,24 @@ export function createWebSearchTool(processMessages: any[], dataStream: any) {
           console.error(`Error searching for query "${query}":`, error);
           
           // Add annotation for failed query
-          dataStream.writeMessageAnnotation({
-            type: 'query_completion',
-            data: {
-              query,
-              index,
-              total: queries.length,
-              status: 'completed',
-              resultsCount: 0,
-              imagesCount: 0,
-              error: error instanceof Error ? error.message : 'Unknown error'
-            }
-          });
+          const errorQueryKey = `${query}-${index}-error`;
+          if (!annotatedQueries.has(errorQueryKey)) {
+            dataStream.writeMessageAnnotation({
+              type: 'query_completion',
+              data: {
+                searchId,
+                query,
+                index,
+                total: queries.length,
+                status: 'completed',
+                resultsCount: 0,
+                imagesCount: 0,
+                error: error instanceof Error ? error.message : 'Unknown error'
+              }
+            });
+            // 에러 상태 쿼리 추적에 추가
+            annotatedQueries.add(errorQueryKey);
+          }
           
           // Return empty results for this query
           return {
@@ -299,7 +338,7 @@ export function createWebSearchTool(processMessages: any[], dataStream: any) {
       });
       
       // 최종 검색 결과를 저장
-      const finalResult = { searches: finalSearches };
+      const finalResult = { searchId, searches: finalSearches };
       
       // 배열에 결과 추가하고 UI를 위한 어노테이션도 전송
       searchResults.push(finalResult);
