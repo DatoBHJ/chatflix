@@ -120,7 +120,7 @@ export async function POST(req: Request) {
     // 현재 요청 횟수 (없으면 0으로 시작)
     const currentRequestCount = userRequests?.count || 0;
     
-    // 임계값 설정: 일일 5회 요청
+    // 임계값 설정: 일일 10회 요청
     const REQUEST_THRESHOLD = 10;
     
     // 구독하지 않았고 임계값 이상이면 지연 효과 적용 예정
@@ -654,11 +654,6 @@ Today's Date: ${todayDate}
             ## User Query Analysis
             ${routingDecision.reasoning}
             
-            ## Plan
-            ${routingDecision.plan}
-            
-            ## Tool selection reasoning
-            ${routingDecision.selectionReasoning}
             
 ${toolSpecificPrompts.join("\n\n")}
 
@@ -691,18 +686,18 @@ ${hasFile ? `
             if (routingDecision.needsDataProcessor) activeTools.push('data_processor');
             // 도구 결과 저장
             const toolResults: any = {};
-            
+            console.log('agentSystemPrompt', agentSystemPrompt);
             const finalstep = streamText({
               model: providers.languageModel(model),
               system: agentSystemPrompt,
-              maxTokens: 10000,
+              maxTokens: 4000,
               // 토큰 제한을 고려한 최적화된 메시지 사용
               messages: convertMultiModalToMessage(optimizedMessages.slice(-7)),
               temperature: 0.2,
               toolChoice: 'auto',
               experimental_activeTools: activeTools,
               tools,
-              maxSteps: 10,
+              maxSteps: 15,
               providerOptions,
               onFinish: async (completion) => {
                 if (abortController.signal.aborted) return;

@@ -62,13 +62,32 @@ IMPORTANT: If the user expresses dissatisfaction with your results or process, s
 4. Consider their interaction patterns and emotional responses
 5. Support their learning journey and goals`,
     
-    toolGuidelines: `TOOL EXECUTION GUIDELINES:
-1. Make decisions BEFORE you start answering the main question, so users clearly understand your approach
-2. Use tools strategically to gather the most relevant information
-3. Execute tools as needed until you have comprehensive information
-4. Keep tool execution messages concise and focused
-5. Don't make claims about using tools without actually executing them
-6. Speak naturally about what you're doing rather than naming specific tool functions`,
+    toolGuidelines: `TOOL EXECUTION GUIDELINES
+When using tools, maintain a natural conversational flow while keeping responses concise:
+
+1. Briefly mention what you're going to do with the tool in a natural way
+2. Share only a brief one-line summary of what you found
+3. Naturally transition to the final answer phase
+
+For example:
+"I'll check the latest information about climate change... Found several recent studies on rising sea levels. Let me put this together for you."
+
+IMPORTANT:
+- You can and should use multiple tools when necessary for a comprehensive answer
+- Don't hesitate to call different tools sequentially to gather all needed information
+- If initial results are insufficient, try different search terms or tools
+- **CRITICAL: Keep calling tools until you've gathered ALL information needed for an optimal answer - thoroughness is essential**
+  - Never settle for incomplete information if more tools could help
+  - Try alternative approaches when your first tool calls don't yield sufficient results
+  - For complex queries, aim to explore the topic from multiple angles using different tools
+  - Quality of final answer depends directly on the completeness of your tool-gathered information
+- Keep tool execution brief and conversational (not mechanical or formulaic)
+- Avoid formal headings like "PLAN:" or "RESULT:" - just flow naturally
+- Communicate like a helpful person would, not like a robot following strict steps
+- Maintain the user's language throughout (Korean for Korean queries, etc.)
+- Save all detailed explanations and analysis for the final answer
+- Remember that tool execution is just for gathering information quickly
+`,
     
     responseGuidelines: `RESPONSE CREATION GUIDELINES:
 1. Create a comprehensive answer that directly addresses the user's query
@@ -92,12 +111,20 @@ export const buildSystemPrompt = (
 ): string => {
   const config = SYSTEM_PROMPTS[mode];
   
-  let prompt = config.basePrompt;
+  let prompt = '';
   
-  // 모든 단계에 적용되는 프로필 지침
-  if (userProfile) {
-    prompt += `\n\n## USER PROFILE CONTEXT\n${userProfile}\n\n`;
-    prompt += config.userProfileGuidelines;
+  // 도구 실행 단계에서는 base prompt를 사용하지 않음
+  if (stage === 'tools') {
+    prompt = 'You are Chatflix Agent in tool execution mode. Your task is to use the appropriate tools to gather information without analysis.';
+  } else {
+    // 다른 단계에서는 기본 프롬프트 사용
+    prompt = config.basePrompt;
+    
+    // 도구 실행 단계 외에서만 사용자 프로필 추가
+    if (userProfile) {
+      prompt += `\n\n## USER PROFILE CONTEXT\n${userProfile}\n\n`;
+      prompt += config.userProfileGuidelines;
+    }
   }
   
   // 단계별 특화 지침
