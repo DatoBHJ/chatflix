@@ -1,9 +1,9 @@
 /**
- * Utility function for making API calls to AI providers
+ * Utility function for making API calls to AI providers for memory bank updates
  */
 
 /**
- * Makes a call to the X.AI API with the given prompts
+ * Makes a call to the X.AI API with the given prompts to update user memory
  * 
  * @param model - The model to use (e.g., 'grok-2-latest')
  * @param systemPrompt - The system prompt for context
@@ -20,6 +20,12 @@ export async function callMemoryBankUpdate(
   temperature: number = 0.3
 ): Promise<string | null> {
   try {
+    // Check if API key exists
+    if (!process.env.XAI_API_KEY) {
+      console.error("Missing XAI_API_KEY environment variable");
+      return null;
+    }
+
     const response = await fetch('https://api.x.ai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -37,14 +43,16 @@ export async function callMemoryBankUpdate(
       })
     });
     
-    if (response.ok) {
-      const data = await response.json();
-      return data.choices?.[0]?.message?.content || '';
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error(`API call failed with status ${response.status}: ${errorData}`);
+      return null;
     }
     
-    return null;
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || '';
   } catch (error) {
-    console.error("[DEBUG-API] Error calling AI API:", error);
+    console.error("Error calling memory bank update API:", error);
     return null;
   }
 } 

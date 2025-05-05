@@ -57,7 +57,7 @@ export const RATE_LIMITS = {
       window: '4 h'
     },
     daily: {
-      requests: 24,    
+      requests: 20,    
       window: '24 h'
     }
   },
@@ -67,7 +67,7 @@ export const RATE_LIMITS = {
       window: '4 h'
     },
     daily: {
-      requests: 24,
+      requests: 20,
       window: '24 h'
     }
   },
@@ -77,7 +77,7 @@ export const RATE_LIMITS = {
       window: '4 h'
     },
     daily: {
-      requests: 24,
+      requests: 20,
       window: '24 h'
     }
   },
@@ -87,7 +87,7 @@ export const RATE_LIMITS = {
       window: '4 h'
     },
     daily: {
-      requests: 24,
+      requests: 20,
       window: '24 h'
     }
   },
@@ -97,7 +97,7 @@ export const RATE_LIMITS = {
       window: '4 h'
     },
     daily: {
-      requests: 24,
+      requests: 20,
       window: '24 h'
     }
   },
@@ -276,6 +276,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Flagship GPT model for complex tasks. Well suited for problem solving across domains.',
     provider: 'openai',
     supportsVision: true,
+    censored: true,
     rateLimit: {
       level: 'level5',
     },
@@ -297,6 +298,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Balanced for intelligence and speed. Well suited for general tasks.',
     provider: 'openai',
     supportsVision: true,
+    censored: true,
     rateLimit: {
       level: 'level1',
     },
@@ -318,6 +320,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Fastest, most cost-effective GPT-4.1 model.',
     provider: 'openai',
     supportsVision: true,
+    censored: true,
     rateLimit: {
       level: 'level1',
     },
@@ -440,9 +443,9 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: false,
     censored: false,
     rateLimit: {
-      level: 'level0',
+      level: 'level2',
     },
-    isHot: true,
+    // isHot: true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -461,7 +464,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   //   supportsVision: false,
   //   censored: false,
   //   rateLimit: {
-  //     level: 'level0',
+  //     level: 'level2',
   //   },
   //   supportsPDFs: false,
   //   isEnabled: true,
@@ -481,7 +484,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: false,
     censored: false,
     rateLimit: {
-      level: 'level0',
+      level: 'level2',
     },
     reasoning: {
       provider: 'xai',
@@ -504,7 +507,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   //   supportsVision: false,
   //   censored: false,
   //   rateLimit: {
-  //     level: 'level0',
+  //     level: 'level2',
   //   },
   //   reasoning: {
   //     provider: 'xai',
@@ -527,10 +530,10 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: true,
     censored: false,
     rateLimit: {
-      level: 'level0',
+      level: 'level2',
     },
     supportsPDFs: true,
-    isEnabled: false,
+    isEnabled: true,
     isActivated: true,
     isAgentEnabled: true,
     contextWindow: 131000,
@@ -547,7 +550,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: true,
     censored: false,
     rateLimit: {
-      level: 'level3',
+      level: 'level4',
     },
     safetySettings: {
       categories: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
@@ -656,7 +659,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level4',
     },
     isAgentEnabled: true,
-    // isHot: true,
+    isHot: true,
     isEnabled: true,
     isActivated: true,
     contextWindow: 200000,
@@ -677,7 +680,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'groq',
     supportsVision: false,
     rateLimit: {
-      level: 'level2',
+      level: 'level0',
     },
     reasoning: {
       enabled: true,
@@ -685,7 +688,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       baseModelId: 'qwen-qwq-32b',
       tagName: 'think'
     },
-    isEnabled: true,
+    isEnabled: false,
     isActivated: true,
     supportsPDFs: false,
     contextWindow: 131000,
@@ -706,10 +709,10 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'groq',
     supportsVision: false,
     rateLimit: {
-      level: 'level2',
+      level: 'level0',
     },
     supportsPDFs: false,
-    isEnabled: true,
+    isEnabled: false,
     isActivated: true,
     contextWindow: 128000,
     tps: 275,
@@ -730,10 +733,10 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'groq',
     supportsVision: true,
     rateLimit: {
-      level: 'level2',
+      level: 'level0',
     },
     supportsPDFs: false,
-    isEnabled: true,
+    isEnabled: false,
     isActivated: true,
     // isHot: true,
     contextWindow: 131072,

@@ -1,10 +1,3 @@
-import { SupabaseClient } from '@supabase/supabase-js';
-import { getAllMemoryBank } from './memory-bank';
-import { getProjectStatus } from './status-tracker';
-import { 
-  fetchSystemPrompt,
-} from '@/app/api/chat/services/chatService';
-
 // 메시지 타입 정의 (실제 프로젝트의 타입에 맞게 조정)
 export interface Message {
   id: string;
@@ -28,50 +21,9 @@ export function estimateTokenCount(text: string): number {
 }
 
 /**
- * 향상된 컨텍스트 생성 함수
- */
-export async function getEnhancedContext(
-  supabase: SupabaseClient,
-  chatId: string,
-  userId: string,
-  messages: Message[],
-  maxTokens: number = 8000,
-  isAgentMode: boolean = true
-): Promise<{ enhancedSystemPrompt: string; contextMessages: Message[] }> {
-  // 1. 메모리 뱅크 조회
-  const { data: memoryData } = await getAllMemoryBank(supabase, userId);
-  
-  // 2. 프로젝트 상태 조회
-  const statusContent = await getProjectStatus(supabase, chatId, userId);
-  
-  // 3. 시스템 프롬프트 조회 - Agent 모드 파라미터 전달
-  const systemPrompt = await fetchSystemPrompt(isAgentMode);
-  
-  // 4. 메모리 컨텍스트 구성
-  const memoryContext = memoryData ? 
-    `## MEMORY BANK\n\n${memoryData}\n\n## PROJECT STATUS\n\n${statusContent}` : 
-    `## PROJECT STATUS\n\n${statusContent}`;
-  
-  // 5. 시스템 메시지에 메모리 컨텍스트 추가
-  const enhancedSystemPrompt = `${systemPrompt}\n\n${memoryContext}`;
-  
-  // 6. 토큰 제한을 고려한 메시지 선택
-  const systemTokens = estimateTokenCount(enhancedSystemPrompt);
-  const remainingTokens = maxTokens - systemTokens;
-  
-  // 7. 메시지 토큰 수 계산 및 선택
-  const contextMessages = selectMessagesWithinTokenLimit(messages, remainingTokens);
-  
-  return {
-    enhancedSystemPrompt,
-    contextMessages
-  };
-}
-
-/**
  * 토큰 제한 내에서 메시지 선택
  */
-function selectMessagesWithinTokenLimit(messages: Message[], maxTokens: number): Message[] {
+export function selectMessagesWithinTokenLimit(messages: Message[], maxTokens: number): Message[] {
   let tokenCount = 0;
   const selectedMessages: Message[] = [];
   
