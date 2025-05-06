@@ -466,6 +466,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       enabled: true,
       provider: 'openai',
     },
+    censored:true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
