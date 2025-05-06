@@ -16,10 +16,9 @@ export interface ModelConfig {
   isNew?: boolean; // Mark model as new
   isHot?: boolean; // Mark model as hot/trending
   reasoning?: {
-    enabled?: boolean;
+    enabled: boolean;
     provider?: 'openai' | 'groq' | 'together' | 'anthropic' | 'deepseek' | 'google' | 'xai';  
     baseModelId?: string; 
-    tagName?: string; 
     budgetTokens?: number;
   };
   safetySettings?: {
@@ -268,6 +267,108 @@ export async function getDefaultModelId(userId?: string): Promise<string> {
 
 // Define the model configurations
 const MODEL_CONFIG_DATA: ModelConfig[] = [
+  // Claude 3.7 Sonnet (Thinking)
+  {
+    id: 'claude-3-7-sonnet-20250219',
+    name: 'Claude 3.7 Sonnet (Thinking)',
+    country: 'US',
+    description: "Anthropic's most intelligent model yet with extended thinking capability.",
+    provider: 'anthropic',
+    supportsVision: true,
+    rateLimit: {
+      level: 'level4',
+    },
+    supportsPDFs: true,
+    censored: true,
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: true,
+    reasoning: {
+      enabled: true,
+      provider: 'anthropic',
+      baseModelId: 'claude-3-7-sonnet-20250219',
+      budgetTokens: 12000
+    },
+    contextWindow: 200000,
+    tps: 78,
+    intelligenceIndex: 57,
+    MMLU_Pro: 84,
+    Coding: 44,
+    MATH: 72,
+    GPQA: 77,
+    HLE: 10.3
+  },
+  // Claude 3.7 Sonnet 
+  {
+    id: 'claude-3-7-sonnet-latest',
+    name: 'Claude 3.7 Sonnet',
+    country: 'US',
+    description: "Anthropic's most intelligent model.",
+    provider: 'anthropic',
+    supportsVision: true,
+    supportsPDFs: true,
+    censored: true,
+    rateLimit: {
+      level: 'level4',
+    },
+    isAgentEnabled: true,
+    // isHot: true,
+    isEnabled: true,
+    isActivated: true,
+    contextWindow: 200000,
+    tps: 78,
+    intelligenceIndex: 48,
+    MMLU_Pro: 80,
+    Coding: 38,
+    MATH: 54,
+    GPQA: 66,
+    HLE: 4.8
+  },
+  // Grok 3 Mini Fast (Thinking)
+  {
+    id: 'grok-3-mini-fast',
+    name: 'Grok 3 Mini Fast (Thinking)',
+    country: 'US',
+    description: 'High-speed version of Grok 3 Mini.',
+    provider: 'xai',
+    supportsVision: false,
+    censored: false,
+    rateLimit: {
+      level: 'level2',
+    },
+    reasoning: {
+      enabled: true,
+      provider: 'xai',
+    },
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: true,
+    contextWindow: 131072,
+    // tps: 67, 
+    intelligenceIndex: 66,
+  },
+    // Grok 3 Fast
+    {
+    id: 'grok-3-fast',
+    name: 'Grok 3 Fast',
+    country: 'US',
+    description: 'High-speed version of Grok 3',
+    provider: 'xai',
+    supportsVision: false,
+    censored: false,
+    rateLimit: {
+      level: 'level2',
+    },
+    // isHot: true,
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: true,
+    contextWindow: 131072,
+    // tps: 67, 
+    intelligenceIndex: 50,
+  },
   // GPT-4.1
   {
     id: 'gpt-4.1',
@@ -283,7 +384,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
-    isNew: true,
     isAgentEnabled: true,
     contextWindow: 1047576,
     tps: 84,
@@ -305,33 +405,10 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
-    isNew: true,
     isAgentEnabled: true,
     contextWindow: 1047576,
     tps: 84,
     intelligenceIndex: 53,
-    // multilingual: 80
-  },
-  // GPT-4.1 Nano
-  {
-    id: 'gpt-4.1-nano',
-    name: 'GPT-4.1 Nano',
-    country: 'US',
-    description: 'Fastest, most cost-effective GPT-4.1 model.',
-    provider: 'openai',
-    supportsVision: true,
-    censored: true,
-    rateLimit: {
-      level: 'level1',
-    },
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isNew: true,
-    isAgentEnabled: true,
-    contextWindow: 1047576,
-    tps: 261,
-    intelligenceIndex: 41,
     // multilingual: 80
   },
    // ChatGPT-4o (Nov '24)
@@ -375,25 +452,29 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     multilingual: 84
   },
   // o4-Mini (Thinking)
-  // {
-  //   id: "o4-mini",
-  //   name: "o4-Mini (High)",
-  //   country: 'US',
-  //   description: "Highest intelligence model in Chatflix",
-  //   provider: "openai",
-  //   supportsVision: true,
-  //   rateLimit: {
-  //     level: "level0",
-  //   },
-  //   supportsPDFs: false,
-  //   isEnabled: true,
-  //   isActivated: true,
-  //   isNew: true,
-  //   isAgentEnabled: false,
-  //   contextWindow: 200000,
-  //   tps: 130,
-  //   intelligenceIndex: 96,
-  // },
+  {
+    id: "o4-mini",
+    name: "o4-Mini (Thinking)",
+    country: 'US',
+    description: "Openai's latest small o-series model. Reasoning tokens used in its chain-of-thought process are hidden and not included in the visible output.",
+    provider: "openai",
+    supportsVision: true,
+    rateLimit: {
+      level: "level5",
+    },
+    reasoning: {
+      enabled: true,
+      provider: 'openai',
+    },
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: true,
+    isNew: true,
+    isAgentEnabled: false,
+    contextWindow: 200000,
+    // tps: 130,
+    // intelligenceIndex: 96,
+  },
   // o3 (Thinking)
   // {
   //   id: "o3",
@@ -405,6 +486,10 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   //   rateLimit: {
   //     level: "level0",
   //   },
+  //   reasoning: {
+  //     enabled: true,
+  //     provider: 'openai',
+  //   },
   //   supportsPDFs: false,
   //   isEnabled: true,
   //   isActivated: true,
@@ -415,130 +500,56 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   //   intelligenceIndex: 67,
   // },
   // o3-mini (Thinking)
-  {
-    id: "o3-mini",
-    name: "o3-mini (High)",
-    country: 'US',
-    description: "A small model alternative to o3",
-    provider: "openai",
-    supportsVision: false,
-    rateLimit: {
-      level: "level5",
-    },
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: false,
-    contextWindow: 200000,
-    tps: 188,
-    intelligenceIndex: 63,
-  },
-  // Grok 3 Fast
-  {
-    id: 'grok-3-fast',
-    name: 'Grok 3 Fast',
-    country: 'US',
-    description: 'High-speed version of Grok 3',
-    provider: 'xai',
-    supportsVision: false,
-    censored: false,
-    rateLimit: {
-      level: 'level2',
-    },
-    // isHot: true,
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: true,
-    contextWindow: 131072,
-    // tps: 67, 
-    intelligenceIndex: 50,
-  },
-  // Grok 3
   // {
-  //   id: 'grok-3',
-  //   name: 'Grok 3',
+  //   id: "o3-mini",
+  //   name: "o3-mini (Thinking)",
   //   country: 'US',
-  //   description: 'Grok 3 by xAI. Use this model for queries requiring deep domain expertise or world knowledge (eg healthcare, legal, finance).',
-  //   provider: 'xai',
+  //   description: "A small model alternative to o3",
+  //   provider: "openai",
   //   supportsVision: false,
-  //   censored: false,
   //   rateLimit: {
-  //     level: 'level2',
-  //   },
-  //   supportsPDFs: false,
-  //   isEnabled: true,
-  //   isActivated: true,
-  //   isAgentEnabled: true,
-  //   contextWindow: 131072,
-  //   // tps: 67, 
-  //   intelligenceIndex: 50,
-  // },
-  // Grok 3 Mini Fast (Thinking)
-  {
-    id: 'grok-3-mini-fast',
-    name: 'Grok 3 Mini Fast (Thinking)',
-    country: 'US',
-    description: 'High-speed version of Grok 3 Mini.',
-    provider: 'xai',
-    supportsVision: false,
-    censored: false,
-    rateLimit: {
-      level: 'level2',
-    },
-    reasoning: {
-      provider: 'xai',
-    },
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: true,
-    contextWindow: 131072,
-    // tps: 67, 
-    intelligenceIndex: 66,
-  },
-  // Grok 3 Mini (Thinking)
-  // {
-  //   id: 'grok-3-mini',
-  //   name: 'Grok 3 Mini (Thinking)',
-  //   country: 'US',
-  //   description: 'Grok 3 Mini by xAI. Use this model for tasks that can benefit from logical reasoning (such as meeting scheduling or math problems)',
-  //   provider: 'xai',
-  //   supportsVision: false,
-  //   censored: false,
-  //   rateLimit: {
-  //     level: 'level2',
+  //     level: "level5",
   //   },
   //   reasoning: {
-  //     provider: 'xai',
+  //     enabled: true,
+  //     provider: 'openai',
   //   },
   //   supportsPDFs: false,
   //   isEnabled: true,
   //   isActivated: true,
   //   isAgentEnabled: false,
-  //   contextWindow: 131072,
-  //   // tps: 67, 
-  //   intelligenceIndex: 66,
+  //   contextWindow: 200000,
+  //   tps: 188,
+  //   intelligenceIndex: 63,
   // },
-  // Grok 2 Vision
-  {
-    id: 'grok-2-vision-latest',
-    name: 'Grok 2 Vision',
-    country: 'US',
-    description: 'Grok 2 by xAI',
-    provider: 'xai',
-    supportsVision: true,
-    censored: false,
+   // QwQ-32B (Thinking)
+   {
+    id: 'qwen-qwq-32b',
+    name: 'QwQ-32B (Thinking)',
+    country: 'CHINA',
+    description: "Developed by Qwen hosted by Groq. Capable of achieving competitive performance against state-of-the-art reasoning models, e.g., DeepSeek-R1, o1-mini",
+    provider: 'groq',
+    supportsVision: false,
     rateLimit: {
-      level: 'level2',
+      level: 'level3',
     },
-    supportsPDFs: true,
+    reasoning: {
+      enabled: true,
+      provider: 'groq',
+      baseModelId: 'qwen-qwq-32b',
+    },
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: true,
+    isAgentEnabled: false,
+    supportsPDFs: false,
     contextWindow: 131000,
-    tps: 67, 
-    intelligenceIndex: 39,
+    tps: 399,
+    intelligenceIndex: 58,
+    MMLU_Pro: 76,
+    Coding: 49,
+    MATH: 87,
+    GPQA: 59,
+    HLE: 8.2
   },
   // Gemini 2.5 Pro Preview 03-25 (Thinking)
   {
@@ -556,7 +567,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       categories: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
       threshold: 'BLOCK_NONE'
     },
-    isHot: true,
+    // isHot: true,
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
@@ -614,92 +625,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 258,
     intelligenceIndex: 48,
   },
-  // Claude 3.7 Sonnet (Thinking)
-  {
-    id: 'claude-3-7-sonnet-20250219',
-    name: 'Claude 3.7 Sonnet (Thinking)',
-    country: 'US',
-    description: "Anthropic's most intelligent model yet with extended thinking capability.",
-    provider: 'anthropic',
-    supportsVision: true,
-    rateLimit: {
-      level: 'level4',
-    },
-    supportsPDFs: true,
-    censored: true,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: false,
-    reasoning: {
-      enabled: true,
-      provider: 'anthropic',
-      baseModelId: 'claude-3-7-sonnet-20250219',
-      budgetTokens: 12000
-    },
-    contextWindow: 200000,
-    tps: 78,
-    intelligenceIndex: 57,
-    MMLU_Pro: 84,
-    Coding: 44,
-    MATH: 72,
-    GPQA: 77,
-    HLE: 10.3
-  },
-  // Claude 3.7 Sonnet 
-  {
-    id: 'claude-3-7-sonnet-latest',
-    name: 'Claude 3.7 Sonnet',
-    country: 'US',
-    description: "Anthropic's most intelligent model.",
-    provider: 'anthropic',
-    supportsVision: true,
-    supportsPDFs: true,
-    censored: true,
-    rateLimit: {
-      level: 'level4',
-    },
-    isAgentEnabled: true,
-    isHot: true,
-    isEnabled: true,
-    isActivated: true,
-    contextWindow: 200000,
-    tps: 78,
-    intelligenceIndex: 48,
-    MMLU_Pro: 80,
-    Coding: 38,
-    MATH: 54,
-    GPQA: 66,
-    HLE: 4.8
-  },
-  // QwQ-32B (Thinking)
-  {
-    id: 'qwen-qwq-32b',
-    name: 'QwQ-32B (Thinking)',
-    country: 'CHINA',
-    description: "Developed by Qwen hosted by Groq. Capable of achieving competitive performance against state-of-the-art reasoning models, e.g., DeepSeek-R1, o1-mini",
-    provider: 'groq',
-    supportsVision: false,
-    rateLimit: {
-      level: 'level0',
-    },
-    reasoning: {
-      enabled: true,
-      provider: 'groq',
-      baseModelId: 'qwen-qwq-32b',
-      tagName: 'think'
-    },
-    isEnabled: false,
-    isActivated: true,
-    supportsPDFs: false,
-    contextWindow: 131000,
-    tps: 399,
-    intelligenceIndex: 58,
-    MMLU_Pro: 76,
-    Coding: 49,
-    MATH: 87,
-    GPQA: 59,
-    HLE: 8.2
-  },
   // Llama 3.3 70B
   {
     id: 'llama-3.3-70b-versatile',
@@ -724,26 +649,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     multilingual:84,
     HLE: 4.0
   },
-  // Llama 4 Scout
-  {
-    id: 'meta-llama/llama-4-scout-17b-16e-instruct',
-    name: 'Llama 4 Scout',
-    country: 'US',
-    description: 'Meta\'s latest model. Fast but dumb. Hosted by Groq.',
-    provider: 'groq',
-    supportsVision: true,
-    rateLimit: {
-      level: 'level0',
-    },
-    supportsPDFs: false,
-    isEnabled: false,
-    isActivated: true,
-    // isHot: true,
-    contextWindow: 131072,
-    tps: 460,
-    intelligenceIndex: 36,
-    // multilingual:84,
-  },
    // DeepSeek R1 (Thinking)
    {
     id: 'deepseek-reasoner',
@@ -760,7 +665,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       enabled: true,
       provider: 'deepseek',
       baseModelId: 'deepseek-reasoner',
-      tagName: 'think'
     },
     isEnabled: false,
     isActivated: true,
@@ -806,10 +710,10 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       enabled: true,
       provider: 'together',
       baseModelId: 'deepseek-ai/DeepSeek-R1',
-      tagName: 'think'
     },
-    isEnabled: false,
+    isEnabled: true,
     isActivated: true,
+    isAgentEnabled: false,
     contextWindow: 128000,
     tps: 96,
     intelligenceIndex: 60,
@@ -827,8 +731,9 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level3',
     },
     supportsPDFs: false,
-    isEnabled: false,
+    isEnabled: true,
     isActivated: true,
+    isAgentEnabled: true,
     contextWindow: 128000,
     tps: 72,
     intelligenceIndex: 46,

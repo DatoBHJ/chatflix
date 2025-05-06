@@ -955,10 +955,22 @@ export default function Chat({ params }: PageProps) {
     }
   };
 
-  // 단순화된 함수 - 도구 사용 여부와 상관없이 마지막 메시지가 로딩 중이면 항상 "..." 표시
+  // 개선된 로딩 상태 확인 함수
   const isWaitingForToolResults = (message: Message) => {
-    // 어시스턴트 메시지이고 마지막 메시지이면 항상 로딩 중으로 표시
+    // 어시스턴트 메시지이고 마지막 메시지이면 로딩 중 체크
     if (message.role === 'assistant' && isLoading && message.id === messages[messages.length - 1]?.id) {
+      // 메시지 파트를 확인하여 reasoning 완료 여부 판단
+      if (message.parts) {
+        const hasReasoning = message.parts.some((part: any) => part.type === 'reasoning');
+        const hasText = message.parts.some((part: any) => part.type === 'text');
+        
+        // 텍스트 부분이 있으면 reasoning은 완료된 것으로 간주
+        if (hasReasoning && hasText) {
+          // 텍스트가 있으면 여전히 스트리밍 중이지만 더 이상 로딩 표시 필요 없음
+          return false;
+        }
+      }
+      
       // 완료를 나타내는 최종 구조화된 응답이 있는지 확인
       const annotations = (message.annotations || []) as Annotation[];
       const hasStructuredResponse = annotations.some(a => a?.type === 'structured_response');
@@ -1172,7 +1184,7 @@ export default function Chat({ params }: PageProps) {
                   messagesEndRef={messagesEndRef}
                   parentContainerRef={messagesContainerRef}
                   renderMessage={(message, index) => {
-                    // 메시지에 캔버스 데이터가 있는지 확인
+                    // Get reasoning parts directly from message.parts during streaming
                     const messageHasCanvasData = hasCanvasData(message);
                     
                     return (
@@ -1248,7 +1260,6 @@ export default function Chat({ params }: PageProps) {
                 />
               ) : (
                 messages.map((message) => {
-                  // 메시지에 캔버스 데이터가 있는지 확인
                   const messageHasCanvasData = hasCanvasData(message);
                   
                   return (

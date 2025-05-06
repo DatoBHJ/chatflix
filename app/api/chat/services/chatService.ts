@@ -377,6 +377,26 @@ export const handleStreamCompletion = async (
   
   if (extraData.full_text) {
     finalContent = extraData.full_text;
+    
+    // extraData.full_text가 있더라도 reasoning을 추출하도록 수정
+    // completion에서 reasoning 추출 시도
+    if (completion.steps && completion.steps.length > 0) {
+      finalReasoning = completion.steps
+        .filter(step => step.reasoning)
+        .map(step => step.reasoning)
+        .join('\n\n');
+    } else if (completion.parts) {
+      // 추론 파트 추출
+      const reasoningParts = completion.parts.filter(part => part.type === 'reasoning') as any[];
+      if (reasoningParts.length > 0) {
+        finalReasoning = reasoningParts.map(part => part.reasoning).join('\n');
+      }
+    }
+    
+    // 에이전트 reasoning도 별도로 확인하여 저장
+    if (!finalReasoning && extraData.tool_results?.agentReasoning?.reasoning) {
+      finalReasoning = extraData.tool_results.agentReasoning.reasoning;
+    }
   } else if (completion.steps && completion.steps.length > 0) {
     finalContent = completion.steps.map(step => step.text || '').join('\n\n');
     finalReasoning = completion.steps

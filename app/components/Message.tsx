@@ -129,6 +129,21 @@ function isStructuredResponseInProgress(message: any): boolean {
   return false;
 }
 
+// Update the helper function to check if reasoning is complete
+function isReasoningComplete(message: any): boolean {
+  // If there are both reasoning and text parts, then reasoning is complete
+  if (message.parts) {
+    const hasReasoning = message.parts.some((part: any) => part.type === 'reasoning');
+    const hasText = message.parts.some((part: any) => part.type === 'text');
+    
+    // Reasoning is complete if there's both a reasoning part and a text part
+    return hasReasoning && hasText;
+  }
+  
+  // Default to false if structure isn't as expected
+  return false;
+}
+
 // Create a memoized Message component to prevent unnecessary re-renders
 const Message = memo(function MessageComponent({
   message,
@@ -451,6 +466,10 @@ const Message = memo(function MessageComponent({
   
   // 로딩 상태에서도 Agent Reasoning 표시 (isAssistant + 로딩 중)
   if (isAssistant && (!hasAnyContent || isWaitingForToolResults || isStreaming)) {
+    // Look for reasoning parts in the message even during streaming
+    const reasoningPart = message.parts?.find(part => part.type === 'reasoning');
+    const reasoningComplete = isReasoningComplete(message);
+    
     // 구독 상태 확인
     const subscriptionAnnotation = message.annotations?.find(
       (annotation) => annotation && typeof annotation === 'object' && 'type' in annotation && annotation.type === 'subscription_status'
@@ -479,7 +498,7 @@ const Message = memo(function MessageComponent({
         </div>
         <div className="flex justify-start">
           <div className="message-assistant max-w-full">
-            {/* 로딩 상태에서도 Agent Reasoning 표시 */}
+            {/* Show agent reasoning section first */}
             {currentReasoning && (
               <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm mb-8">
                 <div 
@@ -640,6 +659,15 @@ const Message = memo(function MessageComponent({
                   </div>
                 </div>
               </div>
+            )}
+            
+            {/* Show reasoning section if available during streaming */}
+            {reasoningPart && (
+              <ReasoningSection 
+                content={reasoningPart.reasoning} 
+                isStreaming={isStreaming && !reasoningComplete} 
+                isComplete={reasoningComplete}
+              />
             )}
             
             {/* Rate Limit 메시지 표시 */}
@@ -821,7 +849,7 @@ const Message = memo(function MessageComponent({
         <div className={`${isUser ? 'message-user' : 'message-assistant'} max-w-full overflow-x-auto ${
           isEditing ? 'w-full' : ''
         }`}>
-          {/* Agent Reasoning Section - 중복 제거하고 하나로 통합 */}
+          {/* Agent Reasoning은 항상 상단에 표시 */}
           {currentReasoning && (
             <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm mb-8">
               <div 
@@ -929,9 +957,9 @@ const Message = memo(function MessageComponent({
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
                     }`}>
-                      <XLogo size={14} /> X Search
-                    </div> */}
-                    
+                        <XLogo size={14} /> X Search
+                      </div> */}
+                      
                     {/* YouTube 검색 */}
                     <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
                       currentReasoning.needsYouTubeSearch 
@@ -1037,20 +1065,41 @@ const Message = memo(function MessageComponent({
               {hasAttachments && (
                 <AttachmentPreview attachments={message.experimental_attachments!} messageId={message.id} />
               )}
+              
+              {/* 그 다음 텍스트 파트 표시 */}
               {message.parts ? (
                 <>
+                  {/* 먼저 reasoning 파트를 찾아서 표시 */}
+                  {message.parts.find(part => part.type === 'reasoning') && (
+                    (() => {
+                      const reasoningPart = message.parts.find(part => part.type === 'reasoning');
+                      const reasoningComplete = isReasoningComplete(message);
+                      
+                      return (
+                        <ReasoningSection 
+                          key="reasoning" 
+                          content={reasoningPart!.reasoning} 
+                          isStreaming={isStreaming && !reasoningComplete} 
+                          isComplete={reasoningComplete}
+                        />
+                      );
+                    })()
+                  )}
+                  
+                  {/* 그 다음 텍스트 파트 표시 */}
                   {message.parts.map((part, index) => {
-                    if (part.type === 'reasoning') {
-                      return <ReasoningSection key={index} content={part.reasoning} />
-                    }
                     if (part.type === 'text') {
                       const shouldTruncate = isUser && !isEditing && !expandedMessages[message.id];
                       const isLongMessage = part.text.length > 300;
                       
+                      // 텍스트 파트가 여러 개 있을 때 마지막 텍스트 파트에만 로딩 표시 
+                      const textParts = message.parts ? message.parts.filter(p => p.type === 'text') : [];
+                      const isLastTextPart = textParts.length > 0 && textParts[textParts.length - 1] === part;
+                      
                       return (
                         <React.Fragment key={index}>
                           <MarkdownContent content={shouldTruncate ? truncateMessage(part.text) : part.text} />
-                          {isAssistant && isStreaming && message.parts && index === message.parts.length - 1 && (
+                          {isAssistant && isStreaming && isLastTextPart && (
                             <div className="loading-dots text-sm inline-block ml-0">
                               <span>.</span>
                               <span>.</span>

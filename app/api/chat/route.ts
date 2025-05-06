@@ -83,8 +83,6 @@ function initializeTool(type: string, dataStream: any, processMessages: any[] = 
 }
 
 export async function POST(req: Request) {
-  
-  try {
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
@@ -185,7 +183,6 @@ export async function POST(req: Request) {
 
     return createDataStreamResponse({
       execute: async (dataStream) => {
-        try {
           // 비구독자이고 임계값 이상일 때만 지연 적용
           if (shouldDelay) {
             console.log(`Not subscribed and exceeded threshold (${currentRequestCount}/${REQUEST_THRESHOLD}), delaying response`);
@@ -296,26 +293,30 @@ export async function POST(req: Request) {
           const supportsReasoning = modelConfig?.reasoning?.enabled || false;
 
           const providerOptions: any = {};
+
           if (supportsReasoning) {
-            providerOptions.anthropic = {
-              thinking: {
-                type: 'enabled',
-                budgetTokens: modelConfig?.reasoning?.budgetTokens || 12000
-              }
+            providerOptions.anthropic = { 
+              thinking: { 
+                type: 'enabled', 
+                budgetTokens: 12000 
+              } 
             };
-            providerOptions.xai = {
-              reasoningEffort: 'high'
+            
+            providerOptions.xai = { 
+              reasoningEffort: 'high' 
             };
-            providerOptions.openai = {
-              reasoningEffort: 'high',
-              // reasoningSummary: 'detailed'
+            
+            providerOptions.openai = { 
+              reasoningEffort: 'medium',
             };
-            providerOptions.google = {
-              thinkingConfig: {
-                thinkingBudget: 2048,
-              },        
+            
+            providerOptions.google = { 
+              thinkingConfig: { 
+                thinkingBudget: 5000, 
+              }, 
             };
           }
+          
           
           // 메모리 뱅크 초기화 완료 대기 (Agent 모드 여부와 상관없이)
           await memoryInitPromise;
@@ -461,8 +462,9 @@ User support:
 Remember: The plan should outline HOW you will solve the problem, not just WHAT tools you'll use.
 `,
               schema: routingSchema,
-              temperature: 0.1,
+              // temperature: 0.1,
               maxTokens: 500,
+              // providerOptions: providerOptions,
             });
             
             // 부분적인 객체가 생성될 때마다 클라이언트에 전송
@@ -690,15 +692,15 @@ ${hasFile ? `
             const finalstep = streamText({
               model: providers.languageModel(model),
               system: agentSystemPrompt,
-              maxTokens: 4000,
+              // maxTokens: 4000,
               // 토큰 제한을 고려한 최적화된 메시지 사용
               messages: convertMultiModalToMessage(optimizedMessages.slice(-7)),
-              temperature: 0.2,
+              // temperature: 0.2,
               toolChoice: 'auto',
               experimental_activeTools: activeTools,
               tools,
               maxSteps: 15,
-              providerOptions,
+              providerOptions: providerOptions,
               onFinish: async (completion) => {
                 if (abortController.signal.aborted) return;
                 
@@ -914,10 +916,11 @@ IMPORTANT:
                         followup_questions: z.array(z.string()).min(3).max(3).describe('List of 3 relevant follow-up questions that the user might want to ask next')
                       })
                     }),
+                    // providerOptions: providerOptions,
                     prompt: responsePrompt,
-                    temperature: 0.3,
+                    // temperature: 0.3,
                     // 도구 결과와 쿼리의 복잡성에 따라 토큰 제한 조정
-                    maxTokens: 15000,
+                    // maxTokens: 15000,
                   });
                   
                   // 라우팅과 유사한 방식으로 비동기 처리
@@ -1008,7 +1011,6 @@ IMPORTANT:
             });
             
             finalstep.mergeIntoDataStream(dataStream, {
-              // experimental_sendFinish: true,
               sendReasoning: true
             });
 
@@ -1037,12 +1039,10 @@ IMPORTANT:
             const result = streamText({
               model: providers.languageModel(model),
               system: currentSystemPrompt,
-              // 최적화된 메시지 목록 사용
               messages: convertMultiModalToMessage(optimizedMessages),
-              temperature: 0.7,
-              maxTokens: 8000,
-              providerOptions,
-              experimental_transform: smoothStream({}),
+              // temperature: 0.7,
+              // maxTokens: 8000,
+              providerOptions: providerOptions,
               onFinish: async (completion) => {
                 if (abortController.signal.aborted) return;
 
@@ -1078,31 +1078,12 @@ IMPORTANT:
               }
             });
 
-            const stream = result.mergeIntoDataStream(dataStream, {
-              // experimental_sendStart: false,
+            result.mergeIntoDataStream(dataStream, {
               sendReasoning: true
             });
 
-            req.signal.addEventListener('abort', () => {
-              abortController.abort();
-            });
-
-            // Use try-catch for stream error handling instead
-            try {
-              return stream;
-            } catch (streamError) {
-              return;
-            }
           }
-        } catch (error) {
-          return;
-        }
+
       }
     });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
 }

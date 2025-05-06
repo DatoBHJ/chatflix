@@ -63,7 +63,7 @@ function createReasoningModel(config: ModelConfig): LanguageModelV1 {
   return wrapLanguageModel({
     model: provider(config.reasoning.baseModelId || config.id),
     middleware: extractReasoningMiddleware({ 
-      tagName: config.reasoning.tagName || 'think'
+      tagName: 'think'
     })
   });
 }
