@@ -166,18 +166,18 @@ export default function LoginPage() {
             >
               Get Started
             </button>
-            <a 
+            {/* <a 
               href="#demo" 
               className="px-12 py-4 border border-[var(--subtle-divider)] rounded-none hover:bg-[var(--foreground)] hover:text-[var(--background)] transition-all duration-300 font-light text-sm tracking-widest uppercase"
             >
               Try Now
-            </a>
+            </a> */}
           </div>
         </div>
       </div>
 
       {/* Demo Section - Enhanced styling */}
-      <div id="demo" className="py-20 md:py-32 border-t border-[var(--subtle-divider)] border-opacity-30 bg-gradient-to-b from-[var(--background)] to-[var(--background-secondary)]">
+      {/* <div id="demo" className="py-20 md:py-32 border-t border-[var(--subtle-divider)] border-opacity-30 bg-gradient-to-b from-[var(--background)] to-[var(--background-secondary)]">
         <div className="max-w-7xl mx-auto px-4">
           <div className="mb-16 max-w-3xl mx-auto text-center">
             <h2 className="font-light text-4xl md:text-6xl tracking-[-0.05em] mb-6 text-[var(--foreground)] uppercase">EXPERIENCE</h2>
@@ -187,7 +187,7 @@ export default function LoginPage() {
           </div>
           <DemoChat />
         </div>
-      </div>
+      </div> */}
       
       {/* AI Models Section */}
       <div className="w-full bg-[var(--background)] py-16 md:py-24 border-t border-[var(--subtle-divider)]">
