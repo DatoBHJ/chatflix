@@ -454,7 +454,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   // o4-Mini (Thinking)
   {
     id: "o4-mini",
-    name: "o4-Mini (Thinking)",
+    name: "o4-Mini (High)",
     country: 'US',
     description: "Openai's latest small o-series model. Reasoning tokens used in its chain-of-thought process are hidden and not included in the visible output.",
     provider: "openai",
@@ -472,8 +472,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isNew: true,
     isAgentEnabled: false,
     contextWindow: 200000,
-    // tps: 130,
-    // intelligenceIndex: 96,
+    tps: 150,
+    intelligenceIndex: 70,
   },
   // o3 (Thinking)
   // {
