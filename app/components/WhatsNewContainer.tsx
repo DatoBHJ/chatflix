@@ -256,6 +256,86 @@ const WhatsNewContainer: React.FC = () => {
     return text.substring(0, maxLength) + '...';
   };
 
+  // Format description with bullet points for preview
+  const formatPreviewDescription = (description: string, maxLength: number) => {
+    if (!description) return '';
+    
+    // If description is already short enough, process it directly
+    const needsTruncation = description.length > maxLength;
+    
+    // Split by newlines to handle bullet points
+    const lines = description.split('\n');
+    const formattedLines = lines.map((line, index) => {
+      // Check if line is a bullet point
+      const isBulletPoint = line.trim().startsWith('- ');
+      
+      // Remove the bullet dash prefix if it exists
+      const cleanLine = isBulletPoint ? line.replace(/^\s*-\s+/, '') : line;
+      
+      // Format as a bullet point if needed
+      if (isBulletPoint) {
+        return (
+          <div key={index} className="flex items-start mb-0.5">
+            <span className="mr-1 font-bold text-xs">•</span>
+            <span>{cleanLine}</span>
+          </div>
+        );
+      }
+      
+      // Regular text line
+      return <div key={index} className="mb-0.5">{cleanLine}</div>;
+    });
+    
+    // If no truncation needed, return the formatted lines
+    if (!needsTruncation) {
+      return <>{formattedLines}</>;
+    }
+    
+    // Truncate the content for previews that are too long
+    // Find how many lines we can show
+    let totalLength = 0;
+    let linesToShow = [];
+    
+    for (let i = 0; i < formattedLines.length; i++) {
+      const lineContent = lines[i];
+      const lineLength = lineContent.length;
+      
+      if (totalLength + lineLength <= maxLength) {
+        linesToShow.push(formattedLines[i]);
+        totalLength += lineLength;
+      } else {
+        // If we can't show the full line, show a truncated version
+        const remainingLength = maxLength - totalLength;
+        if (remainingLength > 3) { // Only if we can show something meaningful
+          const truncatedLine = (isBulletPoint: boolean) => {
+            const content = lineContent.replace(/^\s*-\s+/, '');
+            const truncated = content.substring(0, remainingLength - 3) + '...';
+            
+            if (isBulletPoint) {
+              return (
+                <div key={i} className="flex items-start mb-0.5">
+                  <span className="mr-1 font-bold text-xs">•</span>
+                  <span>{truncated}</span>
+                </div>
+              );
+            }
+            return <div key={i} className="mb-0.5">{truncated}</div>;
+          };
+          
+          linesToShow.push(truncatedLine(lineContent.trim().startsWith('- ')));
+        }
+        break;
+      }
+    }
+    
+    // If we couldn't show all lines, add an indicator
+    if (linesToShow.length < formattedLines.length) {
+      linesToShow.push(<div key="more" className="text-xs text-[var(--muted)]">...</div>);
+    }
+    
+    return <>{linesToShow}</>;
+  };
+
   // Function to get time ago string (like "2h" or "3d")
   const getTimeAgo = (timestamp: number) => {
     const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -431,9 +511,9 @@ const WhatsNewContainer: React.FC = () => {
                         <span className="text-xs text-[var(--muted)]">{getTimeAgo(update.timestamp)}</span>
                       </div>
                       <h4 className="font-medium text-sm">{update.title}</h4>
-                      <p className="text-sm text-[var(--muted)] mt-1">
-                        {truncateText(update.description, 100)}
-                      </p>
+                      <div className="text-sm text-[var(--muted)] mt-1">
+                        {formatPreviewDescription(update.description, 100)}
+                      </div>
                       
                       {update.images && update.images.length > 0 && (
                         <div className="mt-2">

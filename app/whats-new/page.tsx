@@ -101,6 +101,60 @@ const ImageModal: React.FC<ImageModalProps> = ({
   );
 };
 
+// Function to convert URLs in text to clickable links and handle bullet points
+const convertLinksToHtml = (text: string) => {
+  if (!text) return '';
+  
+  // URL regex pattern to detect links
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  
+  // Split by newlines first to handle bullet points
+  return text.split('\n').map((line, lineIndex) => {
+    // Check if line starts with bullet point (- )
+    const isBulletPoint = line.trim().startsWith('- ');
+    
+    // Remove the bullet dash prefix if it exists
+    const cleanLine = isBulletPoint ? line.replace(/^\s*-\s+/, '') : line;
+    
+    // Process the line for URLs
+    const processedLine = cleanLine.split(urlRegex).map((part, i) => {
+      // Check if this part matches a URL
+      if (urlRegex.test(part)) {
+        return (
+          <a 
+            key={`${lineIndex}-${i}`} 
+            href={part} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline break-words"
+          >
+            {part}
+          </a>
+        );
+      }
+      // Return regular text
+      return part;
+    });
+    
+    // If it's a bullet point, wrap in list item styling
+    if (isBulletPoint) {
+      return (
+        <div key={lineIndex} className="flex items-start mb-1">
+          <span className="mr-2 font-bold">•</span>
+          <span>{processedLine}</span>
+        </div>
+      );
+    }
+    
+    // If it's a normal line, add margin bottom except for the last line
+    return (
+      <div key={lineIndex} className="mb-1">
+        {processedLine}
+      </div>
+    );
+  });
+};
+
 export default function WhatsNewPage() {
   const [updates, setUpdates] = useState<FeatureUpdate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -483,7 +537,9 @@ export default function WhatsNewPage() {
                     </div>
                     
                     <h3 className="font-medium text-lg mt-1">{update.title}</h3>
-                    <p className="mt-1 text-[var(--foreground)]">{update.description}</p>
+                    <div className="mt-1 text-[var(--foreground)]">
+                      {convertLinksToHtml(update.description)}
+                    </div>
                     
                     {update.images && update.images.length > 0 && (
                       <div className="mt-3 rounded-xl overflow-hidden border border-[var(--subtle-divider)]">
