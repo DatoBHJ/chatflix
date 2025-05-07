@@ -267,6 +267,51 @@ export async function getDefaultModelId(userId?: string): Promise<string> {
 
 // Define the model configurations
 const MODEL_CONFIG_DATA: ModelConfig[] = [
+   // Grok 3 Mini Fast (Thinking)
+  {
+    id: 'grok-3-mini-fast',
+    name: 'Grok 3 Mini Fast (Thinking)',
+    country: 'US',
+    description: 'High-speed version of Grok 3 Mini.',
+    provider: 'xai',
+    supportsVision: false,
+    censored: false,
+    rateLimit: {
+      level: 'level2',
+    },
+    reasoning: {
+      enabled: true,
+      provider: 'xai',
+    },
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: false,
+    contextWindow: 131072,
+    // tps: 67, 
+    intelligenceIndex: 66,
+  },
+    // Grok 3 Fast
+    {
+    id: 'grok-3-fast',
+    name: 'Grok 3 Fast',
+    country: 'US',
+    description: 'High-speed version of Grok 3',
+    provider: 'xai',
+    supportsVision: false,
+    censored: false,
+    rateLimit: {
+      level: 'level2',
+    },
+    // isHot: true,
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: true,
+    contextWindow: 131072,
+    // tps: 67, 
+    intelligenceIndex: 50,
+  },
   // Claude 3.7 Sonnet (Thinking)
   {
     id: 'claude-3-7-sonnet-20250219',
@@ -323,51 +368,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     MATH: 54,
     GPQA: 66,
     HLE: 4.8
-  },
-  // Grok 3 Mini Fast (Thinking)
-  {
-    id: 'grok-3-mini-fast',
-    name: 'Grok 3 Mini Fast (Thinking)',
-    country: 'US',
-    description: 'High-speed version of Grok 3 Mini.',
-    provider: 'xai',
-    supportsVision: false,
-    censored: false,
-    rateLimit: {
-      level: 'level2',
-    },
-    reasoning: {
-      enabled: true,
-      provider: 'xai',
-    },
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: true,
-    contextWindow: 131072,
-    // tps: 67, 
-    intelligenceIndex: 66,
-  },
-    // Grok 3 Fast
-    {
-    id: 'grok-3-fast',
-    name: 'Grok 3 Fast',
-    country: 'US',
-    description: 'High-speed version of Grok 3',
-    provider: 'xai',
-    supportsVision: false,
-    censored: false,
-    rateLimit: {
-      level: 'level2',
-    },
-    // isHot: true,
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: true,
-    contextWindow: 131072,
-    // tps: 67, 
-    intelligenceIndex: 50,
   },
   // GPT-4.1
   {
