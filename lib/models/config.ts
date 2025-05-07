@@ -560,7 +560,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Latest 2.5 pro model.',
     provider: 'google',
     supportsVision: true,
-    censored: false,
+    // censored: false,
     rateLimit: {
       level: 'level4',
     },
@@ -584,7 +584,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Google\'s most powerful thinking model.',
     provider: 'google',
     supportsVision: true,
-    censored: false,
+    // censored: false,
     rateLimit: {
       level: 'level4',
     },
@@ -609,7 +609,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Latest 2.5 flash model with 1m context window by Google. Reasoning tokens used in its chain-of-thought process are not included in the visible output.',
     provider: 'google',
     supportsVision: true,
-    censored: false,
+    // censored: false,
     rateLimit: {
       level: 'level1',
     },
@@ -634,7 +634,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Latest 2.0 flash model with 1m context window by Google',
     provider: 'google',
     supportsVision: true,
-    censored: false,
+    // censored: false,
     rateLimit: {
       level: 'level1',
     },
