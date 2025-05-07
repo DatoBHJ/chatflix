@@ -1,4 +1,4 @@
-import { streamText, createDataStreamResponse, smoothStream, Message, streamObject } from 'ai';
+import { streamText, createDataStreamResponse, smoothStream, Message, streamObject, generateText, generateObject } from 'ai';
 import { createClient } from '@/utils/supabase/server';
 import { providers } from '@/lib/providers';
 import { getModelById} from '@/lib/models/config';
@@ -692,7 +692,6 @@ ${hasFile ? `
             const finalstep = streamText({
               model: providers.languageModel(model),
               system: agentSystemPrompt,
-              // maxTokens: 4000,
               // 토큰 제한을 고려한 최적화된 메시지 사용
               messages: convertMultiModalToMessage(optimizedMessages.slice(-7)),
               // temperature: 0.2,
@@ -701,6 +700,122 @@ ${hasFile ? `
               tools,
               maxSteps: 15,
               providerOptions: providerOptions,
+//               experimental_repairToolCall: async ({
+//                 toolCall,
+//                 tools,
+//                 parameterSchema,
+//                 error
+//               }: any) => {
+//                 // 존재하지 않는 도구인 경우 수정 불가
+//                 if (error?.name === 'NoSuchToolError') {
+//                   console.log(`도구를 찾을 수 없음: ${toolCall.toolName}`);
+//                   return null;
+//                 }
+
+//                 // 인수 오류인 경우 구조화된 출력 모델을 사용하여 복구
+//                 if (error?.name === 'InvalidToolArgumentsError') {
+//                   console.log(`유효하지 않은 도구 인수: ${error.message} (도구: ${toolCall.toolName})`);
+                  
+//                   try {
+//                     // 도구의 스키마 정보 가져오기
+//                     const schema = parameterSchema({ toolName: toolCall.toolName });
+                    
+//                     // generateObject를 사용하여 인수 복구
+//                     const repairedArgs = await generateObject({
+//                       model: providers.languageModel(model),
+//                       schema: schema as any, // any 타입으로 변환하여 타입 오류 우회
+//                       prompt: `Fix these arguments for the ${toolCall.toolName} tool.
+// Error: ${error.message}
+// Current arguments: ${JSON.stringify(toolCall.args)}
+// Please provide valid arguments that match the required schema.`,
+//                     });
+                    
+//                     // 복구된 인수로 새 도구 호출 반환
+//                     return {
+//                       toolCallId: toolCall.toolCallId,
+//                       toolName: toolCall.toolName,
+//                       toolCallType: "function",
+//                       args: JSON.stringify(await repairedArgs.object)
+//                     };
+//                   } catch (repairError) {
+//                     console.error('도구 인수 복구 실패:', repairError);
+//                     // 실패하면 기본 수정 시도
+//                     return {
+//                       toolCallId: toolCall.toolCallId,
+//                       toolName: toolCall.toolName,
+//                       toolCallType: "function",
+//                       args: JSON.stringify({})
+//                     };
+//                   }
+//                 }
+                
+//                 // 도구 실행 오류인 경우 더 강력한 모델 사용
+//                 if (error?.name === 'ToolExecutionError') {
+//                   console.log(`도구 실행 오류: ${error.message}`);
+                  
+//                   try {
+//                     // 더 강력한 모델 선택 (예: GPT-4)
+//                     const strongerModel = 'gpt-4o';
+                    
+//                     // 강력한 모델로 새 호출 생성
+//                     const repairedResult = await streamText({
+//                       model: providers.languageModel(strongerModel),
+//                       system: `The previous tool call has failed. Please try again with the correct arguments.`,
+//                       messages: [
+//                         {
+//                           role: 'user',
+//                           content: `The tool ${toolCall.toolName} failed with the following error: "${error.message}"
+                          
+// Current arguments: ${JSON.stringify(toolCall.args)}
+
+// Please try to call this tool again with correct arguments.`
+//                         }
+//                       ],
+//                       tools: [tools[toolCall.toolName]] as any,
+//                       toolChoice: { type: "function", function: { name: toolCall.toolName } } as any
+//                     });
+                    
+//                     // 도구 호출 추출 - 버전간 호환성을 위해 any와 try-catch 사용
+//                     let toolCalls: any[] = [];
+//                     try {
+//                       // 여러 가능한 속성 이름 시도
+//                       const anyResult = repairedResult as any;
+//                       if (anyResult.toolCalls) {
+//                         toolCalls = anyResult.toolCalls;
+//                       } else if (anyResult.tool_calls) {
+//                         toolCalls = anyResult.tool_calls;
+//                       } else if (anyResult.annotations) {
+//                         // 주석에서 도구 호출 찾기
+//                         const toolCallAnnotations = anyResult.annotations.filter((a: any) => 
+//                           a.type === 'tool-call' || a.type === 'tool_call'
+//                         );
+//                         if (toolCallAnnotations.length > 0) {
+//                           toolCalls = toolCallAnnotations;
+//                         }
+//                       }
+//                     } catch (e) {
+//                       console.log('도구 호출 추출 중 오류:', e);
+//                       toolCalls = [];
+//                     }
+                    
+//                     if (toolCalls && toolCalls.length > 0) {
+//                       const repairedCall = toolCalls[0];
+//                       return {
+//                         toolCallId: toolCall.toolCallId,
+//                         toolName: toolCall.toolName,
+//                         toolCallType: "function",
+//                         args: typeof repairedCall.args === 'string' 
+//                           ? repairedCall.args 
+//                           : JSON.stringify(repairedCall.args)
+//                       };
+//                     }
+//                   } catch (repairError) {
+//                     console.error('도구 실행 복구 실패:', repairError);
+//                   }
+//                 }
+                
+//                 return null;
+//               },
               onFinish: async (completion) => {
                 if (abortController.signal.aborted) return;
                 

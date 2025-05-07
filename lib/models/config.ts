@@ -557,7 +557,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     id: 'gemini-2.5-pro-preview-05-06',
     name: 'Gemini 2.5 Pro Preview 05-06 (Thinking)',
     country: 'US',
-    description: 'Latest 2.5 pro model.',
+    description: 'Google\'s most powerful thinking model.',
     provider: 'google',
     supportsVision: true,
     // censored: false,
@@ -573,7 +573,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     isActivated: true,
     contextWindow: 1024000,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     // tps: 159,
     // intelligenceIndex: 68,
   },
@@ -581,7 +581,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     id: 'gemini-2.5-pro-preview-03-25',
     name: 'Gemini 2.5 Pro Preview 03-25 (Thinking)',
     country: 'US',
-    description: 'Google\'s most powerful thinking model.',
+    description: 'Previous 2.5 pro model',
     provider: 'google',
     supportsVision: true,
     // censored: false,
@@ -626,7 +626,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 258,
     intelligenceIndex: 48,
   },
-  // Gemini 2.0 Flash (Thinking)
+  // Gemini 2.0 Flash
   {
     id: 'gemini-2.0-flash',
     name: 'Gemini 2.0 Flash',
