@@ -554,10 +554,34 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   },
   // Gemini 2.5 Pro Preview 03-25 (Thinking)
   {
+    id: 'gemini-2.5-pro-preview-05-06',
+    name: 'Gemini 2.5 Pro Preview 05-06 (Thinking)',
+    country: 'US',
+    description: 'Latest 2.5 pro model.',
+    provider: 'google',
+    supportsVision: true,
+    censored: false,
+    rateLimit: {
+      level: 'level4',
+    },
+    safetySettings: {
+      categories: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+      threshold: 'BLOCK_NONE'
+    },
+    isNew: true,
+    supportsPDFs: true,
+    isEnabled: true,
+    isActivated: true,
+    contextWindow: 1024000,
+    isAgentEnabled: false,
+    // tps: 159,
+    // intelligenceIndex: 68,
+  },
+  {
     id: 'gemini-2.5-pro-preview-03-25',
     name: 'Gemini 2.5 Pro Preview 03-25 (Thinking)',
     country: 'US',
-    description: 'Google\'s most powerful thinking model. Reasoning tokens used in its chain-of-thought process are hidden by Google and not included in the visible output.',
+    description: 'Google\'s most powerful thinking model.',
     provider: 'google',
     supportsVision: true,
     censored: false,
