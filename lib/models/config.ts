@@ -37,7 +37,7 @@ export interface ModelConfig {
 }
 
 // Default model configuration
-export const DEFAULT_MODEL_ID = 'gpt-4.1-mini'; 
+export const DEFAULT_MODEL_ID = 'claude-3-7-sonnet-20250219'; 
 
 export const RATE_LIMITS = {
   level0: {
@@ -377,7 +377,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Flagship GPT model for complex tasks. Well suited for problem solving across domains.',
     provider: 'openai',
     supportsVision: true,
-    censored: true,
+    // censored: true,
     rateLimit: {
       level: 'level5',
     },
@@ -398,7 +398,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Balanced for intelligence and speed. Well suited for general tasks.',
     provider: 'openai',
     supportsVision: true,
-    censored: true,
+    // censored: true,
     rateLimit: {
       level: 'level1',
     },
@@ -466,7 +466,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       enabled: true,
       provider: 'openai',
     },
-    censored:true,
+    // censored:true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
