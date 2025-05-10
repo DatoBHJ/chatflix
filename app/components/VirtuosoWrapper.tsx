@@ -8,6 +8,7 @@ type VirtuosoWrapperProps = {
   renderMessage: (message: Message, index: number) => React.ReactNode;
   parentContainerRef?: React.RefObject<HTMLDivElement | null>;
   className?: string;
+  onScroll?: (info: { scrollTop: number, scrollHeight: number, clientHeight: number }) => void;
 };
 
 const VirtuosoWrapper: React.FC<VirtuosoWrapperProps> = ({
@@ -15,7 +16,8 @@ const VirtuosoWrapper: React.FC<VirtuosoWrapperProps> = ({
   messagesEndRef,
   renderMessage,
   parentContainerRef,
-  className = ''
+  className = '',
+  onScroll
 }) => {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [height, setHeight] = useState('calc(100vh - 220px)');
@@ -48,9 +50,16 @@ const VirtuosoWrapper: React.FC<VirtuosoWrapperProps> = ({
     }
   }, [messages.length]);
 
-  // Prevent events from reaching parent scroller
-  const preventPropagation = (e: React.UIEvent<HTMLDivElement>) => {
+  // Combined event handler for scroll prevention and custom scroll handling
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    // Prevent events from reaching parent scroller
     e.stopPropagation();
+    
+    // Call custom onScroll handler if provided
+    if (onScroll && e.currentTarget) {
+      const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+      onScroll({ scrollTop, scrollHeight, clientHeight });
+    }
   };
 
   // Safely check if the parent container exists and is an Element
@@ -59,7 +68,7 @@ const VirtuosoWrapper: React.FC<VirtuosoWrapperProps> = ({
   // Use try-catch to render with proper fallbacks
   try {
     return (
-      <div className={`virtuoso-wrapper ${className}`} onScroll={preventPropagation}>
+      <div className={`virtuoso-wrapper ${className}`} onScroll={handleScroll}>
         <Virtuoso
           ref={virtuosoRef}
           data={messages}
@@ -82,6 +91,20 @@ const VirtuosoWrapper: React.FC<VirtuosoWrapperProps> = ({
               {renderMessage(messages[index], index)}
             </div>
           )}
+          // Pass the onScroll callback to Virtuoso if provided
+          {...(onScroll ? {
+            scrollerRef: (element) => {
+              if (element) {
+                element.addEventListener('scroll', () => {
+                  onScroll({
+                    scrollTop: element.scrollTop,
+                    scrollHeight: element.scrollHeight,
+                    clientHeight: element.clientHeight
+                  });
+                });
+              }
+            }
+          } : {})}
         />
       </div>
     );
@@ -90,7 +113,11 @@ const VirtuosoWrapper: React.FC<VirtuosoWrapperProps> = ({
     
     // Fallback to non-virtualized renderer
     return (
-      <div className={`virtuoso-wrapper-fallback ${className}`} style={{ height }}>
+      <div 
+        className={`virtuoso-wrapper-fallback ${className}`} 
+        style={{ height }}
+        onScroll={handleScroll}
+      >
         {messages.map((message, index) => (
           <div key={message.id || index}>
             {renderMessage(message, index)}

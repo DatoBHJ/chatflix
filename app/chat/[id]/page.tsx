@@ -21,7 +21,7 @@ import { VirtuosoHandle } from 'react-virtuoso';
 import VirtuosoWrapper from '@/app/components/VirtuosoWrapper';
 import Canvas from '@/app/components/Canvas';
 import { FollowUpQuestions } from '@/app/components/FollowUpQuestions';
-import { getDataProcessorData, getYouTubeLinkAnalysisData, getYouTubeSearchData, getXSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getAcademicSearchData } from '@/app/hooks/toolFunction';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getXSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getAcademicSearchData } from '@/app/hooks/toolFunction';
 import { StructuredResponse } from '@/app/components/StructuredResponse';
 
 
@@ -62,6 +62,11 @@ export default function Chat({ params }: PageProps) {
   const [userPanelPreference, setUserPanelPreference] = useState<boolean | null>(null)
   // 마지막으로 생성된 패널 데이터가 있는 메시지 ID
   const [lastPanelDataMessageId, setLastPanelDataMessageId] = useState<string | null>(null)
+  
+  // 사용자 스크롤 제어를 위한 상태 추가
+  const [userScrolled, setUserScrolled] = useState(false);
+  const [isNearBottom, setIsNearBottom] = useState(true);
+  const userScrolledTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, stop, setMessages, reload } = useChat({
     api: '/api/chat',
@@ -232,7 +237,67 @@ export default function Chat({ params }: PageProps) {
     if (canvasContainerRef.current) {
       canvasContainerRef.current.scrollTop = canvasContainerRef.current.scrollHeight;
     }
+    
+    // 스크롤 이후 사용자 스크롤 상태 초기화
+    setUserScrolled(false);
+    setIsNearBottom(true);
   }, [messages.length]);
+
+  // 사용자 스크롤 이벤트 처리 함수
+  const handleScroll = useCallback(() => {
+    if (!messagesContainerRef.current) return;
+    
+    const container = messagesContainerRef.current;
+    const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    
+    // 맨 아래에서 100px 이내이면 아래에 있는 것으로 간주
+    const nearBottom = scrollBottom < 100;
+    
+    setIsNearBottom(nearBottom);
+    
+    // 맨 아래가 아닐 때만 사용자 스크롤 플래그 설정
+    if (!nearBottom) {
+      setUserScrolled(true);
+      
+      // 지연 시간 후 자동으로 스크롤 재개를 방지하기 위해 기존 타이머 정리
+      if (userScrolledTimeout.current) {
+        clearTimeout(userScrolledTimeout.current);
+        userScrolledTimeout.current = null;
+      }
+    } else {
+      // 사용자가 맨 아래로 스크롤하면 자동 스크롤 재개
+      setUserScrolled(false);
+    }
+  }, []);
+
+  // 가상화된 리스트의 스크롤 이벤트 처리
+  const handleVirtuosoScroll = useCallback(({ scrollTop, scrollHeight, clientHeight }: { scrollTop: number, scrollHeight: number, clientHeight: number }) => {
+    const scrollBottom = scrollHeight - scrollTop - clientHeight;
+    const nearBottom = scrollBottom < 100;
+    
+    setIsNearBottom(nearBottom);
+    
+    if (!nearBottom) {
+      setUserScrolled(true);
+      if (userScrolledTimeout.current) {
+        clearTimeout(userScrolledTimeout.current);
+        userScrolledTimeout.current = null;
+      }
+    } else {
+      setUserScrolled(false);
+    }
+  }, []);
+
+  // 스크롤 이벤트 리스너 추가
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    
+    container.addEventListener('scroll', handleScroll);
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, [handleScroll]);
 
   // 특정 메시지로 스크롤하는 함수 개선 - 캔버스 동기화
   const scrollToMessage = useCallback((messageId: string) => {
@@ -668,6 +733,41 @@ export default function Chat({ params }: PageProps) {
     }
   }, [isInitialized, isFullyLoaded, scrollToBottom]);
 
+  // 메시지가 변경될 때마다 좌우 패널 모두 자동 스크롤 (사용자 스크롤 상태 고려)
+  useEffect(() => {
+    if (messages.length > 0) {
+      // 사용자가 스크롤한 경우가 아니고, 스트리밍 중이거나 새 메시지가 추가된 경우에만 스크롤
+      if (!userScrolled && (isLoading || messages[messages.length - 1]?.role === 'assistant')) {
+        scrollToBottom();
+      }
+    }
+  }, [messages, isLoading, scrollToBottom, userScrolled]);
+
+  // 활성화된 패널이 변경될 때 캔버스 패널 스크롤
+  useEffect(() => {
+    // canvasContainerRef.current가 null이 아닌지 확인
+    if (activePanelMessageId && canvasContainerRef.current) {
+      // 약간의 지연 추가 (패널 렌더링 후 스크롤 보장)
+      setTimeout(() => {
+        // 다시 한번 null 체크 (setTimeout 내부에서도 확인 필요)
+        if (!canvasContainerRef.current) return;
+        
+        // 관련 캔버스 요소 찾기 및 스크롤
+        const canvasElement = document.getElementById(`canvas-${activePanelMessageId}`);
+        if (canvasElement) {
+          canvasContainerRef.current.scrollTo({
+            top: canvasElement.offsetTop - 20,
+            behavior: 'smooth'
+          });
+        } else {
+          // 요소가 없으면 맨 아래로 스크롤
+          canvasContainerRef.current.scrollTop = canvasContainerRef.current.scrollHeight;
+        }
+      }, 100);
+    }
+  }, [activePanelMessageId]);
+
+
   const handleModelChange = async (newModel: string) => {
     try {
       // Check if the selected model is in a rate-limited level
@@ -996,10 +1096,14 @@ export default function Chat({ params }: PageProps) {
     }
   };
 
-  // 입력을 보내는 시점에 사용자 패널 선호도 초기화 (새 대화 시작)
+  // 사용자가 새로운 메시지를 전송할 때 스크롤 플래그 재설정
   const handleModelSubmitWithReset = useCallback(async (e: React.FormEvent, files?: FileList) => {
     // 패널 상태 선호도 초기화 - 새 데이터에 대해 자동 표시 허용
     setUserPanelPreference(null);
+    
+    // 자동 스크롤 다시 허용 - 사용자가 메시지를 보낼 때
+    setUserScrolled(false);
+    setIsNearBottom(true);
     
     // 기존 handleModelSubmit 호출
     await handleModelSubmit(e, files);
@@ -1059,7 +1163,6 @@ export default function Chat({ params }: PageProps) {
       // getXSearchData(message) || 
       getYouTubeSearchData(message) || 
       getYouTubeLinkAnalysisData(message) || 
-      getDataProcessorData(message) ||
       hasStructuredResponseFiles()
     );
   };
@@ -1130,7 +1233,6 @@ export default function Chat({ params }: PageProps) {
       // needsXSearch: Boolean(data?.needsXSearch),
       needsYouTubeSearch: Boolean(data?.needsYouTubeSearch),
       needsYouTubeLinkAnalyzer: Boolean(data?.needsYouTubeLinkAnalyzer),
-      needsDataProcessor: Boolean(data?.needsDataProcessor),
       timestamp: data?.timestamp,
       isComplete: data?.isComplete ?? true
     });
@@ -1183,6 +1285,7 @@ export default function Chat({ params }: PageProps) {
                   messages={messages}
                   messagesEndRef={messagesEndRef}
                   parentContainerRef={messagesContainerRef}
+                  onScroll={handleVirtuosoScroll}
                   renderMessage={(message, index) => {
                     // Get reasoning parts directly from message.parts during streaming
                     const messageHasCanvasData = hasCanvasData(message);
@@ -1370,7 +1473,7 @@ export default function Chat({ params }: PageProps) {
             </div>
             
             {/* 패널 내용 - 선택된 메시지의 캔버스 데이터만 표시 */}
-            <div className="px-4">
+            <div className="px-4 mb-10">
               {messages
                 .filter(message => message.id === activePanelMessageId)
                 .map((message) => {
@@ -1382,7 +1485,6 @@ export default function Chat({ params }: PageProps) {
                   // const xSearchData = getXSearchData(message);
                   const youTubeSearchData = getYouTubeSearchData(message);
                   const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(message);
-                  const dataProcessorData = getDataProcessorData(message);
 
                   return (
                     <div key={`canvas-${message.id}`}>
@@ -1395,7 +1497,6 @@ export default function Chat({ params }: PageProps) {
                         // xSearchData={xSearchData}
                         youTubeSearchData={youTubeSearchData}
                         youTubeLinkAnalysisData={youTubeLinkAnalysisData}
-                        dataProcessorData={dataProcessorData}
                       />
                       {/* 구조화된 응답 컴포넌트 추가 */}
                       <StructuredResponse message={message} />
@@ -1406,6 +1507,22 @@ export default function Chat({ params }: PageProps) {
           </div>
         </div>
       </div>
+
+      {/* "맨 아래로" 스크롤 버튼 추가 */}
+      {!isNearBottom && (
+        <button 
+          className="fixed bottom-24 right-6 z-50 rounded-full bg-[var(--foreground)] text-[var(--background)] p-3 shadow-lg"
+          onClick={() => {
+            scrollToBottom();
+            setUserScrolled(false);
+          }}
+          aria-label="맨 아래로 스크롤"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5v14M5 12l7 7 7-7"/>
+          </svg>
+        </button>
+      )}
 
       <div className="fixed inset-x-0 bottom-0 z-10 w-full">
         <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-0 pb-6 w-full">

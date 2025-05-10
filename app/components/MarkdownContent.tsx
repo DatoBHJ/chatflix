@@ -32,9 +32,10 @@ const addKatexStyles = () => {
           margin: 1.5em 0 !important;
           overflow-x: auto;
           overflow-y: hidden;
-          padding: 8px 0;
-          background: rgba(0, 0, 0, 0.02);
-          border-radius: 4px;
+          padding: 12px 0;
+          background: rgba(0, 0, 0, 0.03);
+          border-radius: 6px;
+          box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
         }
         .katex-display > .katex { 
           font-size: 1.21em !important;
@@ -43,12 +44,15 @@ const addKatexStyles = () => {
         
         /* Inline math */
         .katex-inline {
-          padding: 0 3px;
+          background: rgba(0, 0, 0, 0.02);
+          border-radius: 4px;
+          padding: 0.15em 0.3em;
+          margin: 0 0.1em;
         }
         
         /* Better spacing for fraction lines */
         .katex .frac-line {
-          border-bottom-width: 0.1em !important;
+          border-bottom-width: 0.12em !important;
         }
         
         /* Better matrices */
@@ -101,61 +105,64 @@ const addKatexStyles = () => {
   }
 };
 
-// Helper function to escape dollar signs in currency strings but leave math intact
+// 더 정교한 LaTeX 전처리 함수 추가
+const preprocessLaTeX = (content: string) => {
+  if (!content) return '';
+  
+  // 이미 이스케이프된 구분자 처리
+  let processedContent = content
+    .replace(/\\\[/g, '___BLOCK_OPEN___')
+    .replace(/\\\]/g, '___BLOCK_CLOSE___')
+    .replace(/\\\(/g, '___INLINE_OPEN___')
+    .replace(/\\\)/g, '___INLINE_CLOSE___');
+
+  // 블록 수식 ($$...$$) 보존
+  const blockRegex = /(\$\$[\s\S]*?\$\$)/g;
+  const blocks: string[] = [];
+  processedContent = processedContent.replace(blockRegex, (match) => {
+    const id = blocks.length;
+    blocks.push(match);
+    return `___LATEX_BLOCK_${id}___`;
+  });
+
+  // 인라인 수식 ($...$) 보존 - 화폐 값과 구분
+  const inlineRegex = /(\$(?!\s*\d+[.,\s]*\d*\s*$)(?:[^\$]|\\.)*?\$)/g;
+  const inlines: string[] = [];
+  processedContent = processedContent.replace(inlineRegex, (match) => {
+    const id = inlines.length;
+    inlines.push(match);
+    return `___LATEX_INLINE_${id}___`;
+  });
+
+  // 이스케이프된 구분자 복원
+  processedContent = processedContent
+    .replace(/___BLOCK_OPEN___/g, '\\[')
+    .replace(/___BLOCK_CLOSE___/g, '\\]')
+    .replace(/___INLINE_OPEN___/g, '\\(')
+    .replace(/___INLINE_CLOSE___/g, '\\)');
+
+  // 화폐 기호 처리 (단순화된 버전)
+  processedContent = escapeCurrencyDollars(processedContent);
+
+  // LaTeX 블록 복원
+  processedContent = processedContent.replace(/___LATEX_BLOCK_(\d+)___/g, (_, id) => {
+    return blocks[parseInt(id)];
+  });
+  
+  processedContent = processedContent.replace(/___LATEX_INLINE_(\d+)___/g, (_, id) => {
+    return inlines[parseInt(id)];
+  });
+
+  return processedContent;
+};
+
+// 단순화된 화폐 기호 처리 함수
 function escapeCurrencyDollars(text: string): string {
-  // Enhanced check for undefined or null - return empty string for any falsy value
-  if (text === undefined || text === null || text === '') return '';
+  // 이미 LaTeX로 처리된 항목은 건너뛰기
+  if (text.includes('___LATEX_') || !text.includes('$')) return text;
   
-  // Don't process if no dollar sign
-  if (!text.includes('$')) return text;
-  
-  // Store math expressions to protect them
-  const mathExpressions: string[] = [];
-  
-  // First, protect block math ($$...$$) including multi-line expressions
-  let processedText = text.replace(/\$\$([\s\S]*?)\$\$/g, (match) => {
-    mathExpressions.push(match);
-    return `__BLOCK_MATH_${mathExpressions.length - 1}__`;
-  });
-  
-  // Then identify and protect ONLY CLEAR math expressions with unambiguous math syntax
-  // This pattern is much more strict about what it considers math - must have clear math operators
-  const strictMathPattern = /\$((?:[^$]|\\\$)*?(?:[+\-*\/^=<>~]|\\[a-zA-Z]{2,}|\\(?:sum|int|frac|sqrt|lim|infty))[^$]*?)\$/g;
-  processedText = processedText.replace(strictMathPattern, (match) => {
-    mathExpressions.push(match);
-    return `__INLINE_MATH_${mathExpressions.length - 1}__`;
-  });
-  
-  // Now aggressively handle ALL currency and number patterns
-  
-  // 1. Dollar sign followed by digits (with optional comma/period) - most common currency case
-  processedText = processedText.replace(/\$\s*[\d,\.]+/g, (match) => {
-    return match.replace('$', '&#36;');
-  });
-  
-  // 2. Dollar amounts with text immediately after, or parentheses ($73,950median, $73,950(median))
-  processedText = processedText.replace(/\$[\d,\.]+\s*(?:\([a-zA-Z\s]+\)|[a-zA-Z]+)/g, (match) => {
-    return match.replace('$', '&#36;');
-  });
-  
-  // 3. Handle specific case with "to" between amounts ($73,950to$75,400)
-  processedText = processedText.replace(/\$[\d,\.]+\s*(?:to|-)\s*\$[\d,\.]+/g, (match) => {
-    return match.replace(/\$/g, '&#36;');
-  });
-  
-  // 4. Catch any remaining dollar sign with numbers that wasn't caught as math
-  processedText = processedText.replace(/\$(?!\s*[a-zA-Z\\{}_^])([\d,\.\s]+)/g, (match, p1) => {
-    return '&#36;' + p1;
-  });
-  
-  // Restore math expressions in reverse order to avoid nested placeholder issues
-  for (let i = mathExpressions.length - 1; i >= 0; i--) {
-    processedText = processedText
-      .replace(`__INLINE_MATH_${i}__`, mathExpressions[i])
-      .replace(`__BLOCK_MATH_${i}__`, mathExpressions[i]);
-  }
-  
-  return processedText;
+  // 금액 패턴 (예: $100, $1,000.50)
+  return text.replace(/\$(\d[\d,\.]*)/g, '&#36;$1');
 }
 
 interface MarkdownContentProps {
@@ -310,9 +317,9 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
     addKatexStyles();
   }, []);
 
-  // Pre-process the content to escape currency dollar signs
+  // Pre-process the content to handle LaTeX and escape currency dollar signs
   const processedContent = useMemo(() => {
-    return escapeCurrencyDollars(content);
+    return preprocessLaTeX(content);
   }, [content]);
 
   // Memoize the styleMentions function to avoid recreating it on every render
@@ -646,16 +653,25 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
   // Updated rehypePlugins with enhanced configuration
   const rehypePlugins = useMemo(() => {
     const plugins = [
-      rehypeRaw, 
-      rehypeSanitize,
-      rehypeHighlight,
-      // Enhance KaTeX configuration for better math rendering
+      // KaTeX를 먼저 처리하도록 순서 변경
       [rehypeKatex, { 
         throwOnError: false,
         output: 'html',
         displayMode: false,
         trust: true,
         strict: false,
+        globalGroup: true, // 전역 그룹화 설정 추가
+        errorColor: '#ff5555',
+        delimiters: [ // 다양한 구분자 지원
+          {left: '$$', right: '$$', display: true},
+          {left: '$', right: '$', display: false},
+          {left: '\\(', right: '\\)', display: false},
+          {left: '\\[', right: '\\]', display: true}
+        ],
+        minRuleThickness: 0.08,
+        maxExpand: 1000,
+        maxSize: 500,
+        // 매크로 유지
         macros: {
           // Common mathematical sets
           "\\R": "\\mathbb{R}",
@@ -707,15 +723,13 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
           // Calculus shorthands
           "\\dv": "\\frac{d}{d#1}",
           "\\pdv": "\\frac{\\partial}{\\partial #1}"
-        },
-        errorColor: '#ff5555',
-        minRuleThickness: 0.08,
-        colorIsTextColor: true,
-        maxExpand: 1000,
-        maxSize: 500
-      }] as any
+        }
+      }] as any,
+      rehypeRaw, 
+      rehypeSanitize,
+      rehypeHighlight,
     ];
-    return plugins;
+    return plugins as any;
   }, []);
 
   return (

@@ -118,16 +118,6 @@ type CanvasProps = {
       error?: string;
     }[];
   } | null;
-  dataProcessorData?: {
-    processingResults: Array<{
-      operation: string;
-      format: string;
-      timestamp: string;
-      data: any;
-      summary: any;
-      error?: string;
-    }>;
-  } | null;
 };
 
 /**
@@ -143,24 +133,22 @@ export default function Canvas({
   xSearchData, 
   youTubeSearchData, 
   youTubeLinkAnalysisData,
-  dataProcessorData
 }: CanvasProps) {
   // Don't render if there's no data to display
-  if (!webSearchData && !mathCalculationData && !linkReaderData && !imageGeneratorData && !academicSearchData && !xSearchData && !youTubeSearchData && !youTubeLinkAnalysisData && !dataProcessorData) return null;
+  if (!webSearchData && !mathCalculationData && !linkReaderData && !imageGeneratorData && !academicSearchData && !xSearchData && !youTubeSearchData && !youTubeLinkAnalysisData) return null;
 
-  // Manage expanded/collapsed state for each section
+  // Simplified state management - all sections are initially open
+  // Only track if data is in "generation complete" state
   const [webSearchExpanded, setWebSearchExpanded] = useState(true);
   const [mathCalcExpanded, setMathCalcExpanded] = useState(true);
   const [linkReaderExpanded, setLinkReaderExpanded] = useState(true);
-  // const [reasoningExpanded, setReasoningExpanded] = useState(true);
   const [imageGenExpanded, setImageGenExpanded] = useState(true);
   const [academicSearchExpanded, setAcademicSearchExpanded] = useState(true);
   const [xSearchExpanded, setXSearchExpanded] = useState(true);
   const [youTubeSearchExpanded, setYouTubeSearchExpanded] = useState(true);
   const [youTubeLinkAnalysisExpanded, setYouTubeLinkAnalysisExpanded] = useState(true);
-  const [dataProcessorExpanded, setDataProcessorExpanded] = useState(true);
   
-  // Content height refs and states for animations
+  // References for content elements
   const webSearchContentRef = useRef<HTMLDivElement>(null);
   const mathCalcContentRef = useRef<HTMLDivElement>(null);
   const linkReaderContentRef = useRef<HTMLDivElement>(null);
@@ -169,83 +157,8 @@ export default function Canvas({
   const xSearchContentRef = useRef<HTMLDivElement>(null);
   const youTubeSearchContentRef = useRef<HTMLDivElement>(null);
   const youTubeLinkAnalysisContentRef = useRef<HTMLDivElement>(null);
-  const dataProcessorContentRef = useRef<HTMLDivElement>(null);
   
-  const [webSearchContentHeight, setWebSearchContentHeight] = useState<number | undefined>(undefined);
-  const [mathCalcContentHeight, setMathCalcContentHeight] = useState<number | undefined>(undefined);
-  const [linkReaderContentHeight, setLinkReaderContentHeight] = useState<number | undefined>(undefined);
-  const [imageGenContentHeight, setImageGenContentHeight] = useState<number | undefined>(undefined);
-  const [academicSearchContentHeight, setAcademicSearchContentHeight] = useState<number | undefined>(undefined);
-  const [xSearchContentHeight, setXSearchContentHeight] = useState<number | undefined>(undefined);
-  const [youTubeSearchContentHeight, setYouTubeSearchContentHeight] = useState<number | undefined>(undefined);
-  const [youTubeLinkAnalysisContentHeight, setYouTubeLinkAnalysisContentHeight] = useState<number | undefined>(undefined);
-  const [dataProcessorContentHeight, setDataProcessorContentHeight] = useState<number | undefined>(undefined);
-  
-  // Measure web search content height
-  useEffect(() => {
-    if (webSearchContentRef.current && webSearchData) {
-      setWebSearchContentHeight(webSearchContentRef.current.scrollHeight);
-    }
-  }, [webSearchData, webSearchExpanded]);
-  
-  // Measure math calc content height
-  useEffect(() => {
-    if (mathCalcContentRef.current && mathCalculationData) {
-      setMathCalcContentHeight(mathCalcContentRef.current.scrollHeight);
-    }
-  }, [mathCalculationData, mathCalcExpanded]);
-  
-  // Measure link reader content height
-  useEffect(() => {
-    if (linkReaderContentRef.current && linkReaderData) {
-      setLinkReaderContentHeight(linkReaderContentRef.current.scrollHeight);
-    }
-  }, [linkReaderData, linkReaderExpanded]);
-  
-  // Measure image gen content height
-  useEffect(() => {
-    if (imageGenContentRef.current && imageGeneratorData) {
-      setImageGenContentHeight(imageGenContentRef.current.scrollHeight);
-    }
-  }, [imageGeneratorData, imageGenExpanded]);
-  
-  // Measure academic search content height
-  useEffect(() => {
-    if (academicSearchContentRef.current && academicSearchData) {
-      setAcademicSearchContentHeight(academicSearchContentRef.current.scrollHeight);
-    }
-  }, [academicSearchData, academicSearchExpanded]);
-  
-  // Measure X search content height
-  // useEffect(() => {
-  //   if (xSearchContentRef.current && xSearchData) {
-  //     setXSearchContentHeight(xSearchContentRef.current.scrollHeight);
-  //   }
-  // }, [xSearchData, xSearchExpanded]);
-  
-  // Measure YouTube search content height
-  useEffect(() => {
-    if (youTubeSearchContentRef.current && youTubeSearchData) {
-      setYouTubeSearchContentHeight(youTubeSearchContentRef.current.scrollHeight);
-    }
-  }, [youTubeSearchData, youTubeSearchExpanded]);
-  
-  // Measure YouTube link analysis content height
-  useEffect(() => {
-    if (youTubeLinkAnalysisContentRef.current && youTubeLinkAnalysisData) {
-      setYouTubeLinkAnalysisContentHeight(youTubeLinkAnalysisContentRef.current.scrollHeight);
-    }
-  }, [youTubeLinkAnalysisData, youTubeLinkAnalysisExpanded]);
-  
-  // Measure data processor content height
-  useEffect(() => {
-    if (dataProcessorContentRef.current && dataProcessorData) {
-      setDataProcessorContentHeight(dataProcessorContentRef.current.scrollHeight);
-    }
-  }, [dataProcessorData, dataProcessorExpanded]);
-  
-  // State for image viewer modal
-  const [selectedImageIndex, setSelectedImageIndex] = useState<number>(-1);
+  // Simplified height handling - using fixed large height for open sections
   const [isMounted, setIsMounted] = useState(false);
 
   // Check if we're in browser environment for portal rendering
@@ -254,6 +167,19 @@ export default function Canvas({
     return () => setIsMounted(false);
   }, []);
   
+  // Simplified togglers - only close completed sections, always open if clicked
+  const toggleWebSearch = () => setWebSearchExpanded(!webSearchExpanded);
+  const toggleMathCalc = () => setMathCalcExpanded(!mathCalcExpanded);
+  const toggleLinkReader = () => setLinkReaderExpanded(!linkReaderExpanded);
+  const toggleImageGen = () => setImageGenExpanded(!imageGenExpanded);
+  const toggleAcademicSearch = () => setAcademicSearchExpanded(!academicSearchExpanded);
+  const toggleXSearch = () => setXSearchExpanded(!xSearchExpanded);
+  const toggleYouTubeSearch = () => setYouTubeSearchExpanded(!youTubeSearchExpanded);
+  const toggleYouTubeLinkAnalysis = () => setYouTubeLinkAnalysisExpanded(!youTubeLinkAnalysisExpanded);
+  
+  // State for image viewer modal
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number>(-1);
+
   // Add keyboard navigation for image viewer
   useEffect(() => {
     if (selectedImageIndex === -1) return;
@@ -297,6 +223,12 @@ export default function Canvas({
     setSelectedImageIndex(newIndex);
   };
 
+  // Helper function to determine if data is still being generated
+  const isGenerating = (data: any) => {
+    if (!data) return false;
+    return data.isGenerating === true || data.isProgress === true;
+  };
+
   return (
     <div className="tool-results-canvas my-4 space-y-4">
       {/* Web Search Results or Loading State */}
@@ -304,7 +236,7 @@ export default function Canvas({
         <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
           <div 
             className="flex items-center justify-between w-full mb-4 cursor-pointer"
-            onClick={() => setWebSearchExpanded(!webSearchExpanded)}
+            onClick={toggleWebSearch}
           >
             <div className="flex items-center gap-2.5">
               <Search className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
@@ -322,7 +254,7 @@ export default function Canvas({
           <div 
             className="overflow-hidden transition-all duration-200 ease-in-out"
             style={{ 
-              maxHeight: webSearchExpanded ? (webSearchContentHeight ? `${webSearchContentHeight}px` : '2000px') : '0px',
+              maxHeight: webSearchExpanded ? '5000px' : '0px',
             }}
           >
             <div
@@ -355,7 +287,7 @@ export default function Canvas({
         <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
           <div 
             className="flex items-center justify-between w-full mb-4 cursor-pointer"
-            onClick={() => setMathCalcExpanded(!mathCalcExpanded)}
+            onClick={toggleMathCalc}
           >
             <div className="flex items-center gap-2.5">
               <Calculator className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
@@ -373,7 +305,7 @@ export default function Canvas({
           <div 
             className="overflow-hidden transition-all duration-200 ease-in-out"
             style={{ 
-              maxHeight: mathCalcExpanded ? (mathCalcContentHeight ? `${mathCalcContentHeight}px` : '2000px') : '0px',
+              maxHeight: mathCalcExpanded ? '5000px' : '0px',
             }}
           >
             <div
@@ -403,7 +335,7 @@ export default function Canvas({
         <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
           <div 
             className="flex items-center justify-between w-full mb-4 cursor-pointer"
-            onClick={() => setLinkReaderExpanded(!linkReaderExpanded)}
+            onClick={toggleLinkReader}
           >
             <div className="flex items-center gap-2.5">
               <Link2 className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
@@ -421,7 +353,7 @@ export default function Canvas({
           <div 
             className="overflow-hidden transition-all duration-200 ease-in-out"
             style={{ 
-              maxHeight: linkReaderExpanded ? (linkReaderContentHeight ? `${linkReaderContentHeight}px` : '2000px') : '0px',
+              maxHeight: linkReaderExpanded ? '5000px' : '0px',
             }}
           >
             <div
@@ -451,7 +383,7 @@ export default function Canvas({
         <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
           <div 
             className="flex items-center justify-between w-full mb-4 cursor-pointer"
-            onClick={() => setImageGenExpanded(!imageGenExpanded)}
+            onClick={toggleImageGen}
           >
             <div className="flex items-center gap-2.5">
               <ImageIcon className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
@@ -469,7 +401,7 @@ export default function Canvas({
           <div 
             className="overflow-hidden transition-all duration-200 ease-in-out"
             style={{ 
-              maxHeight: imageGenExpanded ? (imageGenContentHeight ? `${imageGenContentHeight}px` : '2000px') : '0px',
+              maxHeight: imageGenExpanded ? '5000px' : '0px',
             }}
           >
             <div
@@ -524,7 +456,7 @@ export default function Canvas({
         <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
           <div 
             className="flex items-center justify-between w-full mb-4 cursor-pointer"
-            onClick={() => setAcademicSearchExpanded(!academicSearchExpanded)}
+            onClick={toggleAcademicSearch}
           >
             <div className="flex items-center gap-2.5">
               <BookOpen className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
@@ -542,7 +474,7 @@ export default function Canvas({
           <div 
             className="overflow-hidden transition-all duration-200 ease-in-out"
             style={{ 
-              maxHeight: academicSearchExpanded ? (academicSearchContentHeight ? `${academicSearchContentHeight}px` : '2000px') : '0px',
+              maxHeight: academicSearchExpanded ? '5000px' : '0px',
             }}
           >
             <div
@@ -595,100 +527,12 @@ export default function Canvas({
         </div>
       )}
       
-      {/* X Search Results */}
-      {/* {xSearchData && xSearchData.xResults.length > 0 && (
-        <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
-          <div 
-            className="flex items-center justify-between w-full mb-4 cursor-pointer"
-            onClick={() => setXSearchExpanded(!xSearchExpanded)}
-          >
-            <div className="flex items-center gap-2.5">
-              <XLogo className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-              <h2 className="font-medium text-left tracking-tight">X Search</h2>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="rounded-full p-1 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors">
-                {xSearchExpanded ? 
-                  <ChevronUp size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" /> : 
-                  <ChevronDown size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" />
-                }
-              </div>
-            </div>
-          </div>
-          <div 
-            className="overflow-hidden transition-all duration-200 ease-in-out"
-            style={{ 
-              maxHeight: xSearchExpanded ? (xSearchContentHeight ? `${xSearchContentHeight}px` : '2000px') : '0px',
-            }}
-          >
-            <div
-              ref={xSearchContentRef}
-              className="transition-opacity duration-200 ease-in-out px-1"
-              style={{
-                opacity: xSearchExpanded ? 1 : 0,
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none'
-              }}
-            >
-              <style jsx>{`
-                div::-webkit-scrollbar {
-                  display: none;
-                }
-              `}</style>
-              {xSearchData.xResults.map((searchResult, index) => (
-                <div key={index} className="mb-6">
-                  <div className="flex items-center gap-2 mb-2">
-                    <XLogo className="h-3 w-3" strokeWidth={1.5} />
-                    <h4 className="text-sm font-medium">"{searchResult.query}"</h4>
-                  </div>
-                  
-                  <div className="mb-4">
-                    <div className="grid grid-cols-1 gap-4">
-                      {searchResult.results.map((post, postIndex) => (
-                        <div key={postIndex} className="w-full overflow-hidden transition-all hover:shadow-md rounded-lg">
-                          {post.tweetId ? (
-                            <div className="w-full [&>div]:w-full [&>div]:mx-auto rounded-lg overflow-hidden [&_a]:!text-[color-mix(in_srgb,var(--foreground)_75%,transparent)] [&_a:hover]:!text-[color-mix(in_srgb,var(--foreground)_90%,transparent)] [&_.react-tweet-theme]:!bg-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] dark:[&_.react-tweet-theme]:!bg-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] [&_.react-tweet-border]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_hr]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_div[data-separator]]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_.react-tweet-header-border]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_.react-tweet-footer-border]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_*]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)]">
-                              <Tweet id={post.tweetId} />
-                            </div>
-                          ) : (
-                            <div className="p-3 border border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] rounded-lg bg-[color-mix(in_srgb,var(--foreground)_1%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)] transition-colors">
-                              <div className="flex gap-2 mb-1">
-                                <span className="text-sm font-medium">@{post.username}</span>
-                                {post.date && <span className="text-xs text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]">{post.date}</span>}
-                              </div>
-                              <p className="text-sm whitespace-pre-wrap text-[color-mix(in_srgb,var(--foreground)_75%,transparent)] my-1">
-                                {post.text}
-                              </p>
-                              {post.url && (
-                                <a 
-                                  href={post.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-[color-mix(in_srgb,var(--foreground)_75%,transparent)] hover:text-[color-mix(in_srgb,var(--foreground)_90%,transparent)] hover:underline mt-2 inline-flex items-center gap-1"
-                                >
-                                  <span>View post</span>
-                                  <ExternalLink size={12} />
-                                </a>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )} */}
-      
       {/* YouTube Search Results */}
       {youTubeSearchData && (
         <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
           <div 
             className="flex items-center justify-between w-full mb-4 cursor-pointer"
-            onClick={() => setYouTubeSearchExpanded(!youTubeSearchExpanded)}
+            onClick={toggleYouTubeSearch}
           >
             <div className="flex items-center gap-2.5">
               <YouTubeLogo className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
@@ -706,7 +550,7 @@ export default function Canvas({
           <div 
             className="overflow-hidden transition-all duration-200 ease-in-out"
             style={{ 
-              maxHeight: youTubeSearchExpanded ? (youTubeSearchContentHeight ? `${youTubeSearchContentHeight}px` : '2000px') : '0px',
+              maxHeight: youTubeSearchExpanded ? '5000px' : '0px',
             }}
           >
             <div
@@ -779,7 +623,7 @@ export default function Canvas({
         <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
           <div 
             className="flex items-center justify-between w-full mb-4 cursor-pointer"
-            onClick={() => setYouTubeLinkAnalysisExpanded(!youTubeLinkAnalysisExpanded)}
+            onClick={toggleYouTubeLinkAnalysis}
           >
             <div className="flex items-center gap-2.5">
               <YouTubeLogo className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
@@ -797,7 +641,7 @@ export default function Canvas({
           <div 
             className="overflow-hidden transition-all duration-200 ease-in-out"
             style={{ 
-              maxHeight: youTubeLinkAnalysisExpanded ? (youTubeLinkAnalysisContentHeight ? `${youTubeLinkAnalysisContentHeight}px` : '2000px') : '0px',
+              maxHeight: youTubeLinkAnalysisExpanded ? '5000px' : '0px',
             }}
           >
             <div
@@ -860,52 +704,6 @@ export default function Canvas({
                   )}
                 </div>
               ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Data Processor Results */}
-      {dataProcessorData && (
-        <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
-          <div 
-            className="flex items-center justify-between w-full mb-4 cursor-pointer"
-            onClick={() => setDataProcessorExpanded(!dataProcessorExpanded)}
-          >
-            <div className="flex items-center gap-2.5">
-              <Database size={14} className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-              <h2 className="font-medium text-left tracking-tight">Data Processor</h2>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="rounded-full p-1 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors">
-                {dataProcessorExpanded ? 
-                  <ChevronUp size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" /> : 
-                  <ChevronDown size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" />
-                }
-              </div>
-            </div>
-          </div>
-          <div 
-            className="overflow-hidden transition-all duration-200 ease-in-out"
-            style={{ 
-              maxHeight: dataProcessorExpanded ? (dataProcessorContentHeight ? `${dataProcessorContentHeight}px` : '2000px') : '0px',
-            }}
-          >
-            <div
-              ref={dataProcessorContentRef}
-              className="transition-opacity duration-200 ease-in-out"
-              style={{
-                opacity: dataProcessorExpanded ? 1 : 0,
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none'
-              }}
-            >
-              <style jsx>{`
-                div::-webkit-scrollbar {
-                  display: none;
-                }
-              `}</style>
-              <DataProcessorCanvas data={dataProcessorData} />
             </div>
           </div>
         </div>

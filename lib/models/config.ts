@@ -267,12 +267,40 @@ export async function getDefaultModelId(userId?: string): Promise<string> {
 
 // Define the model configurations
 const MODEL_CONFIG_DATA: ModelConfig[] = [
-   // Grok 3 Mini Fast (Thinking)
+  // Chatflix Ultimate
   {
-    id: 'grok-3-mini-fast',
-    name: 'Grok 3 Mini Fast (Thinking)',
+    id: 'chatflix-ultimate',
+    name: 'CHATFLIX',
+    country: 'GLOBAL',
+    description: 'Automatically selects the optimal model based on your task. ',
+    provider: 'anthropic',
+    supportsVision: true,
+    supportsPDFs: true,
+    censored: false,
+    rateLimit: {
+      level: 'level0',
+    },
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: true,
+    isNew: true,
+    // isHot: true,
+    reasoning: {
+      enabled: true,
+      provider: 'anthropic',
+      baseModelId: 'claude-3-7-sonnet-20250219',
+      budgetTokens: 12000
+    },
+    contextWindow: 200000,
+    tps: 100,
+    intelligenceIndex: 75,
+  },
+   // Grok 3 Mini (Thinking)
+  {
+    id: 'grok-3-mini',
+    name: 'Grok 3 Mini (Thinking)',
     country: 'US',
-    description: 'High-speed version of Grok 3 Mini.',
+    description: 'Grok 3 Mini',
     provider: 'xai',
     supportsVision: false,
     censored: false,
@@ -286,7 +314,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 131072,
     // tps: 67, 
     intelligenceIndex: 66,
@@ -471,7 +499,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     isActivated: true,
     isNew: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 200000,
     tps: 150,
     intelligenceIndex: 70,
@@ -691,7 +719,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       provider: 'deepseek',
       baseModelId: 'deepseek-reasoner',
     },
-    isEnabled: false,
+    isEnabled: true,
     isActivated: true,
     contextWindow: 128000,
     tps: 25,
@@ -711,8 +739,9 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level1',
     },
     supportsPDFs: false,
-    isEnabled: false,
+    isEnabled: true,
     isActivated: true,
+    isAgentEnabled: false,
     contextWindow: 128000,
     tps: 33,
     intelligenceIndex: 53,

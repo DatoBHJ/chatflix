@@ -43,46 +43,7 @@ export function useMessages(chatId: string, userId: string) {
 
   const handleCopyMessage = async (message: Message) => {
     try {
-      // Extract structured response main_response
-      let structuredMainResponse = null;
-      
-      // Check in annotations - use type assertion to treat annotations as any type
-      const annotations = (message.annotations || []) as any[];
-      const structuredResponseAnnotation = annotations.find(
-        annotation => annotation.type === 'structured_response'
-      );
-      
-      // Use type assertions to safely access nested properties
-      if (structuredResponseAnnotation) {
-        if (structuredResponseAnnotation.data?.response?.main_response) {
-          structuredMainResponse = structuredResponseAnnotation.data.response.main_response;
-        }
-      }
-      
-      // If not found in annotations, check in tool_results
-      const messageWithTools = message as any;
-      if (!structuredMainResponse && messageWithTools.tool_results) {
-        const toolResults = messageWithTools.tool_results;
-        if (toolResults.structuredResponse?.response?.main_response) {
-          structuredMainResponse = toolResults.structuredResponse.response.main_response;
-        }
-      }
-      
-      // If still not found, check progress annotations
-      if (!structuredMainResponse) {
-        const progressAnnotations = annotations.filter(
-          annotation => annotation.type === 'structured_response_progress'
-        );
-        
-        if (progressAnnotations.length > 0) {
-          const latestProgress = progressAnnotations[progressAnnotations.length - 1];
-          if (latestProgress && latestProgress.data?.response?.main_response) {
-            structuredMainResponse = latestProgress.data.response.main_response;
-          }
-        }
-      }
-
-      // Get regular message content
+      // Get regular message content - in our new approach, the main response is already in the content
       let textToCopy = message.parts
         ? message.parts
             .filter(part => part.type === 'text')
@@ -91,13 +52,33 @@ export function useMessages(chatId: string, userId: string) {
             .trim()
         : message.content
 
-      // Add structured main response if available
-      if (structuredMainResponse && message.role === 'assistant') {
-        if (textToCopy) {
-          textToCopy += '\n\n' + structuredMainResponse;
-        } else {
-          textToCopy = structuredMainResponse;
-        }
+      // If the message has a structured response with description, include it
+      const annotations = (message.annotations || []) as any[];
+      const structuredResponseAnnotation = annotations.find(
+        annotation => annotation.type === 'structured_response'
+      );
+      
+      // Include file names and descriptions if available
+      let fileInfo = '';
+      
+      // Check in annotations
+      if (structuredResponseAnnotation?.data?.response?.files?.length > 0) {
+        const files = structuredResponseAnnotation.data.response.files;
+        fileInfo = '\n\nSupporting files:\n' + 
+          files.map((file: any) => `- ${file.name}${file.description ? `: ${file.description}` : ''}`).join('\n');
+      }
+      
+      // If not found in annotations, check in tool_results
+      const messageWithTools = message as any;
+      if (!fileInfo && messageWithTools.tool_results?.structuredResponse?.response?.files?.length > 0) {
+        const files = messageWithTools.tool_results.structuredResponse.response.files;
+        fileInfo = '\n\nSupporting files:\n' + 
+          files.map((file: any) => `- ${file.name}${file.description ? `: ${file.description}` : ''}`).join('\n');
+      }
+      
+      // Add file info if available
+      if (fileInfo) {
+        textToCopy += fileInfo;
       }
 
       await navigator.clipboard.writeText(textToCopy)

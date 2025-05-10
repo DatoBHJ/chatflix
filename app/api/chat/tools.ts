@@ -5,7 +5,6 @@ import { deduplicateResults, normalizeUrl, getPageTitle } from './utils/toolers'
 import * as mathjs from 'mathjs';
 import Exa from 'exa-js';
 import dotenv from 'dotenv';
-import { processPythonData, isPythonDataProcessorAvailable } from './data-processor-python';
 
 // Environment variables
 dotenv.config({
@@ -93,32 +92,7 @@ const toolDefinitions = {
       domain: 'Academic domain to optimize the query for (math, physics, chemistry, etc.).'
     }
   },
-  dataProcessor: {
-    description: 'Process CSV or JSON data for analysis. Can handle parsing, filtering, transforming and extracting insights from structured data.',
-    parameters: {
-      data: 'The CSV or JSON data string to process. For CSV, include headers. For JSON, provide valid JSON string or array.',
-      format: 'The format of the input data ("csv" or "json").',
-      operation: 'The operation to perform: "parse" (convert to object), "filter" (select rows/items), "aggregate" (summarize data), "transform" (modify structure), or "analyze" (extract insights).',
-      options: 'Additional options as a JSON object: for filter: {field, value, operator}, for aggregate: {groupBy, metrics}, for transform: {select, rename}, for analyze: {insights}.'
-    }
-  }
 };
-
-// Store Python availability status
-let pythonProcessorAvailable: boolean | null = null;
-
-// Check Python availability only once at the beginning
-async function checkPythonAvailability() {
-  if (pythonProcessorAvailable === null) {
-    pythonProcessorAvailable = await isPythonDataProcessorAvailable();
-    console.log(`Python data processor ${pythonProcessorAvailable ? 'is' : 'is not'} available`);
-  }
-  return pythonProcessorAvailable;
-}
-
-// Initialize the check (don't wait for result)
-checkPythonAvailability();
-
 // Web Search 도구 생성 함수
 export function createWebSearchTool(processMessages: any[], dataStream: any) {
   // 검색 결과를 저장할 배열
@@ -1298,166 +1272,6 @@ export function createYouTubeLinkAnalyzerTool(dataStream: any) {
   
   // Return the tool along with the analysis results array
   return Object.assign(youtubeAnalyzerTool, { analysisResults });
-}
-
-
-// Data Processing Tool creation function
-export function createDataProcessorTool(dataStream: any) {
-  // 처리 결과를 저장할 배열
-  const processingResults: any[] = [];
-  
-  const dataProcessorTool = tool({
-    description: toolDefinitions.dataProcessor.description,
-    parameters: z.object({
-      data: z.string().describe(toolDefinitions.dataProcessor.parameters.data),
-      format: z.enum(['csv', 'json']).describe(toolDefinitions.dataProcessor.parameters.format),
-      operation: z.enum(['parse', 'filter', 'aggregate', 'transform', 'analyze']).describe(toolDefinitions.dataProcessor.parameters.operation),
-      options: z.any().optional().describe(toolDefinitions.dataProcessor.parameters.options),
-    }),
-    execute: async ({ data, format, operation, options }) => {
-      console.log(`Data processor executing ${operation} operation on ${format} data...`);
-      const startTime = Date.now();
-      
-      try {
-        // Python 처리기 사용 가능 여부 확인
-        console.log('Checking Python data processor availability...');
-        const isPythonAvailable = await checkPythonAvailability();
-        console.log(`Python data processor availability: ${isPythonAvailable ? 'AVAILABLE' : 'NOT AVAILABLE'}`);
-        
-        if (!isPythonAvailable) {
-          // Vercel 환경에서 실행 중인지 확인
-          const isVercelEnv = process.env.VERCEL || process.env.VERCEL_ENV;
-          console.log(`Running in Vercel environment: ${isVercelEnv ? 'YES' : 'NO'}`);
-          
-          if (isVercelEnv) {
-            // Vercel 환경에서만 간단한 처리 제공 (제한된 기능)
-            console.log('Using simplified data processor for Vercel environment');
-            
-            // 간단한 데이터 파싱 및 처리 로직
-            let parsedData;
-            
-            try {
-              if (format === 'json') {
-                parsedData = JSON.parse(data);
-              } else if (format === 'csv') {
-                // CSV 데이터를 간단히 파싱 (헤더 행 + 데이터 행)
-                const rows = data.split('\n');
-                const header = rows[0].split(',');
-                
-                parsedData = rows.slice(1).map(row => {
-                  const values = row.split(',');
-                  const item: Record<string, string> = {};
-                  
-                  header.forEach((key, index) => {
-                    item[key.trim()] = values[index]?.trim() ?? '';
-                  });
-                  
-                  return item;
-                });
-              }
-              
-              // 간단한 분석 결과 생성
-              const result = {
-                timestamp: new Date().toISOString(),
-                operation,
-                format,
-                data: parsedData.slice(0, 10), // 최대 10개 항목만 반환
-                summary: {
-                  recordCount: Array.isArray(parsedData) ? parsedData.length : 1,
-                  fields: Array.isArray(parsedData) && parsedData.length > 0 
-                    ? Object.keys(parsedData[0]) 
-                    : Object.keys(parsedData || {}),
-                  note: "Limited functionality in serverless environment. For full analysis, run locally or with Python environment."
-                }
-              };
-              
-              processingResults.push(result);
-              
-              // 클라이언트에 처리 완료 알림 전송
-              dataStream.writeMessageAnnotation({
-                type: 'data_processing_complete',
-                data: {
-                  operation,
-                  format,
-                  timestamp: new Date().toISOString(),
-                  result,
-                  executionTimeMs: Date.now() - startTime
-                }
-              });
-              
-              return result;
-            } catch (parseError: any) {
-              throw new Error(`Failed to parse ${format} data: ${parseError.message}`);
-            }
-          }
-          
-          throw new Error('Python data processor is not available. Please install pandas and numpy.');
-        }
-        
-        console.log('Using Python data processor for high-performance data processing');
-        
-        // Python 처리기로 데이터 처리
-        const result = await processPythonData({
-          data,
-          format: format as 'csv' | 'json',
-          operation: operation as 'parse' | 'filter' | 'aggregate' | 'transform' | 'analyze',
-          options: options || {}
-        });
-        
-        // 결과 저장
-        processingResults.push(result);
-        
-        // 클라이언트에 처리 완료 알림 전송
-        dataStream.writeMessageAnnotation({
-          type: 'data_processing_complete',
-          data: {
-            operation,
-            format,
-            timestamp: new Date().toISOString(),
-            result,
-            executionTimeMs: Date.now() - startTime
-          }
-        });
-        
-        // 결과 반환
-        return result;
-      } catch (error) {
-        console.error('Data processor error:', error);
-        
-        // 에러 결과 생성
-        const errorResult = {
-          timestamp: new Date().toISOString(),
-          operation,
-          format,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          summary: {
-            executionTimeMs: Date.now() - startTime
-          }
-        };
-        
-        // 에러 저장
-        processingResults.push(errorResult);
-        
-        // 클라이언트에 에러 알림 전송
-        dataStream.writeMessageAnnotation({
-          type: 'data_processing_complete',
-          data: {
-            operation,
-            format,
-            timestamp: new Date().toISOString(),
-            error: error instanceof Error ? error.message : 'Unknown error',
-            executionTimeMs: Date.now() - startTime
-          }
-        });
-        
-        // 에러 결과 반환
-        return errorResult;
-      }
-    }
-  });
-  
-  // 데이터 처리 도구와 처리 결과 리스트를 함께 반환
-  return Object.assign(dataProcessorTool, { processingResults });
 }
 
 // Wolfram Alpha Ultimate tool creation function -- NOT USED YET

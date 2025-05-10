@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { fetchUserName } from './AccountDialog'
 import { XLogo, YouTubeLogo } from './CanvasFolder/CanvasLogo';
-import { Brain, ChevronDown, ChevronUp, Search, Calculator, Link2, ImageIcon, BookOpen, Database, Youtube, FileText, Download } from 'lucide-react'
+import { Brain, ChevronDown, ChevronUp, Search, Calculator, Link2, ImageIcon, BookOpen, Database, Youtube, FileText, Download, Copy, Check } from 'lucide-react'
 // 파일 타입 정의
 type File = {
   name: string;
@@ -20,6 +20,7 @@ type File = {
 };
 
 import ReactMarkdown from 'react-markdown';
+import { AttachmentPreview } from './Attachment'
 
 interface MessageProps {
   message: AIMessage & { experimental_attachments?: Attachment[] }
@@ -71,6 +72,37 @@ function getStructuredResponseMainContent(message: any) {
     const latestProgress = progressAnnotations[progressAnnotations.length - 1];
     if (latestProgress.data?.response?.main_response) {
       return latestProgress.data.response.main_response;
+    }
+  }
+  
+  return null;
+}
+
+// Helper function to get structured response description
+function getStructuredResponseDescription(message: any) {
+  // 1. 먼저 annotations에서 확인
+  const structuredResponseAnnotation = message.annotations?.find(
+    (annotation: any) => annotation.type === 'structured_response'
+  );
+  
+  if (structuredResponseAnnotation?.data?.response?.description) {
+    return structuredResponseAnnotation.data.response.description;
+  }
+  
+  // 2. tool_results에서 확인
+  if (message.tool_results?.structuredResponse?.response?.description) {
+    return message.tool_results.structuredResponse.response.description;
+  }
+  
+  // 3. 진행 중인 응답 확인 (가장 최신 것)
+  const progressAnnotations = message.annotations?.filter(
+    (annotation: any) => annotation.type === 'structured_response_progress'
+  );
+  
+  if (progressAnnotations?.length > 0) {
+    const latestProgress = progressAnnotations[progressAnnotations.length - 1];
+    if (latestProgress.data?.response?.description) {
+      return latestProgress.data.response.description;
     }
   }
   
@@ -187,6 +219,7 @@ const Message = memo(function MessageComponent({
   const [openFileIndexes, setOpenFileIndexes] = useState<number[]>([]);
   const [structuredFiles, setStructuredFiles] = useState<File[] | null>(null);
   const [isResponseInProgress, setIsResponseInProgress] = useState(false);
+  const [copiedFileId, setCopiedFileId] = useState<string | null>(null);
   
   // Agent Reasoning 관련 상태
   const [currentReasoning, setCurrentReasoning] = useState<any>(null);
@@ -292,6 +325,21 @@ const Message = memo(function MessageComponent({
     );
   }, []);
 
+  // 파일 내용 복사 핸들러
+  const copyFileContent = useCallback((file: File) => {
+    navigator.clipboard.writeText(file.content)
+      .then(() => {
+        setCopiedFileId(file.name);
+        // 복사 상태 2초 후 초기화
+        setTimeout(() => {
+          setCopiedFileId(null);
+        }, 2000);
+      })
+      .catch((err) => {
+        console.error('Failed to copy file content:', err);
+      });
+  }, []);
+
   // Function to fetch profile image
   const fetchProfileImage = async (userId: string) => {
     try {
@@ -374,6 +422,7 @@ const Message = memo(function MessageComponent({
   
   // 구조화된 응답에서 main_response 가져오기
   const structuredMainResponse = isAssistant ? getStructuredResponseMainContent(message) : null;
+  const structuredDescription = isAssistant ? getStructuredResponseDescription(message) : null;
   
   // 일반 메시지 내용이 있거나 구조화된 응답이 있는 경우 true
   const hasAnyContent = hasContent || structuredMainResponse;
@@ -911,7 +960,7 @@ const Message = memo(function MessageComponent({
                       currentReasoning.needsWebSearch 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
-                    }`}>
+                      }`}>
                       <Search size={14} /> Web Search
                     </div>
                     
@@ -920,7 +969,7 @@ const Message = memo(function MessageComponent({
                       currentReasoning.needsCalculator 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
-                    }`}>
+                      }`}>
                       <Calculator size={14} /> Calculator
                     </div>
                     
@@ -929,7 +978,7 @@ const Message = memo(function MessageComponent({
                       currentReasoning.needsLinkReader 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
-                    }`}>
+                      }`}>
                       <Link2 size={14} /> Link Reader
                     </div>
                     
@@ -938,7 +987,7 @@ const Message = memo(function MessageComponent({
                       currentReasoning.needsImageGenerator 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
-                    }`}>
+                      }`}>
                       <ImageIcon size={14} /> Image Generator
                     </div>
                     
@@ -947,7 +996,7 @@ const Message = memo(function MessageComponent({
                       currentReasoning.needsAcademicSearch 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
-                    }`}>
+                      }`}>
                       <BookOpen size={14} /> Academic Search
                     </div>
                     
@@ -956,7 +1005,7 @@ const Message = memo(function MessageComponent({
                       currentReasoning.needsXSearch 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
-                    }`}>
+                      }`}>
                         <XLogo size={14} /> X Search
                       </div> */}
                       
@@ -965,7 +1014,7 @@ const Message = memo(function MessageComponent({
                       currentReasoning.needsYouTubeSearch 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
-                    }`}>
+                      }`}>
                       <YouTubeLogo size={14} /> YouTube Search
                     </div>
                     
@@ -974,7 +1023,7 @@ const Message = memo(function MessageComponent({
                       currentReasoning.needsYouTubeLinkAnalyzer 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
-                    }`}>
+                      }`}>
                       <Youtube size={14} /> YouTube Analyzer
                     </div>
                     
@@ -983,7 +1032,7 @@ const Message = memo(function MessageComponent({
                       currentReasoning.needsDataProcessor 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
-                    }`}>
+                      }`}>
                       <Database size={14} /> Data Processor
                     </div>
                   </div>
@@ -1150,10 +1199,14 @@ const Message = memo(function MessageComponent({
               )}
               
               {/* 구조화된 응답이 있는 경우 추가로 표시 */}
-              {isAssistant && structuredMainResponse && (
+              {isAssistant && (structuredDescription || structuredFiles) && !structuredMainResponse && (
                 <div className="mt-4 pt-4 border-t border-[color-mix(in_srgb,var(--foreground)_10%,transparent)]">
-                  <div className="text-xs text-[var(--muted)] mb-2">Final Response</div>
-                  <MarkdownContent content={structuredMainResponse} />
+                  {structuredDescription && (
+                    <div className="mb-4">
+                      <div className="text-xs text-[var(--muted)] mb-2">Supporting Files</div>
+                      <p className="text-sm">{structuredDescription}</p>
+                    </div>
+                  )}
                   
                   {/* 파일 목록 표시 - 파일이 있는 경우에만 */}
                   {structuredFiles && structuredFiles.length > 0 && (
@@ -1185,6 +1238,22 @@ const Message = memo(function MessageComponent({
                                     title="Download file"
                                   >
                                     <Download size={16} className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]" />
+                                  </button>
+                                  
+                                  {/* 복사 버튼 */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      copyFileContent(file);
+                                    }}
+                                    className="rounded-full p-1.5 hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] transition-colors flex-shrink-0"
+                                    title={copiedFileId === file.name ? "Copied!" : "Copy file content"}
+                                  >
+                                    {copiedFileId === file.name ? (
+                                      <Check size={16} className="text-green-500" />
+                                    ) : (
+                                      <Copy size={16} className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]" />
+                                    )}
                                   </button>
                                   
                                   {/* 토글 버튼 */}
@@ -1325,100 +1394,6 @@ const Message = memo(function MessageComponent({
           </button>
         </div>
       )}
-    </div>
-  )
-});
-
-interface AttachmentPreviewProps {
-  attachments: Attachment[]
-  messageId: string
-}
-
-// Memoize the AttachmentPreview component
-const AttachmentPreview = memo(function AttachmentPreviewComponent({ attachments, messageId }: AttachmentPreviewProps) {
-  return (
-    <div className="flex flex-wrap gap-2 mb-2">
-      {attachments.map((attachment, index) => {
-        const isImage = attachment.contentType?.startsWith('image/') || false
-        const isPdf = attachment.contentType === 'application/pdf' || 
-                     (attachment.name && attachment.name.toLowerCase().endsWith('.pdf'))
-        const isCode = attachment.contentType?.includes('text') || 
-                     (attachment.name && /\.(js|jsx|ts|tsx|html|css|json|md|py|java|c|cpp|cs|go|rb|php|swift|kt|rs)$/i.test(attachment.name))
-        
-        const getTypeBadge = () => {
-          if (isImage && attachment.contentType) {
-            return attachment.contentType.split('/')[1].toUpperCase()
-          }
-          if (attachment.name) {
-            const ext = attachment.name.split('.').pop()
-            return ext ? ext.toUpperCase() : 'FILE'
-          }
-          return 'FILE'
-        }
-        
-        return isImage ? (
-          <div 
-            key={`${messageId}-${index}`} 
-            className="relative group image-preview-item cursor-pointer"
-            onClick={() => window.open(attachment.url, '_blank')}
-          >
-            <span className="file-type-badge">
-              {getTypeBadge()}
-            </span>
-            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-            </div>
-            <img 
-              src={attachment.url} 
-              alt={attachment.name || `Image ${index + 1}`}
-              className="max-w-[200px] max-h-[200px] rounded-lg object-cover"
-            />
-          </div>
-        ) : (
-          <div 
-            key={`${messageId}-${index}`} 
-            className="relative group file-preview-item cursor-pointer"
-            onClick={() => window.open(attachment.url, '_blank')}
-          >
-            <span className="file-type-badge">
-              {getTypeBadge()}
-            </span>
-            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-            </div>
-            <div className="file-icon">
-              {isCode ? (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="16 18 22 12 16 6"></polyline>
-                  <polyline points="8 6 2 12 8 18"></polyline>
-                </svg>
-              ) : isPdf ? (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                  <line x1="16" y1="13" x2="8" y2="13"></line>
-                  <line x1="16" y1="17" x2="8" y2="17"></line>
-                  <polyline points="10 9 9 9 8 9"></polyline>
-                </svg>
-              ) : (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
-                  <polyline points="13 2 13 9 20 9"></polyline>
-                </svg>
-              )}
-            </div>
-            <div className="file-name">{attachment.name || `File ${index + 1}`}</div>
-          </div>
-        )
-      })}
     </div>
   )
 });

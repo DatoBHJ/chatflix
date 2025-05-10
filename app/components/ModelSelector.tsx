@@ -21,7 +21,12 @@ import type { ModelConfig } from '@/lib/models/config';
  */
 
 // Helper function to get the logo path based on provider
-const getProviderLogo = (provider: ModelConfig['provider']) => {
+const getProviderLogo = (provider: ModelConfig['provider'], modelId?: string) => {
+  // Special case for Chatflix Ultimate model
+  if (modelId === 'chatflix-ultimate') {
+    return '/android-chrome-512x512-modified.png';
+  }
+
   const logoMap: Partial<Record<ModelConfig['provider'], string>> = {
     anthropic: '/logo/anthropic.svg',
     openai: '/logo/openai.svg',
@@ -67,8 +72,12 @@ const ModelPerformanceGraph = ({
   isMobile: boolean,
   isFullscreen?: boolean
 }) => {
-  // Filter models that have both TPS and intelligenceIndex
-  const validModels = models.filter(model => typeof model.tps === 'number' && typeof model.intelligenceIndex === 'number');
+  // Filter models that have both TPS and intelligenceIndex and exclude chatflix-ultimate
+  const validModels = models.filter(model => 
+    typeof model.tps === 'number' && 
+    typeof model.intelligenceIndex === 'number' &&
+    model.id !== 'chatflix-ultimate'
+  );
   
   if (validModels.length === 0) return null;
   
@@ -380,9 +389,12 @@ const ModelBarChart = ({
 }) => {
   const [selectedMetric, setSelectedMetric] = useState<'tps' | 'intelligenceIndex' | 'contextWindow' | 'MMLU_Pro' | 'Coding' | 'MATH' | 'GPQA' | 'multilingual' | 'HLE'>(metric);
   
-  // Filter models that have the selected metric
+  // Filter models that have the selected metric and exclude chatflix-ultimate
   const validModels = models
-    .filter(model => typeof model[selectedMetric] === 'number')
+    .filter(model => 
+      typeof model[selectedMetric] === 'number' && 
+      model.id !== 'chatflix-ultimate'
+    )
     .sort((a, b) => (b[selectedMetric] as number) - (a[selectedMetric] as number))
     .slice(0, 15); // Limit to 15 models for clarity
   
@@ -724,9 +736,12 @@ export function ModelSelector({
     if (modelFilter === 'thinking') filteredByType = filteredModels.filter(model => model.name.includes('(Thinking)'));
     if (modelFilter === 'regular') filteredByType = filteredModels.filter(model => !model.name.includes('(Thinking)'));
     
-    // Now sort to ensure new models appear at the top
+    // Now sort to ensure chatflix-ultimate appears at the top, followed by new models
     return [...filteredByType].sort((a, b) => {
-      // If one is new and the other isn't, prioritize the new one
+      // First prioritize chatflix-ultimate
+      if (a.id === 'chatflix-ultimate') return -1;
+      if (b.id === 'chatflix-ultimate') return 1;
+      // Then prioritize new models
       if (a.isNew && !b.isNew) return -1;
       if (!a.isNew && b.isNew) return 1;
       // If both are new or both are not new, maintain original order
@@ -1130,7 +1145,7 @@ export function ModelSelector({
                 >
                   {hasLogo(currentModelOption.provider) ? (
                     <Image 
-                      src={getProviderLogo(currentModelOption.provider)}
+                      src={getProviderLogo(currentModelOption.provider, currentModelOption.id)}
                       alt={`${currentModelOption.provider} logo`}
                       width={16}
                       height={16}
@@ -1365,7 +1380,7 @@ export function ModelSelector({
                                 >
                                   {hasLogo(option.provider) ? (
                                     <Image 
-                                      src={getProviderLogo(option.provider)}
+                                      src={getProviderLogo(option.provider, option.id)}
                                       alt={`${option.provider} logo`}
                                       width={16}
                                       height={16}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ChevronUp, ChevronDown, FileText, Download } from 'lucide-react';
+import { ChevronUp, ChevronDown, FileText, Download, Copy, Check } from 'lucide-react';
 import { MarkdownContent } from './MarkdownContent';
 
 type File = {
@@ -11,7 +11,7 @@ type File = {
 };
 
 type ResponseData = {
-  main_response?: string;
+  description?: string;
   files?: File[];
   isProgress?: boolean;
 };
@@ -60,6 +60,8 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
   const [openFileIndexes, setOpenFileIndexes] = useState<number[]>([]);
   const fileContentRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [fileContentHeights, setFileContentHeights] = useState<{[key: number]: number}>({});
+  const [copiedFileIndex, setCopiedFileIndex] = useState<number | null>(null);
+  const [isExpanded, setIsExpanded] = useState<boolean>(true);
   
   // 메시지 ID에 기반한 로컬 스토리지 키 생성
   const storageKey = `structuredResponse_openFiles_${message.id}`;
@@ -78,6 +80,11 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
     }
   }, [storageKey]);
   
+  // Toggle handler for the entire section
+  const toggleSection = () => {
+    setIsExpanded(!isExpanded);
+  };
+
   useEffect(() => {
     // 메시지에서 구조화된 응답 데이터 추출
     const structuredResponseData = getStructuredResponseData(message);
@@ -149,6 +156,21 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
+  
+  // 파일 내용 복사 핸들러
+  const copyFileContent = (file: File, index: number) => {
+    navigator.clipboard.writeText(file.content)
+      .then(() => {
+        setCopiedFileIndex(index);
+        // 복사 상태 2초 후 초기화
+        setTimeout(() => {
+          setCopiedFileIndex(null);
+        }, 2000);
+      })
+      .catch((err) => {
+        console.error('Failed to copy file content:', err);
+      });
+  };
 
   // 파일이 없으면 렌더링하지 않음
   if (!responseData || !responseData.files || responseData.files.length === 0) {
@@ -158,28 +180,47 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
   const isLoading = responseData.isProgress === true;
 
   return (
-    <div className="p-4 sm:p-5 my-6 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm overflow-hidden relative">
+    <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm overflow-hidden relative">
       {/* 헤더 */}
-      <div className="flex items-center justify-between w-full mb-4">
+      <div 
+        className="flex items-center justify-between w-full mb-4 cursor-pointer"
+        onClick={toggleSection}
+      >
         <div className="flex items-center gap-2.5">
           <FileText className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
           <h2 className="font-medium text-left tracking-tight">Generated Files</h2>
         </div>
         
-        {/* 로딩 표시기 */}
-        {isLoading && (
-          <div className="flex items-center gap-2 text-xs">
-            <div className="relative flex items-center">
-              <div className="h-2 w-2 rounded-full bg-blue-500 animate-ping absolute"></div>
-              <div className="h-2 w-2 rounded-full bg-blue-500 relative"></div>
+        <div className="flex items-center gap-2">
+          {/* 로딩 표시기 */}
+          {isLoading && (
+            <div className="flex items-center gap-2 text-xs">
+              <div className="relative flex items-center">
+                <div className="h-2 w-2 rounded-full bg-blue-500 animate-ping absolute"></div>
+                <div className="h-2 w-2 rounded-full bg-blue-500 relative"></div>
+              </div>
+              <span className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]">Generating...</span>
             </div>
-            <span className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]">Generating...</span>
+          )}
+          
+          {/* Toggle button for the entire section */}
+          <div className="rounded-full p-1 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors">
+            {isExpanded ? 
+              <ChevronUp size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" /> : 
+              <ChevronDown size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" />
+            }
           </div>
-        )}
+        </div>
       </div>
       
       {/* 파일 목록 */}
-      <div className="space-y-4">
+      <div 
+        className="space-y-4 overflow-hidden transition-all duration-200 ease-in-out"
+        style={{ 
+          maxHeight: isExpanded ? '5000px' : '0px',
+          opacity: isExpanded ? 1 : 0
+        }}
+      >
         {responseData.files.map((file: File, index: number) => {
           const isOpen = openFileIndexes.includes(index);
           
@@ -211,10 +252,29 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
                       <Download size={16} className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]" />
                     </button>
                     
+                    {/* 복사 버튼 */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyFileContent(file, index);
+                      }}
+                      className="rounded-full p-1.5 hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] transition-colors flex-shrink-0"
+                      title={copiedFileIndex === index ? "Copied!" : "Copy file content"}
+                    >
+                      {copiedFileIndex === index ? (
+                        <Check size={16} className="text-green-500" />
+                      ) : (
+                        <Copy size={16} className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]" />
+                      )}
+                    </button>
+                    
                     {/* 토글 버튼 */}
                     <div 
                       className="rounded-full p-1.5 hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] transition-colors flex-shrink-0 cursor-pointer"
-                      onClick={() => toggleFile(index)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFile(index);
+                      }}
                     >
                       {isOpen ? 
                         <ChevronUp size={16} className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]" /> : 
