@@ -94,7 +94,7 @@ const VirtuosoWrapper: React.FC<VirtuosoWrapperProps> = ({
           // Pass the onScroll callback to Virtuoso if provided
           {...(onScroll ? {
             scrollerRef: (element) => {
-              if (element) {
+              if (element && element instanceof HTMLElement) {
                 element.addEventListener('scroll', () => {
                   onScroll({
                     scrollTop: element.scrollTop,
