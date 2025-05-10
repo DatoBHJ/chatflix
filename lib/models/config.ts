@@ -37,7 +37,7 @@ export interface ModelConfig {
 }
 
 // Default model configuration
-export const DEFAULT_MODEL_ID = 'claude-3-7-sonnet-20250219'; 
+export const DEFAULT_MODEL_ID = 'chatflix-ultimate'; 
 
 export const RATE_LIMITS = {
   level0: {
@@ -498,7 +498,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
-    isNew: true,
     isAgentEnabled: true,
     contextWindow: 200000,
     tps: 150,
@@ -596,7 +595,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       categories: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
       threshold: 'BLOCK_NONE'
     },
-    isNew: true,
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
