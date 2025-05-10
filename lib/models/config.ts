@@ -284,7 +284,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isActivated: true,
     isAgentEnabled: true,
     isNew: true,
-    // isHot: true,
+    isHot: true,
     reasoning: {
       enabled: true,
       provider: 'anthropic',
