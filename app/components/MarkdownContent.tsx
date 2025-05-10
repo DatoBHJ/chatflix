@@ -1,4 +1,4 @@
-import { useState, useMemo, memo, useCallback, useEffect } from 'react';
+import { useState, useMemo, memo, useCallback, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -8,6 +8,586 @@ import rehypeSanitize from 'rehype-sanitize';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import mermaid from 'mermaid';
+
+// Initialize mermaid with dark theme support
+const initMermaid = () => {
+  try {
+    // Detect current theme
+    const isDarkMode = () => {
+      if (typeof window === 'undefined') return false; // Default to light in SSR
+      
+      const theme = document.documentElement.getAttribute('data-theme');
+      if (theme === 'dark') return true;
+      if (theme === 'light') return false;
+      
+      // For system theme, check media query
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    };
+    
+    const dark = isDarkMode();
+    
+    // Theme configuration based on current mode
+    const themeConfig = {
+      // Light theme colors
+      light: {
+        background: '#ffffff',
+        nodeBkg: '#f8f9fa',
+        nodeText: '#333333',
+        mainBkg: '#f5f5f5',
+        mainText: '#111111',
+        secondaryBkg: '#e9ecef',
+        secondaryText: '#444444',
+        tertiaryBkg: '#dee2e6',
+        tertiaryText: '#555555',
+        primaryColor: '#4C566A',
+        primaryTextColor: '#333333',
+        primaryBorderColor: '#adb5bd',
+        lineColor: '#5E81AC',
+        secondaryColor: '#81A1C1', 
+        tertiaryColor: '#88C0D0',
+        noteBkgColor: '#fff8dc',
+        noteTextColor: '#333333',
+        titleColor: '#333333',
+        edgeLabelBackground: '#ffffff',
+        edgeColor: '#333333'
+      },
+      // Dark theme colors
+      dark: {
+        background: 'transparent',
+        nodeBkg: '#2a2a2a',
+        nodeText: '#e5e5e5',
+        mainBkg: '#1a1a1a',
+        mainText: '#e5e5e5',
+        secondaryBkg: '#262626',
+        secondaryText: '#d4d4d4',
+        tertiaryBkg: '#333333',
+        tertiaryText: '#cccccc',
+        primaryColor: '#4C566A',
+        primaryTextColor: '#ECEFF4',
+        primaryBorderColor: '#D8DEE9',
+        lineColor: '#81A1C1',
+        secondaryColor: '#5E81AC', 
+        tertiaryColor: '#88C0D0',
+        noteBkgColor: '#464646',
+        noteTextColor: '#e5e5e5',
+        titleColor: '#e5e5e5',
+        edgeLabelBackground: '#1a1a1a',
+        edgeColor: '#d4d4d4'
+      }
+    };
+    
+    // Select appropriate theme colors
+    const theme = dark ? themeConfig.dark : themeConfig.light;
+    
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'base',
+      securityLevel: 'loose',
+      fontFamily: 'system-ui, sans-serif',
+      fontSize: 14,
+      flowchart: {
+        htmlLabels: true,
+        curve: 'basis',
+        useMaxWidth: true,
+        diagramPadding: 8,
+        nodeSpacing: 40,
+        rankSpacing: 40,
+      },
+      themeVariables: {
+        // Core colors
+        primaryColor: theme.primaryColor,
+        primaryTextColor: theme.primaryTextColor,
+        primaryBorderColor: theme.primaryBorderColor,
+        lineColor: theme.lineColor,
+        secondaryColor: theme.secondaryColor, 
+        tertiaryColor: theme.tertiaryColor,
+        
+        // Background and text colors
+        background: theme.background,
+        mainBkg: theme.mainBkg,
+        mainText: theme.mainText,
+        secondaryBkg: theme.secondaryBkg,
+        secondaryText: theme.secondaryText,
+        tertiaryBkg: theme.tertiaryBkg,
+        tertiaryText: theme.tertiaryText,
+        
+        // Node colors
+        nodeBkg: theme.nodeBkg,
+        nodeBorder: theme.primaryBorderColor,
+        nodeTextColor: theme.nodeText,
+        
+        // Note colors
+        noteBkgColor: theme.noteBkgColor,
+        noteTextColor: theme.noteTextColor,
+        noteBorderColor: dark ? '#555555' : '#999999',
+        
+        // Edge and label colors
+        edgeLabelBackground: theme.edgeLabelBackground,
+        edgeColor: theme.edgeColor,
+        titleColor: theme.titleColor,
+        
+        // Class diagram colors
+        classText: theme.mainText,
+        
+        // Entity relation colors
+        entityBorder: theme.primaryBorderColor,
+        entityText: theme.mainText,
+        
+        // State colors
+        labelColor: theme.mainText,
+        altBackground: dark ? '#333333' : '#f8f9fa',
+      },
+      // 다이어그램별 설정 추가
+      sequence: {
+        useMaxWidth: true,
+        boxMargin: 10,
+        mirrorActors: false,
+        actorMargin: 100,
+        messageMargin: 40,
+        boxTextMargin: 8,
+        noteMargin: 10,
+        messageAlign: 'center',
+        actorFontWeight: 'bold',
+        actorFontSize: 14,
+        noteFontSize: 14,
+        messageFontSize: 13,
+      },
+      gantt: {
+        titleTopMargin: 25,
+        barHeight: 20,
+        barGap: 4,
+        useMaxWidth: true,
+        topPadding: 50,
+        leftPadding: 75,
+        rightPadding: 20,
+        gridLineStartPadding: 35,
+        fontSize: 14,
+        sectionFontSize: 14,
+        numberSectionStyles: 4,
+      },
+      pie: {
+        useMaxWidth: true,
+        textPosition: 0.5,
+      },
+      class: {
+        useMaxWidth: true,
+        textHeight: 14,
+      },
+      // 전역 설정으로 더 안정적인 파싱
+      logLevel: 'error',
+      deterministicIds: false
+    });
+    
+    // Add listener for theme changes
+    if (typeof window !== 'undefined') {
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.type === 'attributes' && 
+              mutation.attributeName === 'data-theme') {
+            // Re-initialize mermaid with new theme
+            initMermaid();
+          }
+        });
+      });
+      
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-theme']
+      });
+      
+      // Also listen for system preference changes
+      window.matchMedia('(prefers-color-scheme: dark)')
+        .addEventListener('change', initMermaid);
+    }
+  } catch (error) {
+    console.error('Mermaid initialization error:', error);
+  }
+};
+
+// Mermaid component for rendering diagrams
+const MermaidDiagram = memo(({ chart }: { chart: string }) => {
+  const [svg, setSvg] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isComplete, setIsComplete] = useState(false);
+  const [renderAttempts, setRenderAttempts] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<string>(chart);
+  const renderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoCompleteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const id = useMemo(() => `mermaid-${Math.random().toString(36).substring(2, 11)}`, []);
+
+  // List of valid diagram types for validation
+  const diagramTypes = [
+    'graph', 'flowchart', 'sequenceDiagram', 'classDiagram', 
+    'stateDiagram', 'erDiagram', 'journey', 'gantt', 'pie', 
+    'requirementDiagram', 'gitGraph', 'timeline', 'mindmap'
+  ];
+
+  // Clean up all timeouts when component unmounts
+  useEffect(() => {
+    return () => {
+      if (renderTimeoutRef.current) clearTimeout(renderTimeoutRef.current);
+      if (autoCompleteTimeoutRef.current) clearTimeout(autoCompleteTimeoutRef.current);
+    };
+  }, []);
+
+  // Always update the chart ref when the chart changes
+  useEffect(() => {
+    chartRef.current = chart;
+    
+    // Clear existing timeouts
+    if (renderTimeoutRef.current) {
+      clearTimeout(renderTimeoutRef.current);
+      renderTimeoutRef.current = null;
+    }
+    
+    if (autoCompleteTimeoutRef.current) {
+      clearTimeout(autoCompleteTimeoutRef.current);
+      autoCompleteTimeoutRef.current = null;
+    }
+    
+    // Reset to initial state on new chart content
+    setRenderAttempts(0);
+    
+    // Don't start loading for very short content (likely incomplete)
+    if (!chart || chart.trim().length < 10) {
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    // Most important check: Is this a complete markdown code block?
+    // This is the most reliable way to ensure the diagram is complete
+    const isCodeBlockComplete = () => {
+      // For a complete mermaid block in markdown, we need:
+      // 1. Starting with ```mermaid (with possible spaces before)
+      // 2. Ending with ``` (with possible spaces after)
+      const trimmedChart = chart.trim();
+      const hasStart = /^\s*```\s*mermaid/i.test(trimmedChart);
+      const hasEnd = /```\s*$/m.test(trimmedChart);
+      
+      // Only consider it complete if it has proper start and end
+      return hasStart && hasEnd;
+    };
+    
+    // Check completeness in multiple ways
+    const isContentLikelyComplete = () => {
+      const trimmedChart = chart.trim();
+      
+      // If it's not a complete code block, it's definitely not complete
+      if (!isCodeBlockComplete()) {
+        return false;
+      }
+      
+      // Extract diagram content (content between ```mermaid and ```)
+      let diagramContent = trimmedChart;
+      const startMatch = diagramContent.match(/^\s*```\s*mermaid\s*\n/i);
+      if (startMatch) {
+        diagramContent = diagramContent.substring(startMatch[0].length);
+      }
+      const endMatch = diagramContent.match(/\n\s*```\s*$/);
+      if (endMatch) {
+        diagramContent = diagramContent.substring(0, diagramContent.length - endMatch[0].length);
+      }
+      
+      // Sanity check on content
+      if (diagramContent.trim().length < 5) {
+        return false;
+      }
+      
+      // Check for diagram type (should be first word in content)
+      const firstWord = diagramContent.trim().split(/\s+/)[0]?.toLowerCase();
+      if (!diagramTypes.some(type => firstWord === type.toLowerCase())) {
+        return false;
+      }
+      
+      // Check minimum content based on type
+      if (firstWord === 'flowchart' || firstWord === 'graph') {
+        // Flowcharts need at least one arrow or node
+        return (diagramContent.includes('-->') || diagramContent.includes('->')) && 
+               diagramContent.includes('[') && diagramContent.includes(']');
+      } else if (firstWord === 'sequencediagram') {
+        // Sequence diagrams need at least one participant and one arrow
+        return diagramContent.toLowerCase().includes('participant') && 
+               (diagramContent.includes('->>') || diagramContent.includes('->'));
+      } else if (firstWord === 'classdiagram') {
+        // Class diagrams need at least one class definition
+        return diagramContent.toLowerCase().includes('class');
+      } else if (firstWord === 'gantt') {
+        // Gantt charts need at least one section and one task
+        return diagramContent.toLowerCase().includes('section') && 
+               diagramContent.split('\n').length > 3;
+      } else if (firstWord === 'pie') {
+        // Pie charts need at least one segment
+        return diagramContent.includes(':') && diagramContent.includes('"');
+      }
+      
+      // For other diagram types, just check number of lines
+      return diagramContent.split('\n').length >= 3;
+    };
+    
+    // Always set a timeout to end loading state after max wait time (5 seconds)
+    // This ensures UI won't be stuck in loading state indefinitely
+    autoCompleteTimeoutRef.current = setTimeout(() => {
+      // If still loading after timeout, force complete
+      if (isLoading) {
+        setIsComplete(true);
+        setIsLoading(false);
+        console.log('Mermaid rendering timeout - forcing completion');
+      }
+    }, 5000);
+    
+    // If content seems complete, schedule rendering with a significant delay
+    if (isContentLikelyComplete()) {
+      setIsComplete(true);
+      
+      // Wait a bit to ensure streaming is done (conservative approach)
+      renderTimeoutRef.current = setTimeout(() => {
+        renderDiagram();
+      }, 300);
+    } else {
+      setIsComplete(false);
+      
+      // For incomplete content, set a long delay
+      renderTimeoutRef.current = setTimeout(() => {
+        // Check again if the content seems complete now
+        if (isContentLikelyComplete()) {
+          setIsComplete(true);
+          renderDiagram();
+        } else {
+          // Still incomplete, check one more time after a short delay
+          renderTimeoutRef.current = setTimeout(() => {
+            setIsComplete(true); // Assume it's complete after max wait
+            renderDiagram();
+          }, 1000);
+        }
+      }, 1000);
+    }
+  }, [chart]);
+
+  const renderDiagram = async () => {
+    try {
+      // Defensive check - don't render if no content
+      if (!chartRef.current.trim()) {
+        setIsLoading(false);
+        return;
+      }
+      
+      // Track attempts
+      setRenderAttempts(prev => prev + 1);
+      
+      // Process the diagram content
+      // Extract the actual diagram content (without markdown code block markers)
+      let diagramContent = chartRef.current.trim();
+      
+      // Remove markdown code block markers if present
+      const startMatch = diagramContent.match(/^\s*```\s*mermaid\s*\n/i);
+      if (startMatch) {
+        diagramContent = diagramContent.substring(startMatch[0].length);
+      }
+      const endMatch = diagramContent.match(/\n\s*```\s*$/);
+      if (endMatch) {
+        diagramContent = diagramContent.substring(0, diagramContent.length - endMatch[0].length);
+      }
+      
+      // Clean up content
+      let cleanChart = diagramContent.trim();
+      
+      // Ensure diagram type is specified
+      const hasType = diagramTypes.some(type => 
+        cleanChart.trim().toLowerCase().startsWith(type.toLowerCase())
+      );
+      
+      if (!hasType) {
+        // Default to flowchart if no type is specified
+        cleanChart = 'flowchart TD\n' + cleanChart;
+      }
+      
+      // Standardize syntax - upgrade older graph syntax to flowchart
+      cleanChart = cleanChart.replace(/^graph\s+/i, 'flowchart ');
+      
+      // Handle non-ASCII characters and special text in nodes
+      if (cleanChart.startsWith('flowchart') || cleanChart.startsWith('graph')) {
+        // Quote node text with non-ASCII or special characters 
+        cleanChart = cleanChart.replace(/\[([^\]]+)\]/g, (match, content) => {
+          // Skip if already quoted
+          if (content.startsWith('"') && content.endsWith('"')) return match;
+          
+          // Check if content has non-ASCII or special chars that need quoting
+          const needsQuotes = /[^\x00-\x7F]|[^a-zA-Z0-9_\s-]/.test(content);
+          return needsQuotes ? `["${content}"]` : `[${content}]`;
+        });
+      }
+      
+      // Handle newlines in node text
+      cleanChart = cleanChart.replace(/\\n/g, '<br>');
+      
+      // Quote non-ASCII participant names in sequence diagrams
+      if (cleanChart.startsWith('sequenceDiagram')) {
+        // Add quotes to participant names with non-ASCII characters
+        cleanChart = cleanChart.replace(/(participant|actor)\s+([^"<:\s]+[^\x00-\x7F][^\s]*)/g, 
+          (match, type, name) => `${type} "${name}"`);
+          
+        // Quote non-ASCII names in arrows
+        cleanChart = cleanChart.replace(/([^\s"]*[^\x00-\x7F][^\s"]*)\s*(->>|->|-->>|-->|=>|==>|x)\s*([^\s"]*[^\x00-\x7F][^\s"]*)\s*:/g, 
+          (match, from, arrow, to) => `"${from}"${arrow}"${to}":`);
+      }
+      
+      // Quote non-ASCII class names in class diagrams
+      if (cleanChart.startsWith('classDiagram')) {
+        // Add quotes to class names with non-ASCII characters
+        cleanChart = cleanChart.replace(/(class)\s+([^\s"]*[^\x00-\x7F][^\s"]*)/g, 
+          (match, keyword, name) => `${keyword} "${name}"`);
+          
+        // Quote non-ASCII class names in relationships
+        cleanChart = cleanChart.replace(/([^\s"]*[^\x00-\x7F][^\s"]*)\s+(<\|--|o--|<--|\*--|-->|--|<\|\.\.|\.\.|\.\.>|\.\.o)/g, 
+          (match, name, relation) => `"${name}" ${relation}`);
+          
+        cleanChart = cleanChart.replace(/(<\|--|o--|<--|\*--|-->|--|<\|\.\.|\.\.|\.\.>|\.\.o)\s+([^\s"]*[^\x00-\x7F][^\s"]*)/g, 
+          (match, relation, name) => `${relation} "${name}"`);
+      }
+      
+      // Quote non-ASCII section names in gantt charts
+      if (cleanChart.startsWith('gantt')) {
+        cleanChart = cleanChart.replace(/section\s+([^\n"]*[^\x00-\x7F][^\n"]*)/g, 
+          (match, name) => `section "${name}"`);
+      }
+      
+      // Clean up whitespace
+      cleanChart = cleanChart.replace(/^\s+/gm, line => ' '.repeat(Math.min(line.length, 2)));
+      
+      console.log('Processed mermaid chart:', cleanChart);
+      
+      // Render with a controlled approach
+      try {
+        // Wrap in a promise with timeout for safety
+        const renderPromise = new Promise<{ svg: string }>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Rendering timed out'));
+          }, 3000); // 3 second timeout
+          
+          // Attempt to render
+          mermaid.render(id, cleanChart)
+            .then(result => {
+              clearTimeout(timeout);
+              resolve(result);
+            })
+            .catch(err => {
+              clearTimeout(timeout);
+              reject(err);
+            });
+        });
+        
+        const { svg } = await renderPromise;
+        setSvg(svg);
+        setError(null);
+        setIsLoading(false);
+      } catch (renderError) {
+        // If rendering fails, try again once with a delay
+        if (renderAttempts < 2) {
+          renderTimeoutRef.current = setTimeout(() => {
+            renderDiagram();
+          }, 500);
+          return;
+        }
+        
+        throw renderError; // Re-throw if max retries reached
+      }
+    } catch (err: any) {
+      console.error('Mermaid rendering error:', err);
+      
+      // Always end loading state on error, but only show error if 
+      // we've determined content is complete and made multiple attempts
+      setIsLoading(false);
+      
+      if (isComplete && renderAttempts > 1) {
+        setError(err?.message || 'Failed to render diagram');
+      }
+    }
+  };
+
+  // Adjust container size when svg changes
+  useEffect(() => {
+    if (svg && containerRef.current) {
+      const parser = new DOMParser();
+      const svgDoc = parser.parseFromString(svg, "image/svg+xml");
+      const svgElement = svgDoc.documentElement;
+      
+      if (svgElement) {
+        const width = svgElement.getAttribute('width');
+        const height = svgElement.getAttribute('height');
+        
+        if (width && height) {
+          containerRef.current.style.width = '100%';
+          containerRef.current.style.maxWidth = '100%';
+          containerRef.current.style.overflowX = 'auto';
+        }
+      }
+    }
+  }, [svg]);
+
+  // Show loading indicator only if loading and no SVG yet
+  if (isLoading && !svg) {
+    return (
+      <div className="my-6 p-4 bg-[var(--accent)] rounded-lg overflow-x-auto">
+        <div className="flex flex-col items-center justify-center h-40">
+          <div className="animate-pulse flex space-x-2 mb-2">
+            <div className="w-3 h-3 rounded-full bg-[var(--muted)]"></div>
+            <div className="w-3 h-3 rounded-full bg-[var(--muted)]"></div>
+            <div className="w-3 h-3 rounded-full bg-[var(--muted)]"></div>
+          </div>
+          <div className="text-[var(--muted)] text-sm">
+            {isComplete ? 'Rendering diagram...' : 'Receiving diagram data...'}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error only after diagram is considered complete and rendering failed
+  if (error && !svg) {
+    return (
+      <div className="p-4 rounded-md bg-[var(--accent)] border border-red-500 text-[var(--muted)]">
+        <p className="font-bold mb-2">Diagram Error:</p>
+        <pre className="whitespace-pre-wrap overflow-x-auto text-sm">{error}</pre>
+        <div className="mt-3 text-xs">
+          <p>Try one of these diagram formats:</p>
+          <ul className="list-disc pl-5 mt-1">
+            <li>flowchart TD</li>
+            <li>sequenceDiagram</li>
+            <li>classDiagram</li>
+            <li>gantt</li>
+            <li>pie</li>
+          </ul>
+        </div>
+        <pre className="mt-4 p-3 bg-[var(--code-bg)] text-[var(--code-text)] overflow-x-auto rounded text-xs">{chart}</pre>
+      </div>
+    );
+  }
+
+  // Show the rendered diagram - display as soon as we have SVG, regardless of loading state
+  if (svg) {
+    return (
+      <div ref={containerRef} className="my-6 p-4 bg-[var(--accent)] rounded-lg overflow-x-auto">
+        <div 
+          dangerouslySetInnerHTML={{ __html: svg }} 
+          className="flex justify-center"
+        />
+      </div>
+    );
+  }
+
+  // Fallback empty container (should rarely happen)
+  return (
+    <div className="my-6 p-4 bg-[var(--accent)] rounded-lg overflow-x-auto">
+      <div className="h-20 flex items-center justify-center text-[var(--muted)]">
+        Diagram placeholder
+      </div>
+    </div>
+  );
+});
 
 // Add global styles for LaTeX rendering
 // This should be added to your global CSS file
@@ -315,6 +895,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
   // Add Katex styles on component mount
   useEffect(() => {
     addKatexStyles();
+    initMermaid();
   }, []);
 
   // Pre-process the content to handle LaTeX and escape currency dollar signs
@@ -585,13 +1166,19 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
         );
       }
       
+      const language = match?.[1] || '';
       const codeText = extractText(children);
+      
+      // Handle Mermaid diagrams
+      if (language === 'mermaid') {
+        return <MermaidDiagram chart={codeText} />;
+      }
       
       return (
         <div className="message-code group relative my-6 max-w-full overflow-hidden">
           <div className="message-code-header flex items-center justify-between px-4 py-2">
             <span className="text-xs uppercase tracking-wider text-[var(--muted)] break-all">
-              {match?.[1] || 'text'}
+              {language || 'text'}
             </span>
             <button
               onClick={(e) => handleCopy(codeText, e)}
