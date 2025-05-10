@@ -627,14 +627,17 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
       </blockquote>
     ),
     ul: ({ children, ...props }) => (
-      <ul className="list-disc list-inside space-y-2 my-4 ml-4" {...props}>
+      <ul className="my-4 pl-5" style={{ listStylePosition: 'outside', listStyleType: 'disc' }} {...props}>
         {children}
       </ul>
     ),
     ol: ({ children, ...props }) => (
-      <ol className="list-decimal list-inside space-y-2 my-4 ml-4" {...props}>
+      <ol className="my-4 pl-5" style={{ listStylePosition: 'outside', listStyleType: 'decimal' }} {...props}>
         {children}
       </ol>
+    ),
+    li: ({ children, ...props }) => (
+      <li className="my-2" style={{ display: 'list-item' }} {...props}>{children}</li>
     ),
     h1: ({ children, ...props }) => (
       <h1 className="text-2xl font-bold mt-8 mb-4" {...props}>{children}</h1>
