@@ -5,7 +5,7 @@ import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 import { GoogleSignIn } from '../components/GoogleSignIn'
 import Image from 'next/image'
-import { DemoChat } from '../components/demo/DemoChat'
+// import { DemoChat } from '../components/demo/DemoChat'
 import { MODEL_CONFIGS } from '@/lib/models/config'
 
 export default function LoginPage() {
