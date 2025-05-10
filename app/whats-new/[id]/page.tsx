@@ -626,7 +626,7 @@ export default function SingleUpdatePage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="min-h-screen flex items-center justify-center px-4 sm:px-2 md:px-4 mt-0 sm:mt-4"
+            className={`min-h-screen flex items-${currentUpdate.images && currentUpdate.images.length > 2 ? 'start pt-24 pb-20' : 'center'} justify-center px-4 sm:px-2 md:px-4 mt-0 sm:mt-4`}
           >
             {/* Container for post content and navigation buttons */}
             <div className="relative w-full max-w-4xl flex justify-center items-center">
@@ -750,7 +750,7 @@ export default function SingleUpdatePage() {
                                     width={350}
                                     height={350}
                                     className="w-full h-auto object-cover"
-                                    style={{ aspectRatio: '1/1' }}
+                                    style={{ aspectRatio: '1/1', maxHeight: '200px' }}
                                   />
                                   {i === 3 && currentUpdate.images!.length > 4 && (
                                     <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center">
