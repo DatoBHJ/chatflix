@@ -430,6 +430,8 @@ export function createJinaLinkReaderTool(dataStream?: any) {
         }
         
         console.log(`[DEBUG-JINA] Successfully fetched content, length: ${content.length} characters`);
+        // 디버깅을 위해 내용 일부 출력
+        console.log(`[DEBUG-JINA] Content preview: ${content.substring(0, 300)}...`);
         
         const result = {
           content,
@@ -457,10 +459,12 @@ export function createJinaLinkReaderTool(dataStream?: any) {
             data: updatedAttempt
           });
           
-          // Return simplified success result to model
+          // Return complete content to the model (not just preview)
           const contentPreview = result.content && result.content.length > 0 
             ? `${result.content.substring(0, 150)}...` 
             : "(No text content available)";
+          
+          console.log(`[DEBUG-JINA] Returning content to AI, total length: ${result.content.length} characters`);
           
           return {
             success: true,
@@ -469,6 +473,7 @@ export function createJinaLinkReaderTool(dataStream?: any) {
             contentType: result.contentType,
             contentLength: result.content ? result.content.length : 0,
             contentPreview,
+            content: result.content, // Add full content to be accessible to the AI
             message: `Successfully read content from ${url} (${result.content ? result.content.length : 0} characters)`
           };
         }

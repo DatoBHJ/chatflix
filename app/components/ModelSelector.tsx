@@ -1503,11 +1503,11 @@ export function ModelSelector({
                     isFullscreen={isFullscreen}
                   />
                   {/* Scatter plot */}
-                  <ModelPerformanceGraph
+                  {/* <ModelPerformanceGraph
                   models={MODEL_OPTIONS}
                   isMobile={isMobile && !isFullscreen}
                   isFullscreen={isFullscreen}
-                />
+                /> */}
                 </div>
               </div>
             </div>

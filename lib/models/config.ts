@@ -42,61 +42,61 @@ export const DEFAULT_MODEL_ID = 'chatflix-ultimate';
 export const RATE_LIMITS = {
   level0: {
     hourly: {
-      requests: 50,    
+      requests: 10,    
       window: '4 h'
     },
     daily: {
-      requests: 100,    
+      requests: 30,    
       window: '24 h'
     }
   },
   level1: {
     hourly: {
-      requests: 10,    
+      requests: 5,    
       window: '4 h'
     },
     daily: {
-      requests: 20,    
+      requests: 10,    
       window: '24 h'
     }
   },
   level2: {
     hourly: {
-      requests: 10,
+      requests: 5,
       window: '4 h'
     },
     daily: {
-      requests: 20,
+      requests: 10,
       window: '24 h'
     }
   },
   level3: {
     hourly: {
-      requests: 10,    
+      requests: 5,    
       window: '4 h'
     },
     daily: {
-      requests: 20,
+      requests: 10,
       window: '24 h'
     }
   },
   level4: {
     hourly: {
-      requests: 10,    
+      requests: 5,    
       window: '4 h'
     },
     daily: {
-      requests: 20,
+      requests: 10,
       window: '24 h'
     }
   },
   level5: {
     hourly: {
-      requests: 10,    
+      requests: 5,    
       window: '4 h'
     },
     daily: {
-      requests: 20,
+      requests: 10,
       window: '24 h'
     }
   },

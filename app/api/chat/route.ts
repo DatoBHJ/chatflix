@@ -352,25 +352,25 @@ export async function POST(req: Request) {
     }
 
     // 구독 상태 확인
-    // const isSubscribed = await checkSubscription(user.id);
+    const isSubscribed = await checkSubscription(user.id);
     
     // 사용자의 오늘 요청 횟수 확인
-    // const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD 형식
-    // const { data: userRequests, error: requestsError } = await supabase
-    //   .from('user_daily_requests')
-    //   .select('count')
-    //   .eq('user_id', user.id)
-    //   .eq('date', today)
-    //   .single();
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD 형식
+    const { data: userRequests, error: requestsError } = await supabase
+      .from('user_daily_requests')
+      .select('count')
+      .eq('user_id', user.id)
+      .eq('date', today)
+      .single();
     
-    // // 현재 요청 횟수 (없으면 0으로 시작)
-    // const currentRequestCount = userRequests?.count || 0;
+    // 현재 요청 횟수 (없으면 0으로 시작)
+    const currentRequestCount = userRequests?.count || 0;
     
-    // // 임계값 설정: 일일 10회 요청
-    // const REQUEST_THRESHOLD = 10;
+    // 임계값 설정: 일일 5회 요청
+    const REQUEST_THRESHOLD = 5;
     
-    // // 구독하지 않았고 임계값 이상이면 지연 효과 적용 예정
-    // const shouldDelay = !isSubscribed && currentRequestCount >= REQUEST_THRESHOLD;
+    // 구독하지 않았고 임계값 이상이면 지연 효과 적용 예정
+    const shouldDelay = !isSubscribed && currentRequestCount >= REQUEST_THRESHOLD;
 
     // Check rate limiting with potentially updated model
     const rateLimitResult = await handleRateLimiting(user.id, model);
@@ -410,45 +410,45 @@ export async function POST(req: Request) {
     }
 
     // // 요청 카운트 증가 (백그라운드에서 처리)
-    // Promise.resolve().then(async () => {
-    //   try {
-    //     // upsert를 사용하여 레코드가 존재하면 업데이트, 없으면 삽입
-    //     await supabase
-    //       .from('user_daily_requests')
-    //       .upsert({
-    //         user_id: user.id,
-    //         date: today,
-    //         count: currentRequestCount + 1,
-    //         last_request_at: new Date().toISOString(),
-    //         is_subscribed: isSubscribed  // 구독 상태 저장
-    //       }, {
-    //         onConflict: 'user_id,date'
-    //       });
-    //   } catch (error) {
-    //     console.error('Failed to update request count:', error);
-    //   }
-    // });
+    Promise.resolve().then(async () => {
+      try {
+        // upsert를 사용하여 레코드가 존재하면 업데이트, 없으면 삽입
+        await supabase
+          .from('user_daily_requests')
+          .upsert({
+            user_id: user.id,
+            date: today,
+            count: currentRequestCount + 1,
+            last_request_at: new Date().toISOString(),
+            is_subscribed: isSubscribed  // 구독 상태 저장
+          }, {
+            onConflict: 'user_id,date'
+          });
+      } catch (error) {
+        console.error('Failed to update request count:', error);
+      }
+    });
 
     return createDataStreamResponse({
       execute: async (dataStream) => {
           // 비구독자이고 임계값 이상일 때만 지연 적용
-          // if (shouldDelay) {
-          //   console.log(`Not subscribed and exceeded threshold (${currentRequestCount}/${REQUEST_THRESHOLD}), delaying response`);
-          //   dataStream.writeMessageAnnotation({
-          //     type: 'subscription_status',
-          //     data: { 
-          //       isSubscribed: false,
-          //       message: "... slow request, get fast access here",
-          //       requestCount: currentRequestCount
-          //     }
-          //   });
+          if (shouldDelay) {
+            console.log(`Not subscribed and exceeded threshold (${currentRequestCount}/${REQUEST_THRESHOLD}), delaying response`);
+            dataStream.writeMessageAnnotation({
+              type: 'subscription_status',
+              data: { 
+                isSubscribed: false,
+                message: "... slow request, get fast access here",
+                requestCount: currentRequestCount
+              }
+            });
             
-          //   // 인위적 지연 적용 (약 20초)
-          //   await new Promise(resolve => setTimeout(resolve, 20000));
-          // }
-          // else {
-          //   console.log(`No delay needed: ${isSubscribed ? 'Subscribed' : `Free tier (${currentRequestCount}/${REQUEST_THRESHOLD})`}`);
-          // }
+            // 인위적 지연 적용 (약 20초)
+            await new Promise(resolve => setTimeout(resolve, 20000));
+          }
+          else {
+            console.log(`No delay needed: ${isSubscribed ? 'Subscribed' : `Free tier (${currentRequestCount}/${REQUEST_THRESHOLD})`}`);
+          }
           
           let sessionValidationPromise;
           if (chatId) {
@@ -1216,10 +1216,14 @@ Remember to maintain the language of the user's query throughout your response.
                       .map((l: any) => ({
                         url: l.url,
                         title: l.title,
-                        status: l.status
+                        status: l.status,
+                        content: l.content || "Content not available"
                       }));
                     
                     toolSummaries.push(`LINK READER RESULTS: ${JSON.stringify(simplifiedLinks)}`);
+                    
+                    // Log that content is being passed to follow-up phases
+                    console.log(`[DEBUG-JINA] Passing link content to follow-up phases for ${simplifiedLinks.length} links`);
                   }
                   
                   if (toolResults.generatedImages && toolResults.generatedImages.length > 0) {
