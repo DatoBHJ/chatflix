@@ -42,11 +42,11 @@ export const DEFAULT_MODEL_ID = 'chatflix-ultimate';
 export const RATE_LIMITS = {
   level0: {
     hourly: {
-      requests: 10,    
+      requests: 5,    
       window: '4 h'
     },
     daily: {
-      requests: 30,    
+      requests: 10,    
       window: '24 h'
     }
   },
@@ -284,7 +284,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isActivated: true,
     isAgentEnabled: true,
     isNew: true,
-    isHot: true,
+    // isHot: true,
     reasoning: {
       enabled: true,
       provider: 'anthropic',
@@ -298,7 +298,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
    // Grok 3 Mini (Thinking)
   {
     id: 'grok-3-mini',
-    name: 'Grok 3 Mini (Thinking)',
+    name: 'Grok 3 Mini High (Thinking)',
     country: 'US',
     // description: 'Grok 3 Mini',
     provider: 'xai',
@@ -312,6 +312,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       provider: 'xai',
     },
     supportsPDFs: false,
+    isNew: true,
     isEnabled: true,
     isActivated: true,
     isAgentEnabled: true,
@@ -504,52 +505,28 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     intelligenceIndex: 70,
   },
   // o3 (Thinking)
-  // {
-  //   id: "o3",
-  //   name: "o3 (Thinking)",
-  //   country: 'US',
-  //   description: "OpenAI's most powerful reasoning model",
-  //   provider: "openai",
-  //   supportsVision: true,
-  //   rateLimit: {
-  //     level: "level0",
-  //   },
-  //   reasoning: {
-  //     enabled: true,
-  //     provider: 'openai',
-  //   },
-  //   supportsPDFs: false,
-  //   isEnabled: true,
-  //   isActivated: true,
-  //   isNew: true,
-  //   isAgentEnabled: false,
-  //   contextWindow: 200000,
-  //   // tps: 188,
-  //   intelligenceIndex: 67,
-  // },
-  // o3-mini (Thinking)
-  // {
-  //   id: "o3-mini",
-  //   name: "o3-mini (Thinking)",
-  //   country: 'US',
-  //   description: "A small model alternative to o3",
-  //   provider: "openai",
-  //   supportsVision: false,
-  //   rateLimit: {
-  //     level: "level5",
-  //   },
-  //   reasoning: {
-  //     enabled: true,
-  //     provider: 'openai',
-  //   },
-  //   supportsPDFs: false,
-  //   isEnabled: true,
-  //   isActivated: true,
-  //   isAgentEnabled: false,
-  //   contextWindow: 200000,
-  //   tps: 188,
-  //   intelligenceIndex: 63,
-  // },
+  {
+    id: "o1",
+    name: "o1 (Thinking)",
+    country: 'US',
+    // description: "OpenAI's most powerful reasoning model",
+    provider: "openai",
+    supportsVision: true,
+    rateLimit: {
+      level: "level0",
+    },
+    reasoning: {
+      enabled: true,
+      provider: 'openai',
+    },
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: false,
+    contextWindow: 200000,
+    // tps: 188,
+    intelligenceIndex: 67,
+  },
    // QwQ-32B (Thinking)
    {
     id: 'qwen-qwq-32b',

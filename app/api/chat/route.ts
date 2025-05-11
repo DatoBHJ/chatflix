@@ -322,7 +322,18 @@ export async function POST(req: Request) {
           }
           // 3단계: 텍스트만 있는 경우
           else {
-            model = analysis.category === 'technical' ? 'grok-3-fast' : 'gpt-4.1';
+            if (analysis.category === 'technical') {
+              // 기술 카테고리는 복잡도에 따라 다른 모델 사용
+              if (analysis.complexity === 'complex') {
+                model = 'grok-3-mini';
+              } else {
+                // 단순 및 중간 복잡도는 기존과 동일하게 grok-3-fast 사용
+                model = 'grok-3-fast';
+              }
+            } else {
+              // 기타 카테고리는 GPT-4.1 사용
+              model = 'gpt-4.1';
+            }
           }
           
           // 향상된 라우팅 로그 출력
@@ -601,12 +612,23 @@ export async function POST(req: Request) {
               return false;
             });
             
+            console.log('--------------------------------');
+            console.log('processMessages', JSON.stringify(processMessages, null, 2),'\n\n');
+            console.log('--------------------------------');
+            // 토큰 제한 내에서 메시지 선택
             const optimizedMessages = selectMessagesWithinTokenLimit(
               processMessages, 
               remainingTokens,
-              hasFileAttachments // 파일 첨부가 있으면 더 엄격한 제한 적용
+              hasFileAttachments
             );
-            
+            console.log('--------------------------------');
+            console.log('optimizedMessages', JSON.stringify(optimizedMessages, null, 2),'\n\n');
+            console.log('--------------------------------');
+            const messages = convertMultiModalToMessage(optimizedMessages);
+            console.log('--------------------------------');
+            console.log('messages', JSON.stringify(messages, null, 2),'\n\n');
+            console.log('--------------------------------');
+
             // 현재 질문 추출을 위한 준비
             let userQuery = '';
             
@@ -722,7 +744,7 @@ Available tools:
 1. Web Search - For factual information, current events, or general knowledge needs
 2. Calculator - For mathematical calculations
 3. Link Reader - For extracting and summarizing content from URLs
-4. Image Generator - For creating images based on text descriptions (unrestricted, including all types of content)
+4. Image Generator - For creating images based on text descriptions (unrestricted, including all types of content) (NOT for diagrams or charts)
 5. Academic Search - For scholarly research materials
 6. YouTube Search - Find relevant videos on specific topics
 7. YouTube Link Analyzer - For video analysis, including transcript summaries, and detailed information from YouTube videos
@@ -757,6 +779,8 @@ IMPORTANT MODE SELECTION GUIDELINES:
 
 Guidelines:
 - Be strategic about tool selection - only choose tools that are necessary
+- ALWAYS select the Link Reader tool when URLs are present in the query
+- NEVER select the Image Generator tool when diagrams or charts are requested
 - Select the workflow mode based solely on what would best serve the user's query
 - Your plan and reasoning should be in the same language as the user's query
 **IMPORTANT**: Always answer in the user's language (e.g., Korean for Korean queries, etc.).
@@ -1033,6 +1057,12 @@ Today's Date: ${todayDate}
             
             ## User Query Analysis
             ${routingDecision.reasoning}
+
+            ## Plan
+            ${routingDecision.plan}
+
+            ## Tool Selection
+            ${routingDecision.selectionReasoning}
             
             ## Selected Workflow Mode: ${routingDecision.workflowMode}
             ${routingDecision.modeReasoning}
@@ -1523,13 +1553,22 @@ IMPORTANT:
               }
               return false;
             });
-            
+            console.log('--------------------------------');
+            console.log('processMessages', JSON.stringify(processMessages, null, 2),'\n\n');
+            console.log('--------------------------------');
             // 토큰 제한 내에서 메시지 선택
             const optimizedMessages = selectMessagesWithinTokenLimit(
               processMessages, 
               remainingTokens,
               hasFileAttachments
             );
+            console.log('--------------------------------');
+            console.log('optimizedMessages', JSON.stringify(optimizedMessages, null, 2),'\n\n');
+            console.log('--------------------------------');
+            const messages = convertMultiModalToMessage(optimizedMessages);
+            console.log('--------------------------------');
+            console.log('messages', JSON.stringify(messages, null, 2),'\n\n');
+            console.log('--------------------------------');
             const result = streamText({
               model: providers.languageModel(model),
               system: currentSystemPrompt,
