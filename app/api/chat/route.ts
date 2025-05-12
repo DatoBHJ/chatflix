@@ -333,14 +333,8 @@ export async function POST(req: Request) {
               }
             } 
             else if (analysis.category === 'math') {
-              // 수학 카테고리는 복잡도에 따라 다른 모델 사용
-              if (analysis.complexity === 'simple') {
-                model = 'gemini-2.0-flash';
-              } else if (analysis.complexity === 'medium') {
-                model = 'gemini-2.5-flash-preview-04-17';
-              } else { // complex
-                model = 'gemini-2.5-pro-preview-05-06';
-              }
+              // 수학 카테고리는 복잡도에 관계없이 grok-3-mini 사용
+              model = 'grok-3-mini';
             }
             else {
               // 기타 카테고리는 GPT-4.1-mini 사용 (복잡도 무관)
