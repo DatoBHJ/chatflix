@@ -634,60 +634,103 @@ const MermaidDiagram = memo(({ chart }: { chart: string }) => {
 const preprocessLaTeX = (content: string) => {
   if (!content) return '';
   
-  // 이미 이스케이프된 구분자 처리
-  let processedContent = content
-    .replace(/\\\[/g, '___BLOCK_OPEN___')
-    .replace(/\\\]/g, '___BLOCK_CLOSE___')
-    .replace(/\\\(/g, '___INLINE_OPEN___')
-    .replace(/\\\)/g, '___INLINE_CLOSE___');
-
-  // 블록 수식 ($$...$$) 보존
-  const blockRegex = /(\$\$[\s\S]*?\$\$)/g;
-  const blocks: string[] = [];
-  processedContent = processedContent.replace(blockRegex, (match) => {
-    const id = blocks.length;
-    blocks.push(match);
-    return `___LATEX_BLOCK_${id}___`;
-  });
-
-  // 인라인 수식 ($...$) 보존 - 화폐 값과 구분
-  const inlineRegex = /(\$(?!\s*\d+[.,\s]*\d*\s*$)(?:[^\$]|\\.)*?\$)/g;
-  const inlines: string[] = [];
-  processedContent = processedContent.replace(inlineRegex, (match) => {
-    const id = inlines.length;
-    inlines.push(match);
-    return `___LATEX_INLINE_${id}___`;
-  });
-
-  // 이스케이프된 구분자 복원
-  processedContent = processedContent
-    .replace(/___BLOCK_OPEN___/g, '\\[')
-    .replace(/___BLOCK_CLOSE___/g, '\\]')
-    .replace(/___INLINE_OPEN___/g, '\\(')
-    .replace(/___INLINE_CLOSE___/g, '\\)');
-
-  // 화폐 기호 처리 (단순화된 버전)
-  processedContent = escapeCurrencyDollars(processedContent);
-
-  // LaTeX 블록 복원
-  processedContent = processedContent.replace(/___LATEX_BLOCK_(\d+)___/g, (_, id) => {
-    return blocks[parseInt(id)];
+  // 먼저 수식 블록 ($$...$$)을 임시 토큰으로 대체
+  const mathBlocks: string[] = [];
+  let processedContent = content.replace(/(\$\$[\s\S]*?\$\$)/g, (match) => {
+    const id = mathBlocks.length;
+    mathBlocks.push(match);
+    return `__MATH_BLOCK_${id}__`;
   });
   
-  processedContent = processedContent.replace(/___LATEX_INLINE_(\d+)___/g, (_, id) => {
-    return inlines[parseInt(id)];
+  // 템플릿 변수 (${...}) 패턴을 HTML 엔티티로 변환
+  processedContent = processedContent.replace(/\${([^}]*)}/g, (match) => {
+    // 템플릿 변수는 HTML로 표시하여 수식 처리를 방지
+    return match.replace('$', '&#36;');
+  });
+  
+  // 달러 기호 + 숫자 (통화) 패턴을 HTML 엔티티로 변환
+  processedContent = processedContent.replace(/\$(\d+(?:[.,]\d+)*)/g, (match) => {
+    return match.replace('$', '&#36;');
+  });
+  
+  // 숫자 + 달러 기호 패턴 처리
+  processedContent = processedContent.replace(/(\d+(?:[.,]\d+)*)\$/g, (match) => {
+    return match.replace('$', '&#36;');
+  });
+  
+  // 인라인 수식 ($...$) 패턴을 임시 토큰으로 대체
+  const inlineMath: string[] = [];
+  processedContent = processedContent.replace(/(\$(?!\d)(?!{)(?:[^\$]|\\[\s\S])+?\$)/g, (match) => {
+    // 이미 $ 기호가 HTML 엔티티로 변환된 경우는 건너뜀
+    if (match.includes('&#36;')) {
+      return match;
+    }
+    
+    // 유효한 수식인지 확인 (내용물이 있어야 함)
+    const mathContent = match.slice(1, -1).trim();
+    if (!mathContent || mathContent.length < 1) {
+      return match;
+    }
+    
+    const id = inlineMath.length;
+    inlineMath.push(match);
+    return `__MATH_INLINE_${id}__`;
+  });
+  
+  // 미처리된 나머지 달러 기호를 HTML 엔티티로 변환
+  processedContent = processedContent.replace(/\$/g, '&#36;');
+  
+  // 수식 블록 토큰을 실제 수식으로 복원
+  mathBlocks.forEach((block, i) => {
+    processedContent = processedContent.replace(`__MATH_BLOCK_${i}__`, block);
+  });
+  
+  // 인라인 수식 토큰을 실제 수식으로 복원
+  inlineMath.forEach((inline, i) => {
+    processedContent = processedContent.replace(`__MATH_INLINE_${i}__`, inline);
   });
 
   return processedContent;
 };
 
-// 단순화된 화폐 기호 처리 함수
+// 더 강화된 화폐 기호 처리 함수
 function escapeCurrencyDollars(text: string): string {
-  // 이미 LaTeX로 처리된 항목은 건너뛰기
-  if (text.includes('___LATEX_') || !text.includes('$')) return text;
+  // 이미 처리된 항목은 건너뛰기
+  if (!text.includes('$')) return text;
   
-  // 금액 패턴 (예: $100, $1,000.50)
-  return text.replace(/\$(\d[\d,\.]*)/g, '&#36;$1');
+  let processedText = text;
+  
+  // 수식 블록 보존 ($$...$$)
+  const mathBlocks: string[] = [];
+  processedText = processedText.replace(/(\$\$[\s\S]*?\$\$)/g, (match) => {
+    mathBlocks.push(match);
+    return `__MATH_BLOCK_${mathBlocks.length - 1}__`;
+  });
+  
+  // 템플릿 변수 (${...}) 처리 - 가장 먼저 처리
+  processedText = processedText.replace(/\${([^}]*)}/g, (match) => {
+    return match.replace('$', '&#36;');
+  });
+  
+  // 통화 패턴 (예: $100, $1,000.50) 처리
+  processedText = processedText.replace(/\$(\d+(?:[.,]\d+)*)/g, (match) => {
+    return match.replace('$', '&#36;');
+  });
+  
+  // 금액이 앞에 오는 달러 패턴 (예: 100$)
+  processedText = processedText.replace(/(\d+(?:[.,]\d+)*)\$/g, (match) => {
+    return match.replace('$', '&#36;');
+  });
+  
+  // 나머지 달러 기호 처리
+  processedText = processedText.replace(/\$/g, '&#36;');
+  
+  // 수식 블록 복원
+  mathBlocks.forEach((block, i) => {
+    processedText = processedText.replace(`__MATH_BLOCK_${i}__`, block);
+  });
+  
+  return processedText;
 }
 
 interface MarkdownContentProps {
@@ -1234,17 +1277,17 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
       </blockquote>
     ),
     ul: ({ children, ...props }) => (
-      <ul className="my-4 pl-5" style={{ listStylePosition: 'outside', listStyleType: 'disc' }} {...props}>
+      <ul className="my-4 pl-5 list-disc list-outside" {...props}>
         {children}
       </ul>
     ),
     ol: ({ children, ...props }) => (
-      <ol className="my-4 pl-5" style={{ listStylePosition: 'outside', listStyleType: 'decimal' }} {...props}>
+      <ol className="my-4 pl-5 list-decimal list-outside" {...props}>
         {children}
       </ol>
     ),
     li: ({ children, ...props }) => (
-      <li className="my-2" style={{ display: 'list-item' }} {...props}>{children}</li>
+      <li className="my-2 pl-1" {...props}>{children}</li>
     ),
     h1: ({ children, ...props }) => (
       <h1 className="text-2xl font-bold mt-8 mb-4" {...props}>{children}</h1>
