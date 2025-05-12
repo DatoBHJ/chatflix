@@ -171,7 +171,7 @@ export default function Chat({ params }: PageProps) {
               {
                 type: 'rate_limit_status',
                 data: {
-                  message: `Rate limit reached. Try again in ${minutesUntilReset} minutes or upgrade for higher limits`,
+                  message: `Rate limit reached! Unlock unlimited access for only $4/month`,
                   reset: reset,
                   limit: limit,
                   level: level,

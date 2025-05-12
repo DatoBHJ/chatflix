@@ -38,61 +38,61 @@ export const DEFAULT_MODEL_ID = 'chatflix-ultimate';
 export const RATE_LIMITS = {
   level0: {
     hourly: {
-      requests: 10,    
+      requests: 7,    
       window: '4 h'
     },
     daily: {
-      requests: 20,    
+      requests: 14,    
       window: '24 h'
     }
   },
   level1: {
     hourly: {
-      requests: 10,    
+      requests: 7,    
       window: '4 h'
     },
     daily: {
-      requests: 20,    
+      requests: 14,    
       window: '24 h'
     }
   },
   level2: {
     hourly: {
-      requests: 10,
+      requests: 5,
       window: '4 h'
     },
     daily: {
-      requests: 20,
+      requests: 10,
       window: '24 h'
     }
   },
   level3: {
     hourly: {
-      requests: 10,    
+      requests: 7,    
       window: '4 h'
     },
     daily: {
-      requests: 20,
+      requests: 14,
       window: '24 h'
     }
   },
   level4: {
     hourly: {
-      requests: 10,    
+      requests: 5,    
       window: '4 h'
     },
     daily: {
-      requests: 20,
+      requests: 10,
       window: '24 h'
     }
   },
   level5: {
     hourly: {
-      requests: 10,    
+      requests: 5,    
       window: '4 h'
     },
     daily: {
-      requests: 20,
+      requests: 10,
       window: '24 h'
     }
   },
@@ -436,6 +436,26 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     intelligenceIndex: 53,
     // multilingual: 80
   },
+  {
+    id: 'gpt-4.1-nano',
+    name: 'GPT-4.1 Nano',
+    country: 'US',
+    // description: 'Balanced for intelligence and speed. Well suited for general tasks.',
+    provider: 'openai',
+    supportsVision: true,
+    // censored: true,
+    rateLimit: {
+      level: 'level1',
+    },
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: true,
+    contextWindow: 1047576,
+    tps: 228,
+    intelligenceIndex: 41,
+    // multilingual: 80
+  },
    // ChatGPT-4o (Nov '24)
    {
     id: 'chatgpt-4o-latest',
@@ -509,7 +529,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: "openai",
     supportsVision: true,
     rateLimit: {
-      level: "level0",
+      level: "level5",
     },
     reasoning: {
       enabled: true,
@@ -602,7 +622,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: true,
     // censored: false,
     rateLimit: {
-      level: 'level1',
+      level: 'level4',
     },
     // isNew: true,
     supportsPDFs: true,
@@ -666,7 +686,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'deepseek',
     supportsVision: false,
     rateLimit: {
-      level: 'level1',
+      level: 'level3',
     },
     supportsPDFs: false,
     reasoning: {
@@ -691,7 +711,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: false,
     // censored: true,
     rateLimit: {
-      level: 'level1',
+      level: 'level3',
     },
     supportsPDFs: false,
     isEnabled: true,

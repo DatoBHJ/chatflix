@@ -722,12 +722,12 @@ const Message = memo(function MessageComponent({
             {/* Rate Limit 메시지 표시 */}
             {rateLimitAnnotation && rateLimitAnnotation.data && (
               <div className="text-sm text-[color-mix(in_srgb,var(--foreground)_70%,transparent)] mb-2">
-                {rateLimitAnnotation.data.message.replace('upgrade for higher limits', 'get higher limits')}&nbsp;
+                {rateLimitAnnotation.data.message}
                 <button 
                   onClick={handleUpgradeClick}
-                  className="text-blue-500 hover:underline font-medium"
+                  className="text-blue-500 hover:underline font-semibold ml-1"
                 >
-                  here
+                  Upgrade Now →
                 </button>
               </div>
             )}
@@ -766,12 +766,12 @@ const Message = memo(function MessageComponent({
                 {/* 구독 상태 메시지 (로딩 중이고 비구독자일 때만 표시) */}
                 {!rateLimitAnnotation && subscriptionAnnotation && subscriptionAnnotation.data && !subscriptionAnnotation.data.isSubscribed && (
                   <span className="text-[color-mix(in_srgb,var(--foreground)_70%,transparent)] text-sm inline-flex items-center">
-                    &nbsp;slow request, get fast access&nbsp;
+                    &nbsp;Slow processing...
                     <button 
                       onClick={handleUpgradeClick}
-                      className="text-blue-500 hover:underline font-medium"
+                      className="text-blue-500 hover:underline font-semibold ml-1"
                     >
-                      here
+                      Get premium speed →
                     </button>
                   </span>
                 )}
