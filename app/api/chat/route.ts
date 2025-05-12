@@ -331,8 +331,8 @@ export async function POST(req: Request) {
               if (analysis.complexity === 'complex') {
                 model = 'grok-3-mini';
               } else {
-                // 단순 및 중간 복잡도는 grok-3-fast 사용
-                model = 'grok-3-fast';
+                // 단순 및 중간 복잡도는 grok-3사용
+                model = 'grok-3';
               }
             } 
             else if (analysis.category === 'math') {
@@ -345,8 +345,8 @@ export async function POST(req: Request) {
                 // 단순 복잡도는 gpt-4.1-mini 사용
                 model = 'gpt-4.1-mini';
               } else {
-                // 중간/복잡 복잡도는 grok-3-fast 사용
-                model = 'grok-3-fast';
+                // 중간/복잡 복잡도는 grok-3 사용
+                model = 'grok-3';
               }
             }
           }
@@ -587,6 +587,24 @@ export async function POST(req: Request) {
               thinkingConfig: { 
                 thinkingBudget: 0, 
               }, 
+              safetySettings: [
+                {
+                  category: 'HARM_CATEGORY_HATE_SPEECH',
+                  threshold: 'BLOCK_NONE'
+                },
+                {
+                  category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+                  threshold: 'BLOCK_NONE'
+                },
+                {
+                  category: 'HARM_CATEGORY_HARASSMENT',
+                  threshold: 'BLOCK_NONE'
+                },
+                {
+                  category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+                  threshold: 'BLOCK_NONE'
+                }
+              ]
             };
           }
           
@@ -1432,7 +1450,7 @@ IMPORTANT:
 
                   // 구조화된 응답 생성
                   const objectResult = await streamObject({
-                    model: providers.languageModel('grok-3-fast'),
+                    model: providers.languageModel('grok-3'),
                     schema: z.object({
                       response: z.object({
                         description: z.string().describe('Brief description of the supporting files being provided (if any). If no files are needed, explain why.'),

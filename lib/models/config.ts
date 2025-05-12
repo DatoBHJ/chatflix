@@ -21,10 +21,6 @@ export interface ModelConfig {
     baseModelId?: string; 
     budgetTokens?: number;
   };
-  safetySettings?: {
-    categories: string;
-    threshold: string;
-  };
   contextWindow?: number;
   tps?: number; // Tokens per second received while the model is generating tokens (ie. after first chunk has been received from the API for models which support streaming).
   intelligenceIndex?: number; // Artificial Analysis Intelligence Index: Combination metric covering multiple dimensions of intelligence - the simplest way to compare how smart models are. Version 2 was released in Feb '25 and includes: MMLU_Pro-Pro, GPQA Diamond, HLE's Last Exam, LiveCodeBench, SciCode, AIME, MATH-500. See Intelligence Index methodology for further details, including a breakdown of each evaluation and how we run them.
@@ -320,10 +316,10 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     // tps: 67, 
     intelligenceIndex: 66,
   },
-    // Grok 3 Fast
+    // Grok 3 
     {
-    id: 'grok-3-fast',
-    name: 'Grok 3 Fast',
+    id: 'grok-3',
+    name: 'Grok 3',
     country: 'US',
     // description: 'High-speed version of Grok 3',
     provider: 'xai',
@@ -568,10 +564,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level4',
     },
-    safetySettings: {
-      categories: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-      threshold: 'BLOCK_NONE'
-    },
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
@@ -590,10 +582,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     // censored: false,
     rateLimit: {
       level: 'level4',
-    },
-    safetySettings: {
-      categories: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-      threshold: 'BLOCK_NONE'
     },
     // isHot: true,
     supportsPDFs: true,
@@ -616,10 +604,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level1',
     },
-    safetySettings: {
-      categories: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-      threshold: 'BLOCK_NONE'
-    },
     // isNew: true,
     supportsPDFs: true,
     isEnabled: true,
@@ -640,10 +624,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     // censored: false,
     rateLimit: {
       level: 'level1',
-    },
-    safetySettings: {
-      categories: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-      threshold: 'BLOCK_NONE'
     },
     supportsPDFs: true,
     isEnabled: true,
