@@ -451,8 +451,8 @@ export default function WhatsNewPage() {
               <span className="text-[var(--muted)] text-sm">@chatflix</span>
               
               <p className="my-3">
-                Keep up with the latest features and improvements to Chatflix. 
-                <br />
+                {/* Keep up with the latest features and improvements to Chatflix. 
+                <br /> */}
                 Contact us at <a href="mailto:sply@chatflix.app" className="text-[#1d9bf0] hover:underline">sply@chatflix.app</a>
               </p>
               
@@ -487,9 +487,9 @@ export default function WhatsNewPage() {
                 {/* <span className="mr-4">
                   <span className="font-semibold">{updates.length}</span> <span className="text-[var(--muted)]">Posts</span>
                 </span> */}
-                <span className="mr-4">
+                {/* <span className="mr-4">
                   <span className="font-semibold">{followerCount}</span> <span className="text-[var(--muted)]">Followers</span>
-                </span>
+                </span> */}
                 {/* <span className="mr-4">
                   <span className="font-semibold">{new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span> <span className="text-[var(--muted)]">Joined</span>
                 </span> */}
