@@ -324,14 +324,15 @@ export async function POST(req: Request) {
           else {
             if (analysis.category === 'technical') {
               // 기술 카테고리는 복잡도에 따라 다른 모델 사용
-              if (analysis.complexity === 'complex') {
-                model = 'gemini-2.5-pro-preview-05-06';
-              } else {
-                // 단순 및 중간 복잡도는 기존과 동일하게 grok-3-fast 사용
+              if (analysis.complexity === 'simple') {
+                model = 'gemini-2.0-flash';
+              } else if (analysis.complexity === 'medium') {
                 model = 'gemini-2.5-flash-preview-04-17';
-              }
+              } else { // complex
+                  model = 'gemini-2.5-pro-preview-05-06';
+                }
             } else {
-              // 기타 카테고리는 GPT-4.1 사용
+              // 기타 카테고리는 GPT-4.1 사용 (복잡도 무관)
               model = 'gpt-4.1';
             }
           }
