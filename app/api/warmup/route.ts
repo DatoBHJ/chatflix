@@ -112,6 +112,13 @@ export async function GET(request: Request) {
       console.log('Added grok-2-vision-latest model to warmup list');
     }
     
+    // chatflix-ultimate 모델 웜업에서 제외
+    const filteredModels = modelsToWarmup.filter(model => model.id !== 'chatflix-ultimate');
+    if (modelsToWarmup.length !== filteredModels.length) {
+      console.log('Excluded chatflix-ultimate model from warmup');
+    }
+    modelsToWarmup = filteredModels;
+    
     // 각 모델 웜업 작업 생성
     const warmupPromises = modelsToWarmup.map(async (model) => {
       try {

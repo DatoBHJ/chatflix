@@ -408,54 +408,91 @@ const MermaidDiagram = memo(({ chart }: { chart: string }) => {
       // Standardize syntax - upgrade older graph syntax to flowchart
       cleanChart = cleanChart.replace(/^graph\s+/i, 'flowchart ');
       
-      // Handle non-ASCII characters and special text in nodes
+      // Enhanced handling for Korean and special characters in nodes
       if (cleanChart.startsWith('flowchart') || cleanChart.startsWith('graph')) {
-        // Quote node text with non-ASCII or special characters 
-        cleanChart = cleanChart.replace(/\[([^\]]+)\]/g, (match, content) => {
-          // Skip if already quoted
-          if (content.startsWith('"') && content.endsWith('"')) return match;
+        // 1. 다이아몬드 노드(중괄호) 처리: B{사용량 측정} 형태를 B["사용량 측정"] 형태로 변환
+        cleanChart = cleanChart.replace(/([A-Za-z0-9_]+)\{([^}]+)\}/g, (match, id, content) => {
+          return `${id}["${content}"]`;
+        });
+        
+        // 2. 화살표 주변의 노드 ID에 따옴표 추가 (A --> B{내용} 형태 처리)
+        cleanChart = cleanChart.replace(/(-->|==>|-.->|===>|-.->)\s*([A-Za-z0-9_]+)\{([^}]+)\}/g, 
+          (match, arrow, id, content) => `${arrow} ${id}["${content}"]`);
           
-          // Check if content has non-ASCII or special chars that need quoting
-          const needsQuotes = /[^\x00-\x7F]|[^a-zA-Z0-9_\s-]/.test(content);
-          return needsQuotes ? `["${content}"]` : `[${content}]`;
+        // 3. 일반 대괄호 노드 처리: 모든 노드 내용에 따옴표 추가
+        cleanChart = cleanChart.replace(/\[([^\]"]+)\]/g, (match, content) => {
+          return `["${content}"]`;
+        });
+        
+        // 4. 화살표 레이블 처리 (A -->|레이블| B 형태)
+        cleanChart = cleanChart.replace(/-->\|([^|]+)\|/g, (match, label) => {
+          return `-->|"${label}"|`;
         });
       }
       
-      // Handle newlines in node text
+      // 시퀀스 다이어그램 한글 처리 강화
+      if (cleanChart.startsWith('sequenceDiagram')) {
+        // 참여자(Participant)의 한글 이름 따옴표 처리
+        cleanChart = cleanChart.replace(/(participant|actor)\s+([^"<:\s]+[^\s]*)/g, 
+          (match, type, name) => {
+            // 이미 따옴표가 있는 경우 그대로 유지
+            if (name.startsWith('"') && name.endsWith('"')) return match;
+            return `${type} "${name}"`;
+          });
+          
+        // 메시지 화살표에서 한글 처리
+        cleanChart = cleanChart.replace(/([^\s"]+)\s*(->>|->|-->>|-->|=>|==>|x)\s*([^\s":]+)\s*:/g, 
+          (match, from, arrow, to) => {
+            let newFrom = from;
+            let newTo = to;
+            
+            // 따옴표로 감싸져 있지 않으면 추가
+            if (!(from.startsWith('"') && from.endsWith('"'))) {
+              newFrom = `"${from}"`;
+            }
+            
+            if (!(to.startsWith('"') && to.endsWith('"'))) {
+              newTo = `"${to}"`;
+            }
+            
+            return `${newFrom}${arrow}${newTo}:`;
+          });
+      }
+      
+      // 클래스 다이어그램 한글 처리
+      if (cleanChart.startsWith('classDiagram')) {
+        // 클래스 이름 따옴표 처리
+        cleanChart = cleanChart.replace(/class\s+([^\s"]+)/g, 
+          (match, name) => {
+            if (name.startsWith('"') && name.endsWith('"')) return match;
+            return `class "${name}"`;
+          });
+      }
+      
+      // 간트 차트 한글 처리
+      if (cleanChart.startsWith('gantt')) {
+        // 섹션 이름 따옴표 처리
+        cleanChart = cleanChart.replace(/section\s+([^\n"]+)/g, 
+          (match, name) => {
+            if (name.startsWith('"') && name.endsWith('"')) return match;
+            return `section "${name}"`;
+          });
+      }
+      
+      // 파이 차트 한글 처리
+      if (cleanChart.startsWith('pie')) {
+        // 레이블 따옴표 처리
+        cleanChart = cleanChart.replace(/title\s+([^\n"]+)/g, 
+          (match, title) => {
+            if (title.startsWith('"') && title.endsWith('"')) return match;
+            return `title "${title}"`;
+          });
+      }
+      
+      // Handle newlines in node text - 이 부분은 기존 코드 유지
       cleanChart = cleanChart.replace(/\\n/g, '<br>');
       
-      // Quote non-ASCII participant names in sequence diagrams
-      if (cleanChart.startsWith('sequenceDiagram')) {
-        // Add quotes to participant names with non-ASCII characters
-        cleanChart = cleanChart.replace(/(participant|actor)\s+([^"<:\s]+[^\x00-\x7F][^\s]*)/g, 
-          (match, type, name) => `${type} "${name}"`);
-          
-        // Quote non-ASCII names in arrows
-        cleanChart = cleanChart.replace(/([^\s"]*[^\x00-\x7F][^\s"]*)\s*(->>|->|-->>|-->|=>|==>|x)\s*([^\s"]*[^\x00-\x7F][^\s"]*)\s*:/g, 
-          (match, from, arrow, to) => `"${from}"${arrow}"${to}":`);
-      }
-      
-      // Quote non-ASCII class names in class diagrams
-      if (cleanChart.startsWith('classDiagram')) {
-        // Add quotes to class names with non-ASCII characters
-        cleanChart = cleanChart.replace(/(class)\s+([^\s"]*[^\x00-\x7F][^\s"]*)/g, 
-          (match, keyword, name) => `${keyword} "${name}"`);
-          
-        // Quote non-ASCII class names in relationships
-        cleanChart = cleanChart.replace(/([^\s"]*[^\x00-\x7F][^\s"]*)\s+(<\|--|o--|<--|\*--|-->|--|<\|\.\.|\.\.|\.\.>|\.\.o)/g, 
-          (match, name, relation) => `"${name}" ${relation}`);
-          
-        cleanChart = cleanChart.replace(/(<\|--|o--|<--|\*--|-->|--|<\|\.\.|\.\.|\.\.>|\.\.o)\s+([^\s"]*[^\x00-\x7F][^\s"]*)/g, 
-          (match, relation, name) => `${relation} "${name}"`);
-      }
-      
-      // Quote non-ASCII section names in gantt charts
-      if (cleanChart.startsWith('gantt')) {
-        cleanChart = cleanChart.replace(/section\s+([^\n"]*[^\x00-\x7F][^\n"]*)/g, 
-          (match, name) => `section "${name}"`);
-      }
-      
-      // Clean up whitespace
+      // Clean up whitespace - 이 부분은 기존 코드 유지
       cleanChart = cleanChart.replace(/^\s+/gm, line => ' '.repeat(Math.min(line.length, 2)));
       
       console.log('Processed mermaid chart:', cleanChart);
@@ -485,6 +522,9 @@ const MermaidDiagram = memo(({ chart }: { chart: string }) => {
         setError(null);
         setIsLoading(false);
       } catch (renderError) {
+        // 디버깅을 위한 로그 추가
+        console.error('Mermaid rendering error details:', renderError);
+        
         // If rendering fails, try again once with a delay
         if (renderAttempts < 2) {
           renderTimeoutRef.current = setTimeout(() => {
@@ -502,7 +542,8 @@ const MermaidDiagram = memo(({ chart }: { chart: string }) => {
       // we've determined content is complete and made multiple attempts
       setIsLoading(false);
       
-      if (isComplete && renderAttempts > 1) {
+      // 오류 표시 조건 완화 - 첫 번째 시도에서도 오류 표시
+      if (isComplete) {
         setError(err?.message || 'Failed to render diagram');
       }
     }

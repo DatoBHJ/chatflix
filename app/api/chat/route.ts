@@ -298,9 +298,13 @@ export async function POST(req: Request) {
           
           // 1단계: 코딩 카테고리 최우선 처리
           if (analysis.category === 'coding') {
-            model = analysis.complexity === 'simple' 
-              ? 'claude-3-7-sonnet-latest' 
-              : 'claude-3-7-sonnet-20250219';
+            if (analysis.complexity === 'complex') {
+              // 복잡한 코딩 질문에는 thinking 모드 사용
+              model = 'claude-3-7-sonnet-20250219';
+            } else {
+              // 단순 및 중간 복잡도 코딩 질문에는 일반 모드 사용
+              model = 'claude-3-7-sonnet-latest';
+            }
           }
           // 2단계: 멀티모달 요소 처리
           else if (hasImage) {

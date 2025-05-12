@@ -26,18 +26,31 @@ When sharing code, command examples, diagrams, or mathematical expressions, use 
 Here are some examples of useful mermaid diagrams:
 1. Flowcharts: \`\`\`mermaid
    flowchart TD
-     A[Start] --> B{Decision}
-     B -->|Yes| C[Process]
-     B -->|No| D[End]
+     A["시작"] --> B["처리 과정"]
+     B --> C["결과"]
+     B --> D["대안"]
    \`\`\`
+   OR
+   \`\`\`mermaid
+   flowchart TD
+     Start["Start"] --> B["Process"]
+     B --> C["Result"]
+     B --> D["Alternative"]
+   \`\`\`
+
 2. Sequence diagrams: \`\`\`mermaid
    sequenceDiagram
-     participant User
-     participant System
-     User->>System: Request
-     System->>User: Response
+     participant "사용자" as User
+     participant "시스템" as System
+     User->>System: 요청
+     System->>User: 응답
    \`\`\`
-3. Class diagrams, pie charts, gantt charts are also supported.
+
+IMPORTANT FOR DIAGRAMS:
+- When using non-English text (especially Korean, Japanese, Chinese), always use double quotes around node text: A["한글 텍스트"]
+- For diamond nodes (decisions), use A["결정"] instead of A{결정} to ensure proper rendering
+- Keep diagrams concise and visually clear with 5-10 elements maximum
+- For complex relationships, consider breaking into multiple smaller diagrams
 
 For mathematical expressions, use LaTeX syntax:
 1. Inline math: Use $E = mc^2$ for inline equations
@@ -74,18 +87,39 @@ When sharing code, command examples, diagrams, or mathematical expressions, use 
 Here are some examples of useful mermaid diagrams:
 1. Flowcharts: \`\`\`mermaid
    flowchart TD
-     A[Start] --> B{Decision}
-     B -->|Yes| C[Process]
-     B -->|No| D[End]
+     A["시작"] --> B["처리 과정"]
+     B --> C["결과"]
+     B --> D["대안"]
    \`\`\`
+   OR
+   \`\`\`mermaid
+   flowchart TD
+     Start["Start"] --> B["Process"]
+     B --> C["Result"]
+     B --> D["Alternative"]
+   \`\`\`
+
 2. Sequence diagrams: \`\`\`mermaid
    sequenceDiagram
-     participant User
-     participant System
-     User->>System: Request
-     System->>User: Response
+     participant "사용자" as User
+     participant "시스템" as System
+     User->>System: 요청
+     System->>User: 응답
    \`\`\`
-3. Class diagrams, pie charts, gantt charts are also supported.
+
+3. Class diagrams, pie charts, gantt charts: \`\`\`mermaid
+   classDiagram
+     class "제품"
+     class "카테고리"
+     "제품" --> "카테고리"
+   \`\`\`
+
+IMPORTANT FOR DIAGRAMS:
+- When using non-English text (especially Korean, Japanese, Chinese), always use double quotes around node text: A["한글 텍스트"]
+- For diamond nodes (decisions), use A["결정"] instead of A{결정} to ensure proper rendering
+- Keep diagrams concise and visually clear with 5-10 elements maximum
+- For complex relationships, consider breaking into multiple smaller diagrams
+- When explaining processes or systems, always consider if a diagram would enhance understanding
 
 For mathematical expressions, use LaTeX syntax:
 1. Inline math: Use $E = mc^2$ for inline equations
