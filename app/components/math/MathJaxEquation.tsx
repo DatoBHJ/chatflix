@@ -163,26 +163,6 @@ const addStyles = () => {
   document.head.appendChild(style);
 };
 
-// Function to standardize equation format (if it has mixed delimiters)
-const standardizeEquation = (equation: string): string => {
-  // If it already has dollar sign delimiters, return as is
-  if (equation.startsWith('$') && equation.endsWith('$')) {
-    return equation;
-  }
-  
-  // If it has TeX delimiters, convert to dollar sign format
-  if (equation.startsWith('\\(') && equation.endsWith('\\)')) {
-    return '$' + equation.slice(2, -2) + '$';
-  }
-  
-  if (equation.startsWith('\\[') && equation.endsWith('\\]')) {
-    return '$$' + equation.slice(2, -2) + '$$';
-  }
-  
-  // Otherwise, just return as is
-  return equation;
-};
-
 /**
  * MathJaxEquation component
  * 
@@ -193,9 +173,6 @@ export const MathJaxEquation = React.memo(function MathJaxEquation({
   equation, 
   display = false 
 }: MathJaxEquationProps) {
-  // Standardize the equation format
-  const standardizedEquation = useMemo(() => standardizeEquation(equation), [equation]);
-  
   // Track loading and error states
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -204,11 +181,11 @@ export const MathJaxEquation = React.memo(function MathJaxEquation({
   // Create a stable ID for this equation
   const id = useMemo(() => {
     // Create a key based on the equation content but truncated
-    const base = standardizedEquation.slice(0, 15).replace(/\W/g, '');
+    const base = equation.slice(0, 15).replace(/\W/g, '');
     // Add a random suffix to ensure uniqueness
     const random = Math.floor(Math.random() * 10000).toString(36);
     return `math-${display ? 'block' : 'inline'}-${base}-${random}`;
-  }, [standardizedEquation, display]);
+  }, [equation, display]);
   
   // Add styles once
   useEffect(() => {
@@ -237,11 +214,10 @@ export const MathJaxEquation = React.memo(function MathJaxEquation({
           throw new Error('MathJax failed to load');
         }
         
-        // Determine the LaTeX format for the equation
-        // Always use dollar sign format for consistency
+        // Convert equation to SVG
         const eqText = display 
-          ? `$$${standardizedEquation.replace(/^\$\$|\$\$$|^\\\[|\\\]$/g, '')}$$` 
-          : `$${standardizedEquation.replace(/^\$|\$$|^\\\(|\\\)$/g, '')}$`;
+          ? `\\[${equation}\\]` 
+          : `\\(${equation}\\)`;
         
         // Use a safer approach with string manipulation 
         // instead of direct DOM manipulation
@@ -290,7 +266,7 @@ export const MathJaxEquation = React.memo(function MathJaxEquation({
       isMounted = false;
       clearTimeout(timeoutId);
     };
-  }, [standardizedEquation, display]);
+  }, [equation, display]);
   
   // Display LoadingDots component during loading
   if (isLoading) {
@@ -322,14 +298,14 @@ export const MathJaxEquation = React.memo(function MathJaxEquation({
     if (display) {
       return (
         <div className="math-container math-display math-error" id={id}>
-          {standardizedEquation}
+          {equation}
           <div>Error: {error}</div>
         </div>
       );
     } else {
       return (
         <span className="math-container math-inline math-error" id={id}>
-          {standardizedEquation}
+          {equation}
         </span>
       );
     }
