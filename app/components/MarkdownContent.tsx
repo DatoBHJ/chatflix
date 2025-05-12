@@ -6,9 +6,9 @@ import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import rehypeHighlight from 'rehype-highlight';
-import rehypeKatex from 'rehype-katex';
-import 'katex/dist/katex.min.css';
 import mermaid from 'mermaid';
+import { MathJaxEquation } from './math/MathJaxEquation';
+import React from 'react';
 
 // Initialize mermaid with dark theme support
 const initMermaid = () => {
@@ -589,102 +589,6 @@ const MermaidDiagram = memo(({ chart }: { chart: string }) => {
   );
 });
 
-// Add global styles for LaTeX rendering
-// This should be added to your global CSS file
-const addKatexStyles = () => {
-  if (typeof document !== 'undefined') {
-    // Only run in browser environment
-    const styleId = 'katex-custom-styles';
-    
-    // Check if style already exists to avoid duplicates
-    if (!document.getElementById(styleId)) {
-      const style = document.createElement('style');
-      style.id = styleId;
-      style.innerHTML = `
-        /* Base KaTeX styling */
-        .katex { 
-          font-size: 1.1em !important; 
-          font-family: KaTeX_Main, 'Times New Roman', serif;
-        }
-        
-        /* Display math (block equations) */
-        .katex-display { 
-          margin: 1.5em 0 !important;
-          overflow-x: auto;
-          overflow-y: hidden;
-          padding: 12px 0;
-          background: rgba(0, 0, 0, 0.03);
-          border-radius: 6px;
-          box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
-        }
-        .katex-display > .katex { 
-          font-size: 1.21em !important;
-          text-align: center;
-        }
-        
-        /* Inline math */
-        .katex-inline {
-          background: rgba(0, 0, 0, 0.02);
-          border-radius: 4px;
-          padding: 0.15em 0.3em;
-          margin: 0 0.1em;
-        }
-        
-        /* Better spacing for fraction lines */
-        .katex .frac-line {
-          border-bottom-width: 0.12em !important;
-        }
-        
-        /* Better matrices */
-        .katex .mathnormal {
-          font-style: normal;
-        }
-        
-        /* Improved spacing in matrices */
-        .katex .mord.matrix {
-          margin: 0.1em 0;
-        }
-        
-        /* Better vector arrows */
-        .katex .vec-arrow {
-          position: relative;
-          top: -0.1em !important;
-        }
-        
-        /* Improved subscript and superscript spacing */
-        .katex .msupsub {
-          text-align: left;
-        }
-        
-        /* Improve display of cases environment */
-        .katex .cases-l {
-          margin-right: 0.2em !important;
-        }
-        .katex .cases-r {
-          margin-left: 0.2em !important;
-        }
-        
-        /* Improve alignment in align environment */
-        .katex .align {
-          display: flex;
-          flex-direction: column;
-        }
-        
-        /* Improve multiline equations */
-        .katex-display .katex .base {
-          margin: 0.25em 0;
-        }
-        
-        /* Improve integral appearance */
-        .katex .mop-limits {
-          margin-top: 0.1em !important;
-        }
-      `;
-      document.head.appendChild(style);
-    }
-  }
-};
-
 // 더 정교한 LaTeX 전처리 함수 추가
 const preprocessLaTeX = (content: string) => {
   if (!content) return '';
@@ -890,11 +794,56 @@ const ImageWithLoading = memo(function ImageWithLoadingComponent({
   );
 });
 
+interface MathProps {
+  value: string;
+  inline?: boolean;
+}
+
+// Create a custom wrapper to ensure proper nesting
+const SafeWrapper = ({ children }: { children: React.ReactNode }) => {
+  // Render with fragment to avoid adding any unnecessary elements
+  return <>{children}</>;
+};
+
+// Special component to handle math blocks with better isolation
+const MathBlock = ({ content }: { content: string }) => {
+  // Create a more stable ID that doesn't change across renders
+  const id = useMemo(() => `math-block-${content.slice(0, 10).replace(/\W/g, '')}-${Math.random().toString(36).slice(2, 6)}`, [content]);
+  
+  return (
+    <div 
+      className="math-block-wrapper my-6" 
+      key={id}
+      // Use flex layout and isolation for better rendering stability
+      style={{ 
+        isolation: 'isolate' // Create a new stacking context
+      }}
+    >
+      <MathJaxEquation equation={content} display={true} />
+    </div>
+  );
+};
+
+// Simpler math component for inline math
+const InlineMath = ({ content }: { content: string }) => {
+  // Create a more stable ID that doesn't change across renders
+  const id = useMemo(() => `math-inline-${content.slice(0, 10).replace(/\W/g, '')}-${Math.random().toString(36).slice(2, 6)}`, [content]);
+  
+  return (
+    <span 
+      className="math-inline-wrapper"
+      key={id}
+      style={{ isolation: 'isolate' }} // Create a new stacking context
+    >
+      <MathJaxEquation equation={content} display={false} />
+    </span>
+  );
+};
+
 // Memoize the MarkdownContent component to prevent unnecessary re-renders
 export const MarkdownContent = memo(function MarkdownContentComponent({ content }: MarkdownContentProps) {
   // Add Katex styles on component mount
   useEffect(() => {
-    addKatexStyles();
     initMermaid();
   }, []);
 
@@ -1016,7 +965,23 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
 
   // Memoize the components object to avoid recreating it on every render
   const components = useMemo<Components>(() => ({
+    // Use a simple div as the root component to properly handle all elements
+    root: SafeWrapper,
+    
     p: ({ children, ...props }) => {
+      // Check if this is a text-only paragraph
+      const childArray = React.Children.toArray(children);
+      
+      // If there are no children or only a single text child, it's safe to render as paragraph
+      const isSafeParagraph = 
+        childArray.length === 0 || 
+        (childArray.length === 1 && typeof childArray[0] === 'string');
+      
+      // If it's not a simple text paragraph, render without p to avoid potential nesting issues
+      if (!isSafeParagraph) {
+        return <>{children}</>;
+      }
+      
       // Process text content to detect image generation links
       if (typeof children === 'string') {
         // Handle image markdown pattern
@@ -1174,6 +1139,20 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
         return <MermaidDiagram chart={codeText} />;
       }
       
+      // Handle math code blocks - with dedicated wrapper component
+      if (language === 'math') {
+        // Use a stable key based on content to avoid unnecessary remounts
+        const key = `math-code-${codeText.slice(0, 20).replace(/\W/g, '')}`;
+        
+        // Remove the MathBlock from any potential paragraph by wrapping in a div with a key
+        return (
+          <div className="non-paragraph-wrapper" key={key}>
+            <MathBlock content={codeText} />
+          </div>
+        );
+      }
+      
+      // Render code blocks in a div instead of a pre inside p to avoid hydration issues
       return (
         <div className="message-code group relative my-6 max-w-full overflow-hidden">
           <div className="message-code-header flex items-center justify-between px-4 py-2">
@@ -1235,91 +1214,27 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
     h3: ({ children, ...props }) => (
       <h3 className="text-lg font-bold mt-5 mb-2" {...props}>{children}</h3>
     ),
+    math: ({ value, inline }: MathProps) => {
+      // For block math, use the dedicated wrapper component
+      if (!inline) {
+        return <MathBlock content={value} />;
+      }
+      
+      // For inline math, use the simpler inline wrapper
+      return <InlineMath content={value} />;
+    },
   }), [styleMentions, styleImageUrls, extractText, handleCopy]);
 
   // Memoize the remarkPlugins and rehypePlugins
   const remarkPlugins = useMemo(() => [remarkGfm, remarkMath], []);
   
-  // Updated rehypePlugins with enhanced configuration
+  // Updated rehypePlugins with proper configuration
   const rehypePlugins = useMemo(() => {
-    const plugins = [
-      // KaTeX를 먼저 처리하도록 순서 변경
-      [rehypeKatex, { 
-        throwOnError: false,
-        output: 'html',
-        displayMode: false,
-        trust: true,
-        strict: false,
-        globalGroup: true, // 전역 그룹화 설정 추가
-        errorColor: '#ff5555',
-        delimiters: [ // 다양한 구분자 지원
-          {left: '$$', right: '$$', display: true},
-          {left: '$', right: '$', display: false},
-          {left: '\\(', right: '\\)', display: false},
-          {left: '\\[', right: '\\]', display: true}
-        ],
-        minRuleThickness: 0.08,
-        maxExpand: 1000,
-        maxSize: 500,
-        // 매크로 유지
-        macros: {
-          // Common mathematical sets
-          "\\R": "\\mathbb{R}",
-          "\\N": "\\mathbb{N}",
-          "\\Z": "\\mathbb{Z}",
-          "\\C": "\\mathbb{C}",
-          "\\Q": "\\mathbb{Q}",
-          
-          // Vector notation
-          "\\vec": "\\boldsymbol",
-          "\\vb": "\\boldsymbol",
-          "\\grad": "\\nabla",
-          
-          // Differential operators
-          "\\pd": "\\partial",
-          "\\d": "\\mathrm{d}",
-          "\\dd": "\\mathrm{d}",
-          "\\div": "\\nabla \\cdot",
-          "\\curl": "\\nabla \\times",
-          "\\laplacian": "\\nabla^2",
-          
-          // Common constants
-          "\\e": "\\mathrm{e}",
-          "\\i": "\\mathrm{i}",
-          "\\j": "\\mathrm{j}",
-          
-          // Probability and statistics
-          "\\E": "\\mathbb{E}",
-          "\\Var": "\\text{Var}",
-          "\\Cov": "\\text{Cov}",
-          "\\Prob": "\\mathbb{P}",
-          
-          // Shortcuts for common constructs
-          "\\half": "\\frac{1}{2}",
-          "\\third": "\\frac{1}{3}",
-          "\\quarter": "\\frac{1}{4}",
-          
-          // Matrix notation
-          "\\mat": "\\mathbf",
-          "\\bmat": "\\begin{bmatrix}#1\\end{bmatrix}",
-          "\\pmat": "\\begin{pmatrix}#1\\end{pmatrix}",
-          "\\vmat": "\\begin{vmatrix}#1\\end{vmatrix}",
-          
-          // Quantum mechanics
-          "\\ket": "\\left|#1\\right\\rangle",
-          "\\bra": "\\left\\langle#1\\right|",
-          "\\braket": "\\left\\langle#1|#2\\right\\rangle",
-          
-          // Calculus shorthands
-          "\\dv": "\\frac{d}{d#1}",
-          "\\pdv": "\\frac{\\partial}{\\partial #1}"
-        }
-      }] as any,
-      rehypeRaw, 
+    return [
+      [rehypeRaw, { passThrough: ['math', 'inlineMath'] }],
       rehypeSanitize,
       rehypeHighlight,
-    ];
-    return plugins as any;
+    ] as any;
   }, []);
 
   return (
