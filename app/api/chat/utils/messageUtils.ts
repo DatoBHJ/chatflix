@@ -86,7 +86,15 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
   const modelConfig = getModelById(modelId);
   if (!modelConfig) throw new Error('Invalid model');
 
-  if (!message.experimental_attachments?.length) {
+  // Check if the message has tool_results with structuredResponse
+  const hasToolResults = (message as any).tool_results?.structuredResponse?.response?.files?.length > 0;
+  // Check if the message has web search results
+  const hasWebSearchResults = (message as any).tool_results?.webSearchResults?.length > 0;
+  
+  // Ensure experimental_attachments is always an array
+  const experimental_attachments = message.experimental_attachments || [];
+
+  if (!experimental_attachments.length && !hasToolResults && !hasWebSearchResults) {
     return {
       role: message.role as MessageRole,
       content: message.content
@@ -108,7 +116,53 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
     });
   }
 
-  message.experimental_attachments
+  // Always include structured response files from tool_results if available
+  if (hasToolResults) {
+    const structuredResponse = (message as any).tool_results.structuredResponse.response;
+    if (structuredResponse.files && structuredResponse.files.length > 0) {
+      const filesSection = structuredResponse.files.map((file: any) => {
+        return `\n\n--- ${file.name} ---\n${file.content}\n`;
+      }).join('\n');
+      
+      parts.push({
+        type: 'text',
+        text: `\n\n### Generated Files:\n${filesSection}`
+      });
+    }
+  }
+  
+  // Include web search results if available
+  if (hasWebSearchResults) {
+    const webSearchResults = (message as any).tool_results.webSearchResults;
+    
+    // Format web search results for inclusion in the conversation context
+    let formattedResults = '\n\n### Web Search Results:\n';
+    
+    webSearchResults.forEach((searchGroup: any, index: number) => {
+      if (searchGroup.searches && searchGroup.searches.length > 0) {
+        searchGroup.searches.forEach((search: any, searchIndex: number) => {
+          formattedResults += `\n## Search ${index + 1}.${searchIndex + 1}: "${search.query}"\n`;
+          
+          if (search.results && search.results.length > 0) {
+            search.results.forEach((result: any, resultIndex: number) => {
+              formattedResults += `\n### Result ${resultIndex + 1}: ${result.title || 'No Title'}\n`;
+              formattedResults += `URL: ${result.url || 'No URL'}\n`;
+              formattedResults += `${result.content || result.snippet || 'No content available'}\n`;
+            });
+          } else {
+            formattedResults += `No results found for this query.\n`;
+          }
+        });
+      }
+    });
+    
+    parts.push({
+      type: 'text',
+      text: formattedResults
+    });
+  }
+
+  experimental_attachments
     .filter(attachment => attachment.contentType?.startsWith('image/'))
     .forEach(attachment => {
       parts.push({
@@ -117,7 +171,7 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
       });
     });
   
-  const textAttachments = message.experimental_attachments
+  const textAttachments = experimental_attachments
     .filter(attachment => {
       return (attachment.contentType?.includes('text') || 
               (attachment as any).fileType === 'code' ||
@@ -155,7 +209,7 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
   }
   
   // Handle PDFs using proper document format for Claude models
-  const pdfAttachments = message.experimental_attachments.filter(attachment => 
+  const pdfAttachments = experimental_attachments.filter(attachment => 
     attachment.contentType === 'application/pdf' || 
     (attachment.name && attachment.name.toLowerCase().endsWith('.pdf'))
   );
@@ -197,7 +251,7 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
     }
   }
   
-  const otherAttachments = message.experimental_attachments
+  const otherAttachments = experimental_attachments
     .filter(attachment => {
       return !attachment.contentType?.startsWith('image/') && 
              !attachment.contentType?.includes('text') && 
@@ -251,6 +305,10 @@ export const validateAndUpdateSession = async (supabase: any, chatId: string | u
         }
         if (dbMessage.experimental_attachments?.length > 0) {
           messages[index].experimental_attachments = dbMessage.experimental_attachments;
+        }
+        // Include tool_results from the database message
+        if (dbMessage.tool_results) {
+          (messages[index] as any).tool_results = dbMessage.tool_results;
         }
       }
     });

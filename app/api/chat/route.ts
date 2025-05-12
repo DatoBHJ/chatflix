@@ -315,11 +315,12 @@ export async function POST(req: Request) {
             }
           }
           else if (hasPDF) {
+            // PDF는 복잡도에 따라 gemini 모델 사용
             if (analysis.complexity === 'simple') model = 'gemini-2.0-flash';
             else if (analysis.complexity === 'medium') model = 'gemini-2.5-flash-preview-04-17';
             else model = 'gemini-2.5-pro-preview-05-06';
           }
-          // 3단계: 텍스트만 있는 경우
+          // 3단계: 텍스트만 있는 경우 (비멀티모달)
           else {
             if (analysis.category === 'technical') {
               // 기술 카테고리는 복잡도에 따라 다른 모델 사용
@@ -335,8 +336,14 @@ export async function POST(req: Request) {
               model = 'grok-3-mini';
             }
             else {
-              // 기타 카테고리는 GPT-4.1-mini 사용 (복잡도 무관)
-              model = 'gpt-4.1-mini';
+              // 기타 카테고리는 복잡도에 따라 다른 모델 사용
+              if (analysis.complexity === 'simple') {
+                // 단순 복잡도는 gpt-4.1-mini 사용
+                model = 'gpt-4.1-mini';
+              } else {
+                // 중간/복잡 복잡도는 grok-3-fast 사용
+                model = 'grok-3-fast';
+              }
             }
           }
           
