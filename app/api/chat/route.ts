@@ -253,7 +253,7 @@ export async function POST(req: Request) {
           const analysisResult = await generateObject({
             model: providers.languageModel('gemini-2.0-flash'),
             schema: z.object({
-              category: z.enum(['coding', 'technical', 'other']),
+              category: z.enum(['coding', 'technical', 'math', 'other']),
               complexity: z.enum(['simple', 'medium', 'complex']),
               reasoning: z.string()
             }),
@@ -263,7 +263,8 @@ export async function POST(req: Request) {
               
               1. Category: 
                 - 'coding' if it's about programming, code review, debugging, etc.
-                - 'technical' if it's about math, science, logic, reasoning
+                - 'technical' if it's about science, logic, reasoning
+                - 'math' if it's about mathematics, calculations, statistics, etc.
                 - 'other' for creative writing, stories, or general knowledge
               
               2. Complexity:
@@ -303,8 +304,8 @@ export async function POST(req: Request) {
           }
           // 2단계: 멀티모달 요소 처리
           else if (hasImage) {
-            if (analysis.category === 'technical') {
-              // 기술 카테고리 이미지에 대해 o4-mini 대신 Claude 3.7 Sonnet 사용
+            if (analysis.category === 'technical' || analysis.category === 'math') {
+              // 기술/수학 카테고리 이미지에 대해 Claude 3.7 Sonnet 사용
               model = analysis.complexity === 'simple' 
                 ? 'claude-3-7-sonnet-latest' 
                 : 'claude-3-7-sonnet-20250219';
@@ -324,16 +325,26 @@ export async function POST(req: Request) {
           else {
             if (analysis.category === 'technical') {
               // 기술 카테고리는 복잡도에 따라 다른 모델 사용
+              if (analysis.complexity === 'complex') {
+                model = 'grok-3-mini';
+              } else {
+                // 단순 및 중간 복잡도는 grok-3-fast 사용
+                model = 'grok-3-fast';
+              }
+            } 
+            else if (analysis.category === 'math') {
+              // 수학 카테고리는 복잡도에 따라 다른 모델 사용
               if (analysis.complexity === 'simple') {
                 model = 'gemini-2.0-flash';
               } else if (analysis.complexity === 'medium') {
                 model = 'gemini-2.5-flash-preview-04-17';
               } else { // complex
-                  model = 'gemini-2.5-pro-preview-05-06';
-                }
-            } else {
-              // 기타 카테고리는 GPT-4.1 사용 (복잡도 무관)
-              model = 'gpt-4.1';
+                model = 'gemini-2.5-pro-preview-05-06';
+              }
+            }
+            else {
+              // 기타 카테고리는 GPT-4.1-mini 사용 (복잡도 무관)
+              model = 'gpt-4.1-mini';
             }
           }
           
