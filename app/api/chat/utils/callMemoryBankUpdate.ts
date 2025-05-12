@@ -3,9 +3,9 @@
  */
 
 /**
- * Makes a call to the X.AI API with the given prompts to update user memory
+ * Makes a call to the OpenAI API with the given prompts to update user memory
  * 
- * @param model - The model to use (e.g., 'grok-2-latest')
+ * @param model - The model to use (e.g., 'gpt-4.1-nano')
  * @param systemPrompt - The system prompt for context
  * @param userPrompt - The user prompt with the actual query
  * @param maxTokens - Maximum tokens to generate (default: 500)
@@ -21,16 +21,16 @@ export async function callMemoryBankUpdate(
 ): Promise<string | null> {
   try {
     // Check if API key exists
-    if (!process.env.XAI_API_KEY) {
-      console.error("Missing XAI_API_KEY environment variable");
+    if (!process.env.OPENAI_API_KEY) {
+      console.error("Missing OPENAI_API_KEY environment variable");
       return null;
     }
 
-    const response = await fetch('https://api.x.ai/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.XAI_API_KEY}`
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
         model: model,

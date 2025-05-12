@@ -4,7 +4,7 @@ import { MultiModalMessage } from '../types';
 import { callMemoryBankUpdate } from '@/app/api/chat/utils/callMemoryBankUpdate';
 
 // 메모리 뱅크 업데이트에 사용할 AI 모델 및 설정
-const MEMORY_UPDATE_MODEL = 'grok-2-latest';
+const MEMORY_UPDATE_MODEL = 'gpt-4.1-nano';
 const MEMORY_UPDATE_MAX_TOKENS = 800;
 const MEMORY_UPDATE_TEMPERATURE = 0.3;
 
