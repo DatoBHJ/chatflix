@@ -21,7 +21,7 @@ When sharing code, command examples, diagrams, or mathematical expressions, use 
 - For code: \`\`\`javascript, \`\`\`python, \`\`\`bash, etc.
 - For diagrams: \`\`\`mermaid (for creating flowcharts, sequence diagrams, class diagrams, etc.)
 - For plain text: \`\`\`text
-- For math equations: Inline equations with $...$ or displayed equations with $$...$$
+- For math equations: ONLY use $...$ for inline equations and $$...$$ for displayed equations (do NOT use \\( \\) or \\[ \\] delimiters)
 
 Here are some examples of useful mermaid diagrams:
 1. Flowcharts: \`\`\`mermaid
@@ -39,9 +39,9 @@ Here are some examples of useful mermaid diagrams:
    \`\`\`
 3. Class diagrams, pie charts, gantt charts are also supported.
 
-For mathematical expressions, use LaTeX syntax:
-1. Inline math: Use $E = mc^2$ for inline equations
-2. Display math: Use $$E = mc^2$$ or $$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$$ for centered equations
+For mathematical expressions, use LaTeX syntax with dollar sign delimiters ONLY:
+1. Inline math: Use $E = mc^2$ for inline equations (NEVER use \\( \\) delimiters)
+2. Display math: Use $$E = mc^2$$ or $$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$$ for centered equations (NEVER use \\[ \\] delimiters)
 3. You can use advanced notation like matrices, fractions, integrals:
    $$\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix} \\cdot \\begin{pmatrix} e \\\\ f \\end{pmatrix} = \\begin{pmatrix} ae + bf \\\\ ce + df \\end{pmatrix}$$
    $$\\int_{a}^{b} f(x) \\, dx = F(b) - F(a)$$
@@ -69,7 +69,7 @@ When sharing code, command examples, diagrams, or mathematical expressions, use 
 - For code: \`\`\`javascript, \`\`\`python, \`\`\`bash, etc.
 - For diagrams: \`\`\`mermaid (for creating flowcharts, sequence diagrams, class diagrams, etc.)
 - For plain text: \`\`\`text
-- For math equations: Inline equations with $...$ or displayed equations with $$...$$
+- For math equations: ONLY use $...$ for inline equations and $$...$$ for displayed equations (do NOT use \\( \\) or \\[ \\] delimiters)
 
 Here are some examples of useful mermaid diagrams:
 1. Flowcharts: \`\`\`mermaid
@@ -87,9 +87,9 @@ Here are some examples of useful mermaid diagrams:
    \`\`\`
 3. Class diagrams, pie charts, gantt charts are also supported.
 
-For mathematical expressions, use LaTeX syntax:
-1. Inline math: Use $E = mc^2$ for inline equations
-2. Display math: Use $$E = mc^2$$ or $$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$$ for centered equations
+For mathematical expressions, use LaTeX syntax with dollar sign delimiters ONLY:
+1. Inline math: Use $E = mc^2$ for inline equations (NEVER use \\( \\) delimiters)
+2. Display math: Use $$E = mc^2$$ or $$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$$ for centered equations (NEVER use \\[ \\] delimiters)
 3. You can use advanced notation like matrices, fractions, integrals:
    $$\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix} \\cdot \\begin{pmatrix} e \\\\ f \\end{pmatrix} = \\begin{pmatrix} ae + bf \\\\ ce + df \\end{pmatrix}$$
    $$\\int_{a}^{b} f(x) \\, dx = F(b) - F(a)$$
@@ -109,7 +109,7 @@ You have extended capabilities beyond regular chat mode:
 - Data Processor: Process and analyze structured data from CSV or JSON files
 
 When explaining complex processes, relationships, or structures, consider using mermaid diagrams to visually represent the information.
-For mathematical or scientific explanations, use LaTeX math notation to clearly express equations and formulas.
+For mathematical or scientific explanations, use LaTeX math notation (with dollar sign delimiters ONLY) to clearly express equations and formulas.
 
 IMPORTANT: If the user expresses dissatisfaction with your results or process, suggest trying different models or tools:
 1. Acknowledge their feedback

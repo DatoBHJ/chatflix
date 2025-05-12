@@ -600,6 +600,13 @@ const preprocessLaTeX = (content: string) => {
     .replace(/\\\(/g, '___INLINE_OPEN___')
     .replace(/\\\)/g, '___INLINE_CLOSE___');
 
+  // Handle alternative LaTeX delimiters: Convert \( \) to $ $ and \[ \] to $$ $$
+  processedContent = processedContent
+    .replace(/\\[\s]*\(/g, '$')
+    .replace(/\\[\s]*\)/g, '$')
+    .replace(/\\[\s]*\[/g, '$$')
+    .replace(/\\[\s]*\]/g, '$$');
+    
   // 블록 수식 ($$...$$) 보존
   const blockRegex = /(\$\$[\s\S]*?\$\$)/g;
   const blocks: string[] = [];
