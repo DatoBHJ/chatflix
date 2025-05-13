@@ -399,7 +399,8 @@ export async function POST(req: Request) {
     const shouldDelay = !isSubscribed && currentRequestCount >= REQUEST_THRESHOLD;
 
     // Check rate limiting with potentially updated model
-    const rateLimitResult = await handleRateLimiting(user.id, model);
+    // const rateLimitResult = await handleRateLimiting(user.id, model);
+    const rateLimitResult = await handleRateLimiting(user.id, requestData.originalModel === 'chatflix-ultimate' ? 'chatflix-ultimate' : model);
     if (!rateLimitResult.success) {
       const { error } = rateLimitResult;
       
