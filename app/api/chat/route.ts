@@ -634,22 +634,11 @@ export async function POST(req: Request) {
               return false;
             });
             
-            console.log('--------------------------------');
-            console.log('processMessages', JSON.stringify(processMessages, null, 2),'\n\n');
-            console.log('--------------------------------');
-            // 토큰 제한 내에서 메시지 선택
             const optimizedMessages = selectMessagesWithinTokenLimit(
               processMessages, 
               remainingTokens,
               hasFileAttachments
             );
-            console.log('--------------------------------');
-            console.log('optimizedMessages', JSON.stringify(optimizedMessages, null, 2),'\n\n');
-            console.log('--------------------------------');
-            const messages = convertMultiModalToMessage(optimizedMessages);
-            console.log('--------------------------------');
-            console.log('messages', JSON.stringify(messages, null, 2),'\n\n');
-            console.log('--------------------------------');
 
             // 현재 질문 추출을 위한 준비
             let userQuery = '';
@@ -1173,14 +1162,19 @@ Remember that you're in BALANCED mode, so provide a substantial response while k
                 break;
             }
             
+            const systemPromptAgent = `${agentSystemPrompt}
+            
+${responseInstructions}
+            
+Remember to maintain the language of the user's query throughout your response.
+            `;
+            console.log('--------------------------------');
+            console.log('systemPromptAgent', JSON.stringify(systemPromptAgent, null, 2),'\n\n');
+            console.log('--------------------------------');
+
             const finalstep = streamText({
               model: providers.languageModel(model),
-              system: `${agentSystemPrompt}
-                
-${responseInstructions}
-                
-Remember to maintain the language of the user's query throughout your response.
-              `,
+              system: systemPromptAgent,
               // 토큰 제한을 고려한 최적화된 메시지 사용
               messages: convertMultiModalToMessage(optimizedMessages.slice(-6)),
               // temperature: 0.2,
@@ -1575,22 +1569,27 @@ IMPORTANT:
               }
               return false;
             });
-            console.log('--------------------------------');
-            console.log('processMessages', JSON.stringify(processMessages, null, 2),'\n\n');
-            console.log('--------------------------------');
+            // console.log('--------------------------------');
+            // console.log('processMessages', JSON.stringify(processMessages, null, 2),'\n\n');
+            // console.log('--------------------------------');
             // 토큰 제한 내에서 메시지 선택
             const optimizedMessages = selectMessagesWithinTokenLimit(
               processMessages, 
               remainingTokens,
               hasFileAttachments
             );
-            console.log('--------------------------------');
-            console.log('optimizedMessages', JSON.stringify(optimizedMessages, null, 2),'\n\n');
-            console.log('--------------------------------');
+            // console.log('--------------------------------');
+            // console.log('optimizedMessages', JSON.stringify(optimizedMessages, null, 2),'\n\n');
+            // console.log('--------------------------------');
             const messages = convertMultiModalToMessage(optimizedMessages);
+            // console.log('--------------------------------');
+            // console.log('messages', JSON.stringify(messages, null, 2),'\n\n');
+            // console.log('--------------------------------');
+
             console.log('--------------------------------');
-            console.log('messages', JSON.stringify(messages, null, 2),'\n\n');
+            console.log('currentSystemPrompt', JSON.stringify(currentSystemPrompt, null, 2),'\n\n');
             console.log('--------------------------------');
+            
             const result = streamText({
               model: providers.languageModel(model),
               system: currentSystemPrompt,

@@ -128,7 +128,6 @@ import { useState, useEffect } from 'react';
 
 // 기본 영어 예시 쿼리 목록
 const DEFAULT_EXAMPLE_PROMPTS = [
-  "What can you do?",
   "Latest news on US stock market",
   "Draw a picture of a black cat",
   "Find latest academic papers about AI and summarize them",

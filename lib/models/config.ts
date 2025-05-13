@@ -274,7 +274,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     supportsPDFs: true,
-    censored: false,
+    // censored: false,
     rateLimit: {
       level: 'level0',
     },
