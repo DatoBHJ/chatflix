@@ -86,13 +86,37 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
   const modelConfig = getModelById(modelId);
   if (!modelConfig) throw new Error('Invalid model');
 
+  // Check model capabilities
+  const supportsVision = modelConfig.supportsVision;
+  const supportsPDFs = modelConfig.supportsPDFs;
+
   // Check if the message has tool_results with structuredResponse
   const hasToolResults = (message as any).tool_results?.structuredResponse?.response?.files?.length > 0;
   // Check if the message has web search results
   const hasWebSearchResults = (message as any).tool_results?.webSearchResults?.length > 0;
   
   // Ensure experimental_attachments is always an array
-  const experimental_attachments = message.experimental_attachments || [];
+  let experimental_attachments = message.experimental_attachments || [];
+
+  // If model doesn't support vision or PDF, filter out unsupported attachments
+  if (!supportsVision || !supportsPDFs) {
+    experimental_attachments = experimental_attachments.filter(attachment => {
+      // Remove images if vision not supported
+      if (!supportsVision && (attachment.contentType?.startsWith('image/') || 
+                             (attachment as any).fileType === 'image')) {
+        return false;
+      }
+
+      // Remove PDFs if PDF support not supported
+      if (!supportsPDFs && (attachment.contentType === 'application/pdf' || 
+                           (attachment.name && attachment.name.toLowerCase().endsWith('.pdf')) ||
+                           (attachment as any).fileType === 'pdf')) {
+        return false;
+      }
+
+      return true;
+    });
+  }
 
   if (!experimental_attachments.length && !hasToolResults && !hasWebSearchResults) {
     return {
@@ -162,14 +186,17 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
     });
   }
 
-  experimental_attachments
-    .filter(attachment => attachment.contentType?.startsWith('image/'))
-    .forEach(attachment => {
-      parts.push({
-        type: 'image',
-        image: attachment.url
+  // Only add images if vision is supported
+  if (supportsVision) {
+    experimental_attachments
+      .filter(attachment => attachment.contentType?.startsWith('image/'))
+      .forEach(attachment => {
+        parts.push({
+          type: 'image',
+          image: attachment.url
+        });
       });
-    });
+  }
   
   const textAttachments = experimental_attachments
     .filter(attachment => {
@@ -208,45 +235,47 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
     });
   }
   
-  // Handle PDFs using proper document format for Claude models
-  const pdfAttachments = experimental_attachments.filter(attachment => 
-    attachment.contentType === 'application/pdf' || 
-    (attachment.name && attachment.name.toLowerCase().endsWith('.pdf'))
-  );
-  
-  if (pdfAttachments.length > 0) {
-    console.log(`Processing ${pdfAttachments.length} PDF attachments`);
+  // Only handle PDFs if the model supports them
+  if (supportsPDFs) {
+    const pdfAttachments = experimental_attachments.filter(attachment => 
+      attachment.contentType === 'application/pdf' || 
+      (attachment.name && attachment.name.toLowerCase().endsWith('.pdf'))
+    );
     
-    // Process each PDF
-    for (const attachment of pdfAttachments) {
-      const fileName = attachment.name || 'Unnamed PDF';
-      try {
-        // Download and convert PDF to base64
-        const fileResult = await fetchFileContent(attachment.url, supabase, 'pdf');
-        
-        if (fileResult?.base64) {
+    if (pdfAttachments.length > 0) {
+      console.log(`Processing ${pdfAttachments.length} PDF attachments`);
+      
+      // Process each PDF
+      for (const attachment of pdfAttachments) {
+        const fileName = attachment.name || 'Unnamed PDF';
+        try {
+          // Download and convert PDF to base64
+          const fileResult = await fetchFileContent(attachment.url, supabase, 'pdf');
           
-          // Add as file type
-          parts.push({
-            type: 'file',
-            data: fileResult.base64,
-            mimeType: 'application/pdf'
-          });
-          console.log(`Added PDF "${fileName}" as file type`);
-        } else {
-          // Fallback: just mention the PDF
+          if (fileResult?.base64) {
+            
+            // Add as file type
+            parts.push({
+              type: 'file',
+              data: fileResult.base64,
+              mimeType: 'application/pdf'
+            });
+            console.log(`Added PDF "${fileName}" as file type`);
+          } else {
+            // Fallback: just mention the PDF
+            parts.push({
+              type: 'text',
+              text: `\n\nPDF Document: ${fileName} (Could not process the PDF content)\n`
+            });
+            console.log(`Could not process PDF "${fileName}"`);
+          }
+        } catch (error) {
+          console.error(`Error processing PDF ${fileName}:`, error);
           parts.push({
             type: 'text',
-            text: `\n\nPDF Document: ${fileName} (Could not process the PDF content)\n`
+            text: `\n\nPDF Document: ${fileName} (Error processing the PDF)\n`
           });
-          console.log(`Could not process PDF "${fileName}"`);
         }
-      } catch (error) {
-        console.error(`Error processing PDF ${fileName}:`, error);
-        parts.push({
-          type: 'text',
-          text: `\n\nPDF Document: ${fileName} (Error processing the PDF)\n`
-        });
       }
     }
   }

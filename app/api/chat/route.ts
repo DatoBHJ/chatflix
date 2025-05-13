@@ -1594,7 +1594,7 @@ IMPORTANT:
             const result = streamText({
               model: providers.languageModel(model),
               system: currentSystemPrompt,
-              messages: convertMultiModalToMessage(optimizedMessages),
+              messages: messages,
               // temperature: 0.7,
               // maxTokens: 8000,
               providerOptions: providerOptions,

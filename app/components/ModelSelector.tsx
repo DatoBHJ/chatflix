@@ -62,319 +62,6 @@ const getProviderColor = (provider: ModelConfig['provider']): string => {
   return colorMap[provider] || '#888888'; // Return gray as default
 };
 
-// Model Performance Graph component
-const ModelPerformanceGraph = ({ 
-  models, 
-  isMobile,
-  isFullscreen
-}: { 
-  models: ModelConfig[], 
-  isMobile: boolean,
-  isFullscreen?: boolean
-}) => {
-  // Filter models that have both TPS and intelligenceIndex and exclude chatflix-ultimate
-  const validModels = models.filter(model => 
-    typeof model.tps === 'number' && 
-    typeof model.intelligenceIndex === 'number' &&
-    model.id !== 'chatflix-ultimate'
-  );
-  
-  if (validModels.length === 0) return null;
-  
-  // Calculate graph dimensions and padding - adjust for mobile and fullscreen
-  const width = isFullscreen ? 900 : (isMobile ? 320 : 550);
-  const height = isFullscreen ? 500 : (isMobile ? 220 : 280);
-  const padding = { 
-    top: isFullscreen ? 40 : 20, 
-    right: isFullscreen ? 50 : (isMobile ? 10 : 30), 
-    bottom: isFullscreen ? 70 : 50, 
-    left: isFullscreen ? 70 : (isMobile ? 40 : 50) 
-  };
-  
-  // Font sizes based on display mode
-  const labelFontSize = isFullscreen ? 14 : (isMobile ? 10 : 12);
-  const tickFontSize = isFullscreen ? 12 : (isMobile ? 8 : 10);
-  const modelNameFontSize = isFullscreen ? 14 : (isMobile ? 8 : 10);
-  const dotRadius = isFullscreen ? 8 : (isMobile ? 4 : 6);
-  
-  // Find max values for scales
-  const maxTps = Math.max(...validModels.map(m => m.tps as number)) * 1.1;
-  const maxIntelligence = Math.max(...validModels.map(m => m.intelligenceIndex as number)) * 1.1;
-  const minTps = 0;
-  const minIntelligence = Math.min(...validModels.map(m => m.intelligenceIndex as number)) * 0.9;
-  
-  // Scale functions
-  const scaleX = (value: number) => {
-    return padding.left + ((value - minTps) / (maxTps - minTps)) * (width - padding.left - padding.right);
-  };
-  
-  const scaleY = (value: number) => {
-    return height - padding.bottom - ((value - minIntelligence) / (maxIntelligence - minIntelligence)) * (height - padding.top - padding.bottom);
-  };
-
-  // Calculate Chatflix median values
-  const chatflixMedianTps = validModels.length > 0 
-    ? validModels.map(m => m.tps as number).sort((a, b) => a - b)[Math.floor(validModels.length / 2)]
-    : 0;
-  
-  const chatflixMedianIntelligence = validModels.length > 0 
-    ? validModels.map(m => m.intelligenceIndex as number).sort((a, b) => a - b)[Math.floor(validModels.length / 2)]
-    : 0;
-
-  // General models median values (fixed)
-  const generalMedianTps = 81.5;
-  const generalMedianIntelligence = 47;
-
-  // Generate X and Y axis ticks
-  const xTicks = [0, Math.round(maxTps * 0.25), Math.round(maxTps * 0.5), Math.round(maxTps * 0.75), Math.round(maxTps)];
-  const yTicks = [
-    Math.round(minIntelligence), 
-    Math.round(minIntelligence + (maxIntelligence - minIntelligence) * 0.33), 
-    Math.round(minIntelligence + (maxIntelligence - minIntelligence) * 0.66), 
-    Math.round(maxIntelligence)
-  ];
-  
-  return (
-    <div className={`${isFullscreen ? 'p-0' : `p-3 ${isMobile ? 'px-1' : 'px-4'}`} bg-[var(--background-secondary)]/30 rounded-md mt-3 mb-2 overflow-x-auto`}>
-      <h3 className={`${isFullscreen ? 'text-xl' : 'text-sm'} font-medium mb-2 text-center`}>
-        Speed vs Intelligence
-      </h3>
-      <svg 
-        width={width} 
-        height={height} 
-        viewBox={`0 0 ${width} ${height}`} 
-        className="overflow-visible mx-auto"
-        style={{ minWidth: isFullscreen ? '850px' : (isMobile ? '300px' : '500px') }}
-      >
-        {/* Grid lines */}
-        {xTicks.map(tick => (
-          <line 
-            key={`x-${tick}`}
-            x1={scaleX(tick)} 
-            y1={padding.top} 
-            x2={scaleX(tick)} 
-            y2={height - padding.bottom} 
-            stroke="var(--muted)" 
-            strokeWidth={isFullscreen ? "0.7" : "0.5"} 
-            strokeDasharray="4,4"
-            opacity="0.3"
-          />
-        ))}
-        {yTicks.map(tick => (
-          <line 
-            key={`y-${tick}`}
-            x1={padding.left} 
-            y1={scaleY(tick)} 
-            x2={width - padding.right} 
-            y2={scaleY(tick)} 
-            stroke="var(--muted)" 
-            strokeWidth={isFullscreen ? "0.7" : "0.5"} 
-            strokeDasharray="4,4"
-            opacity="0.3"
-          />
-        ))}
-      
-        {/* X and Y axis */}
-        <line x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} stroke="var(--muted)" strokeWidth={isFullscreen ? "1.5" : "1"} />
-        <line x1={padding.left} y1={padding.top} x2={padding.left} y2={height - padding.bottom} stroke="var(--muted)" strokeWidth={isFullscreen ? "1.5" : "1"} />
-        
-        {/* Median lines for general models */}
-        {/* <line 
-          x1={padding.left} 
-          y1={scaleY(generalMedianIntelligence)} 
-          x2={width - padding.right} 
-          y2={scaleY(generalMedianIntelligence)} 
-          stroke="#FF6B6B" 
-          strokeWidth={isFullscreen ? "1.2" : "0.9"} 
-          strokeDasharray="4,4"
-          opacity="0.7"
-        />
-        <line 
-          x1={scaleX(generalMedianTps)} 
-          y1={padding.top} 
-          x2={scaleX(generalMedianTps)} 
-          y2={height - padding.bottom} 
-          stroke="#FF6B6B" 
-          strokeWidth={isFullscreen ? "1.2" : "0.9"} 
-          strokeDasharray="4,4"
-          opacity="0.7"
-        /> */}
-        
-        {/* Median lines for Chatflix models */}
-        <line 
-          x1={padding.left} 
-          y1={scaleY(chatflixMedianIntelligence)} 
-          x2={width - padding.right} 
-          y2={scaleY(chatflixMedianIntelligence)} 
-          stroke="#6366F1" 
-          strokeWidth={isFullscreen ? "1.2" : "0.9"} 
-          strokeDasharray="2,4"
-          opacity="0.7"
-        />
-        <line 
-          x1={scaleX(chatflixMedianTps)} 
-          y1={padding.top} 
-          x2={scaleX(chatflixMedianTps)} 
-          y2={height - padding.bottom} 
-          stroke="#6366F1" 
-          strokeWidth={isFullscreen ? "1.2" : "0.9"} 
-          strokeDasharray="2,4"
-          opacity="0.7"
-        />
-        
-        {/* Labels for median lines */}
-        {/* <text 
-          x={width - padding.right - 10} 
-          y={scaleY(generalMedianIntelligence) - 5} 
-          textAnchor="end" 
-          fontSize={tickFontSize} 
-          fill="#FF6B6B"
-          opacity="0.9"
-        >
-          General Models Median (47)
-        </text>
-        <text 
-          x={scaleX(generalMedianTps)} 
-          y={padding.top + 15} 
-          textAnchor="middle" 
-          fontSize={tickFontSize} 
-          fill="#FF6B6B"
-          opacity="0.9"
-        >
-          General (81.5)
-        </text> */}
-        <text 
-          x={width - padding.right - 10} 
-          y={scaleY(chatflixMedianIntelligence) - 5} 
-          textAnchor="end" 
-          fontSize={tickFontSize} 
-          fill="#6366F1"
-          opacity="0.9"
-        >
-          Chatflix Median ({chatflixMedianIntelligence.toFixed(1)})
-        </text>
-        <text 
-          x={scaleX(chatflixMedianTps)} 
-          y={padding.top + 30} 
-          textAnchor="middle" 
-          fontSize={tickFontSize} 
-          fill="#6366F1"
-          opacity="0.9"
-        >
-          Chatflix ({chatflixMedianTps.toFixed(1)})
-        </text>
-        
-        {/* X axis label */}
-        <text x={width / 2} y={height - (isFullscreen ? 20 : 10)} textAnchor="middle" fontSize={labelFontSize} fill="var(--muted)">
-          Output Speed (Tokens per Second)
-        </text>
-        
-        {/* X axis ticks */}
-        {xTicks.map(tick => (
-          <g key={`xtick-${tick}`}>
-            <line 
-              x1={scaleX(tick)} 
-              y1={height - padding.bottom} 
-              x2={scaleX(tick)} 
-              y2={height - padding.bottom + 5} 
-              stroke="var(--muted)" 
-              strokeWidth={isFullscreen ? "1.2" : "1"} 
-            />
-            <text 
-              x={scaleX(tick)} 
-              y={height - padding.bottom + (isFullscreen ? 20 : 15)} 
-              textAnchor="middle" 
-              fontSize={tickFontSize} 
-              fill="var(--muted)"
-            >
-              {tick}
-            </text>
-          </g>
-        ))}
-        
-        {/* Y axis label */}
-        <text 
-          x={isFullscreen ? 25 : 15} 
-          y={height / 2} 
-          textAnchor="middle" 
-          fontSize={labelFontSize} 
-          fill="var(--muted)" 
-          transform={`rotate(-90, ${isFullscreen ? 25 : 15}, ${height / 2})`}
-        >
-          Intelligence Index
-        </text>
-        
-        {/* Y axis ticks */}
-        {yTicks.map(tick => (
-          <g key={`ytick-${tick}`}>
-            <line 
-              x1={padding.left - 5} 
-              y1={scaleY(tick)} 
-              x2={padding.left} 
-              y2={scaleY(tick)} 
-              stroke="var(--muted)" 
-              strokeWidth={isFullscreen ? "1.2" : "1"} 
-            />
-            <text 
-              x={padding.left - (isFullscreen ? 15 : 10)} 
-              y={scaleY(tick)} 
-              textAnchor="end" 
-              fontSize={tickFontSize} 
-              dominantBaseline="middle" 
-              fill="var(--muted)"
-            >
-              {tick}
-            </text>
-          </g>
-        ))}
-        
-        {/* Data points */}
-        {validModels.map((model, index) => {
-          const x = scaleX(model.tps as number);
-          const y = scaleY(model.intelligenceIndex as number);
-          const color = getProviderColor(model.provider);
-          
-          return (
-            <g key={model.id}>
-              {/* Model dot */}
-              <circle 
-                cx={x} 
-                cy={y} 
-                r={dotRadius} 
-                fill={color} 
-              />
-              
-              {/* Add connecting line to label for clarity */}
-              <line 
-                x1={x} 
-                y1={y} 
-                x2={x} 
-                y2={y - (isFullscreen ? 14 : 8)} 
-                stroke={color} 
-                strokeWidth={isFullscreen ? "1.5" : "1"} 
-                opacity="0.6" 
-              />
-              
-              {/* Model name */}
-              <text 
-                x={x} 
-                y={y - (isFullscreen ? 18 : 10)} 
-                textAnchor="middle" 
-                fontSize={modelNameFontSize} 
-                fill="var(--foreground)" 
-                className="pointer-events-none"
-                fontWeight={isFullscreen ? "bold" : "normal"}
-              >
-                {model.name}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-};
-
 // Model Bar Chart component
 const ModelBarChart = ({
   models,
@@ -385,9 +72,9 @@ const ModelBarChart = ({
   models: ModelConfig[],
   isMobile: boolean,
   isFullscreen?: boolean,
-  metric?: 'tps' | 'intelligenceIndex' | 'contextWindow' | 'MMLU_Pro' | 'Coding' | 'MATH' | 'GPQA' | 'multilingual' | 'HLE'
+  metric?: 'tps' | 'intelligenceIndex' | 'contextWindow' | 'multilingual'
 }) => {
-  const [selectedMetric, setSelectedMetric] = useState<'tps' | 'intelligenceIndex' | 'contextWindow' | 'MMLU_Pro' | 'Coding' | 'MATH' | 'GPQA' | 'multilingual' | 'HLE'>(metric);
+  const [selectedMetric, setSelectedMetric] = useState<'tps' | 'intelligenceIndex' | 'contextWindow' | 'multilingual'>(metric);
   
   // Filter models that have the selected metric and exclude chatflix-ultimate
   const validModels = models
@@ -425,17 +112,7 @@ const ModelBarChart = ({
         return `${value.toFixed(1)}`;
       case 'contextWindow':
         return `${(value / 1000).toFixed(0)}K`;
-      case 'MMLU_Pro':
-        return `${value.toFixed(1)}`;
-      case 'Coding':
-        return `${value.toFixed(1)}`;
-      case 'MATH':
-        return `${value.toFixed(1)}`;
-      case 'GPQA':
-        return `${value.toFixed(1)}`;
       case 'multilingual':
-        return `${value.toFixed(1)}`;
-      case 'HLE':
         return `${value.toFixed(1)}`;
       default:
         return `${value}`;
@@ -451,18 +128,8 @@ const ModelBarChart = ({
         return 'Intelligence Index';
       case 'contextWindow':
         return 'Context Window';
-      case 'MMLU_Pro':
-        return 'MMLU_Pro Score';
-      case 'Coding':
-        return 'Coding Index';
-      case 'MATH':
-        return 'Math Index';
-      case 'GPQA':
-        return 'GPQA Score';
       case 'multilingual':
         return 'Multilingual Index';
-      case 'HLE':
-        return 'HLE Score';
       default:
         return metric;
     }
@@ -492,54 +159,19 @@ const ModelBarChart = ({
         >
           Context
         </button>
-        {/* <button 
-          onClick={() => setSelectedMetric('MMLU_Pro')}
-          className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'MMLU_Pro' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
-        >
-          Knowledge
-        </button> */}
-        {/* <button 
-          onClick={() => setSelectedMetric('Coding')}
-          className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'Coding' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
-        >
-          Coding
-        </button> */}
-        {/* <button 
-          onClick={() => setSelectedMetric('MATH')}
-          className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'MATH' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
-        >
-          Math
-        </button> */}
-        {/* <button 
-          onClick={() => setSelectedMetric('GPQA')}
-          className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'GPQA' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
-        >
-          Science
-        </button> */}
         <button 
           onClick={() => setSelectedMetric('multilingual')}
           className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'multilingual' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
         >
           Multilingual
         </button>
-        {/* <button 
-          onClick={() => setSelectedMetric('HLE')}
-          className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'HLE' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
-        >
-          Reasoning
-        </button> */}
       </div>
       
       <div className="text-xs text-[var(--muted)] mb-6 text-center px-10">
         {selectedMetric === 'tps' ? 'Tokens per second received while the model is generating tokens - measure of real-time response speed after initial latency. Higher is better.' : 
          selectedMetric === 'intelligenceIndex' ? 'Combination metric covering multiple dimensions of intelligence - the simplest way to compare how smart models are. Higher is better.' :
          selectedMetric === 'contextWindow' ? 'Maximum context length in tokens - determines how much information the model can process in a single conversation. Higher is better.' :
-         selectedMetric === 'MMLU_Pro' ? 'Massive Multitask Language Understanding Pro - measures knowledge across 12,000+ questions in academic and professional domains. Higher is better.' :
-         selectedMetric === 'Coding' ? 'Average of coding evaluations including LiveCodeBench and SciCode - measures ability to write functional code that passes unit tests. Higher is better.' :
-         selectedMetric === 'MATH' ? 'Average of math evaluations including AIME and MATH-500 - measures mathematical reasoning from basic to competition-level problems. Higher is better.' :
-         selectedMetric === 'GPQA' ? 'Graduate-level Google-Proof Q&A - measures scientific reasoning on 198 expert-level questions in biology, physics, and chemistry. Higher is better.' :
          selectedMetric === 'multilingual' ? 'Average of Multilingual MMLU and MGSM across languages - measures performance across Spanish, German, Japanese, Chinese, and others. Higher is better.' :
-         selectedMetric === 'HLE' ? 'Humanity\'s Last Exam - measures performance on 2,684 challenging questions across mathematics, humanities, and natural sciences. Higher is better.' :
          'Higher values indicate better performance across all metrics.'}
       </div>
       
@@ -831,13 +463,13 @@ export function ModelSelector({
     const style = document.createElement('style');
     
     style.textContent = `
-      /* 미래적인 선택 버튼 스타일 */
+      /* Future-inspired button style */
       .futuristic-select-button {
         position: relative;
         transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
       }
       
-      /* 버튼 하단의 그라데이션 라인 효과 */
+      /* Gradient line effect at the bottom of the button */
       .futuristic-select-button::after {
         content: "";
         position: absolute;
@@ -851,14 +483,14 @@ export function ModelSelector({
         transition: all 0.3s ease;
       }
       
-      /* 호버 상태와 활성 상태에서 라인 표시 */
+      /* Display line on hover and active states */
       .futuristic-select-button:hover::after, 
       .futuristic-select-button.active::after {
         opacity: 0.7;
         transform: scaleX(1);
       }
       
-      /* 드롭다운 메뉴 스타일 */
+      /* Dropdown menu style */
       .model-dropdown {
         animation: fadeInUp 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
@@ -867,7 +499,7 @@ export function ModelSelector({
         transform-origin: top center;
       }
       
-      /* 전체 화면 모드 스타일 */
+      /* Fullscreen mode style */
       .model-dropdown.fullscreen {
         position: fixed;
         top: 0;
@@ -888,18 +520,11 @@ export function ModelSelector({
         flex-direction: column;
       }
       
-      /* 전체 화면 모드에서의 컨텐츠 영역 */
+      /* Content area in fullscreen mode */
       .fullscreen-content {
         flex: 1;
         overflow-y: auto;
         padding: 0 1rem;
-      }
-      
-      /* 전체 화면 모드에서의 그래프 컨테이너 */
-      .fullscreen .graph-container {
-        max-width: 1000px;
-        margin: 0 auto;
-        padding: 1rem 0;
       }
       
       @keyframes fadeIn {
@@ -907,7 +532,7 @@ export function ModelSelector({
         to { opacity: 1; }
       }
       
-      /* 확대 버튼 스타일 */
+      /* Expand button style */
       .expand-button {
         cursor: pointer;
         padding: 6px;
@@ -926,7 +551,7 @@ export function ModelSelector({
         background: color-mix(in srgb, var(--accent) 10%, transparent);
       }
       
-      /* 전체 화면 모드 헤더 */
+      /* Fullscreen mode header */
       .fullscreen-header {
         position: sticky;
         top: 0;
@@ -941,7 +566,7 @@ export function ModelSelector({
         border-bottom: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
       }
       
-      /* 드롭다운 옵션 스타일 */
+      /* Dropdown option style */
       .model-option {
         position: relative;
         overflow: hidden;
@@ -949,20 +574,7 @@ export function ModelSelector({
         padding: 16px 24px;
       }
       
-      /* 선택된 모델 표시 효과 */
-      .selected-indicator {
-        position: absolute;
-        right: 12px;
-        opacity: 0;
-        transition: opacity 0.25s ease, transform 0.25s ease;
-      }
-      
-      .model-option.active .selected-indicator {
-        opacity: 0.8;
-        transform: scale(1);
-      }
-      
-      /* 모델 이름 호버 효과 */
+      /* Model name hover effect */
       .model-name {
         position: relative;
         display: inline-block;
@@ -977,7 +589,7 @@ export function ModelSelector({
         background: color-mix(in srgb, var(--accent) 20%, transparent);
       }
       
-      /* 모델 이름 밑에 그라데이션 라인 */
+      /* Gradient line under model name */
       .model-name::after {
         content: '';
         position: absolute;
@@ -992,18 +604,18 @@ export function ModelSelector({
         transform-origin: center;
       }
       
-      /* 호버 시 모델 이름 효과 */
+      /* Model name effect on hover */
       .model-option:not(.disabled):hover .model-name {
         transform: translateY(-1px);
       }
       
-      /* 호버 시 밑줄 효과 */
+      /* Underline effect on hover */
       .model-option:not(.disabled):hover .model-name::after {
         transform: scaleX(1);
         opacity: 0.6;
       }
       
-      /* 페이드 인 업 애니메이션 */
+      /* Fade-in up animation */
       @keyframes fadeInUp {
         from {
           opacity: 0;
@@ -1015,7 +627,7 @@ export function ModelSelector({
         }
       }
       
-      /* 스크롤바 스타일 */
+      /* Scrollbar style */
       .model-selector-scroll::-webkit-scrollbar {
         width: 4px;
       }
@@ -1034,7 +646,7 @@ export function ModelSelector({
         scrollbar-color: color-mix(in srgb, var(--foreground) 20%, transparent) transparent;
       }
       
-      /* 모바일 스타일 */
+      /* Mobile style */
       @media (max-width: 640px) {
         .mobile-handle {
           position: absolute;
@@ -1049,7 +661,7 @@ export function ModelSelector({
         }
       }
       
-      /* 모델 옵션 내 로고 스타일 */
+      /* Provider logo style in model options */
       .provider-logo {
         transition: all 0.3s ease;
         opacity: 0.7;
@@ -1231,107 +843,7 @@ export function ModelSelector({
                   </div>
                 </div>
               )}
-              
-              {/* Model types explanation - Ultra Modern Design */}
-              {/* <div className={`py-5 sm:py-10 px-7 relative overflow-hidden ${isMobile && !isFullscreen ? 'mt-4 bg-[var(--background)]/95 backdrop-blur-sm' : 'mt-2 bg-[var(--background)]/80 backdrop-blur-sm z-10'} ${isFullscreen ? 'max-w-4xl mx-auto rounded-xl' : ''}`}>
-                <div className="absolute inset-0 opacity-5">
-                  <div className="absolute top-0 left-1/4 w-32 h-32 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 blur-2xl"></div>
-                  <div className="absolute bottom-0 right-1/4 w-24 h-24 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 blur-2xl"></div>
-                </div>
-
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 flex items-center justify-center">
-                        <span className="text-lg">💡</span>
-                      </div>
-                      <p className="text-xs font-medium tracking-wide text-[var(--foreground)] uppercase">Model Selection Guide</p>
-                    </div>
-                    
-                    {modelFilter !== 'all' && (
-                      <button 
-                        onClick={() => setModelFilter('all')}
-                        className="text-[10px] px-2 py-1 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] flex items-center gap-1 hover:bg-[var(--accent)]/20 transition-colors"
-                      >
-                        <span>All Models</span>
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z" fill="currentColor"/>
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-
-        
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                    <div 
-                      className={`bg-gradient-to-br from-[var(--background)] to-[var(--background-secondary)]/30 rounded-xl p-3.5 backdrop-blur-lg shadow-sm relative overflow-hidden cursor-pointer transition-all
-                        ${modelFilter === 'thinking' ? 'ring-2 ring-blue-500/50' : 'hover:bg-[var(--background-secondary)]/50'}
-                      `}
-                      onClick={() => setModelFilter(modelFilter === 'thinking' ? 'all' : 'thinking')}
-                    >
-                      {modelFilter === 'thinking' && (
-                        <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" fill="white"/>
-                          </svg>
-                        </div>
-                      )}
-                      
-                      <div className="flex items-start gap-3">
-                        <div className="w-7 h-7 flex-shrink-0 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-blue-500">
-                            <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" fill="currentColor"/>
-                            <path d="M13 7H11V13H17V11H13V7Z" fill="currentColor"/>
-                          </svg>
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h4 className="text-xs font-semibold text-[var(--foreground)]">Models with "(Thinking)"</h4>
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-blue-500/10 text-blue-500">REASONING</span>
-                          </div>
-                          <p className="text-[11px] leading-relaxed text-[var(--muted)] mt-1.5">
-                            Best for complex reasoning: math problems, coding tasks, detailed planning, and step-by-step analysis. More thorough but takes more time.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div 
-                      className={`bg-gradient-to-br from-[var(--background)] to-[var(--background-secondary)]/30 rounded-xl p-3.5 backdrop-blur-lg shadow-sm relative overflow-hidden cursor-pointer transition-all
-                        ${modelFilter === 'regular' ? 'ring-2 ring-emerald-500/50' : 'hover:bg-[var(--background-secondary)]/50'}
-                      `}
-                      onClick={() => setModelFilter(modelFilter === 'regular' ? 'all' : 'regular')}
-                    >
-                      {modelFilter === 'regular' && (
-                        <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" fill="white"/>
-                          </svg>
-                        </div>
-                      )}
-                      
-                      <div className="flex items-start gap-3">
-                        <div className="w-7 h-7 flex-shrink-0 bg-emerald-500/10 rounded-lg flex items-center justify-center">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-emerald-500">
-                            <path d="M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="currentColor" strokeWidth="2"/>
-                            <path d="M16 11L12 15L10 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h4 className="text-xs font-semibold text-[var(--foreground)]">Regular Models</h4>
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-emerald-500/10 text-emerald-500">BALANCED</span>
-                          </div>
-                          <p className="text-[11px] leading-relaxed text-[var(--muted)] mt-1.5">
-                            Perfect for everyday tasks: creative content, general questions, summarization, and brainstorming. Faster responses with good efficiency.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div> */}
+            
               
               {/* Fullscreen content container */}
               <div className={isFullscreen ? "fullscreen-content" : ""}>
@@ -1502,12 +1014,6 @@ export function ModelSelector({
                     isMobile={isMobile && !isFullscreen}
                     isFullscreen={isFullscreen}
                   />
-                  {/* Scatter plot */}
-                  {/* <ModelPerformanceGraph
-                  models={MODEL_OPTIONS}
-                  isMobile={isMobile && !isFullscreen}
-                  isFullscreen={isFullscreen}
-                /> */}
                 </div>
               </div>
             </div>

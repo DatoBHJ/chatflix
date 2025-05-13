@@ -1,5 +1,5 @@
 // app/components/chat/ChatInput/index.tsx
-import { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { FormEvent, useEffect, useRef, useState, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { getModelById } from '@/lib/models/config';
 import { ChatInputProps, PromptShortcut } from './types';
@@ -10,7 +10,6 @@ import { DragDropOverlay, ErrorToast } from './DragDropOverlay';
 import { Brain } from 'lucide-react';
 
 // 상수 정의
-const MAX_MENTION_SEARCH_LENGTH = 500; // 멘션 검색을 위한 최대 문자 수
 const MENTION_CONTEXT_RANGE = 200; // 커서 주변 검색 범위 (앞뒤로)
 const DEBOUNCE_TIME = 200; // 디바운스 시간 (ms)
 
@@ -44,11 +43,9 @@ export function ChatInput({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [mentionStartPosition, setMentionStartPosition] = useState<number | null>(null);
-  const [mentionEndPosition, setMentionEndPosition] = useState<number | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [fileMap, setFileMap] = useState<Map<string, { file: File, url: string }>>(new Map());
   const [dragActive, setDragActive] = useState(false);
-  const [lastTypedChar, setLastTypedChar] = useState<string | null>(null);
   const [mentionQueryActive, setMentionQueryActive] = useState(false);
   const [showPDFError, setShowPDFError] = useState(false);
   const [showFolderError, setShowFolderError] = useState(false);
@@ -79,7 +76,6 @@ export function ChatInput({
   const findMention = useCallback((text: string, cursorPosition: number): { match: RegExpMatchArray | null, startPos: number | null } => {
     // 커서 위치 주변 컨텍스트 검색 (앞뒤로 MENTION_CONTEXT_RANGE만큼)
     const startIndex = Math.max(0, cursorPosition - MENTION_CONTEXT_RANGE);
-    const endIndex = Math.min(text.length, cursorPosition + MENTION_CONTEXT_RANGE);
     
     // 커서 앞부분의 텍스트만 검색 (@ 기호부터 커서까지)
     const searchText = text.substring(startIndex, cursorPosition);
@@ -272,7 +268,6 @@ export function ChatInput({
   const closeShortcutsPopup = () => {
     setShowShortcuts(false);
     setMentionStartPosition(null);
-    setMentionEndPosition(null);
     setMentionQueryActive(false);
     
     if (debounceTimerRef.current) {
@@ -584,10 +579,6 @@ export function ChatInput({
           // 탭으로 선택 후 닫기
           e.preventDefault();
           handleShortcutSelect(shortcuts[selectedIndex]);
-          break;
-          
-        default:
-          setLastTypedChar(e.key);
           break;
       }
     } else if (e.key === 'Enter') {
