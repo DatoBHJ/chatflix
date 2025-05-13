@@ -1168,10 +1168,7 @@ ${responseInstructions}
             
 Remember to maintain the language of the user's query throughout your response.
             `;
-            console.log('--------------------------------');
-            console.log('systemPromptAgent', JSON.stringify(systemPromptAgent, null, 2),'\n\n');
-            console.log('--------------------------------');
-
+            
             const finalstep = streamText({
               model: providers.languageModel(model),
               system: systemPromptAgent,
@@ -1586,10 +1583,6 @@ IMPORTANT:
             // console.log('messages', JSON.stringify(messages, null, 2),'\n\n');
             // console.log('--------------------------------');
 
-            console.log('--------------------------------');
-            console.log('currentSystemPrompt', JSON.stringify(currentSystemPrompt, null, 2),'\n\n');
-            console.log('--------------------------------');
-            
             const result = streamText({
               model: providers.languageModel(model),
               system: currentSystemPrompt,
