@@ -38,11 +38,11 @@ export const DEFAULT_MODEL_ID = 'chatflix-ultimate';
 export const RATE_LIMITS = {
   level0: {
     hourly: {
-      requests: 7,    
+      requests: 5,    
       window: '4 h'
     },
     daily: {
-      requests: 14,    
+      requests: 10,    
       window: '24 h'
     }
   },
