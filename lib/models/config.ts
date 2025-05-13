@@ -1,6 +1,7 @@
 export interface ModelConfig {
   id: string;
   name: string;
+  cutoff: string;
   country: string;
   description?: string;
   provider: 'anthropic' | 'openai' | 'google' | 'deepseek' | 'together' | 'groq' | 'xai';
@@ -268,6 +269,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'chatflix-ultimate',
     name: 'CHATFLIX',
+    cutoff: '',
     abbreviation: 'CHFX',
     country: 'GLOBAL',
     description: 'Automatically selects the optimal model based on your task. ',
@@ -297,6 +299,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'grok-3-mini',
     name: 'Grok 3 Mini High (Thinking)',
+    cutoff: 'Feb 2025',
     abbreviation: 'G3M-H',
     country: 'US',
     // description: 'Grok 3 Mini',
@@ -323,6 +326,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     {
     id: 'grok-3',
     name: 'Grok 3',
+    cutoff: 'Feb 2025',
     abbreviation: 'G3',
     country: 'US',
     // description: 'High-speed version of Grok 3',
@@ -345,6 +349,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'claude-3-7-sonnet-20250219',
     name: 'Claude 3.7 Sonnet (Thinking)',
+    cutoff: 'Oct 2024',
     abbreviation: 'C3.7S-T',
     country: 'US',
     // description: "Anthropic's most intelligent model yet with extended thinking capability.",
@@ -377,6 +382,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'claude-3-7-sonnet-latest',
     name: 'Claude 3.7 Sonnet',
+    cutoff: 'Oct 2024',
     abbreviation: 'C3.7S',
     country: 'US',
     // description: "Anthropic's most intelligent model.",
@@ -404,6 +410,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'gpt-4.1',
     name: 'GPT-4.1',
+    cutoff: 'Jun 2024',
     abbreviation: 'G4.1',
     country: 'US',
     // description: 'Flagship GPT model for complex tasks. Well suited for problem solving across domains.',
@@ -426,6 +433,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'gpt-4.1-mini',
     name: 'GPT-4.1 Mini',
+    cutoff: 'Jun 2024',
     abbreviation: 'G4.1M',
     country: 'US',
     // description: 'Balanced for intelligence and speed. Well suited for general tasks.',
@@ -447,6 +455,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'gpt-4.1-nano',
     name: 'GPT-4.1 Nano',
+    cutoff: 'Jun 2024',
     abbreviation: 'G4.1N',
     country: 'US',
     // description: 'Balanced for intelligence and speed. Well suited for general tasks.',
@@ -469,6 +478,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
    {
     id: 'chatgpt-4o-latest',
     name: 'ChatGPT-4o',
+    cutoff: 'Oct 2023',
     abbreviation: 'CG4o',
     country: 'US',
     // description: 'GPT-4o model used in ChatGPT',
@@ -491,6 +501,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     name: 'GPT-4o (Nov \'24)',
     abbreviation: 'G4o',
     country: 'US',
+    cutoff: 'Oct 2023',
     // description: 'Fast, intelligent, flexible GPT model',
     provider: 'openai',
     supportsVision: true,
@@ -511,6 +522,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: "o4-mini",
     name: "o4-Mini-High (Thinking)",
+    cutoff: 'Jun 2024',
     abbreviation: "o4M-H",
     country: 'US',
     // description: "Openai's latest small o-series model. Reasoning tokens used in its chain-of-thought process are hidden and not included in the visible output.",
@@ -536,6 +548,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: "o1",
     name: "o1 (Thinking)",
+    cutoff: 'Oct 2023',
     abbreviation: "o1-T",
     country: 'US',
     // description: "OpenAI's most powerful reasoning model",
@@ -560,6 +573,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
    {
     id: 'qwen-qwq-32b',
     name: 'QwQ-32B (Thinking)',
+    cutoff: 'June 2024',
     abbreviation: 'QwQ-T',
     country: 'CHINA',
     // description: "Developed by Qwen hosted by Groq. Capable of achieving competitive performance against state-of-the-art reasoning models, e.g., DeepSeek-R1, o1-mini",
@@ -590,6 +604,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'gemini-2.5-pro-preview-05-06',
     name: 'Gemini 2.5 Pro Preview 05-06 (Thinking)',
+    cutoff: 'Jan 2025',
     abbreviation: 'Gem2.5P-T',
     country: 'US',
     // description: 'Google\'s most powerful thinking model.',
@@ -610,6 +625,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'gemini-2.5-pro-preview-03-25',
     name: 'Gemini 2.5 Pro Preview 03-25 (Thinking)',
+    cutoff: 'Jan 2025',
     abbreviation: 'Gem2.5P-T',
     country: 'US',
     // description: 'Previous 2.5 pro model',
@@ -632,6 +648,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'gemini-2.5-flash-preview-04-17',
     name: 'Gemini 2.5 Flash Preview 04-17 (Thinking)',
+    cutoff: 'Jan 2025',
     abbreviation: 'Gem2.5F-T',
     country: 'US',
     // description: 'Latest 2.5 flash model with 1m context window by Google. Reasoning tokens used in its chain-of-thought process are not included in the visible output.',
@@ -654,6 +671,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'gemini-2.0-flash',
     name: 'Gemini 2.0 Flash',
+    cutoff: 'Aug 2024',
     abbreviation: 'Gem2.0F',
     country: 'US',
     // description: 'Latest 2.0 flash model with 1m context window by Google',
@@ -675,6 +693,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'llama-3.3-70b-versatile',
     name: 'Llama 3.3 70B',
+    cutoff: 'Dec 2023',
     abbreviation: 'L3.3',
     country: 'US',
     // description: 'Developed by Meta hosted by Groq. Fast and smart.',
@@ -700,6 +719,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
    {
     id: 'deepseek-reasoner',
     name: 'DeepSeek R1 (Thinking)',
+    cutoff: 'July 2024',
     abbreviation: 'DSR1-T',
     country: 'CHINA',
     // description: 'The best open source reasoning model by DeepSeek',
@@ -721,10 +741,11 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     intelligenceIndex: 60,
     multilingual:86,
   },
-  // DeepSeek V3 (Mar' 25)
+  // DeepSeek V3
   {
     id: 'deepseek-chat',
-    name: "DeepSeek V3 (Mar' 25)",
+    name: "DeepSeek V3",
+    cutoff: 'July 2024',
     abbreviation: 'DSV3',
     country: 'CHINA',
     // description: 'Latest generation of DeepSeek V3. The best open source non-reasoning model by DeepSeek',
@@ -747,6 +768,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'deepseek-ai/DeepSeek-R1',
     name: 'DeepSeek R1 (Thinking)',
+    cutoff: 'July 2024',
     abbreviation: 'DSR1-T',
     country: 'CHINA',
     // description: 'Developed by DeepSeek hosted by Together.ai. Faster than the official DeepSeek R1',
@@ -774,6 +796,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'deepseek-ai/DeepSeek-V3',
     name: 'DeepSeek V3',
+    cutoff: 'July 2024',
     abbreviation: 'DSV3',
     country: 'CHINA',
     // description: 'Previous generation of DeepSeek V3 hosted by Together.ai. Faster than the official DeepSeek V3',

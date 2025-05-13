@@ -1168,12 +1168,21 @@ ${responseInstructions}
             
 Remember to maintain the language of the user's query throughout your response.
             `;
-            
+
+            console.log('--------------------------------');
+            console.log('systemPromptAgent', JSON.stringify(systemPromptAgent, null, 2),'\n\n');
+            console.log('--------------------------------');
+
+            const messages = convertMultiModalToMessage(optimizedMessages.slice(-6));
+            console.log('--------------------------------');
+            console.log('messages', JSON.stringify(messages, null, 2),'\n\n');
+            console.log('--------------------------------');
+
             const finalstep = streamText({
               model: providers.languageModel(model),
               system: systemPromptAgent,
               // 토큰 제한을 고려한 최적화된 메시지 사용
-              messages: convertMultiModalToMessage(optimizedMessages.slice(-6)),
+              messages: messages,
               // temperature: 0.2,
               toolChoice: 'auto',
               experimental_activeTools: activeTools,
@@ -1579,9 +1588,9 @@ IMPORTANT:
             // console.log('optimizedMessages', JSON.stringify(optimizedMessages, null, 2),'\n\n');
             // console.log('--------------------------------');
             const messages = convertMultiModalToMessage(optimizedMessages);
-            // console.log('--------------------------------');
-            // console.log('messages', JSON.stringify(messages, null, 2),'\n\n');
-            // console.log('--------------------------------');
+            console.log('--------------------------------');
+            console.log('messages', JSON.stringify(messages, null, 2),'\n\n');
+            console.log('--------------------------------');
 
             const result = streamText({
               model: providers.languageModel(model),
