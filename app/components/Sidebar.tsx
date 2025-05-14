@@ -36,6 +36,15 @@ export function Sidebar({ user, onClose }: SidebarProps) {
   const [isExpandedShortcuts, setIsExpandedShortcuts] = useState(false)
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false)
 
+  // 무한 스크롤 관련 상태 추가
+  const [currentPage, setCurrentPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false)
+  const CHATS_PER_PAGE = 15
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null)
+
   // Shortcuts 관련 상태
   const [shortcuts, setShortcuts] = useState<any[]>([])
   const [newName, setNewName] = useState('')
@@ -136,38 +145,87 @@ export function Sidebar({ user, onClose }: SidebarProps) {
 
   useEffect(() => {
     if (user) {
-      loadChats()
+      setCurrentPage(1)
+      setHasMore(true)
+      setInitialLoadComplete(false)
+      loadChats(1, false)
     } else {
       setChats([])
     }
 
-    // 실시간 업데이트를 위한 채널 설정
+    // Only set up real-time updates if user exists
+    if (!user) return
+
+    // Set up a more efficient real-time channel
     const chatChannel = supabase
       .channel('chat-updates')
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'chat_sessions',
-          filter: `user_id=eq.${user?.id}`
+          filter: `user_id=eq.${user.id}`
         },
-        async (payload) => {
-          console.log('Chat session change:', payload)
-          await loadChats()
+        (payload) => {
+          console.log('New chat session created:', payload)
+          // 새 채팅 생성 시 첫 페이지부터 다시 로드
+          setCurrentPage(1)
+          setHasMore(true)
+          loadChats(1, false)
         }
       )
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `user_id=eq.${user?.id}`
+          filter: `user_id=eq.${user.id}`
         },
         async (payload) => {
-          console.log('Message change:', payload)
-          await loadChats()
+          console.log('New message inserted:', payload)
+          // Only update if this is for an existing chat in our list
+          const chatId = payload.new.chat_session_id
+          if (chats.some(chat => chat.id === chatId)) {
+            // Find which chat needs updating
+            if (payload.new.role === 'user' && chats.find(c => c.id === chatId)?.title === 'New Chat') {
+              // This is the first user message, update title
+              loadChats(currentPage, true) // Reload all for title update
+            } else {
+              // Just update the last message time for the specific chat
+              setChats(prevChats => {
+                return prevChats.map(chat => {
+                  if (chat.id === chatId) {
+                    return {
+                      ...chat,
+                      lastMessageTime: new Date(payload.new.created_at).getTime(),
+                      lastMessage: payload.new.content
+                    }
+                  }
+                  return chat
+                }).sort((a, b) => {
+                  // Handle possibly undefined lastMessageTime values
+                  const timeA = a.lastMessageTime ?? 0;
+                  const timeB = b.lastMessageTime ?? 0;
+                  return timeB - timeA;
+                })
+              })
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'chat_sessions'
+        },
+        (payload) => {
+          console.log('Chat session deleted:', payload)
+          // Remove the deleted chat from state
+          setChats(prevChats => prevChats.filter(chat => chat.id !== payload.old.id))
         }
       )
       .subscribe()
@@ -190,47 +248,141 @@ export function Sidebar({ user, onClose }: SidebarProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isMenuOpen]);
 
-  async function loadChats() {
+  async function loadChats(page = 1, append = false) {
     if (!user) return;
-
+    
     try {
+      // 추가 로드 시 로딩 상태 표시
+      if (append) {
+        setIsLoadingMore(true)
+      }
+
+      // 페이지네이션 적용
+      const from = (page - 1) * CHATS_PER_PAGE
+      const to = from + CHATS_PER_PAGE - 1
+
+      // First, fetch only chat session data with limited columns
       const { data: sessions, error: sessionsError } = await supabase
         .from('chat_sessions')
-        .select('*, messages:messages(*)')
+        .select('id, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(30)  // Limit to 30 most recent chat sessions
+        .range(from, to)
 
       if (sessionsError) {
         console.error('Error loading chat sessions:', sessionsError)
+        setIsLoadingMore(false)
         return
       }
 
-      const chatsWithMessages = sessions.map(session => {
-        const messages = session.messages || []
-        const lastMessageTime = messages.length > 0 
-          ? Math.max(...messages.map((m: { created_at: string | number | Date }) => new Date(m.created_at).getTime()))
+      // 더 이상 불러올 채팅이 없는지 확인
+      if (sessions.length < CHATS_PER_PAGE) {
+        setHasMore(false)
+      }
+
+      // For each session, fetch only the most recent message and the first user message
+      const chatPromises = sessions.map(async (session) => {
+        // Get the first user message (for title)
+        const { data: firstUserMsg } = await supabase
+          .from('messages')
+          .select('content, created_at')
+          .eq('chat_session_id', session.id)
+          .eq('role', 'user')
+          .order('created_at', { ascending: true })
+          .limit(1)
+
+        // Get the most recent message timestamp
+        const { data: latestMsg } = await supabase
+          .from('messages')
+          .select('content, created_at')
+          .eq('chat_session_id', session.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        const title = firstUserMsg && firstUserMsg.length > 0
+          ? firstUserMsg[0].content
+          : 'New Chat'
+        
+        const lastMessage = latestMsg && latestMsg.length > 0
+          ? latestMsg[0].content
+          : ''
+        
+        const lastMessageTime = latestMsg && latestMsg.length > 0 
+          ? new Date(latestMsg[0].created_at).getTime()
           : new Date(session.created_at).getTime()
 
-        const firstUserMessage = messages.find((m: { role: string }) => m.role === 'user')
-        const title = firstUserMessage?.content || 'New Chat'
-
+        // Create an object that matches the Chat type
         return {
           id: session.id,
           title: title,
-          messages: messages,
           created_at: session.created_at,
+          messages: [], // Empty array since we're not loading all messages
           lastMessageTime: lastMessageTime,
-          lastMessage: messages[messages.length - 1]?.content
-        }
+          lastMessage: lastMessage
+        } as Chat
       })
 
-      chatsWithMessages.sort((a, b) => b.lastMessageTime - a.lastMessageTime)
-      setChats(chatsWithMessages)
+      // Wait for all queries to complete
+      const newChats = await Promise.all(chatPromises)
+
+      // Sort by last message time
+      newChats.sort((a, b) => {
+        // Handle possibly undefined lastMessageTime values
+        const timeA = a.lastMessageTime ?? 0;
+        const timeB = b.lastMessageTime ?? 0;
+        return timeB - timeA;
+      })
+
+      // 새 채팅을 기존 목록에 추가하거나 교체
+      if (append) {
+        setChats(prevChats => [...prevChats, ...newChats])
+      } else {
+        setChats(newChats)
+      }
+      
+      // 초기 로드 완료 표시
+      if (page === 1) {
+        setInitialLoadComplete(true)
+      }
+      
+      // 다음 페이지 설정
+      if (append) {
+        setCurrentPage(page)
+      }
+      
+      setIsLoadingMore(false)
     } catch (error) {
       console.error('Error in loadChats:', error)
+      setIsLoadingMore(false)
     }
   }
+
+  // IntersectionObserver 설정
+  useEffect(() => {
+    // 스크롤 관찰자 설정 (무한 스크롤용)
+    if (isExpanded && initialLoadComplete && hasMore) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting && !isLoadingMore && hasMore) {
+            loadChats(currentPage + 1, true)
+          }
+        },
+        { threshold: 0.1 }
+      )
+
+      if (loadMoreTriggerRef.current) {
+        observer.observe(loadMoreTriggerRef.current)
+      }
+      
+      observerRef.current = observer
+      
+      return () => {
+        if (observerRef.current) {
+          observerRef.current.disconnect()
+        }
+      }
+    }
+  }, [isExpanded, initialLoadComplete, currentPage, isLoadingMore, hasMore])
 
   const handleDeleteChat = async (chatId: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -242,7 +394,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
         router.push('/')
       }
 
-      loadChats()
+      loadChats(currentPage, false)
     } catch (error) {
       console.error('Failed to delete chat:', error)
       alert('Failed to delete chat.')
@@ -275,7 +427,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
       }
 
       router.push('/')
-      loadChats()
+      loadChats(currentPage, false)
     } catch (error) {
       console.error('Failed to delete all chats:', error)
       alert('Failed to delete chats.')
@@ -496,56 +648,70 @@ export function Sidebar({ user, onClose }: SidebarProps) {
           {isExpanded && (
             <div className="space-y-3 sm:space-y-6 pb-4 pl-0 ml-4 border-l border-[var(--sidebar-divider)] relative">
               {chats.length > 0 ? (
-                chats.map((chat) => (
-                  <div
-                    key={chat.id}
-                    className="group shortcut-item bg-[var(--accent)]/5 hover:bg-[var(--accent)]/20 p-3 rounded-lg relative transition-all cursor-pointer"
-                    onClick={() => {
-                      router.push(`/chat/${chat.id}`)
-                      onClose?.()
-                    }}
-                  >
-                    <div className="flex pr-12">
-                      <div className="flex-1 flex flex-col gap-1 text-left">
-                        <span className="text-sm font-medium tracking-wide">
-                          {chat.title.length > 40 ? chat.title.substring(0, 40) + '...' : chat.title}
-                        </span>
-                        <span className="text-xs line-clamp-2 text-[var(--muted)]">
-                          {(() => {
-                            const date = new Date(chat.lastMessageTime || chat.created_at);
-                            return date.toLocaleDateString();
-                          })()}
-                        </span>
-                      </div>
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1 items-center justify-center">
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteChat(chat.id, e);
-                          }}
-                          className="p-1.5 rounded-md bg-[var(--accent)]/20 hover:bg-red-500/20 transition-colors"
-                          title="Delete chat"
-                          type="button"
-                          aria-label="Delete chat"
-                        >
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
+                <>
+                  {chats.map((chat) => (
+                    <div
+                      key={chat.id}
+                      className="group shortcut-item bg-[var(--accent)]/5 hover:bg-[var(--accent)]/20 p-3 rounded-lg relative transition-all cursor-pointer"
+                      onClick={() => {
+                        router.push(`/chat/${chat.id}`)
+                        onClose?.()
+                      }}
+                    >
+                      <div className="flex pr-12">
+                        <div className="flex-1 flex flex-col gap-1 text-left">
+                          <span className="text-sm font-medium tracking-wide">
+                            {chat.title.length > 40 ? chat.title.substring(0, 40) + '...' : chat.title}
+                          </span>
+                          <span className="text-xs line-clamp-2 text-[var(--muted)]">
+                            {(() => {
+                              const date = new Date(chat.lastMessageTime || chat.created_at);
+                              return date.toLocaleDateString();
+                            })()}
+                          </span>
+                        </div>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1 items-center justify-center">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteChat(chat.id, e);
+                            }}
+                            className="p-1.5 rounded-md bg-[var(--accent)]/20 hover:bg-red-500/20 transition-colors"
+                            title="Delete chat"
+                            type="button"
+                            aria-label="Delete chat"
                           >
-                            <polyline points="3 6 5 6 21 6"></polyline>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                          </svg>
-                        </button>
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <polyline points="3 6 5 6 21 6"></polyline>
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                  
+                  {/* 무한 스크롤 트리거 & 로딩 인디케이터 */}
+                  {hasMore && (
+                    <div 
+                      ref={loadMoreTriggerRef} 
+                      className="flex justify-center py-4"
+                    >
+                      {isLoadingMore && (
+                        <div className="w-6 h-6 border-2 border-t-transparent border-[var(--foreground)] rounded-full animate-spin"></div>
+                      )}
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="px-4 py-3 text-sm text-[var(--muted)] text-center bg-[var(--accent)]/5 rounded-lg">
                   No chats yet
