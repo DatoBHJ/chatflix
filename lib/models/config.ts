@@ -820,7 +820,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'July 2024',
     abbreviation: 'DSR1-T',
     country: 'CHINA',
-    // description: 'Developed by DeepSeek hosted by Together.ai. Faster than the official DeepSeek R1',
+    description: 'High speed version of DeepSeek R1',
     provider: 'together',
     supportsVision: false,
     // censored: true,
@@ -848,7 +848,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'July 2024',
     abbreviation: 'DSV3',
     country: 'CHINA',
-    // description: 'Previous generation of DeepSeek V3 hosted by Together.ai. Faster than the official DeepSeek V3',
+    description: 'High speed version of DeepSeek V3',
     provider: 'together',
     supportsVision: false,
     rateLimit: {
