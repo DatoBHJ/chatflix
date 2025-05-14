@@ -329,15 +329,15 @@ export async function POST(req: Request) {
             if (analysis.category === 'technical') {
               // 기술 카테고리는 복잡도에 따라 다른 모델 사용
               if (analysis.complexity === 'complex') {
-                model = 'grok-3-mini';
+                model = 'grok-3-mini-fast';
               } else {
-                // 단순 및 중간 복잡도는 grok-3사용
-                model = 'grok-3';
+                // 단순 및 중간 복잡도는 grok-3 사용
+                model = 'grok-3-fast';
               }
             } 
             else if (analysis.category === 'math') {
-              // 수학 카테고리는 복잡도에 관계없이 grok-3-mini 사용
-              model = 'grok-3-mini';
+              // 수학 카테고리는 복잡도에 관계없이 gemini 2.5 pro 사용
+              model = 'gemini-2.5-pro-preview-05-06';
             }
             else {
               // 기타 카테고리는 복잡도에 따라 다른 모델 사용
@@ -346,7 +346,7 @@ export async function POST(req: Request) {
                 model = 'gpt-4.1-mini';
               } else {
                 // 중간/복잡 복잡도는 grok-3 사용
-                model = 'grok-3';
+                model = 'grok-3-fast';
               }
             }
           }
@@ -1439,7 +1439,7 @@ IMPORTANT:
 
                   // 구조화된 응답 생성
                   const objectResult = await streamObject({
-                    model: providers.languageModel('grok-3'),
+                    model: providers.languageModel('grok-3-fast'),
                     schema: z.object({
                       response: z.object({
                         description: z.string().describe('Brief description of the supporting files being provided (if any). If no files are needed, explain why.'),
