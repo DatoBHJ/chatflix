@@ -104,9 +104,6 @@ export async function POST(req: Request) {
         const lastUserMessage = messages[messages.length - 1];
         let lastUserContent = '';
         
-        // 디버깅: 실제 메시지 구조 확인
-        console.log('Chatflix routing - Message structure:', JSON.stringify(lastUserMessage, null, 2));
-        
         // 텍스트 콘텐츠 추출
         if (typeof lastUserMessage.content === 'string') {
           lastUserContent = lastUserMessage.content;
@@ -116,16 +113,6 @@ export async function POST(req: Request) {
             .filter((part: { type: string }) => part.type === 'text')
             .map((part: { text: string }) => part.text);
           lastUserContent = textParts.join('\n');
-          
-          // 디버깅: 멀티모달 메시지의 각 파트 타입 확인
-          console.log('Chatflix routing - Message parts:', 
-            lastUserMessage.content.map((part: any) => ({ 
-              type: part.type,
-              hasFile: part.type === 'file' ? !!part.file : false,
-              fileName: part.type === 'file' && part.file?.name ? part.file.name : null,
-              contentType: part.type === 'file' && part.file?.contentType ? part.file.contentType : null
-            }))
-          );
         }
         
         // 전체 대화 이력에서 멀티모달 요소 확인 - 수정된 구조 반영
@@ -238,15 +225,6 @@ export async function POST(req: Request) {
         const hasImage = hasImageInMessage || hasImageInHistory;
         const hasPDF = hasPDFInMessage || hasPDFInHistory;
         
-        // 디버깅: 이미지/PDF 감지 결과
-        console.log('Chatflix routing - Media detection:', {
-          hasImageInMessage,
-          hasImageInHistory,
-          hasPDFInMessage,
-          hasPDFInHistory,
-          finalHasImage: hasImage,
-          finalHasPDF: hasPDF
-        });
         
         try {
           // Gemini 2.0 Flash로 쿼리 분석
@@ -292,7 +270,6 @@ export async function POST(req: Request) {
           
           // 코드 첨부 파일이 있으면 코딩 카테고리로 강제 설정 (복잡도는 유지)
           if (hasCodeAttachment) {
-            console.log('Code file attachment detected, forcing coding category');
             analysis.category = 'coding';
           }
           
@@ -350,18 +327,7 @@ export async function POST(req: Request) {
               }
             }
           }
-          
-          // 향상된 라우팅 로그 출력
-          console.log(`Chatflix Ultimate routing decision:`, {
-            routedModel: model,
-            routingReason: `${hasImage ? '이미지' : hasPDF ? 'PDF' : hasCodeAttachment ? '코드파일' : '텍스트'} + ${analysis.complexity} + ${analysis.category} + 'reasoning' + ${analysis.reasoning}`,
-            category: analysis.category,
-            complexity: analysis.complexity,
-            hasImage,
-            hasPDF,
-            hasCodeAttachment,
-            originalCategory: hasCodeAttachment ? analysisResult.object.category : undefined
-          });
+
           
         } catch (error) {
           console.error('Error in Chatflix Ultimate routing:', error);
@@ -460,7 +426,6 @@ export async function POST(req: Request) {
       execute: async (dataStream) => {
           // 비구독자이고 임계값 이상일 때만 지연 적용
           if (shouldDelay) {
-            console.log(`Not subscribed and exceeded threshold (${currentRequestCount}/${REQUEST_THRESHOLD}), delaying response`);
             dataStream.writeMessageAnnotation({
               type: 'subscription_status',
               data: { 
@@ -472,9 +437,6 @@ export async function POST(req: Request) {
             
             // 인위적 지연 적용 (약 15초)
             await new Promise(resolve => setTimeout(resolve, 15000));
-          }
-          else {
-            console.log(`No delay needed: ${isSubscribed ? 'Subscribed' : `Free tier (${currentRequestCount}/${REQUEST_THRESHOLD})`}`);
           }
           
           let sessionValidationPromise;
@@ -839,7 +801,7 @@ Remember: The plan should outline HOW you will solve the problem, not just WHAT 
                     dataStream.writeMessageAnnotation({
                       type: 'agent_reasoning_progress',
                       data: {
-                        reasoning: inProgressReasoning,
+                        agentThoughts: inProgressReasoning,
                         plan: inProgressPlan,
                         selectionReasoning: inProgressSelectionReasoning,
                         workflowMode: inProgressWorkflowMode,
@@ -884,7 +846,7 @@ Remember: The plan should outline HOW you will solve the problem, not just WHAT 
             const agentReasoningAnnotation = {
               type: 'agent_reasoning',
               data: JSON.parse(JSON.stringify({
-                reasoning: routingDecision.reasoning,
+                agentThoughts: routingDecision.reasoning,
                 plan: routingDecision.plan,
                 selectionReasoning: routingDecision.selectionReasoning,
                 workflowMode: routingDecision.workflowMode,
@@ -902,13 +864,16 @@ Remember: The plan should outline HOW you will solve the problem, not just WHAT 
                 isComplete: true
               }))
             };
+            console.log('--------------------------------');
+            console.log("agentReasoningAnnotation", agentReasoningAnnotation);
+            console.log('--------------------------------');
             
             // JSON.parse/stringify를 통해 JSONValue 타입으로 변환하여 타입 오류 해결
             dataStream.writeMessageAnnotation(agentReasoningAnnotation);
             
             // 저장용 추론 데이터 객체 생성
             const agentReasoningData = {
-              reasoning: routingDecision.reasoning,
+              agentThoughts: routingDecision.reasoning,
               plan: routingDecision.plan,
               selectionReasoning: routingDecision.selectionReasoning,
               workflowMode: routingDecision.workflowMode,
@@ -1169,14 +1134,8 @@ ${responseInstructions}
 Remember to maintain the language of the user's query throughout your response.
             `;
 
-            console.log('--------------------------------');
-            console.log('systemPromptAgent', JSON.stringify(systemPromptAgent, null, 2),'\n\n');
-            console.log('--------------------------------');
-
             const messages = convertMultiModalToMessage(optimizedMessages.slice(-6));
-            console.log('--------------------------------');
-            console.log('messages', JSON.stringify(messages, null, 2),'\n\n');
-            console.log('--------------------------------');
+
 
             const finalstep = streamText({
               model: providers.languageModel(model),
@@ -1274,8 +1233,6 @@ Remember to maintain the language of the user's query throughout your response.
                     
                     toolSummaries.push(`LINK READER RESULTS: ${JSON.stringify(simplifiedLinks)}`);
                     
-                    // Log that content is being passed to follow-up phases
-                    console.log(`[DEBUG-JINA] Passing link content to follow-up phases for ${simplifiedLinks.length} links`);
                   }
                   
                   if (toolResults.generatedImages && toolResults.generatedImages.length > 0) {
@@ -1575,22 +1532,14 @@ IMPORTANT:
               }
               return false;
             });
-            // console.log('--------------------------------');
-            // console.log('processMessages', JSON.stringify(processMessages, null, 2),'\n\n');
-            // console.log('--------------------------------');
-            // 토큰 제한 내에서 메시지 선택
+
             const optimizedMessages = selectMessagesWithinTokenLimit(
               processMessages, 
               remainingTokens,
               hasFileAttachments
             );
-            // console.log('--------------------------------');
-            // console.log('optimizedMessages', JSON.stringify(optimizedMessages, null, 2),'\n\n');
-            // console.log('--------------------------------');
+
             const messages = convertMultiModalToMessage(optimizedMessages);
-            console.log('--------------------------------');
-            console.log('messages', JSON.stringify(messages, null, 2),'\n\n');
-            console.log('--------------------------------');
 
             const result = streamText({
               model: providers.languageModel(model),

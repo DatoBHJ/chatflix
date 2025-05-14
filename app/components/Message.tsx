@@ -525,7 +525,7 @@ const Message = memo(function MessageComponent({
       
       // 기존 상태와 비교하여 다른 경우에만 업데이트
       if (!currentReasoning || 
-          currentReasoning.reasoning !== latestProgress.reasoning ||
+          currentReasoning.agentThoughts !== latestProgress.agentThoughts ||
           currentReasoning.timestamp !== latestProgress.timestamp) {
         // isComplete 속성이 확실히 boolean 타입이 되도록 보장
         setCurrentReasoning({
@@ -776,7 +776,7 @@ const Message = memo(function MessageComponent({
                 >
                   <div className="flex items-center gap-2.5">
                     <Brain className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-                    <h2 className="font-medium text-left tracking-tight">Chatflix Reasoning</h2>
+                    <h2 className="font-medium text-left tracking-tight">Planning Next Move</h2>
                   </div>
                   <div className="flex items-center gap-2">
                     {/* 상태 표시기를 여기로 이동 */}
@@ -908,20 +908,20 @@ const Message = memo(function MessageComponent({
                     
                     {/* 추론 내용 표시 */}
                     <div className="bg-[color-mix(in_srgb,var(--foreground)_4%,transparent)] p-3 rounded-md">
-                      <h4 className="text-sm font-medium mb-2">Reasoning Process</h4>
-                      <div className="whitespace-pre-wrap text-sm">{currentReasoning.reasoning}</div>
+                      <h4 className="text-sm font-medium mb-2">Reasoning</h4>
+                      <div className="whitespace-pre-wrap text-sm">{currentReasoning.agentThoughts}</div>
                     </div>
                     
                     {currentReasoning.plan && (
                       <div className="bg-[color-mix(in_srgb,var(--foreground)_4%,transparent)] p-3 rounded-md">
-                        <h4 className="text-sm font-medium mb-2">Execution Plan</h4>
+                        <h4 className="text-sm font-medium mb-2">Planning</h4>
                         <div className="whitespace-pre-wrap text-sm">{currentReasoning.plan}</div>
                       </div>
                     )}
                     
                     {currentReasoning.selectionReasoning && (
                       <div className="bg-[color-mix(in_srgb,var(--foreground)_4%,transparent)] p-3 rounded-md">
-                        <h4 className="text-sm font-medium mb-2">Tool Selection Rationale</h4>
+                        <h4 className="text-sm font-medium mb-2">Selecting Tools</h4>
                         <div className="whitespace-pre-wrap text-sm">{currentReasoning.selectionReasoning}</div>
                       </div>
                     )}
@@ -1129,7 +1129,7 @@ const Message = memo(function MessageComponent({
               >
                 <div className="flex items-center gap-2.5">
                   <Brain className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-                  <h2 className="font-medium text-left tracking-tight">Chatflix Reasoning</h2>
+                  <h2 className="font-medium text-left tracking-tight">Planning Next Move</h2>
                 </div>
                 <div className="flex items-center gap-2">
                   {/* 상태 표시기를 여기로 이동 */}
@@ -1261,20 +1261,20 @@ const Message = memo(function MessageComponent({
                   
                   {/* 추론 내용 표시 */}
                   <div className="bg-[color-mix(in_srgb,var(--foreground)_4%,transparent)] p-3 rounded-md">
-                    <h4 className="text-sm font-medium mb-2">Reasoning Process</h4>
-                    <div className="whitespace-pre-wrap text-sm">{currentReasoning.reasoning}</div>
+                    <h4 className="text-sm font-medium mb-2">Reasoning</h4>
+                    <div className="whitespace-pre-wrap text-sm">{currentReasoning.agentThoughts}</div>
                   </div>
                   
                   {currentReasoning.plan && (
                     <div className="bg-[color-mix(in_srgb,var(--foreground)_4%,transparent)] p-3 rounded-md">
-                      <h4 className="text-sm font-medium mb-2">Execution Plan</h4>
+                      <h4 className="text-sm font-medium mb-2">Planning</h4>
                       <div className="whitespace-pre-wrap text-sm">{currentReasoning.plan}</div>
                     </div>
                   )}
                   
                   {currentReasoning.selectionReasoning && (
                     <div className="bg-[color-mix(in_srgb,var(--foreground)_4%,transparent)] p-3 rounded-md">
-                      <h4 className="text-sm font-medium mb-2">Tool Selection Rationale</h4>
+                      <h4 className="text-sm font-medium mb-2">Selecting Tools</h4>
                       <div className="whitespace-pre-wrap text-sm">{currentReasoning.selectionReasoning}</div>
                     </div>
                   )}

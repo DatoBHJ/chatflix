@@ -1143,7 +1143,7 @@ export default function Chat({ params }: PageProps) {
       .sort((a, b) => new Date(a?.data?.timestamp || 0).getTime() - new Date(b?.data?.timestamp || 0).getTime());
     
     const formatReasoningData = (data: any) => ({
-      reasoning: data?.reasoning || '',
+      agentThoughts: data?.agentThoughts || data?.reasoning || '',
       plan: data?.plan || '',
       selectionReasoning: data?.selectionReasoning || '',
       needsWebSearch: Boolean(data?.needsWebSearch),
