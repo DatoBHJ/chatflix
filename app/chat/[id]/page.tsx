@@ -751,10 +751,10 @@ export default function Chat({ params }: PageProps) {
     }
 
     const messageContent = []
-    if (input.trim()) {
+    if (input) {
       messageContent.push({
         type: 'text',
-        text: input.trim()
+        text: input
       })
     }
     

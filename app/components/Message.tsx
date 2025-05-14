@@ -340,6 +340,62 @@ function isReasoningComplete(message: any): boolean {
   return false;
 }
 
+// URL을 자동으로 감지하여 링크로 변환하는 유틸리티 함수 추가
+function linkifyText(text: string) {
+  // URL 패턴 (http, https로 시작하는 URL 감지)
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  
+  const parts = text.split(urlRegex);
+  const result = [];
+  
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (part.match(urlRegex)) {
+      // URL인 경우 a 태그로 감싸기
+      result.push(
+        <a 
+          key={i} 
+          href={part} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-blue-500 hover:underline break-all"
+        >
+          {part}
+        </a>
+      );
+    } else if (part) {
+      // 일반 텍스트인 경우 그대로 추가
+      result.push(<React.Fragment key={i}>{part}</React.Fragment>);
+    }
+  }
+  
+  return result;
+}
+
+// 사용자 메시지 전용 렌더링 컴포넌트
+function UserMessageContent({ content }: { content: string }) {
+  // 줄바꿈 처리 (텍스트에서 \n을 <br />로 변환)
+  const processedContent = content.split('\n').map((line, index, array) => (
+    <React.Fragment key={index}>
+      {linkifyText(line)}
+      {index < array.length - 1 && <br />}
+    </React.Fragment>
+  ));
+  
+  return (
+    <div 
+      className="user-message-content"
+      style={{
+        whiteSpace: 'pre-wrap',        // 공백과 줄바꿈 보존
+        wordBreak: 'break-word',       // 긴 단어 줄바꿈
+        overflowWrap: 'break-word',    // 긴 단어가 컨테이너를 넘어갈 때 줄바꿈
+      }}
+    >
+      {processedContent}
+    </div>
+  );
+}
+
 // Create a memoized Message component to prevent unnecessary re-renders
 const Message = memo(function MessageComponent({
   message,
@@ -1281,7 +1337,7 @@ const Message = memo(function MessageComponent({
                 <AttachmentPreview attachments={message.experimental_attachments!} messageId={message.id} />
               )}
               
-              {/* 그 다음 텍스트 파트 표시 */}
+              {/* 그 다음 텍스트 파트 표시 - 사용자/어시스턴트 구분 */}
               {message.parts ? (
                 <>
                   {/* 먼저 reasoning 파트를 찾아서 표시 */}
@@ -1301,7 +1357,7 @@ const Message = memo(function MessageComponent({
                     })()
                   )}
                   
-                  {/* 그 다음 텍스트 파트 표시 */}
+                  {/* 그 다음 텍스트 파트 표시 - 사용자/어시스턴트 구분 */}
                   {message.parts.map((part, index) => {
                     if (part.type === 'text') {
                       const shouldTruncate = isUser && !isEditing && !expandedMessages[message.id];
@@ -1313,7 +1369,14 @@ const Message = memo(function MessageComponent({
                       
                       return (
                         <React.Fragment key={index}>
-                          <MarkdownContent content={shouldTruncate ? truncateMessage(part.text) : part.text} />
+                          {isUser ? (
+                            // 사용자 메시지: 직접 렌더링
+                            <UserMessageContent content={shouldTruncate ? truncateMessage(part.text) : part.text} />
+                          ) : (
+                            // 어시스턴트 메시지: 마크다운으로 렌더링
+                            <MarkdownContent content={part.text} />
+                          )}
+                          
                           {isAssistant && isStreaming && isLastTextPart && (
                             <div className="loading-dots text-sm inline-block ml-0">
                               <span>.</span>
@@ -1321,6 +1384,7 @@ const Message = memo(function MessageComponent({
                               <span>.</span>
                             </div>
                           )}
+                          
                           {shouldTruncate && isLongMessage && (
                             <div 
                               onClick={() => toggleMessageExpansion(message.id)}
@@ -1329,6 +1393,7 @@ const Message = memo(function MessageComponent({
                               ... Read more
                             </div>
                           )}
+                          
                           {!shouldTruncate && isLongMessage && expandedMessages[message.id] && (
                             <div 
                               onClick={() => toggleMessageExpansion(message.id)}
@@ -1345,7 +1410,14 @@ const Message = memo(function MessageComponent({
                 </>
               ) : (
                 <>
-                  <MarkdownContent content={isUser && !isEditing && !expandedMessages[message.id] ? truncateMessage(message.content) : message.content} />
+                  {isUser ? (
+                    // 사용자 메시지: 직접 렌더링
+                    <UserMessageContent content={isUser && !isEditing && !expandedMessages[message.id] ? truncateMessage(message.content) : message.content} />
+                  ) : (
+                    // 어시스턴트 메시지: 마크다운으로 렌더링
+                    <MarkdownContent content={message.content} />
+                  )}
+                  
                   {isAssistant && isStreaming && (
                     <div className="loading-dots text-sm inline-block ml-1">
                       <span>.</span>
@@ -1353,6 +1425,7 @@ const Message = memo(function MessageComponent({
                       <span>.</span>
                     </div>
                   )}
+                  
                   {isUser && !isEditing && message.content.length > 300 && (
                     <div 
                       onClick={() => toggleMessageExpansion(message.id)}

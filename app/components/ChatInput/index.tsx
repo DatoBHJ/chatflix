@@ -105,8 +105,8 @@ export function ChatInput({
   const debouncedInputHandler = useCallback(() => {
     if (!inputRef.current || isSubmittingRef.current) return;
     
-    // 현재 텍스트 콘텐츠 가져오기
-    const content = inputRef.current.textContent || '';
+    // 현재 텍스트 콘텐츠 가져오기 (innerText로 변경하여 공백 유지)
+    const content = inputRef.current.innerText || '';
     
     // 이전 텍스트와 동일하면 처리 스킵 (불필요한 처리 방지)
     if (content === lastTextContentRef.current) return;
@@ -126,7 +126,7 @@ export function ChatInput({
     handleInputChange(event);
   }, [handleInputChange]);
 
-  // 붙여넣기 이벤트 핸들러
+  // 붙여넣기 이벤트 핸들러 - 성능 최적화 버전
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
     e.preventDefault();
     
@@ -135,68 +135,134 @@ export function ChatInput({
     // 클립보드에서 일반 텍스트 가져오기
     const text = e.clipboardData.getData('text/plain');
     
-    // 현재 선택 영역 가져오기
+    // 매우 큰 텍스트인 경우 처리 방식 최적화
+    if (text.length > 10000) {
+      // 현재 선택 영역 가져오기
+      const selection = window.getSelection();
+      if (!selection?.rangeCount) return;
+      
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      
+      // 사용자에게 처리 중임을 알림
+      const processingNode = document.createElement('span');
+      processingNode.textContent = '처리 중...';
+      processingNode.style.opacity = '0.7';
+      range.insertNode(processingNode);
+      
+      // 큰 텍스트 비동기 처리를 위해 setTimeout 사용
+      setTimeout(() => {
+        if (!inputRef.current) return;
+        
+        // 중간 처리 메시지 제거
+        if (processingNode.parentNode) {
+          processingNode.parentNode.removeChild(processingNode);
+        }
+        
+        // 한 번의 DOM 조작으로 처리하기 위한 HTML 생성
+        const fragment = document.createDocumentFragment();
+        const lines = text.split('\n');
+        const chunkSize = 100; // 한 번에 처리할 줄 수
+        
+        // 청크 처리 함수
+        const processChunk = (startIndex: number) => {
+          const endIndex = Math.min(startIndex + chunkSize, lines.length);
+          
+          for (let i = startIndex; i < endIndex; i++) {
+            if (lines[i].length > 0) {
+              fragment.appendChild(document.createTextNode(lines[i]));
+            }
+            
+            if (i < lines.length - 1) {
+              fragment.appendChild(document.createElement('br'));
+            }
+          }
+          
+          // 다음 청크가 있으면 비동기적으로 처리
+          if (endIndex < lines.length) {
+            // 현재 처리된 내용을 DOM에 추가
+            range.insertNode(fragment);
+            range.collapse(false);
+            
+            // 다음 청크 예약 (낮은 우선순위로)
+            requestIdleCallback(() => {
+              processChunk(endIndex);
+            }, { timeout: 500 });
+          } else {
+            // 마지막 청크 처리 완료
+            range.insertNode(fragment);
+            range.collapse(false);
+            
+            // 선택 영역 업데이트 및 커서 위치 설정
+            selection.removeAllRanges();
+            selection.addRange(range);
+            
+            // 모든 처리가 끝난 후 입력 핸들러 호출
+            debouncedInputHandler();
+            
+            // 포커스 유지
+            inputRef.current?.focus();
+          }
+        };
+        
+        // 첫 번째 청크 처리 시작
+        processChunk(0);
+      }, 0);
+      
+      return;
+    }
+    
+    // 일반적인 크기의 텍스트는 기존 방식으로 처리
     const selection = window.getSelection();
     if (!selection?.rangeCount) return;
     
     const range = selection.getRangeAt(0);
-    
-    // 커서 위치에 텍스트 삽입 - 한 번의 DOM 조작으로 처리
     range.deleteContents();
-    const textNode = document.createTextNode(text.replace(/\n/g, ' '));
-    range.insertNode(textNode);
     
-    // 성능 개선: 정규식 처리를 한 번만 수행하고 DOM 조작 최소화
-    requestAnimationFrame(() => {
-      if (!inputRef.current) return;
-      
-      // 내용이 줄바꿈 없이 평평하게 유지되도록 정규화
-      let content = inputRef.current.innerHTML;
-      if (content.includes('<div>') || content.includes('<br')) {
-        content = content
-          .replace(/<div>/g, '')
-          .replace(/<\/div>/g, '')
-          .replace(/<br\s*\/?>/g, ' ')
-          .replace(/\s+/g, ' ');
-        
-        inputRef.current.innerHTML = content;
+    // 단일 문서 조각으로 모든 내용을 한 번에 구성
+    const fragment = document.createDocumentFragment();
+    const lines = text.split('\n');
+    
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].length > 0) {
+        fragment.appendChild(document.createTextNode(lines[i]));
       }
       
-      // 커서를 텍스트 끝으로 이동 (수정된 부분)
-      const selection = window.getSelection();
-      const range = document.createRange();
-      
-      // 마지막 텍스트 노드 찾기
-      const walker = document.createTreeWalker(
-        inputRef.current,
-        NodeFilter.SHOW_TEXT,
-        null
-      );
-      
-      let lastNode: Text | null = null;
-      let node: Node | null;
-      while ((node = walker.nextNode())) {
-        if (node.nodeType === Node.TEXT_NODE) {
-          lastNode = node as Text;
-        }
+      if (i < lines.length - 1) {
+        fragment.appendChild(document.createElement('br'));
       }
-      
-      if (lastNode) {
-        // 커서를 마지막 텍스트 노드의 끝으로 이동
-        range.setStart(lastNode, lastNode.length);
-        range.collapse(true);
-        selection?.removeAllRanges();
-        selection?.addRange(range);
-      }
-      
-      // 입력 필드에 포커스 유지
-      inputRef.current.focus();
-      
-      // 멘션 처리를 위해 짧은 지연 후 입력 핸들러 호출
-      debouncedInputHandler();
-    });
+    }
+    
+    // 한 번의 DOM 조작으로 모든 내용 삽입
+    range.insertNode(fragment);
+    range.collapse(false);
+    
+    // 선택 영역 업데이트
+    selection.removeAllRanges();
+    selection.addRange(range);
+    
+    // 입력 핸들러 호출
+    debouncedInputHandler();
+    
+    // 포커스 유지
+    inputRef.current.focus();
   };
-  
+
+  // requestIdleCallback 폴리필 (일부 브라우저 호환성을 위해)
+  const requestIdleCallback = 
+    window.requestIdleCallback ||
+    function(cb: IdleRequestCallback, options?: IdleRequestOptions) {
+      const start = Date.now();
+      return window.setTimeout(function() {
+        cb({
+          didTimeout: false,
+          timeRemaining: function() {
+            return Math.max(0, 50 - (Date.now() - start));
+          }
+        });
+      }, options?.timeout || 1);
+    };
+
   // 커서 위치 얻기 함수 (성능 최적화)
   const getCursorPosition = (element: HTMLElement): number => {
     const selection = window.getSelection();
@@ -225,7 +291,7 @@ export function ChatInput({
     debounceTimerRef.current = setTimeout(() => {
       if (!inputRef.current) return;
       
-      const content = inputRef.current.textContent || '';
+      const content = inputRef.current.innerText || '';
       const cursorPosition = getCursorPosition(inputRef.current);
       
       // 최적화된 멘션 검색 - 커서 위치 주변 컨텍스트 활용
@@ -279,89 +345,158 @@ export function ChatInput({
   const handleShortcutSelect = (shortcut: PromptShortcut) => {
     if (!inputRef.current || mentionStartPosition === null) return;
     
-    // 현재 컨텐츠와 커서 상태 가져오기
-    const content = inputRef.current.textContent || '';
-    const beforeMention = content.slice(0, mentionStartPosition);
-    const afterMention = content.slice(mentionQueryActive ? getCursorPosition(inputRef.current) : mentionStartPosition);
-    
-    // 멘션 삽입 전 DOM 상태 저장
-    const range = document.createRange();
-    const selection = window.getSelection();
-    
-    // 멘션 태그 생성 (트위터 스타일)
-    const mentionTag = document.createElement('span');
-    mentionTag.className = 'mention-tag-wrapper';
-    
-    // 멘션 데이터 저장
-    const mentionData = {
-      id: shortcut.id,
-      name: shortcut.name,
-      content: shortcut.content
-    };
-    
-    // 멘션 내부 구조 생성
-    const mentionInner = document.createElement('span');
-    mentionInner.className = 'mention-tag';
-    mentionInner.contentEditable = 'false';
-    mentionInner.dataset.shortcutId = shortcut.id;
-    mentionInner.dataset.mentionData = JSON.stringify(mentionData);
-    mentionInner.textContent = `@${shortcut.name}`;
-    
-    // 멘션 태그에 추가
-    mentionTag.appendChild(mentionInner);
-    
-    // 새 컨텐츠 구성 (불필요한 DOM 조작 감소)
-    const newContent = document.createDocumentFragment();
-    
-    // 멘션 이전 텍스트 추가
-    if (beforeMention) {
-      newContent.appendChild(document.createTextNode(beforeMention));
-    }
-    
-    // 멘션 태그 추가
-    newContent.appendChild(mentionTag);
-    
-    // 공백 추가 (멘션 후 띄어쓰기)
-    newContent.appendChild(document.createTextNode(' '));
-    
-    // 나머지 텍스트 추가
-    if (afterMention && !mentionQueryActive) {
-      newContent.appendChild(document.createTextNode(afterMention));
-    }
-    
-    // 한 번의 작업으로 내용 교체
-    inputRef.current.innerHTML = '';
-    inputRef.current.appendChild(newContent);
-    
-    // 부모 컴포넌트 상태 업데이트
-    const updatedText = inputRef.current.textContent || '';
-    lastTextContentRef.current = updatedText; // 참조 업데이트
-    handleInputChange({
-      target: { value: updatedText }
-    } as React.ChangeEvent<HTMLTextAreaElement>);
-    
-    // 커서 위치 조정 (멘션 태그 뒤로)
-    requestAnimationFrame(() => {
-      if (!inputRef.current) return;
+    try {
+      // 현재 선택 상태 가져오기
+      const selection = window.getSelection();
+      if (!selection?.rangeCount) return;
+      const range = selection.getRangeAt(0);
       
-      // 멘션 태그 다음 노드 찾기
-      const mentionElement = inputRef.current.querySelector('.mention-tag-wrapper');
-      if (mentionElement && mentionElement.nextSibling) {
-        const nextNode = mentionElement.nextSibling;
-        if (nextNode.nodeType === Node.TEXT_NODE) {
-          // 텍스트 노드면 커서를 텍스트 시작 위치에 설정
-          range.setStart(nextNode, 1); // 공백 다음으로 이동
+      // 멘션 삽입을 위한 범위 계산
+      const cursorPos = getCursorPosition(inputRef.current);
+      
+      // @ 부분부터 현재 커서까지의 콘텐츠 삭제
+      if (mentionQueryActive) {
+        // 전체 DOM 구조를 고려한 안전한 범위 설정 방법 사용
+        // textNode 찾기 및 범위 설정을 위한 새로운 접근법
+        
+        // 텍스트 노드 위치 찾기 및 범위 설정을 위한 새로운 접근법
+        const nodeStack: Node[] = [inputRef.current];
+        let currentTextPosition = 0;
+        let startNode: Node | null = null;
+        let startOffset = 0;
+        let endNode: Node | null = null;
+        let endOffset = 0;
+        
+        // 모든 텍스트 노드를 순회하며 시작 및 끝 위치 찾기
+        while (nodeStack.length > 0) {
+          const currentNode = nodeStack.pop()!;
+          
+          if (currentNode.nodeType === Node.TEXT_NODE) {
+            const textLength = currentNode.textContent?.length || 0;
+            
+            // 시작 노드 설정
+            if (startNode === null && currentTextPosition + textLength > mentionStartPosition) {
+              startNode = currentNode;
+              startOffset = mentionStartPosition - currentTextPosition;
+            }
+            
+            // 끝 노드 설정
+            if (endNode === null && currentTextPosition + textLength >= cursorPos) {
+              endNode = currentNode;
+              endOffset = cursorPos - currentTextPosition;
+              // 시작과 끝 노드를 모두 찾았으면 중단
+              break;
+            }
+            
+            currentTextPosition += textLength;
+          } else {
+            // 자식 노드를 역순으로 스택에 추가 (깊이 우선 탐색)
+            const children = Array.from(currentNode.childNodes);
+            for (let i = children.length - 1; i >= 0; i--) {
+              nodeStack.push(children[i]);
+            }
+          }
+        }
+        
+        // 노드를 찾지 못한 경우의 안전장치
+        if (!startNode || !endNode) {
+          console.log('범위를 설정할 적절한 텍스트 노드를 찾지 못했습니다.');
+          
+          // 안전하게 현재 커서 위치에 삽입
           range.collapse(true);
+        } else {
+          // 범위 설정
+          range.setStart(startNode, startOffset);
+          range.setEnd(endNode, endOffset);
           
-          // 새 선택 영역 적용
-          selection?.removeAllRanges();
-          selection?.addRange(range);
-          
-          // 입력 필드에 포커스 유지
-          inputRef.current.focus();
+          // @와 이후 쿼리 텍스트 삭제
+          range.deleteContents();
         }
       }
-    });
+      
+      // 멘션 태그 생성
+      const mentionTag = document.createElement('span');
+      mentionTag.className = 'mention-tag-wrapper';
+      
+      // 멘션 데이터 저장
+      const mentionData = {
+        id: shortcut.id,
+        name: shortcut.name,
+        content: shortcut.content
+      };
+      
+      // 멘션 내부 구조 생성
+      const mentionInner = document.createElement('span');
+      mentionInner.className = 'mention-tag';
+      mentionInner.dataset.shortcutId = shortcut.id;
+      mentionInner.dataset.mentionData = JSON.stringify(mentionData);
+      mentionInner.textContent = `@${shortcut.name}`;
+      
+      // contentEditable 제거 - CSS로만 스타일링
+      // mentionInner.contentEditable = 'false'; <- 이 속성 제거
+      
+      // 멘션 태그에 추가
+      mentionTag.appendChild(mentionInner);
+      
+      // 멘션 삽입
+      range.insertNode(mentionTag);
+      
+      // 멘션 뒤에 공백 추가
+      const spaceNode = document.createTextNode(' ');
+      range.setStartAfter(mentionTag);
+      range.insertNode(spaceNode);
+      
+      // 커서 위치 조정 (공백 뒤로)
+      range.setStartAfter(spaceNode);
+      range.collapse(true);
+      
+      // 새 선택 영역 적용
+      selection.removeAllRanges();
+      selection.addRange(range);
+      
+      // 입력 필드에 포커스 유지
+      inputRef.current.focus();
+      
+      // 부모 상태 업데이트
+      const updatedText = inputRef.current.innerText || '';
+      lastTextContentRef.current = updatedText; // 참조 업데이트
+      
+      handleInputChange({
+        target: { value: updatedText }
+      } as React.ChangeEvent<HTMLTextAreaElement>);
+    } catch (error) {
+      console.error('Error inserting shortcut:', error);
+      
+      // 오류 발생 시 대체 방법: 마지막 카트 위치에 간단히 삽입
+      try {
+        if (inputRef.current) {
+          const selection = window.getSelection();
+          if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            range.collapse(true);
+            
+            // 단순히 내용 추가
+            const mentionText = document.createTextNode(`@${shortcut.name} `);
+            range.insertNode(mentionText);
+            
+            // 커서 위치 조정
+            range.setStartAfter(mentionText);
+            range.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            
+            // 입력 필드 업데이트
+            const updatedText = inputRef.current.innerText || '';
+            lastTextContentRef.current = updatedText;
+            handleInputChange({
+              target: { value: updatedText }
+            } as React.ChangeEvent<HTMLTextAreaElement>);
+          }
+        }
+      } catch (fallbackError) {
+        console.error('Fallback method also failed:', fallbackError);
+      }
+    }
     
     // 팝업 닫기
     closeShortcutsPopup();
@@ -405,14 +540,14 @@ export function ChatInput({
   const submitMessage = useCallback(async () => {
     if (isSubmittingRef.current || isLoading || !inputRef.current) return;
     
-    const content = inputRef.current?.textContent || '';
+    const content = inputRef.current?.innerText || '';
     if (!content.trim() && files.length === 0) return;
     
     try {
       isSubmittingRef.current = true;
       
       // 텍스트 내용 저장 후 입력 클리어
-      const messageContent = content.trim();
+      const messageContent = content;
       clearInput();
       
       // UI 반응성을 위한 부모 상태 즉시 업데이트
@@ -583,7 +718,7 @@ export function ChatInput({
       }
     } else if (e.key === 'Enter') {
       if (e.shiftKey) {
-        // Shift+Enter: 사파리 호환성을 위한 명시적 줄바꿈 처리
+        // Shift+Enter: 줄바꿈 적용
         e.preventDefault();
         
         // 현재 선택 범위 및 커서 위치 가져오기
@@ -603,8 +738,7 @@ export function ChatInput({
           selection?.addRange(range);
           
           // 입력 변경 이벤트 발생
-          const event = new Event('input', { bubbles: true });
-          inputRef.current.dispatchEvent(event);
+          debouncedInputHandler();
         }
       } else {
         // 일반 Enter: 메시지 제출 - 직접 함수 호출로 이벤트 큐 건너뛰기
@@ -616,6 +750,110 @@ export function ChatInput({
           });
         }
       }
+    } else if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+      // Command+A (전체 선택) 최적화
+      e.preventDefault();
+      optimizedSelectAll();
+    } else if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
+      // Command+X (잘라내기) 최적화
+      handleOptimizedCut();
+    }
+  };
+
+  // 전체 선택 최적화 함수
+  const optimizedSelectAll = () => {
+    if (!inputRef.current) return;
+    
+    // 브라우저 성능 최적화를 위해 requestAnimationFrame 사용
+    requestAnimationFrame(() => {
+      try {
+        const selection = window.getSelection();
+        const range = document.createRange();
+        
+        // 입력 필드가 비어있으면 조기 종료
+        if (!inputRef.current?.firstChild) return;
+        
+        // 내용이 많은 경우 네이티브 선택 메서드 사용
+        if (inputRef.current.innerText && inputRef.current.innerText.length > 1000) {
+          // DOM 조작 최소화를 위해 네이티브 메서드 사용
+          if ('createTextRange' in document.body) {
+            // IE에서의 텍스트 선택 (타입스크립트 오류 수정)
+            const textRange = (document.body as any).createTextRange();
+            textRange.moveToElementText(inputRef.current);
+            textRange.select();
+          } else {
+            // 모던 브라우저
+            range.selectNodeContents(inputRef.current);
+            selection?.removeAllRanges();
+            selection?.addRange(range);
+          }
+        } else {
+          // 간단한 컨텐츠의 경우 표준 범위 선택 사용
+          range.selectNodeContents(inputRef.current);
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+        }
+      } catch (error) {
+        console.error('선택 최적화 중 오류:', error);
+        // 오류 발생 시 표준 선택 명령으로 폴백
+        document.execCommand('selectAll', false);
+      }
+    });
+  };
+
+  // 최적화된 잘라내기 처리 함수
+  const handleOptimizedCut = () => {
+    if (!inputRef.current) return;
+    
+    // 선택된 텍스트가 있는지 확인
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    
+    const range = selection.getRangeAt(0);
+    
+    // 아무것도 선택되지 않은 경우 전체 선택
+    if (range.collapsed) {
+      optimizedSelectAll();
+    }
+    
+    // 시스템 클립보드에 선택 내용 복사
+    try {
+      // 선택 영역을 트래킹하기 위한 범위 클론
+      const selectionRange = selection.getRangeAt(0).cloneRange();
+      const selectedContent = selectionRange.toString();
+      
+      // 클립보드에 복사
+      navigator.clipboard.writeText(selectedContent).then(() => {
+        // 성공적으로 복사된 후 선택 영역 삭제
+        requestAnimationFrame(() => {
+          if (!inputRef.current) return;
+          
+          // 선택 영역 삭제 (단일 DOM 연산으로)
+          selection.getRangeAt(0).deleteContents();
+          
+          // 입력 필드 상태 업데이트
+          if (inputRef.current.innerText?.trim() === '') {
+            inputRef.current.classList.add('empty');
+          }
+          
+          // 부모 컴포넌트 상태 업데이트
+          const event = {
+            target: { value: inputRef.current.innerText || '' }
+          } as React.ChangeEvent<HTMLTextAreaElement>;
+          handleInputChange(event);
+          
+          // 포커스 유지
+          inputRef.current.focus();
+        });
+      }).catch(err => {
+        console.error('클립보드 작업 실패:', err);
+        // 실패시 표준 잘라내기 명령으로 폴백
+        document.execCommand('cut');
+      });
+    } catch (error) {
+      console.error('최적화된 잘라내기 중 오류:', error);
+      // 오류 발생시 표준 잘라내기로 폴백
+      document.execCommand('cut');
     }
   };
 
@@ -629,6 +867,37 @@ export function ChatInput({
     return () => {
       // 모든 URL 정리
       fileMap.forEach(({ url }) => URL.revokeObjectURL(url));
+    };
+  }, []);
+
+  // 추가: 성능 모니터링을 위한 입력 필드 이벤트 핸들러
+  useEffect(() => {
+    if (!inputRef.current) return;
+    
+    // 선택 시작 시 대용량 텍스트 처리에 최적화된 동작
+    const handleSelectionStart = () => {
+      if (inputRef.current && inputRef.current.innerText && 
+          inputRef.current.innerText.length > 5000) {
+        // 대용량 텍스트에서 선택 시작될 때 스타일 최적화
+        inputRef.current.classList.add('optimizing-selection');
+      }
+    };
+    
+    // 선택 종료 시 원래 상태로 복구
+    const handleSelectionEnd = () => {
+      if (inputRef.current) {
+        inputRef.current.classList.remove('optimizing-selection');
+      }
+    };
+    
+    // 이벤트 리스너 등록
+    inputRef.current.addEventListener('selectstart', handleSelectionStart);
+    inputRef.current.addEventListener('mouseup', handleSelectionEnd);
+    
+    // 클린업 함수
+    return () => {
+      inputRef.current?.removeEventListener('selectstart', handleSelectionStart);
+      inputRef.current?.removeEventListener('mouseup', handleSelectionEnd);
     };
   }, []);
 

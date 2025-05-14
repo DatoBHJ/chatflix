@@ -35,7 +35,7 @@ export function useChatInputStyles() {
           }
         }
         
-        /* 퓨처리스틱 입력 필드 스타일 */
+        /* 퓨처리스틱 입력 필드 스타일 - 공백 및 줄바꿈 개선 */
         .futuristic-input {
           position: relative;
           caret-color: currentColor;
@@ -44,6 +44,45 @@ export function useChatInputStyles() {
           color: var(--background);
           overflow-y: auto;
           max-height: 100%;
+          line-height: 1.5;
+          word-wrap: break-word;
+          word-break: break-word;
+          
+          /* 컨텐츠 렌더링 최적화 */
+          contain: content;
+          will-change: transform;
+          transform: translateZ(0);
+        }
+        
+        /* 대용량 텍스트 처리 시 렌더링 최적화 */
+        .futuristic-input:has(> *:nth-child(n+100)) {
+          content-visibility: auto;
+          contain-intrinsic-size: 0 500px;
+        }
+        
+        /* 공백 보존을 위한 스타일 */
+        .futuristic-input br {
+          content: "";
+          display: block;
+          margin-bottom: 0.5em;
+        }
+        
+        /* 연속된 공백 표시 보장 */
+        .futuristic-input span, 
+        .futuristic-input div, 
+        .futuristic-input p {
+          white-space: pre-wrap;
+        }
+        
+        /* 대용량 텍스트 처리 중 표시 스타일 */
+        .futuristic-input .processing-text {
+          color: var(--muted);
+          animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+          0%, 100% { opacity: 0.5; }
+          50% { opacity: 1; }
         }
         
         /* 플레이스홀더 스타일 - 빈 상태일 때만 보이게 */
@@ -81,6 +120,8 @@ export function useChatInputStyles() {
           font-size: 0.95em;
           font-weight: 500;
           white-space: nowrap;
+          cursor: default;
+          user-select: all;
         }
         
         /* 드래그 & 드롭 활성 */
