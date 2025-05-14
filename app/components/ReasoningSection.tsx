@@ -18,28 +18,6 @@ export function ReasoningSection({ content, isStreaming = false, isComplete = fa
       setContentHeight(contentRef.current.scrollHeight);
     }
   }, [content, isExpanded]);
-  
-  useEffect(() => {
-    if (contentRef.current && isExpanded) {
-      const scrollContainer = contentRef.current;
-      const scrollHeight = scrollContainer.scrollHeight;
-      
-      const startScroll = () => {
-        const currentScroll = scrollContainer.scrollTop;
-        const targetScroll = scrollHeight - scrollContainer.clientHeight;
-        const distance = targetScroll - currentScroll;
-        
-        if (distance > 0) {
-          scrollContainer.scrollTo({
-            top: targetScroll,
-            behavior: 'smooth'
-          });
-        }
-      };
-
-      startScroll();
-    }
-  }, [content, isExpanded]);
 
   return (
     <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm mb-8">
