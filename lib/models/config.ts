@@ -841,7 +841,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     intelligenceIndex: 60,
     multilingual:86,
   },
-  // DeepSeek V3 (Mar' 25)
+  // DeepSeek V3
   {
     id: 'deepseek-ai/DeepSeek-V3',
     name: 'DeepSeek V3',
