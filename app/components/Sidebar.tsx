@@ -31,10 +31,10 @@ export function Sidebar({ user, onClose }: SidebarProps) {
   const [isAccountOpen, setIsAccountOpen] = useState(false)
   const [profileImage, setProfileImage] = useState<string | null>(null)
   const [userName, setUserName] = useState('You')
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(true)
   const [isExpandedSystem, setIsExpandedSystem] = useState(false)
   const [isExpandedShortcuts, setIsExpandedShortcuts] = useState(false)
-  const [isSidebarExpanded, setIsSidebarExpanded] = useState(false)
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(true)
 
   // 무한 스크롤 관련 상태 추가
   const [currentPage, setCurrentPage] = useState(1)
@@ -57,48 +57,61 @@ export function Sidebar({ user, onClose }: SidebarProps) {
   // Add function to fetch profile image
   const fetchProfileImage = async (userId: string) => {
     try {
-      // Try to get profile image from storage
-      const { data: profileData, error: profileError } = await supabase
-        .storage
-        .from('profile-pics')
-        .list(`${userId}`);
-
-      if (profileError) {
-        console.error('Error fetching profile image list:', profileError);
+      // Ensure we have a valid user ID before proceeding
+      if (!userId) {
+        console.log('No user ID provided for fetching profile image');
         return;
       }
 
-      // If profile image exists, get public URL
-      if (profileData && profileData.length > 0) {
-        try {
-          const fileName = profileData[0].name;
-          const filePath = `${userId}/${fileName}`;
-          
-          // 유효성 검사 추가
-          if (!fileName || typeof fileName !== 'string') {
-            console.error('Invalid file name returned from storage');
-            return;
-          }
-          
-          const { data } = supabase
-            .storage
-            .from('profile-pics')
-            .getPublicUrl(filePath);
-          
-          if (data && data.publicUrl) {
-            // URL이 유효한지 검사
-            try {
-              new URL(data.publicUrl);
-              setProfileImage(data.publicUrl);
-            } catch (urlError) {
-              console.error('Invalid URL format:', urlError);
-            }
-          } else {
-            console.error('No valid public URL returned');
-          }
-        } catch (error) {
-          console.error('Error getting public URL for profile image:', error);
+      try {
+        // Try to get profile image from storage
+        const { data: profileData, error: profileError } = await supabase
+          .storage
+          .from('profile-pics')
+          .list(`${userId}`);
+
+        if (profileError) {
+          console.error('Error fetching profile image list:', profileError);
+          return;
         }
+
+        // If profile image exists, get public URL
+        if (profileData && profileData.length > 0) {
+          try {
+            const fileName = profileData[0].name;
+            const filePath = `${userId}/${fileName}`;
+            
+            // 유효성 검사 추가
+            if (!fileName || typeof fileName !== 'string') {
+              console.error('Invalid file name returned from storage');
+              return;
+            }
+            
+            // 직접 URL 생성 대신 Supabase CDN 링크 사용
+            const { data } = supabase
+              .storage
+              .from('profile-pics')
+              .getPublicUrl(filePath);
+            
+            // 데이터 유효성 확인 및 URL 검증 로직 개선
+            if (data && data.publicUrl && data.publicUrl.startsWith('http')) {
+              setProfileImage(data.publicUrl);
+            } else {
+              console.log('No valid public URL returned or URL is not properly formatted');
+            }
+          } catch (error) {
+            console.error('Error getting public URL for profile image:', error);
+          }
+        } else {
+          console.log('No profile images found for user');
+        }
+      } catch (error: any) {
+        // 좀 더 자세한 에러 로깅
+        console.error('Error in Supabase storage operation:', 
+          error?.message || error);
+        
+        // 오류가 발생해도 UI는 계속 작동하도록 함
+        return;
       }
     } catch (error) {
       console.error('Error in profile image fetch process:', error);
