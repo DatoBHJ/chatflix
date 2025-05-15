@@ -50,11 +50,11 @@ export const RATE_LIMITS = {
   },
   level1: {
     hourly: {
-      requests: 7,    
+      requests: 5,    
       window: '4 h'
     },
     daily: {
-      requests: 14,    
+      requests: 10,    
       window: '24 h'
     }
   },
@@ -283,7 +283,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     isActivated: true,
     isAgentEnabled: true,
-    isNew: true,
     // isHot: true,
     reasoning: {
       enabled: true,
@@ -314,7 +313,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       provider: 'xai',
     },
     supportsPDFs: false,
-    isNew: true,
     isEnabled: true,
     isActivated: true,
     isAgentEnabled: true,
@@ -340,7 +338,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       provider: 'xai',
     },
     supportsPDFs: false,
-    // isNew: true,
     isEnabled: true,
     isActivated: true,
     isAgentEnabled: true,
@@ -559,7 +556,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     },
     supportsPDFs: false,
     isEnabled: true,
-    // isNew: true,
     isActivated: true,
     isAgentEnabled: true,
     contextWindow: 128000,
@@ -707,7 +703,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level4',
     },
-    // isNew: true,
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
@@ -812,6 +807,35 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 33,
     intelligenceIndex: 53,
     multilingual:86
+  },
+  // DeepSeek R1 (Thinking)
+  {
+    id: 'Qwen/Qwen3-235B-A22B-fp8-tput',
+    name: 'Qwen3-235B-A22B (Thinking)',
+    cutoff: 'mid-2024 (estimated)',
+    abbreviation: 'Q3-235B-A22B-T',
+    country: 'CHINA',
+    description: 'High speed version of Qwen3-235B-A22B',
+    provider: 'together',
+    supportsVision: false,
+    // censored: true,
+    rateLimit: {
+      level: 'level3',
+    },
+    supportsPDFs: false,
+    reasoning: {
+      enabled: true,
+      provider: 'together',
+      baseModelId: 'deepseek-ai/DeepSeek-R1',
+    },
+    isNew: true,
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: true,
+    contextWindow: 128000,
+    tps: 32,
+    intelligenceIndex: 62,
+    // multilingual:86,
   },
   // DeepSeek R1 (Thinking)
   {
