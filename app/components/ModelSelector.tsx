@@ -82,8 +82,12 @@ const ModelBarChart = ({
       typeof model[selectedMetric] === 'number' && 
       model.id !== 'chatflix-ultimate'
     )
-    .sort((a, b) => (b[selectedMetric] as number) - (a[selectedMetric] as number))
-    .slice(0, 15); // Limit to 15 models for clarity
+    .sort((a, b) => {
+      // Primary sort by metric value
+      const metricDiff = (b[selectedMetric] as number) - (a[selectedMetric] as number);
+      // If metric values are equal, sort by name for consistency
+      return metricDiff !== 0 ? metricDiff : a.name.localeCompare(b.name);
+    });
   
   if (validModels.length === 0) return null;
   
