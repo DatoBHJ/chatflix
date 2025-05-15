@@ -1021,15 +1021,6 @@ export default function Chat({ params }: PageProps) {
     }
   };
 
-  // 사용자가 새로운 메시지를 전송할 때 스크롤 플래그 재설정
-  const handleModelSubmitWithReset = useCallback(async (e: React.FormEvent, files?: FileList) => {
-    // 패널 상태 선호도 초기화 - 새 데이터에 대해 자동 표시 허용
-    setUserPanelPreference(null);
-    
-    // 기존 handleModelSubmit 호출
-    await handleModelSubmit(e, files);
-  }, [handleModelSubmit]);
-
   // 해당 메시지에 캔버스 데이터가 있는지 확인하는 함수
   const hasCanvasData = (message: Message) => {
     // StructuredResponse에 데이터가 있는지 확인
@@ -1087,34 +1078,6 @@ export default function Chat({ params }: PageProps) {
       hasStructuredResponseFiles()
     );
   };
-  // 새 메시지가 추가되거나 메시지 내용이 변경될 때 패널 데이터 업데이트
-  useEffect(() => {
-    // 모바일 환경 여부 확인
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
-    
-    // 마지막 어시스턴트 메시지 찾기
-    const lastAssistantMessages = messages.filter(msg => msg.role === 'assistant');
-    if (lastAssistantMessages.length === 0) return;
-    
-    const lastAssistantMessage = lastAssistantMessages[lastAssistantMessages.length - 1];
-    
-    // 마지막 메시지에 패널 데이터가 있는지 확인
-    if (hasCanvasData(lastAssistantMessage)) {
-      // 이 메시지가 새 패널 데이터를 가진 메시지인지 확인
-      if (lastPanelDataMessageId !== lastAssistantMessage.id) {
-        setLastPanelDataMessageId(lastAssistantMessage.id);
-        
-        // 패널 자동 열기 규칙:
-        // 1. 사용자가 명시적으로 패널 열기를 선택했거나
-        // 2. 사용자가 아직 선호도를 설정하지 않았고, 모바일이 아닌 환경
-        if (userPanelPreference === true || (userPanelPreference === null && !isMobile)) {
-          // 패널 열기
-          setActivePanelMessageId(lastAssistantMessage.id);
-        }
-        // userPanelPreference가 false이거나 모바일 환경에서는 패널을 열지 않음
-      }
-    }
-  }, [messages, userPanelPreference, lastPanelDataMessageId]);
 
   // 모든 데이터가 로드되기 전에는 로딩 화면 표시
   if (!isFullyLoaded || !user) {
@@ -1451,7 +1414,7 @@ export default function Chat({ params }: PageProps) {
               <ChatInput
                 input={input}
                 handleInputChange={handleInputChange}
-                handleSubmit={handleModelSubmitWithReset}
+                handleSubmit={handleModelSubmit}
                 isLoading={isLoading}
                 stop={handleStop}
                 user={{...user, hasAgentModels}}

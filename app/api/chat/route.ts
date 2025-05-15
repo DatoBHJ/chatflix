@@ -319,8 +319,8 @@ export async function POST(req: Request) {
             else {
               // 기타 카테고리는 복잡도에 따라 다른 모델 사용
               if (analysis.complexity === 'simple') {
-                // 단순 복잡도는 gpt-4.1-mini 사용
-                model = 'gpt-4.1-mini';
+                // 단순 복잡도는 gemini-2.5-pro-preview-05-06 사용
+                model = 'gemini-2.5-pro-preview-05-06';
               } else {
                 // 중간/복잡 복잡도는 grok-3 사용
                 model = 'grok-3-fast';
