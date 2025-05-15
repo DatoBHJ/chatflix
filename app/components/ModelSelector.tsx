@@ -2,7 +2,7 @@ import { Dispatch, SetStateAction, useState, useRef, useEffect } from 'react';
 import { getEnabledModels } from '@/lib/models/config';
 import Image from 'next/image';
 import type { ModelConfig } from '@/lib/models/config';
-
+import { getProviderLogo, hasLogo } from '@/app/lib/models/logoUtils';
 /**
  * Model Types Guide:
  * 
@@ -19,33 +19,6 @@ import type { ModelConfig } from '@/lib/models/config';
  * Note: Thinking models use more computational resources but excel at complex reasoning,
  * while regular models are faster and more efficient for everyday tasks.
  */
-
-// Helper function to get the logo path based on provider
-const getProviderLogo = (provider: ModelConfig['provider'], modelId?: string) => {
-  // Special case for Chatflix Ultimate model
-  if (modelId === 'chatflix-ultimate') {
-    return '/android-chrome-512x512-modified.png';
-  }
-
-  const logoMap: Partial<Record<ModelConfig['provider'], string>> = {
-    anthropic: '/logo/anthropic.svg',
-    openai: '/logo/openai.svg',
-    google: '/logo/google.svg',
-    together: '/logo/together.svg',
-    xai: '/logo/grok.svg',
-    deepseek: '/logo/deepseek.svg',
-    groq: '/logo/groq.svg'
-  };
-  
-  // For providers without specific logos, we'll use a text-based fallback
-  return logoMap[provider] || '';
-};
-
-// Helper function to check if a logo exists for a provider
-const hasLogo = (provider: ModelConfig['provider']) => {
-  const providersWithLogos: ModelConfig['provider'][] = ['anthropic', 'openai', 'google', 'together', 'xai', 'deepseek', 'groq'];
-  return providersWithLogos.includes(provider);
-};
 
 // Helper function to get color for provider
 const getProviderColor = (provider: ModelConfig['provider']): string => {

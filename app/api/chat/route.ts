@@ -1546,7 +1546,7 @@ IMPORTANT:
               system: currentSystemPrompt,
               messages: messages,
               // temperature: 0.7,
-              maxTokens: 10000,
+              // maxTokens: 8000,
               providerOptions: providerOptions,
               onFinish: async (completion) => {
                 if (abortController.signal.aborted) return;

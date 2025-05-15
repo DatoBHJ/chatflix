@@ -227,7 +227,7 @@ body {
 }
 
 .message-group {
-  @apply py-8 first:pt-4 last:pb-4 max-w-[calc(100vw-2rem)] overflow-hidden mx-auto;
+  @apply py-8 first:pt-0 last:pb-4 max-w-[calc(100vw-2rem)] overflow-hidden mx-auto;
 }
 
 .message-group:last-child {
