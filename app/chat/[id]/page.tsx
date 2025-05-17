@@ -191,11 +191,6 @@ export default function Chat({ params }: PageProps) {
     }
   });
 
-  // Check if conversation exceeds maximum length
-  const isConversationTooLong = useMemo(() => {
-    return messages.length > 30;
-  }, [messages.length]);
-
   // Determine whether to use virtualization based on message count
   const useVirtualization = useMemo(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
@@ -1432,12 +1427,7 @@ export default function Chat({ params }: PageProps) {
         <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-0 pb-6 w-full">
           <div className="max-w-2xl mx-auto w-full px-6 sm:px-8 relative flex flex-col items-center">
             <div className="w-full max-w-[calc(100vw-2rem)]">
-              {isConversationTooLong && (
-                <div className="p-3 text-center text-[var(--foreground-secondary)] backdrop-blur-md text-sm sm:text-base rounded-md">
-                  Hmm, I might be forgetting our earlier conversation. <br />
-                  Want to start a <a href="/" className="text-blue-500 hover:underline">fresh chat</a> for better results? 😊
-                </div>
-              )}
+             
               <ModelSelector
                 currentModel={currentModel}
                 nextModel={nextModel}
