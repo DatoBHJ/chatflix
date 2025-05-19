@@ -286,8 +286,8 @@ export async function POST(req: Request) {
           // 2단계: 멀티모달 요소 처리
           else if (hasImage) {
             if (analysis.category === 'technical' || analysis.category === 'math') {
-              // 기술/수학 카테고리 이미지에 대해 항상 Claude 3.7 Sonnet thinking 사용
-              model = 'claude-3-7-sonnet-20250219';
+              // 기술/수학 카테고리 이미지에 대해 항상 Gemini 2.5 Pro 사용
+              model = 'gemini-2.5-pro-preview-05-06';
             } else {
               // 기타 카테고리는 복잡도에 따라 다른 모델 사용
               if (analysis.complexity === 'simple') model = 'gemini-2.0-flash';
