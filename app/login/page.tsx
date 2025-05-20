@@ -7,6 +7,7 @@ import { GoogleSignIn } from '../components/GoogleSignIn'
 import Image from 'next/image'
 // import { DemoChat } from '../components/demo/DemoChat'
 import { MODEL_CONFIGS } from '@/lib/models/config'
+import { getProviderLogo } from '@/app/lib/models/logoUtils'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -19,8 +20,14 @@ export default function LoginPage() {
   // Logo error handling for AI model providers
   const [logoErrors, setLogoErrors] = useState<Record<string, boolean>>({})
   
-  // Group models by provider for display
+  // Group models by provider for display, but separate CHATFLIX model
+  const chatflixModel = MODEL_CONFIGS.find(model => model.id === 'chatflix-ultimate');
+  
+  // Group remaining models by provider
   const groupedModels = MODEL_CONFIGS.reduce((acc, model) => {
+    // Skip CHATFLIX model as it will be displayed separately
+    if (model.id === 'chatflix-ultimate') return acc;
+    
     if (model.isEnabled && model.isActivated) {
       if (!acc[model.provider]) {
         acc[model.provider] = [];
@@ -31,7 +38,7 @@ export default function LoginPage() {
   }, {} as Record<string, typeof MODEL_CONFIGS>);
   
   // Functions to handle provider logo display
-  const getProviderLogo = (provider: string): string => {
+  const getProviderLogoPath = (provider: string, modelId?: string): string => {
     // xAI uses grok.svg
     if (provider === 'xai') {
       return '/logo/grok.svg';
@@ -197,13 +204,40 @@ export default function LoginPage() {
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 md:gap-x-8 gap-y-6 md:gap-y-10 mb-16">
+            {/* CHATFLIX Model Box (Featured) */}
+            {chatflixModel && chatflixModel.isEnabled && chatflixModel.isActivated && (
+              <div className="p-6 border border-[var(--subtle-divider)] bg-gradient-to-br from-[var(--background)] to-[var(--background-secondary)] col-span-1 sm:col-span-2 lg:col-span-3">
+                <div className="flex items-center mb-6">
+                  <div className="h-8 w-8 md:h-10 md:w-10 mr-3 relative flex-shrink-0">
+                    <Image 
+                      src={getProviderLogo('anthropic', 'chatflix-ultimate')}
+                      alt="CHATFLIX logo"
+                      fill
+                      className="object-contain"
+                      onError={() => handleLogoError('chatflix')}
+                    />
+                  </div>
+                  <h3 className="font-light text-xl md:text-2xl text-[var(--foreground)] uppercase tracking-wider">
+                    {chatflixModel.name}
+                  </h3>
+                </div>
+                
+                <div className="text-sm text-[var(--muted)] mb-4">
+                  <p>{chatflixModel.description || "자동으로 최적의 모델을 선택하여 작업을 수행합니다."}</p>
+                </div>
+                
+                
+              </div>
+            )}
+            
+            {/* Other Model Providers */}
             {Object.entries(groupedModels).map(([provider, models]) => (
               <div key={provider} className="p-6 border border-[var(--subtle-divider)]">
                 <div className="flex items-center mb-6">
                   <div className="h-6 w-6 md:h-8 md:w-8 mr-3 relative flex-shrink-0">
                     {!logoErrors[provider] ? (
                       <Image 
-                        src={getProviderLogo(provider)} 
+                        src={getProviderLogoPath(provider)} 
                         alt={`${getProviderName(provider)} logo`} 
                         fill
                         className="object-contain"
@@ -245,9 +279,8 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
-      
-      {/* Login Modal - Modernized */}
-      {showLoginModal && (
+            {/* Login Modal - Modernized */}
+            {showLoginModal && (
         <div className="fixed inset-0 bg-[var(--overlay)] backdrop-blur-md flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--background)] rounded-2xl border border-[var(--subtle-divider)] shadow-2xl max-w-md w-full p-8 animate-fade-in relative overflow-hidden">
             <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-30">
@@ -321,18 +354,18 @@ export default function LoginPage() {
               </div>
               
               <div className="flex justify-center">
-              <GoogleSignIn />
-            </div>
+                <GoogleSignIn />
+              </div>
               
               <div className="text-center mt-6">
-              <button 
-                type="button"
-                onClick={() => closeLoginModal()}
+                <button 
+                  type="button"
+                  onClick={() => closeLoginModal()}
                   className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors uppercase tracking-wider py-2 px-4"
-              >
+                >
                   ← Back to Home
-              </button>
-            </div>
+                </button>
+              </div>
             </form>
           </div>
         </div>
