@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 // import { useUser } from '@/app/lib/UserContext';
 import { User } from '@supabase/supabase-js';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // FeatureUpdate 타입을 확장하여 필요한 필드 추가
 interface ExtendedFeatureUpdate extends FeatureUpdate {
@@ -85,14 +86,13 @@ const WhatsNewContainer: React.FC = () => {
           // 현재 사용자가 북마크했는지 확인
           let isBookmarked = false;
           if (user?.id) {
-            const { data: bookmarkData } = await supabase
+            const { data: bookmarkData, error: bookmarkError } = await supabase
               .from('update_bookmarks')
               .select('id')
               .eq('update_id', update.id)
-              .eq('user_id', user.id)
-              .single();
+              .eq('user_id', user.id);
             
-            isBookmarked = !!bookmarkData;
+            isBookmarked = bookmarkData !== null && bookmarkData.length > 0;
           }
           
           return {
@@ -453,155 +453,165 @@ const WhatsNewContainer: React.FC = () => {
         )}
       </button>
       
-      {isOpen && (
-        <div 
-          ref={dropdownRef}
-          className={`fixed max-h-[80vh] overflow-y-auto bg-[var(--background)] rounded-xl shadow-lg border border-[var(--subtle-divider)] z-50 ${mobileView ? 'mobile-dropdown' : 'mt-1'} hide-scrollbar`}
-          style={{ 
-            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
-            top: dropdownPosition.top,
-            right: dropdownPosition.right,
-            ...(mobileView 
-              ? { left: '10px', width: 'calc(100vw - 20px)', maxWidth: 'calc(100vw - 20px)' }
-              : { width: '380px', maxWidth: '380px' })
-          }}
-        >
-          <div className="flex items-center justify-between p-4 border-b border-[var(--subtle-divider)]">
-            <h3 className="font-bold text-lg">Notifications</h3>
-            <Link 
-              href="/whats-new" 
-              className="text-sm text-blue-500 hover:underline"
-              onClick={() => setIsOpen(false)}
-            >
-              See all
-            </Link>
-          </div>
-          
-          {updates.length === 0 ? (
-            <div className="p-6 text-center text-[var(--muted)]">
-              No new updates to show
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div 
+            ref={dropdownRef}
+            className={`fixed max-h-[80vh] overflow-y-auto bg-[var(--background)] rounded-xl shadow-lg border border-[var(--subtle-divider)] z-50 ${mobileView ? 'mobile-dropdown' : 'mt-1'} hide-scrollbar`}
+            style={{ 
+              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+              top: dropdownPosition.top,
+              right: dropdownPosition.right,
+              ...(mobileView 
+                ? { left: '10px', width: 'calc(100vw - 20px)', maxWidth: 'calc(100vw - 20px)' }
+                : { width: '380px', maxWidth: '380px' })
+            }}
+            // framer-motion 애니메이션 속성 추가
+            initial={{ opacity: 0, y: -10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+            transition={{ 
+              duration: 0.2, 
+              ease: "easeOut"
+            }}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-[var(--subtle-divider)]">
+              <h3 className="font-bold text-lg">Notifications</h3>
+              <Link 
+                href="/whats-new" 
+                className="text-sm text-blue-500 hover:underline"
+                onClick={() => setIsOpen(false)}
+              >
+                See all
+              </Link>
             </div>
-          ) : (
-            <div>
-              {updates.map((update) => (
-                <div 
-                  key={update.id}
-                  className="p-4 border-b border-[var(--subtle-divider)] hover:bg-[var(--accent)] cursor-pointer transition-colors"
-                  onClick={() => handleClickUpdate(update.id)}
-                >
-                  <div className="flex">
-                    <div className="flex-shrink-0 mr-3">
-                      <div className="w-10 h-10 rounded-full overflow-hidden cursor-pointer" onClick={(e) => {
-                        e.stopPropagation();
-                        router.push('/whats-new');
-                        setIsOpen(false);
-                      }}>
-                        <Image 
-                          src="/android-chrome-512x512.png" 
-                          alt="Profile" 
-                          width={48} 
-                          height={48}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold">Chatflix</span>
-                        <span className="text-xs text-[var(--muted)]">{getTimeAgo(update.timestamp)}</span>
-                      </div>
-                      <h4 className="font-medium text-sm">{update.title}</h4>
-                      <div className="text-sm text-[var(--muted)] mt-1">
-                        {formatPreviewDescription(update.description, 100)}
-                      </div>
-                      
-                      {update.images && update.images.length > 0 && (
-                        <div className="mt-2">
-                          {update.images.length === 1 ? (
-                            <div className="rounded-xl overflow-hidden border border-[var(--subtle-divider)]">
-                              <Image 
-                                src={update.images[0]}
-                                alt={update.title}
-                                width={300}
-                                height={150}
-                                className="w-full h-auto object-cover"
-                              />
-                            </div>
-                          ) : (
-                            <div className="grid grid-cols-2 gap-1">
-                              {update.images.slice(0, 4).map((img, i) => (
-                                <div 
-                                  key={i} 
-                                  className={`${i >= 2 ? 'mt-1' : ''} rounded-xl overflow-hidden border border-[var(--subtle-divider)]`}
-                                >
-                                  <Image 
-                                    src={img}
-                                    alt={`${update.title} image ${i+1}`}
-                                    width={150}
-                                    height={150}
-                                    className="w-full h-auto object-cover"
-                                    style={{ aspectRatio: '1/1' }}
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                          )}
+            
+            {updates.length === 0 ? (
+              <div className="p-6 text-center text-[var(--muted)]">
+                No new updates to show
+              </div>
+            ) : (
+              <div>
+                {updates.map((update) => (
+                  <div 
+                    key={update.id}
+                    className="p-4 border-b border-[var(--subtle-divider)] hover:bg-[var(--accent)] cursor-pointer transition-colors"
+                    onClick={() => handleClickUpdate(update.id)}
+                  >
+                    <div className="flex">
+                      <div className="flex-shrink-0 mr-3">
+                        <div className="w-10 h-10 rounded-full overflow-hidden cursor-pointer" onClick={(e) => {
+                          e.stopPropagation();
+                          router.push('/whats-new');
+                          setIsOpen(false);
+                        }}>
+                          <Image 
+                            src="/android-chrome-512x512.png" 
+                            alt="Profile" 
+                            width={48} 
+                            height={48}
+                            className="w-full h-full object-cover"
+                          />
                         </div>
-                      )}
-                      
-                      {/* Add social stats to each update card */}
-                      <div className="flex items-center text-xs text-[var(--muted)] mt-2">
-                        {/* Likes count */}
-                        <div className="flex items-center mr-4">
-                          <svg 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            width="14" 
-                            height="14" 
-                            viewBox="0 0 24 24" 
-                            fill="none" 
-                            stroke="currentColor" 
-                            strokeWidth="1.5" 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round"
-                            className="mr-1"
-                          >
-                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                          </svg>
-                          {update.like_count || 0}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold">Chatflix</span>
+                          <span className="text-xs text-[var(--muted)]">{getTimeAgo(update.timestamp)}</span>
+                        </div>
+                        <h4 className="font-medium text-sm">{update.title}</h4>
+                        <div className="text-sm text-[var(--muted)] mt-1">
+                          {formatPreviewDescription(update.description, 100)}
                         </div>
                         
-                        {/* Bookmarks count */}
-                        <div 
-                          className="flex items-center cursor-pointer"
-                          onClick={(e) => toggleBookmark(update.id, e)}
-                        >
-                          <svg 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            width="14" 
-                            height="14" 
-                            viewBox="0 0 24 24" 
-                            fill={update.is_bookmarked ? "currentColor" : "none"}
-                            stroke="currentColor" 
-                            strokeWidth="1.5" 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round"
-                            className={`mr-1 ${update.is_bookmarked ? 'text-blue-500' : ''}`}
+                        {update.images && update.images.length > 0 && (
+                          <div className="mt-2">
+                            {update.images.length === 1 ? (
+                              <div className="rounded-xl overflow-hidden border border-[var(--subtle-divider)]">
+                                <Image 
+                                  src={update.images[0]}
+                                  alt={update.title}
+                                  width={300}
+                                  height={150}
+                                  className="w-full h-auto object-cover"
+                                />
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-2 gap-1">
+                                {update.images.slice(0, 4).map((img, i) => (
+                                  <div 
+                                    key={i} 
+                                    className={`${i >= 2 ? 'mt-1' : ''} rounded-xl overflow-hidden border border-[var(--subtle-divider)]`}
+                                  >
+                                    <Image 
+                                      src={img}
+                                      alt={`${update.title} image ${i+1}`}
+                                      width={150}
+                                      height={150}
+                                      className="w-full h-auto object-cover"
+                                      style={{ aspectRatio: '1/1' }}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        {/* Add social stats to each update card */}
+                        <div className="flex items-center text-xs text-[var(--muted)] mt-2">
+                          {/* Likes count */}
+                          <div className="flex items-center mr-4">
+                            <svg 
+                              xmlns="http://www.w3.org/2000/svg" 
+                              width="14" 
+                              height="14" 
+                              viewBox="0 0 24 24" 
+                              fill="none" 
+                              stroke="currentColor" 
+                              strokeWidth="1.5" 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round"
+                              className="mr-1"
+                            >
+                              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                            </svg>
+                            {update.like_count || 0}
+                          </div>
+                          
+                          {/* Bookmarks count */}
+                          <div 
+                            className="flex items-center cursor-pointer"
+                            onClick={(e) => toggleBookmark(update.id, e)}
                           >
-                            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-                          </svg>
-                          {update.bookmark_count || 0}
+                            <svg 
+                              xmlns="http://www.w3.org/2000/svg" 
+                              width="14" 
+                              height="14" 
+                              viewBox="0 0 24 24" 
+                              fill={update.is_bookmarked ? "currentColor" : "none"}
+                              stroke="currentColor" 
+                              strokeWidth="1.5" 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round"
+                              className={`mr-1 ${update.is_bookmarked ? 'text-blue-500' : ''}`}
+                            >
+                              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                            {update.bookmark_count || 0}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
 
-export default WhatsNewContainer; 
+export default WhatsNewContainer;
