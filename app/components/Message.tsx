@@ -7,21 +7,20 @@ import { getModelById } from '@/lib/models/config'
 import { Attachment } from '@/lib/types'
 import React, { memo, useCallback, useState, useEffect, useMemo, useRef } from 'react'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
-import { fetchUserName } from './AccountDialog'
+import { createClient } from '@/utils/supabase/client' // createClient import 추가
 import { XLogo, YouTubeLogo } from './CanvasFolder/CanvasLogo';
 import { Brain, ChevronDown, ChevronUp, Search, Calculator, Link2, ImageIcon, BookOpen, Database, Youtube, FileText, Download, Copy, Check } from 'lucide-react'
 import { getProviderLogo, hasLogo } from '@/app/lib/models/logoUtils';
 import { AttachmentPreview } from './Attachment'
-
-// 파일 타입 정의
-type File = {
-  name: string;
-  content: string;
-  description?: string;
-};
-
+import Canvas from './Canvas';
+import { StructuredResponse } from './StructuredResponse';
+import { 
+  File, 
+  getStructuredResponseMainContent, 
+  getStructuredResponseDescription, 
+  getStructuredResponseFiles, 
+  isStructuredResponseInProgress 
+} from '@/app/lib/messageUtils';
 
 // Model name with logo component
 const ModelNameWithLogo = ({ modelId }: { modelId: string }) => {
@@ -174,8 +173,6 @@ interface MessageProps {
   onEditCancel: () => void
   onEditSave: (messageId: string) => void
   setEditingContent: (content: string) => void
-  userName?: string
-  profileImage?: string | null
   chatId?: string
   isStreaming?: boolean
   isWaitingForToolResults?: boolean
@@ -183,121 +180,16 @@ interface MessageProps {
   agentReasoningProgress?: any[]
   messageHasCanvasData?: boolean
   activePanelMessageId?: string | null
-  togglePanel?: (messageId: string) => void
-}
-
-// Helper function to get structured response main content
-function getStructuredResponseMainContent(message: any) {
-  // 1. 먼저 annotations에서 확인
-  const structuredResponseAnnotation = message.annotations?.find(
-    (annotation: any) => annotation.type === 'structured_response'
-  );
-  
-  if (structuredResponseAnnotation?.data?.response?.main_response) {
-    return structuredResponseAnnotation.data.response.main_response;
-  }
-  
-  // 2. tool_results에서 확인
-  if (message.tool_results?.structuredResponse?.response?.main_response) {
-    return message.tool_results.structuredResponse.response.main_response;
-  }
-  
-  // 3. 진행 중인 응답 확인 (가장 최신 것)
-  const progressAnnotations = message.annotations?.filter(
-    (annotation: any) => annotation.type === 'structured_response_progress'
-  );
-  
-  if (progressAnnotations?.length > 0) {
-    const latestProgress = progressAnnotations[progressAnnotations.length - 1];
-    if (latestProgress.data?.response?.main_response) {
-      return latestProgress.data.response.main_response;
-    }
-  }
-  
-  return null;
-}
-
-// Helper function to get structured response description
-function getStructuredResponseDescription(message: any) {
-  // 1. 먼저 annotations에서 확인
-  const structuredResponseAnnotation = message.annotations?.find(
-    (annotation: any) => annotation.type === 'structured_response'
-  );
-  
-  if (structuredResponseAnnotation?.data?.response?.description) {
-    return structuredResponseAnnotation.data.response.description;
-  }
-  
-  // 2. tool_results에서 확인
-  if (message.tool_results?.structuredResponse?.response?.description) {
-    return message.tool_results.structuredResponse.response.description;
-  }
-  
-  // 3. 진행 중인 응답 확인 (가장 최신 것)
-  const progressAnnotations = message.annotations?.filter(
-    (annotation: any) => annotation.type === 'structured_response_progress'
-  );
-  
-  if (progressAnnotations?.length > 0) {
-    const latestProgress = progressAnnotations[progressAnnotations.length - 1];
-    if (latestProgress.data?.response?.description) {
-      return latestProgress.data.response.description;
-    }
-  }
-  
-  return null;
-}
-
-// Helper function to get structured response files
-function getStructuredResponseFiles(message: any): File[] | null {
-  // 1. 먼저 annotations에서 확인
-  const structuredResponseAnnotation = message.annotations?.find(
-    (annotation: any) => annotation.type === 'structured_response'
-  );
-  
-  if (structuredResponseAnnotation?.data?.response?.files && 
-      Array.isArray(structuredResponseAnnotation.data.response.files) && 
-      structuredResponseAnnotation.data.response.files.length > 0) {
-    return structuredResponseAnnotation.data.response.files;
-  }
-  
-  // 2. tool_results에서 확인
-  if (message.tool_results?.structuredResponse?.response?.files && 
-      Array.isArray(message.tool_results.structuredResponse.response.files) && 
-      message.tool_results.structuredResponse.response.files.length > 0) {
-    return message.tool_results.structuredResponse.response.files;
-  }
-  
-  // 3. 진행 중인 응답 확인 (가장 최신 것)
-  const progressAnnotations = message.annotations?.filter(
-    (annotation: any) => annotation.type === 'structured_response_progress'
-  );
-  
-  if (progressAnnotations?.length > 0) {
-    const latestProgress = progressAnnotations[progressAnnotations.length - 1];
-    if (latestProgress.data?.response?.files && 
-        Array.isArray(latestProgress.data.response.files) && 
-        latestProgress.data.response.files.length > 0) {
-      return latestProgress.data.response.files;
-    }
-  }
-  
-  return null;
-}
-
-// Helper function to check if a structured response is still in progress
-function isStructuredResponseInProgress(message: any): boolean {
-  // 진행 중인 응답이 있는지 확인
-  const progressAnnotations = message.annotations?.filter(
-    (annotation: any) => annotation.type === 'structured_response_progress'
-  );
-  
-  if (progressAnnotations?.length > 0) {
-    const latestProgress = progressAnnotations[progressAnnotations.length - 1];
-    return latestProgress.data?.response?.isProgress === true;
-  }
-  
-  return false;
+  togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse') => void
+  // Canvas 데이터 props 추가
+  webSearchData?: any
+  mathCalculationData?: any
+  linkReaderData?: any
+  imageGeneratorData?: any
+  academicSearchData?: any
+  xSearchData?: any
+  youTubeSearchData?: any
+  youTubeLinkAnalysisData?: any
 }
 
 // Update the helper function to check if reasoning is complete
@@ -348,9 +240,21 @@ function linkifyText(text: string) {
 }
 
 // 사용자 메시지 전용 렌더링 컴포넌트
-function UserMessageContent({ content }: { content: string }) {
-  // 줄바꿈 처리 (텍스트에서 \n을 <br />로 변환)
-  const processedContent = content.split('\n').map((line, index, array) => (
+interface UserMessageContentProps {
+  content: string;
+  showGradient?: boolean;
+  onClick?: () => void;
+  isClickable?: boolean;
+}
+
+function UserMessageContent({ 
+  content, 
+  showGradient, 
+  onClick,
+  isClickable 
+}: UserMessageContentProps) {
+  // 줄바꿈 처리 (텍스트에서 \\n을 <br />로 변환)
+  const processedContent = content.split('\\n').map((line, index, array) => (
     <React.Fragment key={index}>
       {linkifyText(line)}
       {index < array.length - 1 && <br />}
@@ -359,14 +263,20 @@ function UserMessageContent({ content }: { content: string }) {
   
   return (
     <div 
-      className="user-message-content"
+      className={`user-message-content relative ${isClickable ? 'cursor-pointer' : ''}`}
       style={{
         whiteSpace: 'pre-wrap',        // 공백과 줄바꿈 보존
         wordBreak: 'break-word',       // 긴 단어 줄바꿈
         overflowWrap: 'break-word',    // 긴 단어가 컨테이너를 넘어갈 때 줄바꿈
       }}
+      onClick={onClick}
     >
       {processedContent}
+      {showGradient && (
+        <div 
+          className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--accent)] to-transparent pointer-events-none"
+        />
+      )}
     </div>
   );
 }
@@ -385,8 +295,6 @@ const Message = memo(function MessageComponent({
   onEditCancel,
   onEditSave,
   setEditingContent,
-  userName: propUserName,
-  profileImage: propProfileImage,
   chatId,
   isStreaming = false,
   isWaitingForToolResults = false,
@@ -394,14 +302,22 @@ const Message = memo(function MessageComponent({
   agentReasoningProgress,
   messageHasCanvasData,
   activePanelMessageId,
-  togglePanel
+  togglePanel,
+  webSearchData,
+  mathCalculationData,
+  linkReaderData,
+  imageGeneratorData,
+  academicSearchData,
+  xSearchData,
+  youTubeSearchData,
+  youTubeLinkAnalysisData,
 }: MessageProps) {
-  const router = useRouter();
-  const supabase = createClient();
+  // const router = useRouter(); // 삭제
+  // const supabase = createClient(); // 삭제
   
   // Replace context with direct state management
-  const [userName, setUserName] = useState(propUserName || 'You');
-  const [profileImage, setProfileImage] = useState<string | null>(propProfileImage || null);
+  // const [userName, setUserName] = useState(propUserName || 'You'); // 삭제
+  // const [profileImage, setProfileImage] = useState<string | null>(propProfileImage || null); // 삭제
   
   // Bookmark state
   const [isBookmarked, setIsBookmarked] = useState(false);
@@ -426,8 +342,8 @@ const Message = memo(function MessageComponent({
   const handleUpgradeClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    router.push('/pricing');
-  }, [router]);
+    // router.push('/pricing'); // router 사용 코드 삭제
+  }, []);
   
   // Measure reasoning content height when content changes
   useEffect(() => {
@@ -439,23 +355,13 @@ const Message = memo(function MessageComponent({
   // Fetch user data when component mounts
   useEffect(() => {
     const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-
-      if (user && !propUserName) {
-        // If userName wasn't provided as prop, fetch it from database
-        const name = await fetchUserName(user.id, supabase);
-        setUserName(name);
-      }
-
-      if (user && !propProfileImage) {
-        // If profileImage wasn't provided as prop, fetch it from storage
-        fetchProfileImage(user.id);
-      }
+      const supabase = createClient(); // supabase client 생성
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      setUser(authUser);
     };
 
     fetchUser();
-  }, [propUserName, propProfileImage]);
+  }, []);
   
   // 구조화된 응답 파일 목록 가져오기
   useEffect(() => {
@@ -477,39 +383,53 @@ const Message = memo(function MessageComponent({
   
   // Agent Reasoning 데이터 처리 (Canvas와 동일한 로직)
   useEffect(() => {
-    // 1. isComplete가 true인 완료된 데이터가 이미 있으면 우선 보존
-    if (currentReasoning?.isComplete) {
-      return;
-    }
-    
-    // 2. 완료된 새 데이터가 있으면 업데이트
-    if (agentReasoning?.isComplete) {
-      setCurrentReasoning({
-        ...agentReasoning,
-        isComplete: true // 명시적으로 boolean으로 설정
-      });
-      return;
-    }
-    
-    // 3. 진행 중인 데이터 중 가장 최신 것 사용 (타임스탬프 기준)
-    if (agentReasoningProgress && agentReasoningProgress.length > 0) {
-      // 가장 최신 항목 찾기
+    let newDerivedReasoning: any | null = null;
+
+    // Prefer fully complete reasoning if available
+    if (agentReasoning?.isComplete) { 
+      newDerivedReasoning = agentReasoning; // This object from props should have isComplete: true
+    } else if (agentReasoningProgress && agentReasoningProgress.length > 0) {
+      // If no complete reasoning, take the latest progress
+      // The agentReasoningProgress prop should be sorted newest first if done by parent, or sort here.
+      // The original code sorted here, so we maintain that for safety.
       const latestProgress = [...agentReasoningProgress].sort((a, b) => {
-        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-      })[0];
-      
-      // 기존 상태와 비교하여 다른 경우에만 업데이트
-      if (!currentReasoning || 
-          currentReasoning.agentThoughts !== latestProgress.agentThoughts ||
-          currentReasoning.timestamp !== latestProgress.timestamp) {
-        // isComplete 속성이 확실히 boolean 타입이 되도록 보장
-        setCurrentReasoning({
-          ...latestProgress,
-          isComplete: !!latestProgress.isComplete
-        });
-      }
+          return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(); // Newest first
+        })[0];
+      // Items from agentReasoningProgress are expected to have isComplete: false from their construction in page.tsx
+      newDerivedReasoning = latestProgress; 
+    } else if (agentReasoning) { 
+      // Fallback: if there's an agentReasoning prop (but not marked complete) and no progress, use it.
+      // Its isComplete status will be taken as is.
+      newDerivedReasoning = agentReasoning;
     }
-  }, [agentReasoning, agentReasoningProgress, currentReasoning, message]);
+
+    // Compare the derived new state with the current state to prevent unnecessary updates
+    const hasChanged = () => {
+      if (currentReasoning === newDerivedReasoning) return false; // Same object instance or both null
+      if (!newDerivedReasoning && !currentReasoning) return false; // Both are null (covered by above, but explicit)
+      if (!newDerivedReasoning || !currentReasoning) return true; // One is null, the other isn't
+
+      // Both are objects, compare relevant fields to determine semantic difference
+      return currentReasoning.agentThoughts !== newDerivedReasoning.agentThoughts ||
+             currentReasoning.plan !== newDerivedReasoning.plan ||
+             currentReasoning.selectionReasoning !== newDerivedReasoning.selectionReasoning ||
+             currentReasoning.timestamp !== newDerivedReasoning.timestamp ||
+             currentReasoning.isComplete !== newDerivedReasoning.isComplete || // Crucial
+             currentReasoning.needsWebSearch !== newDerivedReasoning.needsWebSearch ||
+             currentReasoning.needsCalculator !== newDerivedReasoning.needsCalculator ||
+             currentReasoning.needsLinkReader !== newDerivedReasoning.needsLinkReader ||
+             currentReasoning.needsImageGenerator !== newDerivedReasoning.needsImageGenerator ||
+             currentReasoning.needsAcademicSearch !== newDerivedReasoning.needsAcademicSearch ||
+             // currentReasoning.needsXSearch !== newDerivedReasoning.needsXSearch, // Was commented out
+             currentReasoning.needsYouTubeSearch !== newDerivedReasoning.needsYouTubeSearch ||
+             currentReasoning.needsYouTubeLinkAnalyzer !== newDerivedReasoning.needsYouTubeLinkAnalyzer ||
+             currentReasoning.needsDataProcessor !== newDerivedReasoning.needsDataProcessor;
+    };
+
+    if (hasChanged()) {
+      setCurrentReasoning(newDerivedReasoning);
+    }
+  }, [agentReasoning, agentReasoningProgress]); // Dependencies are the memoized props from parent
   
   // 파일 토글 핸들러
   const toggleFile = useCallback((index: number) => {
@@ -535,57 +455,6 @@ const Message = memo(function MessageComponent({
       });
   }, []);
 
-  // Function to fetch profile image
-  const fetchProfileImage = async (userId: string) => {
-    try {
-      // Try to get profile image from storage
-      const { data: profileData, error: profileError } = await supabase
-        .storage
-        .from('profile-pics')
-        .list(`${userId}`);
-
-      if (profileError) {
-        console.error('Error fetching profile image list:', profileError);
-        return;
-      }
-
-      // If profile image exists, get public URL
-      if (profileData && profileData.length > 0) {
-        try {
-          const fileName = profileData[0].name;
-          const filePath = `${userId}/${fileName}`;
-          
-          // 유효성 검사 추가
-          if (!fileName || typeof fileName !== 'string') {
-            console.error('Invalid file name returned from storage');
-            return;
-          }
-          
-          const { data } = supabase
-            .storage
-            .from('profile-pics')
-            .getPublicUrl(filePath);
-          
-          if (data && data.publicUrl) {
-            // URL이 유효한지 검사
-            try {
-              new URL(data.publicUrl);
-              setProfileImage(data.publicUrl);
-            } catch (urlError) {
-              console.error('Invalid URL format:', urlError);
-            }
-          } else {
-            console.error('No valid public URL returned');
-          }
-        } catch (error) {
-          console.error('Error getting public URL for profile image:', error);
-        }
-      }
-    } catch (error) {
-      console.error('Error in profile image fetch process:', error);
-    }
-  };
-
   // Function to truncate long messages
   const truncateMessage = useCallback((content: string, maxLength: number = 300) => {
     if (content.length <= maxLength) return content;
@@ -605,8 +474,9 @@ const Message = memo(function MessageComponent({
   
   // Navigate to user insights page
   const goToUserInsights = useCallback(() => {
-    router.push('/user-insights');
-  }, [router]);
+    // Next.js 13+ app router에서는 window.location 사용 가능 (권장되지는 않음)
+    window.location.href = '/user-insights';
+  }, []);
 
   const isEditing = editingMessageId === message.id;
   const isCopied = copiedMessageId === message.id;
@@ -615,12 +485,41 @@ const Message = memo(function MessageComponent({
   const hasAttachments = message.experimental_attachments && message.experimental_attachments.length > 0;
   const hasContent = message.content && message.content.trim().length > 0;
   
-  // 구조화된 응답에서 main_response 가져오기
-  const structuredMainResponse = isAssistant ? getStructuredResponseMainContent(message) : null;
-  const structuredDescription = isAssistant ? getStructuredResponseDescription(message) : null;
+  const hasActualCanvasData = useMemo(() => {
+    return !!(
+      webSearchData ||
+      mathCalculationData ||
+      linkReaderData ||
+      imageGeneratorData ||
+      academicSearchData ||
+      xSearchData ||
+      youTubeSearchData ||
+      youTubeLinkAnalysisData
+    );
+  }, [
+    webSearchData,
+    mathCalculationData,
+    linkReaderData,
+    imageGeneratorData,
+    academicSearchData,
+    xSearchData,
+    youTubeSearchData,
+    youTubeLinkAnalysisData
+  ]);
+
+  const structuredMainResponse = useMemo(() => getStructuredResponseMainContent(message), [message]);
+  const structuredFilesData = useMemo(() => getStructuredResponseFiles(message), [message]);
+  const structuredDescription = useMemo(() => getStructuredResponseDescription(message), [message]);
   
-  // 일반 메시지 내용이 있거나 구조화된 응답이 있는 경우 true
-  const hasAnyContent = hasContent || structuredMainResponse;
+  // 구조화된 응답이 진행 중인지 여부를 useMemo로 관리
+  const isInProgress = useMemo(() => isStructuredResponseInProgress(message), [message]);
+
+  const hasStructuredData = useMemo(() => {
+    // 메인 응답 내용이 있거나, 파일 데이터가 있거나, 또는 구조화된 응답이 진행 중일 때 true
+    return !!(structuredMainResponse || (structuredFilesData && structuredFilesData.length > 0) || isInProgress);
+  }, [structuredMainResponse, structuredFilesData, isInProgress]);
+
+  const hasAnyContent = hasContent || structuredMainResponse || isInProgress; // hasAnyContent도 진행 중 상태 고려
 
   // Check if message is bookmarked when component mounts
   useEffect(() => {
@@ -628,6 +527,7 @@ const Message = memo(function MessageComponent({
     
     const checkBookmarkStatus = async () => {
       try {
+        const supabase = createClient(); // supabase client 생성
         const { data, error } = await supabase
           .from('message_bookmarks')
           .select('id')
@@ -644,7 +544,7 @@ const Message = memo(function MessageComponent({
     };
     
     checkBookmarkStatus();
-  }, [user, message.id, isAssistant, supabase]);
+  }, [user, message.id, isAssistant]); // supabase 의존성 제거 (함수 내부에서 생성)
 
   // Toggle bookmark function
   const toggleBookmark = async (e: React.MouseEvent) => {
@@ -658,6 +558,7 @@ const Message = memo(function MessageComponent({
     try {
       if (isBookmarked) {
         // Remove bookmark
+        const supabase = createClient(); // supabase client 생성
         const { error } = await supabase
           .from('message_bookmarks')
           .delete()
@@ -668,6 +569,7 @@ const Message = memo(function MessageComponent({
         setIsBookmarked(false);
       } else {
         // Add bookmark
+        const supabase = createClient(); // supabase client 생성
         const { error } = await supabase
           .from('message_bookmarks')
           .insert({
@@ -692,8 +594,9 @@ const Message = memo(function MessageComponent({
   // Function to navigate to the specific message in the chat
   const navigateToMessage = useCallback((messageId: string, chatSessionId: string) => {
     if (!chatSessionId) return;
-    router.push(`/chat/${chatSessionId}#${messageId}`);
-  }, [router]);
+    // Next.js 13+ app router에서는 window.location 사용 가능 (권장되지는 않음)
+    window.location.href = `/chat/${chatSessionId}#${messageId}`;
+  }, [chatId]); // chatId 의존성 제거 (이미 파라미터로 받고 있음)
   
   // 파일 다운로드 핸들러
   const downloadFile = useCallback((file: File) => {
@@ -913,6 +816,30 @@ const Message = memo(function MessageComponent({
                 isComplete={reasoningComplete}
               />
             )}
+            {/* 로딩 중 Canvas 미리보기 */}
+            {hasActualCanvasData && (
+              <div 
+                className="mb-6 relative max-h-[300px] overflow-hidden cursor-pointer" 
+                onClick={() => togglePanel && togglePanel(message.id, 'canvas')}
+              >
+                <Canvas
+                  webSearchData={webSearchData}
+                  mathCalculationData={mathCalculationData}
+                  linkReaderData={linkReaderData}
+                  imageGeneratorData={imageGeneratorData}
+                  academicSearchData={academicSearchData}
+                  xSearchData={xSearchData}
+                  youTubeSearchData={youTubeSearchData}
+                  youTubeLinkAnalysisData={youTubeLinkAnalysisData}
+                  isCompact={true}
+                />
+                <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none"></div>
+                <div className="flex items-center justify-center mt-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
+                  <span>View Canvas</span>
+                  <ChevronDown size={16} className="ml-1" />
+                </div>
+              </div>
+            )}
             
             {/* Rate Limit 메시지 표시 */}
             {rateLimitAnnotation && rateLimitAnnotation.data && (
@@ -922,7 +849,7 @@ const Message = memo(function MessageComponent({
                   onClick={handleUpgradeClick}
                   className="text-blue-500 hover:underline font-semibold ml-1"
                 >
-                  Upgrade Now →
+                get unlimited access here →
                 </button>
               </div>
             )}
@@ -932,7 +859,7 @@ const Message = memo(function MessageComponent({
                 {structuredMainResponse ? (
                   <>
                     {hasContent && <MarkdownContent content={message.content} />}
-                    <div className="mt-4 pt-4 border-t border-[color-mix(in_srgb,var(--foreground)_10%,transparent)]">
+                    <div className="mt-4 pt-4">
                       <div className="text-xs text-[var(--muted)] mb-2">Final Response</div>
                       <MarkdownContent content={structuredMainResponse} />
                     </div>
@@ -940,6 +867,29 @@ const Message = memo(function MessageComponent({
                 ) : (
                   <MarkdownContent content={message.content} />
                 )}
+
+                {/* structuredDescription */}
+                {structuredDescription && (
+                  <div className={`mt-4 ${!(structuredFilesData && structuredFilesData.length > 0) ? 'pt-4' : ''}`}>
+                    <p className="text-sm">{structuredDescription}</p>
+                  </div>
+                )}
+
+                {/* StructuredResponse Clickable Preview */}
+                {hasStructuredData && (
+                  <div 
+                    className="mt-4 pt-4 mb-6 relative max-h-[300px] overflow-hidden cursor-pointer"
+                    onClick={() => togglePanel && togglePanel(message.id, 'structuredResponse')}
+                  >
+                    <StructuredResponse message={message} />
+                    <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none"></div>
+                    <div className="flex items-center justify-center mt-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
+                      <span>View Details</span>
+                      <ChevronDown size={16} className="ml-1" />
+                    </div>
+                  </div>
+                )}
+
                 {!rateLimitAnnotation && (
                   <div className="loading-dots text-xl">
                     <span>.</span>
@@ -949,26 +899,49 @@ const Message = memo(function MessageComponent({
                 )}
               </div>
             ) : (
-              <div className="flex items-center">
-                {!rateLimitAnnotation && (
-                  <div className="loading-dots text-xl inline-flex mr-1">
-                    <span>.</span>
-                    <span>.</span>
-                    <span>.</span>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center">
+                  {!rateLimitAnnotation && (
+                    <div className="loading-dots text-xl inline-flex mr-1">
+                      <span>.</span>
+                      <span>.</span>
+                      <span>.</span>
+                    </div>
+                  )}
+                  
+                  {/* 구독 상태 메시지 (로딩 중이고 비구독자일 때만 표시) */}
+                  {!rateLimitAnnotation && subscriptionAnnotation && subscriptionAnnotation.data && !subscriptionAnnotation.data.isSubscribed && (
+                    <span className="text-[color-mix(in_srgb,var(--foreground)_70%,transparent)] text-sm inline-flex items-center">
+                      &nbsp;Slow request,
+                      <button 
+                        onClick={handleUpgradeClick}
+                        className="text-blue-500 hover:underline font-semibold ml-1"
+                      >
+                        get premium speed here →
+                      </button>
+                    </span>
+                  )}
+                </div>
+
+                {/* Show structured content even during loading */}
+                {structuredDescription && (
+                  <div className={`mt-4 ${!(structuredFilesData && structuredFilesData.length > 0) ? 'pt-4' : ''}`}>
+                    <p className="text-sm">{structuredDescription}</p>
                   </div>
                 )}
-                
-                {/* 구독 상태 메시지 (로딩 중이고 비구독자일 때만 표시) */}
-                {!rateLimitAnnotation && subscriptionAnnotation && subscriptionAnnotation.data && !subscriptionAnnotation.data.isSubscribed && (
-                  <span className="text-[color-mix(in_srgb,var(--foreground)_70%,transparent)] text-sm inline-flex items-center">
-                    &nbsp;Slow processing...
-                    <button 
-                      onClick={handleUpgradeClick}
-                      className="text-blue-500 hover:underline font-semibold ml-1"
-                    >
-                      Get premium speed →
-                    </button>
-                  </span>
+
+                {hasStructuredData && (
+                  <div 
+                    className="mt-4 pt-4 mb-6 relative max-h-[300px] overflow-hidden cursor-pointer"
+                    onClick={() => togglePanel && togglePanel(message.id, 'structuredResponse')}
+                  >
+                    <StructuredResponse message={message} />
+                    <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none"></div>
+                    <div className="flex items-center justify-center mt-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
+                      <span>View Details</span>
+                      <ChevronDown size={16} className="ml-1" />
+                    </div>
+                  </div>
                 )}
               </div>
             )}
@@ -1031,10 +1004,10 @@ const Message = memo(function MessageComponent({
           <ModelNameWithLogo modelId={(message as ExtendedMessage).model || currentModel} />
           
           {/* Canvas 버튼 추가 */}
-          {messageHasCanvasData && (
+          {/* {messageHasCanvasData && (
             <button
               className="text-xs flex items-center gap-1.5 ml-auto transition-colors text-[var(--muted)] hover:text-[var(--foreground)]"
-              onClick={() => togglePanel && togglePanel(message.id)}
+              onClick={() => togglePanel && togglePanel(message.id, 'canvas')}
               title="View Canvas"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sm:w-3 sm:h-3">
@@ -1044,7 +1017,7 @@ const Message = memo(function MessageComponent({
               </svg>
               <span className="hidden sm:inline">View Canvas</span>
             </button>
-          )}
+          )} */}
         </div>
       </div>
     );
@@ -1067,28 +1040,7 @@ const Message = memo(function MessageComponent({
             <span>Chatflix.app</span>
           </div>
         ) : (
-          <div 
-            className="inline-flex items-center gap-2 cursor-pointer hover:opacity-80"
-            onClick={goToUserInsights}
-            title="View your AI Recap"
-          >
-            {profileImage ? (
-              <div className="w-5 h-5 rounded-full overflow-hidden relative inline-block align-middle">
-                <Image 
-                  src={profileImage} 
-                  alt={userName} 
-                  fill 
-                  sizes="20px"
-                  className="object-cover"
-                />
-              </div>
-            ) : (
-              <div className="w-5 h-5 rounded-full bg-[var(--foreground)] text-[var(--background)] inline-flex items-center justify-center text-xs font-medium">
-                {userName.charAt(0).toUpperCase()}
-              </div>
-            )}
-            <span>{userName}</span>
-          </div>
+          null // 사용자 정보 대신 null을 반환하여 아무것도 표시하지 않음
         )}
       </div>
       <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -1257,6 +1209,48 @@ const Message = memo(function MessageComponent({
               </div>
             </div>
           )}
+
+          {/* ReasoningSection for streaming or message.parts */}
+          {message.parts && message.parts.find(part => part.type === 'reasoning') && (
+            (() => {
+              const reasoningPart = message.parts.find(part => part.type === 'reasoning');
+              const reasoningComplete = isReasoningComplete(message);
+              return (
+                <ReasoningSection 
+                  key="reasoning" 
+                  content={reasoningPart!.reasoning} 
+                  isStreaming={isStreaming && !reasoningComplete} 
+                  isComplete={reasoningComplete}
+                />
+              );
+            })()
+          )}
+
+          {/* Canvas 미리보기 */}
+          {isAssistant && hasActualCanvasData && (
+            <div 
+              className="mb-6 relative max-h-[300px] overflow-hidden cursor-pointer" 
+              onClick={() => togglePanel && togglePanel(message.id, 'canvas')}
+            >
+              <Canvas
+                webSearchData={webSearchData}
+                mathCalculationData={mathCalculationData}
+                linkReaderData={linkReaderData}
+                imageGeneratorData={imageGeneratorData}
+                academicSearchData={academicSearchData}
+                xSearchData={xSearchData}
+                youTubeSearchData={youTubeSearchData}
+                youTubeLinkAnalysisData={youTubeLinkAnalysisData}
+                isCompact={true}
+              />
+              <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none"></div>
+              <div className="flex items-center justify-center mt-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
+                <span>View Canvas</span>
+                <ChevronDown size={16} className="ml-1" />
+              </div>
+            </div>
+          )}
+          
           {isEditing ? (
             <div className="flex flex-col gap-2 w-full">
               <textarea
@@ -1277,21 +1271,21 @@ const Message = memo(function MessageComponent({
                   e.target.style.height = `${e.target.scrollHeight}px`
                 }}
                 className="w-full min-h-[100px] p-4 
-                         bg-[var(--foreground)] text-[var(--background)]
+                         bg-[var(--accent)] text-[var(--foreground)]
                          resize-none overflow-hidden transition-all duration-200
                          focus:outline-none border-none outline-none ring-0
-                         placeholder-[var(--background-80)]"
+                         placeholder-[var(--foreground-80)]"
                 style={{
                   height: 'auto',
                   minHeight: '100px',
-                  caretColor: 'var(--background)'
+                  caretColor: 'var(--foreground)'
                 }}
               />
               <div className="flex gap-2 justify-end">
                 <button
                   onClick={onEditCancel}
                   className="px-4 py-2 text-sm
-                           bg-[var(--foreground)] text-[var(--background)]
+                           bg-[var(--accent)] text-[var(--foreground)]
                            hover:opacity-80 transition-opacity duration-200"
                 >
                   Cancel
@@ -1299,7 +1293,7 @@ const Message = memo(function MessageComponent({
                 <button
                   onClick={() => onEditSave(message.id)}
                   className="px-4 py-2 text-sm
-                           bg-[var(--foreground)] text-[var(--background)]
+                           bg-[var(--accent)] text-[var(--foreground)]
                            hover:opacity-80 transition-opacity duration-200"
                 >
                   Send
@@ -1312,10 +1306,9 @@ const Message = memo(function MessageComponent({
                 <AttachmentPreview attachments={message.experimental_attachments!} messageId={message.id} />
               )}
               
-              {/* 그 다음 텍스트 파트 표시 - 사용자/어시스턴트 구분 */}
+              {/* 텍스트 파트 렌더링 (기존 로직 유지, 단, structuredMainResponse를 직접 렌더링하는 부분은 제거됨) */}
               {message.parts ? (
                 <>
-                  {/* 먼저 reasoning 파트를 찾아서 표시 */}
                   {message.parts.find(part => part.type === 'reasoning') && (
                     (() => {
                       const reasoningPart = message.parts.find(part => part.type === 'reasoning');
@@ -1331,24 +1324,35 @@ const Message = memo(function MessageComponent({
                       );
                     })()
                   )}
-                  
-                  {/* 그 다음 텍스트 파트 표시 - 사용자/어시스턴트 구분 */}
                   {message.parts.map((part, index) => {
                     if (part.type === 'text') {
                       const shouldTruncate = isUser && !isEditing && !expandedMessages[message.id];
                       const isLongMessage = part.text.length > 300;
                       
-                      // 텍스트 파트가 여러 개 있을 때 마지막 텍스트 파트에만 로딩 표시 
                       const textParts = message.parts ? message.parts.filter(p => p.type === 'text') : [];
                       const isLastTextPart = textParts.length > 0 && textParts[textParts.length - 1] === part;
                       
                       return (
                         <React.Fragment key={index}>
                           {isUser ? (
-                            // 사용자 메시지: 직접 렌더링
-                            <UserMessageContent content={shouldTruncate ? truncateMessage(part.text) : part.text} />
+                            (() => {
+                              const isActuallyLongMessage = part.text.length > 300;
+                              const isCurrentlyExpanded = expandedMessages[message.id];
+                              const shouldBeTruncated = isUser && !isEditing && !isCurrentlyExpanded && isActuallyLongMessage;
+                              
+                              const textToShow = shouldBeTruncated ? truncateMessage(part.text) : part.text;
+                              const showGradientEffect = shouldBeTruncated;
+
+                              return (
+                                <UserMessageContent 
+                                  content={textToShow}
+                                  showGradient={showGradientEffect}
+                                  isClickable={isActuallyLongMessage}
+                                  onClick={isActuallyLongMessage ? () => toggleMessageExpansion(message.id) : undefined}
+                                />
+                              );
+                            })()
                           ) : (
-                            // 어시스턴트 메시지: 마크다운으로 렌더링
                             <MarkdownContent content={part.text} />
                           )}
                           
@@ -1360,23 +1364,7 @@ const Message = memo(function MessageComponent({
                             </div>
                           )}
                           
-                          {shouldTruncate && isLongMessage && (
-                            <div 
-                              onClick={() => toggleMessageExpansion(message.id)}
-                              className="text-[var(--muted)] font-medium mt-4 cursor-pointer hover:underline inline-block"
-                            >
-                              ... Read more
-                            </div>
-                          )}
-                          
-                          {!shouldTruncate && isLongMessage && expandedMessages[message.id] && (
-                            <div 
-                              onClick={() => toggleMessageExpansion(message.id)}
-                              className="text-[var(--muted)] font-medium mt-4 cursor-pointer hover:underline inline-block"
-                            >
-                              Show less
-                            </div>
-                          )}
+                          {/* Removed Read more/Show less buttons for user messages with parts */}
                         </React.Fragment>
                       );
                     }
@@ -1386,11 +1374,25 @@ const Message = memo(function MessageComponent({
               ) : (
                 <>
                   {isUser ? (
-                    // 사용자 메시지: 직접 렌더링
-                    <UserMessageContent content={isUser && !isEditing && !expandedMessages[message.id] ? truncateMessage(message.content) : message.content} />
+                    (() => {
+                      const isActuallyLongMessage = message.content.length > 300;
+                      const isCurrentlyExpanded = expandedMessages[message.id];
+                      const shouldBeTruncated = isUser && !isEditing && !isCurrentlyExpanded && isActuallyLongMessage;
+                      
+                      const textToShow = shouldBeTruncated ? truncateMessage(message.content) : message.content;
+                      const showGradientEffect = shouldBeTruncated;
+
+                      return (
+                        <UserMessageContent 
+                          content={textToShow}
+                          showGradient={showGradientEffect}
+                          isClickable={isActuallyLongMessage}
+                          onClick={isActuallyLongMessage ? () => toggleMessageExpansion(message.id) : undefined}
+                        />
+                      );
+                    })()
                   ) : (
-                    // 어시스턴트 메시지: 마크다운으로 렌더링
-                    <MarkdownContent content={message.content} />
+                    (hasContent && !hasActualCanvasData && !hasStructuredData) && <MarkdownContent content={message.content} />
                   )}
                   
                   {isAssistant && isStreaming && (
@@ -1401,111 +1403,29 @@ const Message = memo(function MessageComponent({
                     </div>
                   )}
                   
-                  {isUser && !isEditing && message.content.length > 300 && (
-                    <div 
-                      onClick={() => toggleMessageExpansion(message.id)}
-                      className="text-[var(--accent)] font-medium mt-1 cursor-pointer hover:underline inline-block"
-                    >
-                      {expandedMessages[message.id] ? 'Show less' : '... Read more'}
-                    </div>
-                  )}
+                  {/* Removed Read more/Show less button for user messages (fallback content) */}
                 </>
               )}
-              
-              {/* 구조화된 응답이 있는 경우 추가로 표시 */}
-              {isAssistant && (structuredDescription || structuredFiles) && !structuredMainResponse && (
-                <div className="mt-4 pt-4 border-t border-[color-mix(in_srgb,var(--foreground)_10%,transparent)]">
-                  {structuredDescription && (
-                    <div className="mb-4">
-                      <div className="text-xs text-[var(--muted)] mb-2">Supporting Files</div>
-                      <p className="text-sm">{structuredDescription}</p>
-                    </div>
-                  )}
-                  
-                  {/* 파일 목록 표시 - 파일이 있는 경우에만 */}
-                  {structuredFiles && structuredFiles.length > 0 && (
-                    <div className="mt-4">
-                      <div className="space-y-3">
-                        {structuredFiles.map((file, index) => (
-                          <div key={index} className="border border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] rounded-lg overflow-hidden shadow-sm transition-all hover:shadow-md hover:border-[color-mix(in_srgb,var(--foreground)_10%,transparent)]">
-                            <div className="bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors">
-                              {/* 파일 헤더 영역 - 이름과 액션 버튼 */}
-                              <div className="px-3 py-2.5 flex justify-between items-center">
-                                <div 
-                                  className="flex items-center gap-2.5 truncate cursor-pointer flex-grow"
-                                  onClick={() => toggleFile(index)}
-                                >
-                                  <FileText className="h-4 w-4 flex-shrink-0" strokeWidth={1.5} />
-                                  <span className="font-mono text-sm font-medium bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)] px-2 py-0.5 rounded-md">
-                                    {file.name}
-                                  </span>
-                                </div>
-                                
-                                <div className="flex items-center gap-2">
-                                  {/* 다운로드 버튼 */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      downloadFile(file);
-                                    }}
-                                    className="rounded-full p-1.5 hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] transition-colors flex-shrink-0"
-                                    title="Download file"
-                                  >
-                                    <Download size={16} className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]" />
-                                  </button>
-                                  
-                                  {/* 복사 버튼 */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      copyFileContent(file);
-                                    }}
-                                    className="rounded-full p-1.5 hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] transition-colors flex-shrink-0"
-                                    title={copiedFileId === file.name ? "Copied!" : "Copy file content"}
-                                  >
-                                    {copiedFileId === file.name ? (
-                                      <Check size={16} className="text-green-500" />
-                                    ) : (
-                                      <Copy size={16} className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]" />
-                                    )}
-                                  </button>
-                                  
-                                  {/* 토글 버튼 */}
-                                  <div 
-                                    className="rounded-full p-1.5 hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] transition-colors flex-shrink-0 cursor-pointer"
-                                    onClick={() => toggleFile(index)}
-                                  >
-                                    {openFileIndexes.includes(index) ? 
-                                      <ChevronUp size={16} className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]" /> : 
-                                      <ChevronDown size={16} className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]" />
-                                    }
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              {/* 파일 설명 영역 - 별도 행에 배치 */}
-                              {file.description && (
-                                <div 
-                                  className="px-3 pb-2 pt-0.5 cursor-pointer"
-                                  onClick={() => toggleFile(index)}
-                                >
-                                  <p className="text-xs text-[color-mix(in_srgb,var(--foreground)_60%,transparent)] line-clamp-2">
-                                    {file.description}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                            
-                            {openFileIndexes.includes(index) && (
-                              <div className="border-t border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_1%,transparent)] p-4 overflow-auto">
-                                <MarkdownContent content={file.content} />
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+
+              {/* structuredDescription */}
+              {structuredDescription && (
+                <div className={`mt-4 ${!(structuredFilesData && structuredFilesData.length > 0) ? 'pt-4' : ''}`}>
+                  <p className="text-sm">{structuredDescription}</p>
+                </div>
+              )}
+
+              {/* StructuredResponse Clickable Preview */}
+              {hasStructuredData && (
+                <div 
+                  className="mt-4 pt-4 mb-6 relative max-h-[300px] overflow-hidden cursor-pointer"
+                  onClick={() => togglePanel && togglePanel(message.id, 'structuredResponse')}
+                >
+                  <StructuredResponse message={message} />
+                  <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none"></div>
+                  <div className="flex items-center justify-center mt-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
+                    <span>View Details</span>
+                    <ChevronDown size={16} className="ml-1" />
+                  </div>
                 </div>
               )}
             </>
@@ -1567,21 +1487,7 @@ const Message = memo(function MessageComponent({
           {/* Then model name with logo */}
           <ModelNameWithLogo modelId={(message as ExtendedMessage).model || currentModel} />
           
-          {/* Canvas 버튼 추가 */}
-          {messageHasCanvasData && (
-            <button
-              className="text-xs flex items-center gap-1.5 ml-auto transition-colors text-[var(--muted)] hover:text-[var(--foreground)]"
-              onClick={() => togglePanel && togglePanel(message.id)}
-              title="View Canvas"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sm:w-3 sm:h-3">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                <line x1="8" y1="21" x2="16" y2="21"></line>
-                <line x1="12" y1="17" x2="12" y2="21"></line>
-              </svg>
-              <span className="hidden sm:inline">View Canvas</span>
-            </button>
-          )}
+          {/* Canvas 버튼 제거됨 */}
         </div>
       ) : (
         <div className="flex justify-end pr-1 mt-2 gap-4">

@@ -3,6 +3,7 @@ import { getEnabledModels } from '@/lib/models/config';
 import Image from 'next/image';
 import type { ModelConfig } from '@/lib/models/config';
 import { getProviderLogo, hasLogo } from '@/app/lib/models/logoUtils';
+import { checkSubscription } from '@/lib/polar';
 /**
  * Model Types Guide:
  * 
@@ -191,7 +192,7 @@ const ModelBarChart = ({
                 {model.name}
               </text>
               
-              {/* NEW/HOT badges with improved modern design */}
+              {/* NEW/HOT badges with consistent design */}
               {model.isNew && (
                 <g transform={`translate(${labelWidth + barWidth + 10}, ${y + barHeight / 2})`}>
                   <rect 
@@ -300,14 +301,15 @@ interface ModelSelectorProps {
   currentModel: string;
   nextModel: string;
   setNextModel: Dispatch<SetStateAction<string>>;
-  setCurrentModel?: Dispatch<SetStateAction<string>>; // Add prop to set currentModel
+  setCurrentModel?: Dispatch<SetStateAction<string>>;
   disabled?: boolean;
   position?: 'top' | 'bottom';
-  disabledModels?: string[]; // Array of model IDs that should be disabled
-  disabledLevel?: string; // Level that should be disabled (legacy)
-  disabledLevels?: string[]; // Array of levels that should be disabled
-  isAgentEnabled?: boolean; // Add prop for web search toggle
-  onAgentAvailabilityChange?: (hasAgentModels: boolean) => void; // Callback to notify parent if agent models are available
+  disabledModels?: string[];
+  disabledLevel?: string;
+  disabledLevels?: string[];
+  isAgentEnabled?: boolean;
+  onAgentAvailabilityChange?: (hasAgentModels: boolean) => void;
+  user?: any; // Add user prop
 }
 
 export function ModelSelector({ 
@@ -320,16 +322,41 @@ export function ModelSelector({
   disabledModels = [],
   disabledLevel,
   disabledLevels = [],
-  isAgentEnabled = false, // Default to false
-  onAgentAvailabilityChange
+  isAgentEnabled = false,
+  onAgentAvailabilityChange,
+  user // Add user parameter
 }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  // Add model filter state
   const [modelFilter, setModelFilter] = useState<'all' | 'thinking' | 'regular'>('all');
+  const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
+  const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(true);
+
+  // Add subscription check
+  useEffect(() => {
+    let ignore = false;
+    async function check() {
+      setIsSubscriptionLoading(true);
+      if (!user) {
+        setIsSubscribed(false);
+        setIsSubscriptionLoading(false);
+        return;
+      }
+      try {
+        const has = await checkSubscription(user.id);
+        if (!ignore) setIsSubscribed(has);
+      } catch {
+        if (!ignore) setIsSubscribed(false);
+      } finally {
+        if (!ignore) setIsSubscriptionLoading(false);
+      }
+    }
+    check();
+    return () => { ignore = true; };
+  }, [user]);
 
   // Get all models and filter based on web search enabled state and model filter
   const allModels = getEnabledModels();
@@ -558,10 +585,6 @@ export function ModelSelector({
         transition: all 0.3s ease;
       }
       
-      .model-option.active {
-        background: color-mix(in srgb, var(--accent) 30%, transparent);
-      }
-      
       .model-option:not(.disabled):hover {
         background: color-mix(in srgb, var(--accent) 20%, transparent);
       }
@@ -758,8 +781,8 @@ export function ModelSelector({
                 model-dropdown
                 ${isFullscreen ? 'fullscreen' : 
                   isMobile 
-                    ? 'fixed inset-x-0 bottom-0 w-full max-h-[80vh] overflow-y-auto pb-6 model-selector-scroll rounded-t-xl bg-gradient-to-br from-[var(--background)] to-[var(--background-secondary)]/30 backdrop-blur-lg' 
-                    : `absolute left-1 ${position === 'top' ? 'bottom-full mb-2 w-[592px] max-h-[600px]' : 'top-full mt-20 w-[600px] max-h-[400px]'} left-0   overflow-y-auto model-selector-scroll rounded-md bg-gradient-to-br from-[var(--background)] to-[var(--background-secondary)]/30 backdrop-blur-lg`
+                    ? 'fixed inset-x-0 bottom-0 w-full max-h-[80vh] overflow-y-auto pb-6 model-selector-scroll rounded-t-xl bg-[var(--background)] backdrop-blur-lg' 
+                    : `absolute left-1 ${position === 'top' ? 'bottom-full mb-2 w-[592px] max-h-[600px]' : 'top-full mt-20 w-[600px] max-h-[400px]'} left-0   overflow-y-auto model-selector-scroll rounded-md bg-[var(--background)] backdrop-blur-lg`
                 }
                 z-50
               `}
@@ -828,16 +851,17 @@ export function ModelSelector({
                 <div className={`py-1 space-y-6 ${isFullscreen ? 'max-w-4xl mx-auto px-4' : ''}`}>
                   {MODEL_OPTIONS.length > 0 ? (
                     MODEL_OPTIONS.map((option, index) => {
-                      // Check if this model is disabled (either by ID, by level, or doesn't support web search)
+                      // Check if this model is disabled
                       const isModelDisabled = disabledModels.includes(option.id) || 
-                                             (allDisabledLevels.length > 0 && allDisabledLevels.includes(option.rateLimit.level)) ||
-                                             !option.isActivated;
+                                           (allDisabledLevels.length > 0 && allDisabledLevels.includes(option.rateLimit.level)) ||
+                                           !option.isActivated ||
+                                           // Add Pro model check
+                                           (option.pro && !(isSubscribed ?? false));
                       
                       return (
                         <div 
                           key={option.id}
                           className={`model-option last:border-b-0 relative
-                                   ${option.id === nextModel ? 'active' : ''}
                                    ${isModelDisabled 
                                      ? 'opacity-50 cursor-not-allowed disabled' 
                                      : 'cursor-pointer'}
@@ -846,7 +870,6 @@ export function ModelSelector({
                           onClick={() => {
                             if (!isModelDisabled) {
                               setNextModel(option.id);
-                              // Also update currentModel if the prop is provided
                               if (setCurrentModel) {
                                 setCurrentModel(option.id);
                               }
@@ -886,17 +909,24 @@ export function ModelSelector({
                                 {option.name}
                               </span>
                               
-                              {/* NEW/HOT badges with improved modern design */}
+                              {/* Add Pro badge for Pro models */}
+                              {option.pro && (
+                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-500/10 text-green-500">
+                                  Pro
+                                </span>
+                              )}
+                              
+                              {/* NEW/HOT badges with consistent design */}
                               {option.isNew && (
-                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-gradient-to-r from-blue-500 to-blue-400 text-white shadow-sm">
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-500">
+                                  {/* <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
-                                  </svg>
-                                  NEW
+                                  </svg> */}
+                                  New
                                 </span>
                               )}
                               {option.isHot && (
-                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm">
+                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-500/10 text-orange-500">
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
                                   </svg>
@@ -990,6 +1020,13 @@ export function ModelSelector({
                                 {option.description}
                               </div>
                             </div>
+                            
+                            {/* Add subscription required message for Pro models */}
+                            {option.pro && !(isSubscribed ?? false) && (
+                              <div className="mt-1 ml-6 text-xs text-[var(--muted)]">
+                                Requires Pro subscription
+                              </div>
+                            )}
                           </div>
                         </div>
                       );

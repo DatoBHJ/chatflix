@@ -64,15 +64,37 @@ export function Sidebar({ user, onClose }: SidebarProps) {
       }
 
       try {
+        // Wrap the storage call in a timeout promise to avoid hanging
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Storage request timed out')), 5000);
+        });
+        
         // Try to get profile image from storage
-        const { data: profileData, error: profileError } = await supabase
-          .storage
-          .from('profile-pics')
-          .list(`${userId}`);
+        let { data: profileData, error: profileError } = await Promise.race([
+          supabase
+            .storage
+            .from('profile-pics')
+            .list(`${userId}`),
+          timeoutPromise
+        ]) as { data: any, error: any };
 
         if (profileError) {
           console.error('Error fetching profile image list:', profileError);
-          return;
+          // Don't return immediately, try to reconnect or continue safely
+          if (typeof window !== 'undefined') {
+            // Create a new supabase client and retry
+            console.log('Attempting to reconnect to Supabase storage...');
+            const newClient = createClient();
+            try {
+              const { data } = await newClient.storage.from('profile-pics').list(`${userId}`);
+              profileData = data;
+            } catch (retryError) {
+              console.error('Failed to reconnect to storage:', retryError);
+              return;
+            }
+          } else {
+            return;
+          }
         }
 
         // If profile image exists, get public URL
@@ -107,8 +129,13 @@ export function Sidebar({ user, onClose }: SidebarProps) {
         }
       } catch (error: any) {
         // 좀 더 자세한 에러 로깅
-        console.error('Error in Supabase storage operation:', 
+        console.error('Storage API error - likely a network or authentication issue:', 
           error?.message || error);
+        
+        if (error?.message?.includes('<html>') || error?.message?.includes('not valid JSON')) {
+          // This is likely a network issue or the API returned HTML instead of JSON
+          console.warn('Received HTML instead of JSON response - this might be a network issue or Supabase authentication problem');
+        }
         
         // 오류가 발생해도 UI는 계속 작동하도록 함
         return;
@@ -277,7 +304,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
       // First, fetch only chat session data with limited columns
       const { data: sessions, error: sessionsError } = await supabase
         .from('chat_sessions')
-        .select('id, created_at')
+        .select('id, created_at, title')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .range(from, to)
@@ -295,7 +322,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
 
       // For each session, fetch only the most recent message and the first user message
       const chatPromises = sessions.map(async (session) => {
-        // Get the first user message (for title)
+        // Get the first user message (for title fallback)
         const { data: firstUserMsg } = await supabase
           .from('messages')
           .select('content, created_at')
@@ -312,9 +339,11 @@ export function Sidebar({ user, onClose }: SidebarProps) {
           .order('created_at', { ascending: false })
           .limit(1)
 
-        const title = firstUserMsg && firstUserMsg.length > 0
-          ? firstUserMsg[0].content
-          : 'New Chat'
+        const title = session.title && session.title.trim().length > 0
+          ? session.title
+          : (firstUserMsg && firstUserMsg.length > 0
+              ? firstUserMsg[0].content
+              : 'New Chat')
         
         const lastMessage = latestMsg && latestMsg.length > 0
           ? latestMsg[0].content
@@ -346,11 +375,12 @@ export function Sidebar({ user, onClose }: SidebarProps) {
         return timeB - timeA;
       })
 
-      // 새 채팅을 기존 목록에 추가하거나 교체
+      // title이 비어있거나 'New Chat'인 채팅방은 표시하지 않음
+      const filteredChats = newChats.filter(chat => chat.title && chat.title.trim() !== '' && chat.title !== 'New Chat');
       if (append) {
-        setChats(prevChats => [...prevChats, ...newChats])
+        setChats(prevChats => [...prevChats, ...filteredChats])
       } else {
-        setChats(newChats)
+        setChats(filteredChats)
       }
       
       // 초기 로드 완료 표시
@@ -618,7 +648,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
                   height="20" 
                   viewBox="0 0 24 24" 
                   fill="none" 
-                  stroke="currentColor" 
+                  stroke="var(--muted)"
                   strokeWidth="2" 
                   strokeLinecap="round" 
                   strokeLinejoin="round" 
@@ -628,14 +658,14 @@ export function Sidebar({ user, onClose }: SidebarProps) {
                   <polyline points="9 22 9 12 15 12 15 22"></polyline>
                 </svg>
               </div>
-              <span className={`ml-3 text-sm font-medium whitespace-nowrap ${isSidebarExpanded ? 'block' : 'hidden'}`}>
+              <span className={`ml-3 text-sm font-medium whitespace-nowrap ${isSidebarExpanded ? 'block' : 'hidden'} text-[var(--muted)]`}>
                 Home
               </span>
             </div>
           </Link>
           
           <button onClick={toggleExpanded} className="flex items-center group w-full text-left">
-            <div className={`min-w-[40px] h-10 rounded-lg flex items-center justify-center transition-all duration-200 ${isExpanded ? 'bg-[var(--foreground)]/10' : 'hover:bg-[var(--accent)]'}`}>
+            <div className={`min-w-[40px] h-10 rounded-lg flex items-center justify-center transition-all duration-200 ${isExpanded ? 'bg-[var(--foreground)]/10' : 'hover:bg-[var(--accent)] text-[var(--muted)]'}`}>
               <svg 
                 width="20" 
                 height="20" 
@@ -650,7 +680,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
             </div>
-            <span className={`ml-3 whitespace-nowrap ${isSidebarExpanded ? 'block' : 'hidden'} ${isExpanded ? 'font-bold text-base text-[var(--foreground)]' : 'font-medium text-sm'}`}>
+            <span className={`ml-3 whitespace-nowrap ${isSidebarExpanded ? 'block' : 'hidden'} ${isExpanded ? 'text-base text-[var(--foreground)]' : 'font-medium text-sm text-[var(--muted)]'}`}>
               Chat History
             </span>
           </button>
@@ -662,57 +692,56 @@ export function Sidebar({ user, onClose }: SidebarProps) {
             <div className="space-y-3 sm:space-y-6 pb-4 pl-0 ml-4 border-l border-[var(--sidebar-divider)] relative">
               {chats.length > 0 ? (
                 <>
-                  {chats.map((chat) => (
-                    <div
-                      key={chat.id}
-                      className="group shortcut-item bg-[var(--accent)]/5 hover:bg-[var(--accent)]/20 p-3 rounded-lg relative transition-all cursor-pointer"
-                      onClick={() => {
-                        router.push(`/chat/${chat.id}`)
-                        onClose?.()
-                      }}
-                    >
-                      <div className="flex pr-12">
-                        <div className="flex-1 flex flex-col gap-1 text-left">
-                          <span className="text-sm font-medium tracking-wide">
-                            {chat.title.length > 40 ? chat.title.substring(0, 40) + '...' : chat.title}
-                          </span>
-                          <span className="text-xs line-clamp-2 text-[var(--muted)]">
-                            {(() => {
-                              const date = new Date(chat.lastMessageTime || chat.created_at);
-                              return date.toLocaleDateString();
-                            })()}
-                          </span>
-                        </div>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1 items-center justify-center">
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteChat(chat.id, e);
-                            }}
-                            className="p-1.5 rounded-md bg-[var(--accent)]/20 hover:bg-red-500/20 transition-colors"
-                            title="Delete chat"
-                            type="button"
-                            aria-label="Delete chat"
-                          >
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <polyline points="3 6 5 6 21 6"></polyline>
-                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  
+               {chats.map((chat) => (
+  <Link
+    href={`/chat/${chat.id}`}
+    key={chat.id}
+    className="group shortcut-item bg-[var(--accent)]/5 hover:bg-[var(--accent)]/20 p-3 rounded-lg relative transition-all cursor-pointer block"
+    onClick={() => onClose?.()}
+  >
+    <div className="flex pr-12">
+      <div className="flex-1 flex flex-col gap-1 text-left">
+        <span className="text-sm font-medium tracking-wide">
+          {chat.title.length > 40 ? chat.title.substring(0, 40) + '...' : chat.title}
+        </span>
+        <span className="text-xs line-clamp-2 text-[var(--muted)]">
+          {(() => {
+            const date = new Date(chat.lastMessageTime || chat.created_at);
+            return date.toLocaleDateString();
+          })()}
+        </span>
+      </div>
+      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1 items-center justify-center">
+        <button 
+          onClick={(e) => {
+            e.preventDefault(); // 링크 이동 방지
+            e.stopPropagation();
+            handleDeleteChat(chat.id, e);
+          }}
+          className="p-1.5 rounded-md bg-[var(--accent)]/20 hover:bg-red-500/20 transition-colors"
+          title="Delete chat"
+          type="button"
+          aria-label="Delete chat"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </Link>
+))}
+
                   {/* 무한 스크롤 트리거 & 로딩 인디케이터 */}
                   {hasMore && (
                     <div 
@@ -897,7 +926,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
         </div>
 
         {/* Bottom Section */}
-        <div className="mt-6 pb-5 md:pb-8 flex flex-col space-y-4 md:space-y-5 px-3">
+        <div className="mt-6 pb-5 md:pb-8 flex flex-col space-y-4 md:space-y-5 px-3 text-[var(--muted)]">
           <button
             onClick={toggleShortcuts}
             className="flex items-center group w-full text-left"
@@ -919,7 +948,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
                 <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" />
               </svg>
             </div>
-            <span className={`ml-3 whitespace-nowrap ${isSidebarExpanded ? 'block' : 'hidden'} ${isExpandedShortcuts ? 'font-bold text-base text-[var(--foreground)]' : 'font-medium text-sm'}`}>
+            <span className={`ml-3 whitespace-nowrap ${isSidebarExpanded ? 'block' : 'hidden'} ${isExpandedShortcuts ? 'text-base text-[var(--foreground)]' : 'font-medium text-sm'}`}>
               Shortcuts
             </span>
           </button>
@@ -940,7 +969,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
               </svg>
             </div>
-            <span className={`ml-3 text-sm font-medium whitespace-nowrap ${isSidebarExpanded ? 'block' : 'hidden'}`}>
+            <span className={`ml-3 text-sm font-medium whitespace-nowrap ${isSidebarExpanded ? 'block' : 'hidden '}`}>
               Bookmarks
             </span>
           </Link>

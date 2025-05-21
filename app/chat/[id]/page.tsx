@@ -23,12 +23,62 @@ import Canvas from '@/app/components/Canvas';
 import { FollowUpQuestions } from '@/app/components/FollowUpQuestions';
 import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getXSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getAcademicSearchData } from '@/app/hooks/toolFunction';
 import { StructuredResponse } from '@/app/components/StructuredResponse';
+import { getStructuredResponseFiles } from '@/app/lib/messageUtils';
 
 
 // Define a type for the annotations
 type Annotation = {
   type: string;
   data: any;
+};
+
+// Helper function to extract reasoning data for a single message
+const extractReasoningForMessage = (message: Message) => {
+  const messageAnnotations = ((message.annotations || []) as Annotation[]);
+  const toolResults = (message as any).tool_results;
+
+  const reasoningAnnotations = messageAnnotations
+    .filter(a => a?.type === 'agent_reasoning' || a?.type === 'agent_reasoning_progress');
+    
+  const toolResultsReasoningData = toolResults?.agentReasoning;
+  const toolResultsSource = toolResultsReasoningData
+    ? [{ type: 'agent_reasoning', data: toolResultsReasoningData }] 
+    : [];
+    
+  const reasoningDataSources = [...reasoningAnnotations, ...toolResultsSource];
+
+  const completeAnnotation = reasoningDataSources.find(a => 
+    a?.type === 'agent_reasoning' && (a?.data?.isComplete === true || typeof a?.data?.isComplete === 'undefined')
+  );
+  
+  const progressAnnotations = reasoningDataSources
+    .filter(a => a?.type === 'agent_reasoning_progress')
+    .sort((a, b) => new Date(a?.data?.timestamp || 0).getTime() - new Date(b?.data?.timestamp || 0).getTime());
+  
+  const formatReasoningData = (sourceItem: any, isExplicitlyProgress: boolean) => {
+    const data = sourceItem.data;
+    return {
+      agentThoughts: data?.agentThoughts || data?.reasoning || '',
+      plan: data?.plan || '',
+      selectionReasoning: data?.selectionReasoning || '',
+      needsWebSearch: Boolean(data?.needsWebSearch),
+      needsCalculator: Boolean(data?.needsCalculator),
+      needsLinkReader: Boolean(data?.needsLinkReader),
+      needsImageGenerator: Boolean(data?.needsImageGenerator),
+      needsAcademicSearch: Boolean(data?.needsAcademicSearch),
+      // needsXSearch: Boolean(data?.needsXSearch), // Assuming this remains commented out as per previous context
+      needsYouTubeSearch: Boolean(data?.needsYouTubeSearch),
+      needsYouTubeLinkAnalyzer: Boolean(data?.needsYouTubeLinkAnalyzer),
+      needsDataProcessor: Boolean(data?.needsDataProcessor),
+      timestamp: data?.timestamp,
+      isComplete: isExplicitlyProgress ? false : (data?.isComplete ?? (sourceItem.type === 'agent_reasoning'))
+    };
+  };
+  
+  return {
+    completeData: completeAnnotation ? formatReasoningData(completeAnnotation, false) : null,
+    progressData: progressAnnotations.map(a => formatReasoningData(a, true))
+  };
 };
 
 export default function Chat({ params }: PageProps) {
@@ -55,9 +105,11 @@ export default function Chat({ params }: PageProps) {
   const [hasAgentModels, setHasAgentModels] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const isFullyLoaded = !isModelLoading && isSessionLoaded && !!currentModel
+  const summaryAttemptedRef = useRef(false); // 요약 시도 여부 플래그
+  const prevIsLoadingRef = useRef(false); // 이전 isLoading 상태 추적
   
-  // 활성화된 캔버스 패널과 관련 메시지 ID 상태 관리
-  const [activePanelMessageId, setActivePanelMessageId] = useState<string | null>(null)
+  // 활성화된 패널과 관련 메시지 ID 상태 관리
+  const [activePanel, setActivePanel] = useState<{ messageId: string; type: 'canvas' | 'structuredResponse' } | null>(null);
   // 사용자가 패널 상태를 명시적으로 제어했는지 추적하는 상태
   const [userPanelPreference, setUserPanelPreference] = useState<boolean | null>(null)
   // 마지막으로 생성된 패널 데이터가 있는 메시지 ID
@@ -166,7 +218,7 @@ export default function Chat({ params }: PageProps) {
               {
                 type: 'rate_limit_status',
                 data: {
-                  message: `Rate limit reached! Unlock unlimited access for only $4/month`,
+                  message: `Rate limit reached. Try again in ${minutesUntilReset} minute${minutesUntilReset > 1 ? 's' : ''}, switch to a different model, or`,
                   reset: reset,
                   limit: limit,
                   level: level,
@@ -190,6 +242,11 @@ export default function Chat({ params }: PageProps) {
       console.error('Unexpected chat error:', error);
     }
   });
+
+  // Check if conversation exceeds maximum length
+  const isConversationTooLong = useMemo(() => {
+    return messages.length > 30;
+  }, [messages.length]);
 
   // Determine whether to use virtualization based on message count
   const useVirtualization = useMemo(() => {
@@ -665,15 +722,16 @@ export default function Chat({ params }: PageProps) {
 
   // 활성화된 패널이 변경될 때 캔버스 패널 스크롤
   useEffect(() => {
-    // canvasContainerRef.current가 null이 아닌지 확인
-    if (activePanelMessageId && canvasContainerRef.current) {
-      // 약간의 지연 추가 (패널 렌더링 후 스크롤 보장)
+    // 캔버스가 아닐 때만 자동 스크롤 동작
+    if (
+      activePanel?.messageId &&
+      activePanel.type !== 'canvas' &&
+      canvasContainerRef.current
+    ) {
       setTimeout(() => {
-        // 다시 한번 null 체크 (setTimeout 내부에서도 확인 필요)
         if (!canvasContainerRef.current) return;
-        
         // 관련 캔버스 요소 찾기 및 스크롤
-        const canvasElement = document.getElementById(`canvas-${activePanelMessageId}`);
+        const canvasElement = document.getElementById(`canvas-${activePanel.messageId}`);
         if (canvasElement) {
           canvasContainerRef.current.scrollTo({
             top: canvasElement.offsetTop - 20,
@@ -685,7 +743,7 @@ export default function Chat({ params }: PageProps) {
         }
       }, 100);
     }
-  }, [activePanelMessageId]);
+  }, [activePanel]);
 
 
   const handleModelChange = async (newModel: string) => {
@@ -1004,15 +1062,13 @@ export default function Chat({ params }: PageProps) {
 
 
   // 패널 토글 함수 - 사용자 선호도 기록
-  const togglePanel = (messageId: string) => {
-    if (activePanelMessageId === messageId) {
-      // 패널 닫기
-      setActivePanelMessageId(null);
-      setUserPanelPreference(false); // 사용자가 패널 닫기를 선호함
+  const togglePanel = (messageId: string, type: 'canvas' | 'structuredResponse') => {
+    if (activePanel?.messageId === messageId && activePanel?.type === type) {
+      setActivePanel(null);
+      setUserPanelPreference(false);
     } else {
-      // 패널 열기
-      setActivePanelMessageId(messageId);
-      setUserPanelPreference(true); // 사용자가 패널 열기를 선호함
+      setActivePanel({ messageId, type });
+      setUserPanelPreference(true);
     }
   };
 
@@ -1100,63 +1156,103 @@ export default function Chat({ params }: PageProps) {
         setLastPanelDataMessageId(lastAssistantMessage.id);
         
         // 패널 자동 열기 규칙:
-        // 1. 사용자가 명시적으로 패널 열기를 선택했거나
-        // 2. 사용자가 아직 선호도를 설정하지 않았고, 모바일이 아닌 환경
-        if (userPanelPreference === true || (userPanelPreference === null && !isMobile)) {
+        // 사용자가 명시적으로 패널 열기를 선택한 경우에만 열기
+        if (userPanelPreference === true) {
           // 패널 열기
-          setActivePanelMessageId(lastAssistantMessage.id);
+          togglePanel(lastAssistantMessage.id, 'canvas');
         }
-        // userPanelPreference가 false이거나 모바일 환경에서는 패널을 열지 않음
       }
     }
   }, [messages, userPanelPreference, lastPanelDataMessageId]);
 
+  // LLM 요약 effect: 첫 user+assistant 메시지 쌍이 모두 있고, 스트리밍이 완료되었을 때만 동작
+  useEffect(() => {
+    // isLoading이 true에서 false로 막 변경된 시점인지 확인
+    const justFinishedLoading = prevIsLoadingRef.current && !isLoading;
+    prevIsLoadingRef.current = isLoading; // 현재 isLoading 상태를 다음 실행을 위해 저장
+
+    if (
+      !chatId ||
+      !user ||
+      !messages ||
+      messages.length < 2 ||
+      summaryAttemptedRef.current // 이미 요약 시도했으면 중단
+    ) {
+      return;
+    }
+
+    // 로딩이 방금 끝난 경우에만 요약 로직 진행
+    if (!justFinishedLoading) {
+      return;
+    }
+
+    const firstUserMsg = messages.find(m => m.role === 'user');
+    const firstAssistantMsg = messages.find(m => m.role === 'assistant');
+
+    // 첫 사용자 메시지, 첫 어시스턴트 메시지, 그리고 어시스턴트 메시지 내용이 모두 있어야 함
+    if (!firstUserMsg || !firstAssistantMsg || !firstAssistantMsg.content || firstAssistantMsg.content.trim() === '') {
+      return;
+    }
+
+    // 이 시점에서 isLoading은 false이고 justFinishedLoading이 true이므로,
+    // firstAssistantMsg.content는 완전한 상태여야 합니다.
+    // 요약 시도 플래그를 true로 설정
+    summaryAttemptedRef.current = true;
+
+    (async () => {
+      try {
+        const { data: session, error: sessionError } = await supabase
+          .from('chat_sessions')
+          .select('title')
+          .eq('id', chatId)
+          .eq('user_id', user.id)
+          .single();
+
+        if (sessionError) {
+          console.error('Error fetching session for summary check:', sessionError);
+          summaryAttemptedRef.current = false; // 세션 조회 실패 시, 다음 effect 실행에서 재시도 허용
+          return;
+        }
+
+        if (session && session.title && session.title.trim().length > 0 && session.title !== 'New Chat') {
+          console.log('Title already exists, skipping summary.');
+          return;
+        }
+
+        const summaryInput = `User: ${firstUserMsg.content}\nAssistant: ${firstAssistantMsg.content}`;
+        console.log('[Debug] Attempting to summarize (Agent aware) with FULL input:', summaryInput);
+        const res = await fetch('/api/chat/summarize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: summaryInput })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.summary) {
+            const { error: updateError } = await supabase
+              .from('chat_sessions')
+              .update({ title: data.summary })
+              .eq('id', chatId)
+              .eq('user_id', user.id);
+            if (updateError) {
+              console.error('Failed to update chat title with LLM summary:', updateError);
+            } else {
+              console.log('Chat title updated with LLM summary:', data.summary);
+            }
+          }
+        } else {
+          console.warn('LLM summary API failed.');
+        }
+      } catch (err) {
+        console.error('Error in summary effect:', err);
+      }
+    })();
+  }, [chatId, user, messages, supabase, isLoading]);
+
   // 모든 데이터가 로드되기 전에는 로딩 화면 표시
   if (!isFullyLoaded || !user) {
     return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
-  }
-
-  // Extract agent reasoning data from annotations and tool_results
-  function getAgentReasoningData(messages: Message[]) {
-    const reasoningData = messages.flatMap(message => {
-      const annotations = ((message.annotations || []) as Annotation[])
-        .filter(a => a?.type === 'agent_reasoning' || a?.type === 'agent_reasoning_progress');
-        
-      const toolResultsReasoning = (message as any).tool_results?.agentReasoning 
-        ? [{ type: 'agent_reasoning', data: (message as any).tool_results.agentReasoning }] 
-        : [];
-        
-      return [...annotations, ...toolResultsReasoning];
-    });
-    
-    const completeAnnotation = reasoningData.find(a => 
-      a?.type === 'agent_reasoning' && (a?.data?.isComplete === true || a?.data?.isComplete === undefined)
-    );
-    
-    const progressAnnotations = reasoningData
-      .filter(a => a?.type === 'agent_reasoning_progress')
-      .sort((a, b) => new Date(a?.data?.timestamp || 0).getTime() - new Date(b?.data?.timestamp || 0).getTime());
-    
-    const formatReasoningData = (data: any) => ({
-      agentThoughts: data?.agentThoughts || data?.reasoning || '',
-      plan: data?.plan || '',
-      selectionReasoning: data?.selectionReasoning || '',
-      needsWebSearch: Boolean(data?.needsWebSearch),
-      needsCalculator: Boolean(data?.needsCalculator),
-      needsLinkReader: Boolean(data?.needsLinkReader),
-      needsImageGenerator: Boolean(data?.needsImageGenerator),
-      needsAcademicSearch: Boolean(data?.needsAcademicSearch),
-      // needsXSearch: Boolean(data?.needsXSearch),
-      needsYouTubeSearch: Boolean(data?.needsYouTubeSearch),
-      needsYouTubeLinkAnalyzer: Boolean(data?.needsYouTubeLinkAnalyzer),
-      timestamp: data?.timestamp,
-      isComplete: data?.isComplete ?? true
-    });
-    
-    return {
-      completeData: completeAnnotation ? formatReasoningData(completeAnnotation.data) : null,
-      progressData: progressAnnotations.map(a => ({ ...formatReasoningData(a.data), isComplete: false }))
-    };
   }
 
   return (
@@ -1181,13 +1277,13 @@ export default function Chat({ params }: PageProps) {
       />
 
       {/* Main content area - adjusted to account for header height */}
-      <div className="pt-[76px] h-[calc(100vh-76px)]">
+      <div className="pt-[60px] h-[calc(100vh-60px)]">
         {/* 주 컨텐츠 영역 */}
         <div className="flex flex-col sm:flex-row h-full sm:px-10 relative">
           {/* 채팅 패널 - 항상 표시 */}
           <div 
             className={`overflow-y-auto pb-4 sm:pb-4 mx-auto max-w-3xl w-full 
-              ${activePanelMessageId ? 'sm:w-2/6' : ''} 
+              ${activePanel?.messageId ? 'sm:w-2/6' : ''} 
               ${hideScrollbarClass}
               transition-all duration-300 ease-in-out`}
             style={{ height: '100%' }}
@@ -1204,6 +1300,20 @@ export default function Chat({ params }: PageProps) {
                   renderMessage={(message, index) => {
                     // Get reasoning parts directly from message.parts during streaming
                     const messageHasCanvasData = hasCanvasData(message);
+                    
+                    // 각 메시지의 캔버스 데이터 가져오기
+                    const webSearchData = getWebSearchResults(message);
+                    const mathCalculationData = getMathCalculationData(message);
+                    const linkReaderData = getLinkReaderData(message);
+                    const imageGeneratorData = getImageGeneratorData(message);
+                    const academicSearchData = getAcademicSearchData(message);
+                    const youTubeSearchData = getYouTubeSearchData(message);
+                    const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(message);
+
+                    // Call the helper function directly, no useMemo here
+                    const reasoningData = extractReasoningForMessage(message);
+                    const agentReasoning = reasoningData.completeData;
+                    const agentReasoningProgress = reasoningData.progressData;
                     
                     return (
                       <>
@@ -1224,11 +1334,18 @@ export default function Chat({ params }: PageProps) {
                             chatId={chatId}
                             isStreaming={isLoading && message.role === 'assistant' && message.id === messages[messages.length - 1]?.id}
                             isWaitingForToolResults={isWaitingForToolResults(message)}
-                            agentReasoning={getAgentReasoningData([message]).completeData}
-                            agentReasoningProgress={getAgentReasoningData([message]).progressData}
+                            agentReasoning={agentReasoning}
+                            agentReasoningProgress={agentReasoningProgress}
                             messageHasCanvasData={messageHasCanvasData}
-                            activePanelMessageId={activePanelMessageId}
+                            activePanelMessageId={activePanel?.messageId}
                             togglePanel={togglePanel}
+                            webSearchData={webSearchData}
+                            mathCalculationData={mathCalculationData}
+                            linkReaderData={linkReaderData}
+                            imageGeneratorData={imageGeneratorData}
+                            academicSearchData={academicSearchData}
+                            youTubeSearchData={youTubeSearchData}
+                            youTubeLinkAnalysisData={youTubeLinkAnalysisData}
                           />
                         </div>
                         
@@ -1258,8 +1375,15 @@ export default function Chat({ params }: PageProps) {
                             agentReasoning={null}
                             agentReasoningProgress={[]}
                             messageHasCanvasData={false}
-                            activePanelMessageId={activePanelMessageId}
+                            activePanelMessageId={activePanel?.messageId}
                             togglePanel={togglePanel}
+                            webSearchData={null}
+                            mathCalculationData={null}
+                            linkReaderData={null}
+                            imageGeneratorData={null}
+                            academicSearchData={null}
+                            youTubeSearchData={null}
+                            youTubeLinkAnalysisData={null}
                           />
                         )}
                         
@@ -1280,6 +1404,20 @@ export default function Chat({ params }: PageProps) {
                 messages.map((message) => {
                   const messageHasCanvasData = hasCanvasData(message);
                   
+                  // 각 메시지의 캔버스 데이터 가져오기
+                  const webSearchData = getWebSearchResults(message);
+                  const mathCalculationData = getMathCalculationData(message);
+                  const linkReaderData = getLinkReaderData(message);
+                  const imageGeneratorData = getImageGeneratorData(message);
+                  const academicSearchData = getAcademicSearchData(message);
+                  const youTubeSearchData = getYouTubeSearchData(message);
+                  const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(message);
+
+                  // Call the helper function directly, no useMemo here
+                  const reasoningData = extractReasoningForMessage(message);
+                  const agentReasoning = reasoningData.completeData;
+                  const agentReasoningProgress = reasoningData.progressData;
+                  
                   return (
                     <div key={message.id}>
                       <div className="relative">
@@ -1299,11 +1437,18 @@ export default function Chat({ params }: PageProps) {
                           chatId={chatId}
                           isStreaming={isLoading && message.role === 'assistant' && message.id === messages[messages.length - 1]?.id}
                           isWaitingForToolResults={isWaitingForToolResults(message)}
-                          agentReasoning={getAgentReasoningData([message]).completeData}
-                          agentReasoningProgress={getAgentReasoningData([message]).progressData}
+                          agentReasoning={agentReasoning}
+                          agentReasoningProgress={agentReasoningProgress}
                           messageHasCanvasData={messageHasCanvasData}
-                          activePanelMessageId={activePanelMessageId}
+                          activePanelMessageId={activePanel?.messageId}
                           togglePanel={togglePanel}
+                          webSearchData={webSearchData}
+                          mathCalculationData={mathCalculationData}
+                          linkReaderData={linkReaderData}
+                          imageGeneratorData={imageGeneratorData}
+                          academicSearchData={academicSearchData}
+                          youTubeSearchData={youTubeSearchData}
+                          youTubeLinkAnalysisData={youTubeLinkAnalysisData}
                         />
                       </div>
                     </div>
@@ -1337,8 +1482,15 @@ export default function Chat({ params }: PageProps) {
                     agentReasoning={null}
                     agentReasoningProgress={[]}
                     messageHasCanvasData={false}
-                    activePanelMessageId={activePanelMessageId}
+                    activePanelMessageId={activePanel?.messageId}
                     togglePanel={togglePanel}
+                    webSearchData={null}
+                    mathCalculationData={null}
+                    linkReaderData={null}
+                    imageGeneratorData={null}
+                    academicSearchData={null}
+                    youTubeSearchData={null}
+                    youTubeLinkAnalysisData={null}
                   />
                 </div>
               )}
@@ -1359,62 +1511,108 @@ export default function Chat({ params }: PageProps) {
 
           {/* 우측 사이드 패널 - 조건부 렌더링이 아닌 항상 렌더링하되 상태에 따라 표시/숨김 */}
           <div 
-            className={`fixed sm:relative top-[76px] sm:top-0 right-0 bottom-0 
+            className={`fixed sm:relative top-[60px] sm:top-0 right-0 bottom-0 
               w-full sm:w-4/6 bg-[var(--background)] sm:border-l 
               border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] 
               overflow-y-auto z-0 
               transition-all duration-300 ease-in-out transform 
-              ${activePanelMessageId ? 'translate-x-0 opacity-100 sm:max-w-[66.666667%]' : 'translate-x-full sm:translate-x-0 sm:max-w-0 sm:opacity-0 sm:overflow-hidden'} 
+              ${activePanel?.messageId ? 'translate-x-0 opacity-100 sm:max-w-[66.666667%]' : 'translate-x-full sm:translate-x-0 sm:max-w-0 sm:opacity-0 sm:overflow-hidden'} 
               ${hideScrollbarClass}`}
             style={{ 
-              height: 'calc(100vh - 76px)',
+              height: 'calc(100vh - 60px)',
               maxHeight: '100%'
             }}
             ref={canvasContainerRef}
           >
-            {/* 모바일 전용 헤더 */}
-            <div className="px-4 pl-6 flex justify-between items-center sm:hidden">
-              <h3 className="text-lg">Canvas</h3>
-              <button 
-                onClick={() => setActivePanelMessageId(null)}
-                className="w-8 h-8 flex items-center justify-center"
-                aria-label="Close panel"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-            </div>
-            
+            {/* 패널 헤더 (모바일/데스크탑 공통) */}
+            {activePanel?.messageId && (
+              <div className="sticky top-0 z-10 bg-[var(--background)] flex items-center justify-between px-4 h-auto py-2.5 border-b border-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
+                <div className="flex items-center">
+                  <button 
+                    onClick={() => togglePanel(activePanel?.messageId || '', activePanel?.type || 'canvas')}
+                    className="w-8 h-8 flex items-center justify-center mr-3"
+                    aria-label="Close panel"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                  <div className="flex flex-col">
+                    <h3 className="text-lg font-semibold">
+                      {activePanel.type === 'canvas' ? 'Canvas' : 'Attachment Details'}
+                    </h3>
+                    {activePanel.type === 'canvas' && (() => {
+                      const activeMessageForCanvas = messages.find(msg => msg.id === activePanel?.messageId);
+                      if (!activeMessageForCanvas) return null;
+
+                      const canvasDataSummary: string[] = [];
+                      if (getWebSearchResults(activeMessageForCanvas)) canvasDataSummary.push('Web Search');
+                      if (getMathCalculationData(activeMessageForCanvas)) canvasDataSummary.push('Calculator');
+                      if (getLinkReaderData(activeMessageForCanvas)) canvasDataSummary.push('Link Reader');
+                      if (getImageGeneratorData(activeMessageForCanvas)) canvasDataSummary.push('Image Gen');
+                      if (getAcademicSearchData(activeMessageForCanvas)) canvasDataSummary.push('Academic Search');
+                      if (getYouTubeSearchData(activeMessageForCanvas)) canvasDataSummary.push('YouTube Search');
+                      if (getYouTubeLinkAnalysisData(activeMessageForCanvas)) canvasDataSummary.push('YouTube Analysis');
+                      // Add other canvas data types here as needed
+
+                      if (canvasDataSummary.length > 0) {
+                        return <p className="text-xs text-[var(--muted)] mt-0.5">{canvasDataSummary.join(', ')}</p>;
+                      }
+                      return null;
+                    })()}
+                    {activePanel.type === 'structuredResponse' && (() => {
+                      const activeMessageForPanel = messages.find(msg => msg.id === activePanel?.messageId);
+                      if (!activeMessageForPanel) return null;
+                      const filesForPanel = getStructuredResponseFiles(activeMessageForPanel);
+                      if (filesForPanel && filesForPanel.length > 0) {
+                        // Display up to 3 file names, then 'and X more'
+                        const maxFilesToShow = 3;
+                        const fileNames = filesForPanel.map(file => file.name);
+                        let summaryText = fileNames.slice(0, maxFilesToShow).join(', ');
+                        if (fileNames.length > maxFilesToShow) {
+                          summaryText += `, and ${fileNames.length - maxFilesToShow} more`;
+                        }
+                        return <p className="text-xs text-[var(--muted)] mt-0.5">{summaryText}</p>;
+                      }
+                      return null;
+                    })()}
+                  </div>
+                </div>
+                <div></div> {/* Empty div to maintain justify-between spacing */}
+              </div>
+            )}
+
             {/* 패널 내용 - 선택된 메시지의 캔버스 데이터만 표시 */}
-            <div className="px-4 mb-10">
+            <div className="px-4 pt-4 mb-10">
               {messages
-                .filter(message => message.id === activePanelMessageId)
+                .filter(message => message.id === activePanel?.messageId)
                 .map((message) => {
                   const webSearchData = getWebSearchResults(message);
                   const mathCalculationData = getMathCalculationData(message);
                   const linkReaderData = getLinkReaderData(message);
                   const imageGeneratorData = getImageGeneratorData(message);
                   const academicSearchData = getAcademicSearchData(message);
-                  // const xSearchData = getXSearchData(message);
                   const youTubeSearchData = getYouTubeSearchData(message);
                   const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(message);
 
                   return (
-                    <div key={`canvas-${message.id}`}>
-                      <Canvas 
-                        webSearchData={webSearchData}
-                        mathCalculationData={mathCalculationData}
-                        linkReaderData={linkReaderData}
-                        imageGeneratorData={imageGeneratorData}
-                        academicSearchData={academicSearchData}
-                        // xSearchData={xSearchData}
-                        youTubeSearchData={youTubeSearchData}
-                        youTubeLinkAnalysisData={youTubeLinkAnalysisData}
-                      />
-                      {/* 구조화된 응답 컴포넌트 추가 */}
-                      <StructuredResponse message={message} />
+                    <div key={`panel-content-${message.id}`}>
+                      {activePanel?.type === 'canvas' && (
+                        <Canvas
+                          webSearchData={webSearchData}
+                          mathCalculationData={mathCalculationData}
+                          linkReaderData={linkReaderData}
+                          imageGeneratorData={imageGeneratorData}
+                          academicSearchData={academicSearchData}
+                          youTubeSearchData={youTubeSearchData}
+                          youTubeLinkAnalysisData={youTubeLinkAnalysisData}
+                          isCompact={false} // 패널에서는 항상 전체 보기
+                        />
+                      )}
+                      {activePanel?.type === 'structuredResponse' && (
+                        <StructuredResponse message={message} />
+                      )}
                     </div>
                   );
                 })}
@@ -1427,7 +1625,12 @@ export default function Chat({ params }: PageProps) {
         <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-0 pb-6 w-full">
           <div className="max-w-2xl mx-auto w-full px-6 sm:px-8 relative flex flex-col items-center">
             <div className="w-full max-w-[calc(100vw-2rem)]">
-             
+              {isConversationTooLong && (
+                <div className="p-3 text-center text-[var(--foreground-secondary)] backdrop-blur-md text-sm sm:text-base rounded-md">
+                  Hmm, I might be forgetting our earlier conversation. <br />
+                  Want to start a <a href="/" className="text-blue-500 hover:underline">fresh chat</a> for better results? 😊
+                </div>
+              )}
               <ModelSelector
                 currentModel={currentModel}
                 nextModel={nextModel}
@@ -1437,6 +1640,7 @@ export default function Chat({ params }: PageProps) {
                 disabledLevels={rateLimitedLevels}
                 isAgentEnabled={isAgentEnabled}
                 onAgentAvailabilityChange={setHasAgentModels}
+                user={user}
               />
               <ChatInput
                 input={input}

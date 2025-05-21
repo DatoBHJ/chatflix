@@ -222,21 +222,21 @@ export function useMessages(chatId: string, userId: string) {
 
       const assistantMessageId = generateMessageId();
 
-      // const { error: insertError } = await supabase
-      //   .from('messages')
-      //   .insert([{
-      //     id: assistantMessageId,
-      //     role: 'assistant',
-      //     content: '',
-      //     created_at: new Date().toISOString(),
-      //     model: currentModel,
-      //     host: 'assistant',
-      //     chat_session_id: chatId,
-      //     user_id: userId,
-      //     sequence_number: existingMessage.sequence_number + 1
-      //   }]);
+      const { error: insertError } = await supabase
+        .from('messages')
+        .insert([{
+          id: assistantMessageId,
+          role: 'assistant',
+          content: '',
+          created_at: new Date().toISOString(),
+          model: currentModel,
+          host: 'assistant',
+          chat_session_id: chatId,
+          user_id: userId,
+          sequence_number: existingMessage.sequence_number + 1
+        }]);
 
-      // if (insertError) throw insertError;
+      if (insertError) throw insertError;
 
       // Check if current model is rate limited
       let modelToUse = currentModel;

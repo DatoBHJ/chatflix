@@ -93,7 +93,7 @@ export const FileUploadButton = memo(function FileUploadButton({
     <button
       type="button"
       onClick={onClick}
-      className="input-btn transition-all duration-300 flex items-center justify-center relative rounded-md w-9 h-9 text-background"
+      className="input-btn transition-all duration-300 flex items-center justify-center relative rounded-md w-9 h-9 text-[var(--muted)] hover:text-[var(--foreground)]"
       aria-label="Attach files"
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -220,7 +220,7 @@ const FileItem = memo(function FileItem({
            /\.(js|jsx|ts|tsx|html|css|json|md|py|java|c|cpp|cs|go|rb|php|swift|kt|rs)$/i.test(file.name)) {
     fileIcon = (
       <div className="flex flex-col items-center justify-center text-center p-3 h-full">
-        <span className="text-[10px] text-background font-mono mt-2 px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--background)_7%,transparent)]">
+        <span className="text-[10px] font-mono mt-2 px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--background)_7%,transparent)]">
           {fileExtension}
         </span>
       </div>
@@ -228,7 +228,7 @@ const FileItem = memo(function FileItem({
   } else {
     fileIcon = (
       <div className="flex flex-col items-center justify-center text-center p-3 h-full">
-        <span className="text-[10px] text-background font-mono mt-2 px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--background)_7%,transparent)]">
+        <span className="text-[10px] font-mono mt-2 px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--background)_7%,transparent)]">
           {fileExtension}
         </span>
       </div>
@@ -245,7 +245,7 @@ const FileItem = memo(function FileItem({
                  ${hovered ? 'translate-y-[-2px]' : ''}`}
       style={{ 
         aspectRatio: '1',
-        backgroundColor: `color-mix(in srgb, var(--foreground) 97%, var(--foreground) 3%)`,
+        backgroundColor: `var(--accent)`,
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -266,7 +266,7 @@ const FileItem = memo(function FileItem({
         {fileIcon}
       </div>
       
-      <div className="w-full px-2.5 py-2 text-background">
+      <div className="w-full px-2.5 py-2">
         <div className="text-[12px] font-normal truncate tracking-tight" title={file.name}>
           {file.name}
         </div>

@@ -2,6 +2,7 @@ export interface ModelConfig {
   id: string;
   name: string;
   cutoff: string;
+  pro?: boolean;
   country: string;
   description?: string;
   provider: 'anthropic' | 'openai' | 'google' | 'deepseek' | 'together' | 'groq' | 'xai';
@@ -70,11 +71,11 @@ export const RATE_LIMITS = {
   },
   level3: {
     hourly: {
-      requests: 7,    
+      requests: 5,    
       window: '4 h'
     },
     daily: {
-      requests: 14,
+      requests: 10,
       window: '24 h'
     }
   },
@@ -272,7 +273,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: '',
     abbreviation: 'CHFX',
     country: 'GLOBAL',
-    description: 'Automatically selects the optimal model based on your task. ',
+    description: 'Automatically selects the optimal model based on your input. Powered by Gemini 2.5 Pro, Grok 3, GPT-4.1, and more.',
     provider: 'anthropic',
     supportsVision: true,
     supportsPDFs: true,
@@ -299,6 +300,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     id: 'grok-3-mini-fast',
     name: 'Grok 3 Mini High Fast (Thinking)',
     cutoff: 'Feb 2025',
+    pro: true,
     abbreviation: 'G3M-H-F',
     country: 'US',
     description: 'High-speed version of Grok 3 Mini High (Thinking)',
@@ -350,6 +352,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     id: 'grok-3-fast',
     name: 'Grok 3 Fast',
     cutoff: 'Feb 2025',
+    pro: true,
     abbreviation: 'G3F',
     country: 'US',
     description: 'High-speed version of Grok 3',
@@ -667,28 +670,28 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     // tps: 159,
     // intelligenceIndex: 68,
   },
-  {
-    id: 'gemini-2.5-pro-preview-03-25',
-    name: 'Gemini 2.5 Pro Preview 03-25 (Thinking)',
-    cutoff: 'Jan 2025',
-    abbreviation: 'Gem2.5P-T',
-    country: 'US',
-    // description: 'Previous 2.5 pro model',
-    provider: 'google',
-    supportsVision: true,
-    // censored: false,
-    rateLimit: {
-      level: 'level4',
-    },
-    // isHot: true,
-    supportsPDFs: true,
-    isEnabled: true,
-    isActivated: true,
-    contextWindow: 1024000,
-    isAgentEnabled: true,
-    tps: 159,
-    intelligenceIndex: 68,
-  },
+  // {
+  //   id: 'gemini-2.5-pro-preview-03-25',
+  //   name: 'Gemini 2.5 Pro Preview 03-25 (Thinking)',
+  //   cutoff: 'Jan 2025',
+  //   abbreviation: 'Gem2.5P-T',
+  //   country: 'US',
+  //   // description: 'Previous 2.5 pro model',
+  //   provider: 'google',
+  //   supportsVision: true,
+  //   // censored: false,
+  //   rateLimit: {
+  //     level: 'level4',
+  //   },
+  //   // isHot: true,
+  //   supportsPDFs: true,
+  //   isEnabled: true,
+  //   isActivated: true,
+  //   contextWindow: 1024000,
+  //   isAgentEnabled: true,
+  //   tps: 159,
+  //   intelligenceIndex: 68,
+  // },
   // Gemini 2.5 Flash (Thinking)
   {
     id: 'gemini-2.5-flash-preview-04-17',

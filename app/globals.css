@@ -20,7 +20,8 @@
   --sidebar-divider-light: rgba(0, 0, 0, 0.15);
 
   /* Dark theme variables */
-  --background-dark: #0a0a0a;
+  --background-dark: #000000;
+  /* --background-dark: #1a1a1a; */
   --foreground-dark: #e5e5e5;
   --accent-dark: #262626;
   --muted-dark: #999999;
@@ -227,7 +228,7 @@ body {
 }
 
 .message-group {
-  @apply py-8 first:pt-0 last:pb-4 max-w-[calc(100vw-2rem)] overflow-hidden mx-auto;
+  @apply py-8 first:pt-4 last:pb-4 max-w-[calc(100vw-2rem)] overflow-hidden mx-auto;
 }
 
 .message-group:last-child {
@@ -249,9 +250,10 @@ body {
 }
 
 .message-user {
-  @apply bg-[var(--foreground)] text-[var(--background)] p-6 rounded-none max-w-full ml-auto
-         hover:opacity-95 transition-[var(--transition)];
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  @apply p-6 rounded-lg max-w-full ml-auto transition-[var(--transition)];
+  background: var(--accent);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
 }
 
 .message-assistant {
@@ -288,7 +290,7 @@ body {
 }
 
 .message-code pre {
-  @apply rounded-lg;
+  @apply rounded-b-lg;
   overflow-x: auto;
   white-space: pre-wrap;
   word-wrap: break-word;

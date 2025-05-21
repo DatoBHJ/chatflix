@@ -233,7 +233,7 @@ export async function POST(req: Request) {
             schema: z.object({
               category: z.enum(['coding', 'technical', 'math', 'other']),
               complexity: z.enum(['simple', 'medium', 'complex']),
-              reasoning: z.string()
+              // reasoning: z.string()
             }),
             prompt: `Analyze this query and classify it:
               
@@ -254,7 +254,10 @@ export async function POST(req: Request) {
           });
           
           const analysis = analysisResult.object;
-          
+
+          console.log('--------------------------------')
+          console.log('analysis', analysis, '\n\n')
+          console.log('--------------------------------')
           // 코드 파일 첨부 감지 - 파일 타입이나 확장자로 판단
           const hasCodeAttachment = Array.isArray(lastUserMessage.experimental_attachments) && 
             lastUserMessage.experimental_attachments.some((attachment: { 
@@ -275,18 +278,16 @@ export async function POST(req: Request) {
           
           // 1단계: 코딩 카테고리 최우선 처리
           if (analysis.category === 'coding') {
-            if (analysis.complexity === 'complex') {
-              // 복잡한 코딩 질문에는 thinking 모드 사용
-              model = 'claude-3-7-sonnet-20250219';
+            if (analysis.complexity === 'simple') {
+              model = 'gpt-4.1';
             } else {
-              // 단순 및 중간 복잡도 코딩 질문에는 일반 모드 사용
-              model = 'claude-3-7-sonnet-latest';
+              model = 'gemini-2.5-pro-preview-05-06';
             }
           }
           // 2단계: 멀티모달 요소 처리
           else if (hasImage) {
             if (analysis.category === 'technical' || analysis.category === 'math') {
-              // 기술/수학 카테고리 이미지에 대해 항상 Gemini 2.5 Pro 사용
+              // 이미지 + 기술/수학은 무조건 gemini 2.5 pro
               model = 'gemini-2.5-pro-preview-05-06';
             } else {
               // 기타 카테고리는 복잡도에 따라 다른 모델 사용
@@ -296,34 +297,31 @@ export async function POST(req: Request) {
             }
           }
           else if (hasPDF) {
-            // PDF는 복잡도에 따라 gemini 모델 사용
+            // PDF는 복잡도에 따라 gemini 모델 사용 (카테고리 무관)
             if (analysis.complexity === 'simple') model = 'gemini-2.0-flash';
             else if (analysis.complexity === 'medium') model = 'gemini-2.5-flash-preview-04-17';
             else model = 'gemini-2.5-pro-preview-05-06';
           }
           // 3단계: 텍스트만 있는 경우 (비멀티모달)
           else {
-            if (analysis.category === 'technical') {
-              // 기술 카테고리는 복잡도에 따라 다른 모델 사용
-              if (analysis.complexity === 'complex') {
-                model = 'grok-3-mini-fast';
-              } else {
-                // 단순 및 중간 복잡도는 grok-3 사용
-                model = 'grok-3-fast';
-              }
-            } 
-            else if (analysis.category === 'math') {
-              // 수학 카테고리는 복잡도에 관계없이 gemini 2.5 pro 사용
+            if (analysis.category === 'math') {
+              // 수학 카테고리는 복잡도 무관 gemini 2.5 pro
               model = 'gemini-2.5-pro-preview-05-06';
             }
-            else {
-              // 기타 카테고리는 복잡도에 따라 다른 모델 사용
+            else if (analysis.category === 'technical') {
+              // 기술 카테고리는 복잡도에 따라 분기
               if (analysis.complexity === 'simple') {
-                // 단순 복잡도는 gpt-4.1-mini 사용
+                model = 'grok-3-fast';
+              } else {
+                model = 'grok-3-mini-fast';
+              }
+            }
+            else {
+              // 기타 카테고리는 복잡도에 따라 분기
+              if (analysis.complexity === 'simple') {
                 model = 'gpt-4.1-mini';
               } else {
-                // 중간/복잡 복잡도는 grok-3 사용
-                model = 'grok-3-fast';
+                model = 'gpt-4.1';
               }
             }
           }
@@ -334,6 +332,12 @@ export async function POST(req: Request) {
           // 오류 발생 시 기본 모델 사용
           model = 'gemini-2.5-pro-preview-05-06';
         }
+
+
+      console.log('--------------------------------')
+      console.log('selected model', model, '\n\n')
+      console.log('--------------------------------')
+
       }
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -1034,15 +1038,11 @@ Today's Date: ${todayDate}
             ## User Query Analysis
             ${routingDecision.reasoning}
 
-            ## Plan
+            ## Plan -- This is just for your reference. You don't need to explicitly follow it. 
             ${routingDecision.plan}
-
-            ## Tool Selection
-            ${routingDecision.selectionReasoning}
             
             ## Selected Workflow Mode: ${routingDecision.workflowMode}
             ${routingDecision.modeReasoning}
-            
 ${workflowGuidelines}
             
 ${toolSpecificPrompts.join("\n\n")}
@@ -1331,7 +1331,7 @@ Files can include a variety of content types based on what best serves the user'
 ${buildSystemPrompt('agent', 'third', memoryData || undefined)}
 
 You are now in the third stage of the Chatflix Agentic Process - creating supporting files and follow-up questions based on the information gathered and the main response already provided.
- 
+Here's the blueprint and the previous steps we've already taken:
 # Original User Query
 "${userQuery}"
 
@@ -1371,20 +1371,28 @@ Create supporting files and follow-up questions that complement the main respons
      - For emphasis, use *italic* or **bold** syntax
      - For links, use [text](url) syntax
      - Ensure proper indentation and spacing for nested structures
+   - File Types to Consider (ONLY if needed):
+    - code files (.py, .js, etc.): For complete, executable code examples
+    - data files (.json, .csv): For structured data
+    - explanation files (.md): For detailed explanations or background information
+    - step-by-step guides (.md): For procedures or tutorials
+    - comparison tables (.md): For comparing multiple options or data points
 
 2. FOLLOW-UP QUESTIONS: Suggest 3 natural follow-up questions that continue the conversation (REQUIRED)
-   - Questions should be relevant to the conversation and what was just discussed
-   - Include a mix of questions that clarify, deepen, or expand on the current topic
-   - Keep questions concise (under 10 words when possible)
-   - Make questions conversational and natural, as a human would ask
-   - Questions should be specific enough to be interesting but open enough to enable detailed responses
-
-File Types to Consider (ONLY if needed):
-- code files (.py, .js, etc.): For complete, executable code examples
-- data files (.json, .csv): For structured data
-- explanation files (.md): For detailed explanations or background information
-- step-by-step guides (.md): For procedures or tutorials
-- comparison tables (.md): For comparing multiple options or data points
+   - Each follow-up should be a short, natural input that a user might actually type to an AI in a chat (not a question to the user)
+   - Use statements, requests, or short phrases that a user would enter as their next message (not questions like "Would you like to know more?")
+   - Avoid polite or indirect forms (e.g., "Would you like to know more?" X)
+   - Prefer direct, conversational, and actionable inputs (e.g., "Tell me more about Nvidia stock", "I want to know more about the tech sector", "Show me recent semiconductor market trends", "Analyze the outlook for tech stocks")
+   - The follow-ups can be questions, but only if they are in the form a user would type to an AI (e.g., "What's the outlook for Nvidia?", "Show me recent trends in tech stocks")
+   - Do NOT use "Would you like me to...", "Shall I...", "Do you need..." or similar forms
+   - Make sure each follow-up is suitable for direct input by the user
+   - Keep each follow-up under 15 words if possible
+   - Examples:
+     * "Tell me more about Nvidia stock"
+     * "I want to know more about the tech sector"
+     * "Show me recent semiconductor market trends"
+     * "Analyze the outlook for tech stocks"
+     * "Recent trends in the AI industry"
 
 IMPORTANT: 
 - Respond in the same language as the user's query

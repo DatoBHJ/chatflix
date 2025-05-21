@@ -114,21 +114,68 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
     }
   }, [message, storageKey]);
   
-  // 파일 콘텐츠의 높이 측정
-  useEffect(() => {
-    if (responseData?.files) {
-      const newHeights: {[key: number]: number} = {};
+  // 파일 콘텐츠의 높이 측정 (ResizeObserver로 대체됨)
+  // useEffect(() => {
+  //   if (responseData?.files) {
+  //     const newHeights: {[key: number]: number} = {};
       
+  //     openFileIndexes.forEach(index => {
+  //       const ref = fileContentRefs.current[index];
+  //       if (ref) {
+  //         newHeights[index] = ref.scrollHeight;
+  //       }
+  //     });
+      
+  //     setFileContentHeights(prev => ({...prev, ...newHeights}));
+  //   }
+  // }, [responseData, openFileIndexes]);
+
+  // New useEffect for dynamic height adjustment using ResizeObserver
+  useEffect(() => {
+    const activeObservers = new Map<number, ResizeObserver>();
+      
+    if (responseData && responseData.files && responseData.files.length > 0) {
+      const files = responseData.files;
       openFileIndexes.forEach(index => {
-        const ref = fileContentRefs.current[index];
-        if (ref) {
-          newHeights[index] = ref.scrollHeight;
+        // Ensure the index is valid for files.length.
+        if (index < 0 || index >= files.length) {
+          return;
+        }
+        const contentElement = fileContentRefs.current[index];
+
+        if (contentElement) {
+          const updateHeightCallback = () => {
+            requestAnimationFrame(() => {
+              // Check if the ref is still valid and element is mounted
+              if (fileContentRefs.current[index]) { 
+                const newScrollHeight = fileContentRefs.current[index]!.scrollHeight;
+                setFileContentHeights(prevHeights => {
+                  if (prevHeights[index] !== newScrollHeight) {
+                    return { ...prevHeights, [index]: newScrollHeight };
+                  }
+                  return prevHeights;
+                });
+              }
+            });
+          };
+
+          // Initial height setting attempt + ResizeObserver for subsequent changes
+          updateHeightCallback(); 
+
+          const observer = new ResizeObserver(updateHeightCallback);
+          observer.observe(contentElement);
+          activeObservers.set(index, observer);
         }
       });
-      
-      setFileContentHeights(prev => ({...prev, ...newHeights}));
     }
-  }, [responseData, openFileIndexes]);
+
+    return () => {
+      activeObservers.forEach((observer) => {
+        // No need to unobserve specific elements if we disconnect the entire observer
+        observer.disconnect();
+      });
+    };
+  }, [responseData, openFileIndexes]); // fileContentRefs.current is not a state/prop, so it's not a dependency here.
   
   // 파일 토글 핸들러
   const toggleFile = (index: number) => {
@@ -179,54 +226,14 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
 
   const isLoading = responseData.isProgress === true;
 
+  // 기존 큰 배경 박스와 헤더 제거, 파일 목록만 바로 렌더링
   return (
-    <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm overflow-hidden relative">
-      {/* 헤더 */}
-      <div 
-        className="flex items-center justify-between w-full mb-4 cursor-pointer"
-        onClick={toggleSection}
-      >
-        <div className="flex items-center gap-2.5">
-          <FileText className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-          <h2 className="font-medium text-left tracking-tight">Generated Files</h2>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          {/* 로딩 표시기 */}
-          {isLoading && (
-            <div className="flex items-center gap-2 text-xs">
-              <div className="relative flex items-center">
-                <div className="h-2 w-2 rounded-full bg-blue-500 animate-ping absolute"></div>
-                <div className="h-2 w-2 rounded-full bg-blue-500 relative"></div>
-              </div>
-              <span className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]">Generating...</span>
-            </div>
-          )}
-          
-          {/* Toggle button for the entire section */}
-          <div className="rounded-full p-1 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors">
-            {isExpanded ? 
-              <ChevronUp size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" /> : 
-              <ChevronDown size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" />
-            }
-          </div>
-        </div>
-      </div>
-      
-      {/* 파일 목록 */}
-      <div 
-        className="space-y-4 overflow-hidden transition-all duration-200 ease-in-out"
-        style={{ 
-          maxHeight: isExpanded ? '5000px' : '0px',
-          opacity: isExpanded ? 1 : 0
-        }}
-      >
+    <div className="space-y-4">
         {responseData.files.map((file: File, index: number) => {
           const isOpen = openFileIndexes.includes(index);
-          
           return (
-            <div key={index} className="border border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] rounded-lg overflow-hidden shadow-sm transition-all hover:shadow-md hover:border-[color-mix(in_srgb,var(--foreground)_10%,transparent)]">
-              <div className="bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors">
+            <div key={index} className="border border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] rounded-lg overflow-hidden">
+              <div className="bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)]">
                 {/* 파일 헤더 영역 - 이름과 액션 버튼 */}
                 <div className="px-3 py-2.5 flex justify-between items-center">
                   <div 
@@ -238,7 +245,6 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
                       {file.name}
                     </span>
                   </div>
-                  
                   <div className="flex items-center gap-2">
                     {/* 다운로드 버튼 */}
                     <button
@@ -246,19 +252,18 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
                         e.stopPropagation();
                         downloadFile(file);
                       }}
-                      className="rounded-full p-1.5 hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] transition-colors flex-shrink-0"
+                      className="rounded-full p-1.5 flex-shrink-0"
                       title="Download file"
                     >
                       <Download size={16} className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]" />
                     </button>
-                    
                     {/* 복사 버튼 */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         copyFileContent(file, index);
                       }}
-                      className="rounded-full p-1.5 hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] transition-colors flex-shrink-0"
+                      className="rounded-full p-1.5 flex-shrink-0"
                       title={copiedFileIndex === index ? "Copied!" : "Copy file content"}
                     >
                       {copiedFileIndex === index ? (
@@ -267,10 +272,9 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
                         <Copy size={16} className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]" />
                       )}
                     </button>
-                    
                     {/* 토글 버튼 */}
                     <div 
-                      className="rounded-full p-1.5 hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] transition-colors flex-shrink-0 cursor-pointer"
+                      className="rounded-full p-1.5 flex-shrink-0 cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleFile(index);
@@ -283,7 +287,6 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
                     </div>
                   </div>
                 </div>
-                
                 {/* 파일 설명 영역 - 별도 행에 배치 */}
                 {file.description && (
                   <div 
@@ -296,7 +299,6 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
                   </div>
                 )}
               </div>
-              
               <div 
                 className="overflow-hidden transition-all duration-300 ease-in-out border-t border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_1%,transparent)]"
                 style={{ 
@@ -319,7 +321,6 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
                     div::-webkit-scrollbar {
                       display: none;
                     }
-                    
                     /* LaTeX 수식 스타일 덮어쓰기 */
                     :global(.katex-display) {
                       max-width: 100%;
@@ -327,25 +328,21 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
                       overflow-y: hidden;
                       padding: 0.5rem 0;
                     }
-                    
                     :global(pre) {
                       white-space: pre-wrap;
                       word-break: break-word;
                       max-width: 100%;
                       overflow-x: auto;
                     }
-                    
                     :global(code) {
                       white-space: pre-wrap;
                       word-break: break-word;
                     }
-                    
                     :global(table) {
                       max-width: 100%;
                       display: block;
                       overflow-x: auto;
                     }
-                    
                     :global(.math), :global(.math-inline), :global(.math-display) {
                       max-width: 100%;
                       overflow-x: auto;
@@ -360,7 +357,6 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
             </div>
           );
         })}
-      </div>
     </div>
   );
 }; 

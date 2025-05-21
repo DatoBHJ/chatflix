@@ -118,6 +118,7 @@ type CanvasProps = {
       error?: string;
     }[];
   } | null;
+  isCompact?: boolean;
 };
 
 /**
@@ -133,6 +134,7 @@ export default function Canvas({
   xSearchData, 
   youTubeSearchData, 
   youTubeLinkAnalysisData,
+  isCompact = false,
 }: CanvasProps) {
   // Don't render if there's no data to display
   if (!webSearchData && !mathCalculationData && !linkReaderData && !imageGeneratorData && !academicSearchData && !xSearchData && !youTubeSearchData && !youTubeLinkAnalysisData) return null;
@@ -229,13 +231,23 @@ export default function Canvas({
     return data.isGenerating === true || data.isProgress === true;
   };
 
+  // 컴팩트 모드일 때 적용할 추가 클래스
+  const compactModeClasses = isCompact ? 'my-2 space-y-2' : 'my-4 space-y-4';
+  const panelClasses = isCompact 
+    ? 'p-3 sm:p-3 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-lg border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm'
+    : 'p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm';
+  
+  // 컴팩트 모드에서 컨텐츠 최대 높이 설정 (메시지 내에서 너무 길어지지 않도록)
+  const maxContentHeight = isCompact ? '300px' : '5000px';
+  const headerClasses = isCompact ? 'mb-2' : 'mb-4';
+
   return (
-    <div className="tool-results-canvas my-4 space-y-4">
+    <div className={`tool-results-canvas ${compactModeClasses}`}>
       {/* Web Search Results or Loading State */}
       {webSearchData && (
-        <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
+        <div className={panelClasses}>
           <div 
-            className="flex items-center justify-between w-full mb-4 cursor-pointer"
+            className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
             onClick={toggleWebSearch}
           >
             <div className="flex items-center gap-2.5">
@@ -254,7 +266,7 @@ export default function Canvas({
           <div 
             className="overflow-hidden transition-all duration-200 ease-in-out"
             style={{ 
-              maxHeight: webSearchExpanded ? '5000px' : '0px',
+              maxHeight: webSearchExpanded ? maxContentHeight : '0px',
             }}
           >
             <div
@@ -284,9 +296,9 @@ export default function Canvas({
       
       {/* Math Calculation Results */}
       {mathCalculationData && (
-        <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
+        <div className={panelClasses}>
           <div 
-            className="flex items-center justify-between w-full mb-4 cursor-pointer"
+            className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
             onClick={toggleMathCalc}
           >
             <div className="flex items-center gap-2.5">
@@ -305,7 +317,7 @@ export default function Canvas({
           <div 
             className="overflow-hidden transition-all duration-200 ease-in-out"
             style={{ 
-              maxHeight: mathCalcExpanded ? '5000px' : '0px',
+              maxHeight: mathCalcExpanded ? maxContentHeight : '0px',
             }}
           >
             <div
@@ -332,9 +344,9 @@ export default function Canvas({
       
       {/* Link Reader Results */}
       {linkReaderData && (
-        <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
+        <div className={panelClasses}>
           <div 
-            className="flex items-center justify-between w-full mb-4 cursor-pointer"
+            className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
             onClick={toggleLinkReader}
           >
             <div className="flex items-center gap-2.5">
@@ -353,7 +365,7 @@ export default function Canvas({
           <div 
             className="overflow-hidden transition-all duration-200 ease-in-out"
             style={{ 
-              maxHeight: linkReaderExpanded ? '5000px' : '0px',
+              maxHeight: linkReaderExpanded ? maxContentHeight : '0px',
             }}
           >
             <div
@@ -380,9 +392,9 @@ export default function Canvas({
 
       {/* Image Generator Results */}
       {imageGeneratorData && imageGeneratorData.generatedImages.length > 0 && (
-        <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
+        <div className={panelClasses}>
           <div 
-            className="flex items-center justify-between w-full mb-4 cursor-pointer"
+            className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
             onClick={toggleImageGen}
           >
             <div className="flex items-center gap-2.5">
@@ -401,7 +413,7 @@ export default function Canvas({
           <div 
             className="overflow-hidden transition-all duration-200 ease-in-out"
             style={{ 
-              maxHeight: imageGenExpanded ? '5000px' : '0px',
+              maxHeight: imageGenExpanded ? maxContentHeight : '0px',
             }}
           >
             <div
@@ -453,9 +465,9 @@ export default function Canvas({
       
       {/* Academic Search Results */}
       {academicSearchData && academicSearchData.academicResults.length > 0 && (
-        <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
+        <div className={panelClasses}>
           <div 
-            className="flex items-center justify-between w-full mb-4 cursor-pointer"
+            className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
             onClick={toggleAcademicSearch}
           >
             <div className="flex items-center gap-2.5">
@@ -474,7 +486,7 @@ export default function Canvas({
           <div 
             className="overflow-hidden transition-all duration-200 ease-in-out"
             style={{ 
-              maxHeight: academicSearchExpanded ? '5000px' : '0px',
+              maxHeight: academicSearchExpanded ? maxContentHeight : '0px',
             }}
           >
             <div
@@ -529,9 +541,9 @@ export default function Canvas({
       
       {/* YouTube Search Results */}
       {youTubeSearchData && (
-        <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
+        <div className={panelClasses}>
           <div 
-            className="flex items-center justify-between w-full mb-4 cursor-pointer"
+            className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
             onClick={toggleYouTubeSearch}
           >
             <div className="flex items-center gap-2.5">
@@ -550,7 +562,7 @@ export default function Canvas({
           <div 
             className="overflow-hidden transition-all duration-200 ease-in-out"
             style={{ 
-              maxHeight: youTubeSearchExpanded ? '5000px' : '0px',
+              maxHeight: youTubeSearchExpanded ? maxContentHeight : '0px',
             }}
           >
             <div
@@ -619,10 +631,10 @@ export default function Canvas({
       )}
 
       {/* YouTube Link Analysis Results */}
-            {youTubeLinkAnalysisData && (
-        <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
+      {youTubeLinkAnalysisData && (
+        <div className={panelClasses}>
           <div 
-            className="flex items-center justify-between w-full mb-4 cursor-pointer"
+            className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
             onClick={toggleYouTubeLinkAnalysis}
           >
             <div className="flex items-center gap-2.5">
@@ -641,7 +653,7 @@ export default function Canvas({
           <div 
             className="overflow-hidden transition-all duration-200 ease-in-out"
             style={{ 
-              maxHeight: youTubeLinkAnalysisExpanded ? '5000px' : '0px',
+              maxHeight: youTubeLinkAnalysisExpanded ? maxContentHeight : '0px',
             }}
           >
             <div

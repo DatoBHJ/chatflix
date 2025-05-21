@@ -19,7 +19,6 @@ export default function RootLayoutClient({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
-  const [profileImage, setProfileImage] = useState<string | null>(null)
   const [userName, setUserName] = useState('You')
   const router = useRouter()
   const pathname = usePathname()
@@ -29,52 +28,6 @@ export default function RootLayoutClient({
   const toggleSidebar = () => {
     setIsSidebarOpen(prev => !prev)
   }
-
-  const fetchProfileImage = async (userId: string) => {
-    try {
-      const { data: profileData, error: profileError } = await supabase
-        .storage
-        .from('profile-pics')
-        .list(`${userId}`);
-
-      if (profileError) {
-        console.error('Error fetching profile image list:', profileError);
-        return;
-      }
-
-      if (profileData && profileData.length > 0) {
-        try {
-          const fileName = profileData[0].name;
-          const filePath = `${userId}/${fileName}`;
-          
-          if (!fileName || typeof fileName !== 'string') {
-            console.error('Invalid file name returned from storage');
-            return;
-          }
-          
-          const { data } = supabase
-            .storage
-            .from('profile-pics')
-            .getPublicUrl(filePath);
-          
-          if (data && data.publicUrl) {
-            try {
-              new URL(data.publicUrl);
-              setProfileImage(data.publicUrl);
-            } catch (urlError) {
-              console.error('Invalid URL format:', urlError);
-            }
-          } else {
-            console.error('No valid public URL returned');
-          }
-        } catch (error) {
-          console.error('Error getting public URL for profile image:', error);
-        }
-      }
-    } catch (error) {
-      console.error('Error in profile image fetch process:', error);
-    }
-  };
 
   useEffect(() => {
     const getUser = async () => {
@@ -86,7 +39,6 @@ export default function RootLayoutClient({
         if (user) {
           const name = await fetchUserName(user.id, supabase);
           setUserName(name);
-          fetchProfileImage(user.id);
         }
         
         if (!user && pathname !== '/login') {
@@ -101,14 +53,12 @@ export default function RootLayoutClient({
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         setUser(null)
-        setProfileImage(null)
         setUserName('You')
         router.push('/login')
       } else if (event === 'SIGNED_IN') {
         setUser(session?.user || null)
         if (session?.user) {
           fetchUserName(session.user.id, supabase).then(name => setUserName(name));
-          fetchProfileImage(session.user.id);
         }
       }
     })

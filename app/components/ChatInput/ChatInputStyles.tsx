@@ -41,7 +41,6 @@ export function useChatInputStyles() {
           caret-color: currentColor;
           white-space: pre-wrap;
           font-weight: 400;
-          color: var(--background);
           overflow-y: auto;
           max-height: 100%;
           line-height: 1.5;
@@ -88,7 +87,7 @@ export function useChatInputStyles() {
         /* 플레이스홀더 스타일 - 빈 상태일 때만 보이게 */
         .futuristic-input.empty:before {
           content: attr(data-placeholder);
-          color: var(--muted);
+          color: color-mix(in srgb, var(--muted) 80%, transparent);
           pointer-events: none;
           position: absolute;
           top: 0;

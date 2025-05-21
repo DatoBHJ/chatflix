@@ -25,9 +25,9 @@ export default function About() {
     getUser()
   }, [supabase])
   
-  if (isLoading) {
-    return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
-  }
+  // if (isLoading) {
+  //   return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
+  // }
   
   return (
     <main className="flex-1 flex flex-col min-h-screen">

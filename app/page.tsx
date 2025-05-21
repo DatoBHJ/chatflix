@@ -270,7 +270,7 @@ export default function Home() {
         .from('chat_sessions')
         .insert([{
           id: sessionId,
-          title: input.trim(),
+          title: 'New Chat',
           current_model: modelToUse,
           initial_message: input.trim(),
           user_id: user.id,
@@ -523,6 +523,7 @@ export default function Home() {
               disabledLevels={rateLimitedLevels}
               isAgentEnabled={isAgentEnabled}
               onAgentAvailabilityChange={setHasAgentModels}
+              user={user}
             />
             <ChatInput
               input={input}

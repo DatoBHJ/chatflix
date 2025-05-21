@@ -1117,20 +1117,20 @@ export function ChatInput({
             multiple
           />
           
-          <div 
+          <div
             ref={inputContainerRef}
-            className="flex gap-1 items-center rounded-lg transition-all duration-300 px-2 py-1 bg-[color-mix(in_srgb,var(--foreground)_100%,transparent)]"
+            className="flex gap-1 items-center rounded-lg transition-all duration-300 px-2 py-1 bg-[var(--accent)] text-[var(--foreground)]"
           >
             {setisAgentEnabled && (
               <button
                 type="button"
                 onClick={() => setisAgentEnabled(!isAgentEnabled)}
                 className={`input-btn transition-all duration-300 flex items-center justify-center relative rounded-md w-9 h-9 ${
-                  isAgentEnabled ? 
-                    'input-btn-active' : 
-                    user?.hasAgentModels === false && !isAgentEnabled ? 
-                      'opacity-40 cursor-not-allowed' : 
-                      'text-background'
+                  isAgentEnabled ?
+                    'input-btn-active' :
+                    user?.hasAgentModels === false && !isAgentEnabled ?
+                      'opacity-40 cursor-not-allowed' :
+                      'text-[var(--muted)] hover:text-[var(--foreground)]'
                 }`}
                 disabled={user?.hasAgentModels === false && !isAgentEnabled}
                 title={
@@ -1175,11 +1175,11 @@ export function ChatInput({
                 <span className="flex items-center justify-center w-2.5 h-2.5">■</span>
               </button>
             ) : (
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className={`input-btn w-9 h-9 rounded-md flex items-center justify-center transition-all duration-300 mx-1 ${
-                  disabled || !input.trim() ? 
-                    'text-background' : 
+                  disabled || !input.trim() ?
+                    'text-[var(--muted)] hover:text-[var(--foreground)]' :
                     'input-btn-active'
                 }`}
                 disabled={disabled || !input.trim()}
