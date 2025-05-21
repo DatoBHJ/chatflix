@@ -5,6 +5,7 @@ const DEFAULT_EXAMPLE_PROMPTS = [
   "Latest news on US stock market",
   "Draw a picture of a black cat",
   "Find latest academic papers about AI and summarize them",
+  "Summarize this PDF: https://www.nasa.gov/wp-content/uploads/2023/01/55583main_vision_space_exploration2.pdf",
   "Summarize this article: https://www.anthropic.com/news/claude-3-7-sonnet",
   "Summarize this video: https://www.youtube.com/watch?v=AJpK3YTTKZ4",
   "Briefly summarize the main technical challenges of Mars colonization",
