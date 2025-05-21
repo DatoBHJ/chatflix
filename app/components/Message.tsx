@@ -1211,7 +1211,7 @@ const Message = memo(function MessageComponent({
           )}
 
           {/* ReasoningSection for streaming or message.parts */}
-          {message.parts && message.parts.find(part => part.type === 'reasoning') && (
+          {/* {!currentReasoning && message.parts && message.parts.find(part => part.type === 'reasoning') && (
             (() => {
               const reasoningPart = message.parts.find(part => part.type === 'reasoning');
               const reasoningComplete = isReasoningComplete(message);
@@ -1224,7 +1224,7 @@ const Message = memo(function MessageComponent({
                 />
               );
             })()
-          )}
+          )} */}
 
           {/* Canvas 미리보기 */}
           {isAssistant && hasActualCanvasData && (
