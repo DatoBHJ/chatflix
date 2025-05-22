@@ -547,7 +547,6 @@ export function createImageGeneratorTool(dataStream?: any) {
         z.array(z.string())
       ]).describe(toolDefinitions.imageGenerator.parameters.prompts),
       model: z.enum(['flux','turbo'])
-      // model: z.enum(['flux', 'flux-realism', 'any-dark', 'flux-anime', 'flux-3d', 'turbo'])
              .describe(toolDefinitions.imageGenerator.parameters.model)
              .default('flux'),
       width: z.number().describe(toolDefinitions.imageGenerator.parameters.width).default(1024),
@@ -557,7 +556,6 @@ export function createImageGeneratorTool(dataStream?: any) {
     execute: async ({ prompts, model, width, height, seed }: {
       prompts: string | string[];
       model: 'flux'|'turbo';
-      // model: 'flux' | 'flux-realism' | 'any-dark' | 'flux-anime' | 'flux-3d' | 'turbo';
       width: number;
       height: number;
       seed?: number;
