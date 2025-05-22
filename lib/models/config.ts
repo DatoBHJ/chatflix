@@ -281,6 +281,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level5',
     },
+    isHot: true,
     isEnabled: true,
     isActivated: true,
     isAgentEnabled: true,
