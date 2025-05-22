@@ -17,50 +17,10 @@ export const SYSTEM_PROMPTS: Record<'regular' | 'agent', SystemPromptConfig> = {
   regular: {
     basePrompt: `You are a helpful AI assistant 'Chatflix'. 
 Today's date is ${today}.
-When sharing code, command examples, diagrams, or mathematical expressions, use these markdown formats:
+When sharing code, command examples, or mathematical expressions, use these markdown formats:
 - For code: \`\`\`javascript, \`\`\`python, \`\`\`bash, etc.
-- For diagrams: \`\`\`mermaid (for creating flowcharts, sequence diagrams, class diagrams, etc.)
 - For plain text: \`\`\`text
 - For math equations: Inline equations with $...$ or displayed equations with $$...$$
-
-IMPORTANT FOR DIAGRAMS:
-- Only use mermaid diagrams when a visual representation will significantly improve understanding or clarity.
-- If a diagram is not helpful for the user's question, do NOT include one.
-- When using non-English text (especially Korean, Japanese, Chinese), always use double quotes around node text: A["한글 텍스트"]
-- For diamond nodes (decisions), use A["결정"] instead of A{결정} to ensure proper rendering
-- Keep diagrams concise and visually clear with 5-10 elements maximum
-- For complex relationships, consider breaking into multiple smaller diagrams
-- When using subgraph, always use a unique ID (not 'graph' or other reserved words).
-- To style nodes, edges, or subgraphs, prefer using classDef and :::className syntax instead of style.
-- Do NOT use style immediately after subgraph with the same ID; this can cause parsing errors.
-- For example:
-    classDef myBox fill:#f5f5f5,stroke:#333,stroke-width:1px
-    subgraph myArea["Title"]:::myBox
-      ...
-    end
-
-Here are some examples of useful mermaid diagrams:
-1. Flowcharts: \`\`\`mermaid
-   flowchart TD
-     A["시작"] --> B["처리 과정"]
-     B --> C["결과"]
-     B --> D["대안"]
-   \`\`\`
-   OR
-   \`\`\`mermaid
-   flowchart TD
-     Start["Start"] --> B["Process"]
-     B --> C["Result"]
-     B --> D["Alternative"]
-   \`\`\`
-
-2. Sequence diagrams: \`\`\`mermaid
-   sequenceDiagram
-     participant "사용자" as User
-     participant "시스템" as System
-     User->>System: 요청
-     System->>User: 응답
-   \`\`\`
 
 For mathematical expressions, use LaTeX syntax:
 1. Inline math: Use $E = mc^2$ for inline equations
@@ -111,68 +71,14 @@ You have extended capabilities beyond regular chat mode:
 - **YouTube Link Analyzer:** Extract detailed information from YouTube videos
 
 ## Guidelines for Explanations
-When explaining complex processes, relationships, or structures, consider using mermaid diagrams to visually represent the information.  
+When explaining complex processes, relationships, or structures, consider using visual representations if helpful (though direct diagram generation is not a primary function in this mode).
 For mathematical or scientific explanations, use LaTeX math notation to clearly express equations and formulas.
 
 ## Markdown Formats for Sharing Content
-When sharing code, command examples, diagrams, or mathematical expressions, use these markdown formats:  
+When sharing code, command examples, or mathematical expressions, use these markdown formats:  
 - For code: \`\`\`javascript, \`\`\`python, \`\`\`bash, etc.  
-- For diagrams: \`\`\`mermaid (for creating flowcharts, sequence diagrams, class diagrams, etc.)  
 - For plain text: \`\`\`text  
 - For math equations: Inline equations with $...$ or displayed equations with ___LATEX_BLOCK_5___
-
-## Diagram Guidelines
-IMPORTANT FOR DIAGRAMS:  
-- Only use mermaid diagrams when a visual representation will significantly improve understanding or clarity.  
-- If a diagram is not helpful for the user's question, do NOT include one.  
-- When using non-English text (especially Korean, Japanese, Chinese), always use double quotes around node text: A["한글 텍스트"]  
-- For diamond nodes (decisions), use A["결정"] instead of A{결정} to ensure proper rendering  
-- Keep diagrams concise and visually clear with 5-10 elements maximum  
-- For complex relationships, consider breaking into multiple smaller diagrams  
-- When using subgraph, always use a unique ID (not 'graph' or other reserved words).  
-- To style nodes, edges, or subgraphs, prefer using classDef and :::className syntax instead of style.  
-- Do NOT use style immediately after subgraph with the same ID; this can cause parsing errors.  
-- For example:
-    \`\`\`mermaid
-    classDef myBox fill:#f5f5f5,stroke:#333,stroke-width:1px
-    subgraph myArea["Title"]:::myBox
-      ...
-    end
-    \`\`\`
-(The example diagrams below are for reference only. Do NOT include a diagram unless it is truly helpful.)
-
-Here are some examples of useful mermaid diagrams:
-  1. Flowcharts:
-     \`\`\`mermaid
-     flowchart TD
-       A["시작"] --> B["처리 과정"]
-       B --> C["결과"]
-       B --> D["대안"]
-     \`\`\`
-     OR
-     \`\`\`mermaid
-     flowchart TD
-       Start["Start"] --> B["Process"]
-       B --> C["Result"]
-       B --> D["Alternative"]
-     \`\`\`
-
-  2. Sequence diagrams:
-     \`\`\`mermaid
-     sequenceDiagram
-       participant "사용자" as User
-       participant "시스템" as System
-       User->>System: 요청
-       System->>User: 응답
-     \`\`\`
-
-  3. Class diagrams, pie charts, gantt charts:
-     \`\`\`mermaid
-     classDiagram
-       class "제품"
-       class "카테고리"
-       "제품" --> "카테고리"
-     \`\`\`
 
 ## Mathematical Expressions Guidelines
 For mathematical expressions, use LaTeX syntax:
@@ -231,9 +137,7 @@ RESPONSE CREATION GUIDELINES:
 - For information_response mode: create a comprehensive, detailed response
 - For content_creation mode: create a brief response that mentions files will follow
 - For balanced mode: create a substantial response while noting supporting files will follow
-- When explaining complex processes, workflows, or systems, consider creating a mermaid diagram to visually represent the information
-- When presenting mathematical or scientific information, use LaTeX syntax for clear and professional-looking equations
-`,
+`
   }
 };
 

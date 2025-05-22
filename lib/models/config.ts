@@ -394,6 +394,54 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     // tps: 67, 
     intelligenceIndex: 50,
   },
+  // Claude 4 Sonnet (Thinking)
+  {
+    id: 'claude-sonnet-4-20250514-thinking',
+    name: 'Claude 4 Sonnet (Thinking)',
+    cutoff: 'Mar 2025',
+    abbreviation: 'C4S-T',
+    country: 'US',
+    // description: "Anthropic's most intelligent model yet with extended thinking capability.",
+    provider: 'anthropic',
+    supportsVision: true,
+    rateLimit: {
+      level: 'level4',
+    },
+    supportsPDFs: true,
+    censored: true,
+    isNew: true,
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: true,
+    reasoning: {
+      enabled: true,
+      provider: 'anthropic',
+      baseModelId: 'claude-sonnet-4-20250514',
+      budgetTokens: 12000
+    },
+    contextWindow: 200000,
+  },
+  // Claude 4 Sonnet 
+  {
+    id: 'claude-sonnet-4-20250514',
+    name: 'Claude 4 Sonnet',
+    cutoff: 'Mar 2025',
+    abbreviation: 'C4S',
+    country: 'US',
+    // description: "Anthropic's most intelligent model.",
+    provider: 'anthropic',
+    supportsVision: true,
+    supportsPDFs: true,
+    censored: true,
+    rateLimit: {
+      level: 'level4',
+    },
+    isAgentEnabled: true,
+    isEnabled: true,
+    isNew: true,
+    isActivated: true,
+    contextWindow: 200000,
+  },
   // Claude 3.7 Sonnet (Thinking)
   {
     id: 'claude-3-7-sonnet-20250219',
@@ -829,9 +877,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     reasoning: {
       enabled: true,
       provider: 'together',
-      baseModelId: 'deepseek-ai/DeepSeek-R1',
+      baseModelId: 'Qwen/Qwen3-235B-A22B-fp8-tput',
     },
-    isNew: true,
     isEnabled: true,
     isActivated: true,
     isAgentEnabled: false,

@@ -968,14 +968,6 @@ You're operating in information response mode. This means:
 3. Your output in this phase should be the complete answer to the user's query
 4. Keep your tools usage efficient but thorough
 
-For complex concepts or processes, use mermaid diagrams to visually explain them:
-\`\`\`mermaid
-flowchart TD
-  A[Start] --> B{Decision Point}
-  B -->|Option 1| C[Result 1]
-  B -->|Option 2| D[Result 2]
-\`\`\`
-
 After collecting information, create a complete response that addresses all aspects of the user's query.
 `;
                 break;
@@ -988,12 +980,6 @@ You're operating in content creation mode (the preferred mode for organized resp
 3. Your main response should be a short introduction or summary ONLY (1-3 paragraphs)
 4. Mention that detailed content will follow in files
 5. DO NOT include detailed explanations, code, or elaborate content in this phase
-
-For complex structured information, create mermaid diagrams in your files:
-- Flowcharts for processes and decision trees
-- Sequence diagrams for interaction flows 
-- Class diagrams for showing relationships
-- Pie charts and Gantt charts for data visualization
 
 In this phase, focus ONLY on collecting necessary information and providing a very brief introduction.
 The detailed content (code, written text, analysis, etc.) will be created in the files during the next phase.
@@ -1009,14 +995,6 @@ You're operating in balanced mode. This means:
 2. Provide a substantial main response that addresses the core query
 3. Balance your effort between the main response and preparing for supporting files
 4. Cover the essential explanations in your main response
-
-When appropriate, use mermaid diagrams to explain complex concepts:
-\`\`\`mermaid
-flowchart TD
-  A[Start] --> B{Decision Point}
-  B -->|Option 1| C[Result 1]
-  B -->|Option 2| D[Result 2]
-\`\`\`
 
 In this phase, create a thorough response while keeping in mind that supporting files will complement your answer.
 `;
