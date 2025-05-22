@@ -273,7 +273,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: '',
     abbreviation: 'CHFX',
     country: 'GLOBAL',
-    description: 'Automatically selects the optimal model based on your input. Powered by Gemini 2.5 Pro, Grok 3, GPT-4.1, and more.',
+    description: 'Automatically selects the optimal model based on your input. Powered by Gemini 2.5 Pro, Claude Sonnet 4, Grok 3, and more.',
     provider: 'anthropic',
     supportsVision: true,
     supportsPDFs: true,
