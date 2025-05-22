@@ -1226,31 +1226,6 @@ const Message = memo(function MessageComponent({
             })()
           )} */}
 
-          {/* Canvas 미리보기 */}
-          {isAssistant && hasActualCanvasData && (
-            <div 
-              className="mb-6 relative max-h-[300px] overflow-hidden cursor-pointer" 
-              onClick={() => togglePanel && togglePanel(message.id, 'canvas')}
-            >
-              <Canvas
-                webSearchData={webSearchData}
-                mathCalculationData={mathCalculationData}
-                linkReaderData={linkReaderData}
-                imageGeneratorData={imageGeneratorData}
-                academicSearchData={academicSearchData}
-                xSearchData={xSearchData}
-                youTubeSearchData={youTubeSearchData}
-                youTubeLinkAnalysisData={youTubeLinkAnalysisData}
-                isCompact={true}
-              />
-              <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none"></div>
-              <div className="flex items-center justify-center mt-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
-                <span>View Canvas</span>
-                <ChevronDown size={16} className="ml-1" />
-              </div>
-            </div>
-          )}
-          
           {isEditing ? (
             <div className="flex flex-col gap-2 w-full">
               <textarea
@@ -1324,6 +1299,30 @@ const Message = memo(function MessageComponent({
                       );
                     })()
                   )}
+                  {/* INSERT CANVAS PREVIEW HERE IF message.parts EXISTS */}
+                  {isAssistant && message.parts && hasActualCanvasData && (
+                    <div 
+                      className="mb-6 relative max-h-[300px] overflow-hidden cursor-pointer" 
+                      onClick={() => togglePanel && togglePanel(message.id, 'canvas')}
+                    >
+                      <Canvas
+                        webSearchData={webSearchData}
+                        mathCalculationData={mathCalculationData}
+                        linkReaderData={linkReaderData}
+                        imageGeneratorData={imageGeneratorData}
+                        academicSearchData={academicSearchData}
+                        xSearchData={xSearchData}
+                        youTubeSearchData={youTubeSearchData}
+                        youTubeLinkAnalysisData={youTubeLinkAnalysisData}
+                        isCompact={true}
+                      />
+                      <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none"></div>
+                      <div className="flex items-center justify-center mt-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
+                        <span>View Canvas</span>
+                        <ChevronDown size={16} className="ml-1" />
+                      </div>
+                    </div>
+                  )}
                   {message.parts.map((part, index) => {
                     if (part.type === 'text') {
                       const shouldTruncate = isUser && !isEditing && !expandedMessages[message.id];
@@ -1392,9 +1391,34 @@ const Message = memo(function MessageComponent({
                       );
                     })()
                   ) : (
-                    (hasContent && !hasActualCanvasData && !hasStructuredData) && <MarkdownContent content={message.content} />
+                    (hasContent && !hasStructuredData) && <MarkdownContent content={message.content} />
                   )}
                   
+                  {/* INSERT CANVAS PREVIEW HERE IF !message.parts EXISTS FOR ASSISTANT */}
+                  {isAssistant && !message.parts && hasActualCanvasData && (
+                    <div 
+                      className="mb-6 relative max-h-[300px] overflow-hidden cursor-pointer" 
+                      onClick={() => togglePanel && togglePanel(message.id, 'canvas')}
+                    >
+                      <Canvas
+                        webSearchData={webSearchData}
+                        mathCalculationData={mathCalculationData}
+                        linkReaderData={linkReaderData}
+                        imageGeneratorData={imageGeneratorData}
+                        academicSearchData={academicSearchData}
+                        xSearchData={xSearchData}
+                        youTubeSearchData={youTubeSearchData}
+                        youTubeLinkAnalysisData={youTubeLinkAnalysisData}
+                        isCompact={true}
+                      />
+                      <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none"></div>
+                      <div className="flex items-center justify-center mt-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
+                        <span>View Canvas</span>
+                        <ChevronDown size={16} className="ml-1" />
+                      </div>
+                    </div>
+                  )}
+
                   {isAssistant && isStreaming && (
                     <div className="loading-dots text-sm inline-block ml-1">
                       <span>.</span>
