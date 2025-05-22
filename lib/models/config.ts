@@ -279,7 +279,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsPDFs: true,
     // censored: false,
     rateLimit: {
-      level: 'level0',
+      level: 'level5',
     },
     isEnabled: true,
     isActivated: true,
