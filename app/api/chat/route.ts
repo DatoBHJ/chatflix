@@ -1407,7 +1407,7 @@ IMPORTANT:
                     model: providers.languageModel('grok-3-fast'),
                     schema: z.object({
                       response: z.object({
-                        description: z.string().describe('Brief description of the supporting files being provided (if any). If no files are needed, explain why.'),
+                        description: z.string().optional().describe('Brief description of the supporting files being provided (if any). If no files are needed, don\'t include this field.'),
                         files: z.array(
                           z.object({
                             name: z.string().describe('Name of the file with appropriate extension (e.g., code.py, data.json, explanation.md)'),

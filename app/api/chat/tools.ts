@@ -51,13 +51,13 @@ const toolDefinitions = {
     }
   },
   imageGenerator: {
-    description: 'Generate images using Pollinations AI based on text prompts.',
+    description: 'Generate images using Pollinations AI based on text prompts. For editing, provide the seed of the original image.',
     parameters: {
       prompts: 'Text description(s) of the image(s) to generate. Can be a single string or array of strings. Should be detailed and specific.',
       model: 'The model to use for generation (flux or turbo)',
       width: 'Image width in pixels',
       height: 'Image height in pixels',
-      seed: 'Seed for reproducible results (optional)'
+      seed: 'Optional. The seed for random number generation. If not provided for a new image, a random seed will be used by the tool. For editing an existing image, provide the exact `seed` of the original image to maintain consistency with the modified prompt.'
     }
   },
   xSearch: {
@@ -537,8 +537,9 @@ export function createImageGeneratorTool(dataStream?: any) {
     prompt: string;
     model: string;
     timestamp: string;
+    seed: number; // seed 포함
   }> = [];
-  
+
   const imageGeneratorTool = tool({
     description: toolDefinitions.imageGenerator.description,
     parameters: z.object({
@@ -546,54 +547,55 @@ export function createImageGeneratorTool(dataStream?: any) {
         z.string(),
         z.array(z.string())
       ]).describe(toolDefinitions.imageGenerator.parameters.prompts),
-      model: z.enum(['flux','turbo'])
-             .describe(toolDefinitions.imageGenerator.parameters.model)
-             .default('flux'),
+      model: z.enum(['flux', 'turbo'])
+        .describe(toolDefinitions.imageGenerator.parameters.model)
+        .default('flux'),
       width: z.number().describe(toolDefinitions.imageGenerator.parameters.width).default(1024),
       height: z.number().describe(toolDefinitions.imageGenerator.parameters.height).default(1024),
-      seed: z.number().optional().describe(toolDefinitions.imageGenerator.parameters.seed),
+      seed: z.number().optional().describe(toolDefinitions.imageGenerator.parameters.seed), // .optional() 다시 추가
     }),
-    execute: async ({ prompts, model, width, height, seed }: {
+    execute: async ({ prompts, model, width, height, seed }: { // seed 타입에 ? 다시 추가
       prompts: string | string[];
-      model: 'flux'|'turbo';
+      model: 'flux' | 'turbo';
       width: number;
       height: number;
-      seed?: number;
+      seed?: number; // seed는 이제 optional
     }) => {
+      // seed가 제공되지 않으면 랜덤 값을 생성 (새 이미지 생성 시), 제공되면 그 값을 사용 (이미지 편집 시)
+      const currentSeed = seed === undefined ? Math.floor(Math.random() * Number.MAX_SAFE_INTEGER) : seed;
+
       try {
-        console.log('[DEBUG-IMAGE] Generating image(s) with parameters:', { prompts, model, width, height, seed });
-        
+        console.log('[DEBUG-IMAGE] Generating image(s) with parameters:', { prompts, model, width, height, seed: currentSeed });
+
         // 문자열 하나만 받은 경우 배열로 변환
         const promptsArray = Array.isArray(prompts) ? prompts : [prompts];
-        
+
         // 각 프롬프트에 대해 이미지 URL 생성
         const results = promptsArray.map(prompt => {
           // URL 인코딩된 프롬프트 준비
           const encodedPrompt = encodeURIComponent(prompt);
-          
+
           // 기본 URL 구성 - 개선된 파라미터 추가 (nologo=true, safe=false, enhance=true)
           let imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&nologo=true&safe=false&enhance=true`;
-          
-          // 모델과 시드 추가 (선택 사항)
-          if (model) {
-            imageUrl += `&model=${model}`;
-          }
-          
-          if (seed !== undefined) {
-            imageUrl += `&seed=${seed}`;
-          }
-          
+
+          // 모델 추가
+          imageUrl += `&model=${model}`;
+
+          // seed 값을 항상 URL에 추가
+          imageUrl += `&seed=${currentSeed}`;
+
           // 생성된 이미지 추적
           const timestamp = new Date().toISOString();
           const imageData = {
             imageUrl,
             prompt,
             model,
-            timestamp
+            timestamp,
+            seed: currentSeed // 생성/사용된 seed 값 저장
           };
-          
+
           generatedImages.push(imageData);
-          
+
           // 클라이언트에 이미지 생성 알림 전송
           if (dataStream) {
             dataStream.writeMessageAnnotation({
@@ -601,14 +603,14 @@ export function createImageGeneratorTool(dataStream?: any) {
               data: imageData
             });
           }
-          
+
           return {
             url: imageUrl,
             description: prompt,
-            parameters: { prompt, model, width, height, seed, enhance: true, safe: false }
+            parameters: { prompt, model, width, height, seed: currentSeed, enhance: true, safe: false } // 반환값에 seed 포함
           };
         });
-        
+
         // 결과가 하나만 있으면 객체로, 여러 개면 배열로 반환
         return results.length === 1 && !Array.isArray(prompts)
           ? results[0]
@@ -617,12 +619,12 @@ export function createImageGeneratorTool(dataStream?: any) {
         console.error('[DEBUG-IMAGE] Error generating image:', error);
         return {
           error: error instanceof Error ? error.message : 'Unknown error generating image',
-          parameters: { prompts, model, width, height, seed }
+          parameters: { prompts, model, width, height, seed: currentSeed } // 오류 발생 시에도 사용된 seed 값 포함
         };
       }
     }
   });
-  
+
   // 이미지 생성기 도구와 생성된 이미지 리스트를 함께 반환
   return Object.assign(imageGeneratorTool, { generatedImages });
 }
