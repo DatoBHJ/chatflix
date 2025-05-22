@@ -397,9 +397,9 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   // Claude 4 Sonnet (Thinking)
   {
     id: 'claude-sonnet-4-20250514-thinking',
-    name: 'Claude 4 Sonnet (Thinking)',
+    name: 'Claude Sonnet 4 (Thinking)',
     cutoff: 'Mar 2025',
-    abbreviation: 'C4S-T',
+    abbreviation: 'CS4-T',
     country: 'US',
     // description: "Anthropic's most intelligent model yet with extended thinking capability.",
     provider: 'anthropic',
@@ -424,9 +424,9 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   // Claude 4 Sonnet 
   {
     id: 'claude-sonnet-4-20250514',
-    name: 'Claude 4 Sonnet',
+    name: 'Claude Sonnet 4',
     cutoff: 'Mar 2025',
-    abbreviation: 'C4S',
+    abbreviation: 'CS4',
     country: 'US',
     // description: "Anthropic's most intelligent model.",
     provider: 'anthropic',
@@ -445,9 +445,9 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   // Claude 3.7 Sonnet (Thinking)
   {
     id: 'claude-3-7-sonnet-20250219',
-    name: 'Claude 3.7 Sonnet (Thinking)',
+    name: 'Claude Sonnet 3.7 (Thinking)',
     cutoff: 'Oct 2024',
-    abbreviation: 'C3.7S-T',
+    abbreviation: 'CS3.7-T',
     country: 'US',
     // description: "Anthropic's most intelligent model yet with extended thinking capability.",
     provider: 'anthropic',
@@ -478,9 +478,9 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   // Claude 3.7 Sonnet 
   {
     id: 'claude-3-7-sonnet-latest',
-    name: 'Claude 3.7 Sonnet',
+    name: 'Claude Sonnet 3.7',
     cutoff: 'Oct 2024',
-    abbreviation: 'C3.7S',
+    abbreviation: 'CS3.7',
     country: 'US',
     // description: "Anthropic's most intelligent model.",
     provider: 'anthropic',
