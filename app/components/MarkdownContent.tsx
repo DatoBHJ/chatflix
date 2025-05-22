@@ -641,8 +641,11 @@ const preprocessLaTeX = (content: string) => {
     .replace(/\\\(/g, '___INLINE_OPEN___')
     .replace(/\\\)/g, '___INLINE_CLOSE___');
 
+  // Escape currency dollar amounts BEFORE attempting to identify LaTeX.
+  processedContent = escapeCurrencyDollars(processedContent);
+
   // 블록 수식 ($$...$$) 보존
-  const blockRegex = /(\$\$[\s\S]*?\$\$)/g;
+  const blockRegex = /\$\$[\s\S]*?\$\$/g;
   const blocks: string[] = [];
   processedContent = processedContent.replace(blockRegex, (match) => {
     const id = blocks.length;
@@ -651,9 +654,14 @@ const preprocessLaTeX = (content: string) => {
   });
 
   // 인라인 수식 ($...$) 보존 - 화폐 값과 구분
-  const inlineRegex = /(\$(?!\s*\d+[.,\s]*\d*\s*$)(?:[^\$]|\\.)*?\$)/g;
+  // Matches $math$ not adjacent to word characters and not part of an HTML entity (like &#36;)
+  const inlineRegex = /(?<![\w&])\$((?:\\\$|[^$])+?)\$(?![\w])/g;
   const inlines: string[] = [];
   processedContent = processedContent.replace(inlineRegex, (match) => {
+    // Ensure inner content is not empty after trim, to avoid issues with "$ $"
+    if (match.substring(1, match.length - 1).trim() === "") {
+        return match; // Not a valid math expression, leave it.
+    }
     const id = inlines.length;
     inlines.push(match);
     return `___LATEX_INLINE_${id}___`;
@@ -665,9 +673,6 @@ const preprocessLaTeX = (content: string) => {
     .replace(/___BLOCK_CLOSE___/g, '\\]')
     .replace(/___INLINE_OPEN___/g, '\\(')
     .replace(/___INLINE_CLOSE___/g, '\\)');
-
-  // 화폐 기호 처리 (단순화된 버전)
-  processedContent = escapeCurrencyDollars(processedContent);
 
   // LaTeX 블록 복원
   processedContent = processedContent.replace(/___LATEX_BLOCK_(\d+)___/g, (_, id) => {
@@ -683,11 +688,13 @@ const preprocessLaTeX = (content: string) => {
 
 // 단순화된 화폐 기호 처리 함수
 function escapeCurrencyDollars(text: string): string {
-  // 이미 LaTeX로 처리된 항목은 건너뛰기
-  if (text.includes('___LATEX_') || !text.includes('$')) return text;
+  // This comment is no longer accurate with the new logic
+  if (!text.includes('$')) return text;
   
   // 금액 패턴 (예: $100, $1,000.50)
-  return text.replace(/\$(\d[\d,\.]*)/g, '&#36;$1');
+  // Regex to identify currency: $ not preceded by alnum/backslash, followed by number, then boundary/non-word.
+  const currencyRegex = /(?<![\\a-zA-Z0-9_])\$(\d+(?:[.,]\d+)*)(?=\b|[^\w])/g;
+  return text.replace(currencyRegex, '&#36;$1');
 }
 
 interface MarkdownContentProps {
