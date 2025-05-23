@@ -280,10 +280,10 @@ export async function POST(req: Request) {
           if (analysis.category === 'coding') {
             if (analysis.complexity === 'simple') {
               model = 'gpt-4.1';
-            } else if (analysis.complexity === 'medium') {
-              model = 'claude-sonnet-4-20250514';
+            // } else if (analysis.complexity === 'medium') {
+            //   model = 'gemini-2.5-pro-preview-05-06';
             } else {
-              model = 'claude-sonnet-4-20250514-thinking';
+              model = 'gemini-2.5-pro-preview-05-06';
             }
           }
           // 2단계: 멀티모달 요소 처리
