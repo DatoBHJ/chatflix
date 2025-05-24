@@ -421,6 +421,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       budgetTokens: 12000
     },
     contextWindow: 200000,
+    intelligenceIndex: 57,
+    tps: 82,
   },
   // Claude 4 Sonnet 
   {
@@ -442,6 +444,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isNew: true,
     isActivated: true,
     contextWindow: 200000,
+    intelligenceIndex: 53,
+    tps: 82,
   },
   // Claude 3.7 Sonnet (Thinking)
   {
@@ -470,11 +474,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 200000,
     tps: 78,
     intelligenceIndex: 57,
-    MMLU_Pro: 84,
-    Coding: 44,
-    MATH: 72,
-    GPQA: 77,
-    HLE: 10.3
   },
   // Claude 3.7 Sonnet 
   {
@@ -498,11 +497,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 200000,
     tps: 78,
     intelligenceIndex: 48,
-    MMLU_Pro: 80,
-    Coding: 38,
-    MATH: 54,
-    GPQA: 66,
-    HLE: 4.8
   },
   // GPT-4.1
   {
