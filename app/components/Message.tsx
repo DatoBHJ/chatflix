@@ -19,7 +19,8 @@ import {
   getStructuredResponseMainContent, 
   getStructuredResponseDescription, 
   getStructuredResponseFiles, 
-  isStructuredResponseInProgress 
+  isStructuredResponseInProgress, 
+  extractReasoningForMessage // Added import
 } from '@/app/lib/messageUtils';
 
 // Model name with logo component
@@ -176,8 +177,6 @@ interface MessageProps {
   chatId?: string
   isStreaming?: boolean
   isWaitingForToolResults?: boolean
-  agentReasoning?: any | null
-  agentReasoningProgress?: any[]
   messageHasCanvasData?: boolean
   activePanelMessageId?: string | null
   togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse') => void
@@ -298,8 +297,6 @@ const Message = memo(function MessageComponent({
   chatId,
   isStreaming = false,
   isWaitingForToolResults = false,
-  agentReasoning,
-  agentReasoningProgress,
   messageHasCanvasData,
   activePanelMessageId,
   togglePanel,
@@ -337,6 +334,11 @@ const Message = memo(function MessageComponent({
   const [reasoningExpanded, setReasoningExpanded] = useState(true);
   const [reasoningContentHeight, setReasoningContentHeight] = useState<number | undefined>(undefined);
   const reasoningContentRef = useRef<HTMLDivElement>(null);
+  
+  // Use useMemo to derive reasoning data from the message prop
+  const derivedReasoningData = useMemo(() => {
+    return extractReasoningForMessage(message);
+  }, [message]);
   
   // 프리미엄 업그레이드 버튼 클릭 핸들러 (최상위 레벨에 배치)
   const handleUpgradeClick = useCallback((e: React.MouseEvent) => {
@@ -384,23 +386,17 @@ const Message = memo(function MessageComponent({
   // Agent Reasoning 데이터 처리 (Canvas와 동일한 로직)
   useEffect(() => {
     let newDerivedReasoning: any | null = null;
+    const { completeData, progressData } = derivedReasoningData;
 
     // Prefer fully complete reasoning if available
-    if (agentReasoning?.isComplete) { 
-      newDerivedReasoning = agentReasoning; // This object from props should have isComplete: true
-    } else if (agentReasoningProgress && agentReasoningProgress.length > 0) {
-      // If no complete reasoning, take the latest progress
-      // The agentReasoningProgress prop should be sorted newest first if done by parent, or sort here.
-      // The original code sorted here, so we maintain that for safety.
-      const latestProgress = [...agentReasoningProgress].sort((a, b) => {
-          return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(); // Newest first
-        })[0];
-      // Items from agentReasoningProgress are expected to have isComplete: false from their construction in page.tsx
-      newDerivedReasoning = latestProgress; 
-    } else if (agentReasoning) { 
-      // Fallback: if there's an agentReasoning prop (but not marked complete) and no progress, use it.
-      // Its isComplete status will be taken as is.
-      newDerivedReasoning = agentReasoning;
+    if (completeData?.isComplete) { 
+      newDerivedReasoning = completeData;
+    } else if (progressData && progressData.length > 0) {
+      // If no complete reasoning, take the latest progress (already sorted newest first)
+      newDerivedReasoning = progressData[0]; 
+    } else if (completeData) { 
+      // Fallback: if there's a completeData (but not marked complete) and no progress, use it.
+      newDerivedReasoning = completeData;
     }
 
     // Compare the derived new state with the current state to prevent unnecessary updates
@@ -429,7 +425,7 @@ const Message = memo(function MessageComponent({
     if (hasChanged()) {
       setCurrentReasoning(newDerivedReasoning);
     }
-  }, [agentReasoning, agentReasoningProgress]); // Dependencies are the memoized props from parent
+  }, [derivedReasoningData, currentReasoning]); // Dependencies are the memoized derivedReasoningData and currentReasoning
   
   // 파일 토글 핸들러
   const toggleFile = useCallback((index: number) => {

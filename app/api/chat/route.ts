@@ -278,12 +278,23 @@ export async function POST(req: Request) {
           
           // 1단계: 코딩 카테고리 최우선 처리
           if (analysis.category === 'coding') {
-            if (analysis.complexity === 'simple') {
-              model = 'gpt-4.1';
-            // } else if (analysis.complexity === 'medium') {
-            //   model = 'gemini-2.5-pro-preview-05-06';
+            if (hasImage || hasPDF) {
+              // 멀티모달 + 코딩
+              if (analysis.complexity === 'simple') {
+                model = 'gpt-4.1';
+              } else {
+                // 중간/복잡은 gemini 2.5 pro
+                model = 'gemini-2.5-pro-preview-05-06';
+              }
             } else {
-              model = 'gemini-2.5-pro-preview-05-06';
+              // 비멀티모달 + 코딩
+              if (analysis.complexity === 'simple') {
+                model = 'gpt-4.1';
+              } else if (analysis.complexity === 'medium') {
+                model = 'claude-sonnet-4-20250514'; // Sonnet 4
+              } else { // complex
+                model = 'claude-sonnet-4-20250514-thinking'; // Sonnet 4 thinking
+              }
             }
           }
           // 2단계: 멀티모달 요소 처리
@@ -1345,15 +1356,54 @@ Create supporting files and follow-up questions that complement the main respons
    - Follow best practices for the content type (code, data, etc.)
    - IMPORTANT: ALL file content MUST be formatted with proper Markdown syntax. Use the following guidelines:
      - For code blocks, use triple backticks with language specification: \`\`\`python, \`\`\`javascript, etc.
+     - For charts, use \`\`\`chartjs with VALID JSON format (see Chart Guidelines below)
      - For tables, use proper Markdown table syntax with pipes and dashes
      - For headings, use # symbols (e.g., # Heading 1, ## Heading 2)
      - For lists, use proper Markdown list syntax (-, *, or numbered lists)
      - For emphasis, use *italic* or **bold** syntax
      - For links, use [text](url) syntax
      - Ensure proper indentation and spacing for nested structures
+
+## Chart Guidelines for Supporting Files
+When creating data visualizations from gathered information, use \`\`\`chartjs with VALID JSON format:
+
+**CRITICAL: All property names and string values MUST be in double quotes for valid JSON**
+
+Example chart format:
+\`\`\`chartjs
+{
+  "type": "bar",
+  "data": {
+    "labels": ["Data Point 1", "Data Point 2"],
+    "datasets": [{
+      "label": "Research Results",
+      "data": [25, 75],
+      "backgroundColor": ["#FF6B6B", "#4ECDC4"]
+    }]
+  },
+  "options": {
+    "responsive": true,
+    "plugins": {
+      "title": {
+        "display": true,
+        "text": "Data Analysis from Tools"
+      }
+    }
+  }
+}
+\`\`\`
+
+**Chart Creation Scenarios:**
+- Web search results: Create comparison or trend charts
+- Academic research data: Visualize research findings or statistics
+- YouTube video analysis: Show engagement metrics or trends
+- Calculator results: Display mathematical relationships
+- Multi-source data: Create comprehensive comparison visualizations
+
    - File Types to Consider (ONLY if needed):
     - code files (.py, .js, etc.): For complete, executable code examples
     - data files (.json, .csv): For structured data
+    - chart files (.md): For data visualizations using chartjs blocks
     - explanation files (.md): For detailed explanations or background information
     - step-by-step guides (.md): For procedures or tutorials
     - comparison tables (.md): For comparing multiple options or data points
@@ -1379,6 +1429,7 @@ IMPORTANT:
 - You MUST NOT create a main response again - the user has already been given the main response
 - DO NOT create files unless they provide substantial additional value
 - NEVER use HTML tags in file content
+- Consider creating charts when you have gathered quantitative data that would benefit from visualization
 `;
 
 

@@ -1,6 +1,6 @@
 import { useState, useMemo, memo, useCallback, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import type { Components } from 'react-markdown';
+import type { Components, ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
@@ -9,6 +9,17 @@ import rehypeHighlight from 'rehype-highlight';
 import mermaid from 'mermaid';
 import { MathJaxEquation } from './math/MathJaxEquation';
 import React from 'react';
+import dynamic from 'next/dynamic';
+
+// Dynamically import DynamicChart for client-side rendering
+const DynamicChart = dynamic(() => import('./charts/DynamicChart'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-[300px] w-full bg-[var(--accent)] rounded-lg shadow-md">
+      <p className="text-[var(--muted-foreground)]">Loading chart...</p>
+    </div>
+  ),
+});
 
 // 더 정교한 LaTeX 전처리 함수 추가
 const preprocessLaTeX = (content: string) => {
@@ -392,7 +403,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
     // Use a simple div as the root component to properly handle all elements
     root: SafeWrapper,
     
-    p: ({ children, ...props }) => {
+    p: ({ children, ...props }: React.PropsWithChildren<ExtraProps>) => {
       // Check if this is a text-only paragraph
       const childArray = React.Children.toArray(children);
       
@@ -504,7 +515,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
       // If children is not a string, render as-is
       return <p className="my-3 leading-relaxed" {...props}>{children}</p>;
     },
-    img: ({ src, alt, ...props }) => {
+    img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
       // Agent 도구에서 생성된 이미지 URL을 처리합니다
       if (src && (src.includes('image.pollinations.ai'))) {
         return (
@@ -532,7 +543,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
         <span className="text-[var(--muted)]">[Unable to load image]</span>
       );
     },
-    a: ({ href, children, ...props }) => (
+    a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
       <a 
         href={href} 
         target="_blank" 
@@ -543,7 +554,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
         {children}
       </a>
     ),
-    code: ({ className, children, ...props }) => {
+    code: ({ node, className, children, ...props }: React.PropsWithChildren<{ node?: any; className?: string;[key: string]: any; }>) => {
       const match = /language-(\w+)/.exec(className || '');
       const isInline = !match;
       
@@ -556,14 +567,11 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
       }
       
       const language = match?.[1] || '';
+      // Use the existing extractText utility which is designed to handle complex children structures.
       const codeText = extractText(children);
     
-      // Handle math code blocks - with dedicated wrapper component
       if (language === 'math') {
-        // Use a stable key based on content to avoid unnecessary remounts
         const key = `math-code-${codeText.slice(0, 20).replace(/\W/g, '')}`;
-        
-        // Remove the MathBlock from any potential paragraph by wrapping in a div with a key
         return (
           <div className="non-paragraph-wrapper" key={key}>
             <MathBlock content={codeText} />
@@ -571,7 +579,179 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
         );
       }
       
-      // Render code blocks in a div instead of a pre inside p to avoid hydration issues
+      if (language === 'chartjs') {
+        console.log('[Chart Debug] Detected chartjs code block, raw text:', codeText);
+        
+        // Function to check if JSON is complete (not a streaming fragment)
+        const isCompleteJSON = (text: string): boolean => {
+          const trimmed = text.trim();
+          if (!trimmed) return false;
+          
+          // Must start and end with braces
+          if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
+            return false;
+          }
+          
+          // Count braces to ensure they are balanced
+          let braceCount = 0;
+          let inString = false;
+          let escapeNext = false;
+          
+          for (let i = 0; i < trimmed.length; i++) {
+            const char = trimmed[i];
+            
+            if (escapeNext) {
+              escapeNext = false;
+              continue;
+            }
+            
+            if (char === '\\') {
+              escapeNext = true;
+              continue;
+            }
+            
+            if (char === '"' && !escapeNext) {
+              inString = !inString;
+              continue;
+            }
+            
+            if (!inString) {
+              if (char === '{') {
+                braceCount++;
+              } else if (char === '}') {
+                braceCount--;
+              }
+            }
+          }
+          
+          // JSON is complete if all braces are balanced
+          return braceCount === 0;
+        };
+        
+        // Check if the JSON is complete before parsing
+        if (!isCompleteJSON(codeText)) {
+          console.log('[Chart Debug] Incomplete JSON detected, showing loading state');
+          return (
+            <div className="my-6 chartjs-container bg-[var(--card-bg)] p-4 rounded-lg shadow-lg overflow-hidden">
+              <div className="flex items-center justify-center h-[300px] w-full">
+                <div className="flex flex-col items-center space-y-3">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                  <p className="text-[var(--muted-foreground)] text-sm">Loading chart...</p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        
+        // Function to safely parse both JSON and JavaScript object literals
+        const parseChartConfig = (text: string): { success: boolean; config?: any; error?: string } => {
+          // First try standard JSON parsing
+          try {
+            const config = JSON.parse(text);
+            console.log('[Chart Debug] Standard JSON parsing succeeded');
+            return { success: true, config };
+          } catch (jsonError) {
+            console.log('[Chart Debug] Standard JSON parsing failed, trying to fix JavaScript object literal format');
+            
+            // Try to convert JavaScript object literal to valid JSON
+            try {
+              // Replace single quotes with double quotes for string values
+              // Replace unquoted property names with quoted ones
+              let fixedText = text
+                // Handle unquoted property names (e.g., type: -> "type":)
+                .replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":')
+                // Handle single quotes around string values
+                .replace(/'([^']*)'/g, '"$1"')
+                // Handle trailing commas (remove them)
+                .replace(/,(\s*[}\]])/g, '$1')
+                // Handle JavaScript comments (remove them)
+                .replace(/\/\/.*$/gm, '')
+                .replace(/\/\*[\s\S]*?\*\//g, '');
+                
+              console.log('[Chart Debug] Fixed text:', fixedText);
+              const config = JSON.parse(fixedText);
+              console.log('[Chart Debug] JavaScript object literal conversion succeeded');
+              return { success: true, config };
+            } catch (fixError) {
+              const jsonErrorMsg = jsonError instanceof Error ? jsonError.message : 'Unknown JSON error';
+              const fixErrorMsg = fixError instanceof Error ? fixError.message : 'Unknown fix error';
+              return { 
+                success: false, 
+                error: `Failed to parse as JSON or fix JavaScript object literal. JSON Error: ${jsonErrorMsg}, Fix Error: ${fixErrorMsg}` 
+              };
+            }
+          }
+        };
+        
+        // Parse the chart configuration synchronously
+        const parseResult = parseChartConfig(codeText);
+        
+        if (parseResult.success && parseResult.config) {
+          const chartConfig = parseResult.config;
+          console.log('[Chart Debug] Parsed config successfully:', chartConfig);
+          
+          // Validate chart configuration structure
+          if (typeof chartConfig === 'object' && chartConfig !== null && typeof chartConfig.type === 'string' && typeof chartConfig.data === 'object' && chartConfig.data !== null) {
+            console.log('[Chart Debug] Chart config validation passed, rendering chart');
+            return (
+              <div className="my-6 chartjs-container bg-[var(--card-bg)] p-4 rounded-lg shadow-lg overflow-hidden">
+                <DynamicChart chartConfig={chartConfig} />
+              </div>
+            );
+          } else {
+            console.warn('[Chart Debug] Invalid chartjs configuration structure. Expected {type: string, data: object, options?: object}. Received:', chartConfig);
+            console.warn('[Chart Debug] Type of chartConfig:', typeof chartConfig);
+            console.warn('[Chart Debug] chartConfig.type:', typeof chartConfig?.type, chartConfig?.type);
+            console.warn('[Chart Debug] chartConfig.data:', typeof chartConfig?.data, chartConfig?.data);
+            
+            // Return error message for invalid config structure
+            return (
+              <div className="my-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-red-600 font-semibold">Invalid Chart Configuration</p>
+                <p className="text-red-500 text-sm mt-1">
+                  Expected format: {`{type: string, data: object, options?: object}`}
+                </p>
+                <details className="mt-2">
+                  <summary className="text-red-600 cursor-pointer text-sm">Show raw config</summary>
+                  <pre className="text-xs text-red-500 mt-1 whitespace-pre-wrap">{JSON.stringify(chartConfig, null, 2)}</pre>
+                </details>
+              </div>
+            );
+          }
+        } else {
+          // Parsing failed completely
+          console.error('[Chart Debug] Error parsing chartjs:', parseResult.error);
+          console.error('[Chart Debug] Raw text that failed to parse:', codeText);
+          
+          const errorMessage = parseResult.error || 'Unknown parsing error';
+          
+          // Return error message for parsing failure
+          return (
+            <div className="my-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-600 font-semibold">Chart Parse Error</p>
+              <p className="text-red-500 text-sm mt-1">
+                Failed to parse chart configuration. Please ensure it's valid JSON format.
+              </p>
+              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                <p className="text-blue-600 text-xs font-semibold">Correct JSON format example:</p>
+                <pre className="text-xs text-blue-600 mt-1">{`{
+  "type": "bar",
+  "data": {
+    "labels": ["A", "B"],
+    "datasets": [{"label": "Data", "data": [1, 2]}]
+  }
+}`}</pre>
+              </div>
+              <details className="mt-2">
+                <summary className="text-red-600 cursor-pointer text-sm">Show error details</summary>
+                <pre className="text-xs text-red-500 mt-1 whitespace-pre-wrap">{errorMessage}</pre>
+                <pre className="text-xs text-red-500 mt-1 whitespace-pre-wrap">{codeText}</pre>
+              </details>
+            </div>
+          );
+        }
+      }
+      
       return (
         <div className="message-code group relative my-6 max-w-full overflow-hidden">
           <div className="message-code-header flex items-center justify-between px-4 py-2">
@@ -593,7 +773,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
         </div>
       );
     },
-    table: ({ children, ...props }) => (
+    table: ({ children, ...props }: React.PropsWithChildren<ExtraProps>) => (
       <div className="overflow-x-auto my-6">
         <table className="w-full border-collapse" {...props}>{children}</table>
       </div>

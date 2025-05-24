@@ -17,69 +17,11 @@ import '@/app/styles/attachments.css'
 import '@/app/styles/loading-dots.css'
 import { Message as MessageComponent } from '@/app/components/Message'
 import { ChatInput } from '@/app/components/ChatInput/index';
-import { VirtuosoHandle } from 'react-virtuoso';
-import VirtuosoWrapper from '@/app/components/VirtuosoWrapper';
 import Canvas from '@/app/components/Canvas';
 import { FollowUpQuestions } from '@/app/components/FollowUpQuestions';
 import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getXSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getAcademicSearchData } from '@/app/hooks/toolFunction';
 import { StructuredResponse } from '@/app/components/StructuredResponse';
-import { getStructuredResponseFiles } from '@/app/lib/messageUtils';
-
-
-// Define a type for the annotations
-type Annotation = {
-  type: string;
-  data: any;
-};
-
-// Helper function to extract reasoning data for a single message
-const extractReasoningForMessage = (message: Message) => {
-  const messageAnnotations = ((message.annotations || []) as Annotation[]);
-  const toolResults = (message as any).tool_results;
-
-  const reasoningAnnotations = messageAnnotations
-    .filter(a => a?.type === 'agent_reasoning' || a?.type === 'agent_reasoning_progress');
-    
-  const toolResultsReasoningData = toolResults?.agentReasoning;
-  const toolResultsSource = toolResultsReasoningData
-    ? [{ type: 'agent_reasoning', data: toolResultsReasoningData }] 
-    : [];
-    
-  const reasoningDataSources = [...reasoningAnnotations, ...toolResultsSource];
-
-  const completeAnnotation = reasoningDataSources.find(a => 
-    a?.type === 'agent_reasoning' && (a?.data?.isComplete === true || typeof a?.data?.isComplete === 'undefined')
-  );
-  
-  const progressAnnotations = reasoningDataSources
-    .filter(a => a?.type === 'agent_reasoning_progress')
-    .sort((a, b) => new Date(a?.data?.timestamp || 0).getTime() - new Date(b?.data?.timestamp || 0).getTime());
-  
-  const formatReasoningData = (sourceItem: any, isExplicitlyProgress: boolean) => {
-    const data = sourceItem.data;
-    return {
-      agentThoughts: data?.agentThoughts || data?.reasoning || '',
-      plan: data?.plan || '',
-      selectionReasoning: data?.selectionReasoning || '',
-      needsWebSearch: Boolean(data?.needsWebSearch),
-      needsCalculator: Boolean(data?.needsCalculator),
-      needsLinkReader: Boolean(data?.needsLinkReader),
-      needsImageGenerator: Boolean(data?.needsImageGenerator),
-      needsAcademicSearch: Boolean(data?.needsAcademicSearch),
-      // needsXSearch: Boolean(data?.needsXSearch), // Assuming this remains commented out as per previous context
-      needsYouTubeSearch: Boolean(data?.needsYouTubeSearch),
-      needsYouTubeLinkAnalyzer: Boolean(data?.needsYouTubeLinkAnalyzer),
-      needsDataProcessor: Boolean(data?.needsDataProcessor),
-      timestamp: data?.timestamp,
-      isComplete: isExplicitlyProgress ? false : (data?.isComplete ?? (sourceItem.type === 'agent_reasoning'))
-    };
-  };
-  
-  return {
-    completeData: completeAnnotation ? formatReasoningData(completeAnnotation, false) : null,
-    progressData: progressAnnotations.map(a => formatReasoningData(a, true))
-  };
-};
+import { Annotation, File, getStructuredResponseFiles } from '@/app/lib/messageUtils';
 
 export default function Chat({ params }: PageProps) {
   const { id: chatId } = use(params)
@@ -90,7 +32,6 @@ export default function Chat({ params }: PageProps) {
   const [nextModel, setNextModel] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);  // 캔버스 컨테이너 참조 추가
   const [isInitialized, setIsInitialized] = useState(false)
   const initialMessageSentRef = useRef(false)
@@ -249,12 +190,12 @@ export default function Chat({ params }: PageProps) {
   }, [messages.length]);
 
   // Determine whether to use virtualization based on message count
-  const useVirtualization = useMemo(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      return messages.length > 10;
-    }
-    return messages.length > 20;
-  }, [messages.length]);
+  // const useVirtualization = useMemo(() => {
+  //   if (typeof window !== 'undefined' && window.innerWidth < 768) {
+  //     return messages.length > 10;
+  //   }
+  //   return messages.length > 20;
+  // }, [messages.length]);
 
   const {
     isRegenerating,
@@ -271,12 +212,15 @@ export default function Chat({ params }: PageProps) {
 
   // 스크롤 함수 개선 - 채팅과 캔버스 모두 스크롤
   const scrollToBottom = useCallback(() => {
-    if (virtuosoRef.current) {
-      virtuosoRef.current.scrollToIndex({
-        index: messages.length - 1,
-        behavior: 'smooth'
-      });
-    } else if (messagesEndRef.current) {
+    // if (virtuosoRef.current) {
+    //   virtuosoRef.current.scrollToIndex({
+    //     index: messages.length - 1,
+    //     behavior: 'smooth'
+    //   });
+    // } else if (messagesEndRef.current) {
+    //   messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+    // }
+    if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
     }
     
@@ -1292,7 +1236,7 @@ export default function Chat({ params }: PageProps) {
               className="messages-container"
               ref={messagesContainerRef}
             >
-              {useVirtualization ? (
+              {/* {useVirtualization ? (
                 <VirtuosoWrapper
                   messages={messages}
                   messagesEndRef={messagesEndRef}
@@ -1334,8 +1278,6 @@ export default function Chat({ params }: PageProps) {
                             chatId={chatId}
                             isStreaming={isLoading && message.role === 'assistant' && message.id === messages[messages.length - 1]?.id}
                             isWaitingForToolResults={isWaitingForToolResults(message)}
-                            agentReasoning={agentReasoning}
-                            agentReasoningProgress={agentReasoningProgress}
                             messageHasCanvasData={messageHasCanvasData}
                             activePanelMessageId={activePanel?.messageId}
                             togglePanel={togglePanel}
@@ -1350,7 +1292,7 @@ export default function Chat({ params }: PageProps) {
                         </div>
                         
                         {/* Add loading message at the end if the last message is from the user and we're loading */}
-                        {isLoading && index === messages.length - 1 && message.role === 'user' && (
+                        {/* {isLoading && index === messages.length - 1 && message.role === 'user' && (
                           <MessageComponent
                             message={{
                               id: 'loading-message',
@@ -1385,23 +1327,23 @@ export default function Chat({ params }: PageProps) {
                             youTubeSearchData={null}
                             youTubeLinkAnalysisData={null}
                           />
-                        )}
+                        )} */}
                         
                         {/* Add follow-up questions after the last assistant message */}
-                        {useVirtualization && !isLoading && index === messages.length - 1 && message.role === 'assistant' && user && (
+                        {/* {useVirtualization && !isLoading && index === messages.length - 1 && message.role === 'assistant' && user && (
                           <FollowUpQuestions 
                             chatId={chatId} 
                             userId={user.id} 
                             messages={messages} 
                             onQuestionClick={handleFollowUpQuestionClick} 
                           />
-                        )}
-                      </>
+                        )} */}
+                      {/* </>
                     );
                   }}
                 />
-              ) : (
-                messages.map((message) => {
+              ) : ( */}
+                {messages.map((message, index) => {
                   const messageHasCanvasData = hasCanvasData(message);
                   
                   // 각 메시지의 캔버스 데이터 가져오기
@@ -1413,10 +1355,10 @@ export default function Chat({ params }: PageProps) {
                   const youTubeSearchData = getYouTubeSearchData(message);
                   const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(message);
 
-                  // Call the helper function directly, no useMemo here
-                  const reasoningData = extractReasoningForMessage(message);
-                  const agentReasoning = reasoningData.completeData;
-                  const agentReasoningProgress = reasoningData.progressData;
+                  // Removed: Call the helper function directly, no useMemo here
+                  // const reasoningData = extractReasoningForMessage(message);
+                  // const agentReasoning = reasoningData.completeData;
+                  // const agentReasoningProgress = reasoningData.progressData;
                   
                   return (
                     <div key={message.id}>
@@ -1437,8 +1379,6 @@ export default function Chat({ params }: PageProps) {
                           chatId={chatId}
                           isStreaming={isLoading && message.role === 'assistant' && message.id === messages[messages.length - 1]?.id}
                           isWaitingForToolResults={isWaitingForToolResults(message)}
-                          agentReasoning={agentReasoning}
-                          agentReasoningProgress={agentReasoningProgress}
                           messageHasCanvasData={messageHasCanvasData}
                           activePanelMessageId={activePanel?.messageId}
                           togglePanel={togglePanel}
@@ -1453,8 +1393,8 @@ export default function Chat({ params }: PageProps) {
                       </div>
                     </div>
                   );
-                })
-              )}
+                })}
+              {/* )} */}
               {/* Show immediate loading response after sending message */}
               {isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'user' && (
                 <div>
@@ -1479,8 +1419,6 @@ export default function Chat({ params }: PageProps) {
                     chatId={chatId}
                     isStreaming={true}
                     isWaitingForToolResults={true}
-                    agentReasoning={null}
-                    agentReasoningProgress={[]}
                     messageHasCanvasData={false}
                     activePanelMessageId={activePanel?.messageId}
                     togglePanel={togglePanel}
@@ -1496,7 +1434,8 @@ export default function Chat({ params }: PageProps) {
               )}
               
               {/* Add follow-up questions only if virtualization is not used */}
-              {!useVirtualization && !isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && user && (
+              {/* {!useVirtualization && !isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && user && ( */}
+              {!isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && user && (
                 <FollowUpQuestions 
                   chatId={chatId} 
                   userId={user.id} 
@@ -1568,7 +1507,7 @@ export default function Chat({ params }: PageProps) {
                       if (filesForPanel && filesForPanel.length > 0) {
                         // Display up to 3 file names, then 'and X more'
                         const maxFilesToShow = 3;
-                        const fileNames = filesForPanel.map(file => file.name);
+                        const fileNames = filesForPanel.map((file: File) => file.name);
                         let summaryText = fileNames.slice(0, maxFilesToShow).join(', ');
                         if (fileNames.length > maxFilesToShow) {
                           summaryText += `, and ${fileNames.length - maxFilesToShow} more`;
@@ -1625,12 +1564,12 @@ export default function Chat({ params }: PageProps) {
         <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-0 pb-6 w-full">
           <div className="max-w-2xl mx-auto w-full px-6 sm:px-8 relative flex flex-col items-center">
             <div className="w-full max-w-[calc(100vw-2rem)]">
-              {isConversationTooLong && (
+              {/* {isConversationTooLong && (
                 <div className="p-3 text-center text-[var(--foreground-secondary)] backdrop-blur-md text-sm sm:text-base rounded-md">
                   Hmm, I might be forgetting our earlier conversation. <br />
                   Want to start a <a href="/" className="text-blue-500 hover:underline">fresh chat</a> for better results? 😊
                 </div>
-              )}
+              )} */}
               <ModelSelector
                 currentModel={currentModel}
                 nextModel={nextModel}

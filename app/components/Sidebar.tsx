@@ -56,92 +56,126 @@ export function Sidebar({ user, onClose }: SidebarProps) {
 
   // Add function to fetch profile image
   const fetchProfileImage = async (userId: string) => {
+    if (!userId) {
+      console.log('No user ID provided for fetching profile image');
+      return;
+    }
+
+    let listData: any = null;
+    let lastError: Error | null = null;
+
+    // Attempt 1: List files from storage with a timeout
     try {
-      // Ensure we have a valid user ID before proceeding
-      if (!userId) {
-        console.log('No user ID provided for fetching profile image');
-        return;
-      }
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Storage request timed out')), 5000)
+      );
+      
+      const result = await Promise.race([
+        supabase.storage.from('profile-pics').list(`${userId}`),
+        timeoutPromise
+      ]) as { data: any, error?: any };
 
-      try {
-        // Wrap the storage call in a timeout promise to avoid hanging
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Storage request timed out')), 5000);
-        });
+      if (result.error) {
+        lastError = result.error;
+        console.warn('Initial attempt to list profile pics failed with Supabase error:', lastError);
         
-        // Try to get profile image from storage
-        let { data: profileData, error: profileError } = await Promise.race([
-          supabase
-            .storage
-            .from('profile-pics')
-            .list(`${userId}`),
-          timeoutPromise
-        ]) as { data: any, error: any };
-
-        if (profileError) {
-          console.error('Error fetching profile image list:', profileError);
-          // Don't return immediately, try to reconnect or continue safely
-          if (typeof window !== 'undefined') {
-            // Create a new supabase client and retry
-            console.log('Attempting to reconnect to Supabase storage...');
-            const newClient = createClient();
-            try {
-              const { data } = await newClient.storage.from('profile-pics').list(`${userId}`);
-              profileData = data;
-            } catch (retryError) {
-              console.error('Failed to reconnect to storage:', retryError);
-              return;
+        // Optional: Immediate retry if Supabase client itself returned an error (not a timeout)
+        if (typeof window !== 'undefined') {
+          console.log('Attempting immediate retry for profile image list (due to initial list error)...');
+          const newClient = createClient();
+          try {
+            const { data: directRetryData, error: directRetryError } = await newClient.storage.from('profile-pics').list(`${userId}`);
+            if (directRetryError) {
+              console.warn('Immediate retry for list also failed:', directRetryError);
+              // lastError remains the original Supabase error
+            } else {
+              console.log('Immediate retry for list successful.');
+              listData = directRetryData;
+              lastError = null; // Clear error as retry was successful
             }
-          } else {
-            return;
+          } catch (directRetryCatchError: any) {
+            console.warn('Exception during immediate list retry:', directRetryCatchError);
+            lastError = directRetryCatchError; // Update lastError to this new exception
           }
         }
+      } else {
+        listData = result.data;
+      }
+    } catch (e: any) { // This catch is primarily for the timeout from Promise.race
+      if (e.message === 'Storage request timed out') {
+        console.log('Profile image list: initial request timed out. Attempting retry...');
+        lastError = e; // Store the timeout error temporarily
 
-        // If profile image exists, get public URL
-        if (profileData && profileData.length > 0) {
+        if (typeof window !== 'undefined') {
+          const newClient = createClient();
           try {
-            const fileName = profileData[0].name;
-            const filePath = `${userId}/${fileName}`;
-            
-            // 유효성 검사 추가
-            if (!fileName || typeof fileName !== 'string') {
-              console.error('Invalid file name returned from storage');
-              return;
-            }
-            
-            // 직접 URL 생성 대신 Supabase CDN 링크 사용
-            const { data } = supabase
-              .storage
-              .from('profile-pics')
-              .getPublicUrl(filePath);
-            
-            // 데이터 유효성 확인 및 URL 검증 로직 개선
-            if (data && data.publicUrl && data.publicUrl.startsWith('http')) {
-              setProfileImage(data.publicUrl);
+            const { data: timeoutRetryData, error: timeoutRetryError } = await newClient.storage.from('profile-pics').list(`${userId}`);
+            if (timeoutRetryError) {
+              console.warn('Profile image list: retry after timeout failed:', timeoutRetryError);
+              // Augment lastError or replace, depending on desired logging
+              lastError = new Error(`Timeout followed by retry error: ${timeoutRetryError.message || timeoutRetryError}`);
             } else {
-              console.log('No valid public URL returned or URL is not properly formatted');
+              console.log('Profile image list: retry after timeout successful.');
+              listData = timeoutRetryData;
+              lastError = null; // Clear error as retry was successful
             }
-          } catch (error) {
-            console.error('Error getting public URL for profile image:', error);
+          } catch (timeoutRetryCatchError: any) {
+            console.warn('Profile image list: exception during retry after timeout:', timeoutRetryCatchError);
+            lastError = new Error(`Timeout followed by retry exception: ${timeoutRetryCatchError.message || timeoutRetryCatchError}`);
           }
         } else {
-          console.log('No profile images found for user');
+          // No client-side retry possible for timeout (e.g. SSR), so timeout is the effective error.
+          // lastError is already set to the timeout error.
+          console.log('Profile image list: timed out (no client-side retry performed).');
         }
-      } catch (error: any) {
-        // 좀 더 자세한 에러 로깅
-        console.error('Storage API error - likely a network or authentication issue:', 
-          error?.message || error);
-        
-        if (error?.message?.includes('<html>') || error?.message?.includes('not valid JSON')) {
-          // This is likely a network issue or the API returned HTML instead of JSON
-          console.warn('Received HTML instead of JSON response - this might be a network issue or Supabase authentication problem');
-        }
-        
-        // 오류가 발생해도 UI는 계속 작동하도록 함
+      } else {
+        // Other unexpected error from Promise.race
+        console.error('Critical error during initial profile pic list attempt (Promise.race):', e);
+        lastError = e;
+      }
+    }
+
+    // After all attempts, if listData is still not populated and an error occurred, log final error and return.
+    if (!listData && lastError) {
+      console.error('Failed to fetch profile image list after all attempts:', lastError.message || lastError);
+      if (lastError.message?.includes('<html>') || lastError.message?.includes('not valid JSON')) {
+        console.warn('Received HTML instead of JSON response - this might be a network issue or Supabase authentication problem');
+      }
+      return; 
+    }
+    
+    if (!listData || listData.length === 0) {
+      if (!lastError) { // Only log "No profile images" if there wasn't a preceding error that prevented listing
+        console.log('No profile images found for user.');
+      }
+      // If lastError exists, it means we failed to get the list, error already logged.
+      return; 
+    }
+
+    // Proceed to get public URL if listData is available
+    try {
+      const fileName = listData[0].name;
+      const filePath = `${userId}/${fileName}`;
+      
+      if (!fileName || typeof fileName !== 'string') {
+        console.error('Invalid file name returned from storage.');
         return;
       }
-    } catch (error) {
-      console.error('Error in profile image fetch process:', error);
+      
+      const { data: urlInfo, error: urlError } = supabase.storage.from('profile-pics').getPublicUrl(filePath) as { data: { publicUrl: string } | null, error: Error | null };
+      
+      if (urlError) {
+        console.error('Error getting public URL for profile image:', urlError);
+        return;
+      }
+      
+      if (urlInfo && urlInfo.publicUrl && urlInfo.publicUrl.startsWith('http')) {
+        setProfileImage(urlInfo.publicUrl);
+      } else {
+        console.log('No valid public URL returned or URL is not properly formatted for profile image.');
+      }
+    } catch (processingError) {
+      console.error('Error processing profile data or getting public URL:', processingError);
     }
   };
 

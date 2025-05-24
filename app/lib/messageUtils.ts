@@ -5,6 +5,64 @@ export type File = {
   description?: string;
 };
 
+// Define a type for the annotations used in extractReasoningForMessage
+export type Annotation = {
+  type: string;
+  data: any;
+  // Add other potential fields if necessary, e.g., timestamp, id, etc.
+};
+
+// Helper function to extract reasoning data for a single message
+export const extractReasoningForMessage = (message: any) => {
+  if (!message) return { completeData: null, progressData: [] };
+
+  const messageAnnotations = ((message.annotations || []) as Annotation[]);
+  const toolResults = (message as any).tool_results;
+
+  const reasoningAnnotations = messageAnnotations
+    .filter(a => a?.type === 'agent_reasoning' || a?.type === 'agent_reasoning_progress');
+    
+  const toolResultsReasoningData = toolResults?.agentReasoning;
+  const toolResultsSource = toolResultsReasoningData
+    ? [{ type: 'agent_reasoning', data: toolResultsReasoningData } as Annotation] 
+    : [];
+    
+  const reasoningDataSources = [...reasoningAnnotations, ...toolResultsSource];
+
+  const completeAnnotation = reasoningDataSources.find(a => 
+    a?.type === 'agent_reasoning' && (a?.data?.isComplete === true || typeof a?.data?.isComplete === 'undefined')
+  );
+  
+  const progressAnnotations = reasoningDataSources
+    .filter(a => a?.type === 'agent_reasoning_progress')
+    .sort((a, b) => new Date(b?.data?.timestamp || 0).getTime() - new Date(a?.data?.timestamp || 0).getTime()); // Newest first
+  
+  const formatReasoningData = (sourceItem: Annotation, isExplicitlyProgress: boolean) => {
+    const data = sourceItem.data;
+    return {
+      agentThoughts: data?.agentThoughts || data?.reasoning || '',
+      plan: data?.plan || '',
+      selectionReasoning: data?.selectionReasoning || '',
+      needsWebSearch: Boolean(data?.needsWebSearch),
+      needsCalculator: Boolean(data?.needsCalculator),
+      needsLinkReader: Boolean(data?.needsLinkReader),
+      needsImageGenerator: Boolean(data?.needsImageGenerator),
+      needsAcademicSearch: Boolean(data?.needsAcademicSearch),
+      // needsXSearch: Boolean(data?.needsXSearch), // Keep commented if not used
+      needsYouTubeSearch: Boolean(data?.needsYouTubeSearch),
+      needsYouTubeLinkAnalyzer: Boolean(data?.needsYouTubeLinkAnalyzer),
+      needsDataProcessor: Boolean(data?.needsDataProcessor),
+      timestamp: data?.timestamp,
+      isComplete: isExplicitlyProgress ? false : (data?.isComplete ?? (sourceItem.type === 'agent_reasoning'))
+    };
+  };
+  
+  return {
+    completeData: completeAnnotation ? formatReasoningData(completeAnnotation, false) : null,
+    progressData: progressAnnotations.map(a => formatReasoningData(a, true))
+  };
+};
+
 // Helper function to get structured response main content
 export function getStructuredResponseMainContent(message: any) {
   // 1. Check annotations first
