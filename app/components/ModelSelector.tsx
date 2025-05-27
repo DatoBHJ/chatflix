@@ -46,9 +46,9 @@ const ModelBarChart = ({
   models: ModelConfig[],
   isMobile: boolean,
   isFullscreen?: boolean,
-  metric?: 'tps' | 'intelligenceIndex' | 'contextWindow' | 'multilingual'
+  metric?: 'tps' | 'intelligenceIndex' | 'contextWindow' | 'multilingual' | 'latency'
 }) => {
-  const [selectedMetric, setSelectedMetric] = useState<'tps' | 'intelligenceIndex' | 'contextWindow' | 'multilingual'>(metric);
+  const [selectedMetric, setSelectedMetric] = useState<'tps' | 'intelligenceIndex' | 'contextWindow' | 'multilingual' | 'latency'>(metric);
   
   // Filter models that have the selected metric and exclude chatflix-ultimate
   const validModels = models
@@ -58,7 +58,10 @@ const ModelBarChart = ({
     )
     .sort((a, b) => {
       // Primary sort by metric value
-      const metricDiff = (b[selectedMetric] as number) - (a[selectedMetric] as number);
+      // For latency, lower is better (so we reverse the sort)
+      const metricDiff = selectedMetric === 'latency' 
+        ? (a[selectedMetric] as number) - (b[selectedMetric] as number)
+        : (b[selectedMetric] as number) - (a[selectedMetric] as number);
       // If metric values are equal, sort by name for consistency
       return metricDiff !== 0 ? metricDiff : a.name.localeCompare(b.name);
     });
@@ -73,8 +76,9 @@ const ModelBarChart = ({
   const labelWidth = isFullscreen ? 160 : 120;
   const valueWidth = isFullscreen ? 60 : 40;
   
-  // Find max value for scale
+  // Find max/min values for scale
   const maxValue = Math.max(...validModels.map(m => m[selectedMetric] as number));
+  const minValue = Math.min(...validModels.map(m => m[selectedMetric] as number));
   
   // Scale function for bar width
   const scaleWidth = (value: number) => {
@@ -92,6 +96,8 @@ const ModelBarChart = ({
         return `${(value / 1000).toFixed(0)}K`;
       case 'multilingual':
         return `${value.toFixed(1)}`;
+      case 'latency':
+        return `${value.toFixed(1)}s`;
       default:
         return `${value}`;
     }
@@ -108,6 +114,8 @@ const ModelBarChart = ({
         return 'Context Window';
       case 'multilingual':
         return 'Multilingual Index';
+      case 'latency':
+        return 'Response Latency';
       default:
         return metric;
     }
@@ -124,6 +132,12 @@ const ModelBarChart = ({
           className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'tps' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
         >
           Speed
+        </button>
+        <button 
+          onClick={() => setSelectedMetric('latency')}
+          className={`text-xs px-2 py-1 rounded-sm ${selectedMetric === 'latency' ? 'bg-[var(--accent)] text-[var(--foreground)]' : 'bg-[var(--accent)]/10'}`}
+        >
+          Latency
         </button>
         <button 
           onClick={() => setSelectedMetric('intelligenceIndex')}
@@ -150,6 +164,7 @@ const ModelBarChart = ({
          selectedMetric === 'intelligenceIndex' ? 'Combination metric covering multiple dimensions of intelligence - the simplest way to compare how smart models are. Higher is better.' :
          selectedMetric === 'contextWindow' ? 'Maximum context length in tokens - determines how much information the model can process in a single conversation. Higher is better.' :
          selectedMetric === 'multilingual' ? 'Average of Multilingual MMLU and MGSM across languages - measures performance across Spanish, German, Japanese, Chinese, and others. Higher is better.' :
+         selectedMetric === 'latency' ? 'Seconds to First Answer Token Received - measures how quickly the model starts responding to your query. Lower is better.' :
          'Higher values indicate better performance across all metrics.'}
       </div>
       
@@ -372,11 +387,22 @@ export function ModelSelector({
     if (modelFilter === 'thinking') filteredByType = filteredModels.filter(model => model.name.includes('(Thinking)'));
     if (modelFilter === 'regular') filteredByType = filteredModels.filter(model => !model.name.includes('(Thinking)'));
     
-    // Now sort to ensure chatflix-ultimate appears at the top, followed by new models
+    // Now sort to ensure chatflix models appear at the top, followed by new models
     return [...filteredByType].sort((a, b) => {
-      // First prioritize chatflix-ultimate
-      if (a.id === 'chatflix-ultimate') return -1;
-      if (b.id === 'chatflix-ultimate') return 1;
+      // First prioritize chatflix models (both ultimate and pro)
+      const aChatflix = a.id === 'chatflix-ultimate' || a.id === 'chatflix-ultimate-pro';
+      const bChatflix = b.id === 'chatflix-ultimate' || b.id === 'chatflix-ultimate-pro';
+      
+      if (aChatflix && !bChatflix) return -1;
+      if (!aChatflix && bChatflix) return 1;
+      
+      // If both are chatflix models, pro comes first, then ultimate
+      if (aChatflix && bChatflix) {
+        if (a.id === 'chatflix-ultimate-pro') return -1;
+        if (b.id === 'chatflix-ultimate-pro') return 1;
+        return 0;
+      }
+      
       // Then prioritize new models
       if (a.isNew && !b.isNew) return -1;
       if (!a.isNew && b.isNew) return 1;
