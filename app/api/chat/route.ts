@@ -1435,7 +1435,7 @@ IMPORTANT:
 
                   // 구조화된 응답 생성
                   const objectResult = await streamObject({
-                    model: providers.languageModel('grok-3-fast'),
+                    model: providers.languageModel('gpt-4.1-mini'),
                     schema: z.object({
                       response: z.object({
                         description: z.string().optional().describe('Brief description of the supporting files being provided (if any). If no files are needed, don\'t include this field.'),
