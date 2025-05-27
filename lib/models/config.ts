@@ -27,16 +27,12 @@ export interface ModelConfig {
   contextWindow?: number;
   tps?: number; // Tokens per second received while the model is generating tokens (ie. after first chunk has been received from the API for models which support streaming).
   intelligenceIndex?: number; // Artificial Analysis Intelligence Index: Combination metric covering multiple dimensions of intelligence - the simplest way to compare how smart models are. Version 2 was released in Feb '25 and includes: MMLU_Pro-Pro, GPQA Diamond, HLE's Last Exam, LiveCodeBench, SciCode, AIME, MATH-500. See Intelligence Index methodology for further details, including a breakdown of each evaluation and how we run them.
-  MMLU_Pro?: number; // (Reasoning & Knowledge)
-  Coding?: number; // Artificial Analysis Coding Index: Represents the average of coding evaluations in the Artificial Analysis Intelligence Index. Currently includes: LiveCodeBench, SciCode. See Intelligence Index methodology for further details, including a breakdown of each evaluation and how we run them.
-  MATH?: number; // Artificial Analysis Math Index: Represents the average of math evaluations in the Artificial Analysis Intelligence Index. Currently includes: AIME, MATH-500. See Intelligence Index methodology for further details, including a breakdown of each evaluation and how we run them.
-  GPQA?: number; // GPQA Diamond (Scientific Reasoning)
   multilingual?: number
-  HLE?: number // HLE's Last Exam (Reasoning & Knowledge)
+  latency?: number; // Seconds to First Answer Token Received; Accounts for Reasoning Model 'Thinking' time
 }
 
 // Default model configuration
-export const DEFAULT_MODEL_ID = 'chatflix-ultimate'; 
+export const DEFAULT_MODEL_ID = 'chatflix-ultimate-pro'; 
 
 export const RATE_LIMITS = {
   level0: {
@@ -266,36 +262,57 @@ export async function getDefaultModelId(userId?: string): Promise<string> {
 
 // Define the model configurations
 const MODEL_CONFIG_DATA: ModelConfig[] = [
-  // Chatflix Ultimate
-  {
-    id: 'chatflix-ultimate',
-    name: 'CHATFLIX',
-    cutoff: '',
-    abbreviation: 'CHFX',
-    country: 'GLOBAL',
-    description: 'Automatically selects the optimal model based on your input. Powered by Gemini 2.5 Pro, Claude Sonnet 4, Grok 3, and more.',
-    provider: 'anthropic',
-    supportsVision: true,
-    supportsPDFs: true,
-    // censored: false,
-    rateLimit: {
-      level: 'level5',
-    },
-    isHot: true,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: true,
-    // isHot: true,
-    reasoning: {
-      enabled: true,
-      provider: 'anthropic',
-      baseModelId: 'claude-3-7-sonnet-20250219',
-      budgetTokens: 12000
-    },
-    contextWindow: 200000,
-    tps: 100,
-    intelligenceIndex: 75,
+// Chatflix Ultimate Pro
+{
+  id: 'chatflix-ultimate-pro',
+  name: 'Chatflix (Deluxe)',
+  cutoff: '',
+  abbreviation: 'CHFX-PRO',
+  country: 'GLOBAL',
+  description: 'Designed for detailed technical or complex tasks. Automatically selects the optimal model based on your input. Prioritizes high-performance models like Claude Sonnet 4 and Gemini 2.5 Pro for superior reasoning. Responses may be slightly slower due to the inherent speed and latency of these heavier models. For lighter or everyday tasks, the standard Chatflix model is recommended for faster replies.',
+  provider: 'anthropic',
+  supportsVision: true,
+  supportsPDFs: true,
+  rateLimit: {
+    level: 'level5',
   },
+  isNew: true,
+  isEnabled: true,
+  isActivated: false,
+  isAgentEnabled: true,
+  reasoning: {
+    enabled: true,
+    provider: 'anthropic',
+    baseModelId: 'claude-3-7-sonnet-20250219',
+    budgetTokens: 12000
+  },
+},
+
+// Chatflix Ultimate
+{
+  id: 'chatflix-ultimate',
+  name: 'Chatflix',
+  cutoff: '',
+  abbreviation: 'CHFX',
+  country: 'GLOBAL',
+  description: 'Optimized for everyday tasks. Automatically selects the best model based on your input. By default, it prioritizes speed-optimized models like GPT 4.1 and Gemini 2.5 Flash for quick responses. High-performance models such as Claude Sonnet 4 and Gemini 2.5 Pro are also used when your request requires more advanced reasoning or complexity.',
+  provider: 'anthropic',
+  supportsVision: true,
+  supportsPDFs: true,
+  rateLimit: {
+    level: 'level5',
+  },
+  isHot: true,
+  isEnabled: true,
+  isActivated: false,
+  isAgentEnabled: true,
+  reasoning: {
+    enabled: true,
+    provider: 'anthropic',
+    baseModelId: 'claude-3-7-sonnet-20250219',
+    budgetTokens: 12000
+  },
+},
    // Grok 3 Mini (Thinking)
   {
     id: 'grok-3-mini-fast',
@@ -317,7 +334,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     },
     supportsPDFs: false,
     isEnabled: true,
-    isActivated: true,
+    isActivated: false,
     isAgentEnabled: true,
     contextWindow: 131072,
     // tps: 67, 
@@ -342,11 +359,12 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     },
     supportsPDFs: false,
     isEnabled: true,
-    isActivated: true,
+    isActivated: false,
     isAgentEnabled: true,
     contextWindow: 131072,
     // tps: 67, 
     intelligenceIndex: 66,
+    latency: 32.4,
   },
     // Grok 3 
     {
@@ -366,7 +384,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     // isHot: true,
     supportsPDFs: false,
     isEnabled: true,
-    isActivated: true,
+    isActivated: false,
     isAgentEnabled: true,
     contextWindow: 131072,
     // tps: 67, 
@@ -389,11 +407,12 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     // isHot: true,
     supportsPDFs: false,
     isEnabled: true,
-    isActivated: true,
+    isActivated: false,
     isAgentEnabled: true,
     contextWindow: 131072,
     // tps: 67, 
     intelligenceIndex: 50,
+    latency: 0.4,
   },
   // Claude 4 Sonnet (Thinking)
   {
@@ -423,6 +442,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 200000,
     intelligenceIndex: 57,
     tps: 82,
+    latency: 25.6,
   },
   // Claude 4 Sonnet 
   {
@@ -446,6 +466,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 200000,
     intelligenceIndex: 53,
     tps: 82,
+    latency: 1.4,
   },
   // Claude 3.7 Sonnet (Thinking)
   {
@@ -474,6 +495,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 200000,
     tps: 78,
     intelligenceIndex: 57,
+    latency: 14.9,
   },
   // Claude 3.7 Sonnet 
   {
@@ -497,6 +519,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 200000,
     tps: 78,
     intelligenceIndex: 48,
+    latency: 1.8,
   },
   // GPT-4.1
   {
@@ -520,6 +543,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 84,
     intelligenceIndex: 53,
     // multilingual: 80
+    latency: 0.5,
   },
   // GPT-4.1 Mini
   {
@@ -543,6 +567,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 84,
     intelligenceIndex: 53,
     // multilingual: 80
+    latency: 0.6,
   },
   {
     id: 'gpt-4.1-nano',
@@ -565,6 +590,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 228,
     intelligenceIndex: 41,
     // multilingual: 80
+    latency: 0.3,
   },
    // ChatGPT-4o (Nov '24)
    {
@@ -586,6 +612,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 128000,
     tps: 174,
     intelligenceIndex: 50,
+    latency: 0.5,
   },
   // GPT-4o (Nov '24)
   {
@@ -607,7 +634,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 128000,
     tps: 69,
     intelligenceIndex: 41,
-    multilingual: 84
+    multilingual: 84,
+    latency: 0.5,
   },
   // o4-Mini (Thinking)
   {
@@ -634,6 +662,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 200000,
     tps: 150,
     intelligenceIndex: 70,
+    latency: 35.7,
   },
   // o3 (Thinking)
   // {
@@ -685,11 +714,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 131000,
     tps: 399,
     intelligenceIndex: 58,
-    MMLU_Pro: 76,
-    Coding: 49,
-    MATH: 87,
-    GPQA: 59,
-    HLE: 8.2
   },
   // Gemini 2.5 Pro Preview 03-25 (Thinking)
   {
@@ -698,7 +722,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'Jan 2025',
     abbreviation: 'Gem2.5P-T',
     country: 'US',
-    // description: 'Google\'s most powerful thinking model.',
+    description: 'Note: Fast response times with occasional latency due to hidden reasoning tokens that may make responses appear slower.',
     provider: 'google',
     supportsVision: true,
     // censored: false,
@@ -710,8 +734,9 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isActivated: true,
     contextWindow: 1024000,
     isAgentEnabled: true,
-    // tps: 159,
-    // intelligenceIndex: 68,
+    tps: 159,
+    intelligenceIndex: 69,
+    latency: 33.9,
   },
   // {
   //   id: 'gemini-2.5-pro-preview-03-25',
@@ -756,6 +781,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 1024000,
     tps: 258,
     intelligenceIndex: 48,
+    latency: 15.1,
   },
   // Gemini 2.0 Flash
   {
@@ -778,6 +804,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 1024000,
     tps: 258,
     intelligenceIndex: 48,
+    latency: 0.4,
   },
   // Llama 3.3 70B
   {
@@ -798,12 +825,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 128000,
     tps: 275,
     intelligenceIndex: 41,
-    MMLU_Pro: 71,
-    Coding: 27,
-    MATH: 54,
-    GPQA: 50,
     multilingual:84,
-    HLE: 4.0
   },
    // DeepSeek R1 (Thinking)
    {
@@ -830,6 +852,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 25,
     intelligenceIndex: 60,
     multilingual:86,
+    latency: 100.3,
   },
   // DeepSeek V3
   {
@@ -852,7 +875,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 128000,
     tps: 33,
     intelligenceIndex: 53,
-    multilingual:86
+    multilingual:86,
+    latency: 3.7,
   },
   // DeepSeek R1 (Thinking)
   {
