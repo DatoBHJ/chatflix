@@ -15,7 +15,8 @@ dotenv.config({
     SERPER_API_KEY: process.env.SERPER_API_KEY || '',
     TAVILY_API_KEY: process.env.TAVILY_API_KEY || '',
     EXA_API_KEY: process.env.EXA_API_KEY || '',
-    WOLFRAM_ALPHA_APPID: process.env.WOLFRAM_ALPHA_APPID || ''
+    WOLFRAM_ALPHA_APPID: process.env.WOLFRAM_ALPHA_APPID || '',
+    POLLINATIONAI_API_KEY: process.env.POLLINATIONAI_API_KEY || ''
   }
 });
 
@@ -94,7 +95,7 @@ const toolDefinitions = {
   },
 };
 // Web Search 도구 생성 함수
-export function createWebSearchTool(processMessages: any[], dataStream: any) {
+export function createWebSearchTool(dataStream: any) {
   // 검색 결과를 저장할 배열
   const searchResults: any[] = [];
   
@@ -143,7 +144,6 @@ export function createWebSearchTool(processMessages: any[], dataStream: any) {
       // Debug logging for web search
       console.log('=== Web Search Debug Info ===');
       console.log('Search ID:', searchId);
-      console.log('Last user message:', processMessages[processMessages.length - 1].content);
       console.log('Generated search queries:', queries);
       console.log('Search parameters:', {
         maxResults,
@@ -529,6 +529,106 @@ export function createJinaLinkReaderTool(dataStream?: any) {
   return tool;
 }
 
+// 토큰 없이 이미지 생성 도구 생성 함수. (예전 버전) 
+// export function createImageGeneratorTool(dataStream?: any) {
+//   // 생성된 이미지 추적
+//   const generatedImages: Array<{
+//     imageUrl: string;
+//     prompt: string;
+//     model: string;
+//     timestamp: string;
+//     seed: number; // seed 포함
+//   }> = [];
+
+//   const imageGeneratorTool = tool({
+//     description: toolDefinitions.imageGenerator.description,
+//     parameters: z.object({
+//       prompts: z.union([
+//         z.string(),
+//         z.array(z.string())
+//       ]).describe(toolDefinitions.imageGenerator.parameters.prompts),
+//       model: z.enum(['flux', 'turbo'])
+//         .describe(toolDefinitions.imageGenerator.parameters.model)
+//         .default('flux'),
+//       width: z.number().describe(toolDefinitions.imageGenerator.parameters.width).default(1024),
+//       height: z.number().describe(toolDefinitions.imageGenerator.parameters.height).default(1024),
+//       seed: z.number().optional().describe(toolDefinitions.imageGenerator.parameters.seed), // .optional() 다시 추가
+//     }),
+//     execute: async ({ prompts, model, width, height, seed }: { // seed 타입에 ? 다시 추가
+//       prompts: string | string[];
+//       model: 'flux' | 'turbo';
+//       width: number;
+//       height: number;
+//       seed?: number; // seed는 이제 optional
+//     }) => {
+//       // seed가 제공되지 않으면 랜덤 값을 생성 (새 이미지 생성 시), 제공되면 그 값을 사용 (이미지 편집 시)
+//       const currentSeed = seed === undefined ? Math.floor(Math.random() * Number.MAX_SAFE_INTEGER) : seed;
+
+//       try {
+//         console.log('[DEBUG-IMAGE] Generating image(s) with parameters:', { prompts, model, width, height, seed: currentSeed });
+
+//         // 문자열 하나만 받은 경우 배열로 변환
+//         const promptsArray = Array.isArray(prompts) ? prompts : [prompts];
+
+//         // 각 프롬프트에 대해 이미지 URL 생성
+//         const results = promptsArray.map(prompt => {
+//           // URL 인코딩된 프롬프트 준비
+//           const encodedPrompt = encodeURIComponent(prompt);
+
+//           // 기본 URL 구성 - 개선된 파라미터 추가 (nologo=true, safe=false, enhance=true)
+//           let imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&nologo=true&safe=false&enhance=true`;
+
+//           // 모델 추가
+//           imageUrl += `&model=${model}`;
+
+//           // seed 값을 항상 URL에 추가
+//           imageUrl += `&seed=${currentSeed}`;
+
+//           // 생성된 이미지 추적
+//           const timestamp = new Date().toISOString();
+//           const imageData = {
+//             imageUrl,
+//             prompt,
+//             model,
+//             timestamp,
+//             seed: currentSeed // 생성/사용된 seed 값 저장
+//           };
+
+//           generatedImages.push(imageData);
+
+//           // 클라이언트에 이미지 생성 알림 전송
+//           if (dataStream) {
+//             dataStream.writeMessageAnnotation({
+//               type: 'generated_image',
+//               data: imageData
+//             });
+//           }
+
+//           return {
+//             url: imageUrl,
+//             description: prompt,
+//             parameters: { prompt, model, width, height, seed: currentSeed, enhance: true, safe: false } // 반환값에 seed 포함
+//           };
+//         });
+
+//         // 결과가 하나만 있으면 객체로, 여러 개면 배열로 반환
+//         return results.length === 1 && !Array.isArray(prompts)
+//           ? results[0]
+//           : { images: results };
+//       } catch (error) {
+//         console.error('[DEBUG-IMAGE] Error generating image:', error);
+//         return {
+//           error: error instanceof Error ? error.message : 'Unknown error generating image',
+//           parameters: { prompts, model, width, height, seed: currentSeed } // 오류 발생 시에도 사용된 seed 값 포함
+//         };
+//       }
+//     }
+//   });
+
+//   // 이미지 생성기 도구와 생성된 이미지 리스트를 함께 반환
+//   return Object.assign(imageGeneratorTool, { generatedImages });
+// }
+
 // 이미지 생성 도구 생성 함수
 export function createImageGeneratorTool(dataStream?: any) {
   // 생성된 이미지 추적
@@ -538,6 +638,9 @@ export function createImageGeneratorTool(dataStream?: any) {
     model: string;
     timestamp: string;
     seed: number; // seed 포함
+    hasToken: boolean; // 토큰 사용 여부 기록
+    authMethod: string; // 인증 방식 명시
+    secure: boolean; // 토큰이 URL에 노출되지 않음을 표시
   }> = [];
 
   const imageGeneratorTool = tool({
@@ -565,7 +668,16 @@ export function createImageGeneratorTool(dataStream?: any) {
       const currentSeed = seed === undefined ? Math.floor(Math.random() * Number.MAX_SAFE_INTEGER) : seed;
 
       try {
+        // Pollinations.AI API 토큰 확인 (서버 사이드에서만 사용)
+        const apiToken = process.env.POLLINATIONAI_API_KEY;
+        
         console.log('[DEBUG-IMAGE] Generating image(s) with parameters:', { prompts, model, width, height, seed: currentSeed });
+        
+        if (apiToken) {
+          console.log('[DEBUG-IMAGE] API token available for server-side operations');
+        } else {
+          console.log('[DEBUG-IMAGE] Using referrer-based authentication (recommended for frontend apps)');
+        }
 
         // 문자열 하나만 받은 경우 배열로 변환
         const promptsArray = Array.isArray(prompts) ? prompts : [prompts];
@@ -583,20 +695,27 @@ export function createImageGeneratorTool(dataStream?: any) {
 
           // seed 값을 항상 URL에 추가
           imageUrl += `&seed=${currentSeed}`;
+          
+          // 보안을 위해 토큰을 URL에 포함하지 않음
+          // 대신 referrer 기반 인증 사용 (프론트엔드 앱에 권장되는 방식)
+          imageUrl += `&referrer=Chatflix`;
 
-          // 생성된 이미지 추적
+          // 생성된 이미지 추적 (토큰은 서버에서만 사용, URL에는 포함하지 않음)
           const timestamp = new Date().toISOString();
           const imageData = {
             imageUrl,
             prompt,
             model,
             timestamp,
-            seed: currentSeed // 생성/사용된 seed 값 저장
+            seed: currentSeed, // 생성/사용된 seed 값 저장
+            hasToken: !!apiToken, // 서버에 토큰이 있는지만 기록
+            authMethod: 'referrer', // 인증 방식 명시
+            secure: true // 토큰이 URL에 노출되지 않음을 표시
           };
 
           generatedImages.push(imageData);
 
-          // 클라이언트에 이미지 생성 알림 전송
+          // 클라이언트에 이미지 생성 알림 전송 (토큰 없는 안전한 URL)
           if (dataStream) {
             dataStream.writeMessageAnnotation({
               type: 'generated_image',
@@ -607,7 +726,17 @@ export function createImageGeneratorTool(dataStream?: any) {
           return {
             url: imageUrl,
             description: prompt,
-            parameters: { prompt, model, width, height, seed: currentSeed, enhance: true, safe: false } // 반환값에 seed 포함
+            parameters: { 
+              prompt, 
+              model, 
+              width, 
+              height, 
+              seed: currentSeed, 
+              enhance: true, 
+              safe: false,
+              authMethod: 'referrer', // 인증 방식
+              secure: true // 토큰이 URL에 노출되지 않음을 표시
+            }
           };
         });
 

@@ -2,8 +2,8 @@
 
 // Get provider logo helper functions
 export const getProviderLogo = (provider: string, modelId?: string) => {
-    // Special case for Chatflix Ultimate model
-    if (modelId === 'chatflix-ultimate') {
+    // Special case for Chatflix Ultimate and Chatflix Ultimate Pro
+    if (modelId === 'chatflix-ultimate' || modelId === 'chatflix-ultimate-pro') {
       return '/android-chrome-512x512-modified.png';
     }
   

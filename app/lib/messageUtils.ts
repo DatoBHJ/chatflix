@@ -39,19 +39,21 @@ export const extractReasoningForMessage = (message: any) => {
   
   const formatReasoningData = (sourceItem: Annotation, isExplicitlyProgress: boolean) => {
     const data = sourceItem.data;
+    const selectedTools = data?.selectedTools || [];
+    
     return {
       agentThoughts: data?.agentThoughts || data?.reasoning || '',
       plan: data?.plan || '',
       selectionReasoning: data?.selectionReasoning || '',
-      needsWebSearch: Boolean(data?.needsWebSearch),
-      needsCalculator: Boolean(data?.needsCalculator),
-      needsLinkReader: Boolean(data?.needsLinkReader),
-      needsImageGenerator: Boolean(data?.needsImageGenerator),
-      needsAcademicSearch: Boolean(data?.needsAcademicSearch),
-      // needsXSearch: Boolean(data?.needsXSearch), // Keep commented if not used
-      needsYouTubeSearch: Boolean(data?.needsYouTubeSearch),
-      needsYouTubeLinkAnalyzer: Boolean(data?.needsYouTubeLinkAnalyzer),
-      needsDataProcessor: Boolean(data?.needsDataProcessor),
+      selectedTools: selectedTools,
+      // Legacy boolean fields for backward compatibility (derived from selectedTools)
+      needsWebSearch: selectedTools.includes('web_search'),
+      needsCalculator: selectedTools.includes('calculator'),
+      needsLinkReader: selectedTools.includes('link_reader'),
+      needsImageGenerator: selectedTools.includes('image_generator'),
+      needsAcademicSearch: selectedTools.includes('academic_search'),
+      needsYouTubeSearch: selectedTools.includes('youtube_search'),
+      needsYouTubeLinkAnalyzer: selectedTools.includes('youtube_link_analyzer'),
       timestamp: data?.timestamp,
       isComplete: isExplicitlyProgress ? false : (data?.isComplete ?? (sourceItem.type === 'agent_reasoning'))
     };

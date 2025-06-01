@@ -186,6 +186,36 @@ const FileItem = memo(function FileItem({
   // 파일 확장자 캐싱 (불필요한 문자열 작업 방지)
   const fileExtension = useMemo(() => file.name.split('.').pop()?.toUpperCase() || 'FILE', [file.name]);
   
+  // 파일 메타데이터 정보 (experimental_attachments의 metadata 사용)
+  const metadata = (file as any).metadata;
+  
+  // 메타데이터 표시 텍스트 생성
+  const getMetadataText = useMemo(() => {
+    if (!metadata) return fileHelpers.formatFileSize(file.size);
+    
+    const parts = [fileHelpers.formatFileSize(file.size)];
+    
+    // 이미지 메타데이터
+    if (metadata.width && metadata.height) {
+      parts.push(`${metadata.width}×${metadata.height}`);
+    }
+    
+    // PDF 메타데이터
+    if (metadata.pageCount) {
+      parts.push(`${metadata.pageCount}p`);
+    }
+    
+    // 토큰 추정치 (1000 이상일 때만 표시)
+    if (metadata.estimatedTokens && metadata.estimatedTokens >= 1000) {
+      const tokenText = metadata.estimatedTokens >= 1000 ? 
+        `${Math.round(metadata.estimatedTokens / 1000 * 10) / 10}K tok` : 
+        `${metadata.estimatedTokens} tok`;
+      parts.push(tokenText);
+    }
+    
+    return parts.join(' • ');
+  }, [metadata, file.size]);
+  
   // 모바일과 데스크톱 환경에 따른 삭제 버튼 스타일 계산
   const deleteButtonClasses = useMemo(() => [
     "absolute top-1.5 right-1.5 w-7 h-7 md:w-6 md:h-6 md:top-2 md:right-2",
@@ -213,6 +243,12 @@ const FileItem = memo(function FileItem({
             alt={file.name} 
             onLoad={() => setLoaded(true)}
           />
+          {/* 이미지 위에 메타데이터 오버레이 */}
+          {metadata?.width && metadata?.height && (
+            <div className="absolute bottom-1 left-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded backdrop-blur-sm">
+              {metadata.width}×{metadata.height}
+            </div>
+          )}
         </div>
       );
     }
@@ -223,6 +259,33 @@ const FileItem = memo(function FileItem({
         <span className="text-[10px] font-mono mt-2 px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--background)_7%,transparent)]">
           {fileExtension}
         </span>
+        {/* 코드 파일 라인 수 표시 */}
+        {metadata?.lineCount && (
+          <div className="text-[8px] opacity-60 mt-1">
+            {metadata.lineCount} lines
+          </div>
+        )}
+      </div>
+    );
+  } else if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+    fileIcon = (
+      <div className="flex flex-col items-center justify-center text-center p-3 h-full">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="opacity-70">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <polyline points="10 9 9 9 8 9"/>
+        </svg>
+        <span className="text-[10px] font-mono mt-1 px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--background)_7%,transparent)]">
+          PDF
+        </span>
+        {/* PDF 페이지 수 표시 */}
+        {metadata?.pageCount && (
+          <div className="text-[8px] opacity-60 mt-1">
+            {metadata.pageCount} pages
+          </div>
+        )}
       </div>
     );
   } else {
@@ -270,8 +333,8 @@ const FileItem = memo(function FileItem({
         <div className="text-[12px] font-normal truncate tracking-tight" title={file.name}>
           {file.name}
         </div>
-        <div className="text-[9px] opacity-60 mt-0.5 font-medium tracking-tight">
-          {fileHelpers.formatFileSize(file.size)}
+        <div className="text-[9px] opacity-60 mt-0.5 font-medium tracking-tight" title={getMetadataText}>
+          {getMetadataText}
         </div>
       </div>
     </div>

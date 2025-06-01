@@ -213,10 +213,10 @@ ${emailInfo}
   // 존재하지 않는 카테고리만 초기화
   for (const entry of defaultEntries) {
     if (!existingCategories.has(entry.category)) {
-      console.log(`Initializing memory bank category: ${entry.category} for user: ${userId}`);
+      // console.log(`Initializing memory bank category: ${entry.category} for user: ${userId}`);
       await updateMemoryBank(supabase, userId, entry.category, entry.content);
     } else {
-      console.log(`Skipping initialization for existing category: ${entry.category} for user: ${userId}`);
+      // console.log(`Skipping initialization for existing category: ${entry.category} for user: ${userId}`);
     }
   }
 } 

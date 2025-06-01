@@ -5,7 +5,7 @@ import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 import { GoogleSignIn } from '../components/GoogleSignIn'
 import Image from 'next/image'
-// import { DemoChat } from '../components/demo/DemoChat'
+import { DemoChat } from '../components/demo/DemoChat'
 import { MODEL_CONFIGS } from '@/lib/models/config'
 import { getProviderLogo } from '@/app/lib/models/logoUtils'
 
@@ -20,13 +20,15 @@ export default function LoginPage() {
   // Logo error handling for AI model providers
   const [logoErrors, setLogoErrors] = useState<Record<string, boolean>>({})
   
-  // Group models by provider for display, but separate CHATFLIX model
-  const chatflixModel = MODEL_CONFIGS.find(model => model.id === 'chatflix-ultimate');
+  // Group models by provider for display, but separate CHATFLIX models
+  const chatflixModels = MODEL_CONFIGS.filter(model =>
+    model.id === 'chatflix-ultimate' || model.id === 'chatflix-ultimate-pro'
+  );
   
   // Group remaining models by provider
   const groupedModels = MODEL_CONFIGS.reduce((acc, model) => {
-    // Skip CHATFLIX model as it will be displayed separately
-    if (model.id === 'chatflix-ultimate') return acc;
+    // Skip CHATFLIX models as they will be displayed separately
+    if (model.id === 'chatflix-ultimate' || model.id === 'chatflix-ultimate-pro') return acc;
     
     if (model.isEnabled && model.isActivated) {
       if (!acc[model.provider]) {
@@ -157,9 +159,6 @@ export default function LoginPage() {
         
         <div className="max-w-3xl w-full text-center z-10">
           <h1 className="font-light text-6xl md:text-8xl tracking-[-0.05em] mb-10 text-[var(--foreground)] uppercase">CHATFLIX</h1>
-          <p className="text-sm md:text-base text-[var(--muted)] mb-16 max-w-xl mx-auto font-light tracking-widest uppercase">
-            {/* AI-POWERED CONVERSATIONS */}
-          </p>
           <div className="flex flex-col sm:flex-row gap-8 justify-center">
             <button 
             onClick={() => {
@@ -183,50 +182,100 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Demo Section - Enhanced styling */}
-      {/* <div id="demo" className="py-20 md:py-32 border-t border-[var(--subtle-divider)] border-opacity-30 bg-gradient-to-b from-[var(--background)] to-[var(--background-secondary)]">
+      {/* Experience Section - Demo */}
+      <div id="demo" className="py-20 md:py-32 border-t border-[var(--subtle-divider)] border-opacity-30 bg-gradient-to-b from-[var(--background)] to-[var(--background-secondary)]">
         <div className="max-w-7xl mx-auto px-4">
           <div className="mb-16 max-w-3xl mx-auto text-center">
-            <h2 className="font-light text-4xl md:text-6xl tracking-[-0.05em] mb-6 text-[var(--foreground)] uppercase">EXPERIENCE</h2>
+            <h2 className="font-light text-4xl md:text-6xl tracking-[-0.05em] text-[var(--foreground)] uppercase mb-2">EXPERIENCE</h2>
             <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)] mb-8">
               Test drive Chatflix demo
             </p>
           </div>
           <DemoChat />
         </div>
-      </div> */}
+      </div>
       
+      {/* Capabilities Section */}
+      <div className="w-full bg-[var(--background-secondary)] py-20 md:py-32 border-t border-[var(--subtle-divider)]">
+        <div className="max-w-5xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="font-light text-4xl md:text-6xl tracking-[-0.05em] text-[var(--foreground)] uppercase mb-2">CAPABILITIES</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+            {[ 
+              {
+                title: "Agent Mode",
+                description: "Autonomously plans, reasons, and executes complex multi-step tasks. Adapts workflow for what you need."
+              },
+              {
+                title: "Versatile Toolset",
+                description: "Web search, image generation, link reader, YouTube analysis, academic search, calculator and more."
+              },
+              {
+                title: "Personalized Memory",
+                description: "Learns your preferences and conversation context for a truly tailored experience."
+              }
+            ].map((feature) => (
+              <div key={feature.title} className="p-8 border border-[var(--subtle-divider)] bg-gradient-to-br from-[var(--background)] to-[var(--background-secondary)] flex flex-col">
+                <h3 className="font-light text-2xl text-[var(--foreground)] uppercase tracking-wider mb-4">{feature.title}</h3>
+                <p className="text-sm text-[var(--muted)] font-light flex-grow">{feature.description}</p>
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {[ 
+              {
+                title: "Multi-Modal Fluency",
+                description: "Seamlessly interact with text, images, and files. Your context, understood."
+              },
+              {
+                title: "Structured Delivery",
+                description: "Clear, organized outputs. From concise answers to downloadable files and interactive charts."
+              }
+            ].map((feature) => (
+              <div key={feature.title} className="p-6 border border-[var(--subtle-divider)] bg-[var(--background)]">
+                <h3 className="font-light text-xl text-[var(--foreground)] uppercase tracking-wider mb-3">{feature.title}</h3>
+                <p className="text-sm text-[var(--muted)] font-light">{feature.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* AI Models Section */}
       <div className="w-full bg-[var(--background)] py-16 md:py-24 border-t border-[var(--subtle-divider)]">
         <div className="max-w-5xl mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="font-light text-4xl md:text-6xl tracking-[-0.05em] text-[var(--foreground)] uppercase mb-0">Models</h2>
+            <h2 className="font-light text-4xl md:text-6xl tracking-[-0.05em] text-[var(--foreground)] uppercase mb-2">MODELS</h2>
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 md:gap-x-8 gap-y-6 md:gap-y-10 mb-16">
-            {/* CHATFLIX Model Box (Featured) */}
-            {chatflixModel && chatflixModel.isEnabled && chatflixModel.isActivated && (
+            {/* CHATFLIX Models Box (Featured) */}
+            {chatflixModels.length > 0 && chatflixModels.some(m => m.isEnabled && m.isActivated) && (
               <div className="p-6 border border-[var(--subtle-divider)] bg-gradient-to-br from-[var(--background)] to-[var(--background-secondary)] col-span-1 sm:col-span-2 lg:col-span-3">
-                <div className="flex items-center mb-6">
-                  <div className="h-8 w-8 md:h-10 md:w-10 mr-3 relative flex-shrink-0">
-                    <Image 
-                      src={getProviderLogo('anthropic', 'chatflix-ultimate')}
-                      alt="CHATFLIX logo"
-                      fill
-                      className="object-contain"
-                      onError={() => handleLogoError('chatflix')}
-                    />
-                  </div>
-                  <h3 className="font-light text-xl md:text-2xl text-[var(--foreground)] uppercase tracking-wider">
-                    {chatflixModel.name}
-                  </h3>
+                <div className="flex flex-col md:flex-row gap-10">
+                  {chatflixModels.filter(m => m.isEnabled && m.isActivated).map((model) => (
+                    <div key={model.id} className="flex-1 min-w-0">
+                      <div className="flex items-center mb-4">
+                        <div className="h-8 w-8 md:h-10 md:w-10 mr-3 relative flex-shrink-0">
+                          <Image 
+                            src={getProviderLogo('anthropic', model.id)}
+                            alt="CHATFLIX logo"
+                            fill
+                            className="object-contain"
+                            onError={() => handleLogoError('chatflix')}
+                          />
+                        </div>
+                        <h3 className="font-light text-xl md:text-2xl text-[var(--foreground)] uppercase tracking-wider">
+                          {model.name}
+                        </h3>
+                      </div>
+                      <div className="text-sm text-[var(--muted)] mb-2">
+                        <p>{model.description || "자동으로 최적의 모델을 선택하여 작업을 수행합니다."}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                
-                <div className="text-sm text-[var(--muted)] mb-4">
-                  <p>{chatflixModel.description || "자동으로 최적의 모델을 선택하여 작업을 수행합니다."}</p>
-                </div>
-                
-                
               </div>
             )}
             

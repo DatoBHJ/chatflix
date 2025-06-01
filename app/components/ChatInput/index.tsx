@@ -8,6 +8,13 @@ import { FileUploadButton, FilePreview, fileHelpers } from './FileUpload';
 import { PromptShortcuts } from './PromptShortcuts';
 import { DragDropOverlay, ErrorToast } from './DragDropOverlay';
 import { Brain } from 'lucide-react';
+import { FileMetadata } from '@/lib/types';
+import { 
+  extractImageMetadata, 
+  extractPDFMetadata, 
+  extractTextMetadata, 
+  extractDefaultMetadata
+} from '@/app/chat/[id]/utils';
 
 // 상수 정의
 const MENTION_CONTEXT_RANGE = 200; // 커서 주변 검색 범위 (앞뒤로)
@@ -36,6 +43,7 @@ export function ChatInput({
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const lastTextContentRef = useRef<string>(''); // 마지막 텍스트 콘텐츠 저장
+  const agentDropdownRef = useRef<HTMLDivElement>(null);
   
   // 상태 관리
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -50,6 +58,7 @@ export function ChatInput({
   const [showPDFError, setShowPDFError] = useState(false);
   const [showFolderError, setShowFolderError] = useState(false);
   const [showVideoError, setShowVideoError] = useState(false);
+  const [showAgentDropdown, setShowAgentDropdown] = useState(false);
   
   // Supabase 클라이언트
   const supabase = createClient();
@@ -536,7 +545,7 @@ export function ChatInput({
     return Date.now().toString(36) + Math.random().toString(36).substring(2);
   };
 
-  // 성능 최적화된 메시지 제출 함수
+  // 단순화된 메시지 제출 함수
   const submitMessage = useCallback(async () => {
     if (isSubmittingRef.current || isLoading || !inputRef.current) return;
     
@@ -555,7 +564,7 @@ export function ChatInput({
         target: { value: '' }
       } as React.ChangeEvent<HTMLTextAreaElement>);
       
-      // 본격적인 메시지 처리는 다음 틱으로 지연
+      // 메시지 처리
       setTimeout(async () => {
         try {
           // 제출 이벤트 생성
@@ -566,21 +575,14 @@ export function ChatInput({
           
           // 파일 처리
           const dataTransfer = new DataTransfer();
-          const CHUNK_SIZE = 10;
-          
-          // 파일이 많은 경우 청크로 처리
-          for (let i = 0; i < files.length; i += CHUNK_SIZE) {
-            const chunk = files.slice(i, i + CHUNK_SIZE);
-            chunk.forEach(file => dataTransfer.items.add(file));
-            
-            // 큰 청크를 처리한 후 다음 틱 대기
-            if (i + CHUNK_SIZE < files.length) {
-              await new Promise(resolve => setTimeout(resolve, 0));
+          files.forEach(file => {
+            if (file && file.size >= 0 && file.name) {
+              dataTransfer.items.add(file);
             }
-          }
+          });
           
           // 파일 첨부 정보 생성
-          const attachments = Array.from(files).map(file => {
+          const attachments = files.map(file => {
             // 파일 타입 결정
             let fileType: 'image' | 'code' | 'pdf' | 'file' = 'file';
             if (file.type.startsWith('image/')) {
@@ -588,7 +590,7 @@ export function ChatInput({
             } else if (file.type.includes('text') || 
                       /\.(js|jsx|ts|tsx|html|css|json|md|py|java|c|cpp|cs|go|rb|php|swift|kt|rs)$/i.test(file.name)) {
               fileType = 'code';
-            } else if (file.name.endsWith('.pdf')) {
+            } else if (fileHelpers.isPDFFile(file)) {
               fileType = 'pdf';
             }
             
@@ -611,8 +613,7 @@ export function ChatInput({
           await handleSubmit(submitEvent, dataTransfer.files);
           
           // 파일 상태 정리
-          const urls = new Set<string>();
-          fileMap.forEach(({ url }) => urls.add(url));
+          const urls = Array.from(fileMap.values()).map(({ url }) => url).filter(url => url.startsWith('blob:'));
           
           setFiles([]);
           setFileMap(new Map());
@@ -623,16 +624,24 @@ export function ChatInput({
           
           // URL 리소스 해제
           setTimeout(() => {
-            urls.forEach(url => URL.revokeObjectURL(url));
-          }, 0);
+            urls.forEach(url => {
+              try {
+                URL.revokeObjectURL(url);
+              } catch (error) {
+                // 에러 무시 - 이미 해제된 URL일 수 있음
+              }
+            });
+          }, 100);
           
+        } catch (submitError) {
+          console.error('Error during message submission:', submitError);
         } finally {
           isSubmittingRef.current = false;
         }
       }, 0);
       
     } catch (error) {
-      console.error('Error during message submission:', error);
+      console.error('Error during message submission setup:', error);
       isSubmittingRef.current = false;
     }
   }, [handleInputChange, handleSubmit, files, fileMap, isLoading]);
@@ -951,23 +960,23 @@ export function ChatInput({
     }
   };
 
-  // 파일 처리 - 성능 최적화 버전
-  const handleFiles = (newFiles: FileList) => {
-    // FileList를 Array로 변환하고 필터링
+  // 파일 처리 - 메타데이터 추출 추가
+  const handleFiles = async (newFiles: FileList) => {
+    // FileList를 Array로 변환하고 기본 필터링만 수행
     const newFileArray = Array.from(newFiles).filter(file => {
-      // PDF 파일 처리 - Agent 모드가 켜졌을 때 또는 지원하지 않는 모델이면 차단
+      // PDF 파일 지원 확인
       if (fileHelpers.isPDFFile(file)) {
-        if (isAgentEnabled || !supportsPDFs) {
+        if (!supportsPDFs) {
           setShowPDFError(true);
           setTimeout(() => setShowPDFError(false), 3000);
           return false;
         }
         return true;
-      }
+      }      
       
-      // Vision을 지원하지 않는 경우 이미지 파일 필터링
+      // 이미지 파일 지원 확인
       if (!supportsVision && file.type.startsWith('image/')) {
-        setShowPDFError(true); // 기존 에러 토스트 재활용
+        setShowPDFError(true);
         setTimeout(() => setShowPDFError(false), 3000);
         return false;
       }
@@ -982,57 +991,85 @@ export function ChatInput({
       return true;
     });
     
-    // 필터링 후 유효한 파일이 없으면 조기 반환
     if (newFileArray.length === 0) return;
     
-    // 성능 최적화: 파일이 많은 경우 처리를 나누어 수행
-    const processFiles = (start: number, end: number) => {
-      // 처리할 파일 배열의 일부
-      const chunk = newFileArray.slice(start, end);
-      
-      // 새 파일 항목 생성 (각 파일에 고유 ID 부여)
-      const newFileEntries = chunk.map(file => {
+    // 메타데이터 추출 및 파일 처리
+    const processedFiles = await Promise.all(
+      newFileArray.map(async (file) => {
         const fileId = generateUniqueId();
         const url = URL.createObjectURL(file);
-        // 각 파일에 고유 ID와 원본 경로 정보 추가
-        return [fileId, { file, url, id: fileId, originalName: file.name }] as [string, { file: File, url: string, id: string, originalName: string }];
-      });
-
-      // 새 항목으로 파일 맵 업데이트 (ID 기반)
-      setFileMap(prevMap => {
-        const newMap = new Map(prevMap);
-        newFileEntries.forEach(([id, data]) => {
-          newMap.set(id, data);
+        
+        // 파일 타입 결정
+        const fileExt = file.name.split('.').pop()?.toLowerCase();
+        let fileType: 'image' | 'code' | 'pdf' | 'file' = 'file';
+        
+        if (file.type.startsWith('image/')) {
+          fileType = 'image';
+        } else if (file.type.includes('text') || 
+                   ['js', 'jsx', 'ts', 'tsx', 'html', 'css', 'json', 'md', 'py', 'java', 
+                    'c', 'cpp', 'cs', 'go', 'rb', 'php', 'swift', 'kt', 'rs'].includes(fileExt || '')) {
+          fileType = 'code';
+        } else if (file.type === 'application/pdf' || fileExt === 'pdf') {
+          fileType = 'pdf';
+        }
+        
+        // 메타데이터 추출
+        let metadata: FileMetadata;
+        try {
+          switch (fileType) {
+            case 'image':
+              metadata = await extractImageMetadata(file);
+              break;
+            case 'pdf':
+              metadata = await extractPDFMetadata(file);
+              break;
+            case 'code':
+              metadata = await extractTextMetadata(file);
+              break;
+            default:
+              metadata = extractDefaultMetadata(file);
+              break;
+          }
+        } catch (error) {
+          console.warn('Metadata extraction failed for file:', file.name, error);
+          metadata = extractDefaultMetadata(file);
+        }
+        
+        // 파일 객체에 메타데이터 첨부
+        Object.defineProperty(file, 'metadata', {
+          value: metadata,
+          writable: false,
+          enumerable: true
         });
-        return newMap;
+        
+        Object.defineProperty(file, 'id', {
+          value: fileId,
+          writable: false,
+          enumerable: true
+        });
+        
+        return {
+          file,
+          fileId,
+          url,
+          metadata
+        };
+      })
+    );
+    
+    // 파일 맵 업데이트
+    setFileMap(prevMap => {
+      const newMap = new Map(prevMap);
+      processedFiles.forEach(({ fileId, file, url }) => {
+        newMap.set(fileId, { file, url, id: fileId, originalName: file.name } as any);
       });
+      return newMap;
+    });
 
-      // 파일 배열 업데이트 (이름 대신 전체 파일 추가)
-      setFiles(prevFiles => {
-        return [...prevFiles, ...chunk.map((file, index) => {
-          // 파일 객체에 ID 속성을 추가
-          Object.defineProperty(file, 'id', {
-            value: newFileEntries[index][0],
-            writable: false,
-            enumerable: true
-          });
-          return file;
-        })];
-      });
-      
-      // 청크 처리가 남아있으면 다음 청크 예약
-      if (end < newFileArray.length) {
-        setTimeout(() => {
-          processFiles(end, Math.min(end + CHUNK_SIZE, newFileArray.length));
-        }, 0);
-      }
-    };
-    
-    // 한 번에 처리할 최대 파일 수
-    const CHUNK_SIZE = 5;
-    
-    // 첫 번째 청크 처리 시작
-    processFiles(0, Math.min(CHUNK_SIZE, newFileArray.length));
+    // 파일 배열 업데이트
+    setFiles(prevFiles => {
+      return [...prevFiles, ...processedFiles.map(({ file }) => file)];
+    });
   };
 
   // 파일 제거
@@ -1059,6 +1096,22 @@ export function ChatInput({
     setFiles(prevFiles => prevFiles.filter(file => (file as any).id !== fileId));
   };
 
+  // Agent 드롭다운 외부 클릭 감지
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (agentDropdownRef.current && !agentDropdownRef.current.contains(event.target as Node)) {
+        setShowAgentDropdown(false);
+      }
+    };
+
+    if (showAgentDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showAgentDropdown]);
 
   return (
     <div className="relative">
@@ -1082,13 +1135,12 @@ export function ChatInput({
 
         {/* Error toast */}
         <ErrorToast show={showPDFError} message={
-          isAgentEnabled 
-            ? "PDF files are not supported in Agent mode" 
-            : (supportsPDFs 
-              ? "This file type is not supported" 
-              : (supportsVision 
-                ? "This model does not support PDF files" 
-                : "This model does not support PDF and image files"))} />
+          supportsPDFs 
+            ? "This file type is not supported" 
+            : (supportsVision 
+              ? "This model does not support PDF files" 
+              : "This model does not support PDF and image files")
+        } />
         <ErrorToast show={showFolderError} message="Folders cannot be uploaded" />
         <ErrorToast show={showVideoError} message="Video files are not supported" />
 
@@ -1102,11 +1154,11 @@ export function ChatInput({
         >
           <input
             type="file"
-            accept={supportsPDFs && !isAgentEnabled
-              ? "image/*,text/*,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust,application/pdf" 
+            accept={supportsPDFs
+              ? "image/*,text/*,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust" 
               : (supportsVision 
                 ? "image/*,text/*,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust" 
-                : "text/*,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust")}
+                : "text/*,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust")}            
             onChange={(e) => {
               if (e.target.files) {
                 handleFiles(e.target.files);
@@ -1122,28 +1174,88 @@ export function ChatInput({
             className="flex gap-1 items-center rounded-lg transition-all duration-300 px-2 py-1 bg-[var(--accent)] text-[var(--foreground)]"
           >
             {setisAgentEnabled && (
-              <button
-                type="button"
-                onClick={() => setisAgentEnabled(!isAgentEnabled)}
-                className={`input-btn transition-all duration-300 flex items-center justify-center relative rounded-md w-9 h-9 ${
-                  isAgentEnabled ?
-                    'input-btn-active' :
-                    user?.hasAgentModels === false && !isAgentEnabled ?
-                      'opacity-40 cursor-not-allowed' :
-                      'text-[var(--muted)] hover:text-[var(--foreground)]'
-                }`}
-                disabled={user?.hasAgentModels === false && !isAgentEnabled}
-                title={
-                  user?.hasAgentModels === false && !isAgentEnabled 
-                    ? "Agent mode not available - No non-rate-limited agent models available" 
-                    : isAgentEnabled ? "Disable Agent" : "Enable Agent"
-                }
-              >
-                <Brain className="h-5 w-5 transition-transform duration-300" strokeWidth={1.2} />
-                {isAgentEnabled && (
-                  <span className="absolute top-1 right-1 bg-[var(--foreground)] rounded-sm w-1.5 h-1.5"></span>
+              <div className="relative" ref={agentDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowAgentDropdown(!showAgentDropdown)}
+                  className={`input-btn transition-all duration-300 flex items-center justify-center relative rounded-md w-9 h-9 ${
+                    isAgentEnabled ?
+                      'input-btn-active' :
+                      user?.hasAgentModels === false && !isAgentEnabled ?
+                        'opacity-40 cursor-not-allowed' :
+                        'text-[var(--muted)] hover:text-[var(--foreground)]'
+                  }`}
+                  disabled={user?.hasAgentModels === false && !isAgentEnabled}
+                  title={
+                    user?.hasAgentModels === false && !isAgentEnabled 
+                      ? "Agent mode not available - No non-rate-limited agent models available" 
+                      : "Toggle Agent mode"
+                  }
+                >
+                  <Brain className="h-5 w-5 transition-transform duration-300" strokeWidth={1.2} />
+                  {isAgentEnabled && (
+                    <span className="absolute top-1 right-1 bg-[var(--foreground)] rounded-sm w-1.5 h-1.5"></span>
+                  )}
+                </button>
+
+                {/* Agent Dropdown */}
+                {showAgentDropdown && (
+                  <div className="agent-dropdown absolute bottom-full mb-4 -left-2 w-80 bg-[var(--accent)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                    <div className="p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Brain className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.2} />
+                        <h3 className="font-medium text-[var(--foreground)]">Agent Mode</h3>
+                      </div>
+                      
+                      <p className="text-sm text-[var(--muted)] mb-3 leading-relaxed">
+                        {/* Advanced AI that <strong>plans</strong>, <strong>researches</strong>, and <strong>executes</strong> multi-step tasks with intelligent workflow selection. Uses 7+ specialized tools including web search, link analysis, YouTube research, image generation, academic search, and advanced calculations. */}
+                        Enable this to let Chatflix <strong>plan</strong>, <strong>research</strong>, and <strong>execute</strong> multi-step tasks using 7+ external tools with intelligent workflow selection.                        <a
+                          href="/agent-mode"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 ml-2 text-xs text-[var(--muted)] font-extrabold hover:text-[var(--foreground)] transition-colors duration-200"
+                        >
+                          Learn More
+                          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </a>
+                      </p>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-[var(--foreground)]">
+                          {isAgentEnabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setisAgentEnabled(!isAgentEnabled);
+                            setShowAgentDropdown(false);
+                          }}
+                          disabled={user?.hasAgentModels === false && !isAgentEnabled}
+                          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
+                            isAgentEnabled
+                              ? 'bg-[var(--foreground)] text-[var(--background)] hover:opacity-90'
+                              : user?.hasAgentModels === false && !isAgentEnabled
+                                ? 'bg-[var(--muted)] text-[var(--background)] opacity-50 cursor-not-allowed'
+                                : 'bg-[var(--background)] text-[var(--foreground)] border border-[var(--border)] hover:bg-[var(--muted)]'
+                          }`}
+                        >
+                          {isAgentEnabled ? 'Disable' : 'Enable'}
+                        </button>
+                      </div>
+
+                      {user?.hasAgentModels === false && !isAgentEnabled && (
+                        <div className="mt-3 p-2 bg-color-mix(in srgb, var(--foreground) 5%, transparent) rounded-md">
+                          <p className="text-xs text-[var(--muted)]">
+                            Agent mode requires non-rate-limited models
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
-              </button>
+              </div>
             )}
 
             {/* File upload button */}

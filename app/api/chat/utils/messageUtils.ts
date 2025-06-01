@@ -2,7 +2,7 @@ import { Message } from 'ai';
 import { AIMessageContent, MessageRole, MultiModalMessage } from '../types';
 import { getModelById } from '@/lib/models/config';
 import { providers } from '@/lib/providers';
-import { estimateTokenCount } from '@/utils/context-manager';
+import { estimateMultiModalTokens, isAttachmentsHeavy } from '../services/modelSelector';
 
 export const generateMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -338,6 +338,17 @@ export const validateAndUpdateSession = async (supabase: any, chatId: string | u
         // Include tool_results from the database message
         if (dbMessage.tool_results) {
           (messages[index] as any).tool_results = dbMessage.tool_results;
+          
+          // 🆕 토큰 사용량 정보가 있으면 로그 출력
+          if (dbMessage.tool_results.token_usage) {
+            const msgId = (msg as any).id || 'unknown';
+            console.log('📊 [SESSION SYNC] Loaded message with token usage:', {
+              messageId: msgId.substring(0, 8),
+              totalTokens: dbMessage.tool_results.token_usage.totalTokens,
+              promptTokens: dbMessage.tool_results.token_usage.promptTokens,
+              completionTokens: dbMessage.tool_results.token_usage.completionTokens
+            });
+          }
         }
       }
     });
@@ -364,12 +375,26 @@ export function convertMultiModalToMessage(messages: MultiModalMessage[]): Messa
 /**
  * 토큰 제한 내에서 메시지 선택
  */
-export function selectMessagesWithinTokenLimit(messages: MultiModalMessage[], maxTokens: number, isAttachmentsHeavy: boolean = false): MultiModalMessage[] {
+export function selectMessagesWithinTokenLimit(
+  messages: MultiModalMessage[], 
+  maxTokens: number, 
+  isAttachmentsHeavyOverride?: boolean
+): MultiModalMessage[] {
   let tokenCount = 0;
   const selectedMessages: MultiModalMessage[] = [];
   
+  // 🆕 첨부파일 무거움 판단 (공통 함수 사용)
+  const hasImage = messages.some(msg => detectImages(msg));
+  const hasPDF = messages.some(msg => detectPDFs(msg));
+  const hasCodeAttachment = messages.some(msg => detectCodeAttachments(msg));
+  
+  // 오버라이드가 제공되면 사용, 아니면 자동 판단
+  const isHeavy = isAttachmentsHeavyOverride !== undefined 
+    ? isAttachmentsHeavyOverride 
+    : isAttachmentsHeavy(messages as any[], hasImage, hasPDF, hasCodeAttachment);
+  
   // 파일 첨부물이 많은 경우 추가 안전 마진 적용
-  const safetyMargin = isAttachmentsHeavy ? 0.7 : 0.85; // 70% 또는 85%만 사용
+  const safetyMargin = isHeavy ? 0.7 : 0.85; // 70% 또는 85%만 사용
   const adjustedMaxTokens = Math.floor(maxTokens * safetyMargin);
     
   // 필수 포함 메시지 (마지막 사용자 메시지는 항상 포함)
@@ -379,42 +404,12 @@ export function selectMessagesWithinTokenLimit(messages: MultiModalMessage[], ma
   // 필수 메시지의 토큰 수 계산
   let reservedTokens = 0;
   if (lastUserMessage) {
-    const content = typeof lastUserMessage.content === 'string' ? lastUserMessage.content : JSON.stringify(lastUserMessage.content);
-    reservedTokens = estimateTokenCount(content);
+    // 🆕 공통 함수 사용
+    reservedTokens = estimateMultiModalTokens(lastUserMessage as any);
   }
   
   // 실제 사용 가능한 토큰 수 계산
   const availableTokens = adjustedMaxTokens - reservedTokens;
-  
-  // 멀티모달 콘텐츠의 토큰 수 추정 함수
-  const estimateMultiModalTokens = (msg: MultiModalMessage): number => {
-    // 텍스트 콘텐츠
-    if (typeof msg.content === 'string') {
-      return estimateTokenCount(msg.content);
-    }
-    
-    // 멀티모달 콘텐츠 (이미지, 파일 등)
-    if (Array.isArray(msg.content)) {
-      let total = 0;
-      
-      for (const part of msg.content) {
-        if (part.type === 'text') {
-          total += estimateTokenCount(part.text || '');
-        } else if (part.type === 'image') {
-          // 이미지는 약 1000 토큰으로 추정
-          total += 1000;
-        } else if (part.type === 'file') {
-          // 파일 내용에 따라 다르지만 평균적으로 파일당 3000~5000 토큰으로 추정
-          total += 5000;
-        }
-      }
-      
-      return total;
-    }
-    
-    // 기타 형식
-    return estimateTokenCount(JSON.stringify(msg.content));
-  };
   
   // 최신 메시지부터 역순으로 추가 (중요 대화 컨텍스트 보존)
   const reversedMessages = [...messages].reverse();
@@ -426,7 +421,8 @@ export function selectMessagesWithinTokenLimit(messages: MultiModalMessage[], ma
   
   // 남은 메시지들에 대해 토큰 계산 및 선택
   for (const message of remainingMessages) {
-    const msgTokens = estimateMultiModalTokens(message);
+    // 🆕 공통 함수 사용
+    const msgTokens = estimateMultiModalTokens(message as any);
     
     // 토큰 한도 초과 시 중단
     if (tokenCount + msgTokens > availableTokens) {
@@ -443,4 +439,53 @@ export function selectMessagesWithinTokenLimit(messages: MultiModalMessage[], ma
   }
     
   return selectedMessages;
+}
+
+// 🆕 감지 함수들 (modelSelector와 동일한 로직)
+function detectImages(message: any): boolean {
+  if (Array.isArray(message.experimental_attachments)) {
+    return message.experimental_attachments.some((attachment: any) => 
+      attachment.fileType === 'image' || 
+      (attachment.contentType && attachment.contentType.startsWith('image/')) ||
+      (attachment.name && attachment.name.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i))
+    );
+  }
+  
+  if (Array.isArray(message.content)) {
+    return message.content.some((part: { type: string }) => part.type === 'image') ||
+      message.content.some((part: any) => 
+        part.type === 'file' && 
+        (part.file?.contentType?.startsWith('image/') || 
+        part.file?.name?.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i))
+      );
+  }
+  
+  return false;
+}
+
+function detectPDFs(message: any): boolean {
+  if (Array.isArray(message.experimental_attachments)) {
+    return message.experimental_attachments.some((attachment: any) => 
+      attachment.fileType === 'pdf' || 
+      attachment.contentType === 'application/pdf' ||
+      (attachment.name && attachment.name.toLowerCase().endsWith('.pdf'))
+    );
+  }
+  
+  if (Array.isArray(message.content)) {
+    return message.content.some((part: any) => 
+      (part.type === 'file' && part.file?.name?.toLowerCase().endsWith('.pdf')) ||
+      (part.type === 'file' && part.file?.contentType === 'application/pdf')
+    );
+  }
+  
+  return false;
+}
+
+function detectCodeAttachments(message: any): boolean {
+  return Array.isArray(message.experimental_attachments) && 
+    message.experimental_attachments.some((attachment: any) => 
+      attachment.fileType === 'code' || 
+      (attachment.name && attachment.name.match(/\.(js|ts|jsx|tsx|py|java|c|cpp|cs|go|rb|php|html|css|sql|scala|swift|kt|rs|dart|json|xml|yaml|yml)$/i))
+    );
 }

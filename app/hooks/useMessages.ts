@@ -3,6 +3,8 @@ import { Message } from 'ai'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 import { MODEL_CONFIGS } from '@/lib/models/config'
+import { enrichAttachmentsWithMetadata } from '@/app/chat/[id]/utils'
+import { uploadFile } from '@/app/chat/[id]/utils'
 
 export function useMessages(chatId: string, userId: string) {
   const [isRegenerating, setIsRegenerating] = useState(false)
@@ -101,13 +103,14 @@ export function useMessages(chatId: string, userId: string) {
     setEditingContent('')
   }
 
-  const handleEditSave = async (messageId: string, currentModel: string, messages: Message[], setMessages: (messages: Message[]) => void, reload: any) => {
+  const handleEditSave = async (messageId: string, currentModel: string, messages: Message[], setMessages: (messages: Message[]) => void, reload: any, files?: globalThis.File[], remainingAttachments?: any[]) => {
     console.log('Starting edit save operation:', { 
       currentModel,
       messageId, 
       userId, 
       chatId,
-      messageContent: editingContent.substring(0, 100) + '...'
+      messageContent: editingContent.substring(0, 100) + '...',
+      hasNewFiles: files && files.length > 0
     });
     
     // Add guard to prevent re-entry
@@ -117,6 +120,11 @@ export function useMessages(chatId: string, userId: string) {
     }
     
     setIsSavingEdit(true)
+    
+    // 편집 상태를 즉시 초기화 (사용자 경험 개선)
+    const currentEditingContent = editingContent; // 편집 내용 백업
+    setEditingMessageId(null);
+    setEditingContent('');
     
     try {
       if (!messageId || !userId || !chatId) {
@@ -134,6 +142,37 @@ export function useMessages(chatId: string, userId: string) {
       else {
         console.log('Message found in local state:', localMessage);
       }
+
+      // 파일 업로드 처리
+      let newAttachments: any[] = [];
+      if (files && files.length > 0) {
+        console.log('Processing new files for edit:', files.length);
+        
+        // 기존의 uploadFile 함수 사용
+        const uploadPromises = files.map(async (file) => {
+          try {
+            const result = await uploadFile(file);
+            return result;
+          } catch (error) {
+            console.error(`Failed to upload file ${file.name}:`, error);
+            return null;
+          }
+        });
+        
+        const uploadResults = await Promise.all(uploadPromises);
+        newAttachments = uploadResults.filter(result => result !== null);
+      }
+
+      // 편집된 파일 목록 처리: 유지되는 기존 파일 + 새로 업로드된 파일
+      const retainedAttachments = remainingAttachments || [];
+      const allAttachments = [...retainedAttachments, ...newAttachments];
+      
+      console.log('🔍 [DEBUG] File processing for edit:', {
+        originalAttachmentCount: (localMessage as any).experimental_attachments?.length || 0,
+        retainedAttachmentCount: retainedAttachments.length,
+        newAttachmentCount: newAttachments.length,
+        finalAttachmentCount: allAttachments.length
+      });
 
       const messageIndex = messages.findIndex(msg => msg.id === messageId);
       const localSequenceNumber = messageIndex + 1;
@@ -158,7 +197,7 @@ export function useMessages(chatId: string, userId: string) {
           .insert([{
             id: messageId,
             role: localMessage.role,
-            content: editingContent,
+            content: currentEditingContent,
             created_at: new Date().toISOString(),
             chat_session_id: chatId,
             user_id: userId,
@@ -166,7 +205,8 @@ export function useMessages(chatId: string, userId: string) {
             is_edited: true,
             edited_at: new Date().toISOString(),
             model: currentModel,
-            host: localMessage.role === 'assistant' ? 'assistant' : 'user'
+            host: localMessage.role === 'assistant' ? 'assistant' : 'user',
+            experimental_attachments: allAttachments.length > 0 ? allAttachments : null
           }])
           .select()
           .single();
@@ -178,9 +218,10 @@ export function useMessages(chatId: string, userId: string) {
         const { error: updateError } = await supabase
           .from('messages')
           .update({
-            content: editingContent,
+            content: currentEditingContent,
             is_edited: true,
-            edited_at: new Date().toISOString()
+            edited_at: new Date().toISOString(),
+            experimental_attachments: allAttachments.length > 0 ? allAttachments : null
           })
           .eq('id', messageId)
           .eq('user_id', userId)
@@ -193,32 +234,51 @@ export function useMessages(chatId: string, userId: string) {
         msg.id === messageId
           ? {
               ...msg,
-              content: editingContent,
+              content: currentEditingContent,
+              experimental_attachments: allAttachments,
               parts: msg.parts ? msg.parts.map(part => 
-                part.type === 'text' ? { ...part, text: editingContent } : part
+                part.type === 'text' ? { ...part, text: currentEditingContent } : part
               ) : undefined
             }
           : msg
       );
       console.log('Updated messages:', updatedMessages);
 
+      // 🆕 디버깅: 편집된 메시지들의 첨부파일 정보 출력
+      console.log('🔍 [DEBUG] Messages for edit save:', {
+        totalMessages: updatedMessages.length,
+        messagesWithAttachments: updatedMessages.filter(msg => (msg as any).experimental_attachments?.length > 0).length,
+        newFilesUploaded: newAttachments.length,
+        totalAttachments: allAttachments.length,
+        editingContentLength: currentEditingContent.length, // 편집 내용 길이 디버깅 추가
+        attachmentDetails: updatedMessages.map(msg => ({
+          id: msg.id,
+          role: msg.role,
+          hasAttachments: !!(msg as any).experimental_attachments,
+          attachmentCount: (msg as any).experimental_attachments?.length || 0,
+          attachments: (msg as any).experimental_attachments?.map((att: any) => ({
+            name: att.name,
+            type: att.fileType || att.contentType,
+            hasMetadata: !!att.metadata
+          })) || []
+        })).filter(msgInfo => msgInfo.hasAttachments)
+      });
+
       setMessages(updatedMessages);
-      setEditingMessageId(null);
-      setEditingContent('');
 
-      // const { error: deleteError } = await supabase
-      //   .from('messages')
-      //   .delete()
-      //   .eq('chat_session_id', chatId)
-      //   .eq('user_id', userId)
-      //   .gt('sequence_number', existingMessage.sequence_number);
+      const { error: deleteError } = await supabase
+        .from('messages')
+        .delete()
+        .eq('chat_session_id', chatId)
+        .eq('user_id', userId)
+        .gt('sequence_number', existingMessage.sequence_number);
 
-      // if (deleteError) {
-      //   console.error('Error deleting subsequent messages:', deleteError);
-      // }
-      // else {
-      //   console.log('Subsequent messages deleted successfully');
-      // }
+      if (deleteError) {
+        console.error('Error deleting subsequent messages:', deleteError);
+      }
+      else {
+        console.log('Subsequent messages deleted successfully');
+      }
 
       const assistantMessageId = generateMessageId();
 
@@ -295,9 +355,33 @@ export function useMessages(chatId: string, userId: string) {
 
       try {
         console.log('Reloading with model:', modelToUse);
+        console.log('🔍 [DEBUG] Final editingContent before reload:', currentEditingContent); // 디버깅 추가
+        
+        // 🆕 편집된 메시지의 첨부파일 메타데이터 추출
+        const messagesWithMetadata = await Promise.all(
+          updatedMessages.map(async (msg) => {
+            if ((msg as any).experimental_attachments && (msg as any).experimental_attachments.length > 0) {
+              console.log('📎 [DEBUG] Processing attachments for edited message:', msg.id);
+              const enrichedAttachments = await enrichAttachmentsWithMetadata((msg as any).experimental_attachments);
+              return {
+                ...msg,
+                experimental_attachments: enrichedAttachments
+              };
+            }
+            return msg;
+          })
+        );
+        
+        // 최종 메시지 내용 디버깅
+        console.log('🔍 [DEBUG] Final messages with metadata:', messagesWithMetadata.map(msg => ({
+          id: msg.id,
+          content: msg.content.substring(0, 100) + '...',
+          role: msg.role
+        })));
+        
         await reload({
           body: {
-            messages: updatedMessages,
+            messages: messagesWithMetadata,
             model: modelToUse, // Use alternative model if current is rate limited
             chatId,
             isRegeneration: true,
@@ -323,9 +407,9 @@ export function useMessages(chatId: string, userId: string) {
         });
       }
       
+      // 에러 발생 시 편집 상태 복원 - 백업된 편집 내용 복원
       setEditingMessageId(messageId);
-      const originalContent = messages.find(msg => msg.id === messageId)?.content || '';
-      setEditingContent(originalContent);
+      setEditingContent(currentEditingContent); // 백업된 편집 내용으로 복원
     } finally {
       setIsSavingEdit(false)
     }
@@ -360,6 +444,20 @@ export function useMessages(chatId: string, userId: string) {
         .find(m => m.role === 'user')
       
       if (!targetUserMessage) return
+
+      // 🆕 디버깅: 대상 메시지의 첨부파일 정보 출력
+      console.log('🔍 [DEBUG] Target user message for regeneration:', {
+        id: targetUserMessage.id,
+        content: targetUserMessage.content.substring(0, 100) + '...',
+        hasAttachments: !!(targetUserMessage as any).experimental_attachments,
+        attachmentCount: (targetUserMessage as any).experimental_attachments?.length || 0,
+        attachments: (targetUserMessage as any).experimental_attachments?.map((att: any) => ({
+          name: att.name,
+          type: att.fileType || att.contentType,
+          hasMetadata: !!att.metadata,
+          url: att.url?.substring(0, 50) + '...'
+        })) || []
+      });
 
       const assistantMessageId = messageId
       const updatedMessages = messages.slice(0, messageIndex)
@@ -473,14 +571,30 @@ export function useMessages(chatId: string, userId: string) {
       }
 
       try {
+        // 🆕 재생성할 메시지의 첨부파일 메타데이터 추출
+        let enrichedTargetMessage = { ...targetUserMessage };
+        
+        if ((targetUserMessage as any).experimental_attachments && (targetUserMessage as any).experimental_attachments.length > 0) {
+          console.log('📎 [DEBUG] Processing attachments for regeneration message:', targetUserMessage.id);
+          console.log('📎 [DEBUG] Original attachments:', (targetUserMessage as any).experimental_attachments);
+          
+          const enrichedAttachments = await enrichAttachmentsWithMetadata((targetUserMessage as any).experimental_attachments);
+          enrichedTargetMessage = {
+            ...targetUserMessage,
+            experimental_attachments: enrichedAttachments
+          };
+          
+          console.log('📎 [DEBUG] Enriched attachments:', enrichedAttachments);
+        }
+        
         await reload({
           body: {
             messages: [...updatedMessages, {
-              id: targetUserMessage.id,
-              content: targetUserMessage.content,
-              role: targetUserMessage.role,
-              createdAt: targetUserMessage.createdAt,
-              experimental_attachments: (targetUserMessage as any).experimental_attachments
+              id: enrichedTargetMessage.id,
+              content: enrichedTargetMessage.content,
+              role: enrichedTargetMessage.role,
+              createdAt: enrichedTargetMessage.createdAt,
+              experimental_attachments: (enrichedTargetMessage as any).experimental_attachments
             }],
             model: modelToUse, // Use alternative model if current is rate limited
             chatId,

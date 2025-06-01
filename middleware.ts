@@ -12,8 +12,8 @@ const isProduction = process.env.NODE_ENV === 'production';
 const isMaintenanceMode = process.env.MAINTENANCE_MODE === 'true';
 
 // 비인증 사용자를 위한 데모 API 요청 제한 설정
-const DEMO_MAX_REQUESTS = 3; // 30분당 10회 요청 제한
-const DEMO_WINDOW = '30 m'; // 30분 기간 설정
+const DEMO_MAX_REQUESTS = 3; // 24시간당 3회 요청 제한
+const DEMO_WINDOW = '24 h'; // 24시간 기간 설정
 
 // 데모 모드 요청 제한을 위한 Redis 기반 Rate Limiter 생성
 const demoRateLimiter = new Ratelimit({

@@ -224,7 +224,7 @@ body {
 
 /* Message Container Styles */
 .messages-container {
-  @apply max-w-2xl mx-auto w-full px-6 sm:px-4 overflow-hidden pb-10;
+  @apply max-w-3xl mx-auto w-full px-6 sm:px-4 overflow-hidden pb-10;
 }
 
 .message-group {

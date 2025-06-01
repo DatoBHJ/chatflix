@@ -28,7 +28,6 @@ Conversation:
 ${message}
 
 Title:`;
-    console.log('Prompt:', prompt);
     const completion = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
       messages: [

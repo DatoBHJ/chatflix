@@ -1,19 +1,22 @@
 import type { Message as AIMessage } from 'ai'
 import { IconCheck, IconCopy, IconRefresh } from './icons'
 import { ReasoningSection } from './ReasoningSection'
-import { MarkdownContent } from './MarkdownContent'
+import { MarkdownContent } from './MarkdownContent' // MarkdownContent import 확인
 import { ExtendedMessage } from '../chat/[id]/types'
 import { getModelById } from '@/lib/models/config'
 import { Attachment } from '@/lib/types'
 import React, { memo, useCallback, useState, useEffect, useMemo, useRef } from 'react'
 import Image from 'next/image'
 import { createClient } from '@/utils/supabase/client' // createClient import 추가
+import { useRouter } from 'next/navigation'; // useRouter import 추가
 import { XLogo, YouTubeLogo } from './CanvasFolder/CanvasLogo';
-import { Brain, ChevronDown, ChevronUp, Search, Calculator, Link2, ImageIcon, BookOpen, Database, Youtube, FileText, Download, Copy, Check } from 'lucide-react'
+import { Brain, ChevronDown, ChevronUp, Search, Calculator, Link2, ImageIcon, BookOpen, Youtube, FileText, Download, Copy, Check, Wrench, Monitor } from 'lucide-react'
 import { getProviderLogo, hasLogo } from '@/app/lib/models/logoUtils';
 import { AttachmentPreview } from './Attachment'
 import Canvas from './Canvas';
 import { StructuredResponse } from './StructuredResponse';
+import { PlanningSection } from './PlanningSection'; // Import PlanningSection
+import { FileUploadButton, FilePreview, fileHelpers } from './ChatInput/FileUpload'; // FileUpload 컴포넌트들 임포트
 import { 
   File, 
   getStructuredResponseMainContent, 
@@ -97,7 +100,7 @@ const ModelCapabilityBadges = ({ modelId }: { modelId: string }) => {
       )}
 
       {/* Vision/Image Support - existing badge */}
-      <div className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-1 ${
+      <div className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-1 ${ 
         model.supportsVision 
           ? 'bg-[var(--accent)]/20' 
           : 'bg-[var(--muted)]/20'
@@ -135,7 +138,7 @@ const ModelCapabilityBadges = ({ modelId }: { modelId: string }) => {
       
       {/* Censorship Status - Use the exact ModelSelector.tsx styling */}
       {typeof model.censored !== 'undefined' && (
-        <div className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-1 ${
+        <div className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-1 ${ 
           model.censored 
             ? 'bg-[#FFA07A]/20' 
             : 'bg-[#90EE90]/20'
@@ -172,7 +175,7 @@ interface MessageProps {
   onCopy: (message: AIMessage) => void
   onEditStart: (message: AIMessage) => void
   onEditCancel: () => void
-  onEditSave: (messageId: string) => void
+  onEditSave: (messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => void // 브라우저 File 타입 명시
   setEditingContent: (content: string) => void
   chatId?: string
   isStreaming?: boolean
@@ -329,11 +332,28 @@ const Message = memo(function MessageComponent({
   const [isResponseInProgress, setIsResponseInProgress] = useState(false);
   const [copiedFileId, setCopiedFileId] = useState<string | null>(null);
   
-  // Agent Reasoning 관련 상태
+  // 편집 모드용 파일 상태 추가
+  const [editingFiles, setEditingFiles] = useState<globalThis.File[]>([]);
+  const [editingFileMap, setEditingFileMap] = useState<Map<string, { file: globalThis.File, url: string }>>(new Map());
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Agent Reasoning 관련 상태 (for "Selecting Tools" section)
   const [currentReasoning, setCurrentReasoning] = useState<any>(null);
-  const [reasoningExpanded, setReasoningExpanded] = useState(true);
+  const [reasoningExpanded, setReasoningExpanded] = useState(false); // Default to closed
   const [reasoningContentHeight, setReasoningContentHeight] = useState<number | undefined>(undefined);
   const reasoningContentRef = useRef<HTMLDivElement>(null);
+  const userOverrideReasoningRef = useRef<boolean | null>(null);
+  const prevIsReasoningCompleteRef = useRef<boolean | undefined>(undefined);
+  // const prevReasoningContentRef = useRef<any>(null); // Not strictly needed if only relying on isComplete and userOverride
+  
+  // Planning 관련 상태 - 이제 PlanningSection에서 관리됩니다.
+  const [currentPlanning, setCurrentPlanning] = useState<any>(null);
+  // const [planningExpanded, setPlanningExpanded] = useState(true); 
+  // const [planningContentHeight, setPlanningContentHeight] = useState<number | undefined>(undefined);
+  // const planningContentRef = useRef<HTMLDivElement>(null);
+  // const userOverridePlanningRef = useRef<boolean | null>(null);
+  // const prevIsPlanningCompleteRef = useRef<boolean | undefined>(undefined);
+  // const prevPlanningContentRef = useRef<any>(null);
   
   // Use useMemo to derive reasoning data from the message prop
   const derivedReasoningData = useMemo(() => {
@@ -341,18 +361,219 @@ const Message = memo(function MessageComponent({
   }, [message]);
   
   // 프리미엄 업그레이드 버튼 클릭 핸들러 (최상위 레벨에 배치)
+  const router = useRouter(); // useRouter 사용
   const handleUpgradeClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // router.push('/pricing'); // router 사용 코드 삭제
+    router.push('/pricing'); // 주석 해제
+  }, [router]); // router 의존성 추가
+
+  // 편집 시작 시 기존 첨부파일들을 편집 상태로 복사
+  useEffect(() => {
+    if (editingMessageId === message.id && message.experimental_attachments) {
+      const attachments = message.experimental_attachments;
+      const files: globalThis.File[] = [];
+      const fileMap = new Map<string, { file: globalThis.File, url: string }>();
+
+      attachments.forEach((attachment, index) => {
+        // Create a File-like object from attachment
+        const file = new globalThis.File(
+          [new Blob()], // 실제 파일 내용은 필요없고 메타데이터만 유지
+          attachment.name || `attachment-${index}`,
+          { type: attachment.contentType || 'application/octet-stream' }
+        );
+        
+        // Add unique ID for file tracking
+        (file as any).id = `existing-${attachment.url}-${index}`;
+        (file as any).isExisting = true;
+        (file as any).attachmentData = attachment;
+
+        files.push(file);
+        fileMap.set((file as any).id, {
+          file,
+          url: attachment.url
+        });
+      });
+
+      setEditingFiles(files);
+      setEditingFileMap(fileMap);
+    } else if (editingMessageId !== message.id) {
+      // 편집이 끝나면 파일 상태 초기화
+      setEditingFiles([]);
+      setEditingFileMap(new Map());
+    }
+  }, [editingMessageId, message.id, message.experimental_attachments]);
+
+  // 파일 추가 핸들러
+  const handleFileSelect = useCallback(async () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   }, []);
+
+  // 파일 변경 핸들러
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = e.target.files;
+    if (!selectedFiles || selectedFiles.length === 0) return;
+
+    const newFiles: globalThis.File[] = [];
+    const newFileMap = new Map(editingFileMap);
+
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const file = selectedFiles[i];
+      const fileId = `new-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Add unique ID for tracking
+      (file as any).id = fileId;
+      (file as any).isExisting = false;
+
+      // Create object URL for preview
+      const url = URL.createObjectURL(file);
+      
+      newFiles.push(file);
+      newFileMap.set(fileId, { file, url });
+    }
+
+    setEditingFiles(prev => [...prev, ...newFiles]);
+    setEditingFileMap(newFileMap);
+
+    // Reset file input
+    e.target.value = '';
+  }, [editingFileMap]);
+
+  // 파일 제거 핸들러
+  const handleRemoveFile = useCallback((fileToRemove: globalThis.File) => {
+    const fileId = (fileToRemove as any).id;
+    
+    setEditingFiles(prev => prev.filter(file => (file as any).id !== fileId));
+    
+    setEditingFileMap(prev => {
+      const newMap = new Map(prev);
+      const fileData = newMap.get(fileId);
+      
+      // Clean up object URL if it's a new file
+      if (fileData && !(fileToRemove as any).isExisting) {
+        URL.revokeObjectURL(fileData.url);
+      }
+      
+      newMap.delete(fileId);
+      return newMap;
+    });
+  }, []);
+
+  // 편집 저장 핸들러 수정
+  const handleEditSave = useCallback(() => {
+    // 새로 추가된 파일들만 필터링 (기존 파일은 제외)
+    const newFiles = editingFiles.filter(file => !(file as any).isExisting);
+    // 기존 파일 중 유지되는 파일들의 첨부파일 데이터 추출
+    const remainingExistingAttachments = editingFiles
+      .filter(file => (file as any).isExisting)
+      .map(file => (file as any).attachmentData)
+      .filter(Boolean);
+    
+    onEditSave(message.id, newFiles, remainingExistingAttachments);
+  }, [editingFiles, onEditSave, message.id]);
+
+  // 편집 취소 핸들러 수정
+  const handleEditCancel = useCallback(() => {
+    // 새로 추가된 파일들의 Object URL 정리
+    editingFiles.forEach(file => {
+      if (!(file as any).isExisting) {
+        const fileId = (file as any).id;
+        const fileData = editingFileMap.get(fileId);
+        if (fileData) {
+          URL.revokeObjectURL(fileData.url);
+        }
+      }
+    });
+    
+    setEditingFiles([]);
+    setEditingFileMap(new Map());
+    onEditCancel();
+  }, [editingFiles, editingFileMap, onEditCancel]);
   
   // Measure reasoning content height when content changes
   useEffect(() => {
     if (reasoningContentRef.current && currentReasoning) {
       setReasoningContentHeight(reasoningContentRef.current.scrollHeight);
+      if (reasoningExpanded && reasoningContentRef.current) {
+        reasoningContentRef.current.scrollTop = reasoningContentRef.current.scrollHeight;
+      }
     }
   }, [currentReasoning, reasoningExpanded]);
+
+  // Auto-collapse/expand for "Selecting Tools" (Agent Reasoning section)
+  useEffect(() => {
+    // Ensure currentReasoning data is available
+    if (!currentReasoning) {
+      setReasoningExpanded(false);
+      userOverrideReasoningRef.current = null; // Reset override if no data
+      return;
+    }
+
+    const isSectionComplete = currentReasoning?.isComplete;
+
+    // Reset user override if the reasoning section logically restarts 
+    // (e.g., goes from complete to incomplete for a new analysis).
+    if (prevIsReasoningCompleteRef.current === true && isSectionComplete === false) {
+      userOverrideReasoningRef.current = null;
+      // When a new reasoning phase starts, ensure it's closed by default.
+      setReasoningExpanded(false);
+    }
+
+    // If user has manually toggled the section, respect their choice.
+    if (userOverrideReasoningRef.current !== null) {
+      setReasoningExpanded(userOverrideReasoningRef.current);
+    } else {
+      // If no user override, it remains in its current state (which would be closed by default
+      // or after a reset). No automatic opening.
+      // It only auto-closes if it was somehow open and then completes without user override.
+      if (reasoningExpanded && isSectionComplete) { 
+        setReasoningExpanded(false);
+      } else if (userOverrideReasoningRef.current === null) {
+        // Ensures that if userOverride is cleared, it respects the default closed state
+        setReasoningExpanded(false);
+      }
+    }
+    prevIsReasoningCompleteRef.current = isSectionComplete;
+  }, [currentReasoning]); // Re-run when currentReasoning changes.
+  
+  // Measure planning content height when content changes - 이제 PlanningSection에서 관리됩니다.
+  /*
+  useEffect(() => {
+    if (planningContentRef.current && currentPlanning) {
+      setPlanningContentHeight(planningContentRef.current.scrollHeight);
+      // Auto-scroll to bottom when content changes and expanded
+      if (planningExpanded && planningContentRef.current) {
+        planningContentRef.current.scrollTop = planningContentRef.current.scrollHeight;
+      }
+    }
+  }, [currentPlanning, planningExpanded]);
+  */
+
+  // Auto-collapse for Planning - 이제 PlanningSection에서 관리됩니다.
+  /*
+  useEffect(() => {
+    const isComplete = currentPlanning?.isComplete;
+    const newContentStarted = currentPlanning !== prevPlanningContentRef.current && !isComplete;
+
+    if ((prevIsPlanningCompleteRef.current === true && isComplete === false) || newContentStarted) {
+      userOverridePlanningRef.current = null;
+    }
+    
+    if (userOverridePlanningRef.current !== null) {
+      setPlanningExpanded(userOverridePlanningRef.current);
+    } else {
+      if (!isComplete && currentPlanning) { // Expand if processing and there is content
+        setPlanningExpanded(true);
+      } else if (isComplete) { // Collapse if complete
+        setPlanningExpanded(false);
+      }
+    }
+    prevIsPlanningCompleteRef.current = isComplete;
+    prevPlanningContentRef.current = currentPlanning;
+  }, [currentPlanning]);
+  */
   
   // Fetch user data when component mounts
   useEffect(() => {
@@ -385,47 +606,48 @@ const Message = memo(function MessageComponent({
   
   // Agent Reasoning 데이터 처리 (Canvas와 동일한 로직)
   useEffect(() => {
-    let newDerivedReasoning: any | null = null;
-    const { completeData, progressData } = derivedReasoningData;
+    // The derivedReasoningData is from useMemo, which depends on `message`.
+    // If extractReasoningForMessage is efficient and returns stable references for 
+    // unchanged semantic data, this will work well.
+    // If derivedReasoningData is a new object reference even for the same data,
+    // setCurrentReasoning will be called, but React will only re-render if the value actually differs.
+    setCurrentReasoning(derivedReasoningData.completeData || derivedReasoningData.progressData || null);
+  }, [derivedReasoningData]); // Only depend on derivedReasoningData
 
-    // Prefer fully complete reasoning if available
-    if (completeData?.isComplete) { 
-      newDerivedReasoning = completeData;
-    } else if (progressData && progressData.length > 0) {
-      // If no complete reasoning, take the latest progress (already sorted newest first)
-      newDerivedReasoning = progressData[0]; 
-    } else if (completeData) { 
-      // Fallback: if there's a completeData (but not marked complete) and no progress, use it.
-      newDerivedReasoning = completeData;
+  // Planning 데이터 처리 (progress/partial 무시, 마지막 결과만)
+  useEffect(() => {
+    const annotations = (message.annotations || []) as any[];
+    // 마지막 planning 결과만 사용
+    const planningAnnotations = annotations.filter(
+      (annotation) => annotation?.type === 'agent_reasoning_progress' && annotation?.data?.stage === 'planning'
+    );
+    if (planningAnnotations.length > 0) {
+      const latestPlanning = planningAnnotations[planningAnnotations.length - 1];
+      const planningData = latestPlanning?.data;
+      if (planningData && planningData.plan) {
+        const newPlanningState = {
+          planningThoughts: planningData.plan,
+          isComplete: planningData.isComplete || false,
+          timestamp: planningData.timestamp
+        };
+        setCurrentPlanning(newPlanningState);
+      }
+    } else {
+      // tool_results에서 마지막 결과만 사용
+      const extendedMessage = message as any;
+      const toolResults = extendedMessage?.tool_results;
+      const agentReasoning = toolResults?.agentReasoning;
+      if (agentReasoning && agentReasoning.plan) {
+        setCurrentPlanning({
+          planningThoughts: agentReasoning.plan,
+          isComplete: true,
+          timestamp: agentReasoning.timestamp
+        });
+      } else {
+        setCurrentPlanning(null);
+      }
     }
-
-    // Compare the derived new state with the current state to prevent unnecessary updates
-    const hasChanged = () => {
-      if (currentReasoning === newDerivedReasoning) return false; // Same object instance or both null
-      if (!newDerivedReasoning && !currentReasoning) return false; // Both are null (covered by above, but explicit)
-      if (!newDerivedReasoning || !currentReasoning) return true; // One is null, the other isn't
-
-      // Both are objects, compare relevant fields to determine semantic difference
-      return currentReasoning.agentThoughts !== newDerivedReasoning.agentThoughts ||
-             currentReasoning.plan !== newDerivedReasoning.plan ||
-             currentReasoning.selectionReasoning !== newDerivedReasoning.selectionReasoning ||
-             currentReasoning.timestamp !== newDerivedReasoning.timestamp ||
-             currentReasoning.isComplete !== newDerivedReasoning.isComplete || // Crucial
-             currentReasoning.needsWebSearch !== newDerivedReasoning.needsWebSearch ||
-             currentReasoning.needsCalculator !== newDerivedReasoning.needsCalculator ||
-             currentReasoning.needsLinkReader !== newDerivedReasoning.needsLinkReader ||
-             currentReasoning.needsImageGenerator !== newDerivedReasoning.needsImageGenerator ||
-             currentReasoning.needsAcademicSearch !== newDerivedReasoning.needsAcademicSearch ||
-             // currentReasoning.needsXSearch !== newDerivedReasoning.needsXSearch, // Was commented out
-             currentReasoning.needsYouTubeSearch !== newDerivedReasoning.needsYouTubeSearch ||
-             currentReasoning.needsYouTubeLinkAnalyzer !== newDerivedReasoning.needsYouTubeLinkAnalyzer ||
-             currentReasoning.needsDataProcessor !== newDerivedReasoning.needsDataProcessor;
-    };
-
-    if (hasChanged()) {
-      setCurrentReasoning(newDerivedReasoning);
-    }
-  }, [derivedReasoningData, currentReasoning]); // Dependencies are the memoized derivedReasoningData and currentReasoning
+  }, [message.annotations, (message as any).tool_results]);
   
   // 파일 토글 핸들러
   const toggleFile = useCallback((index: number) => {
@@ -641,16 +863,24 @@ const Message = memo(function MessageComponent({
         </div>
         <div className="flex justify-start">
           <div className="message-assistant max-w-full">
-            {/* Show agent reasoning section first */}
-            {currentReasoning && (
+            {/* Show planning section first */}
+            {currentPlanning && (
+               <PlanningSection planningData={currentPlanning} />
+            )}
+            {/* Show agent reasoning section - only show when it has meaningful tool selection data */}
+            {currentReasoning && (currentReasoning.agentThoughts || currentReasoning.selectionReasoning || (currentReasoning.selectedTools && currentReasoning.selectedTools.length > 0)) && (
               <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm mb-8">
                 <div 
                   className="flex items-center justify-between w-full mb-4 cursor-pointer"
-                  onClick={() => setReasoningExpanded(!reasoningExpanded)}
+                  onClick={() => {
+                    const newExpansionState = !reasoningExpanded;
+                    setReasoningExpanded(newExpansionState);
+                    userOverrideReasoningRef.current = newExpansionState;
+                  }}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Brain className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-                    <h2 className="font-medium text-left tracking-tight">Planning Next Move</h2>
+                    <Wrench className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} /> {/* Use Wrench */}
+                    <h2 className="font-medium text-left tracking-tight">Selecting Tools</h2>
                   </div>
                   <div className="flex items-center gap-2">
                     {/* 상태 표시기를 여기로 이동 */}
@@ -699,7 +929,7 @@ const Message = memo(function MessageComponent({
                     {/* 툴 아이콘 표시 - 모든 가능한 도구 표시 */}
                     <div className="flex flex-wrap gap-2 text-foreground-secondary mt-3">
                       {/* 웹 검색 */}
-                      <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                      <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${ 
                         currentReasoning.needsWebSearch 
                           ? 'bg-green-500/15 text-green-500 font-medium'
                           : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
@@ -708,7 +938,7 @@ const Message = memo(function MessageComponent({
                       </div>
                       
                       {/* 계산기 */}
-                      <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                      <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${ 
                         currentReasoning.needsCalculator 
                           ? 'bg-green-500/15 text-green-500 font-medium'
                           : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
@@ -717,7 +947,7 @@ const Message = memo(function MessageComponent({
                       </div>
                       
                       {/* 링크 리더 */}
-                      <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                      <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${ 
                         currentReasoning.needsLinkReader 
                           ? 'bg-green-500/15 text-green-500 font-medium'
                           : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
@@ -726,7 +956,7 @@ const Message = memo(function MessageComponent({
                       </div>
                       
                       {/* 이미지 생성기 */}
-                      <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                      <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${ 
                         currentReasoning.needsImageGenerator 
                           ? 'bg-green-500/15 text-green-500 font-medium'
                           : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
@@ -735,7 +965,7 @@ const Message = memo(function MessageComponent({
                       </div>
                       
                       {/* 학술 검색 */}
-                      <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                      <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${ 
                         currentReasoning.needsAcademicSearch 
                           ? 'bg-green-500/15 text-green-500 font-medium'
                           : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
@@ -744,7 +974,7 @@ const Message = memo(function MessageComponent({
                       </div>
                       
                       {/* X 검색 */}
-                      {/* <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                      {/* <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${ 
                         currentReasoning.needsXSearch 
                           ? 'bg-green-500/15 text-green-500 font-medium'
                           : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
@@ -753,7 +983,7 @@ const Message = memo(function MessageComponent({
                       </div> */}
                       
                       {/* YouTube 검색 */}
-                      <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                      <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${ 
                         currentReasoning.needsYouTubeSearch 
                           ? 'bg-green-500/15 text-green-500 font-medium'
                           : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
@@ -762,21 +992,12 @@ const Message = memo(function MessageComponent({
                       </div>
                       
                       {/* YouTube 분석기 */}
-                      <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                      <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${ 
                         currentReasoning.needsYouTubeLinkAnalyzer 
                           ? 'bg-green-500/15 text-green-500 font-medium'
                           : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
                       }`}>
                         <Youtube size={14} /> YouTube Analyzer
-                      </div>
-                      
-                      {/* 데이터 처리기 */}
-                      <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
-                        currentReasoning.needsDataProcessor 
-                          ? 'bg-green-500/15 text-green-500 font-medium'
-                          : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
-                      }`}>
-                        <Database size={14} /> Data Processor
                       </div>
                     </div>
                     
@@ -785,13 +1006,6 @@ const Message = memo(function MessageComponent({
                       <h4 className="text-sm font-medium mb-2">Reasoning</h4>
                       <div className="whitespace-pre-wrap text-sm">{currentReasoning.agentThoughts}</div>
                     </div>
-                    
-                    {currentReasoning.plan && (
-                      <div className="bg-[color-mix(in_srgb,var(--foreground)_4%,transparent)] p-3 rounded-md">
-                        <h4 className="text-sm font-medium mb-2">Planning</h4>
-                        <div className="whitespace-pre-wrap text-sm">{currentReasoning.plan}</div>
-                      </div>
-                    )}
                     
                     {currentReasoning.selectionReasoning && (
                       <div className="bg-[color-mix(in_srgb,var(--foreground)_4%,transparent)] p-3 rounded-md">
@@ -808,33 +1022,23 @@ const Message = memo(function MessageComponent({
             {reasoningPart && (
               <ReasoningSection 
                 content={reasoningPart.reasoning} 
-                isStreaming={isStreaming && !reasoningComplete} 
-                isComplete={reasoningComplete}
+                isComplete={reasoningComplete} // Pass isComplete
               />
             )}
-            {/* 로딩 중 Canvas 미리보기 */}
+            {/* 로딩 중 Canvas 미리보기 - 새로운 CanvasToolsPreview 사용 */}
             {hasActualCanvasData && (
-              <div 
-                className="mb-6 relative max-h-[300px] overflow-hidden cursor-pointer" 
-                onClick={() => togglePanel && togglePanel(message.id, 'canvas')}
-              >
-                <Canvas
-                  webSearchData={webSearchData}
-                  mathCalculationData={mathCalculationData}
-                  linkReaderData={linkReaderData}
-                  imageGeneratorData={imageGeneratorData}
-                  academicSearchData={academicSearchData}
-                  xSearchData={xSearchData}
-                  youTubeSearchData={youTubeSearchData}
-                  youTubeLinkAnalysisData={youTubeLinkAnalysisData}
-                  isCompact={true}
-                />
-                <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none"></div>
-                <div className="flex items-center justify-center mt-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
-                  <span>View Canvas</span>
-                  <ChevronDown size={16} className="ml-1" />
-                </div>
-              </div>
+              <CanvasToolsPreview
+                webSearchData={webSearchData}
+                mathCalculationData={mathCalculationData}
+                linkReaderData={linkReaderData}
+                imageGeneratorData={imageGeneratorData}
+                academicSearchData={academicSearchData}
+                xSearchData={xSearchData}
+                youTubeSearchData={youTubeSearchData}
+                youTubeLinkAnalysisData={youTubeLinkAnalysisData}
+                messageId={message.id}
+                togglePanel={togglePanel}
+              />
             )}
             
             {/* Rate Limit 메시지 표시 */}
@@ -949,7 +1153,7 @@ const Message = memo(function MessageComponent({
           <button 
             onClick={onRegenerate(message.id)}
             disabled={isRegenerating}
-            className={`text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2 ${
+            className={`text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2 ${ 
               isRegenerating ? 'opacity-50 cursor-not-allowed' : ''
             }`}
             title="Regenerate response"
@@ -958,7 +1162,7 @@ const Message = memo(function MessageComponent({
           </button>
           <button
             onClick={() => onCopy(message)}
-            className={`text-xs hover:text-[var(--foreground)] transition-colors flex items-center gap-2 ${
+            className={`text-xs hover:text-[var(--foreground)] transition-colors flex items-center gap-2 ${ 
               isCopied ? 'text-green-500' : 'text-[var(--muted)]'
             }`}
             title={isCopied ? "Copied!" : "Copy message"}
@@ -971,7 +1175,7 @@ const Message = memo(function MessageComponent({
           </button>
           <button
             onClick={toggleBookmark}
-            className={`text-xs transition-colors flex items-center gap-2 ${
+            className={`text-xs transition-colors flex items-center gap-2 ${ 
               isBookmarked ? 'text-blue-500' : 'text-[var(--muted)] hover:text-[var(--foreground)]'
             } ${isBookmarkLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             title={isBookmarked ? "Remove bookmark" : "Bookmark message"}
@@ -1040,19 +1244,28 @@ const Message = memo(function MessageComponent({
         )}
       </div>
       <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-        <div className={`${isUser ? 'message-user' : 'message-assistant'} max-w-full overflow-x-auto ${
+        <div className={`${isUser ? 'message-user' : 'message-assistant'} max-w-full overflow-x-auto ${ 
           isEditing ? 'w-full' : ''
         }`}>
-          {/* Agent Reasoning은 항상 상단에 표시 */}
-          {currentReasoning && (
+          {/* Planning은 항상 최상단에 표시 */}
+          {currentPlanning && (
+            <PlanningSection planningData={currentPlanning} />
+          )}
+
+          {/* Agent Reasoning은 Planning 다음에 표시 - only show when it has meaningful tool selection data */}
+          {currentReasoning && (currentReasoning.agentThoughts || currentReasoning.selectionReasoning || (currentReasoning.selectedTools && currentReasoning.selectedTools.length > 0)) && (
             <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm mb-8">
               <div 
                 className="flex items-center justify-between w-full mb-4 cursor-pointer"
-                onClick={() => setReasoningExpanded(!reasoningExpanded)}
+                onClick={() => {
+                  const newExpansionState = !reasoningExpanded;
+                  setReasoningExpanded(newExpansionState);
+                  userOverrideReasoningRef.current = newExpansionState;
+                }}
               >
                 <div className="flex items-center gap-2.5">
-                  <Brain className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-                  <h2 className="font-medium text-left tracking-tight">Planning Next Move</h2>
+                  <Wrench className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} /> {/* Use Wrench */}
+                  <h2 className="font-medium text-left tracking-tight">Selecting Tools</h2>
                 </div>
                 <div className="flex items-center gap-2">
                   {/* 상태 표시기를 여기로 이동 */}
@@ -1101,7 +1314,7 @@ const Message = memo(function MessageComponent({
                   {/* 툴 아이콘 표시 - 모든 가능한 도구 표시 */}
                   <div className="flex flex-wrap gap-2 text-foreground-secondary mt-3">
                     {/* 웹 검색 */}
-                    <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                    <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${ 
                       currentReasoning.needsWebSearch 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
@@ -1110,7 +1323,7 @@ const Message = memo(function MessageComponent({
                     </div>
                     
                     {/* 계산기 */}
-                    <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                    <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${ 
                       currentReasoning.needsCalculator 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
@@ -1119,7 +1332,7 @@ const Message = memo(function MessageComponent({
                     </div>
                     
                     {/* 링크 리더 */}
-                    <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                    <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${ 
                       currentReasoning.needsLinkReader 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
@@ -1128,7 +1341,7 @@ const Message = memo(function MessageComponent({
                     </div>
                     
                     {/* 이미지 생성기 */}
-                    <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                    <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${ 
                       currentReasoning.needsImageGenerator 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
@@ -1137,7 +1350,7 @@ const Message = memo(function MessageComponent({
                     </div>
                     
                     {/* 학술 검색 */}
-                    <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                    <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${ 
                       currentReasoning.needsAcademicSearch 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
@@ -1146,7 +1359,7 @@ const Message = memo(function MessageComponent({
                     </div>
                     
                     {/* X 검색 */}
-                    {/* <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                    {/* <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${ 
                       currentReasoning.needsXSearch 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
@@ -1155,7 +1368,7 @@ const Message = memo(function MessageComponent({
                       </div> */}
                       
                     {/* YouTube 검색 */}
-                    <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                    <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${ 
                       currentReasoning.needsYouTubeSearch 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
@@ -1164,21 +1377,12 @@ const Message = memo(function MessageComponent({
                     </div>
                     
                     {/* YouTube 분석기 */}
-                    <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
+                    <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${ 
                       currentReasoning.needsYouTubeLinkAnalyzer 
                         ? 'bg-green-500/15 text-green-500 font-medium'
                         : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
                       }`}>
                       <Youtube size={14} /> YouTube Analyzer
-                    </div>
-                    
-                    {/* 데이터 처리기 */}
-                    <div className={`flex items-center gap-1.5 text-xs rounded-full px-2 py-1 transition-colors ${
-                      currentReasoning.needsDataProcessor 
-                        ? 'bg-green-500/15 text-green-500 font-medium'
-                        : 'bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]'
-                      }`}>
-                      <Database size={14} /> Data Processor
                     </div>
                   </div>
                   
@@ -1187,13 +1391,6 @@ const Message = memo(function MessageComponent({
                     <h4 className="text-sm font-medium mb-2">Reasoning</h4>
                     <div className="whitespace-pre-wrap text-sm">{currentReasoning.agentThoughts}</div>
                   </div>
-                  
-                  {currentReasoning.plan && (
-                    <div className="bg-[color-mix(in_srgb,var(--foreground)_4%,transparent)] p-3 rounded-md">
-                      <h4 className="text-sm font-medium mb-2">Planning</h4>
-                      <div className="whitespace-pre-wrap text-sm">{currentReasoning.plan}</div>
-                    </div>
-                  )}
                   
                   {currentReasoning.selectionReasoning && (
                     <div className="bg-[color-mix(in_srgb,var(--foreground)_4%,transparent)] p-3 rounded-md">
@@ -1207,23 +1404,21 @@ const Message = memo(function MessageComponent({
           )}
 
           {/* ReasoningSection for streaming or message.parts */}
-          {/* {!currentReasoning && message.parts && message.parts.find(part => part.type === 'reasoning') && (
+          {message.parts?.find(part => part.type === 'reasoning') && (
             (() => {
-              const reasoningPart = message.parts.find(part => part.type === 'reasoning');
-              const reasoningComplete = isReasoningComplete(message);
+              const reasoningPart = message.parts?.find(part => part.type === 'reasoning');
               return (
                 <ReasoningSection 
                   key="reasoning" 
                   content={reasoningPart!.reasoning} 
-                  isStreaming={isStreaming && !reasoningComplete} 
-                  isComplete={reasoningComplete}
+                  isComplete={isReasoningComplete(message)} // Pass isComplete
                 />
               );
             })()
-          )} */}
+          )}
 
           {isEditing ? (
-            <div className="flex flex-col gap-2 w-full">
+            <div className="flex flex-col gap-4 w-full">
               <textarea
                 value={editingContent}
                 onChange={(e) => {
@@ -1251,24 +1446,57 @@ const Message = memo(function MessageComponent({
                   minHeight: '100px',
                   caretColor: 'var(--foreground)'
                 }}
+                placeholder="Edit your message..."
               />
-              <div className="flex gap-2 justify-end">
-                <button
-                  onClick={onEditCancel}
-                  className="px-4 py-2 text-sm
-                           bg-[var(--accent)] text-[var(--foreground)]
-                           hover:opacity-80 transition-opacity duration-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => onEditSave(message.id)}
-                  className="px-4 py-2 text-sm
-                           bg-[var(--accent)] text-[var(--foreground)]
-                           hover:opacity-80 transition-opacity duration-200"
-                >
-                  Send
-                </button>
+              
+              {/* 파일 미리보기 영역 */}
+              {editingFiles.length > 0 && (
+                <EditingFilePreview 
+                  files={editingFiles}
+                  fileMap={editingFileMap}
+                  removeFile={handleRemoveFile}
+                />
+              )}
+              
+              {/* 파일 업로드 및 버튼 영역 */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {/* 파일 업로드 버튼 */}
+                  <FileUploadButton 
+                    filesCount={editingFiles.length}
+                    onClick={handleFileSelect}
+                  />
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    multiple
+                    accept="image/*,.pdf,.txt,.js,.jsx,.ts,.tsx,.html,.css,.json,.md,.py,.java,.c,.cpp,.cs,.go,.rb,.php,.swift,.kt,.rs"
+                    style={{ display: 'none' }}
+                  />
+                  <span className="text-xs text-[var(--muted)]">
+                    {editingFiles.length === 0 ? 'Add files' : `${editingFiles.length} file${editingFiles.length > 1 ? 's' : ''}`}
+                  </span>
+                </div>
+                
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleEditCancel}
+                    className="px-4 py-2 text-sm
+                             bg-[var(--accent)] text-[var(--foreground)]
+                             hover:opacity-80 transition-opacity duration-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleEditSave}
+                    className="px-4 py-2 text-sm
+                             bg-[var(--accent)] text-[var(--foreground)]
+                             hover:opacity-80 transition-opacity duration-200"
+                  >
+                    Send
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
@@ -1280,44 +1508,31 @@ const Message = memo(function MessageComponent({
               {/* 텍스트 파트 렌더링 (기존 로직 유지, 단, structuredMainResponse를 직접 렌더링하는 부분은 제거됨) */}
               {message.parts ? (
                 <>
-                  {message.parts.find(part => part.type === 'reasoning') && (
+                  {/* {message.parts.find(part => part.type === 'reasoning') && (
                     (() => {
-                      const reasoningPart = message.parts.find(part => part.type === 'reasoning');
-                      const reasoningComplete = isReasoningComplete(message);
-                      
+                      const reasoningPart = message.parts?.find(part => part.type === 'reasoning');
                       return (
                         <ReasoningSection 
                           key="reasoning" 
                           content={reasoningPart!.reasoning} 
-                          isStreaming={isStreaming && !reasoningComplete} 
-                          isComplete={reasoningComplete}
                         />
                       );
                     })()
-                  )}
+                  )} */}
                   {/* INSERT CANVAS PREVIEW HERE IF message.parts EXISTS */}
                   {isAssistant && message.parts && hasActualCanvasData && (
-                    <div 
-                      className="mb-6 relative max-h-[300px] overflow-hidden cursor-pointer" 
-                      onClick={() => togglePanel && togglePanel(message.id, 'canvas')}
-                    >
-                      <Canvas
-                        webSearchData={webSearchData}
-                        mathCalculationData={mathCalculationData}
-                        linkReaderData={linkReaderData}
-                        imageGeneratorData={imageGeneratorData}
-                        academicSearchData={academicSearchData}
-                        xSearchData={xSearchData}
-                        youTubeSearchData={youTubeSearchData}
-                        youTubeLinkAnalysisData={youTubeLinkAnalysisData}
-                        isCompact={true}
-                      />
-                      <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none"></div>
-                      <div className="flex items-center justify-center mt-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
-                        <span>View Canvas</span>
-                        <ChevronDown size={16} className="ml-1" />
-                      </div>
-                    </div>
+                    <CanvasToolsPreview
+                      webSearchData={webSearchData}
+                      mathCalculationData={mathCalculationData}
+                      linkReaderData={linkReaderData}
+                      imageGeneratorData={imageGeneratorData}
+                      academicSearchData={academicSearchData}
+                      xSearchData={xSearchData}
+                      youTubeSearchData={youTubeSearchData}
+                      youTubeLinkAnalysisData={youTubeLinkAnalysisData}
+                      messageId={message.id}
+                      togglePanel={togglePanel}
+                    />
                   )}
                   {message.parts.map((part, index) => {
                     if (part.type === 'text') {
@@ -1392,27 +1607,18 @@ const Message = memo(function MessageComponent({
                   
                   {/* INSERT CANVAS PREVIEW HERE IF !message.parts EXISTS FOR ASSISTANT */}
                   {isAssistant && !message.parts && hasActualCanvasData && (
-                    <div 
-                      className="mb-6 relative max-h-[300px] overflow-hidden cursor-pointer" 
-                      onClick={() => togglePanel && togglePanel(message.id, 'canvas')}
-                    >
-                      <Canvas
-                        webSearchData={webSearchData}
-                        mathCalculationData={mathCalculationData}
-                        linkReaderData={linkReaderData}
-                        imageGeneratorData={imageGeneratorData}
-                        academicSearchData={academicSearchData}
-                        xSearchData={xSearchData}
-                        youTubeSearchData={youTubeSearchData}
-                        youTubeLinkAnalysisData={youTubeLinkAnalysisData}
-                        isCompact={true}
-                      />
-                      <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none"></div>
-                      <div className="flex items-center justify-center mt-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
-                        <span>View Canvas</span>
-                        <ChevronDown size={16} className="ml-1" />
-                      </div>
-                    </div>
+                    <CanvasToolsPreview
+                      webSearchData={webSearchData}
+                      mathCalculationData={mathCalculationData}
+                      linkReaderData={linkReaderData}
+                      imageGeneratorData={imageGeneratorData}
+                      academicSearchData={academicSearchData}
+                      xSearchData={xSearchData}
+                      youTubeSearchData={youTubeSearchData}
+                      youTubeLinkAnalysisData={youTubeLinkAnalysisData}
+                      messageId={message.id}
+                      togglePanel={togglePanel}
+                    />
                   )}
 
                   {isAssistant && isStreaming && (
@@ -1457,7 +1663,7 @@ const Message = memo(function MessageComponent({
           <button 
             onClick={onRegenerate(message.id)}
             disabled={isRegenerating}
-            className={`text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2 ${
+            className={`text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2 ${ 
               isRegenerating ? 'opacity-50 cursor-not-allowed' : ''
             }`}
             title="Regenerate response"
@@ -1466,7 +1672,7 @@ const Message = memo(function MessageComponent({
           </button>
           <button
             onClick={() => onCopy(message)}
-            className={`text-xs hover:text-[var(--foreground)] transition-colors flex items-center gap-2 ${
+            className={`text-xs hover:text-[var(--foreground)] transition-colors flex items-center gap-2 ${ 
               isCopied ? 'text-green-500' : 'text-[var(--muted)]'
             }`}
             title={isCopied ? "Copied!" : "Copy message"}
@@ -1479,7 +1685,7 @@ const Message = memo(function MessageComponent({
           </button>
           <button
             onClick={toggleBookmark}
-            className={`text-xs transition-colors flex items-center gap-2 ${
+            className={`text-xs transition-colors flex items-center gap-2 ${ 
               isBookmarked ? 'text-blue-500' : 'text-[var(--muted)] hover:text-[var(--foreground)]'
             } ${isBookmarkLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             title={isBookmarked ? "Remove bookmark" : "Bookmark message"}
@@ -1523,7 +1729,7 @@ const Message = memo(function MessageComponent({
           </button>
           <button
             onClick={() => onCopy(message)}
-            className={`text-xs hover:text-[var(--foreground)] transition-colors flex items-center gap-2 ${
+            className={`text-xs hover:text-[var(--foreground)] transition-colors flex items-center gap-2 ${ 
               isCopied ? 'text-green-500' : 'text-[var(--muted)]'
             }`}
             title={isCopied ? "Copied!" : "Copy message"}
@@ -1538,6 +1744,487 @@ const Message = memo(function MessageComponent({
       )}
     </div>
   )
+});
+
+// 편집 모드 전용 파일 미리보기 컴포넌트
+const EditingFilePreview = memo(function EditingFilePreview({ 
+  files, 
+  fileMap, 
+  removeFile 
+}: { 
+  files: globalThis.File[];
+  fileMap: Map<string, { file: globalThis.File, url: string }>;
+  removeFile: (file: globalThis.File) => void;
+}) {
+  if (!files.length) return null;
+
+  return (
+    <div className="file-preview-wrapper -mx-2 px-4 pt-4 pb-1 mt-3 mb-3 relative">
+      <div className="file-preview-container grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 gap-y-3 pb-2">
+        {files.map((file) => {
+          const fileId = (file as any).id;
+          const fileData = fileMap.get(fileId);
+          const isImage = file.type.startsWith('image/');
+          const fileExt = file.name.split('.').pop()?.toUpperCase() || 'FILE';
+          
+          return (
+            <div 
+              key={fileId}
+              className="file-preview-item relative rounded-lg flex flex-col overflow-hidden transition-all duration-200 hover:translate-y-[-2px]"
+              style={{ 
+                aspectRatio: '1',
+                backgroundColor: `var(--accent)`,
+              }}
+            >
+              <button
+                onClick={() => removeFile(file)}
+                className="absolute top-1.5 right-1.5 w-7 h-7 md:w-6 md:h-6 md:top-2 md:right-2 flex items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--background)_80%,var(--foreground)_20%)] text-[var(--foreground)] text-xs z-10 transition-all duration-200 hover:opacity-100 hover:bg-[color-mix(in_srgb,var(--background)_70%,var(--foreground)_30%)] opacity-70"
+                aria-label={`Remove file ${file.name}`}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+              
+              <div className="flex-1 w-full flex items-center justify-center overflow-hidden">
+                {isImage && fileData?.url ? (
+                  <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+                    <img 
+                      src={fileData.url} 
+                      alt={file.name} 
+                      className="w-full h-full object-contain"
+                      loading="lazy"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-center p-3 h-full">
+                    <span className="text-[10px] font-mono mt-2 px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--background)_7%,transparent)]">
+                      {fileExt}
+                    </span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="w-full px-2.5 py-2">
+                <div className="text-[12px] font-normal truncate tracking-tight" title={file.name}>
+                  {file.name}
+                </div>
+                <div className="text-[9px] opacity-60 mt-0.5 font-medium tracking-tight">
+                  {fileHelpers.formatFileSize(file.size)}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
+// Create CanvasToolsPreview component
+const CanvasToolsPreview = memo(function CanvasToolsPreview({
+  webSearchData,
+  mathCalculationData,
+  linkReaderData,
+  imageGeneratorData,
+  academicSearchData,
+  xSearchData,
+  youTubeSearchData,
+  youTubeLinkAnalysisData,
+  messageId,
+  togglePanel
+}: {
+  webSearchData?: any;
+  mathCalculationData?: any;
+  linkReaderData?: any;
+  imageGeneratorData?: any;
+  academicSearchData?: any;
+  xSearchData?: any;
+  youTubeSearchData?: any;
+  youTubeLinkAnalysisData?: any;
+  messageId: string;
+  togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse') => void;
+}) {
+  const tools = useMemo(() => {
+    const activeTools = [];
+    
+    if (webSearchData) {
+      // Extract search queries from args.queries (the actual search terms used)
+      const queries = (webSearchData.args?.queries || []) as string[];
+      let displayText = '';
+      
+      if (queries.length > 0) {
+        // Show up to 2 search queries with quotes
+        displayText = queries.slice(0, 2).map((q: string) => `"${q}"`).join(', ');
+        if (queries.length > 2) {
+          displayText += ` +${queries.length - 2} more`;
+        }
+      } else {
+        // Fallback: try to get queries from other sources
+        const fallbackQueries = webSearchData.results?.flatMap((r: any) => 
+          r.searches?.map((s: any) => s.query).filter(Boolean) || []
+        ) || [];
+        
+        if (fallbackQueries.length > 0) {
+          const uniqueQueries = [...new Set(fallbackQueries)] as string[];
+          displayText = uniqueQueries.slice(0, 2).map((q: string) => `"${q}"`).join(', ');
+          if (uniqueQueries.length > 2) {
+            displayText += ` +${uniqueQueries.length - 2} more`;
+          }
+        } else {
+          displayText = 'Web search performed';
+        }
+      }
+      
+      activeTools.push({
+        id: 'web-search',
+        name: 'Web Search',
+        icon: <Search size={16} />,
+        status: webSearchData.status || 'completed',
+        displayText
+      });
+    }
+    
+    if (mathCalculationData) {
+      // Extract all calculation expressions to show multiple calculations
+      const steps = mathCalculationData.calculationSteps || [];
+      let displayText = '';
+      
+      if (steps.length > 0) {
+        // Get all expressions without duplicate removal (duplicates don't occur anyway)
+        const expressions = steps
+          .map((step: any) => step.expression)
+          .filter(Boolean);
+        
+        if (expressions.length > 0) {
+          // Show up to 2 expressions with proper formatting
+          if (expressions.length === 1) {
+            displayText = expressions[0].length > 30 ? expressions[0].substring(0, 30) + '...' : expressions[0];
+          } else {
+            const firstExpr = expressions[0].length > 20 ? expressions[0].substring(0, 20) + '...' : expressions[0];
+            const secondExpr = expressions[1].length > 20 ? expressions[1].substring(0, 20) + '...' : expressions[1];
+            displayText = `${firstExpr}, ${secondExpr}`;
+            if (expressions.length > 2) {
+              displayText += ` +${expressions.length - 2} more`;
+            }
+          }
+        } else {
+          displayText = `${steps.length} calculation step${steps.length > 1 ? 's' : ''}`;
+        }
+      } else {
+        displayText = 'Mathematical calculation';
+      }
+      
+      activeTools.push({
+        id: 'calculator',
+        name: 'Calculator',
+        icon: <Calculator size={16} />,
+        status: mathCalculationData.status || 'completed',
+        displayText
+      });
+    }
+    
+    if (linkReaderData) {
+      // Extract URLs and titles from linkAttempts
+      const attempts = linkReaderData.linkAttempts || [];
+      let displayText = '';
+      
+      if (attempts.length > 0) {
+        const validAttempts = attempts.filter((attempt: any) => !attempt.error);
+        
+        if (validAttempts.length > 0) {
+          // Show domain or title of the first successful attempt
+          const attempt = validAttempts[0];
+          const url = attempt.url || '';
+          const title = attempt.title || '';
+          
+          try {
+            const domain = url ? new URL(url).hostname.replace('www.', '') : '';
+            displayText = title && title.length < 30 ? title : domain || url;
+          } catch {
+            displayText = url;
+          }
+        } else {
+          // All attempts failed
+          displayText = `${attempts.length} link${attempts.length > 1 ? 's' : ''} (failed)`;
+        }
+      } else {
+        displayText = 'Link analysis';
+      }
+      
+      activeTools.push({
+        id: 'link-reader',
+        name: 'Link Reader',
+        icon: <Link2 size={16} />,
+        status: linkReaderData.status || (attempts.some((a: any) => !a.error) ? 'completed' : 'error'),
+        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
+      });
+    }
+    
+    if (imageGeneratorData) {
+      // Extract prompts from generated images
+      const images = imageGeneratorData.generatedImages || [];
+      let displayText = '';
+      
+      if (images.length > 0) {
+        const firstImage = images[0];
+        const prompt = firstImage.prompt || '';
+        
+        if (prompt) {
+          // Just show the prompt itself, truncated if too long
+          displayText = prompt.length > 40 ? prompt.substring(0, 40) + '...' : prompt;
+        } else {
+          displayText = `${images.length} image${images.length > 1 ? 's' : ''} generated`;
+        }
+      } else {
+        displayText = 'Image generation';
+      }
+      
+      activeTools.push({
+        id: 'image-generator',
+        name: 'Image Generator',
+        icon: <ImageIcon size={16} />,
+        status: imageGeneratorData.status || 'completed',
+        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
+      });
+    }
+    
+    if (academicSearchData) {
+      // Extract search queries from academic results
+      const results = academicSearchData.academicResults || [];
+      let displayText = '';
+      
+      if (results.length > 0) {
+        const queries = results.map((r: any) => r.query).filter(Boolean);
+        
+        if (queries.length > 0) {
+          // Show first query or combine multiple queries
+          displayText = queries.length === 1 
+            ? `"${queries[0]}"` 
+            : `"${queries[0]}" +${queries.length - 1} more topics`;
+        } else {
+          displayText = `${results.length} academic search${results.length > 1 ? 'es' : ''}`;
+        }
+      } else {
+        displayText = 'Academic research';
+      }
+      
+      activeTools.push({
+        id: 'academic-search',
+        name: 'Academic Search',
+        icon: <BookOpen size={16} />,
+        status: academicSearchData.status || 'completed',
+        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
+      });
+    }
+    
+    if (xSearchData) {
+      // Extract search queries from X results
+      const results = xSearchData.xResults || [];
+      let displayText = '';
+      
+      if (results.length > 0) {
+        const queries = results.map((r: { query: any }) => r.query).filter(Boolean);
+        
+        if (queries.length > 0) {
+          displayText = queries.length === 1 
+            ? `"${queries[0]}"` 
+            : `"${queries[0]}" +${queries.length - 1} more`;
+        } else {
+          displayText = `${results.length} X search${results.length > 1 ? 'es' : ''}`;
+        }
+      } else {
+        displayText = 'X/Twitter search';
+      }
+      
+      activeTools.push({
+        id: 'x-search',
+        name: 'X Search',
+        icon: <XLogo size={16} />,
+        status: xSearchData.status || 'completed',
+        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
+      });
+    }
+    
+    if (youTubeSearchData) {
+      // Extract search queries from YouTube results
+      const results = youTubeSearchData.youtubeResults || [];
+      let displayText = '';
+      
+      if (results.length > 0) {
+        const queries = results.map((r: { query: any }) => r.query).filter(Boolean);
+        
+        if (queries.length > 0) {
+          displayText = queries.length === 1 
+            ? `"${queries[0]}"` 
+            : `"${queries[0]}" +${queries.length - 1} more`;
+        } else {
+          displayText = `${results.length} YouTube search${results.length > 1 ? 'es' : ''}`;
+        }
+      } else {
+        displayText = 'YouTube search';
+      }
+      
+      activeTools.push({
+        id: 'youtube-search',
+        name: 'YouTube Search',
+        icon: <YouTubeLogo size={16} />,
+        status: youTubeSearchData.status || 'completed',
+        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
+      });
+    }
+    
+    if (youTubeLinkAnalysisData) {
+      // Extract video titles or details from analysis results
+      const results = youTubeLinkAnalysisData.analysisResults || [];
+      let displayText = '';
+      
+      if (results.length > 0) {
+        const firstResult = results[0];
+        
+        if (firstResult.error) {
+          displayText = 'Analysis failed';
+        } else {
+          const title = firstResult.details?.title || '';
+          const channel = firstResult.channel?.name || '';
+          
+          if (title) {
+            displayText = title;
+          } else if (channel) {
+            displayText = `Video from ${channel}`;
+          } else {
+            displayText = 'YouTube video analyzed';
+          }
+        }
+      } else {
+        displayText = 'YouTube analysis';
+      }
+      
+      activeTools.push({
+        id: 'youtube-analyzer',
+        name: 'YouTube Analyzer',
+        icon: <Youtube size={16} />,
+        status: youTubeLinkAnalysisData.status || (results.some((r: { error: any }) => !r.error) ? 'completed' : 'error'),
+        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
+      });
+    }
+    
+    return activeTools;
+  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, academicSearchData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData]);
+  
+  if (tools.length === 0) return null;
+  
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'processing':
+      case 'loading':
+        return 'text-amber-400';
+      case 'completed':
+      case 'success':
+        return 'text-green-400';
+      case 'error':
+      case 'failed':
+        return 'text-red-400';
+      default:
+        return 'text-blue-400';
+    }
+  };
+  
+  const getStatusIndicator = (status: string) => {
+    switch (status) {
+      case 'processing':
+      case 'loading':
+        return (
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+          </span>
+        );
+      case 'completed':
+      case 'success':
+        return (
+          <span className="relative flex h-2 w-2">
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+          </span>
+        );
+      case 'error':
+      case 'failed':
+        return (
+          <span className="relative flex h-2 w-2">
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+          </span>
+        );
+      default:
+        return (
+          <span className="relative flex h-2 w-2">
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+          </span>
+        );
+    }
+  };
+  
+  return (
+    <div className="mb-6 p-4 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[color-mix(in_srgb,var(--foreground)_8%,transparent)] to-[color-mix(in_srgb,var(--foreground)_4%,transparent)] flex items-center justify-center">
+            <Monitor className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
+          </div>
+          <div>
+            <h3 className="font-medium text-sm tracking-tight">Canvas Preview</h3>
+            <p className="text-xs text-[var(--muted)] mt-0.5">{tools.length} tool{tools.length > 1 ? 's' : ''} executed</p>
+          </div>
+        </div>
+        <button
+          onClick={() => togglePanel && togglePanel(messageId, 'canvas')}
+          className="flex items-center gap-2 px-3 py-1.5 text-xs bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)] rounded-lg transition-colors"
+        >
+          <span>View Details</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M7 17 17 7" />
+            <path d="M7 7h10v10" />
+          </svg>
+        </button>
+      </div>
+      
+      <div className="grid gap-3">
+        {tools.map((tool, index) => (
+          <div
+            key={tool.id}
+            className="flex items-center gap-3 p-3 bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] rounded-lg min-w-0"
+          >
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex-shrink-0">
+              {tool.icon}
+            </div>
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <div className="flex items-center gap-2 mb-1 min-w-0">
+                <span className="text-sm font-medium truncate">{tool.name}</span>
+                <div className="flex-shrink-0">
+                  {getStatusIndicator(tool.status)}
+                </div>
+              </div>
+              <div className="text-xs text-[var(--muted)] truncate">
+                {tool.displayText}
+              </div>
+            </div>
+            <div className={`text-xs font-medium flex-shrink-0 max-w-[80px] sm:max-w-none truncate ${getStatusColor(tool.status)}`}>
+              <span className="hidden sm:inline">
+                {tool.status === 'processing' || tool.status === 'loading' ? 'Processing' : 
+                 tool.status === 'completed' || tool.status === 'success' ? 'Complete' :
+                 tool.status === 'error' || tool.status === 'failed' ? 'Failed' : 'Ready'}
+              </span>
+              <span className="sm:hidden">
+                {tool.status === 'processing' || tool.status === 'loading' ? 'Processing' : 
+                 tool.status === 'completed' || tool.status === 'success' ? 'Complete' :
+                 tool.status === 'error' || tool.status === 'failed' ? 'Error' : 'Ready'}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 });
 
 export { Message }; 

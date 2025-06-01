@@ -11,6 +11,7 @@ import {
   LineElement,
   ArcElement,
   RadialLinearScale,
+  LogarithmicScale,
   // BubbleController, // Import if explicitly needed and available
 } from 'chart.js';
 import React from 'react';
@@ -26,7 +27,8 @@ ChartJS.register(
   PointElement,
   LineElement,
   ArcElement,
-  RadialLinearScale
+  RadialLinearScale,
+  LogarithmicScale
   // BubbleController // Register if needed
 );
 

@@ -88,6 +88,24 @@ function escapeCurrencyDollars(text: string): string {
   return text.replace(currencyRegex, '&#36;$1');
 }
 
+// Pollination 이미지 URL에 nologo 옵션 추가하는 함수
+function ensureNoLogo(url: string): string {
+  if (!url.includes('image.pollinations.ai')) return url;
+  
+  try {
+    const urlObj = new URL(url);
+    // nologo 파라미터가 없으면 추가
+    if (!urlObj.searchParams.has('nologo')) {
+      urlObj.searchParams.set('nologo', 'true');
+    }
+    return urlObj.toString();
+  } catch (error) {
+    // URL 파싱에 실패하면 원본 반환
+    console.warn('Failed to parse pollinations URL:', url);
+    return url;
+  }
+}
+
 interface MarkdownContentProps {
   content: string;
 }
@@ -352,12 +370,13 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
       
       const imageUrl = match[1];
       const decodedUrl = decodeURIComponent(imageUrl);
+      const urlWithNoLogo = ensureNoLogo(decodedUrl);
       
       parts.push({
         type: 'image_link',
         key: match.index,
-        url: decodedUrl,
-        display: decodedUrl
+        url: urlWithNoLogo,
+        display: urlWithNoLogo
       });
       
       lastIndex = match.index + match[0].length;
@@ -426,17 +445,18 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
         if (match) {
           const [fullMatch, altText, imageUrl] = match;
           const decodedUrl = decodeURIComponent(imageUrl);
+          const urlWithNoLogo = ensureNoLogo(decodedUrl);
           
           return (
             <div className="my-4">
               <a 
-                href={decodedUrl} 
+                href={urlWithNoLogo} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="block"
               >
                 <ImageWithLoading 
-                  src={decodedUrl} 
+                  src={urlWithNoLogo} 
                   alt={altText || "Generated image"} 
                   className="rounded-lg max-w-full hover:opacity-90 transition-opacity cursor-pointer border border-[var(--accent)] shadow-md" 
                 />
@@ -453,17 +473,18 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
         if (rawMatch) {
           const [, imageUrl] = rawMatch;
           const decodedUrl = decodeURIComponent(imageUrl);
+          const urlWithNoLogo = ensureNoLogo(decodedUrl);
           
           return (
             <div className="my-4">
               <a 
-                href={decodedUrl} 
+                href={urlWithNoLogo} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="block"
               >
                 <ImageWithLoading 
-                  src={decodedUrl} 
+                  src={urlWithNoLogo} 
                   alt="Generated image" 
                   className="rounded-lg max-w-full hover:opacity-90 transition-opacity cursor-pointer border border-[var(--accent)] shadow-md" 
                 />
@@ -518,15 +539,17 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
     img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
       // Agent 도구에서 생성된 이미지 URL을 처리합니다
       if (src && (src.includes('image.pollinations.ai'))) {
+        const urlWithNoLogo = ensureNoLogo(src);
+        
         return (
           <a 
-            href={src} 
+            href={urlWithNoLogo} 
             target="_blank" 
             rel="noopener noreferrer"
             className="block my-4"
           >
             <ImageWithLoading 
-              src={src} 
+              src={urlWithNoLogo} 
               alt={alt || "Generated image"} 
               className="rounded-lg max-w-full hover:opacity-90 transition-opacity cursor-pointer border border-[var(--accent)] shadow-md" 
               {...props}
@@ -580,7 +603,6 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
       }
       
       if (language === 'chartjs') {
-        console.log('[Chart Debug] Detected chartjs code block, raw text:', codeText);
         
         // Function to check if JSON is complete (not a streaming fragment)
         const isCompleteJSON = (text: string): boolean => {
@@ -630,7 +652,6 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
         
         // Check if the JSON is complete before parsing
         if (!isCompleteJSON(codeText)) {
-          console.log('[Chart Debug] Incomplete JSON detected, showing loading state');
           return (
             <div className="my-6 chartjs-container bg-[var(--card-bg)] p-4 rounded-lg shadow-lg overflow-hidden">
               <div className="flex items-center justify-center h-[300px] w-full">
@@ -645,13 +666,27 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
         
         // Function to safely parse both JSON and JavaScript object literals
         const parseChartConfig = (text: string): { success: boolean; config?: any; error?: string } => {
+          // First, check for problematic patterns that should be rejected
+          const problematicPatterns = [
+            /callback[s]?\s*:\s*["\'][^"\']*function\s*\([^)]*\)[^"\']*["\']/gi,  // Callback functions
+            /["\'][^"\']*\\(?!["\'\\\/bfnrt]|u[0-9a-fA-F]{4})[^"\']*["\']/g,       // Invalid escape sequences
+            /["\'][^"\']*\\\s*\n[^"\']*["\']/g,                                      // Line continuation in strings
+          ];
+          
+          for (const pattern of problematicPatterns) {
+            if (pattern.test(text)) {
+              return { 
+                success: false, 
+                error: 'Chart configuration contains unsupported patterns (functions, invalid escapes, or line continuations). Please use simple, static configurations only.' 
+              };
+            }
+          }
+          
           // First try standard JSON parsing
           try {
             const config = JSON.parse(text);
-            console.log('[Chart Debug] Standard JSON parsing succeeded');
             return { success: true, config };
           } catch (jsonError) {
-            console.log('[Chart Debug] Standard JSON parsing failed, trying to fix JavaScript object literal format');
             
             // Try to convert JavaScript object literal to valid JSON
             try {
@@ -660,17 +695,17 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
               let fixedText = text
                 // Handle unquoted property names (e.g., type: -> "type":)
                 .replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":')
-                // Handle single quotes around string values
-                .replace(/'([^']*)'/g, '"$1"')
+                // Handle single quotes around string values (but be careful with escaped quotes)
+                .replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, '"$1"')
                 // Handle trailing commas (remove them)
                 .replace(/,(\s*[}\]])/g, '$1')
                 // Handle JavaScript comments (remove them)
                 .replace(/\/\/.*$/gm, '')
-                .replace(/\/\*[\s\S]*?\*\//g, '');
+                .replace(/\/\*[\s\S]*?\*\//g, '')
+                // Clean up any remaining problematic escapes
+                .replace(/\\(?!["\\\/bfnrt]|u[0-9a-fA-F]{4})/g, '\\\\');
                 
-              console.log('[Chart Debug] Fixed text:', fixedText);
               const config = JSON.parse(fixedText);
-              console.log('[Chart Debug] JavaScript object literal conversion succeeded');
               return { success: true, config };
             } catch (fixError) {
               const jsonErrorMsg = jsonError instanceof Error ? jsonError.message : 'Unknown JSON error';
@@ -688,11 +723,9 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
         
         if (parseResult.success && parseResult.config) {
           const chartConfig = parseResult.config;
-          console.log('[Chart Debug] Parsed config successfully:', chartConfig);
           
           // Validate chart configuration structure
           if (typeof chartConfig === 'object' && chartConfig !== null && typeof chartConfig.type === 'string' && typeof chartConfig.data === 'object' && chartConfig.data !== null) {
-            console.log('[Chart Debug] Chart config validation passed, rendering chart');
             return (
               <div className="my-6 chartjs-container bg-[var(--card-bg)] p-4 rounded-lg shadow-lg overflow-hidden">
                 <DynamicChart chartConfig={chartConfig} />

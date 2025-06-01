@@ -184,11 +184,6 @@ export default function Chat({ params }: PageProps) {
     }
   });
 
-  // Check if conversation exceeds maximum length
-  const isConversationTooLong = useMemo(() => {
-    return messages.length > 30;
-  }, [messages.length]);
-
   // Determine whether to use virtualization based on message count
   // const useVirtualization = useMemo(() => {
   //   if (typeof window !== 'undefined' && window.innerWidth < 768) {
@@ -264,12 +259,27 @@ export default function Chat({ params }: PageProps) {
     // 스크롤바 숨기는 스타일을 적용할 스타일시트 추가
     const style = document.createElement('style');
     style.textContent = `
-      .scrollbar-hide::-webkit-scrollbar {
-        display: none;
+      .scrollbar-minimal::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
       }
-      .scrollbar-hide {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
+      .scrollbar-minimal::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .scrollbar-minimal::-webkit-scrollbar-thumb {
+        background: color-mix(in srgb, var(--foreground) 15%, transparent);
+        border-radius: 3px;
+        transition: background 0.2s ease;
+      }
+      .scrollbar-minimal::-webkit-scrollbar-thumb:hover {
+        background: color-mix(in srgb, var(--foreground) 25%, transparent);
+      }
+      .scrollbar-minimal {
+        scrollbar-width: thin;
+        scrollbar-color: color-mix(in srgb, var(--foreground) 15%, transparent) transparent;
+      }
+      .scrollbar-minimal:hover {
+        scrollbar-color: color-mix(in srgb, var(--foreground) 25%, transparent) transparent;
       }
     `;
     document.head.appendChild(style);
@@ -724,9 +734,6 @@ export default function Chat({ params }: PageProps) {
   const handleModelSubmit = useCallback(async (e: React.FormEvent, files?: FileList) => {
     e.preventDefault();
     
-    // 디버깅: 폼 제출 시 웹 검색 상태 출력
-    // console.log('[Debug] Chat page - handleModelSubmit called with Agent:', isAgentEnabled);
-    
     if (nextModel !== currentModel) {
       const success = await handleModelChange(nextModel)
       if (!success) {
@@ -743,7 +750,13 @@ export default function Chat({ params }: PageProps) {
         console.log('[Debug] Uploaded attachments:', attachments)
       } catch (error) {
         console.error('Failed to upload files:', error)
-        return
+        // 파일 업로드 실패 시에도 텍스트가 있으면 전송 계속
+        if (!input?.trim()) {
+          console.error('No text content and file upload failed. Aborting message submission.')
+          return
+        }
+        console.warn('File upload failed, proceeding with text-only message')
+        attachments = []
       }
     }
 
@@ -1164,7 +1177,7 @@ export default function Chat({ params }: PageProps) {
         }
 
         const summaryInput = `User: ${firstUserMsg.content}\nAssistant: ${firstAssistantMsg.content}`;
-        console.log('[Debug] Attempting to summarize (Agent aware) with FULL input:', summaryInput);
+        // console.log('[Debug] Attempting to summarize (Agent aware) with FULL input:', summaryInput);
         const res = await fetch('/api/chat/summarize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1228,7 +1241,7 @@ export default function Chat({ params }: PageProps) {
           <div 
             className={`overflow-y-auto pb-4 sm:pb-4 mx-auto max-w-3xl w-full 
               ${activePanel?.messageId ? 'sm:w-2/6' : ''} 
-              ${hideScrollbarClass}
+              scrollbar-minimal
               transition-all duration-300 ease-in-out`}
             style={{ height: '100%' }}
           >
@@ -1273,7 +1286,7 @@ export default function Chat({ params }: PageProps) {
                             onCopy={handleCopyMessage}
                             onEditStart={handleEditStart}
                             onEditCancel={handleEditCancel}
-                            onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
+                            onEditSave={(messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => handleEditSave(messageId, currentModel, messages, setMessages, reload, files, remainingAttachments)}
                             setEditingContent={setEditingContent}
                             chatId={chatId}
                             isStreaming={isLoading && message.role === 'assistant' && message.id === messages[messages.length - 1]?.id}
@@ -1374,7 +1387,7 @@ export default function Chat({ params }: PageProps) {
                           onCopy={handleCopyMessage}
                           onEditStart={handleEditStart}
                           onEditCancel={handleEditCancel}
-                          onEditSave={(messageId: string) => handleEditSave(messageId, currentModel, messages, setMessages, reload)}
+                          onEditSave={(messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => handleEditSave(messageId, currentModel, messages, setMessages, reload, files, remainingAttachments)}
                           setEditingContent={setEditingContent}
                           chatId={chatId}
                           isStreaming={isLoading && message.role === 'assistant' && message.id === messages[messages.length - 1]?.id}
@@ -1456,7 +1469,7 @@ export default function Chat({ params }: PageProps) {
               overflow-y-auto z-0 
               transition-all duration-300 ease-in-out transform 
               ${activePanel?.messageId ? 'translate-x-0 opacity-100 sm:max-w-[66.666667%]' : 'translate-x-full sm:translate-x-0 sm:max-w-0 sm:opacity-0 sm:overflow-hidden'} 
-              ${hideScrollbarClass}`}
+              scrollbar-minimal`}
             style={{ 
               height: 'calc(100vh - 60px)',
               maxHeight: '100%'
@@ -1562,14 +1575,8 @@ export default function Chat({ params }: PageProps) {
 
       <div className="fixed inset-x-0 bottom-0 z-10 w-full">
         <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-0 pb-6 w-full">
-          <div className="max-w-2xl mx-auto w-full px-6 sm:px-8 relative flex flex-col items-center">
+          <div className="max-w-3xl mx-auto w-full px-6 sm:px-8 relative flex flex-col items-center">
             <div className="w-full max-w-[calc(100vw-2rem)]">
-              {/* {isConversationTooLong && (
-                <div className="p-3 text-center text-[var(--foreground-secondary)] backdrop-blur-md text-sm sm:text-base rounded-md">
-                  Hmm, I might be forgetting our earlier conversation. <br />
-                  Want to start a <a href="/" className="text-blue-500 hover:underline">fresh chat</a> for better results? 😊
-                </div>
-              )} */}
               <ModelSelector
                 currentModel={currentModel}
                 nextModel={nextModel}

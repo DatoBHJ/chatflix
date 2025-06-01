@@ -249,6 +249,60 @@ export function useChatInputStyles() {
           background-color: color-mix(in srgb, var(--foreground) 10%, transparent);
           transform: translateY(-1px);
         }
+        
+        /* Agent dropdown styles */
+        .agent-dropdown {
+          backdrop-filter: blur(16px);
+          border: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
+          animation: slideUpFadeIn 0.2s ease-out;
+          transform-origin: bottom left;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        }
+        
+        .agent-dropdown::before {
+          content: '';
+          position: absolute;
+          bottom: -6px;
+          left: 20px;
+          width: 0;
+          height: 0;
+          border-left: 6px solid transparent;
+          border-right: 6px solid transparent;
+          border-top: 6px solid color-mix(in srgb, var(--foreground) 10%, transparent);
+        }
+        
+        .agent-dropdown::after {
+          content: '';
+          position: absolute;
+          bottom: -5px;
+          left: 21px;
+          width: 0;
+          height: 0;
+          border-left: 5px solid transparent;
+          border-right: 5px solid transparent;
+          border-top: 5px solid var(--accent);
+        }
+        
+        @keyframes slideUpFadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        
+        /* Agent dropdown button states */
+        .agent-dropdown button:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .agent-dropdown button:active:not(:disabled) {
+          transform: translateY(0);
+        }
       `;
       document.head.appendChild(styleEl);
     }

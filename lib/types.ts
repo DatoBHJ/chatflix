@@ -38,12 +38,33 @@ export interface ChatSession {
   current_model?: string;
 }
 
+// 파일 메타데이터 인터페이스
+export interface FileMetadata {
+  // 공통 메타데이터
+  fileSize: number;
+  estimatedTokens?: number;
+  
+  // 이미지 메타데이터
+  width?: number;
+  height?: number;
+  format?: string; // jpeg, png, gif, etc.
+  
+  // PDF 메타데이터
+  pageCount?: number;
+  hasImages?: boolean; // PDF 내부에 이미지가 있는지
+  
+  // 텍스트/코드 파일 메타데이터
+  lineCount?: number;
+  characterCount?: number;
+}
+
 export interface Attachment {
   name?: string;
   contentType?: string;
   url: string;
   path?: string;
   fileType?: 'image' | 'code' | 'pdf' | 'file';
+  metadata?: FileMetadata;
 }
 
 export interface DatabaseMessage {

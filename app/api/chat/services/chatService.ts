@@ -68,6 +68,24 @@ Correct format:
 }
 \`\`\`
 
+**IMPORTANT RESTRICTIONS FOR CHART CREATION:**
+- **NEVER use callback functions in tooltip, scales, or any other options**
+- **AVOID complex JavaScript functions inside JSON - they cannot be parsed**
+- **Use simple, static configurations only**
+- **For tooltips, rely on Chart.js default formatting - it's sufficient for most cases**
+
+**FORBIDDEN PATTERNS (will cause parsing errors):**
+❌ "callbacks": { "label": "function(context) { ... }" }
+❌ "callback": "function(value) { return ['A', 'B'][value]; }"
+❌ Any string containing backslashes like "text with \\\\ backslash"
+❌ Multi-line strings with \\ line continuation
+
+**SAFE ALTERNATIVE APPROACHES:**
+✅ Use default Chart.js tooltips (no custom callbacks needed)
+✅ Use simple static labels: "labels": ["Category A", "Category B", "Category C"]
+✅ Use basic title and legend configurations without functions
+✅ Rely on Chart.js automatic formatting for most data displays
+
 Supported chart types: bar, line, pie, doughnut, radar, scatter, bubble, polararea
 
 ## Mathematical Expressions Guidelines
@@ -98,14 +116,33 @@ If the user asks for capabilities beyond your current abilities as a regular cha
 Chatflix Agent mode is a more advanced mode that enables web searches, summarizing YouTube videos, viewing social media posts, image generation, calculations, reading web pages, or data processing.
 
 ## Language Response Guideline
-**IMPORTANT: Always answer in the user's language (e.g., Korean for Korean queries, etc.).**`,
+**IMPORTANT: Always answer in the user's language **`,
 
-    userProfileGuidelines: `When using the USER PROFILE CONTEXT:
+userProfileGuidelines: `## User Profile Response Guidelines
+
+### When User Asks About Themselves:
+
+**If USER PROFILE CONTEXT is available and comprehensive:**
+- Provide detailed, specific answers based on the profile information
+- Reference specific interests, preferences, conversation history, and behavioral patterns
+- Use concrete examples from their past interactions and stated preferences
+- Be thorough and personalized in your response
+
+**If USER PROFILE CONTEXT is limited or unavailable:**
+- Answer honestly with what little information you have
+- Clearly state that you don't have enough information about them yet
+- Invite them to share more about themselves through continued conversation
+- Express genuine interest in learning more about them
+- Suggest they can tell you about their interests, preferences, or background
+
+### General Profile Usage Guidelines:
 1. Adapt your communication style based on the user's preferences
 2. Reference relevant interests and previous conversations when appropriate
 3. Tailor explanations to match their expertise level
 4. Consider their interaction patterns and emotional responses
-5. Support their learning journey and goals`
+5. Support their learning journey and goals
+`
+
   },
   
   agent: {
@@ -179,6 +216,25 @@ Correct format:
 }
 \`\`\`
 
+**IMPORTANT RESTRICTIONS FOR CHART CREATION:**
+- **NEVER use callback functions in tooltip, scales, or any other options**
+- **AVOID complex JavaScript functions inside JSON - they cannot be parsed**
+- **Use simple, static configurations only**
+- **For tooltips, rely on Chart.js default formatting - it's sufficient for most cases**
+- **If custom formatting is needed, use simple string templates, NOT functions**
+
+**FORBIDDEN PATTERNS (will cause parsing errors):**
+❌ "callbacks": { "label": "function(context) { ... }" }
+❌ "callback": "function(value) { return ['A', 'B'][value]; }"
+❌ Any string containing backslashes like "text with \\\\ backslash"
+❌ Multi-line strings with \\ line continuation
+
+**SAFE ALTERNATIVE APPROACHES:**
+✅ Use default Chart.js tooltips (no custom callbacks needed)
+✅ Use simple static labels: "labels": ["Category A", "Category B", "Category C"]
+✅ Use basic title and legend configurations without functions
+✅ Rely on Chart.js automatic formatting for most data displays
+
 Supported chart types: bar, line, pie, doughnut, radar, scatter, bubble, polararea
 
 **Advanced Chart Usage Tips for Agent Mode:**
@@ -211,14 +267,32 @@ IMPORTANT: If the user expresses dissatisfaction with your results or process, s
 3. Offer to try again with a different model or method
 
 ## Language Response Guideline
-**IMPORTANT: Always answer in the user's language (e.g., Korean for Korean queries, etc.).**`,
+**IMPORTANT: Always answer in the user's language **`,
     
-    userProfileGuidelines: `When using the USER PROFILE CONTEXT:
+userProfileGuidelines: `## User Profile Response Guidelines
+
+### When User Asks About Themselves:
+
+**If USER PROFILE CONTEXT is available and comprehensive:**
+- Provide detailed, specific answers based on the profile information
+- Reference specific interests, preferences, conversation history, and behavioral patterns
+- Use concrete examples from their past interactions and stated preferences
+- Be thorough and personalized in your response
+
+**If USER PROFILE CONTEXT is limited or unavailable:**
+- Answer honestly with what little information you have
+- Clearly state that you don't have enough information about them yet
+- Invite them to share more about themselves through continued conversation
+- Express genuine interest in learning more about them
+- Suggest they can tell you about their interests, preferences, or background
+
+### General Profile Usage Guidelines:
 1. Adapt your communication style based on the user's preferences
 2. Reference relevant interests and previous conversations when appropriate
 3. Tailor explanations to match their expertise level
 4. Consider their interaction patterns and emotional responses
-5. Support their learning journey and goals`,
+5. Support their learning journey and goals
+`,
     
     toolGuidelines: `TOOL EXECUTION AND RESPONSE CREATION GUIDELINES
 When using tools, maintain a natural conversational flow while gathering information:
@@ -238,7 +312,7 @@ IMPORTANT TOOL USAGE GUIDELINES:
 - Keep calling tools until you've gathered ALL information needed for an optimal answer
 - Avoid formal headings like "PLAN:" or "RESULT:" - just flow naturally
 - Communicate like a helpful person would, not like a robot following strict steps
-- Maintain the user's language throughout (Korean for Korean queries, etc.)
+- Maintain the user's language throughout
 
 RESPONSE CREATION GUIDELINES:
 - After gathering all information, follow the specific workflow mode instructions for creating your response
@@ -560,6 +634,25 @@ export const handleStreamCompletion = async (
   // Check if model is the original chatflix-ultimate
   const originalModel = extraData.original_model || model;
 
+  // 🆕 토큰 사용량 정보 처리
+  let toolResults = extraData.tool_results || {};
+  if (extraData.token_usage) {
+    // 토큰 사용량을 tool_results에 추가
+    toolResults = {
+      ...toolResults,
+      token_usage: extraData.token_usage
+    };
+    
+    // 로그 출력
+    console.log('💾 [DATABASE] Saving token usage to database:', {
+      messageId,
+      promptTokens: extraData.token_usage.promptTokens,
+      completionTokens: extraData.token_usage.completionTokens,
+      totalTokens: extraData.token_usage.totalTokens,
+      model: originalModel
+    });
+  }
+
   // 데이터베이스 업데이트
   await supabase
     .from('messages')
@@ -569,7 +662,7 @@ export const handleStreamCompletion = async (
       model: originalModel,
       host: provider,
       created_at: new Date().toISOString(),
-      tool_results: extraData.tool_results || null
+      tool_results: Object.keys(toolResults).length > 0 ? toolResults : null
     })
     .eq('id', messageId)
     .eq('user_id', userId);

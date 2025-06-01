@@ -29,6 +29,7 @@ export interface ModelConfig {
   intelligenceIndex?: number; // Artificial Analysis Intelligence Index: Combination metric covering multiple dimensions of intelligence - the simplest way to compare how smart models are. Version 2 was released in Feb '25 and includes: MMLU_Pro-Pro, GPQA Diamond, HLE's Last Exam, LiveCodeBench, SciCode, AIME, MATH-500. See Intelligence Index methodology for further details, including a breakdown of each evaluation and how we run them.
   multilingual?: number
   latency?: number; // Seconds to First Answer Token Received; Accounts for Reasoning Model 'Thinking' time
+  maxOutputTokens?: number; // Max output tokens for the model
 }
 
 // Default model configuration
@@ -276,7 +277,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   rateLimit: {
     level: 'level5',
   },
-  isNew: true,
   isEnabled: true,
   isActivated: true,
   isAgentEnabled: true,
@@ -337,8 +337,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isActivated: true,
     isAgentEnabled: true,
     contextWindow: 131072,
-    // tps: 67, 
     intelligenceIndex: 66,
+    maxOutputTokens: 16000,
   },
   {
     id: 'grok-3-mini',
@@ -346,7 +346,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'Feb 2025',
     abbreviation: 'G3M-H',
     country: 'US',
-    // description: 'Grok 3 Mini',
     provider: 'xai',
     supportsVision: false,
     censored: false,
@@ -362,9 +361,9 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isActivated: true,
     isAgentEnabled: true,
     contextWindow: 131072,
-    // tps: 67, 
     intelligenceIndex: 66,
     latency: 32.4,
+    maxOutputTokens: 16000,
   },
     // Grok 3 
     {
@@ -381,14 +380,13 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level2',
     },
-    // isHot: true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
     isAgentEnabled: true,
     contextWindow: 131072,
-    // tps: 67, 
     intelligenceIndex: 50,
+    maxOutputTokens: 16000,
   },
     // Grok 3 
     {
@@ -397,22 +395,20 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'Feb 2025',
     abbreviation: 'G3',
     country: 'US',
-    // description: 'High-speed version of Grok 3',
     provider: 'xai',
     supportsVision: false,
     censored: false,
     rateLimit: {
       level: 'level2',
     },
-    // isHot: true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
     isAgentEnabled: true,
     contextWindow: 131072,
-    // tps: 67, 
     intelligenceIndex: 50,
     latency: 0.4,
+    maxOutputTokens: 16000,
   },
   // Claude 4 Sonnet (Thinking)
   {
@@ -421,7 +417,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'Mar 2025',
     abbreviation: 'CS4-T',
     country: 'US',
-    // description: "Anthropic's most intelligent model yet with extended thinking capability.",
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
@@ -429,7 +424,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     },
     supportsPDFs: true,
     censored: true,
-    isNew: true,
     isEnabled: true,
     isActivated: true,
     isAgentEnabled: true,
@@ -443,6 +437,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     intelligenceIndex: 57,
     tps: 82,
     latency: 25.6,
+    maxOutputTokens: 64000,
   },
   // Claude 4 Sonnet 
   {
@@ -451,7 +446,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'Mar 2025',
     abbreviation: 'CS4',
     country: 'US',
-    // description: "Anthropic's most intelligent model.",
     provider: 'anthropic',
     supportsVision: true,
     supportsPDFs: true,
@@ -461,12 +455,12 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     },
     isAgentEnabled: true,
     isEnabled: true,
-    isNew: true,
     isActivated: true,
     contextWindow: 200000,
     intelligenceIndex: 53,
     tps: 82,
     latency: 1.4,
+    maxOutputTokens: 64000,
   },
   // Claude 3.7 Sonnet (Thinking)
   {
@@ -475,7 +469,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'Oct 2024',
     abbreviation: 'CS3.7-T',
     country: 'US',
-    // description: "Anthropic's most intelligent model yet with extended thinking capability.",
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
@@ -496,6 +489,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 78,
     intelligenceIndex: 57,
     latency: 14.9,
+    maxOutputTokens: 64000,
   },
   // Claude 3.7 Sonnet 
   {
@@ -504,7 +498,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'Oct 2024',
     abbreviation: 'CS3.7',
     country: 'US',
-    // description: "Anthropic's most intelligent model.",
     provider: 'anthropic',
     supportsVision: true,
     supportsPDFs: true,
@@ -513,13 +506,13 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level4',
     },
     isAgentEnabled: true,
-    // isHot: true,
     isEnabled: true,
     isActivated: true,
     contextWindow: 200000,
     tps: 78,
     intelligenceIndex: 48,
     latency: 1.8,
+    maxOutputTokens: 32000,
   },
   // GPT-4.1
   {
@@ -528,10 +521,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'Jun 2024',
     abbreviation: 'G4.1',
     country: 'US',
-    // description: 'Flagship GPT model for complex tasks. Well suited for problem solving across domains.',
     provider: 'openai',
     supportsVision: true,
-    // censored: true,
     rateLimit: {
       level: 'level5',
     },
@@ -542,8 +533,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 1047576,
     tps: 84,
     intelligenceIndex: 53,
-    // multilingual: 80
     latency: 0.5,
+    maxOutputTokens: 32768,
   },
   // GPT-4.1 Mini
   {
@@ -552,10 +543,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'Jun 2024',
     abbreviation: 'G4.1M',
     country: 'US',
-    // description: 'Balanced for intelligence and speed. Well suited for general tasks.',
     provider: 'openai',
     supportsVision: true,
-    // censored: true,
     rateLimit: {
       level: 'level1',
     },
@@ -566,8 +555,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 1047576,
     tps: 84,
     intelligenceIndex: 53,
-    // multilingual: 80
     latency: 0.6,
+    maxOutputTokens: 32000,
   },
   {
     id: 'gpt-4.1-nano',
@@ -575,10 +564,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'Jun 2024',
     abbreviation: 'G4.1N',
     country: 'US',
-    // description: 'Balanced for intelligence and speed. Well suited for general tasks.',
     provider: 'openai',
     supportsVision: true,
-    // censored: true,
     rateLimit: {
       level: 'level1',
     },
@@ -589,8 +576,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 1047576,
     tps: 228,
     intelligenceIndex: 41,
-    // multilingual: 80
     latency: 0.3,
+    maxOutputTokens: 32000,
   },
    // ChatGPT-4o (Nov '24)
    {
@@ -599,7 +586,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'Oct 2023',
     abbreviation: 'CG4o',
     country: 'US',
-    // description: 'GPT-4o model used in ChatGPT',
     provider: 'openai',
     supportsVision: true,
     rateLimit: {
@@ -613,6 +599,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 174,
     intelligenceIndex: 50,
     latency: 0.5,
+    maxOutputTokens: 16384,
   },
   // GPT-4o (Nov '24)
   {
@@ -621,7 +608,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     abbreviation: 'G4o',
     country: 'US',
     cutoff: 'Oct 2023',
-    // description: 'Fast, intelligent, flexible GPT model',
     provider: 'openai',
     supportsVision: true,
     rateLimit: {
@@ -636,6 +622,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     intelligenceIndex: 41,
     multilingual: 84,
     latency: 0.5,
+    maxOutputTokens: 65536,
   },
   // o4-Mini (Thinking)
   {
@@ -644,7 +631,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'Jun 2024',
     abbreviation: "o4M-H",
     country: 'US',
-    // description: "Openai's latest small o-series model. Reasoning tokens used in its chain-of-thought process are hidden and not included in the visible output.",
     provider: "openai",
     supportsVision: true,
     rateLimit: {
@@ -653,8 +639,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     reasoning: {
       enabled: true,
       provider: 'openai',
+      baseModelId: 'o4-mini',
     },
-    // censored:true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -663,6 +649,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 150,
     intelligenceIndex: 70,
     latency: 35.7,
+    maxOutputTokens: 24576,
   },
   // o3 (Thinking)
   // {
@@ -696,7 +683,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'June 2024',
     abbreviation: 'QwQ-T',
     country: 'CHINA',
-    // description: "Developed by Qwen hosted by Groq. Capable of achieving competitive performance against state-of-the-art reasoning models, e.g., DeepSeek-R1, o1-mini",
     provider: 'groq',
     supportsVision: false,
     rateLimit: {
@@ -714,6 +700,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 131000,
     tps: 399,
     intelligenceIndex: 58,
+    maxOutputTokens: 32768,
   },
   // Gemini 2.5 Pro Preview 03-25 (Thinking)
   {
@@ -725,7 +712,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     description: 'Note: Fast response times with occasional latency due to hidden reasoning tokens that may make responses appear slower.',
     provider: 'google',
     supportsVision: true,
-    // censored: false,
     rateLimit: {
       level: 'level4',
     },
@@ -737,6 +723,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 159,
     intelligenceIndex: 69,
     latency: 33.9,
+    maxOutputTokens: 65536,
   },
   // {
   //   id: 'gemini-2.5-pro-preview-03-25',
@@ -767,10 +754,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'Jan 2025',
     abbreviation: 'Gem2.5F-T',
     country: 'US',
-    // description: 'Latest 2.5 flash model with 1m context window by Google. Reasoning tokens used in its chain-of-thought process are not included in the visible output.',
     provider: 'google',
     supportsVision: true,
-    // censored: false,
     rateLimit: {
       level: 'level4',
     },
@@ -782,6 +767,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 258,
     intelligenceIndex: 48,
     latency: 15.1,
+    maxOutputTokens: 65535,
   },
   // Gemini 2.0 Flash
   {
@@ -790,10 +776,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'Aug 2024',
     abbreviation: 'Gem2.0F',
     country: 'US',
-    // description: 'Latest 2.0 flash model with 1m context window by Google',
     provider: 'google',
     supportsVision: true,
-    // censored: false,
     rateLimit: {
       level: 'level1',
     },
@@ -805,6 +789,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 258,
     intelligenceIndex: 48,
     latency: 0.4,
+    maxOutputTokens: 65535,
   },
   // Llama 3.3 70B
   {
@@ -813,7 +798,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'Dec 2023',
     abbreviation: 'L3.3',
     country: 'US',
-    // description: 'Developed by Meta hosted by Groq. Fast and smart.',
     provider: 'groq',
     supportsVision: false,
     rateLimit: {
@@ -830,11 +814,11 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
    // DeepSeek R1 (Thinking)
    {
     id: 'deepseek-reasoner',
-    name: 'DeepSeek R1 (Thinking)',
+    name: 'DeepSeek R1 0528 (Thinking)',
     cutoff: 'July 2024',
     abbreviation: 'DSR1-T',
     country: 'CHINA',
-    // description: 'The best open source reasoning model by DeepSeek',
+    description: '',
     provider: 'deepseek',
     supportsVision: false,
     rateLimit: {
@@ -846,13 +830,16 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       provider: 'deepseek',
       baseModelId: 'deepseek-reasoner',
     },
+    isNew: true,
     isEnabled: true,
     isActivated: true,
+    isAgentEnabled: true,
     contextWindow: 128000,
-    tps: 25,
-    intelligenceIndex: 60,
-    multilingual:86,
-    latency: 100.3,
+    tps: 31,
+    intelligenceIndex: 68,
+    // multilingual:86,
+    latency: 67,
+    maxOutputTokens: 32000,
   },
   // DeepSeek V3
   {
@@ -861,10 +848,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'July 2024',
     abbreviation: 'DSV3',
     country: 'CHINA',
-    // description: 'Latest generation of DeepSeek V3. The best open source non-reasoning model by DeepSeek',
     provider: 'deepseek',
     supportsVision: false,
-    // censored: true,
     rateLimit: {
       level: 'level3',
     },
@@ -878,17 +863,14 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     multilingual:86,
     latency: 3.7,
   },
-  // DeepSeek R1 (Thinking)
   {
     id: 'Qwen/Qwen3-235B-A22B-fp8-tput',
     name: 'Qwen3-235B-A22B (Thinking)',
     cutoff: 'mid-2024 (estimated)',
     abbreviation: 'Q3-235B-A22B-T',
     country: 'CHINA',
-    description: 'High speed version of Qwen3-235B-A22B',
     provider: 'together',
     supportsVision: false,
-    // censored: true,
     rateLimit: {
       level: 'level3',
     },
@@ -900,23 +882,23 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     },
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 128000,
-    // tps: 32,
+    tps: 26,
     intelligenceIndex: 62,
-    // multilingual:86,
+    latency: 100.3,
+    maxOutputTokens: 32000,
   },
   // DeepSeek R1 (Thinking)
   {
     id: 'deepseek-ai/DeepSeek-R1',
-    name: 'DeepSeek R1 (Thinking)',
+    name: 'DeepSeek R1 0528 (Thinking)',
     cutoff: 'July 2024',
     abbreviation: 'DSR1-T',
     country: 'CHINA',
     description: 'High speed version of DeepSeek R1',
     provider: 'together',
     supportsVision: false,
-    // censored: true,
     rateLimit: {
       level: 'level3',
     },
@@ -926,13 +908,16 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       provider: 'together',
       baseModelId: 'deepseek-ai/DeepSeek-R1',
     },
+    isNew: true,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 128000,
-    tps: 96,
-    intelligenceIndex: 60,
-    multilingual:86,
+    // tps: 96,
+    intelligenceIndex: 68,
+    // multilingual:86,
+    // latency: 24.2,
+    maxOutputTokens: 32000,
   },
   // DeepSeek V3 (Mar' 25)
   {
@@ -954,6 +939,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 128000,
     tps: 72,
     intelligenceIndex: 46,
+    latency: 3.6,
     multilingual:86,
   },
 ];
