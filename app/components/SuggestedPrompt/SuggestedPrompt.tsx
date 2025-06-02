@@ -25,6 +25,8 @@ const DEFAULT_EXAMPLE_PROMPTS = [
   "Describe the Mandela Effect and give the most famous examples.",
   "Summarize the Kanye West and Taylor Swift feud as a Shakespearean drama.",
   "Draw an image of what 'success' looks like in 2050.",
+  "Why do people think the earth is flat?",
+  "Explain the movie Tenet like I'm 5",
 ];
 
 export interface SuggestedPromptProps {

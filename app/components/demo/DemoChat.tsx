@@ -25,7 +25,6 @@ import { FollowUpQuestions } from '@/app/components/FollowUpQuestions'
 
 // Default example prompts for demo mode - same as in the main app
 const DEFAULT_EXAMPLE_PROMPTS = [
-  "Write a masterpiece that describes my aura",
   "Draw a Catwoman",
   "I AM MUSIC Album Review",
   "Summarize this PDF: https://www.nasa.gov/wp-content/uploads/2023/01/55583main_vision_space_exploration2.pdf",
@@ -48,6 +47,8 @@ const DEFAULT_EXAMPLE_PROMPTS = [
   "Describe the Mandela Effect and give the most famous examples.",
   "Summarize the Kanye West and Taylor Swift feud as a Shakespearean drama.",
   "Draw an image of what 'success' looks like in 2050.",
+  "Why do people think the earth is flat?",
+  "Explain the movie Tenet like I'm 5",
 ];
 
 type Annotation = {
