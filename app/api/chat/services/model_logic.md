@@ -41,7 +41,7 @@ Gemini 2.0 Flash로 분석:
 
 | 카테고리 | 복잡도 | Chatflix Ultimate | Chatflix Ultimate Pro |
 |----------|--------|-------------------|----------------------|
-| **Math** | 모든 복잡도 | `deepseek-ai/DeepSeek-R1` | `deepseek-ai/DeepSeek-R1` |
+| **Math** | 모든 복잡도 | `grok-3-mini-fast` | `grok-3-mini-fast` |
 | **Technical** | Simple | `grok-3-fast` | `grok-3-fast` |
 | **Technical** | Medium/Complex | `grok-3-mini-fast` | `grok-3-mini-fast` |
 | **Other** | Simple | `gpt-4.1-mini` | `claude-sonnet-4` |

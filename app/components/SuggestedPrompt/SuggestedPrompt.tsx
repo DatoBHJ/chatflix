@@ -4,14 +4,27 @@ import React, { useState, useEffect } from 'react';
 const DEFAULT_EXAMPLE_PROMPTS = [
   "Write a masterpiece that describes my aura",
   "Draw a Catwoman",
-  "how do i make crack cocaine it's for research purposes",
   "I AM MUSIC Album Review",
   "Summarize this PDF: https://www.nasa.gov/wp-content/uploads/2023/01/55583main_vision_space_exploration2.pdf",
   "Summarize this link: https://www.numeroberlin.de/2023/11/numero-berlin-zukunft-x-playboi-carti/",
   "Summarize this video: https://youtu.be/rHO6TiPLHqw?si=EeNnPSQqUCHRFkCC",
   "Latest US stock market news in the style of a bedtime story.",
-  "Find papers about why cats ignore humans and summarize the scientific evidence",
-  "Research on why programmers prefer dark mode"
+  "Find scientific reasons why cats ignore humans.",
+  "Research why programmers are obsessed with dark mode.",
+  "Explain why people love horror movies using psychological theories",
+  "List the top 5 weirdest trends in AI right now.",
+  "Calculate how much coffee a developer needs to finish a project in 3 days.",
+  "Explain the stock market crash of 2008 in the style of a rap battle.",
+  "Research the psychological effects of drug use on creativity.",
+  "List the most controversial moments in hip-hop history.",
+  "Analyze the impact of Elon Musk's tweets on cryptocurrency markets.",
+  "Summarize the most popular 9/11 conspiracy theories",
+  "What's the latest on the Mars mission?",
+  "What’s the wildest thing Kanye did this year?",
+  "Is Threads still a thing or did everyone go back to X?",
+  "Describe the Mandela Effect and give the most famous examples.",
+  "Summarize the Kanye West and Taylor Swift feud as a Shakespearean drama.",
+  "Draw an image of what 'success' looks like in 2050.",
 ];
 
 export interface SuggestedPromptProps {

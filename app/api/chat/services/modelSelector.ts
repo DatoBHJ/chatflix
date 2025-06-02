@@ -532,8 +532,8 @@ function calculateEfficiencyScore(
   if (analysis.category === 'coding' && model.provider === 'openai') {
     featureScore += 5; // 코딩 작업에 OpenAI 모델 보너스
   }
-  if (analysis.category === 'math' && model.id.includes('deepseek')) {
-    featureScore += 5; // 수학 작업에 DeepSeek 모델 보너스
+  if (analysis.category === 'math' && model.id.includes('grok')) {
+    featureScore += 5; // 수학 작업에 Grok 모델 보너스
   }
   score += featureScore * 0.1;
   
@@ -682,8 +682,8 @@ function selectModelBasedOnAnalysis(
   // 3단계: 텍스트만 있는 경우 (비멀티모달)
   else {
     if (analysis.category === 'math') {
-      // 수학 카테고리는 복잡도 무관 DeepSeek-R1
-      return 'deepseek-ai/DeepSeek-R1';
+      // 수학 카테고리는 복잡도 무관 grok-3-mini-fast
+      return 'grok-3-mini-fast';
     }
     else if (analysis.category === 'technical') {
       // 기술 카테고리는 복잡도에 따라 분기
