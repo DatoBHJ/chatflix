@@ -482,8 +482,8 @@ export async function POST(req: Request) {
               // console.log('userQuery', userQuery);
               
               const planningResult = await streamText({
-                model: providers.languageModel('gemini-2.0-flash'), 
-                // model: providers.languageModel(model), 
+                // model: providers.languageModel('gemini-2.0-flash'), 
+                model: providers.languageModel(model), 
                 providerOptions: supportsReasoning ? providerOptions : undefined,
                 prompt: `
 ${planningSystemPrompt}

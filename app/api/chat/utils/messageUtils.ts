@@ -86,6 +86,34 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
   const modelConfig = getModelById(modelId);
   if (!modelConfig) throw new Error('Invalid model');
 
+  // Helper function to safely convert any value to string
+  const safeStringify = (value: any): string => {
+    if (value === null || value === undefined) {
+      return 'N/A';
+    }
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+    if (typeof value === 'object') {
+      // Try to extract meaningful text from common object properties
+      if (value.text) return String(value.text);
+      if (value.content) return String(value.content);
+      if (value.message) return String(value.message);
+      if (value.description) return String(value.description);
+      if (value.summary) return String(value.summary);
+      // If no meaningful text property, stringify the object
+      try {
+        return JSON.stringify(value);
+      } catch (error) {
+        return '[Object - could not stringify]';
+      }
+    }
+    return String(value);
+  };
+
   // Check model capabilities
   const supportsVision = modelConfig.supportsVision;
   const supportsPDFs = modelConfig.supportsPDFs;
@@ -100,10 +128,9 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
   const hasAcademicSearchResults = toolResults?.academicSearchResults?.length > 0;
   const hasYoutubeSearchResults = toolResults?.youtubeSearchResults?.length > 0;
   const hasYoutubeLinkAnalysis = toolResults?.youtubeLinkAnalysisResults?.length > 0;
-  const hasAgentReasoning = toolResults?.agentReasoning;
   const hasAnyToolResults = hasStructuredResponse || hasWebSearchResults || hasCalculationSteps || 
                            hasLinkReaderAttempts || hasGeneratedImages || hasAcademicSearchResults ||
-                           hasYoutubeSearchResults || hasYoutubeLinkAnalysis || hasAgentReasoning;
+                           hasYoutubeSearchResults || hasYoutubeLinkAnalysis;
   
   // Ensure experimental_attachments is always an array
   let experimental_attachments = message.experimental_attachments || [];
@@ -150,47 +177,18 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
     });
   }
 
-  // Include agent reasoning if available
-  if (hasAgentReasoning) {
-    const reasoning = toolResults.agentReasoning;
-    let reasoningText = '\n\n### Previous Agent Reasoning:\n';
-    
-    if (reasoning.plan) {
-      // Limit plan text to 1000 characters
-      const planText = reasoning.plan.length > 1000 ? reasoning.plan.substring(0, 1000) + '...' : reasoning.plan;
-      reasoningText += `**Plan:** ${planText}\n\n`;
-    }
-    if (reasoning.agentThoughts) {
-      // Limit thoughts text to 500 characters
-      const thoughtsText = reasoning.agentThoughts.length > 500 ? reasoning.agentThoughts.substring(0, 500) + '...' : reasoning.agentThoughts;
-      reasoningText += `**Analysis:** ${thoughtsText}\n\n`;
-    }
-    if (reasoning.workflowMode) {
-      reasoningText += `**Workflow Mode:** ${reasoning.workflowMode}\n`;
-    }
-    if (reasoning.selectedTools && reasoning.selectedTools.length > 0) {
-      reasoningText += `**Tools Used:** ${reasoning.selectedTools.join(', ')}\n`;
-    }
-    
-    parts.push({
-      type: 'text',
-      text: reasoningText
-    });
-  }
-
-  // Include calculation steps if available (high priority)
+  // PRIORITY 1: Calculation results (highly relevant for conversation continuity)
   if (hasCalculationSteps) {
     let calculationText = '\n\n### Previous Calculation Results:\n';
     
-    // Limit to last 5 calculations to prevent overflow
-    const recentCalculations = toolResults.calculationSteps.slice(-5);
-    recentCalculations.forEach((step: any, index: number) => {
+    // Include ALL calculations with full explanations
+    toolResults.calculationSteps.forEach((step: any, index: number) => {
       calculationText += `\n**Calculation ${index + 1}:**\n`;
-      calculationText += `Expression: ${step.expression || 'N/A'}\n`;
-      calculationText += `Result: ${step.result || 'N/A'}\n`;
+      calculationText += `Expression: ${safeStringify(step.expression)}\n`;
+      calculationText += `Result: ${safeStringify(step.result)}\n`;
       if (step.explanation) {
-        // Limit explanation to 200 characters
-        const explanationText = step.explanation.length > 200 ? step.explanation.substring(0, 200) + '...' : step.explanation;
+        // Include full explanation without truncation
+        const explanationText = safeStringify(step.explanation);
         calculationText += `Explanation: ${explanationText}\n`;
       }
     });
@@ -201,51 +199,30 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
     });
   }
 
-  // Include structured response files if available (high priority)
-  if (hasStructuredResponse) {
-    const structuredResponse = toolResults.structuredResponse.response;
-    if (structuredResponse.files && structuredResponse.files.length > 0) {
-      // Limit to last 3 files and truncate content if too long
-      const recentFiles = structuredResponse.files.slice(-3);
-      const filesSection = recentFiles.map((file: any) => {
-        let content = file.content;
-        // Limit file content to 2000 characters
-        if (content && content.length > 2000) {
-          content = content.substring(0, 2000) + '...\n[Content truncated for context efficiency]';
-        }
-        return `\n\n--- ${file.name} ---\n${content}\n`;
-      }).join('\n');
-      
-      parts.push({
-        type: 'text',
-        text: `\n\n### Previously Generated Files:\n${filesSection}`
-      });
-    }
-  }
-  
-  // Include web search results if available (medium priority)
+  // PRIORITY 2: Web search results (very relevant for information continuity)
   if (hasWebSearchResults) {
     let formattedResults = '\n\n### Previous Web Search Results:\n';
     
-    // Limit to last 2 search groups to prevent overflow
-    const recentSearches = toolResults.webSearchResults.slice(-2);
-    recentSearches.forEach((searchGroup: any, index: number) => {
+    // Include ALL search groups (no group limit for conversation history)
+    toolResults.webSearchResults.forEach((searchGroup: any, index: number) => {
       if (searchGroup.searches && searchGroup.searches.length > 0) {
-        // Limit to first 2 searches per group
-        const limitedSearches = searchGroup.searches.slice(0, 2);
+        // Limit to first 3 searches per group to manage token usage
+        const limitedSearches = searchGroup.searches.slice(0, 3);
         limitedSearches.forEach((search: any, searchIndex: number) => {
-          formattedResults += `\n## Search ${index + 1}.${searchIndex + 1}: "${search.query}"\n`;
+          const query = safeStringify(search.query);
+          formattedResults += `\n## Search ${index + 1}.${searchIndex + 1}: "${query}"\n`;
           
           if (search.results && search.results.length > 0) {
-            // Limit to first 3 results per search
+            // Limit to first 3 results per search to manage token usage
             const limitedResults = search.results.slice(0, 3);
             limitedResults.forEach((result: any, resultIndex: number) => {
-              formattedResults += `\n### Result ${resultIndex + 1}: ${result.title || 'No Title'}\n`;
-              formattedResults += `URL: ${result.url || 'No URL'}\n`;
-              // Limit content to 300 characters
-              const content = result.content || result.snippet || 'No content available';
-              const limitedContent = content.length > 300 ? content.substring(0, 300) + '...' : content;
-              formattedResults += `${limitedContent}\n`;
+              const title = safeStringify(result.title);
+              const url = safeStringify(result.url);
+              formattedResults += `\n### Result ${resultIndex + 1}: ${title}\n`;
+              formattedResults += `URL: ${url}\n`;
+              // Include FULL content without truncation (only per-search and per-group limits remain)
+              const content = safeStringify(result.content || result.snippet || 'No content available');
+              formattedResults += `${content}\n`;
             });
           } else {
             formattedResults += `No results found for this query.\n`;
@@ -260,22 +237,24 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
     });
   }
 
-  // Include link reader attempts if available (medium priority)
+  // PRIORITY 3: Link analysis results (very relevant for conversation)
   if (hasLinkReaderAttempts) {
     let linkText = '\n\n### Previous Link Analysis Results:\n';
     
-    // Limit to last 3 attempts
-    const recentAttempts = toolResults.linkReaderAttempts.slice(-3);
-    recentAttempts.forEach((attempt: any, index: number) => {
-      linkText += `\n**Link ${index + 1}:** ${attempt.url}\n`;
-      linkText += `Status: ${attempt.status}\n`;
+    // Include ALL attempts
+    toolResults.linkReaderAttempts.forEach((attempt: any, index: number) => {
+      const url = safeStringify(attempt.url);
+      const status = safeStringify(attempt.status);
+      linkText += `\n**Link ${index + 1}:** ${url}\n`;
+      linkText += `Status: ${status}\n`;
       if (attempt.title) {
-        linkText += `Title: ${attempt.title}\n`;
+        const title = safeStringify(attempt.title);
+        linkText += `Title: ${title}\n`;
       }
       if (attempt.content) {
-        // Limit content to 400 characters
-        const limitedContent = attempt.content.length > 400 ? attempt.content.substring(0, 400) + '...' : attempt.content;
-        linkText += `Content: ${limitedContent}\n`;
+        // Include FULL content without truncation
+        const content = safeStringify(attempt.content);
+        linkText += `Content: ${content}\n`;
       }
     });
     
@@ -285,69 +264,47 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
     });
   }
 
-  // Include generated images if available (lower priority)
-  if (hasGeneratedImages) {
-    let imageText = '\n\n### Previously Generated Images:\n';
+  // PRIORITY 4: YouTube analysis results (very relevant for conversation)
+  if (hasYoutubeLinkAnalysis) {
+    let analysisText = '\n\n### Previous YouTube Video Analysis:\n';
     
-    // Limit to last 3 images
-    const recentImages = toolResults.generatedImages.slice(-3);
-    recentImages.forEach((image: any, index: number) => {
-      imageText += `\n**Image ${index + 1}:**\n`;
-      // Limit prompt to 200 characters
-      const promptText = image.prompt && image.prompt.length > 200 ? image.prompt.substring(0, 200) + '...' : (image.prompt || 'N/A');
-      imageText += `Prompt: ${promptText}\n`;
-      imageText += `URL: ${image.url || 'N/A'}\n`;
-      if (image.description) {
-        // Limit description to 150 characters
-        const descText = image.description.length > 150 ? image.description.substring(0, 150) + '...' : image.description;
-        imageText += `Description: ${descText}\n`;
+    // Include ALL analyses
+    toolResults.youtubeLinkAnalysisResults.forEach((analysis: any, index: number) => {
+      analysisText += `\n**Video Analysis ${index + 1}:**\n`;
+      analysisText += `URL: ${safeStringify(analysis.url)}\n`;
+      analysisText += `Title: ${safeStringify(analysis.title)}\n`;
+      if (analysis.transcript) {
+        // Limit transcript to 1000 characters to manage token usage (transcripts can be very long)
+        const transcriptText = safeStringify(analysis.transcript);
+        const limitedTranscript = transcriptText.length > 1000 ? transcriptText.substring(0, 1000) + '...' : transcriptText;
+        analysisText += `Transcript: ${limitedTranscript}\n`;
+      }
+      if (analysis.summary) {
+        // Include FULL summary without truncation (summaries are usually concise)
+        const summaryText = safeStringify(analysis.summary);
+        analysisText += `Summary: ${summaryText}\n`;
       }
     });
     
     parts.push({
       type: 'text',
-      text: imageText
+      text: analysisText
     });
   }
 
-  // Include academic search results if available (lower priority)
-  if (hasAcademicSearchResults) {
-    let academicText = '\n\n### Previous Academic Search Results:\n';
-    
-    // Limit to last 3 results
-    const recentResults = toolResults.academicSearchResults.slice(-3);
-    recentResults.forEach((result: any, index: number) => {
-      academicText += `\n**Paper ${index + 1}:**\n`;
-      academicText += `Title: ${result.title || 'N/A'}\n`;
-      academicText += `Authors: ${result.authors || 'N/A'}\n`;
-      if (result.abstract) {
-        // Limit abstract to 250 characters
-        const abstractText = result.abstract.length > 250 ? result.abstract.substring(0, 250) + '...' : result.abstract;
-        academicText += `Abstract: ${abstractText}\n`;
-      }
-      academicText += `URL: ${result.url || 'N/A'}\n`;
-    });
-    
-    parts.push({
-      type: 'text',
-      text: academicText
-    });
-  }
-
-  // Include YouTube search results if available (lower priority)
+  // PRIORITY 5: YouTube search results (relevant for conversation)
   if (hasYoutubeSearchResults) {
     let youtubeText = '\n\n### Previous YouTube Search Results:\n';
     
-    // Limit to last 3 results
-    const recentResults = toolResults.youtubeSearchResults.slice(-3);
-    recentResults.forEach((result: any, index: number) => {
+    // Include ALL results
+    toolResults.youtubeSearchResults.forEach((result: any, index: number) => {
       youtubeText += `\n**Video ${index + 1}:**\n`;
-      youtubeText += `Title: ${result.title || 'N/A'}\n`;
-      youtubeText += `Channel: ${result.channel || 'N/A'}\n`;
-      youtubeText += `URL: ${result.url || 'N/A'}\n`;
+      youtubeText += `Title: ${safeStringify(result.title)}\n`;
+      youtubeText += `Channel: ${safeStringify(result.channel)}\n`;
+      youtubeText += `URL: ${safeStringify(result.url)}\n`;
       if (result.description) {
-        // Limit description to 150 characters
-        const descText = result.description.length > 150 ? result.description.substring(0, 150) + '...' : result.description;
+        // Include FULL description without truncation
+        const descText = safeStringify(result.description);
         youtubeText += `Description: ${descText}\n`;
       }
     });
@@ -358,31 +315,69 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
     });
   }
 
-  // Include YouTube link analysis if available (lower priority)
-  if (hasYoutubeLinkAnalysis) {
-    let analysisText = '\n\n### Previous YouTube Video Analysis:\n';
+  // PRIORITY 6: Academic search results (moderately relevant)
+  if (hasAcademicSearchResults) {
+    let academicText = '\n\n### Previous Academic Search Results:\n';
     
-    // Limit to last 2 analyses
-    const recentAnalyses = toolResults.youtubeLinkAnalysisResults.slice(-2);
-    recentAnalyses.forEach((analysis: any, index: number) => {
-      analysisText += `\n**Video Analysis ${index + 1}:**\n`;
-      analysisText += `URL: ${analysis.url || 'N/A'}\n`;
-      analysisText += `Title: ${analysis.title || 'N/A'}\n`;
-      if (analysis.transcript) {
-        // Limit transcript to 400 characters
-        const transcriptText = analysis.transcript.length > 400 ? analysis.transcript.substring(0, 400) + '...' : analysis.transcript;
-        analysisText += `Transcript: ${transcriptText}\n`;
+    // Include ALL results
+    toolResults.academicSearchResults.forEach((result: any, index: number) => {
+      academicText += `\n**Paper ${index + 1}:**\n`;
+      academicText += `Title: ${safeStringify(result.title)}\n`;
+      academicText += `Authors: ${safeStringify(result.authors)}\n`;
+      if (result.abstract) {
+        // Include FULL abstract without truncation
+        const abstractText = safeStringify(result.abstract);
+        academicText += `Abstract: ${abstractText}\n`;
       }
-      if (analysis.summary) {
-        // Limit summary to 200 characters
-        const summaryText = analysis.summary.length > 200 ? analysis.summary.substring(0, 200) + '...' : analysis.summary;
-        analysisText += `Summary: ${summaryText}\n`;
+      academicText += `URL: ${safeStringify(result.url)}\n`;
+    });
+    
+    parts.push({
+      type: 'text',
+      text: academicText
+    });
+  }
+
+  // PRIORITY 7: Generated files (include ALL files with FULL content)
+  if (hasStructuredResponse) {
+    const structuredResponse = toolResults.structuredResponse.response;
+    if (structuredResponse.files && structuredResponse.files.length > 0) {
+      // Include ALL files with FULL content
+      const filesSection = structuredResponse.files.map((file: any) => {
+        const fileName = safeStringify(file.name);
+        const content = safeStringify(file.content);
+        // Include FULL file content without truncation
+        return `\n\n--- ${fileName} ---\n${content}\n`;
+      }).join('\n');
+      
+      parts.push({
+        type: 'text',
+        text: `\n\n### Previously Generated Files:\n${filesSection}`
+      });
+    }
+  }
+
+  // PRIORITY 8: Generated images (include ALL images with FULL information)
+  if (hasGeneratedImages) {
+    let imageText = '\n\n### Previously Generated Images:\n';
+    
+    // Include ALL images
+    toolResults.generatedImages.forEach((image: any, index: number) => {
+      imageText += `\n**Image ${index + 1}:**\n`;
+      // Include FULL prompt without truncation
+      const promptText = safeStringify(image.prompt || 'N/A');
+      imageText += `Prompt: ${promptText}\n`;
+      imageText += `URL: ${safeStringify(image.url)}\n`;
+      if (image.description) {
+        // Include FULL description without truncation
+        const descText = safeStringify(image.description);
+        imageText += `Description: ${descText}\n`;
       }
     });
     
     parts.push({
       type: 'text',
-      text: analysisText
+      text: imageText
     });
   }
 
