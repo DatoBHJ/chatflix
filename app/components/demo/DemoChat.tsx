@@ -85,7 +85,7 @@ export function DemoChat() {
   const { messages, input, handleInputChange, handleSubmit, isLoading, stop, reload, setMessages } = useChat({
     api: '/api/chat/demo',
     body: {
-      model: 'gpt-4.1-mini', // Agent-compatible model
+      model: 'gpt-4.1', // Agent-compatible model
       experimental_attachments: false,
       isAgentEnabled
     },
@@ -132,7 +132,7 @@ export function DemoChat() {
     // Explicitly pass files parameter
     handleSubmit(e, {
       data: {
-        model: 'gpt-4.1-mini',
+        model: 'gpt-4.1',
         isAgentEnabled: isAgentEnabled
       }
     });
@@ -301,7 +301,7 @@ export function DemoChat() {
     // Send the message to the API
     reload({
       body: {
-        model: 'gpt-4.1-mini',
+        model: 'gpt-4.1',
         isAgentEnabled: isAgentEnabled,
         messages: updatedMessages
       }
@@ -710,7 +710,7 @@ export function DemoChat() {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-[var(--foreground)]" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
                 </svg>
-                <span className="text-xs font-medium text-[var(--muted)]">Demo - Powered by GPT-4.1-mini</span>
+                <span className="text-xs font-medium text-[var(--muted)]">Demo - Powered by GPT-4.1</span>
               </div>
             </div>
         
@@ -739,7 +739,7 @@ export function DemoChat() {
                       <div key={message.id} id={message.id} className="mb-8 last:mb-2 message-glow">
                         <MessageComponent
                           message={message}
-                          currentModel="gpt-4.1-mini"
+                          currentModel="gpt-4.1"
                           isStreaming={isLoading && message.role === 'assistant' && message.id === messages[messages.length - 1]?.id}
                           isWaitingForToolResults={false}
                           isRegenerating={false}
@@ -790,7 +790,7 @@ export function DemoChat() {
                       isLoading={isLoading}
                       stop={stop}
                       user={{ id: 'guest', hasAgentModels: true }}
-                      modelId="gpt-4.1-mini"
+                      modelId="gpt-4.1"
                       isAgentEnabled={isAgentEnabled}
                       setisAgentEnabled={setIsAgentEnabled}
                     />
