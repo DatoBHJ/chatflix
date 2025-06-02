@@ -363,12 +363,47 @@ export const getProviderFromModel = (model: string): string => {
 // MultiModalMessage를 Message로 변환하는 함수 추가
 export function convertMultiModalToMessage(messages: MultiModalMessage[]): Message[] {
   return messages.map(msg => {
-    // id, role, content 속성만 포함하도록 변환
-    return {
+    let content: string;
+    
+    // content가 AIMessageContent[] 타입인 경우 모든 내용을 텍스트로 변환
+    if (Array.isArray(msg.content)) {
+      const parts: string[] = [];
+      
+      msg.content.forEach(part => {
+        switch (part.type) {
+          case 'text':
+            parts.push(part.text || '');
+            break;
+          case 'image':
+            parts.push(`[IMAGE: ${(part as any).image || 'Image content'}]`);
+            break;
+          case 'file':
+            parts.push(`[FILE: ${(part as any).data ? 'File data included' : 'File content'}]`);
+            break;
+          default:
+            // 기타 모든 타입을 문자열로 변환
+            parts.push(JSON.stringify(part));
+        }
+      });
+      
+      content = parts.join('\n');
+    } else {
+      content = msg.content;
+    }
+    
+    // 기본 메시지 객체 생성
+    const baseMessage: any = {
       id: msg.id,
       role: msg.role === 'data' ? 'function' : msg.role, // 'data' 역할을 'function'으로 변환
-      content: msg.content
-    } as Message;
+      content: content
+    };
+    
+    // tool_results가 있으면 포함
+    if ((msg as any).tool_results) {
+      baseMessage.tool_results = (msg as any).tool_results;
+    }
+    
+    return baseMessage as Message;
   });
 }
 

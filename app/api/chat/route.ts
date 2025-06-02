@@ -482,7 +482,8 @@ export async function POST(req: Request) {
               // console.log('userQuery', userQuery);
               
               const planningResult = await streamText({
-                model: providers.languageModel(model), 
+                model: providers.languageModel('gemini-2.0-flash'), 
+                // model: providers.languageModel(model), 
                 providerOptions: supportsReasoning ? providerOptions : undefined,
                 prompt: `
 ${planningSystemPrompt}
@@ -844,7 +845,15 @@ ${responseInstructions}
 Remember to maintain the language of the user's query throughout your response.
             `;
 
+            // console.log('--------------------------------');
+            // console.log('systemPromptAgent', systemPromptAgent);
+            // console.log('--------------------------------');
+
             const messages = convertMultiModalToMessage(optimizedMessages);
+
+            console.log('--------------------------------');
+            console.log('messages', messages);
+            console.log('--------------------------------');
 
             const finalstep = streamText({
               model: providers.languageModel(model),
