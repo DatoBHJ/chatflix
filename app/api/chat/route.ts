@@ -346,19 +346,7 @@ export async function POST(req: Request) {
           );
           
           if (isAgentEnabled) {
-            // 🔍 원본 메시지 디버깅 (토큰 최적화 전)
-            // if (process.env.NODE_ENV === 'development') {
-            //   console.log('📋 [ORIGINAL MESSAGES DEBUG]', {
-            //     totalProcessMessages: processMessages.length,
-            //     toolResultsInProcessMessages: processMessages.map((msg, idx) => ({
-            //       index: idx,
-            //       id: msg.id?.substring(0, 8),
-            //       role: msg.role,
-            //       hasToolResults: !!(msg as any).tool_results,
-            //       toolResultKeys: (msg as any).tool_results ? Object.keys((msg as any).tool_results).filter(k => k !== 'token_usage') : []
-            //     })).filter(msg => msg.hasToolResults || msg.toolResultKeys.length > 0)
-            //   });
-            // }
+
 
             // 4. 시스템 프롬프트 토큰 수 추정
             const systemTokens = estimateTokenCount(currentSystemPrompt);
@@ -372,20 +360,6 @@ export async function POST(req: Request) {
               remainingTokens,
             );
 
-            // 🔍 최적화된 메시지 디버깅 (토큰 최적화 후)
-            // if (process.env.NODE_ENV === 'development') {
-            //   console.log('📋 [OPTIMIZED MESSAGES DEBUG]', {
-            //     totalOptimizedMessages: optimizedMessages.length,
-            //     droppedMessages: processMessages.length - optimizedMessages.length,
-            //     toolResultsInOptimizedMessages: optimizedMessages.map((msg, idx) => ({
-            //       index: idx,
-            //       id: msg.id?.substring(0, 8),
-            //       role: msg.role,
-            //       hasToolResults: !!(msg as any).tool_results,
-            //       toolResultKeys: (msg as any).tool_results ? Object.keys((msg as any).tool_results).filter(k => k !== 'token_usage') : []
-            //     })).filter(msg => msg.hasToolResults || msg.toolResultKeys.length > 0)
-            //   });
-            // }
 
             // 현재 질문 추출을 위한 준비
             let userQuery = '';
@@ -527,7 +501,7 @@ Analyze the user's current query to determine which previous tool results are re
 - "Tell me more details" → keep relevant tools from context: true
 - "New unrelated question" → all: false
 
-**IMPORTANT**: Respond in English for reasoning and use exact English property names for the boolean fields.
+**IMPORTANT**: Respond in user's language for reasoning and use exact English property names for the boolean fields.
                   `,
                   schema: z.object({
                     reasoning: z.string().describe('Brief explanation of why these tool results are needed'),
@@ -546,30 +520,14 @@ Analyze the user's current query to determine which previous tool results are re
                 
                 // 필터를 적용하여 이전 대화 컨텍스트 재생성
                 conversationHistory = convertMultiModalToMessage(optimizedMessages.slice(0, -1), contextFilter);
-                
-                // Log context filtering decision
-                // if (process.env.NODE_ENV === 'development') {
-                //   console.log('🎯 [CONTEXT FILTER]', {
-                //     userQuery: userQuery.substring(0, 100),
-                //     reasoning: contextFilter.reasoning,
-                //     enabledFilters: Object.entries(contextFilter)
-                //       .filter(([key, value]) => key !== 'reasoning' && value === true)
-                //       .map(([key]) => key)
-                //   });
-                   
-                //   console.log('🔍 [FILTERED CONTEXT] Applied context filter to conversation history');
-                // }
-                
+
               } catch (error) {
                 console.error('Context analysis failed, using full context:', error);
                 // Fallback: use original conversation history
                 contextFilter = null;
               }
             } else if (!hasToolResultsInHistory) {
-              // 🔧 OPTIMIZATION: tool_results가 없으면 Context Analysis 건너뛰기
-              // if (process.env.NODE_ENV === 'development') {
-              //   console.log('🔍 [CONTEXT FILTER] No tool results in history, skipping context analysis');
-              // }
+
             }
 
             // 🆕 conversationHistory를 읽기 쉬운 문자열로 변환
@@ -616,21 +574,6 @@ Analyze the user's current query to determine which previous tool results are re
                 'youtube_link_analyzer': 'Analyzing specific YouTube videos'
               };
 
-              // 첫 번째 단계: 계획 수립 (Planning) - 수정된 프롬프트
-              // const planningSystemPrompt = buildSystemPrompt(
-              //   'agent',
-              //   'initial',
-              //   memoryData || undefined
-              // );
-
-              // 🗑️ REMOVED: 불필요한 중복 요약 제거 - conversationHistory에 이미 필터링된 정보 포함됨
-
-              // console.log('--------------------------------');
-              // console.log('planningSystemPrompt', planningSystemPrompt);
-              // console.log('conversationHistory', conversationHistory);
-              // console.log('userQuery', userQuery);
-              // console.log('--------------------------------');
-              
               const planningResult = await streamText({
                 // model: providers.languageModel('gemini-2.0-flash'), 
                 model: providers.languageModel(model), 
@@ -1054,38 +997,10 @@ ${responseInstructions}
 Remember to maintain the language of the user's query throughout your response.
             `;
 
-            // console.log('--------------------------------');
-            // console.log('systemPromptAgent', systemPromptAgent);
-            // console.log('--------------------------------');
-
-            // 이전 대화 기록에 실제로 어떤 도구 결과가 있는지 확인
-            // if (process.env.NODE_ENV === 'development') {
-            //   console.log('📋 [ORIGINAL CONTEXT DEBUG]', {
-            //     totalOptimizedMessages: optimizedMessages.length,
-            //     toolResultsInMessages: optimizedMessages.map((msg, idx) => ({
-            //       index: idx,
-            //       id: msg.id?.substring(0, 8),
-            //       role: msg.role,
-            //       hasToolResults: !!(msg as any).tool_results,
-            //       toolResultKeys: (msg as any).tool_results ? Object.keys((msg as any).tool_results).filter(k => k !== 'token_usage') : []
-            //     }))
-            //   });
-            // }
 
             // 🔧 FIX: Context Filter가 적용된 메시지 사용
             const messages = convertMultiModalToMessage(optimizedMessages, contextFilter || undefined);
 
-            // console.log('--------------------------------');
-            // console.log('conversationHistory', conversationHistory);
-            // console.log('userQuery', userQuery);
-            // console.log('--------------------------------');
-
-            // 🗑️ REMOVED: 중복 호출 제거
-            // const messages = convertMultiModalToMessage(optimizedMessages);
-
-            // console.log('--------------------------------');
-            // console.log('messages', messages);
-            // console.log('--------------------------------');
 
             const finalstep = streamText({
               model: providers.languageModel(model),
@@ -1103,15 +1018,7 @@ Remember to maintain the language of the user's query throughout your response.
                 
                 // 🆕 실제 토큰 사용량 추출 및 로깅
                 const actualTokenUsage = completion.usage;
-                // if (actualTokenUsage) {
-                //   console.log('🔢 [TOKEN USAGE] Regular mode actual tokens:', {
-                //     promptTokens: actualTokenUsage.promptTokens,
-                //     completionTokens: actualTokenUsage.completionTokens,
-                //     totalTokens: actualTokenUsage.totalTokens,
-                //     model: model,
-                //     messageId: assistantMessageId
-                //   });
-                // }
+
                 
                 // 최종 계산 결과 주석 전송 (계산기가 사용된 경우에만)
                 if (routingDecision.object.selectedTools.includes('calculator')) {

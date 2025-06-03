@@ -705,7 +705,7 @@ function selectModelBasedOnAnalysis(
       } else {
         // 일반 버전
         if (analysis.complexity === 'simple') {
-          return 'gpt-4.1-mini';
+          return 'gpt-4.1';
         } else { // medium/complex
           return 'gpt-4.1';
         }
