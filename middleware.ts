@@ -222,7 +222,7 @@ export async function middleware(request: NextRequest) {
       
       const modelId = body.model;
       
-      console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Processing request for user ${userId}, model ${modelId}`);
+      // console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Processing request for user ${userId}, model ${modelId}`);
       
       if (modelId) {
         const modelConfig = getModelById(modelId);
@@ -230,7 +230,7 @@ export async function middleware(request: NextRequest) {
           const level = modelConfig.rateLimit.level;
           
           // Get hourly and daily rate limiters
-          console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Using level ${level} for model ${modelId}`);
+          // console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Using level ${level} for model ${modelId}`);
           const rateLimiters = await getRateLimiter(modelId, userId);
           
           // Check if the user is subscribed
@@ -248,12 +248,12 @@ export async function middleware(request: NextRequest) {
           const hourlyResult = await rateLimiters.hourly.limit(hourlyKey);
           
           // Log hourly result
-          console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Hourly rate limit result:`, {
-            success: hourlyResult.success,
-            remaining: hourlyResult.remaining,
-            limit: hourlyResult.limit,
-            reset: new Date(hourlyResult.reset).toISOString()
-          });
+          // console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Hourly rate limit result:`, {
+          //   success: hourlyResult.success,
+          //   remaining: hourlyResult.remaining,
+          //   limit: hourlyResult.limit,
+          //   reset: new Date(hourlyResult.reset).toISOString()
+          // });
           
           // Return hourly limit exceeded response if needed
           if (!hourlyResult.success) {
@@ -265,12 +265,12 @@ export async function middleware(request: NextRequest) {
           const dailyResult = await rateLimiters.daily.limit(dailyKey);
           
           // Log daily result
-          console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Daily rate limit result:`, {
-            success: dailyResult.success,
-            remaining: dailyResult.remaining,
-            limit: dailyResult.limit,
-            reset: new Date(dailyResult.reset).toISOString()
-          });
+          // console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Daily rate limit result:`, {
+          //   success: dailyResult.success,
+          //   remaining: dailyResult.remaining,
+          //   limit: dailyResult.limit,
+          //   reset: new Date(dailyResult.reset).toISOString()
+          // });
           
           // Return daily limit exceeded response if needed
           if (!dailyResult.success) {

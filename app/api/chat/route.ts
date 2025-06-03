@@ -851,9 +851,9 @@ Remember to maintain the language of the user's query throughout your response.
 
             const messages = convertMultiModalToMessage(optimizedMessages);
 
-            console.log('--------------------------------');
-            console.log('messages', messages);
-            console.log('--------------------------------');
+            // console.log('--------------------------------');
+            // console.log('messages', messages);
+            // console.log('--------------------------------');
 
             const finalstep = streamText({
               model: providers.languageModel(model),
@@ -871,15 +871,15 @@ Remember to maintain the language of the user's query throughout your response.
                 
                 // 🆕 실제 토큰 사용량 추출 및 로깅
                 const actualTokenUsage = completion.usage;
-                if (actualTokenUsage) {
-                  console.log('🔢 [TOKEN USAGE] Regular mode actual tokens:', {
-                    promptTokens: actualTokenUsage.promptTokens,
-                    completionTokens: actualTokenUsage.completionTokens,
-                    totalTokens: actualTokenUsage.totalTokens,
-                    model: model,
-                    messageId: assistantMessageId
-                  });
-                }
+                // if (actualTokenUsage) {
+                //   console.log('🔢 [TOKEN USAGE] Regular mode actual tokens:', {
+                //     promptTokens: actualTokenUsage.promptTokens,
+                //     completionTokens: actualTokenUsage.completionTokens,
+                //     totalTokens: actualTokenUsage.totalTokens,
+                //     model: model,
+                //     messageId: assistantMessageId
+                //   });
+                // }
                 
                 // 최종 계산 결과 주석 전송 (계산기가 사용된 경우에만)
                 if (routingDecision.object.selectedTools.includes('calculator')) {
@@ -1449,15 +1449,15 @@ Format your response as exactly 3 lines, one question per line, with no numberin
 
                 // 🆕 실제 토큰 사용량 추출 및 로깅
                 const actualTokenUsage = completion.usage;
-                if (actualTokenUsage) {
-                  console.log('🔢 [TOKEN USAGE] Regular mode actual tokens:', {
-                    promptTokens: actualTokenUsage.promptTokens,
-                    completionTokens: actualTokenUsage.completionTokens,
-                    totalTokens: actualTokenUsage.totalTokens,
-                    model: model,
-                    messageId: assistantMessageId
-                  });
-                }
+                // if (actualTokenUsage) {
+                //   console.log('🔢 [TOKEN USAGE] Regular mode actual tokens:', {
+                //     promptTokens: actualTokenUsage.promptTokens,
+                //     completionTokens: actualTokenUsage.completionTokens,
+                //     totalTokens: actualTokenUsage.totalTokens,
+                //     model: model,
+                //     messageId: assistantMessageId
+                //   });
+                // }
 
                 await handleStreamCompletion(
                   supabase,
