@@ -118,12 +118,6 @@ export default function RootLayout({
         <ThemeInitScript />
         <meta property="og:url" content="https://chatflix.app" />
         <link rel="canonical" href="https://chatflix.app" />
-        <Script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1162518265779190"
-          crossOrigin="anonymous"
-          strategy="afterInteractive"
-        />
       </head>
       <body className={inter.className}>
         <RootLayoutClient>
