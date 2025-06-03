@@ -31,6 +31,7 @@ export interface AIMessageContent {
 
 export interface MultiModalMessage extends Omit<Message, 'content'> {
   content: string | AIMessageContent[];
+  tool_results?: any;
 }
 
 export interface DatabaseAttachment {

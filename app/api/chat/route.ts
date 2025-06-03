@@ -346,6 +346,20 @@ export async function POST(req: Request) {
           );
           
           if (isAgentEnabled) {
+            // 🔍 원본 메시지 디버깅 (토큰 최적화 전)
+            if (process.env.NODE_ENV === 'development') {
+              console.log('📋 [ORIGINAL MESSAGES DEBUG]', {
+                totalProcessMessages: processMessages.length,
+                toolResultsInProcessMessages: processMessages.map((msg, idx) => ({
+                  index: idx,
+                  id: msg.id?.substring(0, 8),
+                  role: msg.role,
+                  hasToolResults: !!(msg as any).tool_results,
+                  toolResultKeys: (msg as any).tool_results ? Object.keys((msg as any).tool_results).filter(k => k !== 'token_usage') : []
+                })).filter(msg => msg.hasToolResults || msg.toolResultKeys.length > 0)
+              });
+            }
+
             // 4. 시스템 프롬프트 토큰 수 추정
             const systemTokens = estimateTokenCount(currentSystemPrompt);
             
@@ -357,6 +371,21 @@ export async function POST(req: Request) {
               processMessages, 
               remainingTokens,
             );
+
+            // 🔍 최적화된 메시지 디버깅 (토큰 최적화 후)
+            if (process.env.NODE_ENV === 'development') {
+              console.log('📋 [OPTIMIZED MESSAGES DEBUG]', {
+                totalOptimizedMessages: optimizedMessages.length,
+                droppedMessages: processMessages.length - optimizedMessages.length,
+                toolResultsInOptimizedMessages: optimizedMessages.map((msg, idx) => ({
+                  index: idx,
+                  id: msg.id?.substring(0, 8),
+                  role: msg.role,
+                  hasToolResults: !!(msg as any).tool_results,
+                  toolResultKeys: (msg as any).tool_results ? Object.keys((msg as any).tool_results).filter(k => k !== 'token_usage') : []
+                })).filter(msg => msg.hasToolResults || msg.toolResultKeys.length > 0)
+              });
+            }
 
             // 현재 질문 추출을 위한 준비
             let userQuery = '';
@@ -440,11 +469,110 @@ export async function POST(req: Request) {
             const currentMessage = optimizedMessages[optimizedMessages.length - 1];
             userQuery = extractTextFromMessage(currentMessage);
 
-            // 이전 대화 컨텍스트 추출 (현재 질문 제외한 모든 최적화된 메시지)
-            // 이미 토큰 제한을 고려하여 최적화된 메시지에서 마지막 메시지(현재 질문)만 제외
-            const conversationHistory = convertMultiModalToMessage(optimizedMessages.slice(0, -1));
+            // 🆕 STEP 0: Context Relevance Router - 필요한 도구 결과만 선별
+            let contextFilter: {
+              reasoning: string;
+              calculationSteps: boolean;
+              webSearchResults: boolean;
+              linkReaderAttempts: boolean;
+              youtubeLinkAnalysisResults: boolean;
+              youtubeSearchResults: boolean;
+              academicSearchResults: boolean;
+              structuredResponse: boolean;
+              generatedImages: boolean;
+            } | null = null;
             
-                        // 모델에 따라 사용 가능한 도구 필터링 (Gemini 2.5 Pro 또는 Flash인 경우 link_reader와 youtube_link_analyzer 제거)
+            // 기본 이전 대화 컨텍스트 추출 (현재 질문 제외)
+            let conversationHistory = convertMultiModalToMessage(optimizedMessages.slice(0, -1));
+            
+            // 🔧 OPTIMIZATION: tool_results가 있는 메시지가 실제로 있는지 먼저 확인
+            const hasToolResultsInHistory = optimizedMessages.slice(0, -1).some(msg => 
+              (msg as any).tool_results && 
+              Object.keys((msg as any).tool_results).some(key => key !== 'token_usage' && key !== 'agentReasoning')
+            );
+            
+            if (conversationHistory.length > 0 && hasToolResultsInHistory) {
+              try {
+                const contextAnalysis = await generateObject({
+                  // 🔧 OPTIMIZATION: 더 효율적인 모델 사용 (단순한 분석용)
+                  model: providers.languageModel('gemini-2.0-flash'),
+                  prompt: `
+# Context Relevance Analysis
+
+Analyze the user's current query to determine which previous tool results are relevant for context.
+
+## User's Current Query:
+"${userQuery}"
+
+## Available Tool Result Types:
+- calculationSteps: Previous mathematical calculations and results
+- webSearchResults: Previous web search results and information  
+- linkReaderAttempts: Previous website content analysis
+- youtubeLinkAnalysisResults: Previous YouTube video analysis and transcripts
+- youtubeSearchResults: Previous YouTube search results
+- academicSearchResults: Previous academic paper search results
+- structuredResponse: Previously generated files and content
+- generatedImages: Previously generated images
+
+## Analysis Rules:
+1. **Direct Reference**: User directly mentions previous results (e.g., "from that calculation", "in that video", "from the search")
+2. **Continuation**: User wants to continue/expand on previous work (e.g., "tell me more", "expand on this") 
+3. **New Topic**: User asks completely unrelated question
+
+## Examples:
+- "Is there anything wrong with the calculation I just made?" → calculationSteps: true, others: false
+- "At what minute was that mentioned in the YouTube video?" → youtubeLinkAnalysisResults: true, others: false  
+- "Based on the search results earlier..." → webSearchResults: true, others: false
+- "In that file..." → structuredResponse: true, others: false
+- "Tell me more details" → keep relevant tools from context: true
+- "New unrelated question" → all: false
+
+**IMPORTANT**: Respond in English for reasoning and use exact English property names for the boolean fields.
+                  `,
+                  schema: z.object({
+                    reasoning: z.string().describe('Brief explanation of why these tool results are needed'),
+                    calculationSteps: z.boolean().describe('Include previous calculation results'),
+                    webSearchResults: z.boolean().describe('Include previous web search results'),
+                    linkReaderAttempts: z.boolean().describe('Include previous link analysis results'),
+                    youtubeLinkAnalysisResults: z.boolean().describe('Include previous YouTube video analysis'),
+                    youtubeSearchResults: z.boolean().describe('Include previous YouTube search results'),
+                    academicSearchResults: z.boolean().describe('Include previous academic search results'),
+                    structuredResponse: z.boolean().describe('Include previously generated files'),
+                    generatedImages: z.boolean().describe('Include previously generated images')
+                  })
+                });
+                
+                contextFilter = contextAnalysis.object;
+                
+                // 필터를 적용하여 이전 대화 컨텍스트 재생성
+                conversationHistory = convertMultiModalToMessage(optimizedMessages.slice(0, -1), contextFilter);
+                
+                // Log context filtering decision
+                if (process.env.NODE_ENV === 'development') {
+                  console.log('🎯 [CONTEXT FILTER]', {
+                    userQuery: userQuery.substring(0, 100),
+                    reasoning: contextFilter.reasoning,
+                    enabledFilters: Object.entries(contextFilter)
+                      .filter(([key, value]) => key !== 'reasoning' && value === true)
+                      .map(([key]) => key)
+                  });
+                  
+                  console.log('🔍 [FILTERED CONTEXT] Applied context filter to conversation history');
+                }
+                
+              } catch (error) {
+                console.error('Context analysis failed, using full context:', error);
+                // Fallback: use original conversation history
+                contextFilter = null;
+              }
+            } else if (!hasToolResultsInHistory) {
+              // 🔧 OPTIMIZATION: tool_results가 없으면 Context Analysis 건너뛰기
+              if (process.env.NODE_ENV === 'development') {
+                console.log('🔍 [CONTEXT FILTER] No tool results in history, skipping context analysis');
+              }
+            }
+                        
+            // 모델에 따라 사용 가능한 도구 필터링 (Gemini 2.5 Pro 또는 Flash인 경우 link_reader와 youtube_link_analyzer 제거)
               let availableToolsList = [
                 'web_search',
                 'calculator',
@@ -477,13 +605,17 @@ export async function POST(req: Request) {
                 memoryData || undefined
               );
 
+              // 🗑️ REMOVED: 불필요한 중복 요약 제거 - conversationHistory에 이미 필터링된 정보 포함됨
+
+              // console.log('--------------------------------');
               // console.log('planningSystemPrompt', planningSystemPrompt);
               // console.log('conversationHistory', conversationHistory);
               // console.log('userQuery', userQuery);
+              // console.log('--------------------------------');
               
               const planningResult = await streamText({
-                // model: providers.languageModel('gemini-2.0-flash'), 
-                model: providers.languageModel(model), 
+                model: providers.languageModel('gemini-2.0-flash'), 
+                // model: providers.languageModel(model), 
                 providerOptions: supportsReasoning ? providerOptions : undefined,
                 prompt: `
 ${planningSystemPrompt}
@@ -504,12 +636,45 @@ ${userQuery}
               Your task is to first check if the user query explicitly requests any unavailable tools:
               - If the current model is 'gemini-2.5-pro-preview-05-06' or 'gemini-2.5-flash-preview-04-17' and the user query mentions or requests 'link_reader' or 'youtube_link_analyzer' (e.g., words like "link reader", "youtube analyzer", or their equivalents in any language), respond ONLY with a clear error message in the same language as the user's query: "This model does not support the 'link_reader' or 'youtube_link_analyzer' tool. Please use a different model or rephrase your query to avoid these tools."
               - Do not create a plan or proceed further if an unavailable tool is requested.
-              - Otherwise, create a comprehensive plan to address the user's query.
-              1. What is the user really asking for? Analyze the query to identify key needs.
-              2. What information or capabilities will be needed? Review the available tools and determine if any are suitable by comparing them to the user's query.
-              3. If suitable tools are available, select and justify their use in the plan. If no tools are appropriate based on your analysis, rely solely on the model's built-in capabilities without attempting to use tools.
-              4. What is the best approach to provide a complete and helpful response?
-              5. What workflow mode would be most appropriate?
+              - Otherwise, create a comprehensive STRATEGIC PLAN ONLY (not the actual response).
+              
+              ## CRITICAL: THIS IS A PLANNING PHASE ONLY
+              **DO NOT provide actual answers or responses to the user's query. You are ONLY creating a strategic plan.**
+              **DO NOT attempt to solve problems, provide information, or give recommendations directly.**
+              **Your role here is to be a strategic planner, not a responder.**
+              
+              ## Planning Guidelines:
+              1. **Analyze User Intent**: What is the user really asking for? Identify key needs and requirements.
+              2. **Review Previous Context**: Look at the conversation history above to see what information is already available. The context has been filtered to show only relevant previous results.
+              3. **Tool Selection Strategy**: 
+                 - If the previous conversation already contains sufficient information to answer the query, plan to use it without additional tools
+                 - If the existing information needs updating, expanding, or verification, plan for targeted additional searches
+                 - If the query requires completely new information not covered in previous context, plan for comprehensive tool usage
+                 - Consider efficiency: avoid redundant searches if good information already exists in the conversation
+              4. **Response Approach**: Determine the best approach to provide a complete and helpful response.
+              5. **Workflow Mode**: What workflow mode would be most appropriate for this type of query?
+
+              ## Planning Output Format:
+              Structure your strategic plan with these sections:
+              
+              **USER INTENT ANALYSIS:**
+              - What exactly is the user asking for?
+              - What are the key requirements and constraints?
+              
+              **INFORMATION ASSESSMENT:**
+              - What relevant information already exists in the conversation?
+              - What gaps need to be filled?
+              - What information might be outdated or insufficient?
+              
+              **STRATEGIC APPROACH:**
+              - Overall strategy for addressing this query
+              - Whether to rely on existing information or gather new data
+              - Reasoning for tool selection or non-selection
+              
+              **EXECUTION PLAN:**
+              - Step-by-step approach for the next phase
+              - Recommended workflow mode and reasoning
+              - Expected outcome and deliverables
 
               Available capabilities include:
               ${availableToolsList.length > 0 
@@ -523,7 +688,7 @@ ${userQuery}
               - If user writes in English, respond in English
               - If user writes in another language, respond in that language
 
-              Create a detailed plan explaining your approach to helping the user.
+              **REMEMBER: Create ONLY a strategic plan. Do NOT provide actual answers, solutions, or responses to the user's query.**
               `,
               });
 
@@ -576,6 +741,32 @@ ${userQuery}
 
             # User Query
             ${userQuery}
+
+            # Previous Conversation Context
+            ${conversationHistory}
+
+            ## Tool Selection Guidelines:
+            **Efficiency First**: Before selecting tools, consider what information is already available in the previous conversation:
+            
+            1. **Use Existing Information When Sufficient**: 
+               - If previous results in the conversation fully address the user's query, select NO additional tools
+               - Example: User asks "Tell me more about Tate McRae's songs" and previous conversation already contains comprehensive information about her discography
+            
+            2. **Selective Additional Searches**:
+               - Only select tools when existing information needs updating, expanding, or when completely new information is required
+               - Example: User asks "Tate McRae's latest album release" and existing conversation is from 6 months ago → select web_search for recent updates
+            
+            3. **Avoid Redundancy**:
+               - Don't select web_search if comprehensive web search results already exist in the conversation for the same topic
+               - Don't select calculator if similar calculations were already performed in previous context
+               - Don't select link_reader if relevant content was already analyzed in the conversation
+            
+            4. **When to Select Tools**:
+               - **Different perspective**: User wants academic sources but conversation only has web search results → select academic_search
+               - **More recent info**: Existing information in conversation might be outdated → select appropriate search tool
+               - **Deeper analysis**: User wants detailed analysis of specific content → select link_reader or youtube_link_analyzer
+               - **Different format**: User wants visual content when only text exists in conversation → select image_generator
+               - **New calculations**: User asks for different mathematical analysis → select calculator
 
             Now select the specific tools needed to execute this plan effectively.
 
@@ -849,11 +1040,34 @@ Remember to maintain the language of the user's query throughout your response.
             // console.log('systemPromptAgent', systemPromptAgent);
             // console.log('--------------------------------');
 
-            const messages = convertMultiModalToMessage(optimizedMessages);
+            // 이전 대화 기록에 실제로 어떤 도구 결과가 있는지 확인
+            if (process.env.NODE_ENV === 'development') {
+              console.log('📋 [ORIGINAL CONTEXT DEBUG]', {
+                totalOptimizedMessages: optimizedMessages.length,
+                toolResultsInMessages: optimizedMessages.map((msg, idx) => ({
+                  index: idx,
+                  id: msg.id?.substring(0, 8),
+                  role: msg.role,
+                  hasToolResults: !!(msg as any).tool_results,
+                  toolResultKeys: (msg as any).tool_results ? Object.keys((msg as any).tool_results).filter(k => k !== 'token_usage') : []
+                }))
+              });
+            }
+
+            // 🔧 FIX: Context Filter가 적용된 메시지 사용
+            const messages = convertMultiModalToMessage(optimizedMessages, contextFilter || undefined);
 
             // console.log('--------------------------------');
-            // console.log('messages', messages);
+            // console.log('conversationHistory', conversationHistory);
+            // console.log('userQuery', userQuery);
             // console.log('--------------------------------');
+
+            // 🗑️ REMOVED: 중복 호출 제거
+            // const messages = convertMultiModalToMessage(optimizedMessages);
+
+            console.log('--------------------------------');
+            console.log('messages', messages);
+            console.log('--------------------------------');
 
             const finalstep = streamText({
               model: providers.languageModel(model),

@@ -82,7 +82,21 @@ export const fetchFileContent = async (url: string, supabase?: any, fileType?: s
   }
 };
 
-export const convertMessageForAI = async (message: Message, modelId: string, supabase?: any): Promise<{ role: MessageRole; content: string | AIMessageContent[] }> => {
+export const convertMessageForAI = async (
+  message: Message, 
+  modelId: string, 
+  supabase?: any, 
+  contextFilter?: {
+    calculationSteps?: boolean;
+    webSearchResults?: boolean;
+    linkReaderAttempts?: boolean;
+    youtubeLinkAnalysisResults?: boolean;
+    youtubeSearchResults?: boolean;
+    academicSearchResults?: boolean;
+    structuredResponse?: boolean;
+    generatedImages?: boolean;
+  }
+): Promise<{ role: MessageRole; content: string | AIMessageContent[]; tool_results?: any }> => {
   const modelConfig = getModelById(modelId);
   if (!modelConfig) throw new Error('Invalid model');
 
@@ -120,14 +134,40 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
 
   // Check for various tool results
   const toolResults = (message as any).tool_results;
-  const hasStructuredResponse = toolResults?.structuredResponse?.response?.files?.length > 0;
-  const hasWebSearchResults = toolResults?.webSearchResults?.length > 0;
-  const hasCalculationSteps = toolResults?.calculationSteps?.length > 0;
-  const hasLinkReaderAttempts = toolResults?.linkReaderAttempts?.length > 0;
-  const hasGeneratedImages = toolResults?.generatedImages?.length > 0;
-  const hasAcademicSearchResults = toolResults?.academicSearchResults?.length > 0;
-  const hasYoutubeSearchResults = toolResults?.youtubeSearchResults?.length > 0;
-  const hasYoutubeLinkAnalysis = toolResults?.youtubeLinkAnalysisResults?.length > 0;
+  
+  // Apply context filter if provided
+  const hasStructuredResponse = contextFilter ? 
+    (contextFilter.structuredResponse && toolResults?.structuredResponse?.response?.files?.length > 0) :
+    (toolResults?.structuredResponse?.response?.files?.length > 0);
+    
+  const hasWebSearchResults = contextFilter ?
+    (contextFilter.webSearchResults && toolResults?.webSearchResults?.length > 0) :
+    (toolResults?.webSearchResults?.length > 0);
+    
+  const hasCalculationSteps = contextFilter ?
+    (contextFilter.calculationSteps && toolResults?.calculationSteps?.length > 0) :
+    (toolResults?.calculationSteps?.length > 0);
+    
+  const hasLinkReaderAttempts = contextFilter ?
+    (contextFilter.linkReaderAttempts && toolResults?.linkReaderAttempts?.length > 0) :
+    (toolResults?.linkReaderAttempts?.length > 0);
+    
+  const hasGeneratedImages = contextFilter ?
+    (contextFilter.generatedImages && toolResults?.generatedImages?.length > 0) :
+    (toolResults?.generatedImages?.length > 0);
+    
+  const hasAcademicSearchResults = contextFilter ?
+    (contextFilter.academicSearchResults && toolResults?.academicSearchResults?.length > 0) :
+    (toolResults?.academicSearchResults?.length > 0);
+    
+  const hasYoutubeSearchResults = contextFilter ?
+    (contextFilter.youtubeSearchResults && toolResults?.youtubeSearchResults?.length > 0) :
+    (toolResults?.youtubeSearchResults?.length > 0);
+    
+  const hasYoutubeLinkAnalysis = contextFilter ?
+    (contextFilter.youtubeLinkAnalysisResults && toolResults?.youtubeLinkAnalysisResults?.length > 0) :
+    (toolResults?.youtubeLinkAnalysisResults?.length > 0);
+
   const hasAnyToolResults = hasStructuredResponse || hasWebSearchResults || hasCalculationSteps || 
                            hasLinkReaderAttempts || hasGeneratedImages || hasAcademicSearchResults ||
                            hasYoutubeSearchResults || hasYoutubeLinkAnalysis;
@@ -158,7 +198,9 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
   if (!experimental_attachments.length && !hasAnyToolResults) {
     return {
       role: message.role as MessageRole,
-      content: message.content
+      content: message.content,
+      // 🆕 Include tool_results even when no processing is needed
+      ...(toolResults && { tool_results: toolResults })
     };
   }
 
@@ -203,24 +245,22 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
   if (hasWebSearchResults) {
     let formattedResults = '\n\n### Previous Web Search Results:\n';
     
-    // Include ALL search groups (no group limit for conversation history)
+    // Include ALL search groups with ALL results
     toolResults.webSearchResults.forEach((searchGroup: any, index: number) => {
       if (searchGroup.searches && searchGroup.searches.length > 0) {
-        // Limit to first 3 searches per group to manage token usage
-        const limitedSearches = searchGroup.searches.slice(0, 3);
-        limitedSearches.forEach((search: any, searchIndex: number) => {
+        // Include ALL searches per group
+        searchGroup.searches.forEach((search: any, searchIndex: number) => {
           const query = safeStringify(search.query);
           formattedResults += `\n## Search ${index + 1}.${searchIndex + 1}: "${query}"\n`;
           
           if (search.results && search.results.length > 0) {
-            // Limit to first 3 results per search to manage token usage
-            const limitedResults = search.results.slice(0, 3);
-            limitedResults.forEach((result: any, resultIndex: number) => {
+            // Include ALL results per search
+            search.results.forEach((result: any, resultIndex: number) => {
               const title = safeStringify(result.title);
               const url = safeStringify(result.url);
               formattedResults += `\n### Result ${resultIndex + 1}: ${title}\n`;
               formattedResults += `URL: ${url}\n`;
-              // Include FULL content without truncation (only per-search and per-group limits remain)
+              // Include FULL content without truncation
               const content = safeStringify(result.content || result.snippet || 'No content available');
               formattedResults += `${content}\n`;
             });
@@ -274,13 +314,12 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
       analysisText += `URL: ${safeStringify(analysis.url)}\n`;
       analysisText += `Title: ${safeStringify(analysis.title)}\n`;
       if (analysis.transcript) {
-        // Limit transcript to 1000 characters to manage token usage (transcripts can be very long)
+        // Include FULL transcript without truncation
         const transcriptText = safeStringify(analysis.transcript);
-        const limitedTranscript = transcriptText.length > 1000 ? transcriptText.substring(0, 1000) + '...' : transcriptText;
-        analysisText += `Transcript: ${limitedTranscript}\n`;
+        analysisText += `Transcript: ${transcriptText}\n`;
       }
       if (analysis.summary) {
-        // Include FULL summary without truncation (summaries are usually concise)
+        // Include FULL summary without truncation
         const summaryText = safeStringify(analysis.summary);
         analysisText += `Summary: ${summaryText}\n`;
       }
@@ -495,7 +534,9 @@ export const convertMessageForAI = async (message: Message, modelId: string, sup
 
   return {
     role: message.role as MessageRole,
-    content: parts
+    content: parts,
+    // 🆕 Include tool_results in the return value
+    ...(toolResults && { tool_results: toolResults })
   };
 }; 
 
@@ -556,8 +597,27 @@ export const getProviderFromModel = (model: string): string => {
 };
 
 // MultiModalMessage를 Message로 변환하는 함수 추가
-export function convertMultiModalToMessage(messages: MultiModalMessage[]): Message[] {
-  return messages.map(msg => {
+export function convertMultiModalToMessage(
+  messages: MultiModalMessage[], 
+  contextFilter?: {
+    calculationSteps?: boolean;
+    webSearchResults?: boolean;
+    linkReaderAttempts?: boolean;
+    youtubeLinkAnalysisResults?: boolean;
+    youtubeSearchResults?: boolean;
+    academicSearchResults?: boolean;
+    structuredResponse?: boolean;
+    generatedImages?: boolean;
+  }
+): Message[] {
+  let toolResultsStats = {
+    totalMessages: messages.length,
+    messagesWithToolResults: 0,
+    includedToolResults: 0,
+    toolTypes: [] as string[]
+  };
+
+  const result = messages.map(msg => {
     let content: string;
     
     // content가 AIMessageContent[] 타입인 경우 모든 내용을 텍스트로 변환
@@ -593,13 +653,81 @@ export function convertMultiModalToMessage(messages: MultiModalMessage[]): Messa
       content: content
     };
     
-    // tool_results가 있으면 포함
+    // tool_results가 있으면 필터 적용해서 포함
     if ((msg as any).tool_results) {
-      baseMessage.tool_results = (msg as any).tool_results;
+      const toolResults = (msg as any).tool_results;
+      toolResultsStats.messagesWithToolResults++;
+      
+      if (contextFilter) {
+        // 필터가 있으면 선택적으로 포함
+        const filteredToolResults: any = {};
+        
+        if (contextFilter.calculationSteps && toolResults.calculationSteps) {
+          filteredToolResults.calculationSteps = toolResults.calculationSteps;
+          toolResultsStats.toolTypes.push('calculationSteps');
+        }
+        if (contextFilter.webSearchResults && toolResults.webSearchResults) {
+          filteredToolResults.webSearchResults = toolResults.webSearchResults;
+          toolResultsStats.toolTypes.push('webSearchResults');
+        }
+        if (contextFilter.linkReaderAttempts && toolResults.linkReaderAttempts) {
+          filteredToolResults.linkReaderAttempts = toolResults.linkReaderAttempts;
+          toolResultsStats.toolTypes.push('linkReaderAttempts');
+        }
+        if (contextFilter.youtubeLinkAnalysisResults && toolResults.youtubeLinkAnalysisResults) {
+          filteredToolResults.youtubeLinkAnalysisResults = toolResults.youtubeLinkAnalysisResults;
+          toolResultsStats.toolTypes.push('youtubeLinkAnalysisResults');
+        }
+        if (contextFilter.youtubeSearchResults && toolResults.youtubeSearchResults) {
+          filteredToolResults.youtubeSearchResults = toolResults.youtubeSearchResults;
+          toolResultsStats.toolTypes.push('youtubeSearchResults');
+        }
+        if (contextFilter.academicSearchResults && toolResults.academicSearchResults) {
+          filteredToolResults.academicSearchResults = toolResults.academicSearchResults;
+          toolResultsStats.toolTypes.push('academicSearchResults');
+        }
+        if (contextFilter.structuredResponse && toolResults.structuredResponse) {
+          filteredToolResults.structuredResponse = toolResults.structuredResponse;
+          toolResultsStats.toolTypes.push('structuredResponse');
+        }
+        if (contextFilter.generatedImages && toolResults.generatedImages) {
+          filteredToolResults.generatedImages = toolResults.generatedImages;
+          toolResultsStats.toolTypes.push('generatedImages');
+        }
+        
+        // 필터링된 결과가 있을 때만 포함
+        if (Object.keys(filteredToolResults).length > 0) {
+          baseMessage.tool_results = filteredToolResults;
+          toolResultsStats.includedToolResults++;
+        }
+      } else {
+        // 필터가 없으면 모든 tool_results 포함
+        baseMessage.tool_results = toolResults;
+        toolResultsStats.includedToolResults++;
+        // 원본 도구 타입들 로깅
+        Object.keys(toolResults).forEach(key => {
+          if (key !== 'token_usage') {
+            toolResultsStats.toolTypes.push(key);
+          }
+        });
+      }
     }
     
     return baseMessage as Message;
   });
+
+  // 디버깅 로그 출력
+  if (contextFilter) {
+    console.log('🔧 [TOOL RESULTS DEBUG]', {
+      totalMessages: toolResultsStats.totalMessages,
+      messagesWithToolResults: toolResultsStats.messagesWithToolResults,
+      includedAfterFilter: toolResultsStats.includedToolResults,
+      includedToolTypes: [...new Set(toolResultsStats.toolTypes)],
+      filterEnabled: Object.entries(contextFilter).filter(([k,v]) => k !== 'reasoning' && v).map(([k]) => k)
+    });
+  }
+
+  return result;
 }
 
 /**
