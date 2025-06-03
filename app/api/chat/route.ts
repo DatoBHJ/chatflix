@@ -347,18 +347,18 @@ export async function POST(req: Request) {
           
           if (isAgentEnabled) {
             // 🔍 원본 메시지 디버깅 (토큰 최적화 전)
-            if (process.env.NODE_ENV === 'development') {
-              console.log('📋 [ORIGINAL MESSAGES DEBUG]', {
-                totalProcessMessages: processMessages.length,
-                toolResultsInProcessMessages: processMessages.map((msg, idx) => ({
-                  index: idx,
-                  id: msg.id?.substring(0, 8),
-                  role: msg.role,
-                  hasToolResults: !!(msg as any).tool_results,
-                  toolResultKeys: (msg as any).tool_results ? Object.keys((msg as any).tool_results).filter(k => k !== 'token_usage') : []
-                })).filter(msg => msg.hasToolResults || msg.toolResultKeys.length > 0)
-              });
-            }
+            // if (process.env.NODE_ENV === 'development') {
+            //   console.log('📋 [ORIGINAL MESSAGES DEBUG]', {
+            //     totalProcessMessages: processMessages.length,
+            //     toolResultsInProcessMessages: processMessages.map((msg, idx) => ({
+            //       index: idx,
+            //       id: msg.id?.substring(0, 8),
+            //       role: msg.role,
+            //       hasToolResults: !!(msg as any).tool_results,
+            //       toolResultKeys: (msg as any).tool_results ? Object.keys((msg as any).tool_results).filter(k => k !== 'token_usage') : []
+            //     })).filter(msg => msg.hasToolResults || msg.toolResultKeys.length > 0)
+            //   });
+            // }
 
             // 4. 시스템 프롬프트 토큰 수 추정
             const systemTokens = estimateTokenCount(currentSystemPrompt);
@@ -373,19 +373,19 @@ export async function POST(req: Request) {
             );
 
             // 🔍 최적화된 메시지 디버깅 (토큰 최적화 후)
-            if (process.env.NODE_ENV === 'development') {
-              console.log('📋 [OPTIMIZED MESSAGES DEBUG]', {
-                totalOptimizedMessages: optimizedMessages.length,
-                droppedMessages: processMessages.length - optimizedMessages.length,
-                toolResultsInOptimizedMessages: optimizedMessages.map((msg, idx) => ({
-                  index: idx,
-                  id: msg.id?.substring(0, 8),
-                  role: msg.role,
-                  hasToolResults: !!(msg as any).tool_results,
-                  toolResultKeys: (msg as any).tool_results ? Object.keys((msg as any).tool_results).filter(k => k !== 'token_usage') : []
-                })).filter(msg => msg.hasToolResults || msg.toolResultKeys.length > 0)
-              });
-            }
+            // if (process.env.NODE_ENV === 'development') {
+            //   console.log('📋 [OPTIMIZED MESSAGES DEBUG]', {
+            //     totalOptimizedMessages: optimizedMessages.length,
+            //     droppedMessages: processMessages.length - optimizedMessages.length,
+            //     toolResultsInOptimizedMessages: optimizedMessages.map((msg, idx) => ({
+            //       index: idx,
+            //       id: msg.id?.substring(0, 8),
+            //       role: msg.role,
+            //       hasToolResults: !!(msg as any).tool_results,
+            //       toolResultKeys: (msg as any).tool_results ? Object.keys((msg as any).tool_results).filter(k => k !== 'token_usage') : []
+            //     })).filter(msg => msg.hasToolResults || msg.toolResultKeys.length > 0)
+            //   });
+            // }
 
             // 현재 질문 추출을 위한 준비
             let userQuery = '';
@@ -548,17 +548,17 @@ Analyze the user's current query to determine which previous tool results are re
                 conversationHistory = convertMultiModalToMessage(optimizedMessages.slice(0, -1), contextFilter);
                 
                 // Log context filtering decision
-                if (process.env.NODE_ENV === 'development') {
-                  console.log('🎯 [CONTEXT FILTER]', {
-                    userQuery: userQuery.substring(0, 100),
-                    reasoning: contextFilter.reasoning,
-                    enabledFilters: Object.entries(contextFilter)
-                      .filter(([key, value]) => key !== 'reasoning' && value === true)
-                      .map(([key]) => key)
-                  });
-                  
-                  console.log('🔍 [FILTERED CONTEXT] Applied context filter to conversation history');
-                }
+                // if (process.env.NODE_ENV === 'development') {
+                //   console.log('🎯 [CONTEXT FILTER]', {
+                //     userQuery: userQuery.substring(0, 100),
+                //     reasoning: contextFilter.reasoning,
+                //     enabledFilters: Object.entries(contextFilter)
+                //       .filter(([key, value]) => key !== 'reasoning' && value === true)
+                //       .map(([key]) => key)
+                //   });
+                   
+                //   console.log('🔍 [FILTERED CONTEXT] Applied context filter to conversation history');
+                // }
                 
               } catch (error) {
                 console.error('Context analysis failed, using full context:', error);
@@ -567,11 +567,29 @@ Analyze the user's current query to determine which previous tool results are re
               }
             } else if (!hasToolResultsInHistory) {
               // 🔧 OPTIMIZATION: tool_results가 없으면 Context Analysis 건너뛰기
-              if (process.env.NODE_ENV === 'development') {
-                console.log('🔍 [CONTEXT FILTER] No tool results in history, skipping context analysis');
-              }
+              // if (process.env.NODE_ENV === 'development') {
+              //   console.log('🔍 [CONTEXT FILTER] No tool results in history, skipping context analysis');
+              // }
             }
-                        
+
+            // 🆕 conversationHistory를 읽기 쉬운 문자열로 변환
+            const formatConversationHistory = (messages: any[]): string => {
+              if (!messages || messages.length === 0) {
+                return 'No previous conversation.';
+              }
+              
+              return messages.map((message, index) => {
+                const role = message.role === 'user' ? 'User' : 'Assistant';
+                const content = typeof message.content === 'string' ? message.content : 
+                               Array.isArray(message.content) ? message.content.join('\n') : 
+                               JSON.stringify(message.content);
+                
+                return `## ${role} Message ${index + 1}:\n${content}`;
+              }).join('\n\n');
+            };
+
+            const formattedConversationHistory = formatConversationHistory(conversationHistory);
+
             // 모델에 따라 사용 가능한 도구 필터링 (Gemini 2.5 Pro 또는 Flash인 경우 link_reader와 youtube_link_analyzer 제거)
               let availableToolsList = [
                 'web_search',
@@ -599,11 +617,11 @@ Analyze the user's current query to determine which previous tool results are re
               };
 
               // 첫 번째 단계: 계획 수립 (Planning) - 수정된 프롬프트
-              const planningSystemPrompt = buildSystemPrompt(
-                'agent',
-                'initial',
-                memoryData || undefined
-              );
+              // const planningSystemPrompt = buildSystemPrompt(
+              //   'agent',
+              //   'initial',
+              //   memoryData || undefined
+              // );
 
               // 🗑️ REMOVED: 불필요한 중복 요약 제거 - conversationHistory에 이미 필터링된 정보 포함됨
 
@@ -614,18 +632,18 @@ Analyze the user's current query to determine which previous tool results are re
               // console.log('--------------------------------');
               
               const planningResult = await streamText({
-                model: providers.languageModel('gemini-2.0-flash'), 
-                // model: providers.languageModel(model), 
+                // model: providers.languageModel('gemini-2.0-flash'), 
+                model: providers.languageModel(model), 
                 providerOptions: supportsReasoning ? providerOptions : undefined,
                 prompt: `
-${planningSystemPrompt}
+# PLANNING PHASE - Agent Strategy Development
 
               # Model Information
               - Current model: ${model}
               - Available tools are limited based on the model. For Gemini 2.5 Pro and Gemini 2.5 Flash, 'link_reader' and 'youtube_link_analyzer' are not available. If the user requests these tools, you must respond with an error message.
 
 # Previous Conversation
-${conversationHistory}
+${formattedConversationHistory}
 
 # User Query
 ${userQuery}
@@ -734,7 +752,7 @@ ${userQuery}
             const routingDecision = await generateObject({
               model: providers.languageModel('gemini-2.0-flash'),
               prompt: `
-            Based on the following comprehensive plan, quickly select the specific tools needed:
+            Based on the following comprehensive plan, select the specific tools needed:
 
             # Plan Created
             ${planningText}
@@ -743,7 +761,7 @@ ${userQuery}
             ${userQuery}
 
             # Previous Conversation Context
-            ${conversationHistory}
+            ${formattedConversationHistory}
 
             ## Tool Selection Guidelines:
             **Efficiency First**: Before selecting tools, consider what information is already available in the previous conversation:
@@ -1041,18 +1059,18 @@ Remember to maintain the language of the user's query throughout your response.
             // console.log('--------------------------------');
 
             // 이전 대화 기록에 실제로 어떤 도구 결과가 있는지 확인
-            if (process.env.NODE_ENV === 'development') {
-              console.log('📋 [ORIGINAL CONTEXT DEBUG]', {
-                totalOptimizedMessages: optimizedMessages.length,
-                toolResultsInMessages: optimizedMessages.map((msg, idx) => ({
-                  index: idx,
-                  id: msg.id?.substring(0, 8),
-                  role: msg.role,
-                  hasToolResults: !!(msg as any).tool_results,
-                  toolResultKeys: (msg as any).tool_results ? Object.keys((msg as any).tool_results).filter(k => k !== 'token_usage') : []
-                }))
-              });
-            }
+            // if (process.env.NODE_ENV === 'development') {
+            //   console.log('📋 [ORIGINAL CONTEXT DEBUG]', {
+            //     totalOptimizedMessages: optimizedMessages.length,
+            //     toolResultsInMessages: optimizedMessages.map((msg, idx) => ({
+            //       index: idx,
+            //       id: msg.id?.substring(0, 8),
+            //       role: msg.role,
+            //       hasToolResults: !!(msg as any).tool_results,
+            //       toolResultKeys: (msg as any).tool_results ? Object.keys((msg as any).tool_results).filter(k => k !== 'token_usage') : []
+            //     }))
+            //   });
+            // }
 
             // 🔧 FIX: Context Filter가 적용된 메시지 사용
             const messages = convertMultiModalToMessage(optimizedMessages, contextFilter || undefined);
@@ -1065,9 +1083,9 @@ Remember to maintain the language of the user's query throughout your response.
             // 🗑️ REMOVED: 중복 호출 제거
             // const messages = convertMultiModalToMessage(optimizedMessages);
 
-            console.log('--------------------------------');
-            console.log('messages', messages);
-            console.log('--------------------------------');
+            // console.log('--------------------------------');
+            // console.log('messages', messages);
+            // console.log('--------------------------------');
 
             const finalstep = streamText({
               model: providers.languageModel(model),
@@ -1290,7 +1308,9 @@ Files can include a variety of content types based on what best serves the user'
                   
                   // 최종 응답 생성을 위한 프롬프트 구성
                   const responsePrompt = `
-${buildSystemPrompt('agent', 'third', memoryData || undefined)}
+${buildSystemPrompt('agent', 'third', 
+  memoryData || undefined
+)}
 
 You are now in the third stage of the Chatflix Agentic Process - creating supporting files based on the information gathered and the main response already provided.
 Here's the blueprint and the previous steps we've already taken:
