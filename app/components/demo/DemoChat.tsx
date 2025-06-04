@@ -26,6 +26,7 @@ import { FollowUpQuestions } from '@/app/components/FollowUpQuestions'
 // Default example prompts for demo mode - same as in the main app
 const DEFAULT_EXAMPLE_PROMPTS = [
   "Draw a Catwoman",
+  "Draw a cute cat",
   "I AM MUSIC Album Review",
   "Summarize this PDF: https://www.nasa.gov/wp-content/uploads/2023/01/55583main_vision_space_exploration2.pdf",
   "Summarize this link: https://www.numeroberlin.de/2023/11/numero-berlin-zukunft-x-playboi-carti/",
