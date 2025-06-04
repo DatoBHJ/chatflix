@@ -51,11 +51,15 @@ interface ModelSelectionResult {
 
 // 🆕 개선된 멀티모달 토큰 추정 함수 (실제 토큰 사용량 우선 사용)
 export function estimateMultiModalTokens(msg: Message): number {
-  // 🆕 실제 토큰 사용량이 있으면 우선 사용
+  // 🆕 새로운 token_usage 칼럼에서 실제 토큰 사용량 우선 확인
+  if ((msg as any).token_usage?.totalTokens) {
+    const actualTokens = (msg as any).token_usage.totalTokens;
+    return actualTokens;
+  }
+
+  // 🆕 백워드 호환성: 기존 tool_results에서도 확인 (마이그레이션 전 데이터)
   if ((msg as any).tool_results?.token_usage?.totalTokens) {
     const actualTokens = (msg as any).tool_results.token_usage.totalTokens;
-    const msgId = (msg as any).id || 'unknown';
-    console.log('📊 [TOKEN] Using actual token count for message:', msgId.substring(0, 8), actualTokens, 'tokens');
     return actualTokens;
   }
   
@@ -86,30 +90,23 @@ export function estimateMultiModalTokens(msg: Message): number {
       // 메타데이터가 있으면 정확한 토큰 수 사용
       if (attachment.metadata && attachment.metadata.estimatedTokens) {
         total += attachment.metadata.estimatedTokens;
-        console.log('📊 [DEBUG] Using metadata tokens for', attachment.name, ':', attachment.metadata.estimatedTokens);
       } else {
         // 메타데이터가 없으면 기존 방식 사용
         if (attachment.fileType === 'image' || 
             (attachment.contentType && attachment.contentType.startsWith('image/'))) {
           total += 1000;
-          console.log('⚠️ [DEBUG] No metadata for image', attachment.name, ', using default 1000 tokens');
         } else if (attachment.fileType === 'pdf' || 
                    attachment.contentType === 'application/pdf') {
           total += 5000;
-          console.log('⚠️ [DEBUG] No metadata for PDF', attachment.name, ', using default 5000 tokens');
         } else if (attachment.fileType === 'code') {
           total += 3000;
-          console.log('⚠️ [DEBUG] No metadata for code file', attachment.name, ', using default 3000 tokens');
         } else {
           total += 2000; // 기타 파일
-          console.log('⚠️ [DEBUG] No metadata for file', attachment.name, ', using default 2000 tokens');
         }
       }
     }
   }
   
-  const msgId = (msg as any).id || 'unknown';
-  console.log('📊 [TOKEN] Estimated token count for message:', msgId.substring(0, 8), total, 'tokens (estimated)');
   return total;
 }
 
@@ -212,16 +209,6 @@ export async function selectOptimalModel(
       contextInfo
     );
     
-    console.log('Model Selection Result:', {
-      selectedModel: modelSelectionResult.selectedModel,
-      category: analysis.category,
-      complexity: analysis.complexity,
-      hasImage,
-      hasPDF,
-      hasCodeAttachment,
-      contextInfo: modelSelectionResult.contextInfo
-    });
-    
     return {
       selectedModel: modelSelectionResult.selectedModel,
       analysis: {
@@ -263,7 +250,7 @@ function getAgentEnabledModels(): ModelConfig[] {
   // gemini-2.5-pro가 목록에 있는지 확인
   const hasFallback = models.some(m => m.id === 'gemini-2.5-pro-preview-05-06');
   if (!hasFallback) {
-    console.warn('Fallback model gemini-2.5-pro-preview-05-06 not found in agent-enabled models');
+    // console.warn('Fallback model gemini-2.5-pro-preview-05-06 not found in agent-enabled models');
   }
   
   return models;
@@ -468,7 +455,7 @@ function selectModelWithContextAwareness(
     
   } catch (error) {
     // 🆕 에러 발생 시 폴백 로직
-    console.error('Model selection error:', error);
+    // console.error('Model selection error:', error);
     
     const agentModels = getAgentEnabledModels();
     const fallbackModel = agentModels.find(m => m.id === 'gemini-2.5-pro-preview-05-06');

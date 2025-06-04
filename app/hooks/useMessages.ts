@@ -104,18 +104,18 @@ export function useMessages(chatId: string, userId: string) {
   }
 
   const handleEditSave = async (messageId: string, currentModel: string, messages: Message[], setMessages: (messages: Message[]) => void, reload: any, files?: globalThis.File[], remainingAttachments?: any[]) => {
-    console.log('Starting edit save operation:', { 
-      currentModel,
-      messageId, 
-      userId, 
-      chatId,
-      messageContent: editingContent.substring(0, 100) + '...',
-      hasNewFiles: files && files.length > 0
-    });
+    // console.log('Starting edit save operation:', { 
+    //   currentModel,
+    //   messageId, 
+    //   userId, 
+    //   chatId,
+    //   messageContent: editingContent.substring(0, 100) + '...',
+    //   hasNewFiles: files && files.length > 0
+    // });
     
     // Add guard to prevent re-entry
     if (isSavingEdit) {
-      console.log('Edit save already in progress, skipping')
+      // console.log('Edit save already in progress, skipping')
       return
     }
     
@@ -134,19 +134,19 @@ export function useMessages(chatId: string, userId: string) {
       const localMessage = messages.find(msg => msg.id === messageId);
       
       if (!localMessage) {
-        console.warn('Message not found in local state:', messageId);
+        // console.warn('Message not found in local state:', messageId);
         setEditingMessageId(null);
         setEditingContent('');
         return;
       }
-      else {
-        console.log('Message found in local state:', localMessage);
-      }
+      // else {
+      //   console.log('Message found in local state:', localMessage);
+      // }
 
       // 파일 업로드 처리
       let newAttachments: any[] = [];
       if (files && files.length > 0) {
-        console.log('Processing new files for edit:', files.length);
+        // console.log('Processing new files for edit:', files.length);
         
         // 기존의 uploadFile 함수 사용
         const uploadPromises = files.map(async (file) => {
@@ -154,7 +154,7 @@ export function useMessages(chatId: string, userId: string) {
             const result = await uploadFile(file);
             return result;
           } catch (error) {
-            console.error(`Failed to upload file ${file.name}:`, error);
+            // console.error(`Failed to upload file ${file.name}:`, error);
             return null;
           }
         });
@@ -167,12 +167,12 @@ export function useMessages(chatId: string, userId: string) {
       const retainedAttachments = remainingAttachments || [];
       const allAttachments = [...retainedAttachments, ...newAttachments];
       
-      console.log('🔍 [DEBUG] File processing for edit:', {
-        originalAttachmentCount: (localMessage as any).experimental_attachments?.length || 0,
-        retainedAttachmentCount: retainedAttachments.length,
-        newAttachmentCount: newAttachments.length,
-        finalAttachmentCount: allAttachments.length
-      });
+      // console.log('🔍 [DEBUG] File processing for edit:', {
+      //   originalAttachmentCount: (localMessage as any).experimental_attachments?.length || 0,
+      //   retainedAttachmentCount: retainedAttachments.length,
+      //   newAttachmentCount: newAttachments.length,
+      //   finalAttachmentCount: allAttachments.length
+      // });
 
       const messageIndex = messages.findIndex(msg => msg.id === messageId);
       const localSequenceNumber = messageIndex + 1;
@@ -191,7 +191,7 @@ export function useMessages(chatId: string, userId: string) {
       let existingMessage = existingMessages?.[0];
       
       if (!existingMessage) {
-        console.log('Message not found in database, inserting new message');
+        // console.log('Message not found in database, inserting new message');
         const { data: insertedMessage, error: insertError } = await supabase
           .from('messages')
           .insert([{
@@ -214,7 +214,7 @@ export function useMessages(chatId: string, userId: string) {
         if (insertError) throw insertError;
         existingMessage = insertedMessage;
       } else {
-        console.log('Message found in database, updating message', existingMessage);
+        // console.log('Message found in database, updating message', existingMessage);
         const { error: updateError } = await supabase
           .from('messages')
           .update({
@@ -242,27 +242,27 @@ export function useMessages(chatId: string, userId: string) {
             }
           : msg
       );
-      console.log('Updated messages:', updatedMessages);
+      // console.log('Updated messages:', updatedMessages);
 
       // 🆕 디버깅: 편집된 메시지들의 첨부파일 정보 출력
-      console.log('🔍 [DEBUG] Messages for edit save:', {
-        totalMessages: updatedMessages.length,
-        messagesWithAttachments: updatedMessages.filter(msg => (msg as any).experimental_attachments?.length > 0).length,
-        newFilesUploaded: newAttachments.length,
-        totalAttachments: allAttachments.length,
-        editingContentLength: currentEditingContent.length, // 편집 내용 길이 디버깅 추가
-        attachmentDetails: updatedMessages.map(msg => ({
-          id: msg.id,
-          role: msg.role,
-          hasAttachments: !!(msg as any).experimental_attachments,
-          attachmentCount: (msg as any).experimental_attachments?.length || 0,
-          attachments: (msg as any).experimental_attachments?.map((att: any) => ({
-            name: att.name,
-            type: att.fileType || att.contentType,
-            hasMetadata: !!att.metadata
-          })) || []
-        })).filter(msgInfo => msgInfo.hasAttachments)
-      });
+      // console.log('🔍 [DEBUG] Messages for edit save:', {
+      //   totalMessages: updatedMessages.length,
+      //   messagesWithAttachments: updatedMessages.filter(msg => (msg as any).experimental_attachments?.length > 0).length,
+      //   newFilesUploaded: newAttachments.length,
+      //   totalAttachments: allAttachments.length,
+      //   editingContentLength: currentEditingContent.length, // 편집 내용 길이 디버깅 추가
+      //   attachmentDetails: updatedMessages.map(msg => ({
+      //     id: msg.id,
+      //     role: msg.role,
+      //     hasAttachments: !!(msg as any).experimental_attachments,
+      //     attachmentCount: (msg as any).experimental_attachments?.length || 0,
+      //     attachments: (msg as any).experimental_attachments?.map((att: any) => ({
+      //       name: att.name,
+      //       type: att.fileType || att.contentType,
+      //       hasMetadata: !!att.metadata
+      //     })) || []
+      //   })).filter(msgInfo => msgInfo.hasAttachments)
+      // });
 
       setMessages(updatedMessages);
 
@@ -274,11 +274,11 @@ export function useMessages(chatId: string, userId: string) {
         .gt('sequence_number', existingMessage.sequence_number);
 
       if (deleteError) {
-        console.error('Error deleting subsequent messages:', deleteError);
+        // console.error('Error deleting subsequent messages:', deleteError);
       }
-      else {
-        console.log('Subsequent messages deleted successfully');
-      }
+      // else {
+      //   console.log('Subsequent messages deleted successfully');
+      // }
 
       const assistantMessageId = generateMessageId();
 
@@ -322,7 +322,7 @@ export function useMessages(chatId: string, userId: string) {
                 )
                 if (alternativeModel) {
                   modelToUse = alternativeModel.id
-                  console.log(`Current model ${currentModel} is rate limited. Using alternative model: ${modelToUse}`)
+                  // console.log(`Current model ${currentModel} is rate limited. Using alternative model: ${modelToUse}`)
                 }
               }
             }
@@ -342,26 +342,26 @@ export function useMessages(chatId: string, userId: string) {
                   )
                   if (alternativeModel) {
                     modelToUse = alternativeModel.id
-                    console.log(`Current model ${currentModel} is rate limited. Using alternative model: ${modelToUse}`)
+                    // console.log(`Current model ${currentModel} is rate limited. Using alternative model: ${modelToUse}`)
                   }
                 }
               }
             }
           }
         } catch (error) {
-          console.error('Error parsing rate limit info:', error)
+          // console.error('Error parsing rate limit info:', error)
         }
       }
 
       try {
-        console.log('Reloading with model:', modelToUse);
-        console.log('🔍 [DEBUG] Final editingContent before reload:', currentEditingContent); // 디버깅 추가
+        // console.log('Reloading with model:', modelToUse);
+        // console.log('🔍 [DEBUG] Final editingContent before reload:', currentEditingContent); // 디버깅 추가
         
         // 🆕 편집된 메시지의 첨부파일 메타데이터 추출
         const messagesWithMetadata = await Promise.all(
           updatedMessages.map(async (msg) => {
             if ((msg as any).experimental_attachments && (msg as any).experimental_attachments.length > 0) {
-              console.log('📎 [DEBUG] Processing attachments for edited message:', msg.id);
+              // console.log('📎 [DEBUG] Processing attachments for edited message:', msg.id);
               const enrichedAttachments = await enrichAttachmentsWithMetadata((msg as any).experimental_attachments);
               return {
                 ...msg,
@@ -373,11 +373,11 @@ export function useMessages(chatId: string, userId: string) {
         );
         
         // 최종 메시지 내용 디버깅
-        console.log('🔍 [DEBUG] Final messages with metadata:', messagesWithMetadata.map(msg => ({
-          id: msg.id,
-          content: msg.content.substring(0, 100) + '...',
-          role: msg.role
-        })));
+        // console.log('🔍 [DEBUG] Final messages with metadata:', messagesWithMetadata.map(msg => ({
+        //   id: msg.id,
+        //   content: msg.content.substring(0, 100) + '...',
+        //   role: msg.role
+        // })));
         
         await reload({
           body: {
@@ -389,22 +389,22 @@ export function useMessages(chatId: string, userId: string) {
           }
         });
       } catch (error: any) {
-        console.error('Error reloading:', error);
+        // console.error('Error reloading:', error);
         if (!handleRateLimitError(error, modelToUse)) {
           throw error;
         }
       }
     } catch (error: any) {
       if (!handleRateLimitError(error, currentModel)) {
-        console.error('Failed to update message:', {
-          error: error?.message || error,
-          stack: error?.stack,
-          supabaseError: error?.error_description || error?.details,
-          statusCode: error?.status || error?.code,
-          messageId,
-          userId,
-          chatId
-        });
+        // console.error('Failed to update message:', {
+        //   error: error?.message || error,
+        //   stack: error?.stack,
+        //   supabaseError: error?.error_description || error?.details,
+        //   statusCode: error?.status || error?.code,
+        //   messageId,
+        //   userId,
+        //   chatId
+        // });
       }
       
       // 에러 발생 시 편집 상태 복원 - 백업된 편집 내용 복원
@@ -416,19 +416,19 @@ export function useMessages(chatId: string, userId: string) {
   }
 
   const handleRegenerate = useCallback((messageId: string, messages: Message[], setMessages: (messages: Message[]) => void, currentModel: string, reload: any) => async (e: React.MouseEvent) => {
-    console.log('Starting regenerate operation:', { 
-      currentModel,
-      messageId, 
-      userId, 
-      chatId,
-      messageContent: editingContent.substring(0, 100) + '...'
-    });
+    // console.log('Starting regenerate operation:', { 
+    //   currentModel,
+    //   messageId, 
+    //   userId, 
+    //   chatId,
+    //   messageContent: editingContent.substring(0, 100) + '...'
+    // });
     
     e.preventDefault()
     
     // Add a guard to prevent re-entry
     if (isRegenerating) {
-      console.log('Regeneration already in progress, skipping')
+      // console.log('Regeneration already in progress, skipping')
       return
     }
     
@@ -446,18 +446,18 @@ export function useMessages(chatId: string, userId: string) {
       if (!targetUserMessage) return
 
       // 🆕 디버깅: 대상 메시지의 첨부파일 정보 출력
-      console.log('🔍 [DEBUG] Target user message for regeneration:', {
-        id: targetUserMessage.id,
-        content: targetUserMessage.content.substring(0, 100) + '...',
-        hasAttachments: !!(targetUserMessage as any).experimental_attachments,
-        attachmentCount: (targetUserMessage as any).experimental_attachments?.length || 0,
-        attachments: (targetUserMessage as any).experimental_attachments?.map((att: any) => ({
-          name: att.name,
-          type: att.fileType || att.contentType,
-          hasMetadata: !!att.metadata,
-          url: att.url?.substring(0, 50) + '...'
-        })) || []
-      });
+      // console.log('🔍 [DEBUG] Target user message for regeneration:', {
+      //   id: targetUserMessage.id,
+      //   content: targetUserMessage.content.substring(0, 100) + '...',
+      //   hasAttachments: !!(targetUserMessage as any).experimental_attachments,
+      //   attachmentCount: (targetUserMessage as any).experimental_attachments?.length || 0,
+      //   attachments: (targetUserMessage as any).experimental_attachments?.map((att: any) => ({
+      //     name: att.name,
+      //     type: att.fileType || att.contentType,
+      //     hasMetadata: !!att.metadata,
+      //     url: att.url?.substring(0, 50) + '...'
+      //   })) || []
+      // });
 
       const assistantMessageId = messageId
       const updatedMessages = messages.slice(0, messageIndex)
@@ -474,7 +474,7 @@ export function useMessages(chatId: string, userId: string) {
 
       if (messageError || !messageData) {
         // 데이터베이스에서 메시지를 찾지 못한 경우, 현재 메시지 인덱스 + 1을 sequence number로 사용
-        console.log('Message not found in database, using index-based sequence number')
+        // console.log('Message not found in database, using index-based sequence number')
         sequenceNumber = messageIndex 
       } else {
         sequenceNumber = messageData.sequence_number
@@ -489,7 +489,7 @@ export function useMessages(chatId: string, userId: string) {
         .gte('sequence_number', sequenceNumber)
 
       if (deleteError) {
-        console.error('Error deleting subsequent messages:', deleteError)
+        // console.error('Error deleting subsequent messages:', deleteError)
         return
       }
 
@@ -509,7 +509,7 @@ export function useMessages(chatId: string, userId: string) {
         }])
 
       if (insertError) {
-        console.error('Error inserting new assistant message:', insertError)
+        // console.error('Error inserting new assistant message:', insertError)
         return
       }
 
@@ -539,7 +539,7 @@ export function useMessages(chatId: string, userId: string) {
                 )
                 if (alternativeModel) {
                   modelToUse = alternativeModel.id
-                  console.log(`Current model ${currentModel} is rate limited. Using alternative model: ${modelToUse}`)
+                  // console.log(`Current model ${currentModel} is rate limited. Using alternative model: ${modelToUse}`)
                 }
               }
             }
@@ -559,14 +559,14 @@ export function useMessages(chatId: string, userId: string) {
                   )
                   if (alternativeModel) {
                     modelToUse = alternativeModel.id
-                    console.log(`Current model ${currentModel} is rate limited. Using alternative model: ${modelToUse}`)
+                    // console.log(`Current model ${currentModel} is rate limited. Using alternative model: ${modelToUse}`)
                   }
                 }
               }
             }
           }
         } catch (error) {
-          console.error('Error parsing rate limit info:', error)
+          // console.error('Error parsing rate limit info:', error)
         }
       }
 
@@ -575,8 +575,8 @@ export function useMessages(chatId: string, userId: string) {
         let enrichedTargetMessage = { ...targetUserMessage };
         
         if ((targetUserMessage as any).experimental_attachments && (targetUserMessage as any).experimental_attachments.length > 0) {
-          console.log('📎 [DEBUG] Processing attachments for regeneration message:', targetUserMessage.id);
-          console.log('📎 [DEBUG] Original attachments:', (targetUserMessage as any).experimental_attachments);
+          // console.log('📎 [DEBUG] Processing attachments for regeneration message:', targetUserMessage.id);
+          // console.log('📎 [DEBUG] Original attachments:', (targetUserMessage as any).experimental_attachments);
           
           const enrichedAttachments = await enrichAttachmentsWithMetadata((targetUserMessage as any).experimental_attachments);
           enrichedTargetMessage = {
@@ -584,7 +584,7 @@ export function useMessages(chatId: string, userId: string) {
             experimental_attachments: enrichedAttachments
           };
           
-          console.log('📎 [DEBUG] Enriched attachments:', enrichedAttachments);
+          // console.log('📎 [DEBUG] Enriched attachments:', enrichedAttachments);
         }
         
         await reload({
@@ -610,7 +610,7 @@ export function useMessages(chatId: string, userId: string) {
       }
     } catch (error: any) {
       if (!handleRateLimitError(error, currentModel)) {
-        console.error('Regeneration failed:', error);
+        // console.error('Regeneration failed:', error);
       }
     } finally {
       setIsRegenerating(false)

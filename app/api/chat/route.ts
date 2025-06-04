@@ -61,7 +61,7 @@ async function incrementSuccessfulRequestCount(
         onConflict: 'user_id,date' // This ensures that if a record for the user and date already exists, it's updated.
       });
   } catch (error) {
-    console.error('Failed to update successful request count:', error);
+    // console.error('Failed to update successful request count:', error);
   }
 }
 
@@ -113,7 +113,7 @@ export async function POST(req: Request) {
           const { selectedModel } = await selectOptimalModel(messages, modelType);
           model = selectedModel;
         } catch (error) {
-          console.error('Error in model selection:', error);
+          // console.error('Error in model selection:', error);
           // 오류 발생 시 기본 모델 사용
           model = 'gemini-2.5-pro-preview-05-06';
         }
@@ -522,7 +522,7 @@ Analyze the user's current query to determine which previous tool results are re
                 conversationHistory = convertMultiModalToMessage(optimizedMessages.slice(0, -1), contextFilter);
 
               } catch (error) {
-                console.error('Context analysis failed, using full context:', error);
+                // console.error('Context analysis failed, using full context:', error);
                 // Fallback: use original conversation history
                 contextFilter = null;
               }
@@ -1250,7 +1250,7 @@ Create supporting files that complement the main response already provided:
 
 1. SUPPORTING FILES: Additional content for the canvas area (adaptive based on workflow mode)
    - Each file should have a clear purpose and be self-contained
-   - Use appropriate file extensions (.py, .js, .md, .json, etc.)
+   - Use appropriate file extensions (.py, .js, etc.)
    - Follow best practices for the content type (code, data, etc.)
    - IMPORTANT: ALL file content MUST be formatted with proper Markdown syntax. Use the following guidelines:
      - For code blocks, use triple backticks with language specification: \`\`\`python, \`\`\`javascript, etc.
@@ -1489,7 +1489,7 @@ Format your response as exactly 3 lines, one question per line, with no numberin
                     // 구조화된 응답도 도구 결과에 포함
                     toolResults.structuredResponse = structuredResponse;
                   } catch (followUpError) {
-                    console.error('Follow-up question generation failed:', followUpError);
+                    // console.error('Follow-up question generation failed:', followUpError);
                     // Follow-up 질문 생성 실패 시에도 파일만 포함한 응답 전송
                     const structuredResponse = {
                       response: {

@@ -397,7 +397,7 @@ export const handlePromptShortcuts = async (supabase: any, message: MultiModalMe
             }
           }
         } catch (error) {
-          console.error('[Debug] Error processing mentions:', error);
+          // console.error('[Debug] Error processing mentions:', error);
         }
 
         // Update the part with processed text
@@ -440,7 +440,7 @@ export const handlePromptShortcuts = async (supabase: any, message: MultiModalMe
         }
       }
     } catch (error) {
-      console.error('[Debug] Error processing mentions:', error);
+      // console.error('[Debug] Error processing mentions:', error);
     }
 
     return {
@@ -518,7 +518,7 @@ export const saveUserMessage = async (supabase: any, chatId: string | undefined,
   const { error } = await supabase.from('messages').insert([messageData]);
 
   if (error) {
-    console.error('[Debug] Error saving message:', error);
+    // console.error('[Debug] Error saving message:', error);
   }
 
   return sequence;
@@ -634,36 +634,48 @@ export const handleStreamCompletion = async (
   // Check if model is the original chatflix-ultimate
   const originalModel = extraData.original_model || model;
 
-  // 🆕 토큰 사용량 정보 처리
-  let toolResults = extraData.tool_results || {};
+  // 🆕 토큰 사용량과 도구 결과 분리 처리
+  let toolResults = extraData.tool_results ? { ...extraData.tool_results } : {};
+  let tokenUsage = null;
+  
+  // 토큰 사용량이 있으면 별도 처리 및 tool_results에서 제거
   if (extraData.token_usage) {
-    // 토큰 사용량을 tool_results에 추가
-    toolResults = {
-      ...toolResults,
-      token_usage: extraData.token_usage
-    };
+    tokenUsage = extraData.token_usage;
+    
+    // tool_results에서 token_usage 제거 (중복 저장 방지)
+    if (toolResults.token_usage) {
+      delete toolResults.token_usage;
+    }
     
     // 로그 출력
-    console.log('💾 [DATABASE] Saving token usage to database:', {
-      messageId,
-      promptTokens: extraData.token_usage.promptTokens,
-      completionTokens: extraData.token_usage.completionTokens,
-      totalTokens: extraData.token_usage.totalTokens,
-      model: originalModel
-    });
+    // console.log('💾 [DATABASE] Saving token usage to dedicated column:', {
+    //   messageId: messageId.substring(0, 8),
+    //   promptTokens: tokenUsage.promptTokens,
+    //   completionTokens: tokenUsage.completionTokens,
+    //   totalTokens: tokenUsage.totalTokens,
+    //   model: originalModel
+    // });
+  }
+
+  // 업데이트할 데이터 객체 구성
+  const updateData: any = {
+    content: finalContent,
+    reasoning: finalReasoning && finalReasoning !== finalContent ? finalReasoning : null,
+    model: originalModel,
+    host: provider,
+    created_at: new Date().toISOString(),
+    tool_results: Object.keys(toolResults).length > 0 ? toolResults : null
+  };
+
+  // 토큰 사용량이 있으면 새 칼럼에 추가
+  if (tokenUsage) {
+    updateData.token_usage = tokenUsage;
   }
 
   // 데이터베이스 업데이트
   await supabase
     .from('messages')
-    .update({
-      content: finalContent,
-      reasoning: finalReasoning && finalReasoning !== finalContent ? finalReasoning : null,
-      model: originalModel,
-      host: provider,
-      created_at: new Date().toISOString(),
-      tool_results: Object.keys(toolResults).length > 0 ? toolResults : null
-    })
+    .update(updateData)
     .eq('id', messageId)
     .eq('user_id', userId);
 }; 

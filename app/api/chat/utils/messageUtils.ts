@@ -20,7 +20,6 @@ export const fetchFileContent = async (url: string, supabase?: any, fileType?: s
             .download(filePath);
             
           if (error) {
-            console.error('Error downloading from Supabase:', error);
             return null;
           }
           
@@ -36,7 +35,6 @@ export const fetchFileContent = async (url: string, supabase?: any, fileType?: s
             return { text: await data.text() };
           }
         } catch (err) {
-          console.error('Error processing Supabase file:', err);
           return null;
         }
       }
@@ -45,7 +43,6 @@ export const fetchFileContent = async (url: string, supabase?: any, fileType?: s
     if (url.startsWith('http') || url.startsWith('https')) {
       const response = await fetch(url);
       if (!response.ok) {
-        console.error(`Failed to fetch file content: ${response.statusText}`);
         return null;
       }
       
@@ -77,7 +74,6 @@ export const fetchFileContent = async (url: string, supabase?: any, fileType?: s
     }
     return null;
   } catch (error) {
-    console.error('Error fetching file content:', error);
     return null;
   }
 };
@@ -450,7 +446,7 @@ export const convertMessageForAI = async (
           const fetchResult = await fetchFileContent(attachment.url, supabase, fileType);
           content = fetchResult?.text || `[Could not fetch content for ${fileName}]`;
         } catch (error) {
-          console.error(`Error fetching content for ${fileName}:`, error);
+          // console.error(`Error fetching content for ${fileName}:`, error);
         }
         
         return {
@@ -477,7 +473,7 @@ export const convertMessageForAI = async (
     );
     
     if (pdfAttachments.length > 0) {
-      console.log(`Processing ${pdfAttachments.length} PDF attachments`);
+      // console.log(`Processing ${pdfAttachments.length} PDF attachments`);
       
       // Process each PDF
       for (const attachment of pdfAttachments) {
@@ -494,17 +490,17 @@ export const convertMessageForAI = async (
               data: fileResult.base64,
               mimeType: 'application/pdf'
             });
-            console.log(`Added PDF "${fileName}" as file type`);
+            // console.log(`Added PDF "${fileName}" as file type`);
           } else {
             // Fallback: just mention the PDF
             parts.push({
               type: 'text',
               text: `\n\nPDF Document: ${fileName} (Could not process the PDF content)\n`
             });
-            console.log(`Could not process PDF "${fileName}"`);
+            // console.log(`Could not process PDF "${fileName}"`);
           }
         } catch (error) {
-          console.error(`Error processing PDF ${fileName}:`, error);
+          // console.error(`Error processing PDF ${fileName}:`, error);
           parts.push({
             type: 'text',
             text: `\n\nPDF Document: ${fileName} (Error processing the PDF)\n`
@@ -571,19 +567,33 @@ export const validateAndUpdateSession = async (supabase: any, chatId: string | u
         if (dbMessage.experimental_attachments?.length > 0) {
           messages[index].experimental_attachments = dbMessage.experimental_attachments;
         }
+        
+        // 🆕 새로운 token_usage 칼럼에서 토큰 사용량 정보 로드
+        if (dbMessage.token_usage) {
+          (messages[index] as any).token_usage = dbMessage.token_usage;
+          
+          // console.log('📊 [SESSION SYNC] Loaded message with token usage from dedicated column:', {
+          //   messageId: msg.id.substring(0, 8),
+          //   totalTokens: dbMessage.token_usage.totalTokens,
+          //   promptTokens: dbMessage.token_usage.promptTokens,
+          //   completionTokens: dbMessage.token_usage.completionTokens
+          // });
+        }
+        
         // Include tool_results from the database message
         if (dbMessage.tool_results) {
           (messages[index] as any).tool_results = dbMessage.tool_results;
           
-          // 🆕 토큰 사용량 정보가 있으면 로그 출력
-          if (dbMessage.tool_results.token_usage) {
-            const msgId = (msg as any).id || 'unknown';
-            console.log('📊 [SESSION SYNC] Loaded message with token usage:', {
-              messageId: msgId.substring(0, 8),
-              totalTokens: dbMessage.tool_results.token_usage.totalTokens,
-              promptTokens: dbMessage.tool_results.token_usage.promptTokens,
-              completionTokens: dbMessage.tool_results.token_usage.completionTokens
-            });
+          // 🆕 백워드 호환성: tool_results에 token_usage가 있고 dedicated column에 없는 경우 처리
+          if (dbMessage.tool_results.token_usage && !dbMessage.token_usage) {
+            (messages[index] as any).token_usage = dbMessage.tool_results.token_usage;
+            
+            // console.log('📊 [SESSION SYNC] Loaded message with token usage from tool_results (legacy):', {
+            //   messageId: msg.id.substring(0, 8),
+            //   totalTokens: dbMessage.tool_results.token_usage.totalTokens,
+            //   promptTokens: dbMessage.tool_results.token_usage.promptTokens,
+            //   completionTokens: dbMessage.tool_results.token_usage.completionTokens
+            // });
           }
         }
       }
@@ -718,13 +728,13 @@ export function convertMultiModalToMessage(
 
   // 디버깅 로그 출력
   if (contextFilter) {
-    console.log('🔧 [TOOL RESULTS DEBUG]', {
-      totalMessages: toolResultsStats.totalMessages,
-      messagesWithToolResults: toolResultsStats.messagesWithToolResults,
-      includedAfterFilter: toolResultsStats.includedToolResults,
-      includedToolTypes: [...new Set(toolResultsStats.toolTypes)],
-      filterEnabled: Object.entries(contextFilter).filter(([k,v]) => k !== 'reasoning' && v).map(([k]) => k)
-    });
+    // console.log('🔧 [TOOL RESULTS DEBUG]', {
+    //   totalMessages: toolResultsStats.totalMessages,
+    //   messagesWithToolResults: toolResultsStats.messagesWithToolResults,
+    //   includedAfterFilter: toolResultsStats.includedToolResults,
+    //   includedToolTypes: [...new Set(toolResultsStats.toolTypes)],
+    //   filterEnabled: Object.entries(contextFilter).filter(([k,v]) => k !== 'reasoning' && v).map(([k]) => k)
+    // });
   }
 
   return result;
