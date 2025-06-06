@@ -83,14 +83,14 @@ function PlanningSectionComponent({ planningData }: PlanningSectionProps) {
   }
 
   return (
-    <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm mb-8">
+    <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm mb-6">
       <div 
         className="flex items-center justify-between w-full mb-4 cursor-pointer"
         onClick={handleToggle}
       >
         <div className="flex items-center gap-2.5">
           <Brain className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-          <h2 className="font-medium text-left tracking-tight">Creating Plan</h2>
+          <h2 className="font-medium text-left tracking-tight">Planning next moves</h2>
         </div>
         <div className="flex items-center gap-2">
           {!planningData.isComplete && planningData.planningThoughts && (

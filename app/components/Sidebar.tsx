@@ -231,8 +231,10 @@ export function Sidebar({ user, onClose }: SidebarProps) {
     if (!user) return
 
     // Set up a more efficient real-time channel
+    const channelSuffix = Date.now() + Math.random().toString(36).substr(2, 9);
+    
     const chatChannel = supabase
-      .channel('chat-updates')
+      .channel(`chat-updates-${user.id}-${channelSuffix}`)
       .on(
         'postgres_changes',
         {

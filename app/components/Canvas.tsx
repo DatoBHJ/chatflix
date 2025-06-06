@@ -119,6 +119,7 @@ type CanvasProps = {
     }[];
   } | null;
   isCompact?: boolean;
+  selectedTool?: string;
 };
 
 /**
@@ -135,6 +136,7 @@ export default function Canvas({
   youTubeSearchData, 
   youTubeLinkAnalysisData,
   isCompact = false,
+  selectedTool,
 }: CanvasProps) {
   // Don't render if there's no data to display
   if (!webSearchData && !mathCalculationData && !linkReaderData && !imageGeneratorData && !academicSearchData && !xSearchData && !youTubeSearchData && !youTubeLinkAnalysisData) return null;
@@ -244,8 +246,9 @@ export default function Canvas({
   return (
     <div className={`tool-results-canvas ${compactModeClasses}`}>
       {/* Web Search Results or Loading State */}
-      {webSearchData && (
-        <div className={panelClasses}>
+      {(!selectedTool || selectedTool === 'web-search') && webSearchData && (
+        <div className={selectedTool ? '' : panelClasses}>
+          {!selectedTool && (
           <div 
             className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
             onClick={toggleWebSearch}
@@ -263,16 +266,17 @@ export default function Canvas({
               </div>
             </div>
           </div>
+          )}
           <div 
-            className="overflow-hidden transition-all duration-200 ease-in-out"
-            style={{ 
+            className={selectedTool ? '' : 'overflow-hidden transition-all duration-200 ease-in-out'}
+            style={selectedTool ? {} : { 
               maxHeight: webSearchExpanded ? maxContentHeight : '0px',
             }}
           >
             <div
               ref={webSearchContentRef}
-              className="transition-opacity duration-200 ease-in-out"
-              style={{
+              className={selectedTool ? '' : 'transition-opacity duration-200 ease-in-out'}
+              style={selectedTool ? {} : {
                 opacity: webSearchExpanded ? 1 : 0,
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none'
@@ -295,8 +299,9 @@ export default function Canvas({
       )}
       
       {/* Math Calculation Results */}
-      {mathCalculationData && (
-        <div className={panelClasses}>
+      {(!selectedTool || selectedTool === 'calculator') && mathCalculationData && (
+        <div className={selectedTool ? '' : panelClasses}>
+          {!selectedTool && (
           <div 
             className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
             onClick={toggleMathCalc}
@@ -314,16 +319,17 @@ export default function Canvas({
               </div>
             </div>
           </div>
+          )}
           <div 
-            className="overflow-hidden transition-all duration-200 ease-in-out"
-            style={{ 
+            className={selectedTool ? '' : 'overflow-hidden transition-all duration-200 ease-in-out'}
+            style={selectedTool ? {} : { 
               maxHeight: mathCalcExpanded ? maxContentHeight : '0px',
             }}
           >
             <div
               ref={mathCalcContentRef}
-              className="transition-opacity duration-200 ease-in-out"
-              style={{
+              className={selectedTool ? '' : 'transition-opacity duration-200 ease-in-out'}
+              style={selectedTool ? {} : {
                 opacity: mathCalcExpanded ? 1 : 0,
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none'
@@ -343,8 +349,9 @@ export default function Canvas({
       )}
       
       {/* Link Reader Results */}
-      {linkReaderData && (
-        <div className={panelClasses}>
+      {(!selectedTool || selectedTool === 'link-reader') && linkReaderData && (
+        <div className={selectedTool ? '' : panelClasses}>
+          {!selectedTool && (
           <div 
             className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
             onClick={toggleLinkReader}
@@ -362,16 +369,17 @@ export default function Canvas({
               </div>
             </div>
           </div>
+          )}
           <div 
-            className="overflow-hidden transition-all duration-200 ease-in-out"
-            style={{ 
+            className={selectedTool ? '' : 'overflow-hidden transition-all duration-200 ease-in-out'}
+            style={selectedTool ? {} : { 
               maxHeight: linkReaderExpanded ? maxContentHeight : '0px',
             }}
           >
             <div
               ref={linkReaderContentRef}
-              className="transition-opacity duration-200 ease-in-out"
-              style={{
+              className={selectedTool ? '' : 'transition-opacity duration-200 ease-in-out'}
+              style={selectedTool ? {} : {
                 opacity: linkReaderExpanded ? 1 : 0,
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none'
@@ -391,8 +399,9 @@ export default function Canvas({
       )}
 
       {/* Image Generator Results */}
-      {imageGeneratorData && imageGeneratorData.generatedImages.length > 0 && (
-        <div className={panelClasses}>
+      {(!selectedTool || selectedTool === 'image-generator') && imageGeneratorData && imageGeneratorData.generatedImages.length > 0 && (
+        <div className={selectedTool ? '' : panelClasses}>
+          {!selectedTool && (
           <div 
             className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
             onClick={toggleImageGen}
@@ -410,16 +419,17 @@ export default function Canvas({
               </div>
             </div>
           </div>
+          )}
           <div 
-            className="overflow-hidden transition-all duration-200 ease-in-out"
-            style={{ 
+            className={selectedTool ? '' : 'overflow-hidden transition-all duration-200 ease-in-out'}
+            style={selectedTool ? {} : { 
               maxHeight: imageGenExpanded ? maxContentHeight : '0px',
             }}
           >
             <div
               ref={imageGenContentRef}
-              className="transition-opacity duration-200 ease-in-out p-1"
-              style={{
+              className={selectedTool ? 'p-1' : 'transition-opacity duration-200 ease-in-out p-1'}
+              style={selectedTool ? {} : {
                 opacity: imageGenExpanded ? 1 : 0,
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none'
@@ -464,8 +474,9 @@ export default function Canvas({
       )}
       
       {/* Academic Search Results */}
-      {academicSearchData && academicSearchData.academicResults.length > 0 && (
-        <div className={panelClasses}>
+      {(!selectedTool || selectedTool === 'academic-search') && academicSearchData && academicSearchData.academicResults.length > 0 && (
+        <div className={selectedTool ? '' : panelClasses}>
+          {!selectedTool && (
           <div 
             className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
             onClick={toggleAcademicSearch}
@@ -483,16 +494,17 @@ export default function Canvas({
               </div>
             </div>
           </div>
+          )}
           <div 
-            className="overflow-hidden transition-all duration-200 ease-in-out"
-            style={{ 
+            className={selectedTool ? '' : 'overflow-hidden transition-all duration-200 ease-in-out'}
+            style={selectedTool ? {} : { 
               maxHeight: academicSearchExpanded ? maxContentHeight : '0px',
             }}
           >
             <div
               ref={academicSearchContentRef}
-              className="transition-opacity duration-200 ease-in-out px-1"
-              style={{
+              className={selectedTool ? 'px-1' : 'transition-opacity duration-200 ease-in-out px-1'}
+              style={selectedTool ? {} : {
                 opacity: academicSearchExpanded ? 1 : 0,
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none'
@@ -540,8 +552,9 @@ export default function Canvas({
       )}
       
       {/* YouTube Search Results */}
-      {youTubeSearchData && (
-        <div className={panelClasses}>
+      {(!selectedTool || selectedTool === 'youtube-search') && youTubeSearchData && (
+        <div className={selectedTool ? '' : panelClasses}>
+          {!selectedTool && (
           <div 
             className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
             onClick={toggleYouTubeSearch}
@@ -559,16 +572,17 @@ export default function Canvas({
               </div>
             </div>
           </div>
+          )}
           <div 
-            className="overflow-hidden transition-all duration-200 ease-in-out"
-            style={{ 
+            className={selectedTool ? '' : 'overflow-hidden transition-all duration-200 ease-in-out'}
+            style={selectedTool ? {} : { 
               maxHeight: youTubeSearchExpanded ? maxContentHeight : '0px',
             }}
           >
             <div
               ref={youTubeSearchContentRef}
-              className="transition-opacity duration-200 ease-in-out space-y-6"
-              style={{
+              className={selectedTool ? 'space-y-6' : 'transition-opacity duration-200 ease-in-out space-y-6'}
+              style={selectedTool ? {} : {
                 opacity: youTubeSearchExpanded ? 1 : 0,
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none'
@@ -631,8 +645,9 @@ export default function Canvas({
       )}
 
       {/* YouTube Link Analysis Results */}
-      {youTubeLinkAnalysisData && (
-        <div className={panelClasses}>
+      {(!selectedTool || selectedTool === 'youtube-analyzer') && youTubeLinkAnalysisData && (
+        <div className={selectedTool ? '' : panelClasses}>
+          {!selectedTool && (
           <div 
             className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
             onClick={toggleYouTubeLinkAnalysis}
@@ -650,16 +665,17 @@ export default function Canvas({
               </div>
             </div>
           </div>
+          )}
           <div 
-            className="overflow-hidden transition-all duration-200 ease-in-out"
-            style={{ 
+            className={selectedTool ? '' : 'overflow-hidden transition-all duration-200 ease-in-out'}
+            style={selectedTool ? {} : { 
               maxHeight: youTubeLinkAnalysisExpanded ? maxContentHeight : '0px',
             }}
           >
             <div
               ref={youTubeLinkAnalysisContentRef}
-              className="transition-opacity duration-200 ease-in-out space-y-6"
-              style={{
+              className={selectedTool ? 'space-y-6' : 'transition-opacity duration-200 ease-in-out space-y-6'}
+              style={selectedTool ? {} : {
                 opacity: youTubeLinkAnalysisExpanded ? 1 : 0,
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none'

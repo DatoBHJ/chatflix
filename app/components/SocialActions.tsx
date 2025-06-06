@@ -120,8 +120,10 @@ const SocialActions: React.FC<SocialActionsProps> = ({
     fetchSocialState();
     
     // Set up real-time subscription for likes
+    const channelSuffix = Date.now() + Math.random().toString(36).substr(2, 9);
+    
     const likesSubscription = supabase
-      .channel('likes-changes')
+      .channel(`likes-changes-${updateId}-${channelSuffix}`)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'update_likes', filter: `update_id=eq.${updateId}` }, 
         () => {
@@ -133,7 +135,7 @@ const SocialActions: React.FC<SocialActionsProps> = ({
     
     // Set up real-time subscription for bookmarks
     const bookmarksSubscription = supabase
-      .channel('bookmarks-changes')
+      .channel(`bookmarks-changes-${updateId}-${channelSuffix}`)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'update_bookmarks', filter: `update_id=eq.${updateId}` }, 
         () => {
@@ -144,8 +146,8 @@ const SocialActions: React.FC<SocialActionsProps> = ({
       .subscribe();
     
     return () => {
-      likesSubscription.unsubscribe();
-      bookmarksSubscription.unsubscribe();
+      supabase.removeChannel(likesSubscription);
+      supabase.removeChannel(bookmarksSubscription);
     };
   }, [updateId, user, supabase]);
 

@@ -388,8 +388,11 @@ export default function SingleUpdatePage() {
     if (updateId) {
       fetchUpdate();
       
+      // Create unique channel names with timestamp to avoid conflicts
+      const channelSuffix = Date.now() + Math.random().toString(36).substr(2, 9);
+      
       likesChannel = supabase
-        .channel(`page-likes-${updateId}`)
+        .channel(`page-likes-${updateId}-${channelSuffix}`)
         .on('postgres_changes', 
           { event: '*', schema: 'public', table: 'update_likes', filter: `update_id=eq.${updateId}` }, 
           () => {
@@ -399,7 +402,7 @@ export default function SingleUpdatePage() {
         .subscribe();
         
       bookmarksChannel = supabase
-        .channel(`page-bookmarks-${updateId}`)
+        .channel(`page-bookmarks-${updateId}-${channelSuffix}`)
         .on('postgres_changes', 
           { event: '*', schema: 'public', table: 'update_bookmarks', filter: `update_id=eq.${updateId}` }, 
           () => {
@@ -411,8 +414,12 @@ export default function SingleUpdatePage() {
     
     // Cleanup function
     return () => {
-      if (likesChannel) likesChannel.unsubscribe();
-      if (bookmarksChannel) bookmarksChannel.unsubscribe();
+      if (likesChannel) {
+        supabase.removeChannel(likesChannel);
+      }
+      if (bookmarksChannel) {
+        supabase.removeChannel(bookmarksChannel);
+      }
     };
   }, [updateId, user, supabase]);
   

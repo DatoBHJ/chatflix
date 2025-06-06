@@ -59,7 +59,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ chartConfig }) => {
 
   // Wrapper div to control chart size
   // Added a bit more vertical space for better layout with titles/legends
-  const chartWrapperStyle = "relative h-[450px] w-full p-4 bg-[var(--card-bg)] rounded-lg shadow-md";
+  const chartWrapperStyle = "relative h-[450px] w-full";
 
   switch (type.toLowerCase()) {
     case 'bar':

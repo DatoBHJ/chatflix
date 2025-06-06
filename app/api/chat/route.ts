@@ -142,10 +142,10 @@ export async function POST(req: Request) {
     const currentRequestCount = userRequests?.count || 0;
     
     // 임계값 설정: 일일 5회 요청
-    const REQUEST_THRESHOLD = 5;
+    // const REQUEST_THRESHOLD = 5;
     
-    // 구독하지 않았고 임계값 이상이면 지연 효과 적용 예정
-    const shouldDelay = !isSubscribed && currentRequestCount >= REQUEST_THRESHOLD;
+    // // 구독하지 않았고 임계값 이상이면 지연 효과 적용 예정
+    // const shouldDelay = !isSubscribed && currentRequestCount >= REQUEST_THRESHOLD;
 
     // Check rate limiting with potentially updated model
     // const rateLimitResult = await handleRateLimiting(user.id, model);
@@ -188,19 +188,19 @@ export async function POST(req: Request) {
     return createDataStreamResponse({
       execute: async (dataStream) => {
           // 비구독자이고 임계값 이상일 때만 지연 적용
-          if (shouldDelay) {
-            dataStream.writeMessageAnnotation({
-              type: 'subscription_status',
-              data: { 
-                isSubscribed: false,
-                message: "... slow request, get fast access here",
-                requestCount: currentRequestCount
-              }
-            });
+          // if (shouldDelay) {
+          //   dataStream.writeMessageAnnotation({
+          //     type: 'subscription_status',
+          //     data: { 
+          //       isSubscribed: false,
+          //       message: "... slow request, get fast access here",
+          //       requestCount: currentRequestCount
+          //     }
+          //   });
             
-            // 인위적 지연 적용 (약 15초)
-            await new Promise(resolve => setTimeout(resolve, 15000));
-          }
+          //   // 인위적 지연 적용 (약 15초)
+          //   await new Promise(resolve => setTimeout(resolve, 15000));
+          // }
           
           let sessionValidationPromise;
           if (chatId) {
@@ -612,6 +612,7 @@ ${userQuery}
                  - If the existing information needs updating, expanding, or verification, plan for targeted additional searches
                  - If the query requires completely new information not covered in previous context, plan for comprehensive tool usage
                  - Consider efficiency: avoid redundant searches if good information already exists in the conversation
+                 - Note: PDF attachments and file uploads are handled directly by the model, while link_reader is for web URLs/links
               4. **Response Approach**: Determine the best approach to provide a complete and helpful response.
               5. **Workflow Mode**: What workflow mode would be most appropriate for this type of query?
 
@@ -725,9 +726,11 @@ ${userQuery}
             4. **When to Select Tools**:
                - **Different perspective**: User wants academic sources but conversation only has web search results → select academic_search
                - **More recent info**: Existing information in conversation might be outdated → select appropriate search tool
-               - **Deeper analysis**: User wants detailed analysis of specific content → select link_reader or youtube_link_analyzer
+               - **Web content analysis**: User wants to read or analyze specific web URLs/links (from current query or previous conversation) → select link_reader
+               - **Video analysis**: User wants to analyze YouTube videos → select youtube_link_analyzer  
                - **Different format**: User wants visual content when only text exists in conversation → select image_generator
                - **New calculations**: User asks for different mathematical analysis → select calculator
+               - Note: For file attachments (PDF, documents, etc.), the model handles these directly without additional tools
 
             Now select the specific tools needed to execute this plan effectively.
 
@@ -925,9 +928,10 @@ ${hasImage ? `
 
 ${hasFile ? `
             # ABOUT THE FILE:
+            - The file attachment is processed directly by the model - NO tools needed for reading file content
             - Briefly identify what's in the file (1-2 sentences)
-            - Use appropriate tools to process it if needed
-            - Do not provide detailed analysis - just determine what tools to use
+            - You can analyze the file content directly without using link_reader or other tools
+            - Only use other tools if you need to search for ADDITIONAL information BEYOND what's in the file
 ` : ''}
 
             **IMPORTANT: Use the same language as the user for all responses.**
@@ -1213,14 +1217,15 @@ Files can include a variety of content types based on what best serves the user'
                       break;
                   }
                   
-                  // 최종 응답 생성을 위한 프롬프트 구성
-                  const responsePrompt = `
+// 최종 응답 생성을 위한 프롬프트 구성
+const responsePrompt = `
 ${buildSystemPrompt('agent', 'third', 
   memoryData || undefined
 )}
 
 You are now in the third stage of the Chatflix Agentic Process - creating supporting files based on the information gathered and the main response already provided.
 Here's the blueprint and the previous steps we've already taken:
+
 # Original User Query
 "${userQuery}"
 
@@ -1246,26 +1251,45 @@ ${finalResult}
 ${fileCreationGuidelines}
 
 ## Your Task
-Create supporting files that complement the main response already provided:
+Create supporting files that complement the main response already provided.
 
-1. SUPPORTING FILES: Additional content for the canvas area (adaptive based on workflow mode)
-   - Each file should have a clear purpose and be self-contained
-   - Use appropriate file extensions (.py, .js, etc.)
-   - Follow best practices for the content type (code, data, etc.)
-   - IMPORTANT: ALL file content MUST be formatted with proper Markdown syntax. Use the following guidelines:
-     - For code blocks, use triple backticks with language specification: \`\`\`python, \`\`\`javascript, etc.
-     - For charts, use \`\`\`chartjs with VALID JSON format (see Chart Guidelines below)
-     - For tables, use proper Markdown table syntax with pipes and dashes
-     - For headings, use # symbols (e.g., # Heading 1, ## Heading 2)
-     - For lists, use proper Markdown list syntax (-, *, or numbered lists)
-     - For emphasis, use *italic* or **bold** syntax
-     - For links, use [text](url) syntax
-     - Ensure proper indentation and spacing for nested structures
+**SUPPORTING FILES**: Additional content for the canvas area (adaptive based on workflow mode)
+- Each file should have a clear purpose and be self-contained
+- Use appropriate file extensions (.py, .js, etc.)
+- Follow best practices for the content type (code, data, etc.)
+- **IMPORTANT**: ALL file content MUST be formatted with proper Markdown syntax. Use the following guidelines:
+  - For code blocks, use triple backticks with language specification: \`\`\`python, \`\`\`javascript, etc.
+  - For charts, use \`\`\`chartjs with VALID JSON format (see Chart Guidelines below)
+  - For tables, use proper Markdown table syntax with pipes and dashes
+  - For headings, use # symbols (e.g., # Heading 1, ## Heading 2)
+  - For lists, use proper Markdown list syntax (-, *, or numbered lists)
+  - For emphasis, use *italic* or **bold** syntax
+  - For links, use [text](url) syntax
+  - Ensure proper indentation and spacing for nested structures
 
 ## Chart Guidelines for Supporting Files
 When creating data visualizations from gathered information, use \`\`\`chartjs with VALID JSON format:
+**ABSOLUTELY CRITICAL: ALWAYS wrap chart JSON with \`\`\`chartjs code block**
 
-**CRITICAL: All property names and string values MUST be in double quotes for valid JSON**
+❌ **WRONG - This will NOT render as a chart:**
+{
+  "type": "pie",
+  "data": {
+    "labels": ["Category A", "Category B"],
+    "datasets": [...]
+  }
+}
+
+✅ **CORRECT - This WILL render as a chart:**
+\`\`\`chartjs
+{
+  "type": "pie",
+  "data": {
+    "labels": ["Category A", "Category B"],
+    "datasets": [...]
+  }
+}
+\`\`\`
 
 Example chart format:
 \`\`\`chartjs
@@ -1281,7 +1305,7 @@ Example chart format:
   },
   "options": {
     "responsive": true,
-    "plugins": 
+    "plugins": {
       "title": {
         "display": true,
         "text": "Data Analysis from Tools"
@@ -1302,12 +1326,14 @@ Example chart format:
 ❌ "callback": "function(value) { return ['A', 'B'][value]; }"
 ❌ Any string containing backslashes like "text with \\\\ backslash"
 ❌ Multi-line strings with \\ line continuation
+❌ Raw JSON without \`\`\`chartjs wrapper
 
 **SAFE ALTERNATIVE APPROACHES:**
 ✅ Use default Chart.js tooltips (no custom callbacks needed)
 ✅ Use simple static labels: "labels": ["Category A", "Category B", "Category C"]
 ✅ Use basic title and legend configurations without functions
 ✅ Rely on Chart.js automatic formatting for most data displays
+✅ ALWAYS wrap with \`\`\`chartjs code block (MOST IMPORTANT)
 
 **Chart Creation Scenarios:**
 - Web search results: Create comparison or trend charts
@@ -1316,17 +1342,15 @@ Example chart format:
 - Calculator results: Display mathematical relationships
 - Multi-source data: Create comprehensive comparison visualizations
 
-   - File Types to Consider (ONLY if needed):
-    - code files (.py, .js, etc.): For complete, executable code examples
-    - data files (.json, .csv): For structured data
-    - chart files (.md): For data visualizations using chartjs blocks
-    - explanation files (.md): For detailed explanations or background information
-    - step-by-step guides (.md): For procedures or tutorials
-    - comparison tables (.md): For comparing multiple options or data points
+**File Types to Consider (ONLY if needed):**
+- Code files (.py, .js, etc.): For complete, executable code examples
+- Data files (.json, .csv): For structured data
+- Chart files (.md): For data visualizations using chartjs blocks
+- Explanation files (.md): For detailed explanations or background information
+- Step-by-step guides (.md): For procedures or tutorials
+- Comparison tables (.md): For comparing multiple options or data points
 
-
-
-IMPORTANT: 
+## Important Guidelines:
 - Respond in the same language as the user's query
 - You MUST NOT create a main response again - the user has already been given the main response
 - DO NOT create files unless they provide substantial additional value
@@ -1334,13 +1358,12 @@ IMPORTANT:
 - Consider creating charts when you have gathered quantitative data that would benefit from visualization
 `;
 
-
                     let finalModel = model;
 
                   // Claude Sonnet 시리즈가 선택된 경우 무조건 Gemini 2.5 Pro로 대체
                   if (model.includes('claude') && model.includes('sonnet')) {
                     finalModel = 'gemini-2.5-pro-preview-05-06';
-                  } 
+                  }
             
                   // 세번째 단계: 구조화된 응답 생성 (파일만)
                   const objectResult = await streamObject({

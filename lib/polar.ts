@@ -119,7 +119,13 @@ export async function checkSubscription(externalId: string): Promise<boolean> {
     } catch (error: any) {
       // If the error is 404 Not Found, it means the customer doesn't exist yet
       // This is normal for new users who haven't subscribed yet
-      if (error.message && (error.message.includes('Not found') || error.message.includes('ResourceNotFound'))) {
+      if (error.status === 404 || 
+          error.statusCode === 404 || 
+          (error.message && (
+            error.message.includes('Not found') || 
+            error.message.includes('ResourceNotFound') ||
+            error.message.includes('404')
+          ))) {
         return false;
       }
       
@@ -129,7 +135,14 @@ export async function checkSubscription(externalId: string): Promise<boolean> {
       }
       
       // For network or server errors (including 403 Forbidden), log and return false
-      if (error.message && (error.message.includes('403') || error.message.includes('network') || error.message.includes('server'))) {
+      if (error.status === 403 ||
+          error.statusCode === 403 ||
+          (error.message && (
+            error.message.includes('403') || 
+            error.message.includes('Forbidden') ||
+            error.message.includes('network') || 
+            error.message.includes('server')
+          ))) {
         return false;
       }
       

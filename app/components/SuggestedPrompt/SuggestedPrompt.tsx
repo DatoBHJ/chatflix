@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 const DEFAULT_EXAMPLE_PROMPTS = [
   "Write a masterpiece that describes my aura",
   "Draw a Catwoman",
-  "Draw a cute cat",  
   "I AM MUSIC Album Review",
   "Summarize this PDF: https://www.nasa.gov/wp-content/uploads/2023/01/55583main_vision_space_exploration2.pdf",
   "Summarize this link: https://www.numeroberlin.de/2023/11/numero-berlin-zukunft-x-playboi-carti/",
@@ -15,9 +14,8 @@ const DEFAULT_EXAMPLE_PROMPTS = [
   "Explain why people love horror movies using psychological theories",
   "List the top 5 weirdest trends in AI right now.",
   "Calculate how much coffee a developer needs to finish a project in 3 days.",
-  "Explain the stock market crash of 2008 in the style of a rap battle.",
   "Research the psychological effects of drug use on creativity.",
-  "List the most controversial moments in hip-hop history.",
+  "List the most controversial moments in human history.",
   "Analyze the impact of Elon Musk's tweets on cryptocurrency markets.",
   "Summarize the most popular 9/11 conspiracy theories",
   "What's the latest on the Mars mission?",
@@ -76,30 +74,30 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '' }: Sugge
   useEffect(() => {
     const showRandomPrompt = () => {
       setIsVisible(false);
-      
+
       // 페이드 아웃이 완전히 끝난 후에 새로운 프롬프트 설정
       setTimeout(() => {
         setIsLoading(true);
-        
+
         // 기본 예시 목록에서 랜덤하게 선택
         const randomIndex = Math.floor(Math.random() * DEFAULT_EXAMPLE_PROMPTS.length);
         setSuggestedPrompt(DEFAULT_EXAMPLE_PROMPTS[randomIndex]);
-        
+
         // 로딩 상태를 잠깐 유지한 후 새로운 프롬프트 표시
         setTimeout(() => {
           setIsLoading(false);
           setTimeout(() => {
             setIsVisible(true);
-          }, 100);
-        }, 200);
-      }, 300);
+          }, 200); // 페이드 인 더 느리게
+        }, 400); // 로딩 더 오래
+      }, 500); // 페이드 아웃 더 오래
     };
+
+    // 4초마다 새로운 프롬프트 표시
+    const intervalId = setInterval(showRandomPrompt, 4000);
 
     // 초기 프롬프트 표시
     showRandomPrompt();
-
-    // 5초마다 새로운 프롬프트 표시
-    const intervalId = setInterval(showRandomPrompt, 3000);
 
     return () => {
       clearInterval(intervalId);
@@ -117,7 +115,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '' }: Sugge
       )}
       {suggestedPrompt && (
         <div
-          className={`text-xs text-[var(--muted)] cursor-pointer transition-all duration-300 text-center break-words whitespace-normal max-w-full max-h-16 overflow-y-auto ${
+          className={`text-xs text-[var(--muted)] cursor-pointer transition-all duration-500 text-center break-words whitespace-normal max-w-full max-h-16 overflow-y-auto ${
             isVisible ? 'opacity-100' : 'opacity-0'
           } hover:text-[var(--foreground)]`}
           onClick={() => onPromptClick(suggestedPrompt)}

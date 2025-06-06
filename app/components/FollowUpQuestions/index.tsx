@@ -86,7 +86,7 @@ export function FollowUpQuestions({ chatId, userId, messages, onQuestionClick }:
   }
 
   return (
-    <div className="flex flex-wrap gap-2 py-2 pb-6 px-0 mt-0">
+    <div className="flex flex-wrap gap-2 py-2 pb-6 px-0 pt-6">
       {followUpQuestions.map((question, index) => (
         <button
           key={index}

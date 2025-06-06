@@ -142,7 +142,7 @@ const ImageWithLoading = memo(function ImageWithLoadingComponent({
   }, [isLoaded, error]);
   
   // URL이 유효한지 확인 (간단한 체크)
-  const isValidUrl = src && (
+  const isValidUrl = src && typeof src === 'string' && (
     src.startsWith('http://') || 
     src.startsWith('https://') || 
     src.startsWith('data:')
@@ -217,7 +217,7 @@ const ImageWithLoading = memo(function ImageWithLoadingComponent({
           </svg>
           <div className="mb-1">Image failed to load</div>
           {alt && <div className="text-sm italic mb-2 opacity-75">{alt}</div>}
-          {src && (
+          {src && typeof src === 'string' && (
             <a 
               href={src}
               target="_blank"
@@ -538,7 +538,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
     },
     img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
       // Agent 도구에서 생성된 이미지 URL을 처리합니다
-      if (src && (src.includes('image.pollinations.ai'))) {
+      if (src && typeof src === 'string' && (src.includes('image.pollinations.ai'))) {
         const urlWithNoLogo = ensureNoLogo(src);
         
         return (
@@ -583,7 +583,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
       
       if (isInline) {
         return (
-          <code className="font-mono text-sm bg-[var(--inline-code-bg)] text-[var(--inline-code-text)] px-1.5 py-0.5 rounded" {...props}>
+          <code className="hljs font-mono text-sm bg-[var(--inline-code-bg)] text-[var(--inline-code-text)] px-1.5 py-0.5 rounded" {...props}>
             {children}
           </code>
         );
@@ -653,7 +653,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
         // Check if the JSON is complete before parsing
         if (!isCompleteJSON(codeText)) {
           return (
-            <div className="my-6 chartjs-container bg-[var(--card-bg)] p-4 rounded-lg shadow-lg overflow-hidden">
+            <div className="my-6">
               <div className="flex items-center justify-center h-[300px] w-full">
                 <div className="flex flex-col items-center space-y-3">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
@@ -727,7 +727,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
           // Validate chart configuration structure
           if (typeof chartConfig === 'object' && chartConfig !== null && typeof chartConfig.type === 'string' && typeof chartConfig.data === 'object' && chartConfig.data !== null) {
             return (
-              <div className="my-6 chartjs-container bg-[var(--card-bg)] p-4 rounded-lg shadow-lg overflow-hidden">
+              <div className="my-6">
                 <DynamicChart chartConfig={chartConfig} />
               </div>
             );
@@ -800,9 +800,9 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
               Copy
             </button>
           </div>
-          <pre className="overflow-x-auto p-4 m-0 bg-[var(--code-bg)] text-[var(--code-text)] max-w-full whitespace-pre-wrap break-all">
+          <div className="hljs overflow-x-auto p-4 m-0 bg-[var(--code-bg)] text-[var(--code-text)] max-w-full whitespace-pre-wrap break-all">
             {children}
-          </pre>
+          </div>
         </div>
       );
     },
@@ -864,7 +864,6 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
   const rehypePlugins = useMemo(() => {
     return [
       [rehypeRaw, { passThrough: ['math', 'inlineMath'] }],
-      rehypeSanitize,
       rehypeHighlight,
     ] as any;
   }, []);

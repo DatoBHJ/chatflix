@@ -13,15 +13,13 @@ import { XLogo, YouTubeLogo } from './CanvasFolder/CanvasLogo';
 import { Brain, ChevronDown, ChevronUp, Search, Calculator, Link2, ImageIcon, BookOpen, Youtube, FileText, Download, Copy, Check, Wrench, Monitor } from 'lucide-react'
 import { getProviderLogo, hasLogo } from '@/app/lib/models/logoUtils';
 import { AttachmentPreview } from './Attachment'
-import Canvas from './Canvas';
-import { StructuredResponse } from './StructuredResponse';
 import { PlanningSection } from './PlanningSection'; // Import PlanningSection
-import { FileUploadButton, FilePreview, fileHelpers } from './ChatInput/FileUpload'; // FileUpload 컴포넌트들 임포트
+import { FileUploadButton, fileHelpers } from './ChatInput/FileUpload'; // FileUpload 컴포넌트들 임포트
+import { DragDropOverlay } from './ChatInput/DragDropOverlay'; // DragDropOverlay 추가
 import { 
   File, 
   getStructuredResponseMainContent, 
   getStructuredResponseDescription, 
-  getStructuredResponseFiles, 
   isStructuredResponseInProgress, 
   extractReasoningForMessage // Added import
 } from '@/app/lib/messageUtils';
@@ -182,7 +180,7 @@ interface MessageProps {
   isWaitingForToolResults?: boolean
   messageHasCanvasData?: boolean
   activePanelMessageId?: string | null
-  togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse') => void
+  togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number) => void
   // Canvas 데이터 props 추가
   webSearchData?: any
   mathCalculationData?: any
@@ -312,13 +310,7 @@ const Message = memo(function MessageComponent({
   youTubeSearchData,
   youTubeLinkAnalysisData,
 }: MessageProps) {
-  // const router = useRouter(); // 삭제
-  // const supabase = createClient(); // 삭제
-  
-  // Replace context with direct state management
-  // const [userName, setUserName] = useState(propUserName || 'You'); // 삭제
-  // const [profileImage, setProfileImage] = useState<string | null>(propProfileImage || null); // 삭제
-  
+
   // Bookmark state
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
@@ -327,15 +319,16 @@ const Message = memo(function MessageComponent({
   const [user, setUser] = useState<any>(null);
   
   // 파일 관련 상태
-  const [openFileIndexes, setOpenFileIndexes] = useState<number[]>([]);
-  const [structuredFiles, setStructuredFiles] = useState<File[] | null>(null);
-  const [isResponseInProgress, setIsResponseInProgress] = useState(false);
-  const [copiedFileId, setCopiedFileId] = useState<string | null>(null);
+  // const [openFileIndexes, setOpenFileIndexes] = useState<number[]>([]);
+  // const [structuredFiles, setStructuredFiles] = useState<File[] | null>(null);
+  // const [isResponseInProgress, setIsResponseInProgress] = useState(false);
   
   // 편집 모드용 파일 상태 추가
   const [editingFiles, setEditingFiles] = useState<globalThis.File[]>([]);
   const [editingFileMap, setEditingFileMap] = useState<Map<string, { file: globalThis.File, url: string }>>(new Map());
+  const [dragActive, setDragActive] = useState(false); // 드래그 상태 추가
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const editingContainerRef = useRef<HTMLDivElement>(null); // 편집 컨테이너 참조 추가
   
   // Agent Reasoning 관련 상태 (for "Selecting Tools" section)
   const [currentReasoning, setCurrentReasoning] = useState<any>(null);
@@ -348,17 +341,19 @@ const Message = memo(function MessageComponent({
   
   // Planning 관련 상태 - 이제 PlanningSection에서 관리됩니다.
   const [currentPlanning, setCurrentPlanning] = useState<any>(null);
-  // const [planningExpanded, setPlanningExpanded] = useState(true); 
-  // const [planningContentHeight, setPlanningContentHeight] = useState<number | undefined>(undefined);
-  // const planningContentRef = useRef<HTMLDivElement>(null);
-  // const userOverridePlanningRef = useRef<boolean | null>(null);
-  // const prevIsPlanningCompleteRef = useRef<boolean | undefined>(undefined);
-  // const prevPlanningContentRef = useRef<any>(null);
   
-  // Use useMemo to derive reasoning data from the message prop
+  // Use useMemo to derive reasoning data from the message prop with stable dependencies
   const derivedReasoningData = useMemo(() => {
     return extractReasoningForMessage(message);
-  }, [message]);
+  }, [
+    message.id,
+    message.annotations?.length,
+    JSON.stringify(message.annotations?.filter(a => 
+      a && typeof a === 'object' && 'type' in a && 
+      (a.type === 'agent_reasoning' || a.type === 'agent_reasoning_progress')
+    )),
+    JSON.stringify((message as any).tool_results?.agentReasoning)
+  ]);
   
   // 프리미엄 업그레이드 버튼 클릭 핸들러 (최상위 레벨에 배치)
   const router = useRouter(); // useRouter 사용
@@ -441,6 +436,60 @@ const Message = memo(function MessageComponent({
     e.target.value = '';
   }, [editingFileMap]);
 
+  // 드래그&드롭 핸들러들 추가
+  const handleDrag = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (editingContainerRef.current && !editingContainerRef.current.contains(e.relatedTarget as Node)) {
+      setDragActive(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      await handleFilesFromDrop(files);
+    }
+  }, []);
+
+  // 파일 처리 핸들러 (ChatInput의 handleFiles와 유사하게 구현)
+  const handleFilesFromDrop = useCallback(async (fileList: FileList) => {
+    const newFiles: globalThis.File[] = [];
+    const newFileMap = new Map(editingFileMap);
+
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      const fileId = `new-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Add unique ID for tracking
+      (file as any).id = fileId;
+      (file as any).isExisting = false;
+
+      // Create object URL for preview
+      const url = URL.createObjectURL(file);
+      
+      newFiles.push(file);
+      newFileMap.set(fileId, { file, url });
+    }
+
+    setEditingFiles(prev => [...prev, ...newFiles]);
+    setEditingFileMap(newFileMap);
+  }, [editingFileMap]);
+
   // 파일 제거 핸들러
   const handleRemoveFile = useCallback((fileToRemove: globalThis.File) => {
     const fileId = (fileToRemove as any).id;
@@ -494,19 +543,27 @@ const Message = memo(function MessageComponent({
   
   // Measure reasoning content height when content changes
   useEffect(() => {
-    if (reasoningContentRef.current && currentReasoning) {
-      setReasoningContentHeight(reasoningContentRef.current.scrollHeight);
-      if (reasoningExpanded && reasoningContentRef.current) {
-        reasoningContentRef.current.scrollTop = reasoningContentRef.current.scrollHeight;
+    if (reasoningContentRef.current && currentReasoning && reasoningExpanded) {
+      const newHeight = reasoningContentRef.current.scrollHeight;
+      if (reasoningContentHeight !== newHeight) {
+        setReasoningContentHeight(newHeight);
       }
+      reasoningContentRef.current.scrollTop = reasoningContentRef.current.scrollHeight;
     }
-  }, [currentReasoning, reasoningExpanded]);
+  }, [
+    currentReasoning?.agentThoughts,
+    currentReasoning?.selectionReasoning,
+    reasoningExpanded,
+    reasoningContentHeight
+  ]);
 
   // Auto-collapse/expand for "Selecting Tools" (Agent Reasoning section)
   useEffect(() => {
     // Ensure currentReasoning data is available
     if (!currentReasoning) {
-      setReasoningExpanded(false);
+      if (reasoningExpanded) {
+        setReasoningExpanded(false);
+      }
       userOverrideReasoningRef.current = null; // Reset override if no data
       return;
     }
@@ -518,62 +575,34 @@ const Message = memo(function MessageComponent({
     if (prevIsReasoningCompleteRef.current === true && isSectionComplete === false) {
       userOverrideReasoningRef.current = null;
       // When a new reasoning phase starts, ensure it's closed by default.
-      setReasoningExpanded(false);
+      if (reasoningExpanded) {
+        setReasoningExpanded(false);
+      }
     }
 
     // If user has manually toggled the section, respect their choice.
     if (userOverrideReasoningRef.current !== null) {
-      setReasoningExpanded(userOverrideReasoningRef.current);
+      if (reasoningExpanded !== userOverrideReasoningRef.current) {
+        setReasoningExpanded(userOverrideReasoningRef.current);
+      }
     } else {
       // If no user override, it remains in its current state (which would be closed by default
       // or after a reset). No automatic opening.
       // It only auto-closes if it was somehow open and then completes without user override.
       if (reasoningExpanded && isSectionComplete) { 
         setReasoningExpanded(false);
-      } else if (userOverrideReasoningRef.current === null) {
+      } else if (userOverrideReasoningRef.current === null && reasoningExpanded) {
         // Ensures that if userOverride is cleared, it respects the default closed state
         setReasoningExpanded(false);
       }
     }
     prevIsReasoningCompleteRef.current = isSectionComplete;
-  }, [currentReasoning]); // Re-run when currentReasoning changes.
+  }, [
+    currentReasoning?.isComplete,
+    currentReasoning?.agentThoughts,
+    reasoningExpanded
+  ]); // More specific dependencies
   
-  // Measure planning content height when content changes - 이제 PlanningSection에서 관리됩니다.
-  /*
-  useEffect(() => {
-    if (planningContentRef.current && currentPlanning) {
-      setPlanningContentHeight(planningContentRef.current.scrollHeight);
-      // Auto-scroll to bottom when content changes and expanded
-      if (planningExpanded && planningContentRef.current) {
-        planningContentRef.current.scrollTop = planningContentRef.current.scrollHeight;
-      }
-    }
-  }, [currentPlanning, planningExpanded]);
-  */
-
-  // Auto-collapse for Planning - 이제 PlanningSection에서 관리됩니다.
-  /*
-  useEffect(() => {
-    const isComplete = currentPlanning?.isComplete;
-    const newContentStarted = currentPlanning !== prevPlanningContentRef.current && !isComplete;
-
-    if ((prevIsPlanningCompleteRef.current === true && isComplete === false) || newContentStarted) {
-      userOverridePlanningRef.current = null;
-    }
-    
-    if (userOverridePlanningRef.current !== null) {
-      setPlanningExpanded(userOverridePlanningRef.current);
-    } else {
-      if (!isComplete && currentPlanning) { // Expand if processing and there is content
-        setPlanningExpanded(true);
-      } else if (isComplete) { // Collapse if complete
-        setPlanningExpanded(false);
-      }
-    }
-    prevIsPlanningCompleteRef.current = isComplete;
-    prevPlanningContentRef.current = currentPlanning;
-  }, [currentPlanning]);
-  */
   
   // Fetch user data when component mounts
   useEffect(() => {
@@ -587,32 +616,32 @@ const Message = memo(function MessageComponent({
   }, []);
   
   // 구조화된 응답 파일 목록 가져오기
-  useEffect(() => {
-    const files = getStructuredResponseFiles(message);
-    const inProgress = isStructuredResponseInProgress(message);
+  // useEffect(() => {
+  //   const files = getStructuredResponseFiles(message);
+  //   const inProgress = isStructuredResponseInProgress(message);
     
-    setStructuredFiles(files);
-    setIsResponseInProgress(inProgress);
+  //   setStructuredFiles(files);
+  //   setIsResponseInProgress(inProgress);
     
-    // 생성 중일 때는 모든 파일을 열고, 완료되면 모두 닫기
-    if (inProgress && files && files.length > 0) {
-      // 생성 중일 때는 모든 파일 열기
-      setOpenFileIndexes(files.map((_, idx) => idx));
-    } else if (!inProgress && isResponseInProgress) {
-      // 생성이 완료되면 모든 파일 닫기
-      setOpenFileIndexes([]);
-    }
-  }, [message, message.annotations]);
+  //   // 생성 중일 때는 모든 파일을 열고, 완료되면 모두 닫기
+  //   if (inProgress && files && files.length > 0) {
+  //     // 생성 중일 때는 모든 파일 열기
+  //     setOpenFileIndexes(files.map((_, idx) => idx));
+  //   } else if (!inProgress && isResponseInProgress) {
+  //     // 생성이 완료되면 모든 파일 닫기
+  //     setOpenFileIndexes([]);
+  //   }
+  // }, [message, message.annotations]);
   
   // Agent Reasoning 데이터 처리 (Canvas와 동일한 로직)
   useEffect(() => {
-    // The derivedReasoningData is from useMemo, which depends on `message`.
-    // If extractReasoningForMessage is efficient and returns stable references for 
-    // unchanged semantic data, this will work well.
-    // If derivedReasoningData is a new object reference even for the same data,
-    // setCurrentReasoning will be called, but React will only re-render if the value actually differs.
-    setCurrentReasoning(derivedReasoningData.completeData || derivedReasoningData.progressData || null);
-  }, [derivedReasoningData]); // Only depend on derivedReasoningData
+    const newReasoningData = derivedReasoningData.completeData || derivedReasoningData.progressData || null;
+    
+    // Only update if the actual content has changed
+    if (JSON.stringify(currentReasoning) !== JSON.stringify(newReasoningData)) {
+      setCurrentReasoning(newReasoningData);
+    }
+  }, [derivedReasoningData, currentReasoning]); // Only depend on derivedReasoningData
 
   // Planning 데이터 처리 (progress/partial 무시, 마지막 결과만)
   useEffect(() => {
@@ -621,16 +650,18 @@ const Message = memo(function MessageComponent({
     const planningAnnotations = annotations.filter(
       (annotation) => annotation?.type === 'agent_reasoning_progress' && annotation?.data?.stage === 'planning'
     );
+    
+    let newPlanningState = null;
+    
     if (planningAnnotations.length > 0) {
       const latestPlanning = planningAnnotations[planningAnnotations.length - 1];
       const planningData = latestPlanning?.data;
       if (planningData && planningData.plan) {
-        const newPlanningState = {
+        newPlanningState = {
           planningThoughts: planningData.plan,
           isComplete: planningData.isComplete || false,
           timestamp: planningData.timestamp
         };
-        setCurrentPlanning(newPlanningState);
       }
     } else {
       // tool_results에서 마지막 결과만 사용
@@ -638,40 +669,28 @@ const Message = memo(function MessageComponent({
       const toolResults = extendedMessage?.tool_results;
       const agentReasoning = toolResults?.agentReasoning;
       if (agentReasoning && agentReasoning.plan) {
-        setCurrentPlanning({
+        newPlanningState = {
           planningThoughts: agentReasoning.plan,
           isComplete: true,
           timestamp: agentReasoning.timestamp
-        });
-      } else {
-        setCurrentPlanning(null);
+        };
       }
     }
-  }, [message.annotations, (message as any).tool_results]);
-  
-  // 파일 토글 핸들러
-  const toggleFile = useCallback((index: number) => {
-    setOpenFileIndexes(prev => 
-      prev.includes(index) 
-        ? prev.filter(i => i !== index) 
-        : [...prev, index]
-    );
-  }, []);
-
-  // 파일 내용 복사 핸들러
-  const copyFileContent = useCallback((file: File) => {
-    navigator.clipboard.writeText(file.content)
-      .then(() => {
-        setCopiedFileId(file.name);
-        // 복사 상태 2초 후 초기화
-        setTimeout(() => {
-          setCopiedFileId(null);
-        }, 2000);
-      })
-      .catch((err) => {
-        console.error('Failed to copy file content:', err);
-      });
-  }, []);
+    
+    // Only update if the actual content has changed
+    if (JSON.stringify(currentPlanning) !== JSON.stringify(newPlanningState)) {
+      setCurrentPlanning(newPlanningState);
+    }
+  }, [
+    message.id,
+    JSON.stringify(message.annotations?.filter(a => 
+      a && typeof a === 'object' && 'type' in a && 
+      a.type === 'agent_reasoning_progress' && 
+      (a as any).data?.stage === 'planning'
+    )),
+    JSON.stringify((message as any).tool_results?.agentReasoning?.plan),
+    currentPlanning
+  ]);
 
   // Function to truncate long messages
   const truncateMessage = useCallback((content: string, maxLength: number = 300) => {
@@ -726,16 +745,15 @@ const Message = memo(function MessageComponent({
   ]);
 
   const structuredMainResponse = useMemo(() => getStructuredResponseMainContent(message), [message]);
-  const structuredFilesData = useMemo(() => getStructuredResponseFiles(message), [message]);
   const structuredDescription = useMemo(() => getStructuredResponseDescription(message), [message]);
   
   // 구조화된 응답이 진행 중인지 여부를 useMemo로 관리
   const isInProgress = useMemo(() => isStructuredResponseInProgress(message), [message]);
 
   const hasStructuredData = useMemo(() => {
-    // 메인 응답 내용이 있거나, 파일 데이터가 있거나, 또는 구조화된 응답이 진행 중일 때 true
-    return !!(structuredMainResponse || (structuredFilesData && structuredFilesData.length > 0) || isInProgress);
-  }, [structuredMainResponse, structuredFilesData, isInProgress]);
+    // 메인 응답 내용이 있거나, 구조화된 응답이 진행 중일 때 true
+    return !!(structuredMainResponse || isInProgress);
+  }, [structuredMainResponse, isInProgress]);
 
   const hasAnyContent = hasContent || structuredMainResponse || isInProgress; // hasAnyContent도 진행 중 상태 고려
 
@@ -808,26 +826,6 @@ const Message = memo(function MessageComponent({
       setIsBookmarkLoading(false);
     }
   };
-
-  // Function to navigate to the specific message in the chat
-  const navigateToMessage = useCallback((messageId: string, chatSessionId: string) => {
-    if (!chatSessionId) return;
-    // Next.js 13+ app router에서는 window.location 사용 가능 (권장되지는 않음)
-    window.location.href = `/chat/${chatSessionId}#${messageId}`;
-  }, [chatId]); // chatId 의존성 제거 (이미 파라미터로 받고 있음)
-  
-  // 파일 다운로드 핸들러
-  const downloadFile = useCallback((file: File) => {
-    const blob = new Blob([file.content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = file.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, []);
   
   // 로딩 상태에서도 Agent Reasoning 표시 (isAssistant + 로딩 중)
   if (isAssistant && (!hasAnyContent || isWaitingForToolResults || isStreaming)) {
@@ -869,7 +867,7 @@ const Message = memo(function MessageComponent({
             )}
             {/* Show agent reasoning section - only show when it has meaningful tool selection data */}
             {currentReasoning && (currentReasoning.agentThoughts || currentReasoning.selectionReasoning || (currentReasoning.selectedTools && currentReasoning.selectedTools.length > 0)) && (
-              <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm mb-8">
+              <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm mb-6">
                 <div 
                   className="flex items-center justify-between w-full mb-4 cursor-pointer"
                   onClick={() => {
@@ -1065,30 +1063,22 @@ const Message = memo(function MessageComponent({
                     </div>
                   </>
                 ) : (
-                  <MarkdownContent content={message.content} />
+                  hasContent && <MarkdownContent content={message.content} />
                 )}
 
                 {/* structuredDescription */}
                 {structuredDescription && (
-                  <div className={`mt-4 ${!(structuredFilesData && structuredFilesData.length > 0) ? 'pt-4' : ''}`}>
+                  <div className="mt-4 pt-4">
                     <p className="text-sm">{structuredDescription}</p>
                   </div>
                 )}
 
-                {/* StructuredResponse Clickable Preview */}
-                {hasStructuredData && (
-                  <div 
-                    className="mt-4 pt-4 mb-6 relative max-h-[300px] overflow-hidden cursor-pointer"
-                    onClick={() => togglePanel && togglePanel(message.id, 'structuredResponse')}
-                  >
-                    <StructuredResponse message={message} />
-                    <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none"></div>
-                    <div className="flex items-center justify-center mt-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
-                      <span>View Details</span>
-                      <ChevronDown size={16} className="ml-1" />
-                    </div>
-                  </div>
-                )}
+                {/* FilesPreview - 항상 렌더링하고 내부에서 파일 존재 여부 판단 */}
+                <FilesPreview
+                  messageId={message.id}
+                  togglePanel={togglePanel}
+                  message={message}
+                />
 
                 {!rateLimitAnnotation && (
                   <div className="loading-dots text-xl">
@@ -1125,24 +1115,17 @@ const Message = memo(function MessageComponent({
 
                 {/* Show structured content even during loading */}
                 {structuredDescription && (
-                  <div className={`mt-4 ${!(structuredFilesData && structuredFilesData.length > 0) ? 'pt-4' : ''}`}>
+                  <div className="mt-4 pt-4">
                     <p className="text-sm">{structuredDescription}</p>
                   </div>
                 )}
-
-                {hasStructuredData && (
-                  <div 
-                    className="mt-4 pt-4 mb-6 relative max-h-[300px] overflow-hidden cursor-pointer"
-                    onClick={() => togglePanel && togglePanel(message.id, 'structuredResponse')}
-                  >
-                    <StructuredResponse message={message} />
-                    <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none"></div>
-                    <div className="flex items-center justify-center mt-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
-                      <span>View Details</span>
-                      <ChevronDown size={16} className="ml-1" />
-                    </div>
-                  </div>
-                )}
+                
+                {/* FilesPreview for empty content loading state */}
+                <FilesPreview
+                  messageId={message.id}
+                  togglePanel={togglePanel}
+                  message={message}
+                />
               </div>
             )}
           </div>
@@ -1202,22 +1185,7 @@ const Message = memo(function MessageComponent({
           
           {/* Then model name with logo */}
           <ModelNameWithLogo modelId={(message as ExtendedMessage).model || currentModel} />
-          
-          {/* Canvas 버튼 추가 */}
-          {/* {messageHasCanvasData && (
-            <button
-              className="text-xs flex items-center gap-1.5 ml-auto transition-colors text-[var(--muted)] hover:text-[var(--foreground)]"
-              onClick={() => togglePanel && togglePanel(message.id, 'canvas')}
-              title="View Canvas"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sm:w-3 sm:h-3">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                <line x1="8" y1="21" x2="16" y2="21"></line>
-                <line x1="12" y1="17" x2="12" y2="21"></line>
-              </svg>
-              <span className="hidden sm:inline">View Canvas</span>
-            </button>
-          )} */}
+
         </div>
       </div>
     );
@@ -1254,7 +1222,7 @@ const Message = memo(function MessageComponent({
 
           {/* Agent Reasoning은 Planning 다음에 표시 - only show when it has meaningful tool selection data */}
           {currentReasoning && (currentReasoning.agentThoughts || currentReasoning.selectionReasoning || (currentReasoning.selectedTools && currentReasoning.selectedTools.length > 0)) && (
-            <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm mb-8">
+            <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm mb-6">
               <div 
                 className="flex items-center justify-between w-full mb-4 cursor-pointer"
                 onClick={() => {
@@ -1418,7 +1386,17 @@ const Message = memo(function MessageComponent({
           )}
 
           {isEditing ? (
-            <div className="flex flex-col gap-4 w-full">
+            <div 
+              ref={editingContainerRef}
+              className="flex flex-col gap-4 w-full relative"
+              onDragEnter={handleDrag}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+            >
+              {/* 드래그&드롭 오버레이 */}
+              <DragDropOverlay dragActive={dragActive} supportsPDFs={true} />
+              
               <textarea
                 value={editingContent}
                 onChange={(e) => {
@@ -1480,22 +1458,22 @@ const Message = memo(function MessageComponent({
                 </div>
                 
                 <div className="flex gap-2">
-                  <button
+                <button
                     onClick={handleEditCancel}
-                    className="px-4 py-2 text-sm
-                             bg-[var(--accent)] text-[var(--foreground)]
-                             hover:opacity-80 transition-opacity duration-200"
-                  >
-                    Cancel
-                  </button>
-                  <button
+                  className="px-4 py-2 text-sm
+                           bg-[var(--accent)] text-[var(--foreground)]
+                           hover:opacity-80 transition-opacity duration-200"
+                >
+                  Cancel
+                </button>
+                <button
                     onClick={handleEditSave}
-                    className="px-4 py-2 text-sm
-                             bg-[var(--accent)] text-[var(--foreground)]
-                             hover:opacity-80 transition-opacity duration-200"
-                  >
-                    Send
-                  </button>
+                  className="px-4 py-2 text-sm
+                           bg-[var(--accent)] text-[var(--foreground)]
+                           hover:opacity-80 transition-opacity duration-200"
+                >
+                  Send
+                </button>
                 </div>
               </div>
             </div>
@@ -1508,17 +1486,6 @@ const Message = memo(function MessageComponent({
               {/* 텍스트 파트 렌더링 (기존 로직 유지, 단, structuredMainResponse를 직접 렌더링하는 부분은 제거됨) */}
               {message.parts ? (
                 <>
-                  {/* {message.parts.find(part => part.type === 'reasoning') && (
-                    (() => {
-                      const reasoningPart = message.parts?.find(part => part.type === 'reasoning');
-                      return (
-                        <ReasoningSection 
-                          key="reasoning" 
-                          content={reasoningPart!.reasoning} 
-                        />
-                      );
-                    })()
-                  )} */}
                   {/* INSERT CANVAS PREVIEW HERE IF message.parts EXISTS */}
                   {isAssistant && message.parts && hasActualCanvasData && (
                     <CanvasToolsPreview
@@ -1635,25 +1602,17 @@ const Message = memo(function MessageComponent({
 
               {/* structuredDescription */}
               {structuredDescription && (
-                <div className={`mt-4 ${!(structuredFilesData && structuredFilesData.length > 0) ? 'pt-4' : ''}`}>
+                <div className="mt-4 pt-4">
                   <p className="text-sm">{structuredDescription}</p>
                 </div>
               )}
 
-              {/* StructuredResponse Clickable Preview */}
-              {hasStructuredData && (
-                <div 
-                  className="mt-4 pt-4 mb-6 relative max-h-[300px] overflow-hidden cursor-pointer"
-                  onClick={() => togglePanel && togglePanel(message.id, 'structuredResponse')}
-                >
-                  <StructuredResponse message={message} />
-                  <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none"></div>
-                  <div className="flex items-center justify-center mt-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
-                    <span>View Details</span>
-                    <ChevronDown size={16} className="ml-1" />
-                  </div>
-                </div>
-              )}
+              {/* FilesPreview - 항상 렌더링하고 내부에서 파일 존재 여부 판단 */}
+              <FilesPreview
+                messageId={message.id}
+                togglePanel={togglePanel}
+                message={message}
+              />
             </>
           )}
         </div>
@@ -1844,7 +1803,7 @@ const CanvasToolsPreview = memo(function CanvasToolsPreview({
   youTubeSearchData?: any;
   youTubeLinkAnalysisData?: any;
   messageId: string;
-  togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse') => void;
+  togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string) => void;
 }) {
   const tools = useMemo(() => {
     const activeTools = [];
@@ -1877,11 +1836,27 @@ const CanvasToolsPreview = memo(function CanvasToolsPreview({
         }
       }
       
+      // Determine the actual status based on search results completion
+      let actualStatus = 'completed';
+      if (webSearchData.results && webSearchData.results.length > 0) {
+        // Check if any search is still in progress
+        const hasInProgressSearch = webSearchData.results.some((r: any) => r.isComplete === false);
+        if (hasInProgressSearch) {
+          actualStatus = 'processing';
+        }
+      } else if (webSearchData.status) {
+        // Use explicit status if available
+        actualStatus = webSearchData.status;
+      } else if (queries.length > 0 && (!webSearchData.results || webSearchData.results.length === 0)) {
+        // If we have queries but no results yet, it's still processing
+        actualStatus = 'processing';
+      }
+      
       activeTools.push({
         id: 'web-search',
         name: 'Web Search',
         icon: <Search size={16} />,
-        status: webSearchData.status || 'completed',
+        status: actualStatus,
         displayText
       });
     }
@@ -1916,11 +1891,20 @@ const CanvasToolsPreview = memo(function CanvasToolsPreview({
         displayText = 'Mathematical calculation';
       }
       
+      // Determine actual status - math calculation is completed when steps exist
+      let actualStatus = 'completed';
+      if (mathCalculationData.status) {
+        actualStatus = mathCalculationData.status;
+      } else if (steps.length === 0) {
+        // If no calculation steps yet, it might be processing
+        actualStatus = 'processing';
+      }
+      
       activeTools.push({
         id: 'calculator',
         name: 'Calculator',
         icon: <Calculator size={16} />,
-        status: mathCalculationData.status || 'completed',
+        status: actualStatus,
         displayText
       });
     }
@@ -1953,11 +1937,30 @@ const CanvasToolsPreview = memo(function CanvasToolsPreview({
         displayText = 'Link analysis';
       }
       
+      // Determine actual status based on completion of all attempts
+      let actualStatus = 'completed';
+      if (linkReaderData.status) {
+        actualStatus = linkReaderData.status;
+      } else if (attempts.length > 0) {
+        // Check if any attempts are still in progress using explicit status field
+        const inProgressAttempts = attempts.filter((attempt: any) => 
+          attempt.status === 'in_progress'
+        );
+        
+        if (inProgressAttempts.length > 0) {
+          actualStatus = 'processing';
+        } else {
+          // All attempts have completed - determine success or error using status field
+          const hasSuccess = attempts.some((a: any) => a.status === 'success');
+          actualStatus = hasSuccess ? 'completed' : 'error';
+        }
+      }
+      
       activeTools.push({
         id: 'link-reader',
         name: 'Link Reader',
         icon: <Link2 size={16} />,
-        status: linkReaderData.status || (attempts.some((a: any) => !a.error) ? 'completed' : 'error'),
+        status: actualStatus,
         displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
       });
     }
@@ -1981,11 +1984,20 @@ const CanvasToolsPreview = memo(function CanvasToolsPreview({
         displayText = 'Image generation';
       }
       
+      // Determine actual status - image generation is completed when images exist
+      let actualStatus = 'completed';
+      if (imageGeneratorData.status) {
+        actualStatus = imageGeneratorData.status;
+      } else if (images.length === 0) {
+        // If no generated images yet, it might be processing
+        actualStatus = 'processing';
+      }
+      
       activeTools.push({
         id: 'image-generator',
         name: 'Image Generator',
         icon: <ImageIcon size={16} />,
-        status: imageGeneratorData.status || 'completed',
+        status: actualStatus,
         displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
       });
     }
@@ -2010,11 +2022,20 @@ const CanvasToolsPreview = memo(function CanvasToolsPreview({
         displayText = 'Academic research';
       }
       
+      // Determine actual status - academic search is usually completed when results exist
+      let actualStatus = 'completed';
+      if (academicSearchData.status) {
+        actualStatus = academicSearchData.status;
+      } else if (results.length === 0) {
+        // If no results yet but we have academic search data, it might be processing
+        actualStatus = 'processing';
+      }
+      
       activeTools.push({
         id: 'academic-search',
         name: 'Academic Search',
         icon: <BookOpen size={16} />,
-        status: academicSearchData.status || 'completed',
+        status: actualStatus,
         displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
       });
     }
@@ -2038,11 +2059,20 @@ const CanvasToolsPreview = memo(function CanvasToolsPreview({
         displayText = 'X/Twitter search';
       }
       
+      // Determine actual status - X search is completed when results exist
+      let actualStatus = 'completed';
+      if (xSearchData.status) {
+        actualStatus = xSearchData.status;
+      } else if (results.length === 0) {
+        // If no results yet, it might be processing
+        actualStatus = 'processing';
+      }
+      
       activeTools.push({
         id: 'x-search',
         name: 'X Search',
         icon: <XLogo size={16} />,
-        status: xSearchData.status || 'completed',
+        status: actualStatus,
         displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
       });
     }
@@ -2066,11 +2096,20 @@ const CanvasToolsPreview = memo(function CanvasToolsPreview({
         displayText = 'YouTube search';
       }
       
+      // Determine actual status - YouTube search is completed when results exist
+      let actualStatus = 'completed';
+      if (youTubeSearchData.status) {
+        actualStatus = youTubeSearchData.status;
+      } else if (results.length === 0) {
+        // If no results yet, it might be processing
+        actualStatus = 'processing';
+      }
+      
       activeTools.push({
         id: 'youtube-search',
         name: 'YouTube Search',
         icon: <YouTubeLogo size={16} />,
-        status: youTubeSearchData.status || 'completed',
+        status: actualStatus,
         displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
       });
     }
@@ -2101,11 +2140,33 @@ const CanvasToolsPreview = memo(function CanvasToolsPreview({
         displayText = 'YouTube analysis';
       }
       
+      // Determine actual status based on analysis completion
+      let actualStatus = 'completed';
+      if (youTubeLinkAnalysisData.status) {
+        actualStatus = youTubeLinkAnalysisData.status;
+      } else if (results.length === 0) {
+        // If no analysis results yet, it might be processing
+        actualStatus = 'processing';
+      } else {
+        // Check if all analysis have completed (either success or error)
+        const hasIncompleteAnalysis = results.some((r: { error: any, details?: any }) => 
+          !r.error && !r.details
+        );
+        
+        if (hasIncompleteAnalysis) {
+          actualStatus = 'processing';
+        } else {
+          // All analysis completed - determine success or error
+          const hasSuccess = results.some((r: { error: any }) => !r.error);
+          actualStatus = hasSuccess ? 'completed' : 'error';
+        }
+      }
+      
       activeTools.push({
         id: 'youtube-analyzer',
         name: 'YouTube Analyzer',
         icon: <Youtube size={16} />,
-        status: youTubeLinkAnalysisData.status || (results.some((r: { error: any }) => !r.error) ? 'completed' : 'error'),
+        status: actualStatus,
         displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
       });
     }
@@ -2165,22 +2226,17 @@ const CanvasToolsPreview = memo(function CanvasToolsPreview({
   };
   
   return (
-    <div className="mb-6 p-4 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
+    <div className="mb-6 p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[color-mix(in_srgb,var(--foreground)_8%,transparent)] to-[color-mix(in_srgb,var(--foreground)_4%,transparent)] flex items-center justify-center">
-            <Monitor className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-          </div>
-          <div>
-            <h3 className="font-medium text-sm tracking-tight">Canvas Preview</h3>
-            <p className="text-xs text-[var(--muted)] mt-0.5">{tools.length} tool{tools.length > 1 ? 's' : ''} executed</p>
-          </div>
+          <Monitor className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
+          <h2 className="font-medium text-left tracking-tight">Canvas Preview</h2>
         </div>
         <button
           onClick={() => togglePanel && togglePanel(messageId, 'canvas')}
           className="flex items-center gap-2 px-3 py-1.5 text-xs bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)] rounded-lg transition-colors"
         >
-          <span>View Details</span>
+          <span>View All</span>
           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M7 17 17 7" />
             <path d="M7 7h10v10" />
@@ -2192,7 +2248,8 @@ const CanvasToolsPreview = memo(function CanvasToolsPreview({
         {tools.map((tool, index) => (
           <div
             key={tool.id}
-            className="flex items-center gap-3 p-3 bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] rounded-lg min-w-0"
+            className="flex items-center gap-3 p-3 bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] rounded-lg min-w-0 cursor-pointer hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors"
+            onClick={() => togglePanel && togglePanel(messageId, 'canvas', undefined, tool.id)}
           >
             <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex-shrink-0">
               {tool.icon}
@@ -2227,4 +2284,119 @@ const CanvasToolsPreview = memo(function CanvasToolsPreview({
   );
 });
 
+// 새로운 FilesPreview 컴포넌트
+const FilesPreview = memo(function FilesPreview({
+  messageId,
+  togglePanel,
+  message
+}: {
+  messageId: string;
+  togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number) => void;
+  message: any; // message 객체를 직접 받아서 스트리밍 데이터에 접근
+}) {
+  // StructuredResponse.tsx와 동일한 방식으로 스트리밍 데이터 처리
+  const getStructuredResponseData = (message: any) => {
+    // 1. 먼저 annotations에서 확인
+    const structuredResponseAnnotation = message.annotations?.find(
+      (annotation: any) => annotation.type === 'structured_response'
+    );
+    
+    if (structuredResponseAnnotation?.data?.response) {
+      return structuredResponseAnnotation.data.response;
+    }
+    
+    // 2. tool_results에서 확인
+    if (message.tool_results?.structuredResponse?.response) {
+      return message.tool_results.structuredResponse.response;
+    }
+    
+    // 3. 진행 중인 응답 확인 (가장 최신 것)
+    const progressAnnotations = message.annotations?.filter(
+      (annotation: any) => annotation.type === 'structured_response_progress'
+    );
+    
+    if (progressAnnotations?.length > 0) {
+      const latestProgress = progressAnnotations[progressAnnotations.length - 1];
+      if (latestProgress.data?.response) {
+        return {
+          ...latestProgress.data.response,
+          isProgress: true
+        };
+      }
+    }
+    
+    return null;
+  };
+
+  const responseData = getStructuredResponseData(message);
+  
+  // 파일이 없으면 렌더링하지 않음
+  if (!responseData || !responseData.files || responseData.files.length === 0) {
+    return null;
+  }
+
+  const getFileIcon = (fileType?: string) => {
+    if (fileType?.startsWith('image/')) return <ImageIcon size={16} />;
+    if (fileType === 'application/pdf') return <FileText size={16} />;
+    if (fileType?.includes('text') || fileType?.includes('script')) return <FileText size={16} />;
+    return <FileText size={16} />; // 기본 아이콘
+  };
+
+  // 파일명을 확장자 유지하면서 중간 부분을 ... 로 처리하는 함수
+  const truncateFileName = (fileName?: string, maxLength: number = 35) => {
+    if (!fileName || typeof fileName !== 'string') {
+      return 'Loading file...'; // 이름이 없으면 로딩 중으로 표시
+    }
+    
+    if (fileName.length <= maxLength) return fileName;
+    
+    const lastDotIndex = fileName.lastIndexOf('.');
+    if (lastDotIndex === -1) {
+      // 확장자가 없는 경우
+      return fileName.slice(0, maxLength - 3) + '...';
+    }
+    
+    const name = fileName.slice(0, lastDotIndex);
+    const extension = fileName.slice(lastDotIndex);
+    
+    // 확장자를 포함한 길이가 maxLength를 초과하는 경우
+    const availableLength = maxLength - extension.length - 3; // 3은 ... 의 길이
+    if (availableLength <= 0) {
+      return '...' + extension;
+    }
+    
+    return name.slice(0, availableLength) + '...' + extension;
+  };
+
+  return (
+    <div className="mt-6">
+      <div className="grid grid-cols-1 gap-2">
+        {responseData.files.map((file: any, index: number) => {
+          return (
+            <div
+              key={index}
+              className="flex items-center gap-2 p-2.5 bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] rounded-lg min-w-0 border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] hover:border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] transition-colors cursor-pointer max-w-md"
+              onClick={() => togglePanel && togglePanel(messageId, 'structuredResponse', index)} 
+              title={file.name ? `View ${file.name}` : 'View loading file...'}
+            >
+              <div className="flex items-center justify-center w-7 h-7 rounded-md bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex-shrink-0">
+                {getFileIcon(file.type)}
+              </div>
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <div className="text-sm font-medium" title={file.name || 'Loading file...'}>
+                  {truncateFileName(file.name)}
+                </div>
+                <div className="text-xs text-[var(--muted)] truncate">
+                  {file.size ? fileHelpers.formatFileSize(file.size) : (file.type || (file.name ? '' : 'Processing...'))}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 export { Message }; 
+

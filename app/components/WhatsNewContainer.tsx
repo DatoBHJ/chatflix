@@ -123,8 +123,10 @@ const WhatsNewContainer: React.FC = () => {
     fetchUpdates();
     
     // Set up a real-time subscription for new updates
+    const channelSuffix = Date.now() + Math.random().toString(36).substr(2, 9);
+    
     const subscription = supabase
-      .channel('feature_updates_changes')
+      .channel(`feature_updates_changes-${channelSuffix}`)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'feature_updates' }, 
         () => {
@@ -134,7 +136,7 @@ const WhatsNewContainer: React.FC = () => {
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      supabase.removeChannel(subscription);
     };
   }, [supabase, user]);
   

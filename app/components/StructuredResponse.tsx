@@ -18,6 +18,7 @@ type ResponseData = {
 
 type StructuredResponseProps = {
   message: any;
+  fileIndex?: number;
 };
 
 
@@ -55,7 +56,7 @@ function getStructuredResponseData(message: any) {
 }
 
 
-export const StructuredResponse = ({ message }: StructuredResponseProps) => {
+export const StructuredResponse = ({ message, fileIndex }: StructuredResponseProps) => {
   const [responseData, setResponseData] = useState<ResponseData | null>(null);
   const [openFileIndexes, setOpenFileIndexes] = useState<number[]>([]);
   const fileContentRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -89,6 +90,10 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
     // 메시지에서 구조화된 응답 데이터 추출
     const structuredResponseData = getStructuredResponseData(message);
     
+    // 특정 파일 인덱스가 지정된 경우 해당 파일만 열기
+    if (structuredResponseData && typeof fileIndex === 'number') {
+      setOpenFileIndexes([fileIndex]);
+    } else {
     // 생성 중일 때만 모든 파일 열기 (완료 시 닫지 않음)
     if (structuredResponseData) {
       const isGenerating = structuredResponseData.isProgress === true;
@@ -104,6 +109,7 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
         }
       }
       // 생성이 완료되면 모든 파일 닫기 로직 제거 (파일 상태 유지)
+      }
     }
     
     setResponseData(structuredResponseData);
@@ -112,7 +118,7 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
     if (structuredResponseData?.files) {
       fileContentRefs.current = structuredResponseData.files.map(() => null);
     }
-  }, [message, storageKey]);
+  }, [message, storageKey, fileIndex]);
   
   // 파일 콘텐츠의 높이 측정 (ResizeObserver로 대체됨)
   // useEffect(() => {
@@ -226,19 +232,100 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
 
   const isLoading = responseData.isProgress === true;
 
+  // 특정 파일 인덱스가 지정된 경우 해당 파일만 필터링
+  const filesToShow = typeof fileIndex === 'number' && fileIndex >= 0 && fileIndex < responseData.files.length
+    ? [responseData.files[fileIndex]]
+    : responseData.files;
+
+  // 파일 인덱스 매핑 (단일 파일 표시 시 인덱스 조정)
+  const getActualFileIndex = (displayIndex: number) => {
+    return typeof fileIndex === 'number' ? fileIndex : displayIndex;
+  };
+
   // 기존 큰 배경 박스와 헤더 제거, 파일 목록만 바로 렌더링
   return (
     <div className="space-y-4">
-        {responseData.files.map((file: File, index: number) => {
-          const isOpen = openFileIndexes.includes(index);
+        {filesToShow.map((file: File, displayIndex: number) => {
+          const actualIndex = getActualFileIndex(displayIndex);
+          const isOpen = openFileIndexes.includes(actualIndex);
+          const isSpecificFile = typeof fileIndex === 'number'; // 특정 파일 표시 여부
+          
+          // 특정 파일일 때는 배경 없이 바로 내용 표시
+          if (isSpecificFile) {
+            return (
+              <div key={actualIndex}>
+                {/* 파일 설명을 최상단에 표시 */}
+                {file.description && (
+                  <div className="mb-4 p-3 bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] rounded-lg">
+                    <p className="text-sm text-[color-mix(in_srgb,var(--foreground)_70%,transparent)]">
+                      {file.description}
+                    </p>
+                  </div>
+                )}
+                
+                {/* 파일 내용 바로 표시 */}
+                <div
+                  ref={el => {
+                    fileContentRefs.current[actualIndex] = el;
+                    return undefined;
+                  }}
+                  className="max-w-full w-full overflow-x-auto"
+                  style={{
+                    scrollbarWidth: 'none',
+                    msOverflowStyle: 'none'
+                  }}
+                >
+                  <style jsx>{`
+                    div::-webkit-scrollbar {
+                      display: none;
+                    }
+                    /* LaTeX 수식 스타일 덮어쓰기 */
+                    :global(.katex-display) {
+                      max-width: 100%;
+                      overflow-x: auto;
+                      overflow-y: hidden;
+                      padding: 0.5rem 0;
+                    }
+                    :global(pre) {
+                      white-space: pre-wrap;
+                      word-break: break-word;
+                      max-width: 100%;
+                      overflow-x: auto;
+                    }
+                    :global(code) {
+                      white-space: pre-wrap;
+                      word-break: break-word;
+                    }
+                    :global(table) {
+                      max-width: 100%;
+                      display: block;
+                      overflow-x: auto;
+                    }
+                    :global(.math), :global(.math-inline), :global(.math-display) {
+                      max-width: 100%;
+                      overflow-x: auto;
+                      overflow-y: hidden;
+                    }
+                  `}</style>
+                  <div className="prose prose-sm dark:prose-invert max-w-none break-words">
+                    <MarkdownContent content={file.content || ''} />
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          
+          // 기존 다중 파일 표시 로직 (파일 헤더 포함)
           return (
-            <div key={index} className="border border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] rounded-lg overflow-hidden">
+            <div key={actualIndex} className="border border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] rounded-lg overflow-hidden">
+              {/* 특정 파일이 아닐 때만 파일 헤더 표시 */}
+              {!isSpecificFile && (
               <div className="bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)]">
                 {/* 파일 헤더 영역 - 이름과 액션 버튼 */}
                 <div className="px-3 py-2.5 flex justify-between items-center">
                   <div 
                     className="flex items-center gap-2.5 truncate cursor-pointer flex-grow"
-                    onClick={() => toggleFile(index)}
+                      onClick={() => toggleFile(actualIndex)}
                   >
                     <FileText className="h-4 w-4 flex-shrink-0" strokeWidth={1.5} />
                     <span className="font-mono text-sm font-medium bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)] px-2 py-0.5 rounded-md">
@@ -261,12 +348,12 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        copyFileContent(file, index);
+                          copyFileContent(file, actualIndex);
                       }}
                       className="rounded-full p-1.5 flex-shrink-0"
-                      title={copiedFileIndex === index ? "Copied!" : "Copy file content"}
+                        title={copiedFileIndex === actualIndex ? "Copied!" : "Copy file content"}
                     >
-                      {copiedFileIndex === index ? (
+                        {copiedFileIndex === actualIndex ? (
                         <Check size={16} className="text-green-500" />
                       ) : (
                         <Copy size={16} className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]" />
@@ -277,7 +364,7 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
                       className="rounded-full p-1.5 flex-shrink-0 cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
-                        toggleFile(index);
+                          toggleFile(actualIndex);
                       }}
                     >
                       {isOpen ? 
@@ -291,7 +378,7 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
                 {file.description && (
                   <div 
                     className="px-3 pb-2 pt-0.5 cursor-pointer"
-                    onClick={() => toggleFile(index)}
+                      onClick={() => toggleFile(actualIndex)}
                   >
                     <p className="text-xs text-[color-mix(in_srgb,var(--foreground)_60%,transparent)] line-clamp-2">
                       {file.description}
@@ -299,20 +386,23 @@ export const StructuredResponse = ({ message }: StructuredResponseProps) => {
                   </div>
                 )}
               </div>
+              )}
               <div 
-                className="overflow-hidden transition-all duration-300 ease-in-out border-t border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_1%,transparent)]"
+                className={`overflow-hidden transition-all duration-300 ease-in-out bg-[color-mix(in_srgb,var(--foreground)_1%,transparent)] ${
+                  !isSpecificFile ? 'border-t border-[color-mix(in_srgb,var(--foreground)_7%,transparent)]' : ''
+                }`}
                 style={{ 
-                  maxHeight: isOpen ? (fileContentHeights[index] ? `${fileContentHeights[index]}px` : '1000px') : '0px',
+                  maxHeight: (isOpen || isSpecificFile) ? (fileContentHeights[actualIndex] ? `${fileContentHeights[actualIndex]}px` : '1000px') : '0px',
                 }}
               >
                 <div
                   ref={el => {
-                    fileContentRefs.current[index] = el;
+                    fileContentRefs.current[actualIndex] = el;
                     return undefined;
                   }}
                   className="p-4 transition-opacity duration-300 ease-in-out max-w-full w-full overflow-x-auto"
                   style={{
-                    opacity: isOpen ? 1 : 0,
+                    opacity: (isOpen || isSpecificFile) ? 1 : 0,
                     scrollbarWidth: 'none',
                     msOverflowStyle: 'none'
                   }}

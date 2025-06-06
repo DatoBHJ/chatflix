@@ -50,7 +50,7 @@ export default function Chat({ params }: PageProps) {
   const prevIsLoadingRef = useRef(false); // 이전 isLoading 상태 추적
   
   // 활성화된 패널과 관련 메시지 ID 상태 관리
-  const [activePanel, setActivePanel] = useState<{ messageId: string; type: 'canvas' | 'structuredResponse' } | null>(null);
+  const [activePanel, setActivePanel] = useState<{ messageId: string; type: 'canvas' | 'structuredResponse'; fileIndex?: number; toolType?: string } | null>(null);
   // 사용자가 패널 상태를 명시적으로 제어했는지 추적하는 상태
   const [userPanelPreference, setUserPanelPreference] = useState<boolean | null>(null)
   // 마지막으로 생성된 패널 데이터가 있는 메시지 ID
@@ -545,8 +545,10 @@ export default function Chat({ params }: PageProps) {
   useEffect(() => {
     if (!isInitialized || !user) return
 
+    const channelSuffix = Date.now() + Math.random().toString(36).substr(2, 9);
+    
     const channel = supabase
-      .channel('chat-messages')
+      .channel(`chat-messages-${chatId}-${channelSuffix}`)
       .on(
         'postgres_changes',
         {
@@ -594,7 +596,7 @@ export default function Chat({ params }: PageProps) {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [chatId, setMessages, isInitialized])
+  }, [chatId, setMessages, isInitialized, user?.id])
 
   // Check for rate limited levels from localStorage
   useEffect(() => {
@@ -673,32 +675,6 @@ export default function Chat({ params }: PageProps) {
       scrollToBottom();
     }
   }, [isInitialized, isFullyLoaded, scrollToBottom]);
-
-  // 활성화된 패널이 변경될 때 캔버스 패널 스크롤
-  useEffect(() => {
-    // 캔버스가 아닐 때만 자동 스크롤 동작
-    if (
-      activePanel?.messageId &&
-      activePanel.type !== 'canvas' &&
-      canvasContainerRef.current
-    ) {
-      setTimeout(() => {
-        if (!canvasContainerRef.current) return;
-        // 관련 캔버스 요소 찾기 및 스크롤
-        const canvasElement = document.getElementById(`canvas-${activePanel.messageId}`);
-        if (canvasElement) {
-          canvasContainerRef.current.scrollTo({
-            top: canvasElement.offsetTop - 20,
-            behavior: 'smooth'
-          });
-        } else {
-          // 요소가 없으면 맨 아래로 스크롤
-          canvasContainerRef.current.scrollTop = canvasContainerRef.current.scrollHeight;
-        }
-      }, 100);
-    }
-  }, [activePanel]);
-
 
   const handleModelChange = async (newModel: string) => {
     try {
@@ -1019,12 +995,12 @@ export default function Chat({ params }: PageProps) {
 
 
   // 패널 토글 함수 - 사용자 선호도 기록
-  const togglePanel = (messageId: string, type: 'canvas' | 'structuredResponse') => {
-    if (activePanel?.messageId === messageId && activePanel?.type === type) {
+  const togglePanel = (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string) => {
+    if (activePanel?.messageId === messageId && activePanel.type === type && activePanel?.fileIndex === fileIndex && activePanel?.toolType === toolType) {
       setActivePanel(null);
       setUserPanelPreference(false);
     } else {
-      setActivePanel({ messageId, type });
+      setActivePanel({ messageId, type, fileIndex, toolType });
       setUserPanelPreference(true);
     }
   };
@@ -1120,7 +1096,12 @@ export default function Chat({ params }: PageProps) {
         }
       }
     }
-  }, [messages, userPanelPreference, lastPanelDataMessageId]);
+  }, [
+    messages.length, // 메시지 수만 체크
+    messages[messages.length - 1]?.id, // 마지막 메시지 ID만 체크
+    userPanelPreference, 
+    lastPanelDataMessageId
+  ]);
 
   // LLM 요약 effect: 첫 user+assistant 메시지 쌍이 모두 있고, 스트리밍이 완료되었을 때만 동작
   useEffect(() => {
@@ -1205,7 +1186,14 @@ export default function Chat({ params }: PageProps) {
         console.error('Error in summary effect:', err);
       }
     })();
-  }, [chatId, user, messages, supabase, isLoading]);
+  }, [
+    chatId, 
+    user?.id,
+    messages.length, // 메시지 수만 체크
+    messages[0]?.content, // 첫 사용자 메시지 내용
+    messages.find(m => m.role === 'assistant')?.content, // 첫 어시스턴트 메시지 내용
+    isLoading
+  ]);
 
   // 모든 데이터가 로드되기 전에는 로딩 화면 표시
   if (!isFullyLoaded || !user) {
@@ -1478,11 +1466,11 @@ export default function Chat({ params }: PageProps) {
           >
             {/* 패널 헤더 (모바일/데스크탑 공통) */}
             {activePanel?.messageId && (
-              <div className="sticky top-0 z-10 bg-[var(--background)] flex items-center justify-between px-4 h-auto py-2.5 border-b border-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
+              <div className="sticky top-0 z-10 bg-[var(--background)] flex items-center justify-between px-3 sm:px-4 h-auto py-2 sm:py-2.5 border-b border-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
                 <div className="flex items-center">
                   <button 
-                    onClick={() => togglePanel(activePanel?.messageId || '', activePanel?.type || 'canvas')}
-                    className="w-8 h-8 flex items-center justify-center mr-3"
+                    onClick={() => togglePanel(activePanel?.messageId || '', activePanel?.type || 'canvas', activePanel?.fileIndex, activePanel?.toolType)}
+                    className="w-8 h-8 flex items-center justify-center mr-2 sm:mr-3"
                     aria-label="Close panel"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1491,10 +1479,42 @@ export default function Chat({ params }: PageProps) {
                     </svg>
                   </button>
                   <div className="flex flex-col">
-                    <h3 className="text-lg font-semibold">
-                      {activePanel.type === 'canvas' ? 'Canvas' : 'Attachment Details'}
+                    <h3 className="text-base sm:text-lg font-semibold">
+                      {activePanel.type === 'canvas' ? (
+                        activePanel.toolType ? (
+                          // 특정 도구가 선택된 경우 도구 이름 표시
+                          (() => {
+                            const toolNames: { [key: string]: string } = {
+                              'web-search': 'Web Search',
+                              'calculator': 'Calculator', 
+                              'link-reader': 'Link Reader',
+                              'image-generator': 'Image Generator',
+                              'academic-search': 'Academic Search',
+                              'x-search': 'X Search',
+                              'youtube-search': 'YouTube Search',
+                              'youtube-analyzer': 'YouTube Analyzer'
+                            };
+                            return toolNames[activePanel.toolType] || 'Canvas Tool';
+                          })()
+                        ) : 'Canvas'
+                      ) : (
+                        (() => {
+                          // 특정 파일이 선택된 경우 파일 이름을 제목으로 사용
+                          if (typeof activePanel.fileIndex === 'number') {
+                            const activeMessageForPanel = messages.find(msg => msg.id === activePanel?.messageId);
+                            if (activeMessageForPanel) {
+                              const filesForPanel = getStructuredResponseFiles(activeMessageForPanel);
+                              if (filesForPanel && activePanel.fileIndex >= 0 && activePanel.fileIndex < filesForPanel.length) {
+                                const selectedFile = filesForPanel[activePanel.fileIndex];
+                                return selectedFile.name;
+                              }
+                            }
+                          }
+                          return 'File Details';
+                        })()
+                      )}
                     </h3>
-                    {activePanel.type === 'canvas' && (() => {
+                    {activePanel.type === 'canvas' && !activePanel.toolType && (() => {
                       const activeMessageForCanvas = messages.find(msg => msg.id === activePanel?.messageId);
                       if (!activeMessageForCanvas) return null;
 
@@ -1513,30 +1533,75 @@ export default function Chat({ params }: PageProps) {
                       }
                       return null;
                     })()}
-                    {activePanel.type === 'structuredResponse' && (() => {
+                    {/* 파일 설명 제거 - 파일 이름이 제목이므로 중복 */}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 sm:gap-2">
+                  {/* 특정 파일이 선택된 경우에만 복사/다운로드 버튼 표시 */}
+                  {activePanel.type === 'structuredResponse' && typeof activePanel.fileIndex === 'number' && (() => {
                       const activeMessageForPanel = messages.find(msg => msg.id === activePanel?.messageId);
                       if (!activeMessageForPanel) return null;
                       const filesForPanel = getStructuredResponseFiles(activeMessageForPanel);
-                      if (filesForPanel && filesForPanel.length > 0) {
-                        // Display up to 3 file names, then 'and X more'
-                        const maxFilesToShow = 3;
-                        const fileNames = filesForPanel.map((file: File) => file.name);
-                        let summaryText = fileNames.slice(0, maxFilesToShow).join(', ');
-                        if (fileNames.length > maxFilesToShow) {
-                          summaryText += `, and ${fileNames.length - maxFilesToShow} more`;
-                        }
-                        return <p className="text-xs text-[var(--muted)] mt-0.5">{summaryText}</p>;
-                      }
-                      return null;
+                    if (!filesForPanel || activePanel.fileIndex < 0 || activePanel.fileIndex >= filesForPanel.length) return null;
+                    
+                    const selectedFile = filesForPanel[activePanel.fileIndex];
+                    
+                    const downloadFile = () => {
+                      const blob = new Blob([selectedFile.content], { type: 'text/plain' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = selectedFile.name;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                    };
+                    
+                    const copyFileContent = () => {
+                      navigator.clipboard.writeText(selectedFile.content)
+                        .then(() => {
+                          // 복사 성공 피드백 (임시로 버튼 텍스트 변경 등)
+                        })
+                        .catch((err) => {
+                          console.error('Failed to copy file content:', err);
+                        });
+                    };
+                    
+                    return (
+                      <>
+                        {/* 다운로드 버튼 */}
+                        <button
+                          onClick={downloadFile}
+                          className="rounded-full p-1.5 sm:p-2 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors"
+                          title="Download file"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" className="sm:w-[18px] sm:h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7,10 12,15 17,10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                          </svg>
+                        </button>
+                        {/* 복사 버튼 */}
+                        <button
+                          onClick={copyFileContent}
+                          className="rounded-full p-1.5 sm:p-2 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors"
+                          title="Copy file content"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" className="sm:w-[18px] sm:h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                          </svg>
+                        </button>
+                      </>
+                    );
                     })()}
                   </div>
-                </div>
-                <div></div> {/* Empty div to maintain justify-between spacing */}
               </div>
             )}
 
             {/* 패널 내용 - 선택된 메시지의 캔버스 데이터만 표시 */}
-            <div className="px-4 pt-4 mb-10">
+            <div className="px-3 sm:px-4 pt-3 sm:pt-4 pb-28">
               {messages
                 .filter(message => message.id === activePanel?.messageId)
                 .map((message) => {
@@ -1560,10 +1625,11 @@ export default function Chat({ params }: PageProps) {
                           youTubeSearchData={youTubeSearchData}
                           youTubeLinkAnalysisData={youTubeLinkAnalysisData}
                           isCompact={false} // 패널에서는 항상 전체 보기
+                          selectedTool={activePanel?.toolType} // 선택된 도구 전달
                         />
                       )}
                       {activePanel?.type === 'structuredResponse' && (
-                        <StructuredResponse message={message} />
+                        <StructuredResponse message={message} fileIndex={activePanel?.fileIndex} />
                       )}
                     </div>
                   );
