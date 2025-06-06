@@ -205,8 +205,8 @@ export const ImageWithLoading = memo(function ImageWithLoadingComponent({
       }
     }, [isLoaded, error]);
     
-    // Check if URL is valid (simple check)
-    const isValidUrl = src && (
+    // Check if URL is valid (simple check) - ensure src is string
+    const isValidUrl = src && typeof src === 'string' && (
       src.startsWith('http://') || 
       src.startsWith('https://') || 
       src.startsWith('data:')
@@ -281,7 +281,7 @@ export const ImageWithLoading = memo(function ImageWithLoadingComponent({
             </svg>
             <div className="mb-1">Image failed to load</div>
             {alt && <div className="text-sm italic mb-2 opacity-75">{alt}</div>}
-            {src && (
+            {src && typeof src === 'string' && (
               <a 
                 href={src}
                 target="_blank"
