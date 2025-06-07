@@ -50,7 +50,7 @@ export default function Chat({ params }: PageProps) {
   const prevIsLoadingRef = useRef(false); // 이전 isLoading 상태 추적
   
   // 활성화된 패널과 관련 메시지 ID 상태 관리
-  const [activePanel, setActivePanel] = useState<{ messageId: string; type: 'canvas' | 'structuredResponse'; fileIndex?: number; toolType?: string } | null>(null);
+  const [activePanel, setActivePanel] = useState<{ messageId: string; type: 'canvas' | 'structuredResponse'; fileIndex?: number; toolType?: string; fileName?: string } | null>(null);
   // 사용자가 패널 상태를 명시적으로 제어했는지 추적하는 상태
   const [userPanelPreference, setUserPanelPreference] = useState<boolean | null>(null)
   // 마지막으로 생성된 패널 데이터가 있는 메시지 ID
@@ -995,12 +995,12 @@ export default function Chat({ params }: PageProps) {
 
 
   // 패널 토글 함수 - 사용자 선호도 기록
-  const togglePanel = (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string) => {
+  const togglePanel = (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string, fileName?: string) => {
     if (activePanel?.messageId === messageId && activePanel.type === type && activePanel?.fileIndex === fileIndex && activePanel?.toolType === toolType) {
       setActivePanel(null);
       setUserPanelPreference(false);
     } else {
-      setActivePanel({ messageId, type, fileIndex, toolType });
+      setActivePanel({ messageId, type, fileIndex, toolType, fileName });
       setUserPanelPreference(true);
     }
   };
@@ -1091,7 +1091,12 @@ export default function Chat({ params }: PageProps) {
         // 패널 자동 열기 규칙:
         // 사용자가 명시적으로 패널 열기를 선택한 경우에만 열기
         if (userPanelPreference === true) {
-          // 패널 열기
+          // 이미 활성화된 패널이 있고 같은 메시지라면 패널 타입 유지
+          if (activePanel?.messageId === lastAssistantMessage.id) {
+            // 같은 메시지의 패널이 이미 열려있으면 타입과 기타 정보 유지
+            return;
+          }
+          // 새로운 메시지면 canvas 패널로 열기
           togglePanel(lastAssistantMessage.id, 'canvas');
         }
       }
@@ -1498,20 +1503,8 @@ export default function Chat({ params }: PageProps) {
                           })()
                         ) : 'Canvas'
                       ) : (
-                        (() => {
-                          // 특정 파일이 선택된 경우 파일 이름을 제목으로 사용
-                          if (typeof activePanel.fileIndex === 'number') {
-                            const activeMessageForPanel = messages.find(msg => msg.id === activePanel?.messageId);
-                            if (activeMessageForPanel) {
-                              const filesForPanel = getStructuredResponseFiles(activeMessageForPanel);
-                              if (filesForPanel && activePanel.fileIndex >= 0 && activePanel.fileIndex < filesForPanel.length) {
-                                const selectedFile = filesForPanel[activePanel.fileIndex];
-                                return selectedFile.name;
-                              }
-                            }
-                          }
-                          return 'File Details';
-                        })()
+                        // 특정 파일이 선택된 경우 파일 이름을 제목으로 사용
+                        activePanel.fileName || 'File Details'
                       )}
                     </h3>
                     {activePanel.type === 'canvas' && !activePanel.toolType && (() => {
@@ -1541,8 +1534,41 @@ export default function Chat({ params }: PageProps) {
                   {activePanel.type === 'structuredResponse' && typeof activePanel.fileIndex === 'number' && (() => {
                       const activeMessageForPanel = messages.find(msg => msg.id === activePanel?.messageId);
                       if (!activeMessageForPanel) return null;
-                      const filesForPanel = getStructuredResponseFiles(activeMessageForPanel);
-                    if (!filesForPanel || activePanel.fileIndex < 0 || activePanel.fileIndex >= filesForPanel.length) return null;
+                      
+                      // StructuredResponse.tsx와 동일한 방식으로 파일 데이터 가져오기
+                      const getStructuredResponseData = (message: any) => {
+                        const structuredResponseAnnotation = message.annotations?.find(
+                          (annotation: any) => annotation.type === 'structured_response'
+                        );
+                        
+                        if (structuredResponseAnnotation?.data?.response) {
+                          return structuredResponseAnnotation.data.response;
+                        }
+                        
+                        if (message.tool_results?.structuredResponse?.response) {
+                          return message.tool_results.structuredResponse.response;
+                        }
+                        
+                        const progressAnnotations = message.annotations?.filter(
+                          (annotation: any) => annotation.type === 'structured_response_progress'
+                        );
+                        
+                        if (progressAnnotations?.length > 0) {
+                          const latestProgress = progressAnnotations[progressAnnotations.length - 1];
+                          if (latestProgress.data?.response) {
+                            return {
+                              ...latestProgress.data.response,
+                              isProgress: true
+                            };
+                          }
+                        }
+                        
+                        return null;
+                      };
+                      
+                      const responseData = getStructuredResponseData(activeMessageForPanel);
+                      const filesForPanel = responseData?.files;
+                      if (!filesForPanel || activePanel.fileIndex < 0 || activePanel.fileIndex >= filesForPanel.length) return null;
                     
                     const selectedFile = filesForPanel[activePanel.fileIndex];
                     

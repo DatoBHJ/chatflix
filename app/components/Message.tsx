@@ -180,7 +180,7 @@ interface MessageProps {
   isWaitingForToolResults?: boolean
   messageHasCanvasData?: boolean
   activePanelMessageId?: string | null
-  togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number) => void
+  togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string, fileName?: string) => void
   // Canvas 데이터 props 추가
   webSearchData?: any
   mathCalculationData?: any
@@ -1803,7 +1803,7 @@ const CanvasToolsPreview = memo(function CanvasToolsPreview({
   youTubeSearchData?: any;
   youTubeLinkAnalysisData?: any;
   messageId: string;
-  togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string) => void;
+  togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string, fileName?: string) => void;
 }) {
   const tools = useMemo(() => {
     const activeTools = [];
@@ -2291,7 +2291,7 @@ const FilesPreview = memo(function FilesPreview({
   message
 }: {
   messageId: string;
-  togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number) => void;
+  togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string, fileName?: string) => void;
   message: any; // message 객체를 직접 받아서 스트리밍 데이터에 접근
 }) {
   // StructuredResponse.tsx와 동일한 방식으로 스트리밍 데이터 처리
@@ -2376,7 +2376,7 @@ const FilesPreview = memo(function FilesPreview({
             <div
               key={index}
               className="flex items-center gap-2 p-2.5 bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] rounded-lg min-w-0 border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] hover:border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] transition-colors cursor-pointer max-w-md"
-              onClick={() => togglePanel && togglePanel(messageId, 'structuredResponse', index)} 
+              onClick={() => togglePanel && togglePanel(messageId, 'structuredResponse', index, undefined, file.name)} 
               title={file.name ? `View ${file.name}` : 'View loading file...'}
             >
               <div className="flex items-center justify-center w-7 h-7 rounded-md bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex-shrink-0">
