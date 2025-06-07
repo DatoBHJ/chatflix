@@ -760,9 +760,21 @@ ${userQuery}
             
             
             const hasImage = optimizedMessages.some(msg => {
+              // Check content array for images
               if (Array.isArray(msg.content)) {
-                return msg.content.some(part => part.type === 'image');
+                if (msg.content.some(part => part.type === 'image')) {
+                  return true;
+                }
               }
+              
+              // Also check experimental_attachments for images
+              if (Array.isArray(msg.experimental_attachments)) {
+                return msg.experimental_attachments.some(attachment => 
+                  attachment.contentType?.startsWith('image/') || 
+                  (attachment as any).fileType === 'image'
+                );
+              }
+              
               return false;
             });
 

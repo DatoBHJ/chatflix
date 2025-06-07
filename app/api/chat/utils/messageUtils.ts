@@ -191,7 +191,11 @@ export const convertMessageForAI = async (
     });
   }
 
-  if (!experimental_attachments.length && !hasAnyToolResults) {
+  // 🔧 FIX: Check if message content contains images or files
+  const hasMultiModalContent = Array.isArray(message.content) && 
+    message.content.some(part => part.type === 'image' || part.type === 'file');
+
+  if (!experimental_attachments.length && !hasAnyToolResults && !hasMultiModalContent) {
     return {
       role: message.role as MessageRole,
       content: message.content,
@@ -202,17 +206,56 @@ export const convertMessageForAI = async (
 
   const parts: AIMessageContent[] = [];
   
+  // 🔧 FIX: Handle multimodal content in message.content
   if (message.content) {
-    parts.push({
-      type: 'text',
-      text: typeof message.content === 'string' ? message.content : 
-            Array.isArray(message.content) ? 
-            (message.content as Array<{ type: string; text: string }>)
-              .filter(part => part.type === 'text')
-              .map(part => part.text)
-              .join('\n') : 
-            'Content not available'
-    });
+    if (typeof message.content === 'string') {
+      parts.push({
+        type: 'text',
+        text: message.content
+      });
+    } else if (Array.isArray(message.content)) {
+      // Process each part of the multimodal content
+      (message.content as any[]).forEach((part: any) => {
+        if (part.type === 'text') {
+          parts.push({
+            type: 'text',
+            text: part.text || ''
+          });
+        } else if (part.type === 'image' && supportsVision) {
+          // 🔧 FIX: Preserve image data instead of converting to text
+          parts.push({
+            type: 'image',
+            image: part.image
+          });
+        } else if (part.type === 'file') {
+          // Handle file content
+          if (part.file) {
+            const fileName = part.file.name || 'Unnamed file';
+            const fileType = part.file.contentType || 'Unknown';
+            
+            if (supportsPDFs && (fileType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf'))) {
+              // Handle PDF files
+              parts.push({
+                type: 'file',
+                data: part.file.data || part.file.content,
+                mimeType: 'application/pdf'
+              });
+            } else {
+              // Handle other files as text
+              parts.push({
+                type: 'text',
+                text: `\n\nFile: ${fileName}\nType: ${fileType}\nContent: ${part.file.content || part.file.data || '[File content not available]'}\n`
+              });
+            }
+          }
+        }
+      });
+    } else {
+      parts.push({
+        type: 'text',
+        text: 'Content not available'
+      });
+    }
   }
 
   // PRIORITY 1: Calculation results (highly relevant for conversation continuity)
@@ -628,30 +671,47 @@ export function convertMultiModalToMessage(
   };
 
   const result = messages.map(msg => {
-    let content: string;
+    let content: string | any[];
     
-    // content가 AIMessageContent[] 타입인 경우 모든 내용을 텍스트로 변환
+    // 🔧 FIX: Preserve multimodal content instead of converting to text
     if (Array.isArray(msg.content)) {
-      const parts: string[] = [];
+      // Check if content contains images or files that should be preserved
+      const hasVisualContent = msg.content.some(part => part.type === 'image' || part.type === 'file');
       
-      msg.content.forEach(part => {
-        switch (part.type) {
-          case 'text':
-            parts.push(part.text || '');
-            break;
-          case 'image':
-            parts.push(`[IMAGE: ${(part as any).image || 'Image content'}]`);
-            break;
-          case 'file':
-            parts.push(`[FILE: ${(part as any).data ? 'File data included' : 'File content'}]`);
-            break;
-          default:
-            // 기타 모든 타입을 문자열로 변환
-            parts.push(JSON.stringify(part));
-        }
-      });
-      
-      content = parts.join('\n');
+      if (hasVisualContent) {
+        // Preserve the multimodal structure for AI models
+        content = msg.content.map(part => {
+          switch (part.type) {
+            case 'text':
+              return { type: 'text', text: part.text || '' };
+            case 'image':
+              return { type: 'image', image: (part as any).image };
+            case 'file':
+              return { 
+                type: 'file', 
+                data: (part as any).data,
+                mimeType: (part as any).mimeType
+              };
+            default:
+              return part;
+          }
+        });
+      } else {
+        // If no visual content, convert to text as before
+        const parts: string[] = [];
+        
+        msg.content.forEach(part => {
+          switch (part.type) {
+            case 'text':
+              parts.push(part.text || '');
+              break;
+            default:
+              parts.push(JSON.stringify(part));
+          }
+        });
+        
+        content = parts.join('\n');
+      }
     } else {
       content = msg.content;
     }
@@ -723,7 +783,7 @@ export function convertMultiModalToMessage(
       }
     }
     
-    return baseMessage as Message;
+    return baseMessage as Message; // Return as Message type
   });
 
   // 디버깅 로그 출력
