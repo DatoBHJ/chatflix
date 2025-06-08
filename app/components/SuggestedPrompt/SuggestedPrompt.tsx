@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 // 기본 영어 예시 쿼리 목록
 const DEFAULT_EXAMPLE_PROMPTS = [
   "Write a masterpiece that describes my aura",
-  "Draw a Catwoman",
+  "Draw a Catwoman", 
   "I AM MUSIC Album Review",
   "Summarize this PDF: https://www.nasa.gov/wp-content/uploads/2023/01/55583main_vision_space_exploration2.pdf",
   "Summarize this link: https://www.numeroberlin.de/2023/11/numero-berlin-zukunft-x-playboi-carti/",
@@ -21,12 +21,10 @@ const DEFAULT_EXAMPLE_PROMPTS = [
   "Latest on the Mars mission?",
   "Why do some dumbass people think the earth is flat?",
   "Explain the movie Tenet like I'm 5",
-
-"Find the most ridiculous celebrity business ventures and analyze their success rates.",
-"Find the most absurd laws that still exist and research their historical origins.",
-"Calculate how much money influencers actually make per post and compare it to real jobs.",
-"Find the most ridiculous startup ideas that actually got funded and calculate their burn rates.",
-
+  "Find the most ridiculous celebrity business ventures and analyze their success rates.",
+  "Find the most absurd laws that still exist and research their historical origins.",
+  "Calculate how much money influencers actually make per post and compare it to real jobs.",
+  "Find the most ridiculous startup ideas that actually got funded and calculate their burn rates.",
   "Provide me a digest of world news in the last 24 hours.",
   "What is the most viral meme in 2022?",
   "Can you recommend the top 10 burger places in London?",
@@ -45,6 +43,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '' }: Sugge
   const [suggestedPrompt, setSuggestedPrompt] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isVisible, setIsVisible] = useState(false);
+  const [isHovered, setIsHovered] = useState(false); // 호버 상태 추가
 
   // URL 정규식 (http, https, www)
   const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
@@ -58,7 +57,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '' }: Sugge
         if (!href.startsWith('http')) {
           href = 'https://' + href;
         }
-        // 너무 긴 링크는 30자까지만 보여주고 ... 처리
+        // 너무 긴 링크는 20자까지만 보여주고 ... 처리
         const displayText = part.length > 20 ? part.slice(0, 20) + '...' : part;
         return (
           <a
@@ -79,40 +78,60 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '' }: Sugge
     });
   }
 
-  useEffect(() => {
-    const showRandomPrompt = () => {
-      setIsVisible(false);
+  // 새로운 프롬프트를 표시하는 함수
+  const showRandomPrompt = () => {
+    setIsVisible(false);
 
-      // 페이드 아웃이 완전히 끝난 후에 새로운 프롬프트 설정
+    // 페이드 아웃이 완전히 끝난 후에 새로운 프롬프트 설정
+    setTimeout(() => {
+      setIsLoading(true);
+
+      // 기본 예시 목록에서 랜덤하게 선택
+      const randomIndex = Math.floor(Math.random() * DEFAULT_EXAMPLE_PROMPTS.length);
+      setSuggestedPrompt(DEFAULT_EXAMPLE_PROMPTS[randomIndex]);
+
+      // 로딩 상태를 잠깐 유지한 후 새로운 프롬프트 표시
       setTimeout(() => {
-        setIsLoading(true);
-
-        // 기본 예시 목록에서 랜덤하게 선택
-        const randomIndex = Math.floor(Math.random() * DEFAULT_EXAMPLE_PROMPTS.length);
-        setSuggestedPrompt(DEFAULT_EXAMPLE_PROMPTS[randomIndex]);
-
-        // 로딩 상태를 잠깐 유지한 후 새로운 프롬프트 표시
+        setIsLoading(false);
         setTimeout(() => {
-          setIsLoading(false);
-          setTimeout(() => {
-            setIsVisible(true);
-          }, 200); // 페이드 인 더 느리게
-        }, 400); // 로딩 더 오래
-      }, 500); // 페이드 아웃 더 오래
-    };
+          setIsVisible(true);
+        }, 200); // 페이드 인 더 느리게
+      }, 400); // 로딩 더 오래
+    }, 500); // 페이드 아웃 더 오래
+  };
 
-    // 4초마다 새로운 프롬프트 표시
-    const intervalId = setInterval(showRandomPrompt, 4000);
-
+  useEffect(() => {
     // 초기 프롬프트 표시
     showRandomPrompt();
-
-    return () => {
-      clearInterval(intervalId);
-      setIsVisible(false);
-      setIsLoading(true);
-    };
   }, [userId]);
+
+  // 호버 상태에 따라 interval 관리
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null;
+
+    // 호버되지 않은 상태에서만 자동 변경
+    if (!isHovered) {
+      intervalId = setInterval(() => {
+        showRandomPrompt();
+      }, 4000);
+    }
+
+    // cleanup: interval 정리
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [isHovered]); // isHovered 상태가 변경될 때마다 실행
+
+  // 마우스 이벤트 핸들러
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+  };
 
   return (
     <div className={`min-h-[28px] relative ${className}`}>
@@ -127,6 +146,8 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '' }: Sugge
             isVisible ? 'opacity-100' : 'opacity-0'
           } hover:text-[var(--foreground)]`}
           onClick={() => onPromptClick(suggestedPrompt)}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
         >
           {renderPromptWithLinks(suggestedPrompt)}
         </div>
