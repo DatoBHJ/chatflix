@@ -698,20 +698,20 @@ ${userQuery}
                  planningText = `${complexityResult.object.reasoning}`;
                 
                 // // Send a simplified reasoning annotation to the UI
-                dataStream.writeMessageAnnotation({
-                  type: 'agent_reasoning_progress',
-                  data: JSON.parse(JSON.stringify({
-                    agentThoughts: '', 
-                    plan: planningText,
-                    selectionReasoning: '',
-                    workflowMode: '',
-                    modeReasoning: '',
-                    selectedTools: [],
-                    timestamp: new Date().toISOString(),
-                    isComplete: true,
-                    stage: 'planning'
-                  }))
-                });
+                // dataStream.writeMessageAnnotation({
+                //   type: 'agent_reasoning_progress',
+                //   data: JSON.parse(JSON.stringify({
+                //     agentThoughts: '', 
+                //     plan: planningText,
+                //     selectionReasoning: '',
+                //     workflowMode: '',
+                //     modeReasoning: '',
+                //     selectedTools: [],
+                //     timestamp: new Date().toISOString(),
+                //     isComplete: true,
+                //     stage: 'planning'
+                //   }))
+                // });
               }
 
             // 두 번째 단계: 도구 선택 (generateObject 사용)
@@ -1186,13 +1186,26 @@ Remember to maintain the language of the user's query throughout your response.
                     case 'information_response':
                       fileCreationGuidelines = `
 # FILE CREATION GUIDELINES (INFORMATION RESPONSE MODE)
-In information response mode, the focus was on providing a comprehensive main response.
-At this stage, you may create minimal supporting files if necessary, but they're optional and should only be created if they add significant value.
+In information response mode, the main response was designed to be comprehensive and complete.
+**FILE CREATION THRESHOLD: VERY HIGH** - Only create files in exceptional cases.
 
-If you create files:
-- They should complement the main response, not duplicate it
-- Focus on structured references, checklists, or summary tables that organize the information
-- Consider creating reference sheets, diagrams, or quick-reference guides if helpful
+## Strong Preference: NO FILES
+- The main response should have fully satisfied the user's information needs
+- Most queries in this mode should result in NO supporting files
+
+## Create files ONLY if they provide exceptional value:
+- Charts/visualizations of data mentioned in the main response (but not visualized)
+- Reference tables with structured data (e.g., comparison tables, specifications)
+- Downloadable checklists or quick-reference cards
+- Data files (.json, .csv) with raw information for further use
+
+## NEVER create files that:
+- Repeat explanations from the main response
+- Reformulate the same information in different words
+- Provide "additional details" that are just extended versions of main response content
+- Simply organize existing information without substantial new value
+
+**Default assumption: NO files needed unless there's compelling evidence otherwise.**
 `;
                       break;
                     case 'content_creation':
@@ -1280,10 +1293,39 @@ ${finalResult}
 
 # Stage 3: Supporting Files Creation - You're here
 
+## 🚨 CRITICAL: AVOID REDUNDANT FILE CREATION
+**BEFORE creating any files, you MUST evaluate if they would be redundant:**
+
+### Redundancy Check Criteria:
+1. **Content Similarity**: If a potential file would contain >80% similar content to the main response, DO NOT create it
+2. **Value Addition**: Only create files if they provide SUBSTANTIALLY different value:
+   - Different format (code vs explanation)
+   - Additional detail not in main response
+   - Structured data/tables/charts
+   - Reference materials or templates
+   - Downloadable/executable content
+
+### When to SKIP file creation:
+- ❌ The main response already fully answers the user's query
+- ❌ Files would just repeat the same information in different words
+- ❌ The main response is comprehensive and self-contained
+- ❌ Information response mode with detailed main response already provided
+
+### When files ADD VALUE:
+- ✅ Code implementations when main response was conceptual
+- ✅ Structured data/charts when main response was textual
+- ✅ Templates/examples when main response was instructional
+- ✅ Reference sheets when main response was explanatory
+- ✅ Step-by-step guides when main response was overview
+
+**If in doubt, lean towards NOT creating files. Quality over quantity.**
+
 ${fileCreationGuidelines}
 
 ## Your Task
 Create supporting files that complement the main response already provided.
+
+**CRITICAL: If you decide NOT to create any files, simply return an empty response with no description field. Do not explain why files are not needed - just silently skip file creation.**
 
 **SUPPORTING FILES**: Additional content for the canvas area (adaptive based on workflow mode)
 - Each file should have a clear purpose and be self-contained
@@ -1402,14 +1444,14 @@ Example chart format:
                     model: providers.languageModel(finalModel),
                     schema: z.object({
                       response: z.object({
-                        description: z.string().optional().describe('Brief description of the supporting files being provided (if any). If no files are needed, don\'t include this field.'),
+                        description: z.string().optional().describe('ONLY provide this if files are actually created. Do NOT include this field if no files are needed. Never explain why files are not created.'),
                         files: z.array(
                           z.object({
                             name: z.string().describe('Name of the file with appropriate extension (e.g., code.py, data.json, explanation.md)'),
                             content: z.string().describe('Content of the file formatted with proper Markdown syntax, including code blocks with language specification'),
                             description: z.string().optional().describe('Optional short description of what this file contains')
                           })
-                        ).optional().describe('Optional list of files to display in the canvas area - ONLY include when necessary for complex information that cannot be fully communicated in the main response')
+                        ).optional().describe('CRITICAL: Only create files if they provide SUBSTANTIAL additional value beyond the main response. Do NOT create files that repeat >80% of main response content. Default to empty array [] unless files are genuinely necessary and add unique value.')
                       })
                     }),
                     // providerOptions: providerOptions,
