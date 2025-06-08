@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 // 기본 영어 예시 쿼리 목록
-const DEFAULT_EXAMPLE_PROMPTS = [
+export const DEFAULT_EXAMPLE_PROMPTS = [
   "Write a masterpiece that describes my aura",
   "Draw a Catwoman", 
   "I AM MUSIC Album Review",

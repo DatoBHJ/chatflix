@@ -22,34 +22,10 @@ import { ChevronLeft, X, Maximize2, Minimize2, ChevronDown, ChevronUp } from 'lu
 import { MODEL_CONFIGS, getActivatedModels } from '@/lib/models/config'
 import Image from 'next/image'
 import { FollowUpQuestions } from '@/app/components/FollowUpQuestions'
+import { DEFAULT_EXAMPLE_PROMPTS as ALL_EXAMPLE_PROMPTS } from '@/app/components/SuggestedPrompt/SuggestedPrompt'
 
 // Default example prompts for demo mode - same as in the main app
-const DEFAULT_EXAMPLE_PROMPTS = [
-  "Draw a Catwoman",
-  "Draw a cute cat",
-  "I AM MUSIC Album Review",
-  "Summarize this PDF: https://www.nasa.gov/wp-content/uploads/2023/01/55583main_vision_space_exploration2.pdf",
-  "Summarize this link: https://www.numeroberlin.de/2023/11/numero-berlin-zukunft-x-playboi-carti/",
-  "Summarize this video: https://youtu.be/rHO6TiPLHqw?si=EeNnPSQqUCHRFkCC",
-  "Latest US stock market news in the style of a bedtime story.",
-  "Find scientific reasons why cats ignore humans.",
-  "Research why programmers are obsessed with dark mode.",
-  "Explain why people love horror movies using psychological theories",
-  "List the top 5 weirdest trends in AI right now.",
-  "Calculate how much coffee a developer needs to finish a project in 3 days.",
-  "Explain the stock market crash of 2008 in the style of a rap battle.",
-  "Research the psychological effects of drug use on creativity.",
-  "List the most controversial moments in hip-hop history.",
-  "Analyze the impact of Elon Musk's tweets on cryptocurrency markets.",
-  "Summarize the most popular 9/11 conspiracy theories",
-  "What's the latest on the Mars mission?",
-  "What’s the wildest thing Kanye did this year?",
-  "Is Threads still a thing or did everyone go back to X?",
-  "Describe the Mandela Effect and give the most famous examples.",
-  "Summarize the Kanye West and Taylor Swift feud as a Shakespearean drama.",
-  "Why do people think the earth is flat?",
-  "Explain the movie Tenet like I'm 5",
-];
+const DEFAULT_EXAMPLE_PROMPTS = ALL_EXAMPLE_PROMPTS.slice(1); 
 
 type Annotation = {
   type: string;
@@ -536,7 +512,7 @@ export function DemoChat() {
     };
   }, [activePanel, closePanel]); // showMobilePanel -> activePanel
 
-  const containerClasses = "flex flex-col bg-[var(--background)] rounded-2xl shadow-xl overflow-hidden max-w-6xl mx-auto h-[70vh] min-h-[400px] border border-[var(--subtle-divider)] border-opacity-30";
+  const containerClasses = "flex flex-col bg-[var(--background)] rounded-2xl shadow-xl overflow-hidden max-w-6xl mx-auto h-[80vh] min-h-[500px] border border-[var(--subtle-divider)] border-opacity-30";
 
   // State for model list collapse UI
   const [isModelListExpanded, setIsModelListExpanded] = useState(false)
@@ -661,7 +637,7 @@ export function DemoChat() {
     <div className="md:space-y-16 space-y-8 max-w-6xl mx-auto">
       {rateLimitReached ? (
         // 요청 제한 도달 시 채팅창 대신 표시될 컨텐츠
-        <div className="flex flex-col bg-[var(--background)] rounded-2xl shadow-xl overflow-hidden max-w-6xl mx-auto h-[70vh] min-h-[700px] border border-[var(--subtle-divider)] border-opacity-30">
+        <div className="flex flex-col bg-[var(--background)] rounded-2xl shadow-xl overflow-hidden max-w-6xl mx-auto h-[80vh] min-h-[700px] border border-[var(--subtle-divider)] border-opacity-30">
           <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-30">
             <div className="absolute top-0 left-0 w-1/2 h-1/2 bg-gradient-to-br from-[var(--foreground)] opacity-[0.03] blur-[120px] rounded-full transform -translate-x-1/2 -translate-y-1/2"></div>
             <div className="absolute bottom-0 right-0 w-1/2 h-1/2 bg-gradient-to-tl from-[var(--foreground)] opacity-[0.03] blur-[120px] rounded-full transform translate-x-1/2 translate-y-1/2"></div>
