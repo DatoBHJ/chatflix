@@ -1285,6 +1285,11 @@ ${fileCreationGuidelines}
 ## Your Task
 Create supporting files that complement the main response already provided.
 
+**CRITICAL DECISION POINT**: Determine if supporting files are actually needed:
+- If the main response already fully addresses the user's query, DO NOT create any files
+- If no substantial additional value can be provided through files, DO NOT create files
+- ONLY create files when they provide meaningful, substantial additional content
+
 **SUPPORTING FILES**: Additional content for the canvas area (adaptive based on workflow mode)
 - Each file should have a clear purpose and be self-contained
 - Use appropriate file extensions (.py, .js, etc.)
@@ -1385,7 +1390,7 @@ Example chart format:
 ## Important Guidelines:
 - Respond in the same language as the user's query
 - You MUST NOT create a main response again - the user has already been given the main response
-- DO NOT create files unless they provide substantial additional value
+- DO NOT create files & descriptions unless they provide substantial additional value
 - NEVER use HTML tags in file content
 - Consider creating charts when you have gathered quantitative data that would benefit from visualization
 `;
@@ -1396,13 +1401,18 @@ Example chart format:
                   if (model.includes('claude') && model.includes('sonnet')) {
                     finalModel = 'gemini-2.5-pro-preview-05-06';
                   }
+
+                  // gpt-4.1-mini가 선택된 경우 gpt-4.1으로 업그레이드
+                  if (finalModel === 'gpt-4.1-mini') {
+                    finalModel = 'gpt-4.1';
+                  }
             
                   // 세번째 단계: 구조화된 응답 생성 (파일만)
                   const objectResult = await streamObject({
                     model: providers.languageModel(finalModel),
                     schema: z.object({
                       response: z.object({
-                        description: z.string().optional().describe('Brief description of the supporting files being provided (if any). If no files are needed, don\'t include this field.'),
+                        description: z.string().optional().describe('ONLY include this field when files are actually being created. Brief description of the supporting files being provided. DO NOT include this field if no files are created.'),
                         files: z.array(
                           z.object({
                             name: z.string().describe('Name of the file with appropriate extension (e.g., code.py, data.json, explanation.md)'),
