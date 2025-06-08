@@ -76,7 +76,19 @@ export function estimateMultiModalTokens(msg: Message): number {
       } else if (part.type === 'image') {
         total += 1000; // 이미지는 약 1000 토큰으로 추정 (기본값)
       } else if (part.type === 'file') {
-        total += 5000; // 파일은 평균적으로 5000 토큰으로 추정 (기본값)
+        // 파일 타입별로 정확한 토큰 추정 (experimental_attachments와 동일한 로직)
+        const filename = part.file?.name?.toLowerCase() || '';
+        const contentType = part.file?.contentType || '';
+        
+        if (filename.endsWith('.pdf') || contentType === 'application/pdf') {
+          total += 5000; // PDF
+        } else if (filename.match(/\.(js|ts|jsx|tsx|py|java|c|cpp|cs|go|rb|php|html|css|sql|scala|swift|kt|rs|dart|json|xml|yaml|yml)$/i)) {
+          total += 3000; // 코드 파일
+        } else if (contentType?.startsWith('image/') || filename.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i)) {
+          total += 1000; // 이미지
+        } else {
+          total += 2000; // 기타 파일
+        }
       }
     }
   } else {
@@ -690,11 +702,11 @@ function selectModelBasedOnAnalysis(
           return 'claude-sonnet-4-20250514';
         }
       } else {
-        // 일반 버전
+        // 일반 버전 - Other 카테고리는 gpt-4.1-mini 사용
         if (analysis.complexity === 'simple') {
-          return 'gpt-4.1';
+          return 'gpt-4.1-mini';
         } else { // medium/complex
-          return 'gpt-4.1';
+          return 'gpt-4.1-mini';
         }
       }
     }

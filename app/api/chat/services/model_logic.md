@@ -44,9 +44,9 @@ Gemini 2.0 Flash로 분석:
 | **Math** | 모든 복잡도 | `grok-3-mini-fast` | `grok-3-mini-fast` |
 | **Technical** | Simple | `grok-3-fast` | `grok-3-fast` |
 | **Technical** | Medium/Complex | `grok-3-mini-fast` | `grok-3-mini-fast` |
-| **Other** | Simple | `gpt-4.1` | `claude-sonnet-4` |
-| **Other** | Medium | `gpt-4.1` | `claude-sonnet-4` |
-| **Other** | Complex | `gpt-4.1` | `claude-sonnet-4-thinking` |
+| **Other** | Simple | `gpt-4.1-mini` | `claude-sonnet-4` |
+| **Other** | Medium | `gpt-4.1-mini` | `claude-sonnet-4` |
+| **Other** | Complex | `gpt-4.1-mini` | `claude-sonnet-4-thinking` |
 
 ### 🎯 **3단계: 개선된 컨텍스트 길이 검증 및 업그레이드**
 
@@ -146,7 +146,7 @@ contextInfo: {
 | 구분 | Chatflix Ultimate | Chatflix Ultimate Pro |
 |------|-------------------|----------------------|
 | **코딩 (비멀티모달)** | 모든 복잡도 `gpt-4.1` | 단순/중간 `claude-sonnet-4`, 복잡 `claude-sonnet-4-thinking` |
-| **기타 (비멀티모달)** | 단순 `gpt-4.1`, 중간/복잡 `gpt-4.1` | 단순/중간 `claude-sonnet-4`, 복잡 `claude-sonnet-4-thinking` |
+| **기타 (비멀티모달)** | 단순 `gpt-4.1-mini`, 중간/복잡 `gpt-4.1-mini` | 단순/중간 `claude-sonnet-4`, 복잡 `claude-sonnet-4-thinking` |
 | **멀티모달 처리** | 더 보수적 (Gemini 중심) | 더 적극적 (Claude Sonnet 4 활용) |
 | **컨텍스트 계산** | 정교한 멀티모달 토큰 추정 + 동적 안전 마진 |
 | **폴백 메커니즘** | 강화된 에러 처리 + 안전장치 |
