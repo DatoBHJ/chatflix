@@ -38,6 +38,10 @@ import { initializeMemoryBank, getAllMemoryBank } from '@/utils/memory-bank';
 import { estimateTokenCount } from '@/utils/context-manager';
 import { updateAllMemoryBanks } from './services/memoryService';
 import { selectOptimalModel } from './services/modelSelector';
+import { 
+  analyzeRequestComplexity,
+  analyzeContextRelevance
+} from './services/analysisService';
 
 
 // Helper function to increment user daily request count
@@ -443,94 +447,7 @@ export async function POST(req: Request) {
             const currentMessage = optimizedMessages[optimizedMessages.length - 1];
             userQuery = extractTextFromMessage(currentMessage);
 
-            // 🆕 STEP 0: Context Relevance Router - 필요한 도구 결과만 선별
-            let contextFilter: {
-              reasoning: string;
-              calculationSteps: boolean;
-              webSearchResults: boolean;
-              linkReaderAttempts: boolean;
-              youtubeLinkAnalysisResults: boolean;
-              youtubeSearchResults: boolean;
-              academicSearchResults: boolean;
-              structuredResponse: boolean;
-              generatedImages: boolean;
-            } | null = null;
-            
-            // 기본 이전 대화 컨텍스트 추출 (현재 질문 제외)
-            let conversationHistory = convertMultiModalToMessage(optimizedMessages.slice(0, -1));
-            
-            // 🔧 OPTIMIZATION: tool_results가 있는 메시지가 실제로 있는지 먼저 확인
-            const hasToolResultsInHistory = optimizedMessages.slice(0, -1).some(msg => 
-              (msg as any).tool_results && 
-              Object.keys((msg as any).tool_results).some(key => key !== 'token_usage' && key !== 'agentReasoning')
-            );
-            
-            if (conversationHistory.length > 0 && hasToolResultsInHistory) {
-              try {
-                const contextAnalysis = await generateObject({
-                  // 🔧 OPTIMIZATION: 더 효율적인 모델 사용 (단순한 분석용)
-                  model: providers.languageModel('gemini-2.0-flash'),
-                  prompt: `
-# Context Relevance Analysis
-
-Analyze the user's current query to determine which previous tool results are relevant for context.
-
-## User's Current Query:
-"${userQuery}"
-
-## Available Tool Result Types:
-- calculationSteps: Previous mathematical calculations and results
-- webSearchResults: Previous web search results and information  
-- linkReaderAttempts: Previous website content analysis
-- youtubeLinkAnalysisResults: Previous YouTube video analysis and transcripts
-- youtubeSearchResults: Previous YouTube search results
-- academicSearchResults: Previous academic paper search results
-- structuredResponse: Previously generated files and content
-- generatedImages: Previously generated images
-
-## Analysis Rules:
-1. **Direct Reference**: User directly mentions previous results (e.g., "from that calculation", "in that video", "from the search")
-2. **Continuation**: User wants to continue/expand on previous work (e.g., "tell me more", "expand on this") 
-3. **New Topic**: User asks completely unrelated question
-
-## Examples:
-- "Is there anything wrong with the calculation I just made?" → calculationSteps: true, others: false
-- "At what minute was that mentioned in the YouTube video?" → youtubeLinkAnalysisResults: true, others: false  
-- "Based on the search results earlier..." → webSearchResults: true, others: false
-- "In that file..." → structuredResponse: true, others: false
-- "Tell me more details" → keep relevant tools from context: true
-- "New unrelated question" → all: false
-
-**IMPORTANT**: Respond in user's language for reasoning and use exact English property names for the boolean fields.
-                  `,
-                  schema: z.object({
-                    reasoning: z.string().describe('Brief explanation of why these tool results are needed'),
-                    calculationSteps: z.boolean().describe('Include previous calculation results'),
-                    webSearchResults: z.boolean().describe('Include previous web search results'),
-                    linkReaderAttempts: z.boolean().describe('Include previous link analysis results'),
-                    youtubeLinkAnalysisResults: z.boolean().describe('Include previous YouTube video analysis'),
-                    youtubeSearchResults: z.boolean().describe('Include previous YouTube search results'),
-                    academicSearchResults: z.boolean().describe('Include previous academic search results'),
-                    structuredResponse: z.boolean().describe('Include previously generated files'),
-                    generatedImages: z.boolean().describe('Include previously generated images')
-                  })
-                });
-                
-                contextFilter = contextAnalysis.object;
-                
-                // 필터를 적용하여 이전 대화 컨텍스트 재생성
-                conversationHistory = convertMultiModalToMessage(optimizedMessages.slice(0, -1), contextFilter);
-
-              } catch (error) {
-                // console.error('Context analysis failed, using full context:', error);
-                // Fallback: use original conversation history
-                contextFilter = null;
-              }
-            } else if (!hasToolResultsInHistory) {
-
-            }
-
-            // 🆕 conversationHistory를 읽기 쉬운 문자열로 변환
+            // 🆕 conversationHistory를 읽기 쉬운 문자열로 변환 (위치 이동)
             const formatConversationHistory = (messages: any[]): string => {
               if (!messages || messages.length === 0) {
                 return 'No previous conversation.';
@@ -546,22 +463,82 @@ Analyze the user's current query to determine which previous tool results are re
               }).join('\n\n');
             };
 
+            // 🆕 STEP 0: Parallel Analysis - Context Relevance & Request Complexity
+            let contextFilter: {
+              reasoning: string;
+              calculationSteps: boolean;
+              webSearchResults: boolean;
+              linkReaderAttempts: boolean;
+              youtubeLinkAnalysisResults: boolean;
+              youtubeSearchResults: boolean;
+              academicSearchResults: boolean;
+              structuredResponse: boolean;
+              generatedImages: boolean;
+            } | null = null;
+            
+            let conversationHistory = convertMultiModalToMessage(optimizedMessages.slice(0, -1));
+            
+            const hasToolResultsInHistory = optimizedMessages.slice(0, -1).some(msg => 
+              (msg as any).tool_results && 
+              Object.keys((msg as any).tool_results).some(key => key !== 'token_usage' && key !== 'agentReasoning')
+            );
+            
+            const formattedConversationHistoryForAnalysis = formatConversationHistory(conversationHistory);
+
+            // Define available tools list early for analysis
+            let baseAvailableToolsList = [
+              'web_search',
+              'calculator',
+              'link_reader',
+              'image_generator',
+              'academic_search',
+              'youtube_search',
+              'youtube_link_analyzer'
+            ];
+
+            // Filter tools based on model capabilities
+            if (model === 'gemini-2.5-pro-preview-05-06' || model === 'gemini-2.5-flash-preview-04-17') {
+              baseAvailableToolsList = baseAvailableToolsList.filter(tool => tool !== 'link_reader' && tool !== 'youtube_link_analyzer');
+            }
+
+            const analysisModel = 'gemini-2.0-flash';
+
+            // Promise for 2D Matrix Complexity Analysis
+            const complexityAnalysisPromise = analyzeRequestComplexity(
+              analysisModel,
+              model,
+              baseAvailableToolsList,
+              formattedConversationHistoryForAnalysis,
+              userQuery
+            );
+
+            // Promise for Context Analysis (conditional)
+            const contextAnalysisPromise = (conversationHistory.length > 0 && hasToolResultsInHistory)
+              ? analyzeContextRelevance(analysisModel, userQuery)
+              : Promise.resolve(null);
+
+            // Execute analyses in parallel
+            const [complexityResult, contextAnalysisResult] = await Promise.all([
+              complexityAnalysisPromise,
+              contextAnalysisPromise
+            ]);
+
+            // Process context analysis results
+            if (contextAnalysisResult) {
+              try {
+                contextFilter = contextAnalysisResult.object;
+                conversationHistory = convertMultiModalToMessage(optimizedMessages.slice(0, -1), contextFilter);
+              } catch (error) {
+                // console.error('Context analysis failed, using full context:', error);
+                contextFilter = null;
+              }
+            }
+
+            // 🆕 conversationHistory를 읽기 쉬운 문자열로 변환
             const formattedConversationHistory = formatConversationHistory(conversationHistory);
 
-            // 모델에 따라 사용 가능한 도구 필터링 (Gemini 2.5 Pro 또는 Flash인 경우 link_reader와 youtube_link_analyzer 제거)
-              let availableToolsList = [
-                'web_search',
-                'calculator',
-                'link_reader',
-                'image_generator',
-                'academic_search',
-                'youtube_search',
-                'youtube_link_analyzer'
-              ];
-
-              if (model === 'gemini-2.5-pro-preview-05-06' || model === 'gemini-2.5-flash-preview-04-17') {
-                availableToolsList = availableToolsList.filter(tool => tool !== 'link_reader' && tool !== 'youtube_link_analyzer');
-              }
+            // Use the previously defined available tools list
+            const availableToolsList = baseAvailableToolsList;
 
               // 도구 설명 객체 정의 (프롬프트에서 사용)
               const toolDescriptions = {
@@ -574,16 +551,41 @@ Analyze the user's current query to determine which previous tool results are re
                 'youtube_link_analyzer': 'Analyzing specific YouTube videos'
               };
 
-              const planningResult = await streamText({
-                // model: providers.languageModel('gemini-2.0-flash'), 
-                model: providers.languageModel(model), 
-                providerOptions: supportsReasoning ? providerOptions : undefined,
-                prompt: `
+              // 2D Matrix-based processing mode determination
+              const getProcessingMode = (toolComplexity: string, reasoningComplexity: string) => {
+                // No tools + Simple reasoning = Immediate processing
+                if (toolComplexity === 'none' && reasoningComplexity === 'simple') {
+                  return 'immediate';
+                }
+                
+                // Single tool + Simple/Moderate reasoning = Standard processing (skip planning)
+                if (toolComplexity === 'single' && reasoningComplexity !== 'complex') {
+                  return 'standard';
+                }
+                
+                // All other cases = Complex processing (requires planning)
+                return 'complex';
+              };
+
+              const processingMode = getProcessingMode(
+                complexityResult.object.toolComplexity, 
+                complexityResult.object.reasoningComplexity
+              );
+              
+              let planningText = '';
+              const needsDetailedPlanning = processingMode === 'complex';
+
+              if (needsDetailedPlanning) {
+                const planningResult = await streamText({
+                  // model: providers.languageModel('gemini-2.0-flash'), 
+                  model: providers.languageModel(model), 
+                  providerOptions: supportsReasoning ? providerOptions : undefined,
+                  prompt: `
 # PLANNING PHASE - Agent Strategy Development
 
-              # Model Information
-              - Current model: ${model}
-              - Available tools are limited based on the model. For Gemini 2.5 Pro and Gemini 2.5 Flash, 'link_reader' and 'youtube_link_analyzer' are not available. If the user requests these tools, you must respond with an error message.
+                # Model Information
+                - Current model: ${model}
+                - Available tools are limited based on the model. For Gemini 2.5 Pro and Gemini 2.5 Flash, 'link_reader' and 'youtube_link_analyzer' are not available. If the user requests these tools, you must respond with an error message.
 
 # Previous Conversation
 ${formattedConversationHistory}
@@ -594,103 +596,123 @@ ${userQuery}
 # File Attachment Analysis Instructions
 - For all attachments, incorporate the file information in your analysis plan
 
-              Your task is to first check if the user query explicitly requests any unavailable tools:
-              - If the current model is 'gemini-2.5-pro-preview-05-06' or 'gemini-2.5-flash-preview-04-17' and the user query mentions or requests 'link_reader' or 'youtube_link_analyzer' (e.g., words like "link reader", "youtube analyzer", or their equivalents in any language), respond ONLY with a clear error message in the same language as the user's query: "This model does not support the 'link_reader' or 'youtube_link_analyzer' tool. Please use a different model or rephrase your query to avoid these tools."
-              - Do not create a plan or proceed further if an unavailable tool is requested.
-              - Otherwise, create a comprehensive STRATEGIC PLAN ONLY (not the actual response).
-              
-              ## CRITICAL: THIS IS A PLANNING PHASE ONLY
-              **DO NOT provide actual answers or responses to the user's query. You are ONLY creating a strategic plan.**
-              **DO NOT attempt to solve problems, provide information, or give recommendations directly.**
-              **Your role here is to be a strategic planner, not a responder.**
-              
-              ## Planning Guidelines:
-              1. **Analyze User Intent**: What is the user really asking for? Identify key needs and requirements.
-              2. **Review Previous Context**: Look at the conversation history above to see what information is already available. The context has been filtered to show only relevant previous results.
-              3. **Tool Selection Strategy**: 
-                 - If the previous conversation already contains sufficient information to answer the query, plan to use it without additional tools
-                 - If the existing information needs updating, expanding, or verification, plan for targeted additional searches
-                 - If the query requires completely new information not covered in previous context, plan for comprehensive tool usage
-                 - Consider efficiency: avoid redundant searches if good information already exists in the conversation
-                 - Note: PDF attachments and file uploads are handled directly by the model, while link_reader is for web URLs/links
-              4. **Response Approach**: Determine the best approach to provide a complete and helpful response.
-              5. **Workflow Mode**: What workflow mode would be most appropriate for this type of query?
+                Your task is to first check if the user query explicitly requests any unavailable tools:
+                - If the current model is 'gemini-2.5-pro-preview-05-06' or 'gemini-2.5-flash-preview-04-17' and the user query mentions or requests 'link_reader' or 'youtube_link_analyzer' (e.g., words like "link reader", "youtube analyzer", or their equivalents in any language), respond ONLY with a clear error message in the same language as the user's query: "This model does not support the 'link_reader' or 'youtube_link_analyzer' tool. Please use a different model or rephrase your query to avoid these tools."
+                - Do not create a plan or proceed further if an unavailable tool is requested.
+                - Otherwise, create a comprehensive STRATEGIC PLAN ONLY (not the actual response).
+                
+                ## CRITICAL: THIS IS A PLANNING PHASE ONLY
+                **DO NOT provide actual answers or responses to the user's query. You are ONLY creating a strategic plan.**
+                **DO NOT attempt to solve problems, provide information, or give recommendations directly.**
+                **Your role here is to be a strategic planner, not a responder.**
+                
+                ## Planning Guidelines:
+                1. **Analyze User Intent**: What is the user really asking for? Identify key needs and requirements.
+                2. **Review Previous Context**: Look at the conversation history above to see what information is already available. The context has been filtered to show only relevant previous results.
+                3. **Tool Selection Strategy**: 
+                   - If the previous conversation already contains sufficient information to answer the query, plan to use it without additional tools
+                   - If the existing information needs updating, expanding, or verification, plan for targeted additional searches
+                   - If the query requires completely new information not covered in previous context, plan for comprehensive tool usage
+                   - Consider efficiency: avoid redundant searches if good information already exists in the conversation
+                   - Note: PDF attachments and file uploads are handled directly by the model, while link_reader is for web URLs/links
+                4. **Response Approach**: Determine the best approach to provide a complete and helpful response.
+                5. **Workflow Mode**: What workflow mode would be most appropriate for this type of query?
 
-              ## Planning Output Format:
-              Structure your strategic plan with these sections:
-              
-              **USER INTENT ANALYSIS:**
-              - What exactly is the user asking for?
-              - What are the key requirements and constraints?
-              
-              **INFORMATION ASSESSMENT:**
-              - What relevant information already exists in the conversation?
-              - What gaps need to be filled?
-              - What information might be outdated or insufficient?
-              
-              **STRATEGIC APPROACH:**
-              - Overall strategy for addressing this query
-              - Whether to rely on existing information or gather new data
-              - Reasoning for tool selection or non-selection
-              
-              **EXECUTION PLAN:**
-              - Step-by-step approach for the next phase
-              - Recommended workflow mode and reasoning
-              - Expected outcome and deliverables
+                ## Planning Output Format:
+                Structure your strategic plan with these sections:
+                
+                **USER INTENT ANALYSIS:**
+                - What exactly is the user asking for?
+                - What are the key requirements and constraints?
+                
+                **INFORMATION ASSESSMENT:**
+                - What relevant information already exists in the conversation?
+                - What gaps need to be filled?
+                - What information might be outdated or insufficient?
+                
+                **STRATEGIC APPROACH:**
+                - Overall strategy for addressing this query
+                - Whether to rely on existing information or gather new data
+                - Reasoning for tool selection or non-selection
+                
+                **EXECUTION PLAN:**
+                - Step-by-step approach for the next phase
+                - Recommended workflow mode and reasoning
+                - Expected outcome and deliverables
 
-              Available capabilities include:
-              ${availableToolsList.length > 0 
-                ? availableToolsList.map(tool => `- ${tool.charAt(0).toUpperCase() + tool.slice(1).replace('_', ' ')}: ${toolDescriptions[tool as keyof typeof toolDescriptions]}`).join('\n')
-                : '- No specific tools available for this model. In this case, I will rely on the model\'s built-in capabilities to handle the query.'
+                Available capabilities include:
+                ${availableToolsList.length > 0 
+                  ? availableToolsList.map(tool => `- ${tool.charAt(0).toUpperCase() + tool.slice(1).replace('_', ' ')}: ${toolDescriptions[tool as keyof typeof toolDescriptions]}`).join('\n')
+                  : '- No specific tools available for this model. In this case, I will rely on the model\'s built-in capabilities to handle the query.'
+                }
+
+                IMPORTANT LANGUAGE REQUIREMENT:
+                - Respond in the same language as the user's query
+                - If user writes in Korean, respond in Korean
+                - If user writes in English, respond in English
+                - If user writes in another language, respond in that language
+
+                **REMEMBER: Create ONLY a strategic plan. Do NOT provide actual answers, solutions, or responses to the user's query.**
+                `,
+                });
+    
+                // Merge planningResult into dataStream with sendReasoning: true
+                // planningResult.mergeIntoDataStream(dataStream, { sendReasoning: true });
+    
+                for await (const textPart of planningResult.textStream) {
+                  planningText += textPart;
+                  dataStream.writeMessageAnnotation({
+                    type: 'agent_reasoning_progress',
+                    data: JSON.parse(JSON.stringify({
+                      agentThoughts: '', // 빈 값으로 시작
+                      plan: planningText,
+                      selectionReasoning: '',
+                      workflowMode: '',
+                      modeReasoning: '',
+                      selectedTools: [],
+                      timestamp: new Date().toISOString(),
+                      isComplete: false,
+                      stage: 'planning' // 계획 단계임을 표시
+                    }))
+                  });
+                }
+    
+                // 계획 수립 완료 표시
+                dataStream.writeMessageAnnotation({
+                  type: 'agent_reasoning_progress',
+                  data: JSON.parse(JSON.stringify({
+                    agentThoughts: '', 
+                    plan: planningText,
+                    selectionReasoning: '',
+                    workflowMode: '',
+                    modeReasoning: '',
+                    selectedTools: [],
+                    timestamp: new Date().toISOString(),
+                    isComplete: true,
+                    stage: 'planning' // 계획 단계임을 표시
+                  }))
+                });
+
+                             } else {
+                 // For simple/standard requests, skip detailed planning
+                 planningText = `${complexityResult.object.reasoning}`;
+                
+                // // Send a simplified reasoning annotation to the UI
+                dataStream.writeMessageAnnotation({
+                  type: 'agent_reasoning_progress',
+                  data: JSON.parse(JSON.stringify({
+                    agentThoughts: '', 
+                    plan: planningText,
+                    selectionReasoning: '',
+                    workflowMode: '',
+                    modeReasoning: '',
+                    selectedTools: [],
+                    timestamp: new Date().toISOString(),
+                    isComplete: true,
+                    stage: 'planning'
+                  }))
+                });
               }
-
-              IMPORTANT LANGUAGE REQUIREMENT:
-              - Respond in the same language as the user's query
-              - If user writes in Korean, respond in Korean
-              - If user writes in English, respond in English
-              - If user writes in another language, respond in that language
-
-              **REMEMBER: Create ONLY a strategic plan. Do NOT provide actual answers, solutions, or responses to the user's query.**
-              `,
-              });
-
-              // Merge planningResult into dataStream with sendReasoning: true
-              // planningResult.mergeIntoDataStream(dataStream, { sendReasoning: true });
-
-                        let planningText = '';
-            for await (const textPart of planningResult.textStream) {
-              planningText += textPart;
-              dataStream.writeMessageAnnotation({
-                type: 'agent_reasoning_progress',
-                data: JSON.parse(JSON.stringify({
-                  agentThoughts: '', // 빈 값으로 시작
-                  plan: planningText,
-                  selectionReasoning: '',
-                  workflowMode: '',
-                  modeReasoning: '',
-                  selectedTools: [],
-                  timestamp: new Date().toISOString(),
-                  isComplete: false,
-                  stage: 'planning' // 계획 단계임을 표시
-                }))
-              });
-            }
-
-            // 계획 수립 완료 표시
-            dataStream.writeMessageAnnotation({
-              type: 'agent_reasoning_progress',
-              data: JSON.parse(JSON.stringify({
-                agentThoughts: '', 
-                plan: planningText,
-                selectionReasoning: '',
-                workflowMode: '',
-                modeReasoning: '',
-                selectedTools: [],
-                timestamp: new Date().toISOString(),
-                isComplete: true,
-                stage: 'planning' // 계획 단계임을 표시
-              }))
-            });
 
             // 두 번째 단계: 도구 선택 (generateObject 사용)
             const routingDecision = await generateObject({
@@ -1012,8 +1034,6 @@ ${responseInstructions}
             
 Remember to maintain the language of the user's query throughout your response.
             `;
-
-
             // 🔧 FIX: Context Filter가 적용된 메시지 사용
             const messages = convertMultiModalToMessage(optimizedMessages, contextFilter || undefined);
 
@@ -1166,13 +1186,26 @@ Remember to maintain the language of the user's query throughout your response.
                     case 'information_response':
                       fileCreationGuidelines = `
 # FILE CREATION GUIDELINES (INFORMATION RESPONSE MODE)
-In information response mode, the focus was on providing a comprehensive main response.
-At this stage, you may create minimal supporting files if necessary, but they're optional and should only be created if they add significant value.
+In information response mode, the main response was designed to be comprehensive and complete.
+**FILE CREATION THRESHOLD: VERY HIGH** - Only create files in exceptional cases.
 
-If you create files:
-- They should complement the main response, not duplicate it
-- Focus on structured references, checklists, or summary tables that organize the information
-- Consider creating reference sheets, diagrams, or quick-reference guides if helpful
+## Strong Preference: NO FILES
+- The main response should have fully satisfied the user's information needs
+- Most queries in this mode should result in NO supporting files
+
+## Create files ONLY if they provide exceptional value:
+- Charts/visualizations of data mentioned in the main response (but not visualized)
+- Reference tables with structured data (e.g., comparison tables, specifications)
+- Downloadable checklists or quick-reference cards
+- Data files (.json, .csv) with raw information for further use
+
+## NEVER create files that:
+- Repeat explanations from the main response
+- Reformulate the same information in different words
+- Provide "additional details" that are just extended versions of main response content
+- Simply organize existing information without substantial new value
+
+**Default assumption: NO files needed unless there's compelling evidence otherwise.**
 `;
                       break;
                     case 'content_creation':
@@ -1260,10 +1293,39 @@ ${finalResult}
 
 # Stage 3: Supporting Files Creation - You're here
 
+## 🚨 CRITICAL: AVOID REDUNDANT FILE CREATION
+**BEFORE creating any files, you MUST evaluate if they would be redundant:**
+
+### Redundancy Check Criteria:
+1. **Content Similarity**: If a potential file would contain >80% similar content to the main response, DO NOT create it
+2. **Value Addition**: Only create files if they provide SUBSTANTIALLY different value:
+   - Different format (code vs explanation)
+   - Additional detail not in main response
+   - Structured data/tables/charts
+   - Reference materials or templates
+   - Downloadable/executable content
+
+### When to SKIP file creation:
+- ❌ The main response already fully answers the user's query
+- ❌ Files would just repeat the same information in different words
+- ❌ The main response is comprehensive and self-contained
+- ❌ Information response mode with detailed main response already provided
+
+### When files ADD VALUE:
+- ✅ Code implementations when main response was conceptual
+- ✅ Structured data/charts when main response was textual
+- ✅ Templates/examples when main response was instructional
+- ✅ Reference sheets when main response was explanatory
+- ✅ Step-by-step guides when main response was overview
+
+**If in doubt, lean towards NOT creating files. Quality over quantity.**
+
 ${fileCreationGuidelines}
 
 ## Your Task
 Create supporting files that complement the main response already provided.
+
+**CRITICAL: If you decide NOT to create any files, simply return an empty response with no description field. Do not explain why files are not needed - just silently skip file creation.**
 
 **SUPPORTING FILES**: Additional content for the canvas area (adaptive based on workflow mode)
 - Each file should have a clear purpose and be self-contained
@@ -1382,14 +1444,14 @@ Example chart format:
                     model: providers.languageModel(finalModel),
                     schema: z.object({
                       response: z.object({
-                        description: z.string().optional().describe('Brief description of the supporting files being provided (if any). If no files are needed, don\'t include this field.'),
+                        description: z.string().optional().describe('ONLY provide this if files are actually created. Do NOT include this field if no files are needed. Never explain why files are not created.'),
                         files: z.array(
                           z.object({
                             name: z.string().describe('Name of the file with appropriate extension (e.g., code.py, data.json, explanation.md)'),
                             content: z.string().describe('Content of the file formatted with proper Markdown syntax, including code blocks with language specification'),
                             description: z.string().optional().describe('Optional short description of what this file contains')
                           })
-                        ).optional().describe('Optional list of files to display in the canvas area - ONLY include when necessary for complex information that cannot be fully communicated in the main response')
+                        ).optional().describe('CRITICAL: Only create files if they provide SUBSTANTIAL additional value beyond the main response. Do NOT create files that repeat >80% of main response content. Default to empty array [] unless files are genuinely necessary and add unique value.')
                       })
                     }),
                     // providerOptions: providerOptions,
@@ -1459,36 +1521,6 @@ You are generating follow-up questions for a conversation. Based on the previous
 
 # Main Response Already Provided
 ${finalResult}
-
-# Supporting Content Created (Stage 3)
-${stage3Summary.length > 0 ? stage3Summary.join('\n') : 'No additional files were created.'}
-
-# Your Task
-Generate 3 natural follow-up questions that continue the conversation, taking into account both the main response AND any supporting files that were created:
-
-REQUIREMENTS:
-- Consider both the main response AND any supporting files created when generating questions
-- If code files were created, suggest improvements, modifications, or related functionality
-- If data/analysis files were created, suggest deeper analysis, comparisons, or related topics
-- If documentation files were created, suggest related topics or practical applications
-- Do NOT generate questions asking to display the content of a file that was created or mentioned (e.g., "Show me the content of main.py"). The user can already see file contents through the UI.
-- Each follow-up should be a short, natural input that a user might actually type to an AI in a chat (not a question to the user)
-- Use statements, requests, or short phrases that a user would enter as their next message (not questions like "Would you like to know more?")
-- Avoid polite or indirect forms (e.g., "Would you like to know more?" X)
-- Prefer direct, conversational, and actionable inputs (e.g., "Tell me more about Nvidia stock", "I want to know more about the tech sector", "Show me recent semiconductor market trends", "Analyze the outlook for tech stocks")
-- The follow-ups can be questions, but only if they are in the form a user would type to an AI (e.g., "What's the outlook for Nvidia?", "Show me recent trends in tech stocks")
-- Do NOT use "Would you like me to...", "Shall I...", "Do you need..." or similar forms
-- Make sure each follow-up is suitable for direct input by the user
-- Keep each follow-up under 15 words if possible
-- Examples:
-  * "Tell me more about Nvidia stock"
-  * "I want to know more about the tech sector"
-  * "Show me recent semiconductor market trends"
-  * "Analyze the outlook for tech stocks"
-  * "Recent trends in the AI industry"
-  * "Improve the error handling in this code"
-  * "Add more features to this application"
-  * "Create a visualization of this data"
 
 **LANGUAGE RULE**: Respond in the same language as the user's original query.
 

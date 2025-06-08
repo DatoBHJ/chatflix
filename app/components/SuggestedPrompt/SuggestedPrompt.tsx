@@ -7,7 +7,7 @@ const DEFAULT_EXAMPLE_PROMPTS = [
   "I AM MUSIC Album Review",
   "Summarize this PDF: https://www.nasa.gov/wp-content/uploads/2023/01/55583main_vision_space_exploration2.pdf",
   "Summarize this link: https://www.numeroberlin.de/2023/11/numero-berlin-zukunft-x-playboi-carti/",
-  "Summarize this video: https://youtu.be/rHO6TiPLHqw?si=EeNnPSQqUCHRFkCC",
+  "Summarize this youtube video: https://youtu.be/rHO6TiPLHqw?si=EeNnPSQqUCHRFkCC",
   "Latest US stock market news in the style of a bedtime story.",
   "Find scientific reasons why cats ignore humans.",
   "Research why programmers are obsessed with dark mode.",
@@ -18,13 +18,21 @@ const DEFAULT_EXAMPLE_PROMPTS = [
   "List the most controversial moments in human history.",
   "Analyze the impact of Elon Musk's tweets on cryptocurrency markets.",
   "Summarize the most popular 9/11 conspiracy theories",
-  "What's the latest on the Mars mission?",
-  "What’s the wildest thing Kanye did this year?",
-  "Is Threads still a thing or did everyone go back to X?",
-  "Describe the Mandela Effect and give the most famous examples.",
-  "Summarize the Kanye West and Taylor Swift feud as a Shakespearean drama.",
-  "Why do people think the earth is flat?",
+  "Latest on the Mars mission?",
+  "Why do some dumbass people think the earth is flat?",
   "Explain the movie Tenet like I'm 5",
+
+"Find the most ridiculous celebrity business ventures and analyze their success rates.",
+"Find the most absurd laws that still exist and research their historical origins.",
+"Calculate how much money influencers actually make per post and compare it to real jobs.",
+"Find the most ridiculous startup ideas that actually got funded and calculate their burn rates.",
+
+  "Provide me a digest of world news in the last 24 hours.",
+  "What is the most viral meme in 2022?",
+  "Can you recommend the top 10 burger places in London?",
+  "Where is the best place to go skiing this year?",
+  "What are some recently discovered alternative DNA shapes?",
+  "What are the latest releases at OpenAI?",
 ];
 
 export interface SuggestedPromptProps {
@@ -51,7 +59,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '' }: Sugge
           href = 'https://' + href;
         }
         // 너무 긴 링크는 30자까지만 보여주고 ... 처리
-        const displayText = part.length > 30 ? part.slice(0, 30) + '...' : part;
+        const displayText = part.length > 20 ? part.slice(0, 20) + '...' : part;
         return (
           <a
             key={i}

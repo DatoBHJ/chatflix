@@ -81,8 +81,36 @@ const ModelCapabilityBadges = ({ modelId }: { modelId: string }) => {
   
   return (
     <div className="flex items-center gap-2">
+      {/* Context Window Badge */}
+      {model.contextWindow && (
+        <div 
+          className="rounded-full px-1.5 py-0.5 text-xs flex items-center gap-1 hover:bg-[var(--foreground)]/5" 
+          title={`Context Window: ${model.contextWindow.toLocaleString()} tokens - Maximum amount of text this model can process in a single conversation.`}
+        >
+          {/* 데스크탑에서만 아이콘 표시 */}
+          {!isMobile && (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
+              <path fillRule="evenodd" d="M4.125 3C3.089 3 2.25 3.84 2.25 4.875V18a3 3 0 003 3h15.75a3 3 0 01-3-3V4.875C18 3.839 17.16 3 16.125 3H4.125zM12 9.75a.75.75 0 000 1.5h1.5a.75.75 0 000-1.5H12zm-.75-2.25a.75.75 0 01.75-.75h1.5a.75.75 0 010 1.5H12a.75.75 0 01-.75-.75zM6 12.75a.75.75 0 000 1.5h7.5a.75.75 0 000-1.5H6zm-.75 3.75a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5H6a.75.75 0 01-.75-.75zM6 6.75a.75.75 0 00-.75.75v3c0 .414.336.75.75.75h3a.75.75 0 00.75-.75v-3A.75.75 0 009 6.75H6z" clipRule="evenodd" />
+              <path d="M18.75 6.75h1.875c.621 0 1.125.504 1.125 1.125V18a1.5 1.5 0 01-3 0V6.75z" />
+            </svg>
+          )}
+          <span className="text-xs">
+            {isMobile ? (
+              // 모바일에서는 숫자만 표시 (예: "200K")
+              model.contextWindow >= 1000000 
+                ? `${(model.contextWindow / 1000000).toFixed(0)}M`
+                : `${Math.round(model.contextWindow / 1000)}K`
+            ) : (
+              // 데스크탑에서는 기존 형식 유지 (예: "200K Context")
+              model.contextWindow >= 1000000 
+                ? `${(model.contextWindow / 1000000).toFixed(0)}M Context`
+                : `${Math.round(model.contextWindow / 1000)}K Context`
+            )}
+          </span>
+        </div>
+      )}
       {/* Knowledge Cutoff - New badge */}
-      {model.cutoff && (
+      {/* {model.cutoff && (
         <div 
           className="rounded-full px-1.5 py-0.5 text-xs flex items-center gap-1 hover:bg-[var(--foreground)]/5" 
           title={`Knowledge Cutoff: ${model.cutoff} - This model's training data includes information up until this date. It may not be aware of events, facts, or developments that occurred after this date.`}
@@ -95,8 +123,7 @@ const ModelCapabilityBadges = ({ modelId }: { modelId: string }) => {
             <span className="text-xs">{model.cutoff}</span>
           )}
         </div>
-      )}
-
+      )} */}
       {/* Vision/Image Support - existing badge */}
       <div className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-1 ${ 
         model.supportsVision 
