@@ -184,14 +184,6 @@ export default function Chat({ params }: PageProps) {
     }
   });
 
-  // Determine whether to use virtualization based on message count
-  // const useVirtualization = useMemo(() => {
-  //   if (typeof window !== 'undefined' && window.innerWidth < 768) {
-  //     return messages.length > 10;
-  //   }
-  //   return messages.length > 20;
-  // }, [messages.length]);
-
   const {
     isRegenerating,
     editingMessageId,
@@ -207,14 +199,6 @@ export default function Chat({ params }: PageProps) {
 
   // 스크롤 함수 개선 - 채팅과 캔버스 모두 스크롤
   const scrollToBottom = useCallback(() => {
-    // if (virtuosoRef.current) {
-    //   virtuosoRef.current.scrollToIndex({
-    //     index: messages.length - 1,
-    //     behavior: 'smooth'
-    //   });
-    // } else if (messagesEndRef.current) {
-    //   messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
-    // }
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
     }
@@ -1242,113 +1226,7 @@ export default function Chat({ params }: PageProps) {
               className="messages-container"
               ref={messagesContainerRef}
             >
-              {/* {useVirtualization ? (
-                <VirtuosoWrapper
-                  messages={messages}
-                  messagesEndRef={messagesEndRef}
-                  parentContainerRef={messagesContainerRef}
-                  renderMessage={(message, index) => {
-                    // Get reasoning parts directly from message.parts during streaming
-                    const messageHasCanvasData = hasCanvasData(message);
-                    
-                    // 각 메시지의 캔버스 데이터 가져오기
-                    const webSearchData = getWebSearchResults(message);
-                    const mathCalculationData = getMathCalculationData(message);
-                    const linkReaderData = getLinkReaderData(message);
-                    const imageGeneratorData = getImageGeneratorData(message);
-                    const academicSearchData = getAcademicSearchData(message);
-                    const youTubeSearchData = getYouTubeSearchData(message);
-                    const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(message);
-
-                    // Call the helper function directly, no useMemo here
-                    const reasoningData = extractReasoningForMessage(message);
-                    const agentReasoning = reasoningData.completeData;
-                    const agentReasoningProgress = reasoningData.progressData;
-                    
-                    return (
-                      <>
-                        <div className="relative">
-                          <MessageComponent
-                            message={message}
-                            currentModel={currentModel}
-                            isRegenerating={isRegenerating}
-                            editingMessageId={editingMessageId}
-                            editingContent={editingContent}
-                            copiedMessageId={copiedMessageId}
-                            onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
-                            onCopy={handleCopyMessage}
-                            onEditStart={handleEditStart}
-                            onEditCancel={handleEditCancel}
-                            onEditSave={(messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => handleEditSave(messageId, currentModel, messages, setMessages, reload, files, remainingAttachments)}
-                            setEditingContent={setEditingContent}
-                            chatId={chatId}
-                            isStreaming={isLoading && message.role === 'assistant' && message.id === messages[messages.length - 1]?.id}
-                            isWaitingForToolResults={isWaitingForToolResults(message)}
-                            messageHasCanvasData={messageHasCanvasData}
-                            activePanelMessageId={activePanel?.messageId}
-                            togglePanel={togglePanel}
-                            webSearchData={webSearchData}
-                            mathCalculationData={mathCalculationData}
-                            linkReaderData={linkReaderData}
-                            imageGeneratorData={imageGeneratorData}
-                            academicSearchData={academicSearchData}
-                            youTubeSearchData={youTubeSearchData}
-                            youTubeLinkAnalysisData={youTubeLinkAnalysisData}
-                          />
-                        </div>
-                        
-                        {/* Add loading message at the end if the last message is from the user and we're loading */}
-                        {/* {isLoading && index === messages.length - 1 && message.role === 'user' && (
-                          <MessageComponent
-                            message={{
-                              id: 'loading-message',
-                              role: 'assistant',
-                              content: '',
-                              createdAt: new Date()
-                            }}
-                            currentModel={currentModel}
-                            isRegenerating={false}
-                            editingMessageId={null}
-                            editingContent={''}
-                            copiedMessageId={null}
-                            onRegenerate={() => () => {}}
-                            onCopy={() => {}}
-                            onEditStart={() => {}}
-                            onEditCancel={() => {}}
-                            onEditSave={() => {}}
-                            setEditingContent={() => {}}
-                            chatId={chatId}
-                            isStreaming={true}
-                            isWaitingForToolResults={true}
-                            agentReasoning={null}
-                            agentReasoningProgress={[]}
-                            messageHasCanvasData={false}
-                            activePanelMessageId={activePanel?.messageId}
-                            togglePanel={togglePanel}
-                            webSearchData={null}
-                            mathCalculationData={null}
-                            linkReaderData={null}
-                            imageGeneratorData={null}
-                            academicSearchData={null}
-                            youTubeSearchData={null}
-                            youTubeLinkAnalysisData={null}
-                          />
-                        )} */}
-                        
-                        {/* Add follow-up questions after the last assistant message */}
-                        {/* {useVirtualization && !isLoading && index === messages.length - 1 && message.role === 'assistant' && user && (
-                          <FollowUpQuestions 
-                            chatId={chatId} 
-                            userId={user.id} 
-                            messages={messages} 
-                            onQuestionClick={handleFollowUpQuestionClick} 
-                          />
-                        )} */}
-                      {/* </>
-                    );
-                  }}
-                />
-              ) : ( */}
+            
                 {messages.map((message, index) => {
                   const messageHasCanvasData = hasCanvasData(message);
                   
@@ -1361,11 +1239,6 @@ export default function Chat({ params }: PageProps) {
                   const youTubeSearchData = getYouTubeSearchData(message);
                   const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(message);
 
-                  // Removed: Call the helper function directly, no useMemo here
-                  // const reasoningData = extractReasoningForMessage(message);
-                  // const agentReasoning = reasoningData.completeData;
-                  // const agentReasoningProgress = reasoningData.progressData;
-                  
                   return (
                     <div key={message.id}>
                       <div className="relative">
