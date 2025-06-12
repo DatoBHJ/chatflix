@@ -524,7 +524,8 @@ export default function Home() {
               isAgentEnabled={isAgentEnabled}
               onAgentAvailabilityChange={setHasAgentModels}
               user={user}
-            />
+            />     
+            
             <ChatInput
               input={input}
               handleInputChange={handleInputChange}
@@ -537,14 +538,18 @@ export default function Home() {
               isAgentEnabled={isAgentEnabled}
               setisAgentEnabled={setAgentEnabledHandler}
             />
-            {/* Display suggested prompt below the chat input */}
-            {user?.id && (
+          </div>
+          
+          {/* Display suggested prompt below the chat input with more spacing */}
+          {user?.id && (
+            <div className="mt-4">
               <SuggestedPrompt 
                 userId={user.id} 
-                onPromptClick={handleSuggestedPromptClick} 
+                onPromptClick={handleSuggestedPromptClick}
+                isVisible={!input.trim()}
               />
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </main>

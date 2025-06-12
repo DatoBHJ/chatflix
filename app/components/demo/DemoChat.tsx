@@ -604,34 +604,107 @@ export function DemoChat() {
     };
   }, []);
 
-  // 예시 프롬프트 상태 (SuggestedPrompt.tsx와 동일한 방식)
+  // 예시 프롬프트 상태 (터미널 스타일 타이핑 효과)
   const [suggestedPrompt, setSuggestedPrompt] = useState<string | null>(null);
-  const [isPromptLoading, setIsPromptLoading] = useState(true);
-  const [isPromptVisible, setIsPromptVisible] = useState(false);
+  const [displayedText, setDisplayedText] = useState<string>('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [showCursor, setShowCursor] = useState(true);
+  const [typingIndex, setTypingIndex] = useState(0);
 
+  // URL 정규식 (http, https, www)
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+
+  // 링크를 감지해서 React 요소로 변환
+  function renderPromptWithLinks(text: string) {
+    const parts = text.split(urlRegex);
+    return parts.map((part, i) => {
+      if (urlRegex.test(part)) {
+        let href = part;
+        if (!href.startsWith('http')) {
+          href = 'https://' + href;
+        }
+        // 너무 긴 링크는 20자까지만 보여주고 ... 처리
+        const displayText = part.length > 20 ? part.slice(0, 20) + '...' : part;
+        return (
+          <a
+            key={i}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted underline break-all hover:text-blue-800"
+            onClick={e => e.stopPropagation()} // 링크 클릭 시 부모 클릭 방지
+            title={part}
+          >
+            {displayText}
+          </a>
+        );
+      } else {
+        return <React.Fragment key={i}>{part}</React.Fragment>;
+      }
+    });
+  }
+
+  // 새로운 프롬프트를 표시하는 함수
+  const showRandomPrompt = () => {
+    // 기본 예시 목록에서 랜덤하게 선택
+    const randomIndex = Math.floor(Math.random() * DEFAULT_EXAMPLE_PROMPTS.length);
+    const newPrompt = DEFAULT_EXAMPLE_PROMPTS[randomIndex];
+    
+    // 현재 프롬프트와 다른 것을 선택하도록 보장
+    if (newPrompt === suggestedPrompt && DEFAULT_EXAMPLE_PROMPTS.length > 1) {
+      showRandomPrompt();
+      return;
+    }
+
+    setSuggestedPrompt(newPrompt);
+    setDisplayedText('');
+    setTypingIndex(0);
+    setIsTyping(true);
+  };
+
+  // 타이핑 효과
   useEffect(() => {
-    const showRandomPrompt = () => {
-      setIsPromptVisible(false);
-      setTimeout(() => {
-        setIsPromptLoading(true);
-        const randomIndex = Math.floor(Math.random() * DEFAULT_EXAMPLE_PROMPTS.length);
-        setSuggestedPrompt(DEFAULT_EXAMPLE_PROMPTS[randomIndex]);
-        setTimeout(() => {
-          setIsPromptLoading(false);
-          setTimeout(() => {
-            setIsPromptVisible(true);
-          }, 100);
-        }, 200);
-      }, 300);
-    };
+    if (!suggestedPrompt || !isTyping) return;
+
+    if (typingIndex < suggestedPrompt.length) {
+      const timer = setTimeout(() => {
+        setDisplayedText(suggestedPrompt.slice(0, typingIndex + 1));
+        setTypingIndex(prev => prev + 1);
+      }, 50 + Math.random() * 30); // 50-80ms 사이의 랜덤한 타이핑 속도
+
+      return () => clearTimeout(timer);
+    } else {
+      // 타이핑 완료
+      setIsTyping(false);
+    }
+  }, [suggestedPrompt, typingIndex, isTyping]);
+
+  // 커서 깜빡임 효과 (타이핑 중일 때만)
+  useEffect(() => {
+    if (!isTyping) {
+      setShowCursor(false); // 타이핑 완료 시 커서 숨기기
+      return;
+    }
+
+    const cursorInterval = setInterval(() => {
+      setShowCursor(prev => !prev);
+    }, 400); // 더 빠른 깜빡임으로 터미널 느낌
+
+    return () => clearInterval(cursorInterval);
+  }, [isTyping]);
+
+  // 초기 프롬프트 설정 및 자동 변경
+  useEffect(() => {
     showRandomPrompt();
-    const intervalId = setInterval(showRandomPrompt, 3000);
-    return () => {
-      clearInterval(intervalId);
-      setIsPromptVisible(false);
-      setIsPromptLoading(true);
-    };
-  }, []);
+    
+    const intervalId = setInterval(() => {
+      if (!isTyping) {
+        showRandomPrompt();
+      }
+    }, 4000);
+    
+    return () => clearInterval(intervalId);
+  }, [isTyping]);
 
   return (
     <div className="md:space-y-16 space-y-8 max-w-6xl mx-auto">
@@ -889,22 +962,31 @@ export function DemoChat() {
             messages={messages}
             onQuestionClick={handleExampleClick}
           /> */}
-          {/* Example prompt - SuggestedPrompt 스타일 */}
+          {/* Example prompt - 터미널 스타일 타이핑 효과 */}
           <div className="flex justify-center mt-6 md:mt-16">
-            <div className="min-h-[28px] relative w-full max-w-xl">
-              {isPromptLoading && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="h-4 w-24 bg-foreground/10 animate-pulse rounded"></div>
-                </div>
-              )}
+            <div className="min-h-16 relative flex items-start justify-start w-full max-w-2xl px-4">
               {suggestedPrompt && (
                 <div
-                  className={`text-xs sm:text-base text-[var(--muted)] cursor-pointer transition-all duration-300 text-center break-words whitespace-normal max-w-full max-h-16 overflow-y-auto ${
-                    isPromptVisible ? 'opacity-100' : 'opacity-0'
-                  } hover:text-[var(--foreground)]`}
+                  className="cursor-pointer transition-all duration-300 text-left break-words whitespace-normal max-w-full font-mono leading-relaxed group"
                   onClick={() => handleExampleClick(suggestedPrompt)}
                 >
-                  {suggestedPrompt}
+                  {/* 터미널 스타일 프롬프트 */}
+                  <div className="flex items-start gap-2">
+                    <span className="text-green-500 dark:text-green-400 opacity-70 select-none shrink-0">
+                      ›
+                    </span>
+                    <span className="inline-block text-xs sm:text-base text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors duration-300">
+                      {renderPromptWithLinks(displayedText)}
+                      {/* 터미널 스타일 블록 커서 - 타이핑 중일 때만 표시 */}
+                      {isTyping && (
+                        <span 
+                          className={`inline-block w-2 h-4 ml-0.5 bg-green-500 dark:bg-green-400 transition-opacity duration-100 ${
+                            showCursor ? 'opacity-70' : 'opacity-0'
+                          }`}
+                        />
+                      )}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
