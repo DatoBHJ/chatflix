@@ -1,4 +1,4 @@
-import { streamText, createDataStreamResponse, smoothStream, Message, streamObject, generateText, generateObject } from 'ai';
+import { streamText, createDataStreamResponse, streamObject, generateObject } from 'ai';
 import { createClient } from '@/utils/supabase/server';
 import { providers } from '@/lib/providers';
 import { getModelById} from '@/lib/models/config';
@@ -351,7 +351,6 @@ export async function POST(req: Request) {
           
           if (isAgentEnabled) {
 
-
             // 4. 시스템 프롬프트 토큰 수 추정
             const systemTokens = estimateTokenCount(currentSystemPrompt);
             
@@ -447,21 +446,6 @@ export async function POST(req: Request) {
             const currentMessage = optimizedMessages[optimizedMessages.length - 1];
             userQuery = extractTextFromMessage(currentMessage);
 
-            // 🆕 conversationHistory를 읽기 쉬운 문자열로 변환 (위치 이동)
-            const formatConversationHistory = (messages: any[]): string => {
-              if (!messages || messages.length === 0) {
-                return 'No previous conversation.';
-              }
-              
-              return messages.map((message, index) => {
-                const role = message.role === 'user' ? 'User' : 'Assistant';
-                const content = typeof message.content === 'string' ? message.content : 
-                               Array.isArray(message.content) ? message.content.join('\n') : 
-                               JSON.stringify(message.content);
-                
-                return `## ${role} Message ${index + 1}:\n${content}`;
-              }).join('\n\n');
-            };
 
             // 🆕 STEP 0: Parallel Analysis - Context Relevance & Request Complexity
             let contextFilter: {
@@ -476,15 +460,13 @@ export async function POST(req: Request) {
               generatedImages: boolean;
             } | null = null;
             
-            let conversationHistory = convertMultiModalToMessage(optimizedMessages.slice(0, -1));
-            
             const hasToolResultsInHistory = optimizedMessages.slice(0, -1).some(msg => 
               (msg as any).tool_results && 
               Object.keys((msg as any).tool_results).some(key => key !== 'token_usage' && key !== 'agentReasoning')
             );
             
-            const formattedConversationHistoryForAnalysis = formatConversationHistory(conversationHistory);
-
+            const hasPreviousConversation = optimizedMessages.length > 1;
+            
             // Define available tools list early for analysis
             let baseAvailableToolsList = [
               'web_search',
@@ -503,22 +485,27 @@ export async function POST(req: Request) {
 
             const analysisModel = 'gemini-2.0-flash';
 
+            // 🔧 FIX: messages를 직접 전달하여 이미지 내용 분석 가능하도록 개선
+            const messagesForAnalysis = convertMultiModalToMessage(optimizedMessages);
+
             // Promise for 2D Matrix Complexity Analysis
             const complexityAnalysisPromise = analyzeRequestComplexity(
               analysisModel,
               model,
               baseAvailableToolsList,
-              formattedConversationHistoryForAnalysis,
-              userQuery
+              messagesForAnalysis
             );
 
             // Promise for Context Analysis (conditional)
-            const contextAnalysisPromise = (conversationHistory.length > 0 && hasToolResultsInHistory)
-              ? analyzeContextRelevance(analysisModel, userQuery)
+            const contextAnalysisPromise = (hasPreviousConversation && hasToolResultsInHistory)
+              ? analyzeContextRelevance(analysisModel, messagesForAnalysis)
               : Promise.resolve(null);
 
             // Execute analyses in parallel
-            const [complexityResult, contextAnalysisResult] = await Promise.all([
+            const [
+              complexityResult, 
+              contextAnalysisResult
+            ] = await Promise.all([
               complexityAnalysisPromise,
               contextAnalysisPromise
             ]);
@@ -527,15 +514,12 @@ export async function POST(req: Request) {
             if (contextAnalysisResult) {
               try {
                 contextFilter = contextAnalysisResult.object;
-                conversationHistory = convertMultiModalToMessage(optimizedMessages.slice(0, -1), contextFilter);
+                // Context filter will be applied to messagesForAgentMode later
               } catch (error) {
                 // console.error('Context analysis failed, using full context:', error);
                 contextFilter = null;
               }
             }
-
-            // 🆕 conversationHistory를 읽기 쉬운 문자열로 변환
-            const formattedConversationHistory = formatConversationHistory(conversationHistory);
 
             // Use the previously defined available tools list
             const availableToolsList = baseAvailableToolsList;
@@ -575,26 +559,22 @@ export async function POST(req: Request) {
               let planningText = '';
               const needsDetailedPlanning = processingMode === 'complex';
 
+              let messagesForAgentMode = convertMultiModalToMessage(optimizedMessages, contextFilter || undefined);
+              
               if (needsDetailedPlanning) {
+                // 🔧 FIX: 계획 단계에서도 messages 파라미터 사용하여 더 풍부한 컨텍스트 제공
                 const planningResult = await streamText({
                   // model: providers.languageModel('gemini-2.0-flash'), 
                   model: providers.languageModel(model), 
                   providerOptions: supportsReasoning ? providerOptions : undefined,
-                  prompt: `
-# PLANNING PHASE - Agent Strategy Development
+                  system: `# PLANNING PHASE - Agent Strategy Development
 
                 # Model Information
                 - Current model: ${model}
                 - Available tools are limited based on the model. For Gemini 2.5 Pro and Gemini 2.5 Flash, 'link_reader' and 'youtube_link_analyzer' are not available. If the user requests these tools, you must respond with an error message.
 
-# Previous Conversation
-${formattedConversationHistory}
-
-# User Query
-${userQuery}
-
-# File Attachment Analysis Instructions
-- For all attachments, incorporate the file information in your analysis plan
+                # File Attachment Analysis Instructions
+                - For all attachments, incorporate the file information in your analysis plan
 
                 Your task is to first check if the user query explicitly requests any unavailable tools:
                 - If the current model is 'gemini-2.5-pro-preview-05-06' or 'gemini-2.5-flash-preview-04-17' and the user query mentions or requests 'link_reader' or 'youtube_link_analyzer' (e.g., words like "link reader", "youtube analyzer", or their equivalents in any language), respond ONLY with a clear error message in the same language as the user's query: "This model does not support the 'link_reader' or 'youtube_link_analyzer' tool. Please use a different model or rephrase your query to avoid these tools."
@@ -608,7 +588,7 @@ ${userQuery}
                 
                 ## Planning Guidelines:
                 1. **Analyze User Intent**: What is the user really asking for? Identify key needs and requirements.
-                2. **Review Previous Context**: Look at the conversation history above to see what information is already available. The context has been filtered to show only relevant previous results.
+                2. **Review Previous Context**: Look at the conversation messages to see what information is already available. The context has been filtered to show only relevant previous results.
                 3. **Tool Selection Strategy**: 
                    - If the previous conversation already contains sufficient information to answer the query, plan to use it without additional tools
                    - If the existing information needs updating, expanding, or verification, plan for targeted additional searches
@@ -652,8 +632,9 @@ ${userQuery}
                 - If user writes in English, respond in English
                 - If user writes in another language, respond in that language
 
-                **REMEMBER: Create ONLY a strategic plan. Do NOT provide actual answers, solutions, or responses to the user's query.**
-                `,
+                **REMEMBER: Create ONLY a strategic plan. Do NOT provide actual answers, solutions, or responses to the user's query.**`,
+                  // 🔧 FIX: messages 파라미터 추가하여 더 풍부한 컨텍스트 제공
+                  messages: messagesForAgentMode,
                 });
     
                 // Merge planningResult into dataStream with sendReasoning: true
@@ -676,7 +657,7 @@ ${userQuery}
                     }))
                   });
                 }
-    
+
                 // 계획 수립 완료 표시
                 dataStream.writeMessageAnnotation({
                   type: 'agent_reasoning_progress',
@@ -717,17 +698,10 @@ ${userQuery}
             // 두 번째 단계: 도구 선택 (generateObject 사용)
             const routingDecision = await generateObject({
               model: providers.languageModel('gemini-2.0-flash'),
-              prompt: `
-            Based on the following comprehensive plan, select the specific tools needed:
+              system: `Based on the comprehensive plan, select the specific tools needed:
 
             # Plan Created
             ${planningText}
-
-            # User Query
-            ${userQuery}
-
-            # Previous Conversation Context
-            ${formattedConversationHistory}
 
             ## Tool Selection Guidelines:
             **Efficiency First**: Before selecting tools, consider what information is already available in the previous conversation:
@@ -769,8 +743,9 @@ ${userQuery}
             - All other fields (reasoning, selectionReasoning, modeReasoning) MUST be written in the same language as the user's query
             - If user writes in Korean, respond in Korean (except for tool names)
             - If user writes in English, respond in English (except for tool names which are already in English)
-            - If user writes in another language, respond in that language (except for tool names)
-            `,
+            - If user writes in another language, respond in that language (except for tool names)`,
+              // 🔧 FIX: messages 파라미터 추가하여 이미지 및 파일 컨텍스트 직접 분석 가능
+              messages: messagesForAgentMode,
               schema: z.object({
                 selectedTools: z.array(z.enum(availableToolsList as [string, ...string[]])).describe('Array of tools needed for this query'),
                 reasoning: z.string().describe('Brief reasoning for tool selection'),
@@ -938,12 +913,6 @@ In this phase, create a thorough response while keeping in mind that supporting 
             # SECOND STAGE: TOOL EXECUTION AND MAIN RESPONSE CREATION
 Today's Date: ${todayDate}
 
-            ## User Query
-            ${userQuery}
-            
-            ## User Query Analysis
-            ${routingDecision.object.reasoning}
-
             ## Plan -- This is just for your reference. You don't need to explicitly follow it. 
             ${planningText}
             
@@ -957,13 +926,10 @@ ${hasImage ? `
             # ABOUT THE IMAGE:
             - Describe the image in detail.
             - Use appropriate tools to get more information if needed
-            - Do not provide detailed analysis - just determine what tools to use
 ` : ''}
 
 ${hasFile ? `
             # ABOUT THE FILE:
-            - The file attachment is processed directly by the model - NO tools needed for reading file content
-            - Briefly identify what's in the file (1-2 sentences)
             - You can analyze the file content directly without using link_reader or other tools
             - Only use other tools if you need to search for ADDITIONAL information BEYOND what's in the file
 ` : ''}
@@ -1034,15 +1000,12 @@ ${responseInstructions}
             
 Remember to maintain the language of the user's query throughout your response.
             `;
-            // 🔧 FIX: Context Filter가 적용된 메시지 사용
-            const messages = convertMultiModalToMessage(optimizedMessages, contextFilter || undefined);
-
 
             const finalstep = streamText({
               model: providers.languageModel(model),
               system: systemPromptAgent,
               // 토큰 제한을 고려한 최적화된 메시지 사용
-              messages: messages,
+              messages: messagesForAgentMode,
               // temperature: 0.2,
               toolChoice: 'auto',
               experimental_activeTools: activeTools,
@@ -1249,17 +1212,14 @@ Files can include a variety of content types based on what best serves the user'
                       break;
                   }
                   
-// 최종 응답 생성을 위한 프롬프트 구성
-const responsePrompt = `
+// 최종 응답 생성을 위한 시스템 프롬프트 구성
+const responseSystemPrompt = `
 ${buildSystemPrompt('agent', 'third', 
   memoryData || undefined
 )}
 
 You are now in the third stage of the Chatflix Agentic Process - creating supporting files based on the information gathered and the main response already provided.
 Here's the blueprint and the previous steps we've already taken:
-
-# Original User Query
-"${userQuery}"
 
 # Stage 1: Agentic Plan and Workflow Analysis
 ## Analysis:
@@ -1410,6 +1370,9 @@ Example chart format:
                   // 세번째 단계: 구조화된 응답 생성 (파일만)
                   const objectResult = await streamObject({
                     model: providers.languageModel(finalModel),
+                    system: responseSystemPrompt,
+                    // 🔧 FIX: messages 파라미터 추가하여 이미지 및 파일 컨텍스트 직접 분석 가능
+                    messages: messagesForAgentMode,
                     schema: z.object({
                       response: z.object({
                         description: z.string().optional().describe('ONLY include this field when files are actually being created. Brief description of the supporting files being provided. DO NOT include this field if no files are created.'),
@@ -1423,7 +1386,6 @@ Example chart format:
                       })
                     }),
                     // providerOptions: providerOptions,
-                    prompt: responsePrompt,
                     // temperature: 0.3,
                   });
                   

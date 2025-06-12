@@ -624,13 +624,11 @@ Files can include a variety of content types based on what best serves the user\
                       break;
                   }
                   
-                  const responsePrompt = `
+                  const responseSystemPrompt = `
 ${buildSystemPrompt('agent', 'third', undefined)}
 
 You are now in the third stage of the Chatflix Agentic Process - creating supporting files based on the information gathered and the main response already provided.
 Here's the blueprint and the previous steps we\'ve already taken:
-# Original User Query
-"${userQuery}"
 
 # Stage 1: Agentic Plan and Workflow Analysis
 ## Analysis:
@@ -747,6 +745,9 @@ IMPORTANT:
             
                   const objectResult = await streamObject({
                     model: providers.languageModel(finalObjectModel),
+                    system: responseSystemPrompt,
+                    // 🔧 FIX: messages 파라미터 추가하여 이미지 및 파일 컨텍스트 직접 분석 가능
+                    messages: finalMessages,
                     schema: z.object({ 
                       response: z.object({ 
                         description: z.string().optional().describe('Brief description of the supporting files being provided (if any). If no files are needed, don\'t include this field.'), 
@@ -759,7 +760,6 @@ IMPORTANT:
                         ).optional().describe('Optional list of files to display in the canvas area - ONLY include when necessary for complex information that cannot be fully communicated in the main response')
                       })
                     }),
-                    prompt: responsePrompt,
                   });
                   
                   let lastResponse: any = {};
