@@ -19,10 +19,14 @@
   --sidebar-divider-light: rgba(0, 0, 0, 0.15);
 
   /* Dark theme variables */
-  --background-dark: #000000;
-  /* --background-dark: #1a1a1a; */
+  /* --background-dark: #000000;
   --foreground-dark: #e5e5e5;
-  --accent-dark: #262626;
+  --accent-dark: #262626; */
+
+  --background-dark: #000000;
+  --foreground-dark: #e5e5e5;
+  --accent-dark: #131313;
+
   --muted-dark: #999999;
   --code-bg-dark: #1a1a1a;
   --code-text-dark: #e5e5e5;
