@@ -18,7 +18,6 @@ export const DEFAULT_EXAMPLE_PROMPTS = [
   "List the most controversial moments in human history",
   "Latest on the Mars mission?",
   "Why do some dumbass people think the earth is flat?",
-  "Explain the movie Tenet like I'm 5",
   "Find the most absurd laws that still exist and research their historical origins",
   "Calculate how much money influencers actually make and compare it to real jobs",
   "Find the most ridiculous startup ideas that actually got funded",
