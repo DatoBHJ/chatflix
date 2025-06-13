@@ -14,10 +14,8 @@ export const DEFAULT_EXAMPLE_PROMPTS = [
   "Research why programmers are obsessed with dark mode",
   "Explain why people love horror movies using psychological theories",
   "List the top 5 weirdest trends in AI right now",
-  "Calculate how much coffee a developer needs to finish a project in 3 days",
   "Research the psychological effects of drug use on creativity",
   "List the most controversial moments in human history",
-  "Analyze the impact of Elon Musk's tweets on cryptocurrency markets",
   "Latest on the Mars mission?",
   "Why do some dumbass people think the earth is flat?",
   "Explain the movie Tenet like I'm 5",
@@ -187,7 +185,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
             <span className="text-green-500 dark:text-green-400 opacity-70 select-none shrink-0 text-sm sm:text-base">
               ›
             </span>
-            <span className="inline-block text-green-500 dark:text-green-400 group-hover:text-green-400 dark:group-hover:text-green-300 transition-colors duration-300">
+            <span className="inline-block text-[var(--muted)] dark:text-green-400 group-hover:text-[var(--foreground)] dark:group-hover:text-green-300 transition-colors duration-300">
               {renderPromptWithLinks(displayedText)}
               {/* 터미널 스타일 블록 커서 - 조건부 너비로 간격 문제 해결 */}
               <span 
