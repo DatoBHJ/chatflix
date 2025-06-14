@@ -82,7 +82,9 @@ For image generation:
 
 EXECUTION FORMAT:
 1. State your generation plan (e.g., "Generating image of [description] using [model]" or "Editing previous image (seed: [original_seed]) to [new_description] by modifying the prompt to '[new_prompt_snippet]'").
-2. Acknowledge ONLY that image was generated (e.g., "Image has been generated successfully").
+2. ALWAYS display the generated image link in your response immediately after generation (e.g., "Image has been generated successfully: [IMAGE_URL]" or include the image directly in your response).
+
+IMPORTANT: Always include the generated image link or display the image directly in your main response, not just in supporting files.
 
 INSTRUCTIONS:
 - Always include the model name and the seed value in your response.

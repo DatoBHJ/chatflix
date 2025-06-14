@@ -563,93 +563,114 @@ export async function POST(req: Request) {
               
               if (needsDetailedPlanning) {
                 // 🔧 FIX: 계획 단계에서도 messages 파라미터 사용하여 더 풍부한 컨텍스트 제공
+                
+                // 계획 전용 시스템 프롬프트 구성 (사용자 프로필만 포함)
+                let planningSystemPrompt = `# PLANNING STAGE - STRATEGY ANALYSIS ONLY
+
+You are in the PLANNING STAGE of a multi-step automated agent process. Your ONLY job is to create a strategy plan - NOT to provide the actual answer.
+
+## IMPORTANT: This is an AUTOMATED WORKFLOW
+- This is step 1 of a 3-step automated agent process
+- After you complete the planning, the system will AUTOMATICALLY proceed to step 2 (tool execution)
+- Then automatically to step 3 (file generation) 
+- DO NOT ask the user any questions or seek confirmation
+- DO NOT ask if the plan is okay or if they want modifications
+- DO NOT ask for additional information
+- The user does NOT need to respond - the process continues automatically
+- Simply explain your plan and the system will execute it
+
+## Your Role
+- Analyze the user's request
+- Explain your planned approach in a conversational way  
+- Think of this as telling the user "Here's how I'm going to help you with this..."
+- DO NOT provide the actual answer or solution
+- DO NOT use any tools or execute any tasks
+- ONLY create a strategic plan
+- DO NOT end with questions or requests for user input
+
+## Context
+Current model: ${model}
+Available tools: ${availableToolsList.length > 0 
+  ? availableToolsList.map(tool => `${tool.charAt(0).toUpperCase() + tool.slice(1).replace('_', ' ')}`).join(', ')
+  : 'Built-in capabilities only'
+}
+Today's date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+
+Important constraints:
+- For Gemini 2.5 Pro/Flash models: link_reader and youtube_link_analyzer are not available
+- If the user requests unavailable tools, explain this limitation clearly`;
+
+                // 사용자 프로필 추가 (기본 템플릿이 아닌 경우에만)
+                if (!isDefaultMemory && memoryData) {
+                  planningSystemPrompt += `\n\n## USER PROFILE CONTEXT\n${memoryData}
+
+### Profile Usage in Planning:
+- Consider the user's interests and preferences when planning your approach
+- Adapt your communication style based on their profile
+- Reference relevant past interactions if applicable
+- Tailor your planned explanations to match their expertise level`;
+                }
+
+                planningSystemPrompt += `
+
+## Planning Guidelines
+1. **Acknowledge** what the user is asking for
+2. **Explain** your planned approach in a conversational tone
+3. **Mention** which tools or methods you'll use (if any) and why
+4. **Set expectations** for what you'll deliver
+5. **Keep it natural** and friendly - like explaining your plan to a friend
+
+## CRITICAL REMINDERS - AUTOMATED PROCESS
+- You are ONLY planning - NOT executing
+- Use phrases like "I'm going to...", "My approach will be...", "I plan to..."
+- Do NOT provide actual answers, solutions, or detailed explanations
+- Do NOT perform calculations, searches, or analysis
+- Just explain what you WILL do in the next stages
+- DO NOT ask questions like "Does this plan work for you?" or "What do you think?"
+- DO NOT ask for clarification, confirmation, or additional details
+- DO NOT use question marks (?) or ask if the user wants anything else
+- DO NOT say phrases like "Let me know if...", "Would you like...", "Any questions?"
+- Simply state your plan and STOP - the system will automatically continue
+- End your response with a period, not a question or invitation for response
+
+## Example of WRONG endings to avoid:
+❌ "Does this approach sound good to you?"
+❌ "Let me know if you'd like me to focus on any specific aspect!"
+❌ "Any questions before I proceed? 😊"
+❌ "Would you like me to add anything to this plan?"
+
+## Example of CORRECT endings:
+✅ "I'll gather this information and provide you with a comprehensive analysis."
+✅ "This approach will ensure you get the most current and relevant information."
+✅ "I'll execute this plan to give you exactly what you're looking for."
+
+${!isDefaultMemory && memoryData 
+  ? "Based on user profile and preferences, respond in the user's preferred language and communication style."
+  : "Respond in the same language as the user's query."
+}`;
+
                 const planningResult = await streamText({
                   // model: providers.languageModel('gemini-2.0-flash'), 
                   model: providers.languageModel(model), 
-                  providerOptions: supportsReasoning ? providerOptions : undefined,
-                  system: `# PLANNING PHASE - Agent Strategy Development
-
-                # Model Information
-                - Current model: ${model}
-                - Available tools are limited based on the model. For Gemini 2.5 Pro and Gemini 2.5 Flash, 'link_reader' and 'youtube_link_analyzer' are not available. If the user requests these tools, you must respond with an error message.
-
-                # File Attachment Analysis Instructions
-                - For all attachments, incorporate the file information in your analysis plan
-
-                Your task is to first check if the user query explicitly requests any unavailable tools:
-                - If the current model is 'gemini-2.5-pro-preview-05-06' or 'gemini-2.5-flash-preview-04-17' and the user query mentions or requests 'link_reader' or 'youtube_link_analyzer' (e.g., words like "link reader", "youtube analyzer", or their equivalents in any language), respond ONLY with a clear error message in the same language as the user's query: "This model does not support the 'link_reader' or 'youtube_link_analyzer' tool. Please use a different model or rephrase your query to avoid these tools."
-                - Do not create a plan or proceed further if an unavailable tool is requested.
-                - Otherwise, create a comprehensive STRATEGIC PLAN ONLY (not the actual response).
-                
-                ## CRITICAL: THIS IS A PLANNING PHASE ONLY
-                **DO NOT provide actual answers or responses to the user's query. You are ONLY creating a strategic plan.**
-                **DO NOT attempt to solve problems, provide information, or give recommendations directly.**
-                **Your role here is to be a strategic planner, not a responder.**
-                
-                ## Planning Guidelines:
-                1. **Analyze User Intent**: What is the user really asking for? Identify key needs and requirements.
-                2. **Review Previous Context**: Look at the conversation messages to see what information is already available. The context has been filtered to show only relevant previous results.
-                3. **Tool Selection Strategy**: 
-                   - If the previous conversation already contains sufficient information to answer the query, plan to use it without additional tools
-                   - If the existing information needs updating, expanding, or verification, plan for targeted additional searches
-                   - If the query requires completely new information not covered in previous context, plan for comprehensive tool usage
-                   - Consider efficiency: avoid redundant searches if good information already exists in the conversation
-                   - Note: PDF attachments and file uploads are handled directly by the model, while link_reader is for web URLs/links
-                4. **Response Approach**: Determine the best approach to provide a complete and helpful response.
-                5. **Workflow Mode**: What workflow mode would be most appropriate for this type of query?
-
-                ## Planning Output Format:
-                Structure your strategic plan with these sections:
-                
-                **USER INTENT ANALYSIS:**
-                - What exactly is the user asking for?
-                - What are the key requirements and constraints?
-                
-                **INFORMATION ASSESSMENT:**
-                - What relevant information already exists in the conversation?
-                - What gaps need to be filled?
-                - What information might be outdated or insufficient?
-                
-                **STRATEGIC APPROACH:**
-                - Overall strategy for addressing this query
-                - Whether to rely on existing information or gather new data
-                - Reasoning for tool selection or non-selection
-                
-                **EXECUTION PLAN:**
-                - Step-by-step approach for the next phase
-                - Recommended workflow mode and reasoning
-                - Expected outcome and deliverables
-
-                Available capabilities include:
-                ${availableToolsList.length > 0 
-                  ? availableToolsList.map(tool => `- ${tool.charAt(0).toUpperCase() + tool.slice(1).replace('_', ' ')}: ${toolDescriptions[tool as keyof typeof toolDescriptions]}`).join('\n')
-                  : '- No specific tools available for this model. In this case, I will rely on the model\'s built-in capabilities to handle the query.'
-                }
-
-                IMPORTANT LANGUAGE REQUIREMENT:
-                - Respond in the same language as the user's query
-                - If user writes in Korean, respond in Korean
-                - If user writes in English, respond in English
-                - If user writes in another language, respond in that language
-
-                **REMEMBER: Create ONLY a strategic plan. Do NOT provide actual answers, solutions, or responses to the user's query.**`,
+                  // providerOptions: supportsReasoning ? providerOptions : undefined,
+                  system: planningSystemPrompt,
                   // 🔧 FIX: messages 파라미터 추가하여 더 풍부한 컨텍스트 제공
                   messages: messagesForAgentMode,
                 });
-    
+            
                 // Merge planningResult into dataStream with sendReasoning: true
                 // planningResult.mergeIntoDataStream(dataStream, { sendReasoning: true });
-    
+            
                 for await (const textPart of planningResult.textStream) {
                   planningText += textPart;
                   dataStream.writeMessageAnnotation({
                     type: 'agent_reasoning_progress',
                     data: JSON.parse(JSON.stringify({
-                      agentThoughts: '', // 빈 값으로 시작
                       plan: planningText,
+                      agentThoughts: '',
                       selectionReasoning: '',
-                      workflowMode: '',
-                      modeReasoning: '',
+                      // workflowMode: '',
+                      // modeReasoning: '',
                       selectedTools: [],
                       timestamp: new Date().toISOString(),
                       isComplete: false,
@@ -657,44 +678,44 @@ export async function POST(req: Request) {
                     }))
                   });
                 }
-
+            
                 // 계획 수립 완료 표시
                 dataStream.writeMessageAnnotation({
                   type: 'agent_reasoning_progress',
                   data: JSON.parse(JSON.stringify({
-                    agentThoughts: '', 
                     plan: planningText,
+                    agentThoughts: '', 
                     selectionReasoning: '',
-                    workflowMode: '',
-                    modeReasoning: '',
+                    // workflowMode: '',
+                    // modeReasoning: '',
                     selectedTools: [],
                     timestamp: new Date().toISOString(),
                     isComplete: true,
                     stage: 'planning' // 계획 단계임을 표시
                   }))
                 });
-
-                             } else {
+            
+            } else {
                  // For simple/standard requests, skip detailed planning
                  planningText = `${complexityResult.object.reasoning}`;
                 
-                // // Send a simplified reasoning annotation to the UI
-                dataStream.writeMessageAnnotation({
-                  type: 'agent_reasoning_progress',
-                  data: JSON.parse(JSON.stringify({
-                    agentThoughts: '', 
-                    plan: planningText,
-                    selectionReasoning: '',
-                    workflowMode: '',
-                    modeReasoning: '',
-                    selectedTools: [],
-                    timestamp: new Date().toISOString(),
-                    isComplete: true,
-                    stage: 'planning'
-                  }))
-                });
-              }
-
+                // Send a simplified reasoning annotation to the UI
+                // dataStream.writeMessageAnnotation({
+                //   type: 'agent_reasoning_progress',
+                //   data: JSON.parse(JSON.stringify({
+                //     agentThoughts: '', 
+                //     plan: planningText,
+                //     selectionReasoning: '',
+                //     workflowMode: '',
+                //     modeReasoning: '',
+                //     selectedTools: [],
+                //     timestamp: new Date().toISOString(),
+                //     isComplete: true,
+                //     stage: 'planning'
+                //   }))
+                // });
+            }
+            
             // 두 번째 단계: 도구 선택 (generateObject 사용)
             const routingDecision = await generateObject({
               model: providers.languageModel('gemini-2.0-flash'),
@@ -740,7 +761,7 @@ export async function POST(req: Request) {
 
             IMPORTANT LANGUAGE REQUIREMENT:
             - Tool selection must use exact English names from the available tools list above
-            - All other fields (reasoning, selectionReasoning, modeReasoning) MUST be written in the same language as the user's query
+            - All other fields (reasoning, selectionReasoning, workflowMode) MUST be written in the same language as the user's query
             - If user writes in Korean, respond in Korean (except for tool names)
             - If user writes in English, respond in English (except for tool names which are already in English)
             - If user writes in another language, respond in that language (except for tool names)`,
@@ -751,7 +772,7 @@ export async function POST(req: Request) {
                 reasoning: z.string().describe('Brief reasoning for tool selection'),
                 selectionReasoning: z.string().describe('Brief justification for the selected tools'),
                 workflowMode: z.enum(['information_response', 'content_creation', 'balanced']).describe('The optimal workflow mode for this query'),
-                modeReasoning: z.string().describe('Brief explanation for the selected workflow mode')
+                // modeReasoning: z.string().describe('Brief explanation for the selected workflow mode')
               })
             });
             
@@ -783,30 +804,32 @@ export async function POST(req: Request) {
             });
             
             
-            // 최종 라우팅 결정에 대한 추론 과정을 사용자에게 표시
-            const agentReasoningAnnotation = {
-              type: 'agent_reasoning',
-              data: JSON.parse(JSON.stringify({
-                agentThoughts: routingDecision.object.reasoning,
-                plan: planningText, // 계획은 첫 번째 단계에서 생성됨
-                selectionReasoning: routingDecision.object.selectionReasoning,
-                workflowMode: routingDecision.object.workflowMode,
-                modeReasoning: routingDecision.object.modeReasoning,
-                selectedTools: routingDecision.object.selectedTools,
-                timestamp: new Date().toISOString(),
-                isComplete: true
-              }))
-            };
-            // JSON.parse/stringify를 통해 JSONValue 타입으로 변환하여 타입 오류 해결
-            dataStream.writeMessageAnnotation(agentReasoningAnnotation);
+            // 도구가 선택된 경우에만 추론 과정을 사용자에게 표시
+            if (routingDecision.object.selectedTools.length > 0) {
+              const agentReasoningAnnotation = {
+                type: 'agent_reasoning',
+                data: JSON.parse(JSON.stringify({
+                  plan: needsDetailedPlanning ? planningText : '', // 복잡한 계획만 클라이언트에 전송
+                  selectionReasoning: routingDecision.object.selectionReasoning,
+                  agentThoughts: routingDecision.object.reasoning,
+                  // workflowMode: routingDecision.object.workflowMode,
+                  // modeReasoning: routingDecision.object.modeReasoning,
+                  selectedTools: routingDecision.object.selectedTools,
+                  timestamp: new Date().toISOString(),
+                  isComplete: true
+                }))
+              };
+              // JSON.parse/stringify를 통해 JSONValue 타입으로 변환하여 타입 오류 해결
+              dataStream.writeMessageAnnotation(agentReasoningAnnotation);
+            }
             
-            // 저장용 추론 데이터 객체 생성
+            // 저장용 추론 데이터 객체 생성 (간단한 플랜의 경우 planningText 저장 제외)
             const agentReasoningData = {
+              plan: needsDetailedPlanning ? planningText : '', // 복잡한 계획만 저장, 간단한 플랜은 빈 문자열
               agentThoughts: routingDecision.object.reasoning,
-              plan: planningText, // 계획은 첫 번째 단계에서 생성됨
               selectionReasoning: routingDecision.object.selectionReasoning,
-              workflowMode: routingDecision.object.workflowMode,
-              modeReasoning: routingDecision.object.modeReasoning,
+              // workflowMode: routingDecision.object.workflowMode,
+              // modeReasoning: routingDecision.object.modeReasoning,
               selectedTools: routingDecision.object.selectedTools,
               timestamp: new Date().toISOString(),
               isComplete: true
@@ -916,8 +939,7 @@ Today's Date: ${todayDate}
             ## Plan -- This is just for your reference. You don't need to explicitly follow it. 
             ${planningText}
             
-            ## Selected Workflow Mode: ${routingDecision.object.workflowMode}
-            ${routingDecision.object.modeReasoning}
+            ## Selected Workflow Mode: 
 ${workflowGuidelines}
             
 ${toolSpecificPrompts.join("\n\n")}
@@ -957,25 +979,31 @@ After using the tools, create a comprehensive answer that:
 - Ensures factual accuracy based on tool results
 - Provides a complete and detailed response to the user's question
 
-Remember that you're in INFORMATION RESPONSE mode, so your main focus should be creating a detailed, comprehensive textual response. Supporting files will be minimal, if any.
+Remember that you're in INFORMATION RESPONSE mode, so your main focus should be creating a detailed, comprehensive response. Supporting files will be minimal, if any.
 `;
                 break;
               case 'content_creation':
                 responseInstructions = `
 # FINAL RESPONSE INSTRUCTIONS
-After using the tools, create a VERY BRIEF introductory response that:
-- Briefly acknowledges the user's request (1 sentence)
-- Provides a very concise overview of what will be in the files (1-2 sentences)
-- Keeps the entire response under 3-5 sentences maximum
-- DOES NOT include detailed explanations or content - save this for the files
-- Mentions that the detailed information is organized in the files that follow
+Content creation mode is for when users explicitly request specific deliverables (code, documents, templates).
 
-IMPORTANT: Your response must be extremely concise. The main value will be delivered in the files, not in this chat response. Users prefer brief chat responses with well-organized files.
+Create a comprehensive main response that:
+- Directly addresses the user's request with complete information
+- Includes substantial content, explanations, and examples in the main response
+- Only mentions potential files IF the user specifically requested downloadable deliverables
+- Provides full value in the main response itself
 
-Examples of good brief responses:
-"I've gathered information about climate change impacts. You'll find a comprehensive analysis in the attached research paper, which covers current evidence, future projections, and mitigation strategies."
+ONLY mention files in your response if:
+- User explicitly asked for specific code files, documents, or templates to download
+- The deliverable is genuinely too complex for chat display (>1000 words of code, etc.)
 
-"Here's the Python game you requested. I've created a main.py file with the game logic and a README.md with instructions for running and playing the game."
+EXCEPTION FOR IMAGE GENERATION:
+- If image_generator tool was used, ALWAYS include the generated image(s) directly in your main response
+- Display the image link or embed the image immediately after generation
+
+IMPORTANT: Do NOT assume files will be created. The main response should be complete and valuable on its own. Only brief mentions of files if user specifically requested downloadable materials.
+
+Focus on delivering comprehensive value in the main chat response.
 `;
                 break;
               case 'balanced':
@@ -1074,7 +1102,7 @@ Remember to maintain the language of the user's query throughout your response.
                 // 도구 사용 완료 후 구조화된 응답 생성 부분 (streamObject 사용)
                 dataStream.writeMessageAnnotation({
                   type: 'status',
-                  data: { message: 'Creating supporting files and follow-up questions...' }
+                  data: { message: 'Reviewing response and generating follow-up questions...' }
                 });
 
                 try {
@@ -1149,65 +1177,66 @@ Remember to maintain the language of the user's query throughout your response.
                     case 'information_response':
                       fileCreationGuidelines = `
 # FILE CREATION GUIDELINES (INFORMATION RESPONSE MODE)
-In information response mode, the focus was on providing a comprehensive main response.
-At this stage, you may create minimal supporting files if necessary, but they're optional and should only be created if they add significant value.
+In information response mode, the main response was comprehensive and should answer the user's query completely.
+**DEFAULT: DO NOT create files** unless they meet ALL of these strict criteria:
 
-If you create files:
-- They should complement the main response, not duplicate it
-- Focus on structured references, checklists, or summary tables that organize the information
-- Consider creating reference sheets, diagrams, or quick-reference guides if helpful
+**ONLY create files if ALL conditions are met:**
+1. The content would be substantially longer than what's reasonable in a chat response (>1000 words)
+2. The content requires specific formatting that chat cannot provide well (complex tables, code examples)
+3. The content is truly actionable/usable (not just summaries or explanations)
+4. The content cannot be integrated into the main response without making it overwhelming
+
+**Avoid creating files for:**
+- Simple summaries or lists already covered in main response
+- Basic explanations or background information
+- Tables that can be displayed in chat
+- Reference materials that don't add substantial value
 `;
                       break;
                     case 'content_creation':
                       fileCreationGuidelines = `
 # FILE CREATION GUIDELINES (CONTENT CREATION MODE)
-In content creation mode, this is the CRITICAL PHASE where you create detailed, well-structured files.
-This is the MAIN DELIVERABLE that provides value to the user.
+Content creation mode means users specifically requested deliverable content (code, documents, templates).
+**ONLY create files when the user explicitly requested specific deliverables.**
 
-Your files should:
-- Be extremely comprehensive and complete based on what was requested
-- Include ALL content that would answer the user's query in appropriate format and structure
-- Create multiple files if necessary to properly organize different aspects of the content
-- Follow professional standards for the type of content being created:
-  * For code: include proper organization, comments, documentation, and example usage
-  * For written content: use proper structure with clear sections, headings, and professional formatting
-  * For data/analysis: include clear organization, labels, explanations, and visualizations where helpful
-- Be immediately usable without further modifications or additions
-- Include all relevant information that was mentioned in the brief chat response
+**Create files when the user asked for:**
+- Complete code implementations or scripts
+- Structured documents (reports, articles, guides)
+- Templates or boilerplates
+- Data structures or configurations
+- Multi-part deliverables that require organization
 
-File naming and organization:
-- Use descriptive filenames that clearly indicate the content
-- For complex deliverables, include a README.md file that explains the structure and purpose of each file
-- Organize content logically with appropriate sections, headings, and structure
+**Do NOT create files for:**
+- Explanations of concepts (keep in main response)
+- Simple code snippets that fit in chat
+- Summary tables or reference lists
+- Content that was adequately covered in the main response
 
-Content types to consider:
-- Code files (.py, .js, etc.): For complete, executable code examples
-- Markdown (.md): For documentation, reports, articles, guides
-- Data files (.json, .csv): For structured data
-- Configuration files: For system setups, environment configurations
-- Templates: For reusable content patterns
-
-IMPORTANT: Put your MAXIMUM effort into creating these files. This is where the user gets the most value from your response.
+**Quality standards for files:**
+- Make them immediately usable and complete
+- Include proper structure, comments, and documentation
+- Use appropriate file extensions and naming
+- Ensure each file serves a clear, distinct purpose
 `;
                       break;
                     case 'balanced':
                     default:
                       fileCreationGuidelines = `
 # FILE CREATION GUIDELINES (BALANCED MODE)
-In balanced mode, your files should complement the main response you've already provided.
+In balanced mode, be selective about file creation.
+**PRIORITY: Keep substantial content in the main response**
 
-Your files should:
-- Extend the main response with additional details, examples, or implementations
-- Avoid duplicating content from the main response
-- Provide organized, structured content that's ready for use
-- Focus on aspects that benefit from being in a separate file format
+**Only create files when they provide formats that significantly improve usability:**
+- Complex code implementations that are too long for chat
+- Structured data that benefits from file format (JSON, CSV)
+- Multi-step procedures that work better as downloadable guides
+- Content that users would likely want to save/reference separately
 
-Files can include a variety of content types based on what best serves the user's query:
-- Code samples or implementations
-- Detailed written content that expands on concepts from the main response
-- Charts, diagrams, or other visual representations
-- Step-by-step procedures or templates
-- Structured data or analysis
+**Avoid creating files for:**
+- Content that fits comfortably in the main response
+- Simple explanations or overviews
+- Basic lists or summaries
+- Tables that display well in chat format
 `;
                       break;
                   }
@@ -1228,8 +1257,8 @@ ${routingDecision.object.reasoning}
 ## Plan:
 ${planningText}
 
-## Selected Workflow Mode: ${routingDecision.object.workflowMode}
-${routingDecision.object.modeReasoning}
+## Selected Workflow Mode: 
+${routingDecision.object.workflowMode}
 
 # Stage 2: Tool Execution and Main Response Creation
 ## Information Gathered by Tools Execution:
@@ -1239,133 +1268,63 @@ ${toolSummaries.join('\n\n')}
 ${finalResult}
 
 # Stage 3: Supporting Files Creation - You're here
-
 ${fileCreationGuidelines}
 
 ## Your Task
 Create supporting files that complement the main response already provided.
 
-**CRITICAL DECISION POINT**: Determine if supporting files are actually needed:
-- If the main response already fully addresses the user's query, DO NOT create any files
-- If no substantial additional value can be provided through files, DO NOT create files
-- ONLY create files when they provide meaningful, substantial additional content
+**CRITICAL DECISION POINT - FILE CREATION FILTER**:
 
-**SUPPORTING FILES**: Additional content for the canvas area (adaptive based on workflow mode)
-- Each file should have a clear purpose and be self-contained
-- Use appropriate file extensions (.py, .js, etc.)
-- Follow best practices for the content type (code, data, etc.)
-- **IMPORTANT**: ALL file content MUST be formatted with proper Markdown syntax. Use the following guidelines:
-  - For code blocks, use triple backticks with language specification: \`\`\`python, \`\`\`javascript, etc.
-  - For charts, use \`\`\`chartjs with VALID JSON format (see Chart Guidelines below)
-  - For tables, use proper Markdown table syntax with pipes and dashes
-  - For headings, use # symbols (e.g., # Heading 1, ## Heading 2)
-  - For lists, use proper Markdown list syntax (-, *, or numbered lists)
-  - For emphasis, use *italic* or **bold** syntax
-  - For links, use [text](url) syntax
-  - Ensure proper indentation and spacing for nested structures
+**FIRST: Ask yourself these questions in order:**
+1. "Does the main response already provide everything the user needs?" → If YES, create NO files
+2. "Would this content be better as a downloadable/saveable resource?" → If NO, keep in main response  
+3. "Is this content substantial enough to warrant a separate file (>500 words or complex structure)?" → If NO, add to main response
+4. "Would the user actually use/reference this file separately?" → If NO, don't create it
 
-## Chart Guidelines for Supporting Files
-When creating data visualizations from gathered information, use \`\`\`chartjs with VALID JSON format:
-**ABSOLUTELY CRITICAL: ALWAYS wrap chart JSON with \`\`\`chartjs code block**
+**STRICT CRITERIA - ALL must be true to create a file:**
+✅ Content adds substantial value beyond the main response
+✅ Content is too long/complex for comfortable chat display  
+✅ Content has clear standalone utility (user would save/reference it)
+✅ Content is not just a reformatted version of what's in main response
 
-❌ **WRONG - This will NOT render as a chart:**
-{
-  "type": "pie",
-  "data": {
-    "labels": ["Category A", "Category B"],
-    "datasets": [...]
-  }
-}
+**DEFAULT DECISION: CREATE NO FILES AND NO DESCRIPTION**
+Most queries are fully satisfied by a comprehensive main response.
 
-✅ **CORRECT - This WILL render as a chart:**
-\`\`\`chartjs
-{
-  "type": "pie",
-  "data": {
-    "labels": ["Category A", "Category B"],
-    "datasets": [...]
-  }
-}
-\`\`\`
+**ONLY create files when they meet the strict criteria above AND fall into these categories:**
+- **Executable code** (complete, runnable scripts/programs) 
+- **Structured data** (JSON, CSV with substantial data sets)
+- **Complex procedures** (multi-step guides that benefit from being saved)
+- **Templates/boilerplates** (reusable structures for user customization)
 
-Example chart format:
-\`\`\`chartjs
-{
-  "type": "bar",
-  "data": {
-    "labels": ["Data Point 1", "Data Point 2"],
-    "datasets": [{
-      "label": "Research Results",
-      "data": [25, 75],
-      "backgroundColor": ["#FF6B6B", "#4ECDC4"]
-    }]
-  },
-  "options": {
-    "responsive": true,
-    "plugins": {
-      "title": {
-        "display": true,
-        "text": "Data Analysis from Tools"
-      }
-    }
-  }
-}
-\`\`\`
+**CRITICAL: DESCRIPTION FIELD RULES**
+- **NO FILES = NO DESCRIPTION**: If you create zero files, you MUST NOT provide any description field
+- **FILES EXIST = BRIEF DESCRIPTION**: Only when files are actually created, provide a single sentence describing what the files contain
+- **NEVER**: Create description without files or files without description
 
-**IMPORTANT RESTRICTIONS FOR CHART CREATION:**
-- **NEVER use callback functions in tooltip, scales, or any other options**
-- **AVOID complex JavaScript functions inside JSON - they cannot be parsed**
-- **Use simple, static configurations only**
-- **For tooltips, rely on Chart.js default formatting - it's sufficient for most cases**
-
-**FORBIDDEN PATTERNS (will cause parsing errors):**
-❌ "callbacks": { "label": "function(context) { ... }" }
-❌ "callback": "function(value) { return ['A', 'B'][value]; }"
-❌ Any string containing backslashes like "text with \\\\ backslash"
-❌ Multi-line strings with \\ line continuation
-❌ Raw JSON without \`\`\`chartjs wrapper
-
-**SAFE ALTERNATIVE APPROACHES:**
-✅ Use default Chart.js tooltips (no custom callbacks needed)
-✅ Use simple static labels: "labels": ["Category A", "Category B", "Category C"]
-✅ Use basic title and legend configurations without functions
-✅ Rely on Chart.js automatic formatting for most data displays
-✅ ALWAYS wrap with \`\`\`chartjs code block (MOST IMPORTANT)
-
-**Chart Creation Scenarios:**
-- Web search results: Create comparison or trend charts
-- Academic research data: Visualize research findings or statistics
-- YouTube video analysis: Show engagement metrics or trends
-- Calculator results: Display mathematical relationships
-- Multi-source data: Create comprehensive comparison visualizations
-
-**File Types to Consider (ONLY if needed):**
-- Code files (.py, .js, etc.): For complete, executable code examples
-- Data files (.json, .csv): For structured data
-- Chart files (.md): For data visualizations using chartjs blocks
-- Explanation files (.md): For detailed explanations or background information
-- Step-by-step guides (.md): For procedures or tutorials
-- Comparison tables (.md): For comparing multiple options or data points
+**File formatting requirements (IF creating files):**
+- Use appropriate file extensions and clear naming
+- Format with proper Markdown syntax including code blocks with language specification
+- Ensure each file is immediately usable and self-contained
 
 ## Important Guidelines:
-- Respond in the same language as the user's query
+- Respond in the same language in user's preferred language
 - You MUST NOT create a main response again - the user has already been given the main response
 - DO NOT create files & descriptions unless they provide substantial additional value
-- NEVER use HTML tags in file content
-- Consider creating charts when you have gathered quantitative data that would benefit from visualization
+- For charts: Follow the chart creation guidelines from the base prompt - only create when there's substantial quantitative data with clear insights
 `;
 
                     let finalModel = model;
 
-                  // Claude Sonnet 시리즈가 선택된 경우 무조건 Gemini 2.5 Pro로 대체
+                  // // Claude Sonnet 시리즈가 선택된 경우 무조건 Gemini 2.5 Pro로 대체
                   if (model.includes('claude') && model.includes('sonnet')) {
+                    // finalModel = 'gpt-4.1';
                     finalModel = 'gemini-2.5-pro-preview-05-06';
                   }
 
-                  // gpt-4.1-mini가 선택된 경우 gpt-4.1으로 업그레이드
-                  if (finalModel === 'gpt-4.1-mini') {
-                    finalModel = 'gpt-4.1';
-                  }
+                  // // gpt-4.1-mini가 선택된 경우 gpt-4.1으로 업그레이드
+                  // if (finalModel === 'gpt-4.1-mini') {
+                  //   finalModel = 'gpt-4.1';
+                  // }
             
                   // 세번째 단계: 구조화된 응답 생성 (파일만)
                   const objectResult = await streamObject({
@@ -1375,14 +1334,14 @@ Example chart format:
                     messages: messagesForAgentMode,
                     schema: z.object({
                       response: z.object({
-                        description: z.string().optional().describe('ONLY include this field when files are actually being created. Brief description of the supporting files being provided. DO NOT include this field if no files are created.'),
+                        description: z.string().optional().describe('CRITICAL RULE: This field is FORBIDDEN unless files array contains actual files. If files array is empty or undefined, this field MUST BE OMITTED completely. Only include when files are actually created - then provide exactly one sentence describing what the files contain.'),
                         files: z.array(
                           z.object({
                             name: z.string().describe('Name of the file with appropriate extension (e.g., code.py, data.json, explanation.md)'),
                             content: z.string().describe('Content of the file formatted with proper Markdown syntax, including code blocks with language specification'),
                             description: z.string().optional().describe('Optional short description of what this file contains')
                           })
-                        ).optional().describe('Optional list of files to display in the canvas area - ONLY include when necessary for complex information that cannot be fully communicated in the main response')
+                        ).optional().describe('RARELY USED - Only create files when: 1) User explicitly requested specific deliverables (code, documents), 2) Content is too long/complex for chat (>500 words, executable code), 3) Content has clear standalone utility (user would save/reference separately), 4) NOT just reformatted main response content. DEFAULT: empty array (no files)')
                       })
                     }),
                     // providerOptions: providerOptions,
@@ -1561,7 +1520,8 @@ Format your response as exactly 3 lines, one question per line, with no numberin
             });
 
           } else {
-            // 일반 채팅 흐름 - 원래 코드 사용에 토큰 제한 최적화 추가            // 시스템 프롬프트 토큰 수 추정
+            // 일반 채팅 흐름 - 원래 코드 사용에 토큰 제한 최적화 추가
+            // 시스템 프롬프트 토큰 수 추정
             const systemTokens = estimateTokenCount(currentSystemPrompt);
             
             // 모델의 컨텍스트 윈도우 또는 기본값 사용

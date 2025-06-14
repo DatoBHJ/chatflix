@@ -5,7 +5,6 @@ import LinkReader from './LinkReader';
 import { ChevronUp, ChevronDown, Brain, Link2, Image as ImageIcon, AlertTriangle, X, ChevronLeft, ChevronRight, ExternalLink, Search, Calculator, BookOpen, FileSearch, Youtube, Database } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { Tweet } from 'react-tweet';
-import DataProcessorCanvas from './data-processor-canvas';
 import { XLogo, YouTubeLogo } from './CanvasFolder/CanvasLogo';
 import { YouTubeVideo, ImageWithLoading } from './CanvasFolder/toolComponent';
 

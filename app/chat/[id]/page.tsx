@@ -5,7 +5,6 @@ import { Message } from 'ai'
 import { useState, useEffect, use, useRef, useCallback, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { ModelSelector } from '../../components/ModelSelector'
 import { Header } from '../../components/Header'
 import { Sidebar } from '../../components/Sidebar'
 import { convertMessage, uploadFile } from './utils'
@@ -15,13 +14,11 @@ import { useMessages } from '@/app/hooks/useMessages'
 import { getDefaultModelId, getSystemDefaultModelId, MODEL_CONFIGS } from '@/lib/models/config'
 import '@/app/styles/attachments.css'
 import '@/app/styles/loading-dots.css'
-import { Message as MessageComponent } from '@/app/components/Message'
-import { ChatInput } from '@/app/components/ChatInput/index';
-import Canvas from '@/app/components/Canvas';
-import { FollowUpQuestions } from '@/app/components/FollowUpQuestions';
+import { Messages } from '@/app/components/Messages'
+import { SidePanel } from '@/app/components/SidePanel'
+import { ChatInputArea } from '@/app/components/ChatInputArea';
 import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getXSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getAcademicSearchData } from '@/app/hooks/toolFunction';
-import { StructuredResponse } from '@/app/components/StructuredResponse';
-import { Annotation, File, getStructuredResponseFiles } from '@/app/lib/messageUtils';
+import { Annotation } from '@/app/lib/messageUtils';
 
 export default function Chat({ params }: PageProps) {
   const { id: chatId } = use(params)
@@ -197,18 +194,6 @@ export default function Chat({ params }: PageProps) {
     setEditingContent
   } = useMessages(chatId, user?.id)
 
-  // 스크롤 함수 개선 - 채팅과 캔버스 모두 스크롤
-  const scrollToBottom = useCallback(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
-    }
-    
-    // 캔버스도 맨 아래로 스크롤
-    if (canvasContainerRef.current) {
-      canvasContainerRef.current.scrollTop = canvasContainerRef.current.scrollHeight;
-    }
-  }, [messages.length]);
-
   // 특정 메시지로 스크롤하는 함수 개선 - 캔버스 동기화
   const scrollToMessage = useCallback((messageId: string) => {
     if (!messageId) return;
@@ -234,9 +219,6 @@ export default function Chat({ params }: PageProps) {
       }
     }
   }, []);
-
-  // 스크롤바 숨기는 CSS 클래스를 추가
-  const hideScrollbarClass = "scrollbar-hide";
 
   // 스타일 추가를 위한 useEffect
   useEffect(() => {
@@ -653,12 +635,45 @@ export default function Chat({ params }: PageProps) {
     }
   }, [currentModel])
 
-  // Add back initialization scroll effect only
+  // Stable scroll management - inspired by reference code patterns
   useEffect(() => {
-    if (isInitialized && isFullyLoaded) {
-      scrollToBottom();
+    if (messagesEndRef.current) {
+      // Auto-scroll when any operation starts (new message, regeneration, edit)
+      if (isLoading || isRegenerating) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+      // Also scroll when messages are added/updated and we're not in initial load
+      else if (isInitialized && messages.length > 0 && editingMessageId === null) {
+        // Only scroll when not editing to prevent premature scrolling
+        // Use a small delay to ensure DOM has updated
+        setTimeout(() => {
+          if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 100);
+      }
     }
-  }, [isInitialized, isFullyLoaded, scrollToBottom]);
+  }, [messages.length, isLoading, isRegenerating, isInitialized, editingMessageId]);
+
+  // Initial scroll on page load
+  useEffect(() => {
+    if (isInitialized && isFullyLoaded && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'instant' });
+    }
+  }, [isInitialized, isFullyLoaded]);
+
+  // Handle scroll after editing operations complete - improved timing
+  useEffect(() => {
+    // Only scroll after editing operations are completely finished
+    if (!isLoading && !isRegenerating && editingMessageId === null && messagesEndRef.current) {
+      // Longer delay to ensure UI updates are complete before scrolling
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 300);
+    }
+  }, [isLoading, isRegenerating, editingMessageId]);
 
   const handleModelChange = async (newModel: string) => {
     try {
@@ -989,14 +1004,28 @@ export default function Chat({ params }: PageProps) {
     }
   };
 
-  // 사용자가 새로운 메시지를 전송할 때 스크롤 플래그 재설정
+  // Enhanced message submission with stable scroll behavior
   const handleModelSubmitWithReset = useCallback(async (e: React.FormEvent, files?: FileList) => {
     // 패널 상태 선호도 초기화 - 새 데이터에 대해 자동 표시 허용
     setUserPanelPreference(null);
     
+    // Ensure consistent scroll behavior for all submission types
+    // The scroll will be handled by the useEffect that watches isLoading
+    
     // 기존 handleModelSubmit 호출
     await handleModelSubmit(e, files);
   }, [handleModelSubmit]);
+
+  // Simplified spacer logic based on reference implementation
+  const shouldShowSpacer = useMemo(() => {
+    // Don't show spacer when we have messages and assistant has responded
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      // Only show spacer when loading/regenerating or last message is from user
+      return isLoading || isRegenerating || lastMessage?.role === 'user';
+    }
+    return false;
+  }, [messages, isLoading, isRegenerating]);
 
   // 해당 메시지에 캔버스 데이터가 있는지 확인하는 함수
   const hasCanvasData = (message: Message) => {
@@ -1057,9 +1086,6 @@ export default function Chat({ params }: PageProps) {
   };
   // 새 메시지가 추가되거나 메시지 내용이 변경될 때 패널 데이터 업데이트
   useEffect(() => {
-    // 모바일 환경 여부 확인
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
-    
     // 마지막 어시스턴트 메시지 찾기
     const lastAssistantMessages = messages.filter(msg => msg.role === 'assistant');
     if (lastAssistantMessages.length === 0) return;
@@ -1221,353 +1247,61 @@ export default function Chat({ params }: PageProps) {
               scrollbar-minimal
               transition-all duration-300 ease-in-out`}
             style={{ height: '100%' }}
+            ref={messagesContainerRef}
           >
-            <div 
-              className="messages-container"
-              ref={messagesContainerRef}
-            >
-            
-                {messages.map((message, index) => {
-                  const messageHasCanvasData = hasCanvasData(message);
-                  
-                  // 각 메시지의 캔버스 데이터 가져오기
-                  const webSearchData = getWebSearchResults(message);
-                  const mathCalculationData = getMathCalculationData(message);
-                  const linkReaderData = getLinkReaderData(message);
-                  const imageGeneratorData = getImageGeneratorData(message);
-                  const academicSearchData = getAcademicSearchData(message);
-                  const youTubeSearchData = getYouTubeSearchData(message);
-                  const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(message);
-
-                  return (
-                    <div key={message.id}>
-                      <div className="relative">
-                        <MessageComponent
-                          message={message}
-                          currentModel={currentModel}
-                          isRegenerating={isRegenerating}
-                          editingMessageId={editingMessageId}
-                          editingContent={editingContent}
-                          copiedMessageId={copiedMessageId}
-                          onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
-                          onCopy={handleCopyMessage}
-                          onEditStart={handleEditStart}
-                          onEditCancel={handleEditCancel}
-                          onEditSave={(messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => handleEditSave(messageId, currentModel, messages, setMessages, reload, files, remainingAttachments)}
-                          setEditingContent={setEditingContent}
-                          chatId={chatId}
-                          isStreaming={isLoading && message.role === 'assistant' && message.id === messages[messages.length - 1]?.id}
-                          isWaitingForToolResults={isWaitingForToolResults(message)}
-                          messageHasCanvasData={messageHasCanvasData}
-                          activePanelMessageId={activePanel?.messageId}
-                          togglePanel={togglePanel}
-                          webSearchData={webSearchData}
-                          mathCalculationData={mathCalculationData}
-                          linkReaderData={linkReaderData}
-                          imageGeneratorData={imageGeneratorData}
-                          academicSearchData={academicSearchData}
-                          youTubeSearchData={youTubeSearchData}
-                          youTubeLinkAnalysisData={youTubeLinkAnalysisData}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              {/* )} */}
-              {/* Show immediate loading response after sending message */}
-              {isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'user' && (
-                <div>
-                  <MessageComponent
-                    message={{
-                      id: 'loading-message',
-                      role: 'assistant',
-                      content: '',
-                      createdAt: new Date()
-                    }}
-                    currentModel={currentModel}
-                    isRegenerating={false}
-                    editingMessageId={null}
-                    editingContent={''}
-                    copiedMessageId={null}
-                    onRegenerate={() => () => {}}
-                    onCopy={() => {}}
-                    onEditStart={() => {}}
-                    onEditCancel={() => {}}
-                    onEditSave={() => {}}
-                    setEditingContent={() => {}}
-                    chatId={chatId}
-                    isStreaming={true}
-                    isWaitingForToolResults={true}
-                    messageHasCanvasData={false}
-                    activePanelMessageId={activePanel?.messageId}
-                    togglePanel={togglePanel}
-                    webSearchData={null}
-                    mathCalculationData={null}
-                    linkReaderData={null}
-                    imageGeneratorData={null}
-                    academicSearchData={null}
-                    youTubeSearchData={null}
-                    youTubeLinkAnalysisData={null}
-                  />
-                </div>
-              )}
-              
-              {/* Add follow-up questions only if virtualization is not used */}
-              {/* {!useVirtualization && !isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && user && ( */}
-              {!isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && user && (
-                <FollowUpQuestions 
-                  chatId={chatId} 
-                  userId={user.id} 
-                  messages={messages} 
-                  onQuestionClick={handleFollowUpQuestionClick} 
-                />
-              )}
-              
-              <div ref={messagesEndRef} className="h-px" />
-            </div>
+            <Messages
+              messages={messages}
+              currentModel={currentModel}
+              isRegenerating={isRegenerating}
+              editingMessageId={editingMessageId}
+              editingContent={editingContent}
+              copiedMessageId={copiedMessageId}
+              onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
+              onCopy={handleCopyMessage}
+              onEditStart={handleEditStart}
+              onEditCancel={handleEditCancel}
+              onEditSave={(messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => handleEditSave(messageId, currentModel, messages, setMessages, reload, files, remainingAttachments)}
+              setEditingContent={setEditingContent}
+              chatId={chatId}
+              isLoading={isLoading}
+              activePanelMessageId={activePanel?.messageId}
+              togglePanel={togglePanel}
+              user={user}
+              handleFollowUpQuestionClick={handleFollowUpQuestionClick}
+              hasCanvasData={hasCanvasData}
+              isWaitingForToolResults={isWaitingForToolResults}
+              shouldShowSpacer={shouldShowSpacer}
+              messagesEndRef={messagesEndRef}
+            />
           </div>
 
-          {/* 우측 사이드 패널 - 조건부 렌더링이 아닌 항상 렌더링하되 상태에 따라 표시/숨김 */}
-          <div 
-            className={`fixed sm:relative top-[60px] sm:top-0 right-0 bottom-0 
-              w-full sm:w-4/6 bg-[var(--background)] sm:border-l 
-              border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] 
-              overflow-y-auto z-0 
-              transition-all duration-300 ease-in-out transform 
-              ${activePanel?.messageId ? 'translate-x-0 opacity-100 sm:max-w-[66.666667%]' : 'translate-x-full sm:translate-x-0 sm:max-w-0 sm:opacity-0 sm:overflow-hidden'} 
-              scrollbar-minimal`}
-            style={{ 
-              height: 'calc(100vh - 60px)',
-              maxHeight: '100%'
-            }}
-            ref={canvasContainerRef}
-          >
-            {/* 패널 헤더 (모바일/데스크탑 공통) */}
-            {activePanel?.messageId && (
-              <div className="sticky top-0 z-10 bg-[var(--background)] flex items-center justify-between px-3 sm:px-4 h-auto py-2 sm:py-2.5 border-b border-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
-                <div className="flex items-center">
-                  <button 
-                    onClick={() => togglePanel(activePanel?.messageId || '', activePanel?.type || 'canvas', activePanel?.fileIndex, activePanel?.toolType)}
-                    className="w-8 h-8 flex items-center justify-center mr-2 sm:mr-3"
-                    aria-label="Close panel"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                  </button>
-                  <div className="flex flex-col">
-                    <h3 className="text-base sm:text-lg font-semibold">
-                      {activePanel.type === 'canvas' ? (
-                        activePanel.toolType ? (
-                          // 특정 도구가 선택된 경우 도구 이름 표시
-                          (() => {
-                            const toolNames: { [key: string]: string } = {
-                              'web-search': 'Web Search',
-                              'calculator': 'Calculator', 
-                              'link-reader': 'Link Reader',
-                              'image-generator': 'Image Generator',
-                              'academic-search': 'Academic Search',
-                              'x-search': 'X Search',
-                              'youtube-search': 'YouTube Search',
-                              'youtube-analyzer': 'YouTube Analyzer'
-                            };
-                            return toolNames[activePanel.toolType] || 'Canvas Tool';
-                          })()
-                        ) : 'Canvas'
-                      ) : (
-                        // 특정 파일이 선택된 경우 파일 이름을 제목으로 사용
-                        activePanel.fileName || 'File Details'
-                      )}
-                    </h3>
-                    {activePanel.type === 'canvas' && !activePanel.toolType && (() => {
-                      const activeMessageForCanvas = messages.find(msg => msg.id === activePanel?.messageId);
-                      if (!activeMessageForCanvas) return null;
-
-                      const canvasDataSummary: string[] = [];
-                      if (getWebSearchResults(activeMessageForCanvas)) canvasDataSummary.push('Web Search');
-                      if (getMathCalculationData(activeMessageForCanvas)) canvasDataSummary.push('Calculator');
-                      if (getLinkReaderData(activeMessageForCanvas)) canvasDataSummary.push('Link Reader');
-                      if (getImageGeneratorData(activeMessageForCanvas)) canvasDataSummary.push('Image Gen');
-                      if (getAcademicSearchData(activeMessageForCanvas)) canvasDataSummary.push('Academic Search');
-                      if (getYouTubeSearchData(activeMessageForCanvas)) canvasDataSummary.push('YouTube Search');
-                      if (getYouTubeLinkAnalysisData(activeMessageForCanvas)) canvasDataSummary.push('YouTube Analysis');
-                      // Add other canvas data types here as needed
-
-                      if (canvasDataSummary.length > 0) {
-                        return <p className="text-xs text-[var(--muted)] mt-0.5">{canvasDataSummary.join(', ')}</p>;
-                      }
-                      return null;
-                    })()}
-                    {/* 파일 설명 제거 - 파일 이름이 제목이므로 중복 */}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 sm:gap-2">
-                  {/* 특정 파일이 선택된 경우에만 복사/다운로드 버튼 표시 */}
-                  {activePanel.type === 'structuredResponse' && typeof activePanel.fileIndex === 'number' && (() => {
-                      const activeMessageForPanel = messages.find(msg => msg.id === activePanel?.messageId);
-                      if (!activeMessageForPanel) return null;
-                      
-                      // StructuredResponse.tsx와 동일한 방식으로 파일 데이터 가져오기
-                      const getStructuredResponseData = (message: any) => {
-                        const structuredResponseAnnotation = message.annotations?.find(
-                          (annotation: any) => annotation.type === 'structured_response'
-                        );
-                        
-                        if (structuredResponseAnnotation?.data?.response) {
-                          return structuredResponseAnnotation.data.response;
-                        }
-                        
-                        if (message.tool_results?.structuredResponse?.response) {
-                          return message.tool_results.structuredResponse.response;
-                        }
-                        
-                        const progressAnnotations = message.annotations?.filter(
-                          (annotation: any) => annotation.type === 'structured_response_progress'
-                        );
-                        
-                        if (progressAnnotations?.length > 0) {
-                          const latestProgress = progressAnnotations[progressAnnotations.length - 1];
-                          if (latestProgress.data?.response) {
-                            return {
-                              ...latestProgress.data.response,
-                              isProgress: true
-                            };
-                          }
-                        }
-                        
-                        return null;
-                      };
-                      
-                      const responseData = getStructuredResponseData(activeMessageForPanel);
-                      const filesForPanel = responseData?.files;
-                      if (!filesForPanel || activePanel.fileIndex < 0 || activePanel.fileIndex >= filesForPanel.length) return null;
-                    
-                    const selectedFile = filesForPanel[activePanel.fileIndex];
-                    
-                    const downloadFile = () => {
-                      const blob = new Blob([selectedFile.content], { type: 'text/plain' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = selectedFile.name;
-                      document.body.appendChild(a);
-                      a.click();
-                      document.body.removeChild(a);
-                      URL.revokeObjectURL(url);
-                    };
-                    
-                    const copyFileContent = () => {
-                      navigator.clipboard.writeText(selectedFile.content)
-                        .then(() => {
-                          // 복사 성공 피드백 (임시로 버튼 텍스트 변경 등)
-                        })
-                        .catch((err) => {
-                          console.error('Failed to copy file content:', err);
-                        });
-                    };
-                    
-                    return (
-                      <>
-                        {/* 다운로드 버튼 */}
-                        <button
-                          onClick={downloadFile}
-                          className="rounded-full p-1.5 sm:p-2 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors"
-                          title="Download file"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" className="sm:w-[18px] sm:h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="7,10 12,15 17,10"/>
-                            <line x1="12" y1="15" x2="12" y2="3"/>
-                          </svg>
-                        </button>
-                        {/* 복사 버튼 */}
-                        <button
-                          onClick={copyFileContent}
-                          className="rounded-full p-1.5 sm:p-2 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors"
-                          title="Copy file content"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" className="sm:w-[18px] sm:h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
-                            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
-                          </svg>
-                        </button>
-                      </>
-                    );
-                    })()}
-                  </div>
-              </div>
-            )}
-
-            {/* 패널 내용 - 선택된 메시지의 캔버스 데이터만 표시 */}
-            <div className="px-3 sm:px-4 pt-3 sm:pt-4 pb-28">
-              {messages
-                .filter(message => message.id === activePanel?.messageId)
-                .map((message) => {
-                  const webSearchData = getWebSearchResults(message);
-                  const mathCalculationData = getMathCalculationData(message);
-                  const linkReaderData = getLinkReaderData(message);
-                  const imageGeneratorData = getImageGeneratorData(message);
-                  const academicSearchData = getAcademicSearchData(message);
-                  const youTubeSearchData = getYouTubeSearchData(message);
-                  const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(message);
-
-                  return (
-                    <div key={`panel-content-${message.id}`}>
-                      {activePanel?.type === 'canvas' && (
-                        <Canvas
-                          webSearchData={webSearchData}
-                          mathCalculationData={mathCalculationData}
-                          linkReaderData={linkReaderData}
-                          imageGeneratorData={imageGeneratorData}
-                          academicSearchData={academicSearchData}
-                          youTubeSearchData={youTubeSearchData}
-                          youTubeLinkAnalysisData={youTubeLinkAnalysisData}
-                          isCompact={false} // 패널에서는 항상 전체 보기
-                          selectedTool={activePanel?.toolType} // 선택된 도구 전달
-                        />
-                      )}
-                      {activePanel?.type === 'structuredResponse' && (
-                        <StructuredResponse message={message} fileIndex={activePanel?.fileIndex} />
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
+          {/* 우측 사이드 패널 */}
+          <SidePanel
+            activePanel={activePanel}
+            messages={messages}
+            togglePanel={togglePanel}
+            canvasContainerRef={canvasContainerRef}
+          />
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-10 w-full">
-        <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-0 pb-6 w-full">
-          <div className="max-w-3xl mx-auto w-full px-6 sm:px-8 relative flex flex-col items-center">
-            <div className="w-full max-w-[calc(100vw-2rem)]">
-              <ModelSelector
-                currentModel={currentModel}
-                nextModel={nextModel}
-                setNextModel={setNextModel}
-                setCurrentModel={setCurrentModel}
-                position="top"
-                disabledLevels={rateLimitedLevels}
-                isAgentEnabled={isAgentEnabled}
-                onAgentAvailabilityChange={setHasAgentModels}
-                user={user}
-              />
-              <ChatInput
-                input={input}
-                handleInputChange={handleInputChange}
-                handleSubmit={handleModelSubmitWithReset}
-                isLoading={isLoading}
-                stop={handleStop}
-                user={{...user, hasAgentModels}}
-                modelId={nextModel}
-                isAgentEnabled={isAgentEnabled}
-                setisAgentEnabled={setAgentEnabledHandler}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+      <ChatInputArea
+        currentModel={currentModel}
+        nextModel={nextModel}
+        setNextModel={setNextModel}
+        setCurrentModel={setCurrentModel}
+        disabledLevels={rateLimitedLevels}
+        isAgentEnabled={isAgentEnabled}
+        onAgentAvailabilityChange={setHasAgentModels}
+        setisAgentEnabled={setAgentEnabledHandler}
+        input={input}
+        handleInputChange={handleInputChange}
+        handleSubmit={handleModelSubmitWithReset}
+        isLoading={isLoading}
+        stop={handleStop}
+        user={{...user, hasAgentModels}}
+        modelId={nextModel}
+      />
     </main>
   )
 } 

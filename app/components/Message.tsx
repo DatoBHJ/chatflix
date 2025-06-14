@@ -1,193 +1,31 @@
 import type { Message as AIMessage } from 'ai'
 import { IconCheck, IconCopy, IconRefresh } from './icons'
 import { ReasoningSection } from './ReasoningSection'
-import { MarkdownContent } from './MarkdownContent' // MarkdownContent import 확인
+import { MarkdownContent } from './MarkdownContent' 
 import { ExtendedMessage } from '../chat/[id]/types'
-import { getModelById } from '@/lib/models/config'
 import { Attachment } from '@/lib/types'
 import React, { memo, useCallback, useState, useEffect, useMemo, useRef } from 'react'
 import Image from 'next/image'
-import { createClient } from '@/utils/supabase/client' // createClient import 추가
-import { useRouter } from 'next/navigation'; // useRouter import 추가
+import { createClient } from '@/utils/supabase/client'
+import { useRouter } from 'next/navigation';
 import { XLogo, YouTubeLogo } from './CanvasFolder/CanvasLogo';
-import { Brain, ChevronDown, ChevronUp, Search, Calculator, Link2, ImageIcon, BookOpen, Youtube, FileText, Download, Copy, Check, Wrench, Monitor } from 'lucide-react'
-import { getProviderLogo, hasLogo } from '@/app/lib/models/logoUtils';
+import { ChevronDown, ChevronUp, Search, Calculator, Link2, ImageIcon, BookOpen, Youtube, Wrench } from 'lucide-react'
 import { AttachmentPreview } from './Attachment'
-import { PlanningSection } from './PlanningSection'; // Import PlanningSection
-import { FileUploadButton, fileHelpers } from './ChatInput/FileUpload'; // FileUpload 컴포넌트들 임포트
-import { DragDropOverlay } from './ChatInput/DragDropOverlay'; // DragDropOverlay 추가
+import { PlanningSection } from './PlanningSection'; 
+import { FileUploadButton } from './ChatInput/FileUpload'; 
+import { DragDropOverlay } from './ChatInput/DragDropOverlay'; 
 import { 
-  File, 
   getStructuredResponseMainContent, 
   getStructuredResponseDescription, 
   isStructuredResponseInProgress, 
-  extractReasoningForMessage // Added import
+  extractReasoningForMessage  
 } from '@/app/lib/messageUtils';
+import { ModelNameWithLogo, ModelCapabilityBadges } from './ModelInfo'; 
+import { linkifyText } from '../lib/textUtils'
+import { CanvasToolsPreview } from './Canvas/CanvasToolsPreview'
+import { FilesPreview } from './FilePreview/FilesPreview'
+import { EditingFilePreview } from './FilePreview/EditingFilePreview'
 
-// Model name with logo component
-const ModelNameWithLogo = ({ modelId }: { modelId: string }) => {
-  const model = getModelById(modelId);
-  
-  if (!model) {
-    return (
-      <div className="text-xs text-[var(--muted)] uppercase tracking-wider">
-        {modelId}
-      </div>
-    );
-  }
-  
-  // Always use abbreviation when available
-  const displayName = model.abbreviation || model.name || modelId;
-  
-  return (
-    <div className="flex items-center gap-1.5">
-      {/* Provider Logo */}
-      {model.provider && hasLogo(model.provider) && (
-        <div className="w-3.5 h-3.5 flex-shrink-0 rounded-full overflow-hidden border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)]">
-          <Image 
-            src={getProviderLogo(model.provider, model.id)}
-            alt={`${model.provider} logo`}
-            width={14}
-            height={14}
-            className="object-contain"
-          />
-        </div>
-      )}
-      <div className="text-xs text-[var(--muted)] uppercase tracking-wider">
-        {displayName}
-      </div>
-    </div>
-  );
-};
-
-// Model capability badges component
-const ModelCapabilityBadges = ({ modelId }: { modelId: string }) => {
-  const model = getModelById(modelId);
-  if (!model) return null;
-  
-  // Add state to check if on mobile
-  const [isMobile, setIsMobile] = useState(false);
-  
-  // Check if mobile on mount and window resize
-  useEffect(() => {
-    const checkIfMobile = () => {
-      setIsMobile(window.innerWidth < 640); // sm breakpoint
-    };
-    
-    checkIfMobile();
-    window.addEventListener('resize', checkIfMobile);
-    return () => window.removeEventListener('resize', checkIfMobile);
-  }, []);
-  
-  return (
-    <div className="flex items-center gap-2">
-      {/* Context Window Badge */}
-      {model.contextWindow && (
-        <div 
-          className="rounded-full px-1.5 py-0.5 text-xs flex items-center gap-1 hover:bg-[var(--foreground)]/5" 
-          title={`Context Window: ${model.contextWindow.toLocaleString()} tokens - Maximum amount of text this model can process in a single conversation.`}
-        >
-          {/* 데스크탑에서만 아이콘 표시 */}
-          {!isMobile && (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
-              <path fillRule="evenodd" d="M4.125 3C3.089 3 2.25 3.84 2.25 4.875V18a3 3 0 003 3h15.75a3 3 0 01-3-3V4.875C18 3.839 17.16 3 16.125 3H4.125zM12 9.75a.75.75 0 000 1.5h1.5a.75.75 0 000-1.5H12zm-.75-2.25a.75.75 0 01.75-.75h1.5a.75.75 0 010 1.5H12a.75.75 0 01-.75-.75zM6 12.75a.75.75 0 000 1.5h7.5a.75.75 0 000-1.5H6zm-.75 3.75a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5H6a.75.75 0 01-.75-.75zM6 6.75a.75.75 0 00-.75.75v3c0 .414.336.75.75.75h3a.75.75 0 00.75-.75v-3A.75.75 0 009 6.75H6z" clipRule="evenodd" />
-              <path d="M18.75 6.75h1.875c.621 0 1.125.504 1.125 1.125V18a1.5 1.5 0 01-3 0V6.75z" />
-            </svg>
-          )}
-          <span className="text-xs">
-            {isMobile ? (
-              // 모바일에서는 숫자만 표시 (예: "200K")
-              model.contextWindow >= 1000000 
-                ? `${(model.contextWindow / 1000000).toFixed(0)}M`
-                : `${Math.round(model.contextWindow / 1000)}K`
-            ) : (
-              // 데스크탑에서는 기존 형식 유지 (예: "200K Context")
-              model.contextWindow >= 1000000 
-                ? `${(model.contextWindow / 1000000).toFixed(0)}M Context`
-                : `${Math.round(model.contextWindow / 1000)}K Context`
-            )}
-          </span>
-        </div>
-      )}
-      {/* Knowledge Cutoff - New badge */}
-      {/* {model.cutoff && (
-        <div 
-          className="rounded-full px-1.5 py-0.5 text-xs flex items-center gap-1 hover:bg-[var(--foreground)]/5" 
-          title={`Knowledge Cutoff: ${model.cutoff} - This model's training data includes information up until this date. It may not be aware of events, facts, or developments that occurred after this date.`}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
-            <path d="M12.75 12.75a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM7.5 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM8.25 17.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM9.75 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM10.5 17.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM12.75 17.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM14.25 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM15 17.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM16.5 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM15 12.75a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM16.5 13.5a.75.75 0 100-1.5.75.75 0 000 1.5z" />
-            <path fillRule="evenodd" d="M6.75 2.25A.75.75 0 017.5 3v1.5h9V3A.75.75 0 0118 3v1.5h.75a3 3 0 013 3v11.25a3 3 0 01-3 3H5.25a3 3 0 01-3-3V7.5a3 3 0 013-3H6V3a.75.75 0 01.75-.75zm13.5 9a1.5 1.5 0 00-1.5-1.5H5.25a1.5 1.5 0 00-1.5 1.5v7.5a1.5 1.5 0 001.5 1.5h13.5a1.5 1.5 0 001.5-1.5v-7.5z" clipRule="evenodd" />
-          </svg>
-          {!isMobile && (
-            <span className="text-xs">{model.cutoff}</span>
-          )}
-        </div>
-      )} */}
-      {/* Vision/Image Support - existing badge */}
-      <div className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-1 ${ 
-        model.supportsVision 
-          ? 'bg-[var(--accent)]/20' 
-          : 'bg-[var(--muted)]/20'
-      }`} title={model.supportsVision ? "Supports image input" : "Text-only model"}>
-        {model.supportsVision ? (
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
-            <path d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-          </svg>
-        ) : (
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
-            <path d="M3.53 2.47a.75.75 0 0 0-1.06 1.06l18 18a.75.75 0 1 0 1.06-1.06l-18-18ZM22.676 12.553a11.249 11.249 0 0 1-2.631 4.31l-3.099-3.099a5.25 5.25 0 0 0-6.71-6.71L7.759 4.577a11.217 11.217 0 0 1 4.242-.827c4.97 0 9.185 3.223 10.675 7.69.12.362.12.752 0 1.113Z" />
-            <path d="M15.75 12c0 .18-.013.357-.037.53l-4.244-4.243A3.75 3.75 0 0 1 15.75 12ZM12.53 15.713l-4.243-4.244a3.75 3.75 0 0 0 4.244 4.243Z" />
-            <path d="M6.75 12c0-.619.107-1.213.304-1.764l-3.1-3.1a11.25 11.25 0 0 0-2.63 4.31c-.12.362-.12.752 0 1.114 1.489 4.467 5.704 7.69 10.675 7.69 1.5 0 2.933-.294 4.242-.827l-2.477-2.477A5.25 5.25 0 0 1 6.75 12Z" />
-          </svg>
-        )}
-        {/* Show text only on desktop */}
-        {!isMobile && (
-          <span className="text-[9px] font-medium">
-            {model.supportsVision ? 'Image' : 'Text-only'}
-          </span>
-        )}
-      </div>
-      
-      {/* PDF Support - Use the exact ModelSelector.tsx styling */}
-      {model.supportsPDFs && (
-        <div className="rounded-full px-1.5 py-0.5 text-xs bg-[var(--accent)]/20 flex items-center gap-1" title="Can process PDF documents">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
-            <path fillRule="evenodd" d="M5.625 1.5H9a3.75 3.75 0 013.75 3.75v1.875c0 1.036.84 1.875 1.875 1.875H16.5a3.75 3.75 0 013.75 3.75v7.875c0 1.035-.84 1.875-1.875 1.875H5.625a1.875 1.875 0 01-1.875-1.875V3.375c0-1.036.84-1.875 1.875-1.875zM9.75 14.25a.75.75 0 000 1.5H15a.75.75 0 000-1.5H9.75z" clipRule="evenodd" />
-            <path d="M14.25 5.25a5.23 5.23 0 00-1.279-3.434 9.768 9.768 0 016.963 6.963A5.23 5.23 0 0016.5 7.5h-1.875a.375.375 0 01-.375-.375V5.25z" />
-          </svg>
-          {/* Show text only on desktop */}
-          {!isMobile && <span className="text-[9px] font-medium">PDF</span>}
-        </div>
-      )}
-      
-      {/* Censorship Status - Use the exact ModelSelector.tsx styling */}
-      {typeof model.censored !== 'undefined' && (
-        <div className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-1 ${ 
-          model.censored 
-            ? 'bg-[#FFA07A]/20' 
-            : 'bg-[#90EE90]/20'
-        }`} title={model.censored ? "Content may be filtered" : "Uncensored"}>
-          {model.censored ? (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
-              <path fillRule="evenodd" d="M12 1.5a5.25 5.25 0 0 0-5.25 5.25v3a3 3 0 0 0-3 3v6.75a3 3 0 0 0 3 3h10.5a3 3 0 0 0 3-3v-6.75a3 3 0 0 0-3-3v-3c0-2.9-2.35-5.25-5.25-5.25Zm3.75 8.25v-3a3.75 3.75 0 1 0-7.5 0v3h7.5Z" clipRule="evenodd" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
-              <path d="M18 1.5c2.9 0 5.25 2.35 5.25 5.25v3.75a.75.75 0 0 1-1.5 0V6.75a3.75 3.75 0 1 0-7.5 0v3a3 3 0 0 1 3 3v6.75a3 3 0 0 1-3 3H3.75a3 3 0 0 1-3-3v-6.75a3 3 0 0 1 3-3h9v-3c0-2.9 2.35-5.25 5.25-5.25Z" />
-            </svg>
-          )}
-          {/* Show text only on desktop */}
-          {!isMobile && (
-            <span className="text-[9px] font-medium">
-              {model.censored ? 'Censored' : 'Uncensored'}
-            </span>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
 
 interface MessageProps {
   message: AIMessage & { experimental_attachments?: Attachment[] }
@@ -208,7 +46,7 @@ interface MessageProps {
   messageHasCanvasData?: boolean
   activePanelMessageId?: string | null
   togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string, fileName?: string) => void
-  // Canvas 데이터 props 추가
+  isLastMessage?: boolean
   webSearchData?: any
   mathCalculationData?: any
   linkReaderData?: any
@@ -219,7 +57,6 @@ interface MessageProps {
   youTubeLinkAnalysisData?: any
 }
 
-// Update the helper function to check if reasoning is complete
 function isReasoningComplete(message: any): boolean {
   // If there are both reasoning and text parts, then reasoning is complete
   if (message.parts) {
@@ -234,39 +71,6 @@ function isReasoningComplete(message: any): boolean {
   return false;
 }
 
-// URL을 자동으로 감지하여 링크로 변환하는 유틸리티 함수 추가
-function linkifyText(text: string) {
-  // URL 패턴 (http, https로 시작하는 URL 감지)
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-  
-  const parts = text.split(urlRegex);
-  const result = [];
-  
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
-    if (part.match(urlRegex)) {
-      // URL인 경우 a 태그로 감싸기
-      result.push(
-        <a 
-          key={i} 
-          href={part} 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          className="text-blue-500 hover:underline break-all"
-        >
-          {part}
-        </a>
-      );
-    } else if (part) {
-      // 일반 텍스트인 경우 그대로 추가
-      result.push(<React.Fragment key={i}>{part}</React.Fragment>);
-    }
-  }
-  
-  return result;
-}
-
-// 사용자 메시지 전용 렌더링 컴포넌트
 interface UserMessageContentProps {
   content: string;
   showGradient?: boolean;
@@ -280,7 +84,6 @@ function UserMessageContent({
   onClick,
   isClickable 
 }: UserMessageContentProps) {
-  // 줄바꿈 처리 (텍스트에서 \\n을 <br />로 변환)
   const processedContent = content.split('\\n').map((line, index, array) => (
     <React.Fragment key={index}>
       {linkifyText(line)}
@@ -292,9 +95,9 @@ function UserMessageContent({
     <div 
       className={`user-message-content relative ${isClickable ? 'cursor-pointer' : ''}`}
       style={{
-        whiteSpace: 'pre-wrap',        // 공백과 줄바꿈 보존
-        wordBreak: 'break-word',       // 긴 단어 줄바꿈
-        overflowWrap: 'break-word',    // 긴 단어가 컨테이너를 넘어갈 때 줄바꿈
+        whiteSpace: 'pre-wrap',       
+        wordBreak: 'break-word',      
+        overflowWrap: 'break-word',   
       }}
       onClick={onClick}
     >
@@ -308,7 +111,6 @@ function UserMessageContent({
   );
 }
 
-// Create a memoized Message component to prevent unnecessary re-renders
 const Message = memo(function MessageComponent({
   message,
   currentModel,
@@ -325,9 +127,8 @@ const Message = memo(function MessageComponent({
   chatId,
   isStreaming = false,
   isWaitingForToolResults = false,
-  messageHasCanvasData,
-  activePanelMessageId,
   togglePanel,
+  isLastMessage,
   webSearchData,
   mathCalculationData,
   linkReaderData,
@@ -344,12 +145,7 @@ const Message = memo(function MessageComponent({
 
   // Get current user
   const [user, setUser] = useState<any>(null);
-  
-  // 파일 관련 상태
-  // const [openFileIndexes, setOpenFileIndexes] = useState<number[]>([]);
-  // const [structuredFiles, setStructuredFiles] = useState<File[] | null>(null);
-  // const [isResponseInProgress, setIsResponseInProgress] = useState(false);
-  
+
   // 편집 모드용 파일 상태 추가
   const [editingFiles, setEditingFiles] = useState<globalThis.File[]>([]);
   const [editingFileMap, setEditingFileMap] = useState<Map<string, { file: globalThis.File, url: string }>>(new Map());
@@ -364,10 +160,15 @@ const Message = memo(function MessageComponent({
   const reasoningContentRef = useRef<HTMLDivElement>(null);
   const userOverrideReasoningRef = useRef<boolean | null>(null);
   const prevIsReasoningCompleteRef = useRef<boolean | undefined>(undefined);
-  // const prevReasoningContentRef = useRef<any>(null); // Not strictly needed if only relying on isComplete and userOverride
   
-  // Planning 관련 상태 - 이제 PlanningSection에서 관리됩니다.
+  // Reasoning Part (message.parts) 관련 상태 추가
+  const [reasoningPartExpanded, setReasoningPartExpanded] = useState<Record<string, boolean>>({});
+  const userOverrideReasoningPartRef = useRef<Record<string, boolean | null>>({});
+  
+  // Planning 관련 상태
   const [currentPlanning, setCurrentPlanning] = useState<any>(null);
+  const [planningExpanded, setPlanningExpanded] = useState<Record<string, boolean>>({});
+  const userOverridePlanningRef = useRef<Record<string, boolean | null>>({});
   
   // Use useMemo to derive reasoning data from the message prop with stable dependencies
   const derivedReasoningData = useMemo(() => {
@@ -381,6 +182,54 @@ const Message = memo(function MessageComponent({
     )),
     JSON.stringify((message as any).tool_results?.agentReasoning)
   ]);
+  
+  // Reasoning part state management
+  const reasoningPart = message.parts?.find(part => part.type === 'reasoning');
+  const reasoningComplete = isReasoningComplete(message);
+  const loadingReasoningKey = `${message.id}-reasoning-loading`;
+  const completeReasoningKey = `${message.id}-reasoning-complete`;
+  
+  // Auto-expand/collapse logic for reasoning parts
+  useEffect(() => {
+    if (reasoningPart) {
+      const loadingUserOverride = userOverrideReasoningPartRef.current[loadingReasoningKey];
+      const completeUserOverride = userOverrideReasoningPartRef.current[completeReasoningKey];
+      
+      // Handle loading state reasoning
+      if (loadingUserOverride === null || loadingUserOverride === undefined) {
+        setReasoningPartExpanded(prev => ({
+          ...prev,
+          [loadingReasoningKey]: !reasoningComplete
+        }));
+      }
+      
+      // Handle complete state reasoning
+      if (completeUserOverride === null || completeUserOverride === undefined) {
+        setReasoningPartExpanded(prev => ({
+          ...prev,
+          [completeReasoningKey]: !reasoningComplete
+        }));
+      }
+    }
+  }, [reasoningComplete, loadingReasoningKey, completeReasoningKey, reasoningPart]);
+  
+  // Planning state management
+  const planningKey = `${message.id}-planning`;
+  
+  // Auto-expand/collapse logic for planning
+  useEffect(() => {
+    if (currentPlanning) {
+      const planningUserOverride = userOverridePlanningRef.current[planningKey];
+      
+      // Handle planning state
+      if (planningUserOverride === null || planningUserOverride === undefined) {
+        setPlanningExpanded(prev => ({
+          ...prev,
+          [planningKey]: !currentPlanning.isComplete
+        }));
+      }
+    }
+  }, [currentPlanning?.isComplete, planningKey, currentPlanning]);
   
   // 프리미엄 업그레이드 버튼 클릭 핸들러 (최상위 레벨에 배치)
   const router = useRouter(); // useRouter 사용
@@ -642,24 +491,6 @@ const Message = memo(function MessageComponent({
     fetchUser();
   }, []);
   
-  // 구조화된 응답 파일 목록 가져오기
-  // useEffect(() => {
-  //   const files = getStructuredResponseFiles(message);
-  //   const inProgress = isStructuredResponseInProgress(message);
-    
-  //   setStructuredFiles(files);
-  //   setIsResponseInProgress(inProgress);
-    
-  //   // 생성 중일 때는 모든 파일을 열고, 완료되면 모두 닫기
-  //   if (inProgress && files && files.length > 0) {
-  //     // 생성 중일 때는 모든 파일 열기
-  //     setOpenFileIndexes(files.map((_, idx) => idx));
-  //   } else if (!inProgress && isResponseInProgress) {
-  //     // 생성이 완료되면 모든 파일 닫기
-  //     setOpenFileIndexes([]);
-  //   }
-  // }, [message, message.annotations]);
-  
   // Agent Reasoning 데이터 처리 (Canvas와 동일한 로직)
   useEffect(() => {
     const newReasoningData = derivedReasoningData.completeData || derivedReasoningData.progressData || null;
@@ -735,12 +566,6 @@ const Message = memo(function MessageComponent({
       [messageId]: !prev[messageId]
     }));
   }, []);
-  
-  // Navigate to user insights page
-  const goToUserInsights = useCallback(() => {
-    // Next.js 13+ app router에서는 window.location 사용 가능 (권장되지는 않음)
-    window.location.href = '/user-insights';
-  }, []);
 
   const isEditing = editingMessageId === message.id;
   const isCopied = copiedMessageId === message.id;
@@ -809,6 +634,45 @@ const Message = memo(function MessageComponent({
     checkBookmarkStatus();
   }, [user, message.id, isAssistant]); // supabase 의존성 제거 (함수 내부에서 생성)
 
+  // 마지막 어시스턴트 메시지인지 확인
+  const isLastAssistantMessage = isLastMessage && message.role === 'assistant';
+
+  // 모바일 여부 확인
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkIfMobile = () => {
+      setIsMobile(window.innerWidth < 640); // sm breakpoint
+    };
+    
+    checkIfMobile();
+    window.addEventListener('resize', checkIfMobile);
+    return () => window.removeEventListener('resize', checkIfMobile);
+  }, []);
+
+  // 메시지가 긴지 또는 파일이 있는지 확인
+  const isLongOrHasFiles = useMemo(() => {
+    // 파일이 있는 경우
+    if (hasAttachments) return true;
+    
+    // 메시지가 긴 경우 (300자 이상)
+    if (hasContent && message.content.length > 300) return true;
+    
+    return false;
+  }, [hasAttachments, hasContent, message.content]);
+
+  // 조건에 따른 최소 높이 계산
+  const getMinHeight = useMemo(() => {
+    if (!isLastAssistantMessage) return '';
+    
+    if (isMobile) {
+      return isLongOrHasFiles ? 'min-h-[calc(100vh-16rem)]' : 'min-h-[calc(100vh-24rem)]';
+    } else {
+      // 데스크탑은 항상 32rem으로 통일
+      return 'min-h-[calc(100vh-32rem)]';
+    }
+  }, [isLastAssistantMessage, isLongOrHasFiles, isMobile]);
+
   // Toggle bookmark function
   const toggleBookmark = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -856,9 +720,6 @@ const Message = memo(function MessageComponent({
   
   // 로딩 상태에서도 Agent Reasoning 표시 (isAssistant + 로딩 중)
   if (isAssistant && (!hasAnyContent || isWaitingForToolResults || isStreaming)) {
-    // Look for reasoning parts in the message even during streaming
-    const reasoningPart = message.parts?.find(part => part.type === 'reasoning');
-    const reasoningComplete = isReasoningComplete(message);
     
     // 구독 상태 확인
     const subscriptionAnnotation = message.annotations?.find(
@@ -870,8 +731,20 @@ const Message = memo(function MessageComponent({
       (annotation) => annotation && typeof annotation === 'object' && 'type' in annotation && annotation.type === 'rate_limit_status'
     ) as any;
 
+    // 마지막 메시지인지 확인
+    const isLastAssistantMessage = isLastMessage && message.role === 'assistant';
+
+    // 조건에 따른 최소 높이 계산 (로딩 상태용)
+    const getLoadingMinHeight = () => {
+      if (!isLastAssistantMessage) return '';
+      
+      // 로딩 상태에서는 데스크탑 32rem, 모바일은 기본값 사용
+      const isMobileCheck = window.innerWidth < 640;
+      return isMobileCheck ? 'min-h-[calc(100vh-24rem)]' : 'min-h-[calc(100vh-32rem)]';
+    };
+
     return (
-      <div className="message-group group animate-fade-in overflow-hidden" id={message.id}>
+      <div className={`message-group group animate-fade-in overflow-hidden ${getLoadingMinHeight()}`} id={message.id}>
         <div className="message-role">
           <div className="inline-flex items-center gap-2">
             <div className="w-5 h-5 rounded-full overflow-hidden relative inline-block align-middle">
@@ -890,7 +763,28 @@ const Message = memo(function MessageComponent({
           <div className="message-assistant max-w-full">
             {/* Show planning section first */}
             {currentPlanning && (
-               <PlanningSection planningData={currentPlanning} />
+              (() => {
+                const isPlanningExpanded = planningExpanded[planningKey] ?? !currentPlanning.isComplete;
+                
+                const handleToggle = (expanded: boolean) => {
+                  setPlanningExpanded(prev => ({
+                    ...prev,
+                    [planningKey]: expanded
+                  }));
+                  userOverridePlanningRef.current = {
+                    ...userOverridePlanningRef.current,
+                    [planningKey]: expanded
+                  };
+                };
+                
+                return (
+                  <PlanningSection 
+                    planningData={currentPlanning}
+                    isExpanded={isPlanningExpanded}
+                    setIsExpanded={handleToggle}
+                  />
+                );
+              })()
             )}
             {/* Show agent reasoning section - only show when it has meaningful tool selection data */}
             {currentReasoning && (currentReasoning.agentThoughts || currentReasoning.selectionReasoning || (currentReasoning.selectedTools && currentReasoning.selectedTools.length > 0)) && (
@@ -1045,10 +939,29 @@ const Message = memo(function MessageComponent({
             
             {/* Show reasoning section if available during streaming */}
             {reasoningPart && (
-              <ReasoningSection 
-                content={reasoningPart.reasoning} 
-                isComplete={reasoningComplete} // Pass isComplete
-              />
+              (() => {
+                const isReasoningExpanded = reasoningPartExpanded[loadingReasoningKey] ?? !reasoningComplete;
+                
+                const handleToggle = (expanded: boolean) => {
+                  setReasoningPartExpanded(prev => ({
+                    ...prev,
+                    [loadingReasoningKey]: expanded
+                  }));
+                  userOverrideReasoningPartRef.current = {
+                    ...userOverrideReasoningPartRef.current,
+                    [loadingReasoningKey]: expanded
+                  };
+                };
+                
+                return (
+                  <ReasoningSection 
+                    content={reasoningPart.reasoning} 
+                    isComplete={reasoningComplete}
+                    isExpanded={isReasoningExpanded}
+                    setIsExpanded={handleToggle}
+                  />
+                );
+              })()
             )}
             {/* 로딩 중 Canvas 미리보기 - 새로운 CanvasToolsPreview 사용 */}
             {hasActualCanvasData && (
@@ -1219,7 +1132,7 @@ const Message = memo(function MessageComponent({
   }
 
   return (
-    <div className="message-group group animate-fade-in overflow-hidden" id={message.id}>
+    <div className={`message-group group animate-fade-in overflow-hidden ${getMinHeight}`} id={message.id}>
       <div className={`message-role ${isUser ? 'text-right' : ''}`}>
         {isAssistant ? (
           <div className="inline-flex items-center gap-2">
@@ -1244,7 +1157,28 @@ const Message = memo(function MessageComponent({
         }`}>
           {/* Planning은 항상 최상단에 표시 */}
           {currentPlanning && (
-            <PlanningSection planningData={currentPlanning} />
+            (() => {
+              const isPlanningExpanded = planningExpanded[planningKey] ?? !currentPlanning.isComplete;
+              
+              const handleToggle = (expanded: boolean) => {
+                setPlanningExpanded(prev => ({
+                  ...prev,
+                  [planningKey]: expanded
+                }));
+                userOverridePlanningRef.current = {
+                  ...userOverridePlanningRef.current,
+                  [planningKey]: expanded
+                };
+              };
+              
+              return (
+                <PlanningSection 
+                  planningData={currentPlanning}
+                  isExpanded={isPlanningExpanded}
+                  setIsExpanded={handleToggle}
+                />
+              );
+            })()
           )}
 
           {/* Agent Reasoning은 Planning 다음에 표시 - only show when it has meaningful tool selection data */}
@@ -1399,14 +1333,28 @@ const Message = memo(function MessageComponent({
           )}
 
           {/* ReasoningSection for streaming or message.parts */}
-          {message.parts?.find(part => part.type === 'reasoning') && (
+          {reasoningPart && (
             (() => {
-              const reasoningPart = message.parts?.find(part => part.type === 'reasoning');
+              const isReasoningExpanded = reasoningPartExpanded[completeReasoningKey] ?? !reasoningComplete;
+              
+              const handleToggle = (expanded: boolean) => {
+                setReasoningPartExpanded(prev => ({
+                  ...prev,
+                  [completeReasoningKey]: expanded
+                }));
+                userOverrideReasoningPartRef.current = {
+                  ...userOverrideReasoningPartRef.current,
+                  [completeReasoningKey]: expanded
+                };
+              };
+              
               return (
                 <ReasoningSection 
                   key="reasoning" 
                   content={reasoningPart!.reasoning} 
-                  isComplete={isReasoningComplete(message)} // Pass isComplete
+                  isComplete={reasoningComplete}
+                  isExpanded={isReasoningExpanded}
+                  setIsExpanded={handleToggle}
                 />
               );
             })()
@@ -1530,8 +1478,6 @@ const Message = memo(function MessageComponent({
                   )}
                   {message.parts.map((part, index) => {
                     if (part.type === 'text') {
-                      const shouldTruncate = isUser && !isEditing && !expandedMessages[message.id];
-                      const isLongMessage = part.text.length > 300;
                       
                       const textParts = message.parts ? message.parts.filter(p => p.type === 'text') : [];
                       const isLastTextPart = textParts.length > 0 && textParts[textParts.length - 1] === part;
@@ -1732,697 +1678,5 @@ const Message = memo(function MessageComponent({
   )
 });
 
-// 편집 모드 전용 파일 미리보기 컴포넌트
-const EditingFilePreview = memo(function EditingFilePreview({ 
-  files, 
-  fileMap, 
-  removeFile 
-}: { 
-  files: globalThis.File[];
-  fileMap: Map<string, { file: globalThis.File, url: string }>;
-  removeFile: (file: globalThis.File) => void;
-}) {
-  if (!files.length) return null;
-
-  return (
-    <div className="file-preview-wrapper -mx-2 px-4 pt-4 pb-1 mt-3 mb-3 relative">
-      <div className="file-preview-container grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 gap-y-3 pb-2">
-        {files.map((file) => {
-          const fileId = (file as any).id;
-          const fileData = fileMap.get(fileId);
-          const isImage = file.type.startsWith('image/');
-          const fileExt = file.name.split('.').pop()?.toUpperCase() || 'FILE';
-          
-          return (
-            <div 
-              key={fileId}
-              className="file-preview-item relative rounded-lg flex flex-col overflow-hidden transition-all duration-200 hover:translate-y-[-2px]"
-              style={{ 
-                aspectRatio: '1',
-                backgroundColor: `var(--accent)`,
-              }}
-            >
-              <button
-                onClick={() => removeFile(file)}
-                className="absolute top-1.5 right-1.5 w-7 h-7 md:w-6 md:h-6 md:top-2 md:right-2 flex items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--background)_80%,var(--foreground)_20%)] text-[var(--foreground)] text-xs z-10 transition-all duration-200 hover:opacity-100 hover:bg-[color-mix(in_srgb,var(--background)_70%,var(--foreground)_30%)] opacity-70"
-                aria-label={`Remove file ${file.name}`}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-              
-              <div className="flex-1 w-full flex items-center justify-center overflow-hidden">
-                {isImage && fileData?.url ? (
-                  <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
-                    <img 
-                      src={fileData.url} 
-                      alt={file.name} 
-                      className="w-full h-full object-contain"
-                      loading="lazy"
-                    />
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-center p-3 h-full">
-                    <span className="text-[10px] font-mono mt-2 px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--background)_7%,transparent)]">
-                      {fileExt}
-                    </span>
-                  </div>
-                )}
-              </div>
-              
-              <div className="w-full px-2.5 py-2">
-                <div className="text-[12px] font-normal truncate tracking-tight" title={file.name}>
-                  {file.name}
-                </div>
-                <div className="text-[9px] opacity-60 mt-0.5 font-medium tracking-tight">
-                  {fileHelpers.formatFileSize(file.size)}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-});
-
-// Create CanvasToolsPreview component
-const CanvasToolsPreview = memo(function CanvasToolsPreview({
-  webSearchData,
-  mathCalculationData,
-  linkReaderData,
-  imageGeneratorData,
-  academicSearchData,
-  xSearchData,
-  youTubeSearchData,
-  youTubeLinkAnalysisData,
-  messageId,
-  togglePanel
-}: {
-  webSearchData?: any;
-  mathCalculationData?: any;
-  linkReaderData?: any;
-  imageGeneratorData?: any;
-  academicSearchData?: any;
-  xSearchData?: any;
-  youTubeSearchData?: any;
-  youTubeLinkAnalysisData?: any;
-  messageId: string;
-  togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string, fileName?: string) => void;
-}) {
-  const tools = useMemo(() => {
-    const activeTools = [];
-    
-    if (webSearchData) {
-      // Extract search queries from args.queries (the actual search terms used)
-      const queries = (webSearchData.args?.queries || []) as string[];
-      let displayText = '';
-      
-      if (queries.length > 0) {
-        // Show up to 2 search queries with quotes
-        displayText = queries.slice(0, 2).map((q: string) => `"${q}"`).join(', ');
-        if (queries.length > 2) {
-          displayText += ` +${queries.length - 2} more`;
-        }
-      } else {
-        // Fallback: try to get queries from other sources
-        const fallbackQueries = webSearchData.results?.flatMap((r: any) => 
-          r.searches?.map((s: any) => s.query).filter(Boolean) || []
-        ) || [];
-        
-        if (fallbackQueries.length > 0) {
-          const uniqueQueries = [...new Set(fallbackQueries)] as string[];
-          displayText = uniqueQueries.slice(0, 2).map((q: string) => `"${q}"`).join(', ');
-          if (uniqueQueries.length > 2) {
-            displayText += ` +${uniqueQueries.length - 2} more`;
-          }
-        } else {
-          displayText = 'Web search performed';
-        }
-      }
-      
-      // Determine the actual status based on search results completion
-      let actualStatus = 'completed';
-      if (webSearchData.results && webSearchData.results.length > 0) {
-        // Check if any search is still in progress
-        const hasInProgressSearch = webSearchData.results.some((r: any) => r.isComplete === false);
-        if (hasInProgressSearch) {
-          actualStatus = 'processing';
-        }
-      } else if (webSearchData.status) {
-        // Use explicit status if available
-        actualStatus = webSearchData.status;
-      } else if (queries.length > 0 && (!webSearchData.results || webSearchData.results.length === 0)) {
-        // If we have queries but no results yet, it's still processing
-        actualStatus = 'processing';
-      }
-      
-      activeTools.push({
-        id: 'web-search',
-        name: 'Web Search',
-        icon: <Search size={16} />,
-        status: actualStatus,
-        displayText
-      });
-    }
-    
-    if (mathCalculationData) {
-      // Extract all calculation expressions to show multiple calculations
-      const steps = mathCalculationData.calculationSteps || [];
-      let displayText = '';
-      
-      if (steps.length > 0) {
-        // Get all expressions without duplicate removal (duplicates don't occur anyway)
-        const expressions = steps
-          .map((step: any) => step.expression)
-          .filter(Boolean);
-        
-        if (expressions.length > 0) {
-          // Show up to 2 expressions with proper formatting
-          if (expressions.length === 1) {
-            displayText = expressions[0].length > 30 ? expressions[0].substring(0, 30) + '...' : expressions[0];
-          } else {
-            const firstExpr = expressions[0].length > 20 ? expressions[0].substring(0, 20) + '...' : expressions[0];
-            const secondExpr = expressions[1].length > 20 ? expressions[1].substring(0, 20) + '...' : expressions[1];
-            displayText = `${firstExpr}, ${secondExpr}`;
-            if (expressions.length > 2) {
-              displayText += ` +${expressions.length - 2} more`;
-            }
-          }
-        } else {
-          displayText = `${steps.length} calculation step${steps.length > 1 ? 's' : ''}`;
-        }
-      } else {
-        displayText = 'Mathematical calculation';
-      }
-      
-      // Determine actual status - math calculation is completed when steps exist
-      let actualStatus = 'completed';
-      if (mathCalculationData.status) {
-        actualStatus = mathCalculationData.status;
-      } else if (steps.length === 0) {
-        // If no calculation steps yet, it might be processing
-        actualStatus = 'processing';
-      }
-      
-      activeTools.push({
-        id: 'calculator',
-        name: 'Calculator',
-        icon: <Calculator size={16} />,
-        status: actualStatus,
-        displayText
-      });
-    }
-    
-    if (linkReaderData) {
-      // Extract URLs and titles from linkAttempts
-      const attempts = linkReaderData.linkAttempts || [];
-      let displayText = '';
-      
-      if (attempts.length > 0) {
-        const validAttempts = attempts.filter((attempt: any) => !attempt.error);
-        
-        if (validAttempts.length > 0) {
-          // Show domain or title of the first successful attempt
-          const attempt = validAttempts[0];
-          const url = attempt.url || '';
-          const title = attempt.title || '';
-          
-          try {
-            const domain = url ? new URL(url).hostname.replace('www.', '') : '';
-            displayText = title && title.length < 30 ? title : domain || url;
-          } catch {
-            displayText = url;
-          }
-        } else {
-          // All attempts failed
-          displayText = `${attempts.length} link${attempts.length > 1 ? 's' : ''} (failed)`;
-        }
-      } else {
-        displayText = 'Link analysis';
-      }
-      
-      // Determine actual status based on completion of all attempts
-      let actualStatus = 'completed';
-      if (linkReaderData.status) {
-        actualStatus = linkReaderData.status;
-      } else if (attempts.length > 0) {
-        // Check if any attempts are still in progress using explicit status field
-        const inProgressAttempts = attempts.filter((attempt: any) => 
-          attempt.status === 'in_progress'
-        );
-        
-        if (inProgressAttempts.length > 0) {
-          actualStatus = 'processing';
-        } else {
-          // All attempts have completed - determine success or error using status field
-          const hasSuccess = attempts.some((a: any) => a.status === 'success');
-          actualStatus = hasSuccess ? 'completed' : 'error';
-        }
-      }
-      
-      activeTools.push({
-        id: 'link-reader',
-        name: 'Link Reader',
-        icon: <Link2 size={16} />,
-        status: actualStatus,
-        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
-      });
-    }
-    
-    if (imageGeneratorData) {
-      // Extract prompts from generated images
-      const images = imageGeneratorData.generatedImages || [];
-      let displayText = '';
-      
-      if (images.length > 0) {
-        const firstImage = images[0];
-        const prompt = firstImage.prompt || '';
-        
-        if (prompt) {
-          // Just show the prompt itself, truncated if too long
-          displayText = prompt.length > 40 ? prompt.substring(0, 40) + '...' : prompt;
-        } else {
-          displayText = `${images.length} image${images.length > 1 ? 's' : ''} generated`;
-        }
-      } else {
-        displayText = 'Image generation';
-      }
-      
-      // Determine actual status - image generation is completed when images exist
-      let actualStatus = 'completed';
-      if (imageGeneratorData.status) {
-        actualStatus = imageGeneratorData.status;
-      } else if (images.length === 0) {
-        // If no generated images yet, it might be processing
-        actualStatus = 'processing';
-      }
-      
-      activeTools.push({
-        id: 'image-generator',
-        name: 'Image Generator',
-        icon: <ImageIcon size={16} />,
-        status: actualStatus,
-        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
-      });
-    }
-    
-    if (academicSearchData) {
-      // Extract search queries from academic results
-      const results = academicSearchData.academicResults || [];
-      let displayText = '';
-      
-      if (results.length > 0) {
-        const queries = results.map((r: any) => r.query).filter(Boolean);
-        
-        if (queries.length > 0) {
-          // Show first query or combine multiple queries
-          displayText = queries.length === 1 
-            ? `"${queries[0]}"` 
-            : `"${queries[0]}" +${queries.length - 1} more topics`;
-        } else {
-          displayText = `${results.length} academic search${results.length > 1 ? 'es' : ''}`;
-        }
-      } else {
-        displayText = 'Academic research';
-      }
-      
-      // Determine actual status - academic search is usually completed when results exist
-      let actualStatus = 'completed';
-      if (academicSearchData.status) {
-        actualStatus = academicSearchData.status;
-      } else if (results.length === 0) {
-        // If no results yet but we have academic search data, it might be processing
-        actualStatus = 'processing';
-      }
-      
-      activeTools.push({
-        id: 'academic-search',
-        name: 'Academic Search',
-        icon: <BookOpen size={16} />,
-        status: actualStatus,
-        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
-      });
-    }
-    
-    if (xSearchData) {
-      // Extract search queries from X results
-      const results = xSearchData.xResults || [];
-      let displayText = '';
-      
-      if (results.length > 0) {
-        const queries = results.map((r: { query: any }) => r.query).filter(Boolean);
-        
-        if (queries.length > 0) {
-          displayText = queries.length === 1 
-            ? `"${queries[0]}"` 
-            : `"${queries[0]}" +${queries.length - 1} more`;
-        } else {
-          displayText = `${results.length} X search${results.length > 1 ? 'es' : ''}`;
-        }
-      } else {
-        displayText = 'X/Twitter search';
-      }
-      
-      // Determine actual status - X search is completed when results exist
-      let actualStatus = 'completed';
-      if (xSearchData.status) {
-        actualStatus = xSearchData.status;
-      } else if (results.length === 0) {
-        // If no results yet, it might be processing
-        actualStatus = 'processing';
-      }
-      
-      activeTools.push({
-        id: 'x-search',
-        name: 'X Search',
-        icon: <XLogo size={16} />,
-        status: actualStatus,
-        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
-      });
-    }
-    
-    if (youTubeSearchData) {
-      // Extract search queries from YouTube results
-      const results = youTubeSearchData.youtubeResults || [];
-      let displayText = '';
-      
-      if (results.length > 0) {
-        const queries = results.map((r: { query: any }) => r.query).filter(Boolean);
-        
-        if (queries.length > 0) {
-          displayText = queries.length === 1 
-            ? `"${queries[0]}"` 
-            : `"${queries[0]}" +${queries.length - 1} more`;
-        } else {
-          displayText = `${results.length} YouTube search${results.length > 1 ? 'es' : ''}`;
-        }
-      } else {
-        displayText = 'YouTube search';
-      }
-      
-      // Determine actual status - YouTube search is completed when results exist
-      let actualStatus = 'completed';
-      if (youTubeSearchData.status) {
-        actualStatus = youTubeSearchData.status;
-      } else if (results.length === 0) {
-        // If no results yet, it might be processing
-        actualStatus = 'processing';
-      }
-      
-      activeTools.push({
-        id: 'youtube-search',
-        name: 'YouTube Search',
-        icon: <YouTubeLogo size={16} />,
-        status: actualStatus,
-        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
-      });
-    }
-    
-    if (youTubeLinkAnalysisData) {
-      // Extract video titles or details from analysis results
-      const results = youTubeLinkAnalysisData.analysisResults || [];
-      let displayText = '';
-      
-      if (results.length > 0) {
-        const firstResult = results[0];
-        
-        if (firstResult.error) {
-          displayText = 'Analysis failed';
-        } else {
-          const title = firstResult.details?.title || '';
-          const channel = firstResult.channel?.name || '';
-          
-          if (title) {
-            displayText = title;
-          } else if (channel) {
-            displayText = `Video from ${channel}`;
-          } else {
-            displayText = 'YouTube video analyzed';
-          }
-        }
-      } else {
-        displayText = 'YouTube analysis';
-      }
-      
-      // Determine actual status based on analysis completion
-      let actualStatus = 'completed';
-      if (youTubeLinkAnalysisData.status) {
-        actualStatus = youTubeLinkAnalysisData.status;
-      } else if (results.length === 0) {
-        // If no analysis results yet, it might be processing
-        actualStatus = 'processing';
-      } else {
-        // Check if all analysis have completed (either success or error)
-        const hasIncompleteAnalysis = results.some((r: { error: any, details?: any }) => 
-          !r.error && !r.details
-        );
-        
-        if (hasIncompleteAnalysis) {
-          actualStatus = 'processing';
-        } else {
-          // All analysis completed - determine success or error
-          const hasSuccess = results.some((r: { error: any }) => !r.error);
-          actualStatus = hasSuccess ? 'completed' : 'error';
-        }
-      }
-      
-      activeTools.push({
-        id: 'youtube-analyzer',
-        name: 'YouTube Analyzer',
-        icon: <Youtube size={16} />,
-        status: actualStatus,
-        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
-      });
-    }
-    
-    return activeTools;
-  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, academicSearchData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData]);
-  
-  if (tools.length === 0) return null;
-  
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'processing':
-      case 'loading':
-        return 'text-amber-400';
-      case 'completed':
-      case 'success':
-        return 'text-green-400';
-      case 'error':
-      case 'failed':
-        return 'text-red-400';
-      default:
-        return 'text-blue-400';
-    }
-  };
-  
-  const getStatusIndicator = (status: string) => {
-    switch (status) {
-      case 'processing':
-      case 'loading':
-        return (
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-          </span>
-        );
-      case 'completed':
-      case 'success':
-        return (
-          <span className="relative flex h-2 w-2">
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-          </span>
-        );
-      case 'error':
-      case 'failed':
-        return (
-          <span className="relative flex h-2 w-2">
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-          </span>
-        );
-      default:
-        return (
-          <span className="relative flex h-2 w-2">
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-          </span>
-        );
-    }
-  };
-  
-  return (
-    <div className="mb-6 p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2.5">
-          <Monitor className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-          <h2 className="font-medium text-left tracking-tight">Canvas Preview</h2>
-        </div>
-        <button
-          onClick={() => togglePanel && togglePanel(messageId, 'canvas')}
-          className="flex items-center gap-2 px-3 py-1.5 text-xs bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)] rounded-lg transition-colors"
-        >
-          <span>View All</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M7 17 17 7" />
-            <path d="M7 7h10v10" />
-          </svg>
-        </button>
-      </div>
-      
-      <div className="grid gap-3">
-        {tools.map((tool, index) => (
-          <div
-            key={tool.id}
-            className="flex items-center gap-3 p-3 bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] rounded-lg min-w-0 cursor-pointer hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors"
-            onClick={() => togglePanel && togglePanel(messageId, 'canvas', undefined, tool.id)}
-          >
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex-shrink-0">
-              {tool.icon}
-            </div>
-            <div className="flex-1 min-w-0 overflow-hidden">
-              <div className="flex items-center gap-2 mb-1 min-w-0">
-                <span className="text-sm font-medium truncate">{tool.name}</span>
-                <div className="flex-shrink-0">
-                  {getStatusIndicator(tool.status)}
-                </div>
-              </div>
-              <div className="text-xs text-[var(--muted)] truncate">
-                {tool.displayText}
-              </div>
-            </div>
-            <div className={`text-xs font-medium flex-shrink-0 max-w-[80px] sm:max-w-none truncate ${getStatusColor(tool.status)}`}>
-              <span className="hidden sm:inline">
-                {tool.status === 'processing' || tool.status === 'loading' ? 'Processing' : 
-                 tool.status === 'completed' || tool.status === 'success' ? 'Complete' :
-                 tool.status === 'error' || tool.status === 'failed' ? 'Failed' : 'Ready'}
-              </span>
-              <span className="sm:hidden">
-                {tool.status === 'processing' || tool.status === 'loading' ? 'Processing' : 
-                 tool.status === 'completed' || tool.status === 'success' ? 'Complete' :
-                 tool.status === 'error' || tool.status === 'failed' ? 'Error' : 'Ready'}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-});
-
-// 새로운 FilesPreview 컴포넌트
-const FilesPreview = memo(function FilesPreview({
-  messageId,
-  togglePanel,
-  message
-}: {
-  messageId: string;
-  togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string, fileName?: string) => void;
-  message: any; // message 객체를 직접 받아서 스트리밍 데이터에 접근
-}) {
-  // StructuredResponse.tsx와 동일한 방식으로 스트리밍 데이터 처리
-  const getStructuredResponseData = (message: any) => {
-    // 1. 먼저 annotations에서 확인
-    const structuredResponseAnnotation = message.annotations?.find(
-      (annotation: any) => annotation.type === 'structured_response'
-    );
-    
-    if (structuredResponseAnnotation?.data?.response) {
-      return structuredResponseAnnotation.data.response;
-    }
-    
-    // 2. tool_results에서 확인
-    if (message.tool_results?.structuredResponse?.response) {
-      return message.tool_results.structuredResponse.response;
-    }
-    
-    // 3. 진행 중인 응답 확인 (가장 최신 것)
-    const progressAnnotations = message.annotations?.filter(
-      (annotation: any) => annotation.type === 'structured_response_progress'
-    );
-    
-    if (progressAnnotations?.length > 0) {
-      const latestProgress = progressAnnotations[progressAnnotations.length - 1];
-      if (latestProgress.data?.response) {
-        return {
-          ...latestProgress.data.response,
-          isProgress: true
-        };
-      }
-    }
-    
-    return null;
-  };
-
-  const responseData = getStructuredResponseData(message);
-  
-  // 파일이 없으면 렌더링하지 않음
-  if (!responseData || !responseData.files || responseData.files.length === 0) {
-    return null;
-  }
-
-  const getFileIcon = (fileType?: string) => {
-    if (fileType?.startsWith('image/')) return <ImageIcon size={16} />;
-    if (fileType === 'application/pdf') return <FileText size={16} />;
-    if (fileType?.includes('text') || fileType?.includes('script')) return <FileText size={16} />;
-    return <FileText size={16} />; // 기본 아이콘
-  };
-
-  // 파일명을 확장자 유지하면서 중간 부분을 ... 로 처리하는 함수
-  const truncateFileName = (fileName?: string, maxLength: number = 35) => {
-    if (!fileName || typeof fileName !== 'string') {
-      return 'Loading file...'; // 이름이 없으면 로딩 중으로 표시
-    }
-    
-    if (fileName.length <= maxLength) return fileName;
-    
-    const lastDotIndex = fileName.lastIndexOf('.');
-    if (lastDotIndex === -1) {
-      // 확장자가 없는 경우
-      return fileName.slice(0, maxLength - 3) + '...';
-    }
-    
-    const name = fileName.slice(0, lastDotIndex);
-    const extension = fileName.slice(lastDotIndex);
-    
-    // 확장자를 포함한 길이가 maxLength를 초과하는 경우
-    const availableLength = maxLength - extension.length - 3; // 3은 ... 의 길이
-    if (availableLength <= 0) {
-      return '...' + extension;
-    }
-    
-    return name.slice(0, availableLength) + '...' + extension;
-  };
-
-  return (
-    <div className="mt-6">
-      <div className="grid grid-cols-1 gap-2">
-        {responseData.files.map((file: any, index: number) => {
-          return (
-            <div
-              key={index}
-              className="flex items-center gap-2 p-2.5 bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] rounded-lg min-w-0 border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] hover:border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] transition-colors cursor-pointer max-w-md"
-              onClick={() => togglePanel && togglePanel(messageId, 'structuredResponse', index, undefined, file.name)} 
-              title={file.name ? `View ${file.name}` : 'View loading file...'}
-            >
-              <div className="flex items-center justify-center w-7 h-7 rounded-md bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex-shrink-0">
-                {getFileIcon(file.type)}
-              </div>
-              <div className="flex-1 min-w-0 overflow-hidden">
-                <div className="text-sm font-medium" title={file.name || 'Loading file...'}>
-                  {truncateFileName(file.name)}
-                </div>
-                <div className="text-xs text-[var(--muted)] truncate">
-                  {file.size ? fileHelpers.formatFileSize(file.size) : (file.type || (file.name ? '' : 'Processing...'))}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-});
 
 export { Message }; 

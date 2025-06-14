@@ -8,13 +8,23 @@ interface PlanningSectionProps {
     isComplete: boolean;
     timestamp?: string;
   };
+  isExpanded?: boolean;
+  setIsExpanded?: (expanded: boolean) => void;
 }
 
-function PlanningSectionComponent({ planningData }: PlanningSectionProps) {
+function PlanningSectionComponent({ 
+  planningData,
+  isExpanded: externalIsExpanded,
+  setIsExpanded: externalSetIsExpanded 
+}: PlanningSectionProps) {
   // Default to false (closed) unless user overrides.
-  const [isExpanded, setIsExpanded] = useState(false); 
+  const [internalIsExpanded, setInternalIsExpanded] = useState(false); 
   const contentRef = useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = useState<number | undefined>(undefined);
+  
+  // Use external state if provided, otherwise use internal state
+  const isExpanded = externalIsExpanded !== undefined ? externalIsExpanded : internalIsExpanded;
+  const setIsExpanded = externalSetIsExpanded || setInternalIsExpanded;
   
   const userOverrideRef = useRef<boolean | null>(null);
   const prevIsCompleteRef = useRef<boolean | undefined>(planningData?.isComplete);
@@ -30,52 +40,52 @@ function PlanningSectionComponent({ planningData }: PlanningSectionProps) {
     }
   }, [planningData?.planningThoughts, isExpanded]);
 
+  // Auto-expand when not complete, auto-collapse when complete (only for internal state)
   useEffect(() => {
     if (!planningData) {
-      setIsExpanded(false);
+      if (externalIsExpanded === undefined) {
+        setInternalIsExpanded(false);
+      }
       userOverrideRef.current = null; // Reset override if no data
       return;
     }
 
     const { planningThoughts, isComplete } = planningData;
 
-    if (prevIsCompleteRef.current === true && isComplete === false) {
-      userOverrideRef.current = null;
-      // When a new planning phase starts, ensure it's closed by default
-      // unless the user immediately clicks to open it AFTER this reset.
-      // This specific setIsExpanded(false) ensures it respects the new default closed state.
-      setIsExpanded(false); 
-    }
-    
-    // If user has manually toggled the section, respect their choice.
-    if (userOverrideRef.current !== null) {
-      setIsExpanded(userOverrideRef.current);
-    } else {
-      // If no user override, it remains in its current state (which would be closed by default
-      // or after a reset, or whatever state it was programmatically set to if ever).
-      // For this logic, it means it defaults to closed.
-      // No automatic opening here; it remains closed unless userOverrideRef is set.
-      // If it was reset above due to new planning phase, it became false.
-      // If it was already false and no user override, it stays false.
-      if (isExpanded && isComplete) { // Only auto-close if it was somehow open and then completes
-        setIsExpanded(false);
-      } else if (userOverrideRef.current === null) {
-        // Ensures that if userOverride is cleared, it respects the default closed state
-        // This covers the case where it might have been open due to a previous user action in a prior cycle
-        // and now it's a new cycle without user interaction yet.
-        setIsExpanded(false);
+    // Only apply automatic behavior when external state is not controlling
+    if (externalIsExpanded === undefined) {
+      if (prevIsCompleteRef.current === true && isComplete === false) {
+        userOverrideRef.current = null;
+        // When a new planning phase starts, ensure it's closed by default
+        setInternalIsExpanded(false); 
+      }
+      
+      // If user has manually toggled the section, respect their choice.
+      if (userOverrideRef.current !== null) {
+        setInternalIsExpanded(userOverrideRef.current);
+      } else {
+        // Auto-expand when not complete, auto-collapse when complete
+        if (!isComplete) {
+          setInternalIsExpanded(true);
+        } else {
+          setInternalIsExpanded(false);
+        }
       }
     }
     
     prevIsCompleteRef.current = isComplete;
     prevPlanningThoughtsRef.current = planningThoughts;
 
-  }, [planningData]);
+  }, [planningData, externalIsExpanded]);
 
   const handleToggle = () => {
     const newExpansionState = !isExpanded;
     setIsExpanded(newExpansionState);
-    userOverrideRef.current = newExpansionState; 
+    
+    // Only track user override for internal state management
+    if (externalIsExpanded === undefined) {
+      userOverrideRef.current = newExpansionState; 
+    }
   };
 
   if (!planningData || !planningData.planningThoughts) {

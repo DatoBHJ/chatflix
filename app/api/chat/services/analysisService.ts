@@ -54,7 +54,7 @@ ${baseAvailableToolsList.map(tool => `- ${tool}`).join('\n')}
 - "Today's world news summary" → toolComplexity: single, reasoningComplexity: simple, predictedTools: ["web_search"]
 - "Draw a blue dragon" → toolComplexity: single, reasoningComplexity: simple, predictedTools: ["image_generator"]
 - "Explain the philosophical implications of AI" → toolComplexity: none, reasoningComplexity: complex, predictedTools: []
-- "Please analyze this PDF document" → toolComplexity: none, reasoningComplexity: simple, predictedTools: []
+- "Please analyze this PDF/image" → toolComplexity: none, reasoningComplexity: simple, predictedTools: []
 - "Describe what is in this image" → toolComplexity: none, reasoningComplexity: simple, predictedTools: []
 - "Research AI trends and create a comprehensive business strategy" → toolComplexity: multiple, reasoningComplexity: complex, predictedTools: ["web_search", "academic_search"]
 

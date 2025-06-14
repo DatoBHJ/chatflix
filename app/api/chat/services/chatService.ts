@@ -177,42 +177,53 @@ When sharing code, command examples, or mathematical expressions, use these mark
 - For charts: \`\`\`chartjs (see Chart Guidelines below)
 
 ## Chart Guidelines
+**CRITICAL DECISION: When to Create Charts**
+ONLY create charts when ALL of the following conditions are met:
+1. **Substantial quantitative data**: You have meaningful numerical data available
+2. **Clear patterns or insights**: The data reveals trends, comparisons, correlations, or distributions that would be difficult to understand from text alone
+3. **Multiple data points**: At least 3-4 meaningful data points that can be compared or analyzed
+4. **Visual advantage**: The chart would genuinely help users understand the information better than a simple text explanation
+
+**DO NOT create charts for:**
+❌ Simple yes/no answers or single data points
+❌ Conceptual explanations that don't involve quantitative data  
+❌ Lists of items without numerical relationships
+❌ Qualitative information (opinions, descriptions, categories without quantities)
+❌ Data that is better understood as plain text
+❌ When you don't have specific numerical data available  
+❌ Placeholder or example charts - only use real data
+❌ When you're unsure if the chart adds value - default to NOT creating charts
+
 When creating data visualizations, use the \`\`\`chartjs code block with VALID JSON format:
+**ABSOLUTELY CRITICAL: ALWAYS wrap chart JSON with \`\`\`chartjs code block**
 
-**CRITICAL: All property names and string values MUST be in double quotes for valid JSON**
+❌ **WRONG - This will NOT render as a chart:**
+{
+  "type": "pie",
+  "data": {
+    "labels": ["Category A", "Category B"],
+    "datasets": [...]
+  }
+}
 
-Correct format:
+✅ **CORRECT - This WILL render as a chart:**
 \`\`\`chartjs
 {
-  "type": "bar",
+  "type": "pie",
   "data": {
-    "labels": ["Label 1", "Label 2"],
-    "datasets": [{
-      "label": "Dataset 1",
-      "data": [10, 20],
-      "backgroundColor": "#FF6B6B"
-    }]
-  },
-  "options": {
-    "responsive": true,
-    "plugins": {
-      "title": {
-        "display": true,
-        "text": "Chart Title"
-      }
-    }
+    "labels": ["Category A", "Category B"],
+    "datasets": [...]
   }
 }
 \`\`\`
 
-**WRONG format (JavaScript object literal - will cause errors):**
+**CRITICAL: All property names and string values MUST be in double quotes for valid JSON**
+
+❌ **WRONG format (JavaScript object literal):**
 \`\`\`chartjs
 {
-  type: 'bar',  // ❌ No quotes around property names
-  data: {
-    labels: ['Label 1', 'Label 2'],  // ❌ Single quotes
-    ...
-  }
+  type: 'bar',  // No quotes around property names
+  data: { labels: ['A', 'B'] }  // Single quotes
 }
 \`\`\`
 
@@ -228,22 +239,14 @@ Correct format:
 ❌ "callback": "function(value) { return ['A', 'B'][value]; }"
 ❌ Any string containing backslashes like "text with \\\\ backslash"
 ❌ Multi-line strings with \\ line continuation
+❌ Raw JSON without \`\`\`chartjs wrapper
 
-**SAFE ALTERNATIVE APPROACHES:**
-✅ Use default Chart.js tooltips (no custom callbacks needed)
-✅ Use simple static labels: "labels": ["Category A", "Category B", "Category C"]
-✅ Use basic title and legend configurations without functions
-✅ Rely on Chart.js automatic formatting for most data displays
+**SAFE APPROACHES:**
+✅ Use default Chart.js tooltips and formatting
+✅ Use simple static labels and basic configurations
+✅ ALWAYS wrap with \`\`\`chartjs code block (MOST IMPORTANT)
 
-Supported chart types: bar, line, pie, doughnut, radar, scatter, bubble, polararea
-
-**Advanced Chart Usage Tips for Agent Mode:**
-- Use charts to visualize data from web searches, calculations, or academic research
-- Create comparison charts when analyzing multiple data sources
-- Generate trend charts from time-series data found through tools
-- Use scatter plots for correlation analysis between variables
-- Consider radar charts for multi-dimensional comparisons
-- Bubble charts work well for three-dimensional data relationships
+Supported types: bar, line, pie, doughnut, radar, scatter, bubble, polararea
 
 ## Mathematical Expressions Guidelines
 For mathematical expressions, use LaTeX syntax:
@@ -298,7 +301,9 @@ userProfileGuidelines: `## User Profile Response Guidelines
 When using tools, maintain a natural conversational flow while gathering information:
 
 1. Briefly mention what you're going to do with the tool in a natural way
-2. Share only a brief one-line summary of what you found
+2. Share results appropriately: 
+   - For image generation: ALWAYS display the generated image link or embed the image directly in your response
+   - For other tools: Share a brief one-line summary of what you found
 3. Naturally transition to the next tool or to creating your final response
 
 For example:

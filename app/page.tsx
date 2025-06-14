@@ -4,14 +4,13 @@ import { useRouter } from 'next/navigation'
 import { useChat } from '@ai-sdk/react';
 import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { ModelSelector } from './components/ModelSelector'
 import { Header } from './components/Header'
 import { Sidebar } from './components/Sidebar'
+import { ChatInputArea } from './components/ChatInputArea'
 import { uploadFile } from '@/app/chat/[id]/utils'
 import { Attachment } from '@/lib/types'
 import { nanoid } from 'nanoid'
 import { getDefaultModelId, getSystemDefaultModelId, updateUserDefaultModel, MODEL_CONFIGS } from '@/lib/models/config'
-import { ChatInput } from '@/app/components/ChatInput/index'
 import { SuggestedPrompt } from '@/app/components/SuggestedPrompt/SuggestedPrompt'
 export default function Home() {
   const router = useRouter()
@@ -506,39 +505,32 @@ export default function Home() {
 
       <div className="flex-1 flex flex-col items-center justify-center">
         <div className="w-full max-w-2xl px-6 sm:px-8 pb-12 sm:pb-32">
-          <div className="space-y-2">
-            <ModelSelector
-              currentModel={currentModel}
-              nextModel={nextModel}
-              setNextModel={(model) => {
-                if (typeof model === 'function') {
-                  const newModel = model(nextModel);
-                  handleModelChange(newModel);
-                } else {
-                  handleModelChange(model);
-                }
-              }}
-              setCurrentModel={setCurrentModel}
-              disabled={isSubmitting}
-              disabledLevels={rateLimitedLevels}
-              isAgentEnabled={isAgentEnabled}
-              onAgentAvailabilityChange={setHasAgentModels}
-              user={user}
-            />     
-            
-            <ChatInput
-              input={input}
-              handleInputChange={handleInputChange}
-              handleSubmit={handleModelSubmit}
-              isLoading={isLoading}
-              stop={stop}
-              disabled={isSubmitting}
-              user={{...user, hasAgentModels}}
-              modelId={currentModel}
-              isAgentEnabled={isAgentEnabled}
-              setisAgentEnabled={setAgentEnabledHandler}
-            />
-          </div>
+          <ChatInputArea
+            currentModel={currentModel}
+            nextModel={nextModel}
+            setNextModel={(model) => {
+              if (typeof model === 'function') {
+                const newModel = model(nextModel);
+                handleModelChange(newModel);
+              } else {
+                handleModelChange(model);
+              }
+            }}
+            setCurrentModel={setCurrentModel}
+            disabledLevels={rateLimitedLevels}
+            isAgentEnabled={isAgentEnabled}
+            onAgentAvailabilityChange={setHasAgentModels}
+            setisAgentEnabled={setAgentEnabledHandler}
+            input={input}
+            handleInputChange={handleInputChange}
+            handleSubmit={handleModelSubmit}
+            isLoading={isLoading}
+            stop={stop}
+            user={{...user, hasAgentModels}}
+            modelId={currentModel}
+            layout="inline"
+            disabled={isSubmitting}
+          />
           
           {/* Display suggested prompt below the chat input with more spacing */}
           {user?.id && (

@@ -121,10 +121,8 @@ export function useMessages(chatId: string, userId: string) {
     
     setIsSavingEdit(true)
     
-    // 편집 상태를 즉시 초기화 (사용자 경험 개선)
-    const currentEditingContent = editingContent; // 편집 내용 백업
-    setEditingMessageId(null);
-    setEditingContent('');
+    // 편집 내용 백업
+    const currentEditingContent = editingContent;
     
     try {
       if (!messageId || !userId || !chatId) {
@@ -176,6 +174,27 @@ export function useMessages(chatId: string, userId: string) {
 
       const messageIndex = messages.findIndex(msg => msg.id === messageId);
       const localSequenceNumber = messageIndex + 1;
+
+      // 1. 먼저 UI 상태 업데이트 (레퍼런스 코드 패턴)
+      const updatedMessages = messages.slice(0, messageIndex + 1).map(msg =>
+        msg.id === messageId
+          ? {
+              ...msg,
+              content: currentEditingContent,
+              experimental_attachments: allAttachments,
+              parts: msg.parts ? msg.parts.map(part => 
+                part.type === 'text' ? { ...part, text: currentEditingContent } : part
+              ) : undefined
+            }
+          : msg
+      );
+      
+      // 즉시 메시지 상태 업데이트하여 UI에 반영
+      setMessages(updatedMessages);
+      
+      // 2. 편집 모드 종료 (레퍼런스 코드 패턴)
+      setEditingMessageId(null);
+      setEditingContent('');
 
       const { data: existingMessages, error: queryError } = await supabase
         .from('messages')
@@ -230,20 +249,6 @@ export function useMessages(chatId: string, userId: string) {
         if (updateError) throw updateError;
       }
 
-      const updatedMessages = messages.slice(0, messageIndex + 1).map(msg =>
-        msg.id === messageId
-          ? {
-              ...msg,
-              content: currentEditingContent,
-              experimental_attachments: allAttachments,
-              parts: msg.parts ? msg.parts.map(part => 
-                part.type === 'text' ? { ...part, text: currentEditingContent } : part
-              ) : undefined
-            }
-          : msg
-      );
-      // console.log('Updated messages:', updatedMessages);
-
       // 🆕 디버깅: 편집된 메시지들의 첨부파일 정보 출력
       // console.log('🔍 [DEBUG] Messages for edit save:', {
       //   totalMessages: updatedMessages.length,
@@ -263,8 +268,6 @@ export function useMessages(chatId: string, userId: string) {
       //     })) || []
       //   })).filter(msgInfo => msgInfo.hasAttachments)
       // });
-
-      setMessages(updatedMessages);
 
       const { error: deleteError } = await supabase
         .from('messages')
@@ -461,6 +464,9 @@ export function useMessages(chatId: string, userId: string) {
 
       const assistantMessageId = messageId
       const updatedMessages = messages.slice(0, messageIndex)
+      
+      // 1. 먼저 UI 상태 업데이트 (레퍼런스 코드 패턴)
+      setMessages(updatedMessages)
 
       // 메시지의 sequence_number를 찾거나 계산
       let sequenceNumber: number;
@@ -512,8 +518,6 @@ export function useMessages(chatId: string, userId: string) {
         // console.error('Error inserting new assistant message:', insertError)
         return
       }
-
-      setMessages(updatedMessages)
 
       // Check if current model is rate limited
       let modelToUse = currentModel;
