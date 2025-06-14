@@ -566,17 +566,44 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
         <span className="text-[var(--muted)]">[Unable to load image]</span>
       );
     },
-    a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-      <a 
-        href={href} 
-        target="_blank" 
-        rel="noopener noreferrer" 
-        className="text-[var(--foreground)] border-b border-[var(--muted)] hover:border-[var(--foreground)] transition-colors"
-        {...props}
-      >
-        {children}
-      </a>
-    ),
+    a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
+      // Check if this is a pollinations.ai image link
+      if (href && href.includes('image.pollinations.ai')) {
+        const urlWithNoLogo = ensureNoLogo(href);
+        const linkText = typeof children === 'string' ? children : extractText(children);
+        
+        return (
+          <div className="my-4">
+            <a 
+              href={urlWithNoLogo} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="block"
+            >
+              <ImageWithLoading 
+                src={urlWithNoLogo} 
+                alt={linkText || "Generated image"} 
+                className="rounded-lg max-w-full hover:opacity-90 transition-opacity cursor-pointer border border-[var(--accent)] shadow-md" 
+              />
+            </a>
+            <div className="text-sm text-[var(--muted)] mt-2 italic text-center">{linkText}</div>
+          </div>
+        );
+      }
+      
+      // Regular link rendering
+      return (
+        <a 
+          href={href} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-[var(--foreground)] border-b border-[var(--muted)] hover:border-[var(--foreground)] transition-colors"
+          {...props}
+        >
+          {children}
+        </a>
+      );
+    },
     code: ({ node, className, children, ...props }: React.PropsWithChildren<{ node?: any; className?: string;[key: string]: any; }>) => {
       const match = /language-(\w+)/.exec(className || '');
       const isInline = !match;
