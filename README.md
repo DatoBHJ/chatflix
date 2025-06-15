@@ -1,4 +1,4 @@
-warning: shitty code. vibe coded tf out lol
+warning: shitty code
 
 Contact us at sply@chatflix.app
 
