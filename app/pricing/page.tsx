@@ -50,7 +50,7 @@ export default function PricingPage() {
       } else if (event === 'SIGNED_IN') {
         const newUser = session?.user || null
         setUser(newUser)
-        setIsUserLoading(false)
+              setIsUserLoading(false)
         // Reset subscription status - will be checked by separate effect
         setIsSubscribed(null)
       }
@@ -156,7 +156,7 @@ export default function PricingPage() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to create checkout session')
       }
-
+            
       // Only redirect if we got a valid checkout URL
       if (data.checkout && data.checkout.url) {
         window.location.href = data.checkout.url
@@ -303,14 +303,14 @@ export default function PricingPage() {
               
               {/* Subscription-dependent buttons */}
               {renderSubscriptionContent(false, (
-                <button
-                  onClick={handleSubscribe}
+                  <button
+                    onClick={handleSubscribe}
                   disabled={isLoading}
                   className="w-full py-3 bg-green-500 text-white font-bold rounded-xl transition-all hover:bg-green-600 cursor-pointer disabled:opacity-50"
-                  style={{ letterSpacing: '0.05em' }}
-                >
+                    style={{ letterSpacing: '0.05em' }}
+                  >
                   {isLoading ? 'Processing...' : 'Upgrade'}
-                </button>
+                  </button>
               ))}
               
               {renderSubscriptionContent(true, (

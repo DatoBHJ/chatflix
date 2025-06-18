@@ -96,7 +96,6 @@ export default function Chat({ params }: PageProps) {
 
       // Check if it's a rate limit error either from status or parsed error data
       if (error.status === 429 || (errorData && (errorData.error === 'Too many requests' || errorData.type === 'rate_limit'))) {
-        console.log('[Debug] Rate limit error detected:', errorData);
         
         // Extract data from response
         const reset = errorData?.reset || new Date(Date.now() + 60000).toISOString();
@@ -282,7 +281,6 @@ export default function Chat({ params }: PageProps) {
           router.push('/login')
           return
         }
-        console.log('user', user)
         setUser(user)
         
         // 사용자의 기본 모델 가져오기
@@ -314,16 +312,13 @@ export default function Chat({ params }: PageProps) {
         
         // First check URL query parameter for Agent setting
         if (isMounted && typeof window !== 'undefined') {
-          // console.log('[Debug] Chat page - Checking Agent settings for chatId:', chatId);
           
           const urlParams = new URLSearchParams(window.location.search);
           const AgentSearchParam = urlParams.get('Agent');
-          // console.log('[Debug] Chat page - URL Agent parameter:', AgentSearchParam);
           
           let shouldEnableAgent = false;
           
           if (AgentSearchParam === 'true') {
-            // console.log('[Debug] Chat page - Setting Agent enabled from URL parameter');
             shouldEnableAgent = true;
             // Also update localStorage for persistence
             localStorage.setItem(`Agent_${chatId}`, 'true');
@@ -331,17 +326,13 @@ export default function Chat({ params }: PageProps) {
             // Clean up URL by removing the query parameter
             const newUrl = window.location.pathname;
             window.history.replaceState({}, document.title, newUrl);
-            // console.log('[Debug] Chat page - Cleaned up URL, removed query parameter');
           } else {
             // If not in URL, check localStorage as fallback
             const savedAgentState = localStorage.getItem(`Agent_${chatId}`);
-            // console.log('[Debug] Chat page - localStorage Agent state:', savedAgentState);
             
             if (savedAgentState === 'true') {
-              // console.log('[Debug] Chat page - Setting Agent enabled from localStorage');
               shouldEnableAgent = true;
             } else {
-              // console.log('[Debug] Chat page - Agent is disabled');
             }
           }
           
@@ -414,7 +405,6 @@ export default function Chat({ params }: PageProps) {
             setIsInitialized(true)
 
             if (sortedMessages.length === 1 && sortedMessages[0].role === 'user') {
-              // console.log('[Debug] Chat page - Reloading with initial message, Agent:', shouldEnableAgent);
               
               // Only reload if we don't have an assistant message yet (fresh conversation)
               // This prevents unnecessary API calls when refreshing a page with existing conversation
@@ -429,7 +419,6 @@ export default function Chat({ params }: PageProps) {
             }
           } else if (session.initial_message && isMounted) {
             // Only create initial message if there are no existing messages
-            // console.log('[Debug] Chat page - Creating initial message, Agent:', shouldEnableAgent);
             const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             
             // Start the API request immediately before updating the database
@@ -722,7 +711,6 @@ export default function Chat({ params }: PageProps) {
       try {
         const uploadPromises = Array.from(files).map(file => uploadFile(file))
         attachments = await Promise.all(uploadPromises)
-        console.log('[Debug] Uploaded attachments:', attachments)
       } catch (error) {
         console.error('Failed to upload files:', error)
         // 파일 업로드 실패 시에도 텍스트가 있으면 전송 계속
@@ -904,7 +892,6 @@ export default function Chat({ params }: PageProps) {
     
     try {
       // Skip updating the input value first and go straight to submission
-      console.log('[Debug] Directly submitting follow-up question:', question);
       
       // Create a message ID for the new message
       const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 15)}`;
@@ -1168,12 +1155,10 @@ export default function Chat({ params }: PageProps) {
         }
 
         if (session && session.title && session.title.trim().length > 0 && session.title !== 'New Chat') {
-          console.log('Title already exists, skipping summary.');
           return;
         }
 
         const summaryInput = `User: ${firstUserMsg.content}\nAssistant: ${firstAssistantMsg.content}`;
-        // console.log('[Debug] Attempting to summarize (Agent aware) with FULL input:', summaryInput);
         const res = await fetch('/api/chat/summarize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1190,8 +1175,6 @@ export default function Chat({ params }: PageProps) {
               .eq('user_id', user.id);
             if (updateError) {
               console.error('Failed to update chat title with LLM summary:', updateError);
-            } else {
-              console.log('Chat title updated with LLM summary:', data.summary);
             }
           }
         } else {
