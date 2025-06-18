@@ -28,4 +28,31 @@ export function clearRateLimitInfo(reason?: 'subscription' | 'admin' | 'renewal'
   } catch (error) {
     console.error('Error clearing rate limit information:', error);
   }
+}
+
+/**
+ * 구독 관련 캐시를 정리하는 유틸리티 함수
+ * 사용자 로그아웃, 구독 상태 변경 시 호출
+ */
+export function clearAllSubscriptionCache() {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    // Clear localStorage subscription cache
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith('subscription_status_')) {
+        localStorage.removeItem(key);
+      }
+    });
+    
+    // Clear client-side cache (importing here to avoid circular dependency)
+    import('@/lib/subscription-client').then(module => {
+      module.clearSubscriptionCache();
+    });
+    
+    console.log('All subscription caches cleared');
+  } catch (error) {
+    console.error('Error clearing subscription cache:', error);
+  }
 } 

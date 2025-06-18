@@ -89,6 +89,11 @@ export async function middleware(request: NextRequest) {
       return await updateSession(request);
     }
     
+    // 🚀 웹훅 경로는 유지보수 모드에서도 접근 가능
+    if (request.nextUrl.pathname.startsWith('/api/webhooks/')) {
+      return NextResponse.next();
+    }
+    
     // API 요청에 대해서는 JSON 응답 반환
     if (request.nextUrl.pathname.startsWith('/api/')) {
       return new NextResponse(
@@ -114,6 +119,12 @@ export async function middleware(request: NextRequest) {
         'Retry-After': '3600', // 1시간 후 재시도 (초 단위)
       },
     });
+  }
+
+  // 🚀 웹훅 경로는 인증 및 rate limiting 제외
+  if (request.nextUrl.pathname.startsWith('/api/webhooks/')) {
+    console.log('🎯 Webhook request detected, bypassing middleware checks');
+    return NextResponse.next();
   }
 
   // Skip rate limiting for static files and images

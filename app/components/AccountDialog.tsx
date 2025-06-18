@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { getCustomerPortalUrl, checkSubscription } from '@/lib/polar'
+import { getCustomerPortalUrl } from '@/lib/polar'
+import { checkSubscriptionClient } from '@/lib/subscription-client'
+import { clearAllSubscriptionCache } from '@/lib/utils'
 import Image from 'next/image'
 
 // Export these functions to be used elsewhere
@@ -109,12 +111,12 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
   const supabase = createClient()
 
   useEffect(() => {
-    if (user && isOpen) {
+    if (user?.id && isOpen) {
       checkUserSubscription();
       fetchProfileImage(user.id);
       loadUserName(user.id);
     }
-  }, [user, isOpen]);
+  }, [user?.id, isOpen]);
 
   // Reset all states when dialog closes
   useEffect(() => {
@@ -167,7 +169,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     if (!user) return;
     
     try {
-      const hasSubscription = await checkSubscription(user.id);
+      const hasSubscription = await checkSubscriptionClient();
       setIsSubscribed(hasSubscription);
     } catch (error) {
       // console.error('Error checking subscription:', error);
@@ -180,8 +182,24 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     
     setIsManagingSubscription(true);
     try {
-      const portalUrl = await getCustomerPortalUrl(user.id);
-      window.location.href = portalUrl;
+      const response = await fetch('/api/subscription/portal', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to get customer portal URL')
+      }
+
+      if (data.portalUrl) {
+        window.location.href = data.portalUrl
+      } else {
+        throw new Error('Invalid portal URL response')
+      }
     } catch (error) {
       console.error('Error getting customer portal URL:', error);
       alert('Failed to access subscription management. Please try again.');
@@ -192,6 +210,9 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
 
   const handleSignOut = async () => {
     try {
+      // Clear subscription cache before signing out
+      clearAllSubscriptionCache()
+      
       await supabase.auth.signOut()
       router.push('/login')
     } catch (error) {
@@ -419,10 +440,31 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
       const data = await response.json()
       
       if (!response.ok) {
+        // Handle specific error cases
+        if (data.action === 'cancel_subscription' && data.portalUrl) {
+          const userConfirmed = confirm(
+            `${data.message}\n\nWould you like to open the billing portal to cancel your subscription now?`
+          );
+          
+          if (userConfirmed) {
+            window.open(data.portalUrl, '_blank');
+          }
+          return;
+        } else if (data.action === 'contact_support') {
+          alert(`${data.message}\n\nPlease contact our support team for assistance.`);
+          return;
+        }
+        
         throw new Error(data.error || 'Failed to delete account')
       }
 
-      alert(data.message || 'Your account has been deleted.')
+      // Show success message with any warnings
+      let successMessage = data.message || 'Your account has been deleted.';
+      if (data.warnings && data.warnings.length > 0) {
+        successMessage += '\n\nWarnings:\n' + data.warnings.join('\n');
+      }
+      
+      alert(successMessage);
       router.push('/login')
     } catch (error) {
       console.error('Failed to delete account:', error)

@@ -3,7 +3,7 @@ import { getEnabledModels } from '@/lib/models/config';
 import Image from 'next/image';
 import type { ModelConfig } from '@/lib/models/config';
 import { getProviderLogo, hasLogo } from '@/app/lib/models/logoUtils';
-import { checkSubscription } from '@/lib/polar';
+import { checkSubscriptionClient } from '@/lib/subscription-client';
 /**
  * Model Types Guide:
  * 
@@ -355,13 +355,13 @@ export function ModelSelector({
     let ignore = false;
     async function check() {
       setIsSubscriptionLoading(true);
-      if (!user) {
+      if (!user?.id) {
         setIsSubscribed(false);
         setIsSubscriptionLoading(false);
         return;
       }
       try {
-        const has = await checkSubscription(user.id);
+        const has = await checkSubscriptionClient();
         if (!ignore) setIsSubscribed(has);
       } catch {
         if (!ignore) setIsSubscribed(false);
@@ -371,7 +371,7 @@ export function ModelSelector({
     }
     check();
     return () => { ignore = true; };
-  }, [user]);
+  }, [user?.id]);
 
   // Get all models and filter based on web search enabled state and model filter
   const allModels = getEnabledModels();

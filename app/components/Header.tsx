@@ -5,6 +5,8 @@ import { ThemeToggle } from './ThemeToggle'
 import WhatsNewContainer from './WhatsNewContainer'
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link'
+import { checkSubscriptionClient } from '@/lib/subscription-client'
+import { clearAllSubscriptionCache } from '@/lib/utils'
 
 export interface HeaderProps {
   isSidebarOpen: boolean;
@@ -20,10 +22,12 @@ export function Header({ isSidebarOpen, onSidebarToggle, showBackButton, user }:
 
   const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
   const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(true);
+  
   useEffect(() => {
     let ignore = false;
+    
     async function check() {
-      if (!user || !user.id) {
+      if (!user?.id) {
         setIsSubscribed(false);
         setIsSubscriptionLoading(false);
         return;
@@ -31,8 +35,7 @@ export function Header({ isSidebarOpen, onSidebarToggle, showBackButton, user }:
 
       setIsSubscriptionLoading(true);
       try {
-        const mod = await import('@/lib/polar');
-        const has = await mod.checkSubscription(user.id);
+        const has = await checkSubscriptionClient();
         if (!ignore) {
           setIsSubscribed(has);
         }
@@ -47,8 +50,41 @@ export function Header({ isSidebarOpen, onSidebarToggle, showBackButton, user }:
         }
       }
     }
+    
     check();
     return () => { ignore = true; };
+  }, [user?.id]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && user?.id) {
+        console.log('Header: Page became visible, refreshing subscription status...');
+        
+        // Clear cache and check subscription status
+        clearAllSubscriptionCache();
+        
+        // Small delay to ensure cache is cleared
+        setTimeout(async () => {
+          try {
+            setIsSubscriptionLoading(true);
+            const has = await checkSubscriptionClient();
+            setIsSubscribed(has);
+            console.log('Header: Subscription status refreshed:', has);
+          } catch (error) {
+            console.error('Header: Error refreshing subscription status:', error);
+            setIsSubscribed(false);
+          } finally {
+            setIsSubscriptionLoading(false);
+          }
+        }, 300); // Slightly shorter delay for header
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [user?.id]);
 
   useEffect(() => {

@@ -1,6 +1,11 @@
 import { Polar } from "@polar-sh/sdk";
 import { clearRateLimitInfo } from "./utils";
 
+// In-memory cache for subscription status and ongoing requests
+const subscriptionCache = new Map<string, { status: boolean; timestamp: number }>();
+const ongoingRequests = new Map<string, Promise<boolean>>();
+const CACHE_DURATION = 60000; // 1 minute cache
+
 // Environment configuration
 interface PolarConfig {
   accessToken: string;
@@ -70,84 +75,34 @@ export function createPolarClient() {
 // Check if a user has an active subscription
 export async function checkSubscription(externalId: string): Promise<boolean> {
   try {
-    const polar = createPolarClient();
-    const config = getPolarConfig();
-    
-    try {
-      // Add timeout to prevent long-running requests
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Polar API request timed out')), 5000);
-      });
-      
-      const resultPromise = polar.customers.getStateExternal({
-        externalId,
-      });
-      
-      // Race between the API call and timeout
-      const result = await Promise.race([resultPromise, timeoutPromise]) as any;
-      
-      // Check if user has any active subscriptions
-      const isSubscribed = result.activeSubscriptions && result.activeSubscriptions.length > 0;
-      
-      // Get previously cached subscription status if available
-      let previousStatus = false;
-      if (typeof window !== 'undefined') {
-        try {
-          const cachedStatus = localStorage.getItem(`subscription_status_${externalId}`);
-          previousStatus = cachedStatus === 'true';
-        } catch (e) {
-          // Ignore errors when accessing localStorage
-        }
-      }
+    // Check if there's an ongoing request for this user
+    if (ongoingRequests.has(externalId)) {
+      return await ongoingRequests.get(externalId)!;
+    }
 
-      // If subscription status changed from not subscribed to subscribed,
-      // clear rate limit information from localStorage
-      if (isSubscribed && !previousStatus) {
-        clearRateLimitInfo();
-      }
+    // Check in-memory cache first
+    const cached = subscriptionCache.get(externalId);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      return cached.status;
+    }
+
+    // Create promise for this request to prevent duplicate calls
+    const requestPromise = performSubscriptionCheck(externalId);
+    ongoingRequests.set(externalId, requestPromise);
+
+    try {
+      const result = await requestPromise;
       
-      // Cache the current status
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(`subscription_status_${externalId}`, String(isSubscribed));
-        } catch (e) {
-          // Ignore errors when accessing localStorage
-        }
-      }
-      
-      return isSubscribed;
-    } catch (error: any) {
-      // If the error is 404 Not Found, it means the customer doesn't exist yet
-      // This is normal for new users who haven't subscribed yet
-      if (error.status === 404 || 
-          error.statusCode === 404 || 
-          (error.message && (
-            error.message.includes('Not found') || 
-            error.message.includes('ResourceNotFound') ||
-            error.message.includes('404')
-          ))) {
-        return false;
-      }
-      
-      // For timeout errors, log and return false
-      if (error.message && error.message.includes('timed out')) {
-        return false;
-      }
-      
-      // For network or server errors (including 403 Forbidden), log and return false
-      if (error.status === 403 ||
-          error.statusCode === 403 ||
-          (error.message && (
-            error.message.includes('403') || 
-            error.message.includes('Forbidden') ||
-            error.message.includes('network') || 
-            error.message.includes('server')
-          ))) {
-        return false;
-      }
-      
-      // For other errors, rethrow
-      throw error;
+      // Cache the result
+      subscriptionCache.set(externalId, {
+        status: result,
+        timestamp: Date.now()
+      });
+
+      return result;
+    } finally {
+      // Clean up ongoing request
+      ongoingRequests.delete(externalId);
     }
   } catch (error) {
     console.error('[polar.ts]: Error checking subscription:', error);
@@ -155,11 +110,96 @@ export async function checkSubscription(externalId: string): Promise<boolean> {
   }
 }
 
+// Actual API call function
+async function performSubscriptionCheck(externalId: string): Promise<boolean> {
+  const polar = createPolarClient();
+  
+  try {
+    // Add timeout to prevent long-running requests
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Polar API request timed out')), 5000);
+    });
+    
+    const resultPromise = polar.customers.getStateExternal({
+      externalId,
+    });
+    
+    // Race between the API call and timeout
+    const result = await Promise.race([resultPromise, timeoutPromise]) as any;
+    
+    // Check if user has any active subscriptions
+    const isSubscribed = result.activeSubscriptions && result.activeSubscriptions.length > 0;
+    
+    // Get previously cached subscription status if available
+    let previousStatus = false;
+    if (typeof window !== 'undefined') {
+      try {
+        const cachedStatus = localStorage.getItem(`subscription_status_${externalId}`);
+        previousStatus = cachedStatus === 'true';
+      } catch (e) {
+        // Ignore errors when accessing localStorage
+      }
+    }
+
+    // If subscription status changed from not subscribed to subscribed,
+    // clear rate limit information from localStorage
+    if (isSubscribed && !previousStatus) {
+      clearRateLimitInfo();
+    }
+    
+    // Cache the current status in localStorage
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`subscription_status_${externalId}`, String(isSubscribed));
+      } catch (e) {
+        // Ignore errors when accessing localStorage
+      }
+    }
+    
+    return isSubscribed;
+  } catch (error: any) {
+    // If the error is 404 Not Found, it means the customer doesn't exist yet
+    // This is normal for new users who haven't subscribed yet
+    if (error.status === 404 || 
+        error.statusCode === 404 || 
+        (error.message && (
+          error.message.includes('Not found') || 
+          error.message.includes('ResourceNotFound') ||
+          error.message.includes('404')
+        ))) {
+      return false;
+    }
+    
+    // For timeout errors, log and return false
+    if (error.message && error.message.includes('timed out')) {
+      return false;
+    }
+    
+    // For network or server errors (including 403 Forbidden), log and return false
+    if (error.status === 403 ||
+        error.statusCode === 403 ||
+        (error.message && (
+          error.message.includes('403') || 
+          error.message.includes('Forbidden') ||
+          error.message.includes('network') || 
+          error.message.includes('server')
+        ))) {
+      return false;
+    }
+    
+    // For other errors, rethrow
+    throw error;
+  }
+}
+
 // Create a checkout session for a user
-export async function createCheckoutSession(externalId: string, email: string, name?: string) {
+export async function createCheckoutSession(externalId: string, email: string, name?: string, successUrl?: string) {
   try {
     const polar = createPolarClient();
     const config = getPolarConfig();
+    
+    // Use provided successUrl or construct default from environment
+    const finalSuccessUrl = successUrl || `${process.env.NEXTAUTH_URL || process.env.VERCEL_URL || 'http://localhost:3000'}/subscription/success`;
     
     // Create checkout session
     const result = await polar.checkouts.create({
@@ -167,7 +207,7 @@ export async function createCheckoutSession(externalId: string, email: string, n
       productPriceId: config.productPriceId,
       // discountId: config.discountId,
       // discountCode: config.discountCode,
-      successUrl: `${window.location.origin}/subscription/success`,
+      successUrl: finalSuccessUrl,
       customerExternalId: externalId,
       customerEmail: email,
       customerName: name || email.split('@')[0],
@@ -212,4 +252,17 @@ export async function deleteCustomer(externalId: string) {
     console.error('Error deleting customer:', error);
     return false;
   }
+}
+
+// Clear cache when user logs out or subscription changes
+export function clearSubscriptionCache() {
+  subscriptionCache.clear();
+  ongoingRequests.clear();
+}
+
+// Clear cache for specific user (used by webhooks)
+export function clearSubscriptionCacheForUser(externalId: string) {
+  subscriptionCache.delete(externalId);
+  ongoingRequests.delete(externalId);
+  console.log('🗑️ Cleared subscription cache for user:', externalId);
 } 
