@@ -184,7 +184,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
             <span className="text-green-500 dark:text-green-400 opacity-70 select-none shrink-0 text-sm sm:text-base">
               ›
             </span>
-            <span className="inline-block text-[var(--muted)] dark:text-green-400 group-hover:text-[var(--foreground)] dark:group-hover:text-green-300 transition-colors duration-300">
+            <span className="inline-block text-green-500 dark:text-green-400 group-hover:text-green-600 dark:group-hover:text-green-300 transition-colors duration-300 font-semibold">
               {renderPromptWithLinks(displayedText)}
               {/* 터미널 스타일 블록 커서 - 조건부 너비로 간격 문제 해결 */}
               <span 
@@ -202,6 +202,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
       
       {/* 향상된 스타일 */}
       <style jsx>{`
+
         @keyframes blink {
           0%, 50% { opacity: 0.7; }
           51%, 100% { opacity: 0; }
