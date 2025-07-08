@@ -1,10 +1,12 @@
 // app/lib/metricTranslations.ts
 
+import { ReactNode } from "react";
+
 type MetricKeys = 'default' | 'tps' | 'latency' | 'intelligenceIndex' | 'contextWindow';
 export type TooltipKeys = Exclude<MetricKeys, 'default'>;
 
 export type Translations = {
-  upgrade: ReactNode;
+  // upgrade: ReactNode;
   names: Record<MetricKeys, string>;
   tooltips: Record<TooltipKeys, string>;
 };
