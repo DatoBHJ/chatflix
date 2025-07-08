@@ -125,31 +125,7 @@ export const ModelCapabilityBadges = ({ modelId }: { modelId: string }) => {
           {!isMobile && <span className="text-[9px] font-medium">PDF</span>}
         </div>
       )}
-      
-      {/* Censorship Status - Use the exact ModelSelector.tsx styling */}
-      {typeof model.censored !== 'undefined' && (
-        <div className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-1 ${ 
-          model.censored 
-            ? 'bg-[#FFA07A]/20' 
-            : 'bg-[#90EE90]/20'
-        }`} title={model.censored ? "Content may be filtered" : "Uncensored"}>
-          {model.censored ? (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
-              <path fillRule="evenodd" d="M12 1.5a5.25 5.25 0 0 0-5.25 5.25v3a3 3 0 0 0-3 3v6.75a3 3 0 0 0 3 3h10.5a3 3 0 0 0 3-3v-6.75a3 3 0 0 0-3-3v-3c0-2.9-2.35-5.25-5.25-5.25Zm3.75 8.25v-3a3.75 3.75 0 1 0-7.5 0v3h7.5Z" clipRule="evenodd" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
-              <path d="M18 1.5c2.9 0 5.25 2.35 5.25 5.25v3.75a.75.75 0 0 1-1.5 0V6.75a3.75 3.75 0 1 0-7.5 0v3a3 3 0 0 1 3 3v6.75a3 3 0 0 1-3 3H3.75a3 3 0 0 1-3-3v-6.75a3 3 0 0 1 3-3h9v-3c0-2.9 2.35-5.25 5.25-5.25Z" />
-            </svg>
-          )}
-          {/* Show text only on desktop */}
-          {!isMobile && (
-            <span className="text-[9px] font-medium">
-              {model.censored ? 'Censored' : 'Uncensored'}
-            </span>
-          )}
-        </div>
-      )}
+            
     </div>
   );
 }; 
