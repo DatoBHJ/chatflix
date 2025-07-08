@@ -518,7 +518,6 @@ export function Sidebar({ user }: SidebarProps) {
 
       // title이 비어있는 채팅방만 제외 (모든 제목 허용)
       const filteredChats = newChats.filter(chat => chat.title && chat.title.trim() !== '');
-      
       if (append) {
         setChats(prevChats => [...prevChats, ...filteredChats])
       } else {
@@ -544,116 +543,6 @@ export function Sidebar({ user }: SidebarProps) {
       setIsLoadingMore(false)
     }
   }, [user, isChatsLoaded, lastLoadedUserId])
-
-  // 기존 방식 (폴백용)
-  const loadChatsOriginal = useCallback(async (page = 1, append = false, forceRefresh = false) => {
-    if (!user) return;
-    
-    try {
-      if (append) {
-        setIsLoadingMore(true)
-      }
-
-      const from = (page - 1) * CHATS_PER_PAGE
-      const to = from + CHATS_PER_PAGE - 1
-
-      const { data: sessions, error: sessionsError } = await supabase
-        .from('chat_sessions')
-        .select('id, created_at, title, current_model')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .range(from, to)
-
-      if (sessionsError) {
-        console.error('Error loading chat sessions:', sessionsError)
-        setIsLoadingMore(false)
-        return
-      }
-
-      if (sessions.length < CHATS_PER_PAGE) {
-        setHasMore(false)
-      }
-
-      // 🐌 기존 방식: 각 세션마다 개별 쿼리 (N+1 문제)
-      const chatPromises = sessions.map(async (session) => {
-        const { data: firstUserMsg } = await supabase
-          .from('messages')
-          .select('content, created_at')
-          .eq('chat_session_id', session.id)
-          .eq('role', 'user')
-          .order('created_at', { ascending: true })
-          .limit(1)
-
-        const { data: latestMsg } = await supabase
-          .from('messages')
-          .select('content, created_at, model')
-          .eq('chat_session_id', session.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-
-        const title = session.title && session.title.trim().length > 0
-          ? session.title
-          : (firstUserMsg && firstUserMsg.length > 0
-              ? (firstUserMsg[0].content.length > 40 
-                  ? firstUserMsg[0].content.substring(0, 40) + '...' 
-                  : firstUserMsg[0].content)
-              : 'Untitled Chat')
-        
-        const lastMessage = latestMsg && latestMsg.length > 0
-          ? latestMsg[0].content
-          : ''
-        
-        const lastMessageTime = latestMsg && latestMsg.length > 0 
-          ? new Date(latestMsg[0].created_at).getTime()
-          : new Date(session.created_at).getTime()
-
-        const currentModel = session.current_model || 
-          (latestMsg && latestMsg.length > 0 ? latestMsg[0].model : null)
-
-        return {
-          id: session.id,
-          title: title,
-          created_at: session.created_at,
-          messages: [],
-          lastMessageTime: lastMessageTime,
-          lastMessage: lastMessage,
-          current_model: currentModel
-        } as Chat
-      })
-
-      const newChats = await Promise.all(chatPromises)
-
-      newChats.sort((a, b) => {
-        const timeA = a.lastMessageTime ?? 0;
-        const timeB = b.lastMessageTime ?? 0;
-        return timeB - timeA;
-      })
-
-      const filteredChats = newChats.filter(chat => chat.title && chat.title.trim() !== '');
-      
-      if (append) {
-        setChats(prevChats => [...prevChats, ...filteredChats])
-      } else {
-        setChats(filteredChats)
-      }
-      
-      if (page === 1) {
-        setInitialLoadComplete(true)
-        setIsChatsLoaded(true)
-        setLastLoadedUserId(user.id)
-        lastLoadTimeRef.current = Date.now()
-      }
-      
-      if (append) {
-        setCurrentPage(page)
-      }
-      
-      setIsLoadingMore(false)
-    } catch (error) {
-      console.error('Error in loadChatsOriginal:', error)
-      setIsLoadingMore(false)
-    }
-  }, [user, supabase])
 
   // Effect to load chats when needed
   useEffect(() => {
@@ -926,82 +815,6 @@ export function Sidebar({ user }: SidebarProps) {
     try {
       const search = term.toLowerCase();
       
-      // 🚀 최적화된 검색: RPC 함수 사용
-      const { data: searchResults, error: searchError } = await supabase
-        .rpc('search_chat_sessions_with_messages', {
-          p_user_id: user.id,
-          p_search_term: search,
-          p_limit: 50
-        })
-
-      if (searchError) {
-        console.error('Error searching chats:', searchError)
-        
-        // RPC 함수가 없는 경우 기존 방식으로 폴백
-        if (searchError.message?.includes('function') || searchError.message?.includes('does not exist')) {
-          console.log('Search RPC function not found, falling back to original method')
-          return await searchChatsOriginal(term)
-        }
-        
-        setSearchResults([])
-        setIsSearching(false)
-        return
-      }
-
-      // 데이터 변환
-      const searchChatsWithDetails = searchResults.map((row: any) => {
-        const title = row.title && row.title.trim().length > 0
-          ? row.title
-          : (row.first_user_content && row.first_user_content.length > 0
-              ? (row.first_user_content.length > 40 
-                  ? row.first_user_content.substring(0, 40) + '...' 
-                  : row.first_user_content)
-              : 'Untitled Chat');
-        
-        const lastMessage = row.latest_content || '';
-        const lastMessageTime = row.latest_message_time 
-          ? new Date(row.latest_message_time).getTime()
-          : new Date(row.created_at).getTime();
-
-        const currentModel = row.current_model || row.latest_model || null;
-
-        return {
-          id: row.id,
-          title: title,
-          created_at: row.created_at,
-          messages: [],
-          lastMessageTime: lastMessageTime,
-          lastMessage: lastMessage,
-          current_model: currentModel
-        } as Chat;
-      });
-
-      // 시간순 정렬
-      searchChatsWithDetails.sort((a: Chat, b: Chat) => {
-        const timeA = a.lastMessageTime ?? 0;
-        const timeB = b.lastMessageTime ?? 0;
-        return timeB - timeA;
-      });
-
-      setSearchResults(searchChatsWithDetails);
-    } catch (error) {
-      console.error('Error searching chats:', error);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  }, [user?.id]); // 최소한의 의존성으로 최적화
-
-  // 기존 검색 방식 (폴백용)
-  const searchChatsOriginal = useCallback(async (term: string) => {
-    if (!user || !term.trim()) {
-      setIsSearching(false);
-      return;
-    }
-    
-    const search = term.toLowerCase();
-    
-    try {
       // 1. 제목으로 검색
       const { data: titleResults } = await supabase
         .from('chat_sessions')
@@ -1040,7 +853,7 @@ export function Sidebar({ user }: SidebarProps) {
         index === self.findIndex(s => s.id === session.id)
       );
 
-      // 🐌 기존 방식: 각 세션마다 개별 쿼리 (N+1 문제)
+      // 각 세션에 대해 첫 번째 사용자 메시지와 최신 메시지 가져오기
       const searchChatsWithDetails = await Promise.all(
         uniqueSessions.map(async (session) => {
           // 첫 번째 사용자 메시지 (제목 폴백용)
@@ -1092,7 +905,7 @@ export function Sidebar({ user }: SidebarProps) {
       );
 
       // 시간순 정렬
-      searchChatsWithDetails.sort((a: Chat, b: Chat) => {
+      searchChatsWithDetails.sort((a, b) => {
         const timeA = a.lastMessageTime ?? 0;
         const timeB = b.lastMessageTime ?? 0;
         return timeB - timeA;
@@ -1100,10 +913,12 @@ export function Sidebar({ user }: SidebarProps) {
 
       setSearchResults(searchChatsWithDetails);
     } catch (error) {
-      console.error('Error searching chats (original):', error);
+      console.error('Error searching chats:', error);
       setSearchResults([]);
+    } finally {
+      setIsSearching(false);
     }
-  }, [user?.id, supabase])
+  }, [user?.id]); // 최소한의 의존성으로 최적화
 
   // 검색 초기화 함수
   const clearSearch = useCallback(() => {
