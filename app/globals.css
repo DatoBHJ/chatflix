@@ -1457,7 +1457,7 @@ p:has(.katex) {
 .message-segments {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 1px;
 }
 
 /* Remove bubble styling when using segments */
@@ -1568,7 +1568,7 @@ p:has(.katex) {
 /* Mobile adjustments */
 @media (max-width: 640px) {
   .message-segments {
-    gap: 4px;
+    gap: 1px;
   }
   
   .message-segment {
