@@ -304,6 +304,13 @@
   border-radius: 18px;
 }
 
+/* Desktop multi-line AI messages get more padding */
+@media (min-width: 641px) {
+  .imessage-receive-bubble.multi-line {
+    padding: 8px 14px;
+  }
+}
+
 .imessage-receive-bubble::before {
   content: "";
   position: absolute;
@@ -631,7 +638,7 @@ body {
 
 /* Message Container Styles */
 .messages-container {
-  @apply max-w-3xl mx-auto w-full pl-3 pr-4 sm:pl-3 sm:pr-4 overflow-hidden pb-4 sm:pb-12;
+  @apply max-w-3xl mx-auto w-full pl-3 pr-3 overflow-hidden pb-4 sm:pb-12;
 }
 
 .message-group {
@@ -657,7 +664,7 @@ body {
 }
 
 .message-content {
-  @apply text-sm leading-relaxed;
+  @apply leading-relaxed;
   overflow-wrap: break-word;
   word-wrap: break-word;
   word-break: break-word;
@@ -1467,13 +1474,25 @@ p:has(.katex) {
 
 .message-segment {
   position: relative;
-  padding: 12px 16px;
+  padding: 5px 11px;
   background-color: var(--accent);
-  border-radius: 18px;
+  border-radius: 22px;
   word-wrap: break-word;
   overflow-wrap: break-word;
   opacity: 1;
   margin: 2px 0;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.message-segment.multi-line {
+  border-radius: 18px;
+}
+
+/* Desktop multi-line AI segments get more padding */
+@media (min-width: 641px) {
+  .message-segment.multi-line {
+    padding: 8px 14px;
+  }
 }
 
 /* Only the last segment gets the tail */
@@ -1483,8 +1502,14 @@ p:has(.katex) {
   left: -7px;
   bottom: 0;
   width: 20px;
-  height: 25px;
+  height: 16px;
   background-color: var(--accent);
+  border-bottom-right-radius: 16px 14px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.message-segment.multi-line:last-child::before {
+  height: 16px;
   border-bottom-right-radius: 16px 14px;
 }
 
@@ -1494,8 +1519,14 @@ p:has(.katex) {
   left: -26px;
   bottom: 0;
   width: 26px;
-  height: 25px;
+  height: 16px;
   background-color: var(--background);
+  border-bottom-right-radius: 10px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.message-segment.multi-line:last-child::after {
+  height: 16px;
   border-bottom-right-radius: 10px;
 }
 
@@ -1541,11 +1572,30 @@ p:has(.katex) {
   }
   
   .message-segment {
-    padding: 10px 14px;
+    padding: 8px 12px;
   }
   
-  .message-segment:not(:first-child):not(:last-child) {
-    
+  .message-segment:last-child::before {
+    left: -6px;
+    width: 16px;
+    height: 16px;
+    border-bottom-right-radius: 14px 12px;
+  }
+  
+  .message-segment.multi-line:last-child::before {
+    height: 16px;
+  }
+  
+  .message-segment:last-child::after {
+    left: -21px;
+    width: 21px;
+    height: 16px;
+    border-bottom-right-radius: 9px;
+  }
+  
+  .message-segment.multi-line:last-child::after {
+    height: 16px;
+    border-bottom-right-radius: 8px;
   }
 }
 

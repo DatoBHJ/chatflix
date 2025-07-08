@@ -146,22 +146,45 @@ const Message = memo(function MessageComponent({
 }: MessageProps) {
 
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const aiBubbleRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (bubbleRef.current) {
       const bubble = bubbleRef.current;
       // Heuristic to detect multi-line.
       // A single line of text with `text-sm` and `leading-relaxed` in Tailwind
-      // has a height of about 22-23px. The bubble has 4px vertical padding (total 8px).
-      // So a single-line bubble height is around 30-31px.
-      // We set a threshold of 35px to reliably distinguish single from multi-line messages.
-      if (bubble.clientHeight > 35) {
+      // has a height of about 22-23px. The bubble has 5px vertical padding (total 10px).
+      // So a single-line bubble height is around 32-33px.
+      // We set a threshold of 36px to reliably distinguish single from multi-line messages.
+      if (bubble.clientHeight > 36) {
+        bubble.classList.add('multi-line');
+      } else {
+        bubble.classList.remove('multi-line');
+      }
+    }
+    
+    // AI message multi-line detection
+    if (aiBubbleRef.current) {
+      const bubble = aiBubbleRef.current;
+      if (bubble.clientHeight > 36) {
         bubble.classList.add('multi-line');
       } else {
         bubble.classList.remove('multi-line');
       }
     }
     // Re-run this effect when message content changes or streaming ends.
+  }, [message.content, isStreaming]);
+
+  // Apply multi-line detection to segments
+  useEffect(() => {
+    const segments = document.querySelectorAll('.message-segment');
+    segments.forEach((segment) => {
+      if (segment.clientHeight > 36) {
+        segment.classList.add('multi-line');
+      } else {
+        segment.classList.remove('multi-line');
+      }
+    });
   }, [message.content, isStreaming]);
 
   // Bookmark state
@@ -612,7 +635,7 @@ const Message = memo(function MessageComponent({
         messageId={message.id}
         togglePanel={togglePanel}
       />
-      <div className={`flex ${isUser ? `justify-end` : `justify-start ${!isEditing ? 'pl-2' : ''}`}`}>
+      <div className={`flex ${isUser ? `justify-end` : `justify-start`}`}>
         {isUser && !isEditing ? (
           <div className="flex flex-col items-end gap-1">
             {hasAttachments && message.experimental_attachments!.map((attachment, index) => (
@@ -738,7 +761,7 @@ const Message = memo(function MessageComponent({
         ) : (
           <>
           {(hasAnyContent || structuredDescription) && (
-            <div className="imessage-receive-bubble max-w-full" ref={bubbleRef}>
+            <div className="imessage-receive-bubble max-w-full" ref={aiBubbleRef}>
               <div className="imessage-content-wrapper">
                 {/* 기존 컨텐츠 렌더링 로직 */}
               {hasAttachments && message.experimental_attachments!.map((attachment, index) => (
@@ -761,7 +784,7 @@ const Message = memo(function MessageComponent({
 
               {structuredDescription && (
                     <div className="imessage-receive-bubble mt-2">
-                  <p className="text-sm">{structuredDescription}</p>
+                  <p>{structuredDescription}</p>
                 </div>
             )}
           </div>
@@ -771,7 +794,7 @@ const Message = memo(function MessageComponent({
       )}
     </div>
     {isAssistant && !isStreaming && (
-      <div className="flex justify-start pl-2 mt-2 gap-4 items-center opacity-100 transition-opacity duration-300">
+      <div className="flex justify-start mt-2 gap-4 items-center opacity-100 transition-opacity duration-300">
         <button 
           onClick={onRegenerate(message.id)}
           disabled={isRegenerating}
@@ -870,7 +893,7 @@ const Message = memo(function MessageComponent({
 
     {/* 최종 로딩 표시: 스트리밍 중인 마지막 메시지에만 표시 */}
     {isAssistant && isStreaming && isLastMessage && (
-      <div className="flex justify-start pl-2 mt-2">
+      <div className="flex justify-start mt-2">
         {hasAnyRenderableContent ? (
           // 컨텐츠가 있으면 버블 없는 로딩 dots
           <div className="loading-dots text-sm inline-block ml-1">
