@@ -49,6 +49,17 @@
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* No tail for consecutive messages (not the last one) */
+.imessage-receive-bubble.no-tail::before,
+.imessage-receive-bubble.no-tail::after {
+  display: none !important;
+}
+ 
+.imessage-send-bubble.no-tail::before,
+.imessage-send-bubble.no-tail::after {
+  display: none !important;
+}
+
 .imessage-send-bubble::before {
   content: "";
   position: absolute;

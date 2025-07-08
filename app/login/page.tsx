@@ -214,10 +214,10 @@ export default function LoginPage() {
           </div>
           
           {/* AI Response - with more space above */}
-          <div className="mt-12 space-y-2">
+          <div className="mt-12 space-y-1">
             {/* AI Response 1: "Yes" */}
             <div className="flex justify-start">
-              <div className="imessage-receive-bubble">
+              <div className="imessage-receive-bubble no-tail">
                 {translations.yes}
               </div>
             </div>
