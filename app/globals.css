@@ -39,14 +39,18 @@
 .imessage-send-bubble {
   position: relative;
   max-width: 560px;
-  padding: 8px 16px;
+  padding: 5px 11px;
   margin: 2px 0;
   background-color: #007AFF;
   color: white;
-  border-radius: 18px;
+  border-radius: 22px;
   word-wrap: break-word;
   overflow-wrap: break-word;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.imessage-send-bubble.multi-line {
+  border-radius: 18px;
 }
 
 /* No tail for consecutive messages (not the last one) */
@@ -66,8 +70,14 @@
   right: -7px;
   bottom: 0;
   width: 20px;
-  height: 25px;
+  height: 16px;
   background-color: #007AFF;
+  border-bottom-left-radius: 16px 14px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.imessage-send-bubble.multi-line::before {
+  height: 16px;
   border-bottom-left-radius: 16px 14px;
 }
 
@@ -77,8 +87,14 @@
   right: -26px;
   bottom: 0;
   width: 26px;
-  height: 25px;
+  height: 16px;
   background-color: var(--background);
+  border-bottom-left-radius: 10px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.imessage-send-bubble.multi-line::after {
+  height: 16px;
   border-bottom-left-radius: 10px;
 }
 
@@ -97,21 +113,57 @@
 @media (max-width: 640px) {
   .imessage-send-bubble {
     max-width: 280px;
-    padding: 10px 14px;
+    padding: 8px 12px;
   }
   
   .imessage-send-bubble::before {
     right: -6px;
     width: 16px;
-    height: 20px;
+    height: 16px;
     border-bottom-left-radius: 14px 12px;
+  }
+  
+  .imessage-send-bubble.multi-line::before {
+    height: 16px;
   }
   
   .imessage-send-bubble::after {
     right: -21px;
     width: 21px;
-    height: 20px;
+    height: 16px;
+    border-bottom-left-radius: 9px;
+  }
+  
+  .imessage-send-bubble.multi-line::after {
+    height: 16px;
     border-bottom-left-radius: 8px;
+  }
+
+  .imessage-receive-bubble {
+    padding: 8px 12px;
+  }
+
+  .imessage-receive-bubble::before {
+    left: -6px;
+    width: 16px;
+    height: 16px;
+    border-bottom-right-radius: 14px 12px;
+  }
+
+  .imessage-receive-bubble.multi-line::before {
+    height: 16px;
+  }
+
+  .imessage-receive-bubble::after {
+    left: -21px;
+    width: 21px;
+    height: 16px;
+    border-bottom-right-radius: 9px;
+  }
+
+  .imessage-receive-bubble.multi-line::after {
+    height: 16px;
+    border-bottom-right-radius: 8px;
   }
 }
 
@@ -239,13 +291,17 @@
 
 .imessage-receive-bubble {
   position: relative;
-  padding: 8px 16px;
+  padding: 5px 11px;
   margin: 2px 0;
   background-color: var(--accent); 
-  border-radius: 18px;
+  border-radius: 22px;
   word-wrap: break-word;
   overflow-wrap: break-word;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.imessage-receive-bubble.multi-line {
+  border-radius: 18px;
 }
 
 .imessage-receive-bubble::before {
@@ -254,8 +310,14 @@
   left: -7px;
   bottom: 0;
   width: 20px;
-  height: 25px;
+  height: 16px;
   background-color: var(--accent);
+  border-bottom-right-radius: 16px 14px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.imessage-receive-bubble.multi-line::before {
+  height: 16px;
   border-bottom-right-radius: 16px 14px;
 }
 
@@ -265,8 +327,14 @@
   left: -26px;
   bottom: 0;
   width: 26px;
-  height: 25px;
+  height: 16px;
   background-color: var(--background);
+  border-bottom-right-radius: 10px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.imessage-receive-bubble.multi-line::after {
+  height: 16px;
   border-bottom-right-radius: 10px;
 }
 
@@ -563,11 +631,11 @@ body {
 
 /* Message Container Styles */
 .messages-container {
-  @apply max-w-3xl mx-auto w-full pl-3 pr-6 sm:pl-3 sm:pr-4 overflow-hidden pb-4 sm:pb-12;
+  @apply max-w-3xl mx-auto w-full pl-3 pr-4 sm:pl-3 sm:pr-4 overflow-hidden pb-4 sm:pb-12;
 }
 
 .message-group {
-  @apply py-8 first:pt-4 last:pb-4 max-w-[calc(100vw-2rem)] mx-auto;
+  @apply py-6 first:pt-4 last:pb-4 max-w-[calc(100vw-2rem)] mx-auto;
 }
 
 .message-group:last-child {

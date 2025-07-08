@@ -145,6 +145,25 @@ const Message = memo(function MessageComponent({
   isGlobalLoading,
 }: MessageProps) {
 
+  const bubbleRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (bubbleRef.current) {
+      const bubble = bubbleRef.current;
+      // Heuristic to detect multi-line.
+      // A single line of text with `text-sm` and `leading-relaxed` in Tailwind
+      // has a height of about 22-23px. The bubble has 4px vertical padding (total 8px).
+      // So a single-line bubble height is around 30-31px.
+      // We set a threshold of 35px to reliably distinguish single from multi-line messages.
+      if (bubble.clientHeight > 35) {
+        bubble.classList.add('multi-line');
+      } else {
+        bubble.classList.remove('multi-line');
+      }
+    }
+    // Re-run this effect when message content changes or streaming ends.
+  }, [message.content, isStreaming]);
+
   // Bookmark state
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
@@ -568,7 +587,7 @@ const Message = memo(function MessageComponent({
   }, [message, structuredDescription, hasAttachments, hasActualCanvasData]);
 
   return (
-    <div className={`message-group group animate-fade-in overflow-hidden ${getMinHeight}`} id={message.id}>
+    <div className={`message-group group animate-fade-in ${getMinHeight}`} id={message.id}>
       <UnifiedInfoPanel
         reasoningPart={reasoningPart}
         isAssistant={isAssistant}
@@ -593,7 +612,7 @@ const Message = memo(function MessageComponent({
         messageId={message.id}
         togglePanel={togglePanel}
       />
-      <div className={`flex ${isUser ? `justify-end ${!isEditing ? 'pr-2' : ''}` : `justify-start ${!isEditing ? 'pl-2' : ''}`}`}>
+      <div className={`flex ${isUser ? `justify-end` : `justify-start ${!isEditing ? 'pl-2' : ''}`}`}>
         {isUser && !isEditing ? (
           <div className="flex flex-col items-end gap-1">
             {hasAttachments && message.experimental_attachments!.map((attachment, index) => (
@@ -614,7 +633,7 @@ const Message = memo(function MessageComponent({
               ));
             })()}
             {hasContent && (
-              <div className="imessage-send-bubble">
+              <div className="imessage-send-bubble" ref={bubbleRef}>
                 <UserMessageContent content={message.content} />
               </div>
             )}
@@ -719,7 +738,7 @@ const Message = memo(function MessageComponent({
         ) : (
           <>
           {(hasAnyContent || structuredDescription) && (
-            <div className="imessage-receive-bubble max-w-full">
+            <div className="imessage-receive-bubble max-w-full" ref={bubbleRef}>
               <div className="imessage-content-wrapper">
                 {/* 기존 컨텐츠 렌더링 로직 */}
               {hasAttachments && message.experimental_attachments!.map((attachment, index) => (
@@ -810,7 +829,7 @@ const Message = memo(function MessageComponent({
       </div>
     )}
     {isUser && (
-      <div className="flex justify-end pr-2 mt-2 gap-4 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
+      <div className="flex justify-end mt-2 gap-4 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
         <button
           onClick={() => onEditStart(message)}
           className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2"
