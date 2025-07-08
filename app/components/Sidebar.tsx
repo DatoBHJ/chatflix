@@ -428,7 +428,31 @@ export function Sidebar({ user }: SidebarProps) {
         setHasMore(false)
       }
 
-      // 🎯 DB 쿼리 최소화: 메시지 정보 없이 기본 정보만 사용
+      // 첫 번째 사용자 메시지들을 효율적으로 가져오기
+      const sessionIds = sessions.map(s => s.id);
+      let firstMessages: Record<string, string> = {};
+      
+      if (sessionIds.length > 0) {
+        // 모든 세션의 첫 번째 사용자 메시지를 한 번에 가져오기
+        const { data: messagesData } = await supabase
+          .from('messages')
+          .select('chat_session_id, content')
+          .in('chat_session_id', sessionIds)
+          .eq('role', 'user')
+          .order('created_at', { ascending: true });
+        
+        // 각 세션의 첫 번째 메시지 매핑
+        if (messagesData) {
+          const firstMsgMap: Record<string, string> = {};
+          messagesData.forEach(msg => {
+            if (!firstMsgMap[msg.chat_session_id]) {
+              firstMsgMap[msg.chat_session_id] = msg.content;
+            }
+          });
+          firstMessages = firstMsgMap;
+        }
+      }
+
       const newChats = sessions.map((session) => {
         // 제목이 있으면 사용, 없으면 기본 제목 사용
         const title = session.title && session.title.trim().length > 0
@@ -438,13 +462,19 @@ export function Sidebar({ user }: SidebarProps) {
         // created_at을 마지막 메시지 시간으로 사용
         const lastMessageTime = new Date(session.created_at).getTime()
 
+        // 첫 번째 메시지 내용 (최대 100자로 제한)
+        const firstMessage = firstMessages[session.id] || '';
+        const truncatedFirstMessage = firstMessage.length > 100 
+          ? firstMessage.substring(0, 100) + '...' 
+          : firstMessage;
+
         return {
           id: session.id,
           title: title,
           created_at: session.created_at,
           messages: [], // 빈 배열로 유지
           lastMessageTime: lastMessageTime,
-          lastMessage: '', // 성능을 위해 빈 문자열로 설정
+          lastMessage: truncatedFirstMessage, // 첫 번째 메시지로 설정
           current_model: session.current_model
         } as Chat
       })
@@ -1251,10 +1281,10 @@ export function Sidebar({ user }: SidebarProps) {
                                   <p className={`text-xs truncate pr-2 ${
                                     isSelected ? 'text-white/70' : 'text-[var(--muted)]'
                                   }`}>
-                                    {(() => {
-                                      const model = getModelDisplayName(chat.current_model);
-                                      return model !== 'Unknown Model' ? `Using ${model}` : 'Chat conversation';
-                                    })()}
+                                    {searchTerm && chat.lastMessage 
+                                      ? highlightSearchTerm(chat.lastMessage, searchTerm, isSelected)
+                                      : (chat.lastMessage || 'No messages yet')
+                                    }
                                   </p>
                                   <div className={`flex gap-1 transition-opacity ${
                                     isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
