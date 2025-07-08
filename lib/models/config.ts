@@ -659,6 +659,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'gemini-2.5-pro',
     name: 'Gemini 2.5 Pro',
+    pro: true,
     cutoff: 'Jan 2025',
     abbreviation: 'Gem2.5P',
     country: 'US',
@@ -682,6 +683,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'gemini-2.5-pro-preview-06-05',
     name: 'Gemini 2.5 Pro Preview 06-05',
+    pro: true,
     cutoff: 'Jan 2025',
     abbreviation: 'Gem2.5P-06-05',
     country: 'US',
@@ -705,6 +707,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'gemini-2.5-pro-preview-05-06',
     name: 'Gemini 2.5 Pro Preview 05-06',
+    pro: true,
     cutoff: 'Jan 2025',
     abbreviation: 'Gem2.5P-05-06',
     country: 'US',
