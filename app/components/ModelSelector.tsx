@@ -430,8 +430,8 @@ export function ModelSelector({
               className={`
                 model-dropdown
                 ${isMobile 
-                  ? 'fixed inset-x-0 bottom-0 w-full max-h-[80vh] overflow-y-auto pb-6 model-selector-scroll rounded-t-xl bg-[var(--background)] backdrop-blur-lg shadow-2xl border-t border-[var(--accent)]' 
-                  : `absolute left-1 ${position === 'top' ? 'bottom-full mb-2 w-[592px] max-h-[600px]' : 'top-full mt-20 sm:mt-16 w-[600px] max-h-[400px]'} left-0 overflow-y-auto model-selector-scroll rounded-md bg-[var(--background)] backdrop-blur-lg shadow-xl border border-[var(--accent)]`
+                  ? 'px-2 fixed inset-x-0 bottom-0 w-full max-h-[80vh] overflow-y-auto pb-6 model-selector-scroll rounded-t-xl bg-[var(--background)] backdrop-blur-lg shadow-2xl border-t border-[var(--accent)]' 
+                  : `absolute left-1 ${position === 'top' ? 'bottom-full mb-2 w-[592px] max-h-[600px]' : 'top-full mt-20 sm:mt-16 w-[600px] max-h-[400px]'} px-2 md:px-3 left-0 overflow-y-auto model-selector-scroll rounded-md bg-[var(--background)] backdrop-blur-lg shadow-xl border border-[var(--accent)]`
                 }
                 z-50
               `}
@@ -461,7 +461,7 @@ export function ModelSelector({
               
               {/* Sort Controls */}
               <div className="sticky top-0 z-10 bg-[var(--background)] border-b border-[var(--accent)] px-4 py-3">
-                <div className="flex items-center gap-3 flex-wrap relative">
+                <div className="flex items-center gap-1 sm:gap-3 flex-wrap relative">
                   {/* Sort Icon */}
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-[var(--muted)] flex-shrink-0">
                     <path d="M3 7h18v2H3V7zm0 4h12v2H3v-2zm0 4h6v2H3v-2z" />
