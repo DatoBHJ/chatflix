@@ -593,7 +593,7 @@ const Message = memo(function MessageComponent({
         messageId={message.id}
         togglePanel={togglePanel}
       />
-      <div className={`flex ${isUser ? `justify-end ${!isEditing ? 'pr-4' : ''}` : `justify-start ${!isEditing ? 'pl-2' : ''}`}`}>
+      <div className={`flex ${isUser ? `justify-end ${!isEditing ? 'pr-2' : ''}` : `justify-start ${!isEditing ? 'pl-2' : ''}`}`}>
         {isUser && !isEditing ? (
           <div className="flex flex-col items-end gap-1">
             {hasAttachments && message.experimental_attachments!.map((attachment, index) => (
@@ -810,7 +810,7 @@ const Message = memo(function MessageComponent({
       </div>
     )}
     {isUser && (
-      <div className="flex justify-end pr-4 mt-2 gap-4 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
+      <div className="flex justify-end pr-2 mt-2 gap-4 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
         <button
           onClick={() => onEditStart(message)}
           className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2"
