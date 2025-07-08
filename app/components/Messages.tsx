@@ -3,7 +3,6 @@
 import { Message } from 'ai'
 import { Message as MessageComponent } from '@/app/components/Message'
 import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getAcademicSearchData } from '@/app/hooks/toolFunction';
-import { FollowUpQuestions } from '@/app/components/FollowUpQuestions';
 import React from 'react';
 import { User } from '@supabase/supabase-js';
 
@@ -23,7 +22,7 @@ interface MessagesProps {
   chatId: string;
   isLoading: boolean;
   activePanelMessageId?: string | null;
-  togglePanel: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string, fileName?: string) => void;
+  togglePanel: (messageId: string, type: 'canvas' | 'structuredResponse' | 'attachment', fileIndex?: number, toolType?: string, fileName?: string) => void;
   user: User | null;
   handleFollowUpQuestionClick: (question: string) => Promise<void>;
   hasCanvasData: (message: Message) => boolean;
@@ -57,7 +56,7 @@ export function Messages({
   messagesEndRef
 }: MessagesProps) {
   return (
-    <div className="messages-container space-y-0 mb-4 flex flex-col">
+    <div className="messages-container mb-4 flex flex-col">
       <div className="flex-grow">
         {messages.map((message, index) => {
           const messageHasCanvasData = hasCanvasData(message);
@@ -116,6 +115,10 @@ export function Messages({
                   academicSearchData={academicSearchData}
                   youTubeSearchData={youTubeSearchData}
                   youTubeLinkAnalysisData={youTubeLinkAnalysisData}
+                  user={user}
+                  handleFollowUpQuestionClick={handleFollowUpQuestionClick}
+                  allMessages={messages}
+                  isGlobalLoading={isLoading}
                 />
               </div>
             </div>
@@ -158,18 +161,12 @@ export function Messages({
             academicSearchData={null}
             youTubeSearchData={null}
             youTubeLinkAnalysisData={null}
+            user={user}
+            handleFollowUpQuestionClick={handleFollowUpQuestionClick}
+            allMessages={messages}
+            isGlobalLoading={isLoading}
           />
         </div>
-      )}
-      
-      {/* Add follow-up questions only if virtualization is not used */}
-      {!isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && user && (
-        <FollowUpQuestions 
-          chatId={chatId} 
-          userId={user.id} 
-          messages={messages} 
-          onQuestionClick={handleFollowUpQuestionClick} 
-        />
       )}
       
       {/* Reserve space to maintain consistent message positioning */}

@@ -81,10 +81,35 @@ export async function updateMemoryBank(
       user_id: userId,
       category,
       content,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      last_updated: new Date().toISOString()
     }, { onConflict: 'user_id,category' });
   
   return { data, error };
+}
+
+/**
+ * Get the last memory update time for a user
+ * Vercel 서버리스 환경에서 안정적인 30분 간격 체크를 위해 DB 기반으로 구현
+ */
+export async function getLastMemoryUpdate(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<Date | null> {
+  try {
+    const { data } = await supabase
+      .from('memory_bank')
+      .select('last_updated')
+      .eq('user_id', userId)
+      .order('last_updated', { ascending: false })
+      .limit(1)
+      .single();
+
+    return data?.last_updated ? new Date(data.last_updated) : null;
+  } catch (error) {
+    // 데이터가 없거나 오류 발생 시 null 반환 (첫 업데이트 허용)
+    return null;
+  }
 }
 
 /**

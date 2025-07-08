@@ -504,16 +504,7 @@ export const convertMessage = (msg: DatabaseMessage): ExtendedMessage => {
     baseMessage.experimental_attachments = msg.experimental_attachments;
   }
 
-  // Add stored agent reasoning as annotation for consistent UI handling
-  if (msg.tool_results && 
-      typeof msg.tool_results === 'object' && 
-      msg.tool_results.agentReasoning && 
-      !baseMessage.annotations.some((a: any) => a.type === 'agent_reasoning')) {
-    baseMessage.annotations.push({
-      type: 'agent_reasoning',
-      data: msg.tool_results.agentReasoning
-    });
-  }
+
 
   // Handle reasoning parts if present
   if (msg.role === 'assistant' && msg.reasoning) {

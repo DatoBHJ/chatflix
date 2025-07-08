@@ -1,6 +1,7 @@
 import React, { memo } from 'react'
-import { ImageIcon, FileText } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { fileHelpers } from '../ChatInput/FileUpload'
+import { getIcon } from 'material-file-icons'
 
 // 새로운 FilesPreview 컴포넌트
 export const FilesPreview = memo(function FilesPreview({
@@ -53,65 +54,94 @@ export const FilesPreview = memo(function FilesPreview({
     return null;
   }
 
-  const getFileIcon = (fileType?: string) => {
-    if (fileType?.startsWith('image/')) return <ImageIcon size={16} />;
-    if (fileType === 'application/pdf') return <FileText size={16} />;
-    if (fileType?.includes('text') || fileType?.includes('script')) return <FileText size={16} />;
-    return <FileText size={16} />; // 기본 아이콘
+  const getFileIconElement = (fileName?: string) => {
+    if (!fileName) {
+      // 로딩 중일 때 기본 파일 아이콘
+      const defaultIcon = getIcon('file.txt');
+      return (
+        <div 
+          style={{ width: '24px', height: '24px' }}
+          dangerouslySetInnerHTML={{ __html: defaultIcon.svg }}
+        />
+      );
+    }
+    
+    const icon = getIcon(fileName);
+    return (
+      <div 
+        style={{ width: '24px', height: '24px' }}
+        dangerouslySetInnerHTML={{ __html: icon.svg }}
+      />
+    );
   };
 
-  // 파일명을 확장자 유지하면서 중간 부분을 ... 로 처리하는 함수
-  const truncateFileName = (fileName?: string, maxLength: number = 35) => {
-    if (!fileName || typeof fileName !== 'string') {
-      return 'Loading file...'; // 이름이 없으면 로딩 중으로 표시
-    }
-    
-    if (fileName.length <= maxLength) return fileName;
-    
-    const lastDotIndex = fileName.lastIndexOf('.');
-    if (lastDotIndex === -1) {
-      // 확장자가 없는 경우
-      return fileName.slice(0, maxLength - 3) + '...';
-    }
-    
-    const name = fileName.slice(0, lastDotIndex);
-    const extension = fileName.slice(lastDotIndex);
-    
-    // 확장자를 포함한 길이가 maxLength를 초과하는 경우
-    const availableLength = maxLength - extension.length - 3; // 3은 ... 의 길이
-    if (availableLength <= 0) {
-      return '...' + extension;
-    }
-    
-    return name.slice(0, availableLength) + '...' + extension;
+  // 파일 크기 계산 함수 (UTF-8 바이트 크기)
+  const calculateFileSize = (content?: string): number => {
+    if (!content) return 0;
+    // UTF-8 인코딩에서 문자열의 바이트 크기 계산
+    return new Blob([content]).size;
   };
+
+  const isLoading = responseData.isProgress === true;
 
   return (
-    <div className="mt-6">
-      <div className="grid grid-cols-1 gap-2">
-        {responseData.files.map((file: any, index: number) => {
-          return (
-            <div
-              key={index}
-              className="flex items-center gap-2 p-2.5 bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] rounded-lg min-w-0 border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] hover:border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] transition-colors cursor-pointer max-w-md"
-              onClick={() => togglePanel && togglePanel(messageId, 'structuredResponse', index, undefined, file.name)} 
-              title={file.name ? `View ${file.name}` : 'View loading file...'}
-            >
-              <div className="flex items-center justify-center w-7 h-7 rounded-md bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex-shrink-0">
-                {getFileIcon(file.type)}
-              </div>
-              <div className="flex-1 min-w-0 overflow-hidden">
-                <div className="text-sm font-medium" title={file.name || 'Loading file...'}>
-                  {truncateFileName(file.name)}
-                </div>
-                <div className="text-xs text-[var(--muted)] truncate">
-                  {file.size ? fileHelpers.formatFileSize(file.size) : (file.type || (file.name ? '' : 'Processing...'))}
-                </div>
-              </div>
+    <div className="flex flex-col gap-2 mt-2">
+      {responseData.files.map((file: any, index: number) => {
+        const fileName = file.name || (isLoading ? 'Generating file...' : 'Unknown file');
+        
+        // 파일 크기 계산 - content가 있으면 바이트 크기 계산, 없으면 로딩/기본 메시지
+        let fileSize: string;
+        if (isLoading) {
+          fileSize = 'Processing...';
+        } else if (file.content) {
+          const sizeInBytes = calculateFileSize(file.content);
+          fileSize = fileHelpers.formatFileSize(sizeInBytes);
+        } else {
+          fileSize = 'Unknown size';
+        }
+        
+        return (
+          <div
+            key={index}
+            className="imessage-file-bubble"
+            onClick={() => togglePanel && togglePanel(messageId, 'structuredResponse', index, undefined, file.name)}
+            style={{
+              cursor: togglePanel ? 'pointer' : 'default',
+              opacity: isLoading ? 0.8 : 1
+            }}
+          >
+            {/* File Icon */}
+            <div className="flex-shrink-0">
+              {getFileIconElement(file.name)}
             </div>
-          );
-        })}
-      </div>
+            {/* File Info */}
+            <div className="flex-1 text-left overflow-hidden">
+              <p className="font-medium truncate text-sm text-black/60 dark:text-white/80">
+                {fileName}
+              </p>
+              <p className="text-xs text-black/40 dark:text-white/60">
+                {fileSize}
+              </p>
+            </div>
+            {/* Download Icon - 완료된 파일에만 표시 */}
+            {!isLoading && (
+              <div className="p-1">
+                <Download className="text-neutral-500" size={20} />
+              </div>
+            )}
+            {/* 로딩 중일 때 로딩 표시 */}
+            {isLoading && (
+              <div className="p-1">
+                <div className="loading-dots text-xs">
+                  <span>.</span>
+                  <span>.</span>
+                  <span>.</span>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }); 

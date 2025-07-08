@@ -29,7 +29,7 @@ ${message}
 
 Title:`;
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4.1-mini',
+      model: 'gpt-4.1-nano',
       messages: [
         { role: 'user', content: prompt }
       ],

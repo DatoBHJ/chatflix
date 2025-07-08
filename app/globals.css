@@ -4,6 +4,265 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 사이드바 토글 버튼 완벽한 테두리 제거 */
+.sidebar-toggle-btn,
+.sidebar-toggle-btn:focus,
+.sidebar-toggle-btn:focus-visible,
+.sidebar-toggle-btn:active,
+.sidebar-toggle-btn:hover,
+.sidebar-toggle-btn:visited {
+  outline: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+}
+
+.sidebar-toggle-btn::before,
+.sidebar-toggle-btn::after {
+  display: none !important;
+}
+
+.sidebar-toggle-btn::-moz-focus-inner {
+  border: 0 !important;
+  padding: 0 !important;
+}
+
+/* iMessage bubble styles */
+.imessage-send-bubble {
+  position: relative;
+  max-width: 560px;
+  padding: 8px 16px;
+  margin: 2px 0;
+  background-color: #007AFF;
+  color: white;
+  border-radius: 18px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.imessage-send-bubble::before {
+  content: "";
+  position: absolute;
+  right: -7px;
+  bottom: 0;
+  width: 20px;
+  height: 25px;
+  background-color: #007AFF;
+  border-bottom-left-radius: 16px 14px;
+}
+
+.imessage-send-bubble::after {
+  content: "";
+  position: absolute;
+  right: -26px;
+  bottom: 0;
+  width: 26px;
+  height: 25px;
+  background-color: var(--background);
+  border-bottom-left-radius: 10px;
+}
+
+/* Dark mode support for iMessage bubbles */
+:root[data-theme="dark"] .imessage-send-bubble::after {
+  background-color: var(--background-dark);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .imessage-send-bubble::after {
+    background-color: var(--background-dark);
+  }
+}
+
+/* Mobile responsiveness for iMessage bubbles */
+@media (max-width: 640px) {
+  .imessage-send-bubble {
+    max-width: 280px;
+    padding: 10px 14px;
+  }
+  
+  .imessage-send-bubble::before {
+    right: -6px;
+    width: 16px;
+    height: 20px;
+    border-bottom-left-radius: 14px 12px;
+  }
+  
+  .imessage-send-bubble::after {
+    right: -21px;
+    width: 21px;
+    height: 20px;
+    border-bottom-left-radius: 8px;
+  }
+}
+
+.imessage-image-bubble::after {
+  content: "";
+  position: absolute;
+  right: -7px;
+  bottom: 0;
+  width: 20px;
+  height: 25px;
+  background-color: transparent;
+  border-bottom-left-radius: 16px 14px;
+  box-shadow: -10px -4px 0 0 #007AFF; /* Use box-shadow to create the tail shape */
+  z-index: -1;
+}
+
+.imessage-image-attachment {
+  border-radius: 18px;
+  max-width: 280px;
+  max-height: 350px;
+  object-fit: cover;
+  cursor: pointer;
+}
+
+.imessage-file-bubble {
+  background-color: var(--accent);
+  /* background-color: #f2f2f7; */
+  border-radius: 18px;
+  padding: 12px;
+  max-width: 280px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+:root[data-theme="dark"] .imessage-file-bubble {
+  background-color: var(--accent);
+  /* background-color: #39393a; */
+}
+
+.imessage-link-preview {
+  display: block;
+  background-color: #f0f0f0;
+  border-radius: 18px;
+  max-width: 280px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid #e0e0e0;
+}
+
+.imessage-link-preview:hover {
+  filter: brightness(0.97);
+}
+
+.imessage-link-preview .preview-image {
+  width: 100%;
+  aspect-ratio: 1.91 / 1;
+  object-fit: cover;
+  border-bottom: 1px solid #e0e0e0;
+  background-color: #e8e8e8;
+}
+
+.imessage-link-preview .preview-content {
+  padding: 10px 12px;
+}
+
+.imessage-link-preview .preview-title {
+  font-weight: 400;
+  font-size: 14px;
+  margin: 0 0 2px 0;
+  color: #111;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.imessage-link-preview .preview-domain {
+  font-size: 12px;
+  color: #6d6d72;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.imessage-link-preview-loading,
+.imessage-link-preview-fallback {
+  background-color: #f0f0f0;
+  border-radius: 18px;
+  max-width: 280px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #007AFF;
+  text-decoration: none;
+}
+.imessage-link-preview-fallback:hover {
+  text-decoration: underline;
+}
+
+:root[data-theme="dark"] .imessage-link-preview,
+:root[data-theme="dark"] .imessage-link-preview-loading,
+:root[data-theme="dark"] .imessage-link-preview-fallback {
+    background-color: #39393a;
+    border-color: #4a4a4b;
+}
+
+:root[data-theme="dark"] .imessage-link-preview .preview-image {
+    border-bottom-color: #4a4a4b;
+    background-color: #444;
+}
+
+:root[data-theme="dark"] .imessage-link-preview .preview-title {
+    color: #fff;
+}
+
+:root[data-theme="dark"] .imessage-link-preview .preview-domain {
+    color: #8e8e93;
+}
+
+:root[data-theme="dark"] .imessage-link-preview-fallback {
+  color: #58a6ff;
+}
+
+.imessage-receive-bubble {
+  position: relative;
+  padding: 8px 16px;
+  margin: 2px 0;
+  background-color: var(--accent); 
+  border-radius: 18px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.imessage-receive-bubble::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  bottom: 0;
+  width: 20px;
+  height: 25px;
+  background-color: var(--accent);
+  border-bottom-right-radius: 16px 14px;
+}
+
+.imessage-receive-bubble::after {
+  content: "";
+  position: absolute;
+  left: -26px;
+  bottom: 0;
+  width: 26px;
+  height: 25px;
+  background-color: var(--background);
+  border-bottom-right-radius: 10px;
+}
+
+:root[data-theme="dark"] .imessage-receive-bubble::after {
+  background-color: var(--background-dark);
+}
+
 :root {
   /* Light theme variables */
   --background-light: #ffffff;
@@ -36,6 +295,26 @@
   --subtle-divider-dark: color-mix(in srgb, var(--foreground-dark) 8%, transparent);
   --sidebar-divider-dark: rgba(255, 255, 255, 0.08);
 
+  /* Component color variables for light theme */
+  --reasoning-color-light: #9333ea;
+  --reasoning-muted-light: #a855f7;
+  --tools-color-light: #2563eb;
+  --tools-muted-light: #3b82f6;
+  --status-bg-processing-light: #dbeafe;
+  --status-text-processing-light: #1d4ed8;
+  --status-bg-complete-light: #dcfce7;
+  --status-text-complete-light: #166534;
+
+  /* Component color variables for dark theme */
+  --reasoning-color-dark: #c084fc;
+  --reasoning-muted-dark: #a78bfa;
+  --tools-color-dark: #60a5fa;
+  --tools-muted-dark: #93c5fd;
+  --status-bg-processing-dark: rgba(59, 130, 246, 0.2);
+  --status-text-processing-dark: #93c5fd;
+  --status-bg-complete-dark: rgba(34, 197, 94, 0.2);
+  --status-text-complete-dark: #86efac;
+
   /* Default to light theme */
   --background: var(--background-light);
   --foreground: var(--foreground-light);
@@ -48,9 +327,34 @@
   --overlay: var(--overlay-light);
   --subtle-divider: var(--subtle-divider-light);
   --sidebar-divider: var(--sidebar-divider-light);
+  
+  /* Component colors default to light theme */
+  --reasoning-color: var(--reasoning-color-light);
+  --reasoning-muted: var(--reasoning-muted-light);
+  --tools-color: var(--tools-color-light);
+  --tools-muted: var(--tools-muted-light);
+  --status-bg-processing: var(--status-bg-processing-light);
+  --status-text-processing: var(--status-text-processing-light);
+  --status-bg-complete: var(--status-bg-complete-light);
+  --status-text-complete: var(--status-text-complete-light);
 
   --font-sans: "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
   --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Chat Input Styles */
+  --chat-input-button-hover-bg-light: #dcdce0;
+  --chat-input-button-hover-bg-dark: #4a4a4c;
+  --chat-input-primary-light: #007aff;
+  --chat-input-primary-dark: #0b84ff;
+  --chat-input-primary-foreground-light: #ffffff;
+  --chat-input-primary-foreground-dark: #ffffff;
+
+  --chat-input-bg: var(--accent);
+  --chat-input-text: var(--foreground);
+  --chat-input-button-bg: var(--accent);
+  --chat-input-button-hover-bg: var(--chat-input-button-hover-bg-light);
+  --chat-input-primary: var(--chat-input-primary-light);
+  --chat-input-primary-foreground: var(--chat-input-primary-foreground-light);
 }
 
 /* System preference based theme switching */
@@ -67,6 +371,24 @@
     --overlay: var(--overlay-dark);
     --subtle-divider: var(--subtle-divider-dark);
     --sidebar-divider: var(--sidebar-divider-dark);
+    
+    /* Component colors for system dark theme */
+    --reasoning-color: var(--reasoning-color-dark);
+    --reasoning-muted: var(--reasoning-muted-dark);
+    --tools-color: var(--tools-color-dark);
+    --tools-muted: var(--tools-muted-dark);
+    --status-bg-processing: var(--status-bg-processing-dark);
+    --status-text-processing: var(--status-text-processing-dark);
+    --status-bg-complete: var(--status-bg-complete-dark);
+    --status-text-complete: var(--status-text-complete-dark);
+
+    /* Chat Input Styles */
+    --chat-input-bg: var(--accent);
+    --chat-input-text: var(--foreground);
+    --chat-input-button-bg: var(--accent);
+    --chat-input-button-hover-bg: var(--chat-input-button-hover-bg-dark);
+    --chat-input-primary: var(--chat-input-primary-dark);
+    --chat-input-primary-foreground: var(--chat-input-primary-foreground-dark);
   }
 }
 
@@ -83,6 +405,24 @@
   --overlay: var(--overlay-dark);
   --subtle-divider: var(--subtle-divider-dark);
   --sidebar-divider: var(--sidebar-divider-dark);
+  
+  /* Component colors for manual dark theme */
+  --reasoning-color: var(--reasoning-color-dark);
+  --reasoning-muted: var(--reasoning-muted-dark);
+  --tools-color: var(--tools-color-dark);
+  --tools-muted: var(--tools-muted-dark);
+  --status-bg-processing: var(--status-bg-processing-dark);
+  --status-text-processing: var(--status-text-processing-dark);
+  --status-bg-complete: var(--status-bg-complete-dark);
+  --status-text-complete: var(--status-text-complete-dark);
+
+  /* Chat Input Styles */
+  --chat-input-bg: var(--accent);
+  --chat-input-text: var(--foreground);
+  --chat-input-button-bg: var(--accent);
+  --chat-input-button-hover-bg: var(--chat-input-button-hover-bg-dark);
+  --chat-input-primary: var(--chat-input-primary-dark);
+  --chat-input-primary-foreground: var(--chat-input-primary-foreground-dark);
 }
 
 /* Manual light theme */
@@ -98,6 +438,24 @@
   --overlay: var(--overlay-light);
   --subtle-divider: var(--subtle-divider-light);
   --sidebar-divider: var(--sidebar-divider-light);
+  
+  /* Component colors for manual light theme */
+  --reasoning-color: var(--reasoning-color-light);
+  --reasoning-muted: var(--reasoning-muted-light);
+  --tools-color: var(--tools-color-light);
+  --tools-muted: var(--tools-muted-light);
+  --status-bg-processing: var(--status-bg-processing-light);
+  --status-text-processing: var(--status-text-processing-light);
+  --status-bg-complete: var(--status-bg-complete-light);
+  --status-text-complete: var(--status-text-complete-light);
+
+  /* Chat Input Styles */
+  --chat-input-bg: var(--accent);
+  --chat-input-text: var(--foreground);
+  --chat-input-button-bg: var(--accent);
+  --chat-input-button-hover-bg: var(--chat-input-button-hover-bg-light);
+  --chat-input-primary: var(--chat-input-primary-light);
+  --chat-input-primary-foreground: var(--chat-input-primary-foreground-light);
 }
 
 body {
@@ -153,40 +511,7 @@ body {
            text-sm mb-1;
   }
 
-  .yeezy-model-selector {
-    @apply bg-transparent text-sm sm:text-base uppercase tracking-wide w-full
-           focus:outline-none cursor-pointer py-2 px-0
-           transition-colors relative;
-    position: relative;
-    padding-right: 2.5rem;
-  }
 
-  .yeezy-model-selector::after {
-    content: '';
-    position: absolute;
-    right: 0.5rem;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 1em;
-    height: 1em;
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23666666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: contain;
-    transition: transform 0.2s;
-  }
-
-  .yeezy-model-selector:hover {
-    @apply text-[var(--foreground)];
-  }
-
-  .yeezy-model-selector:hover::after {
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-  }
-
-  .yeezy-model-selector:disabled {
-    @apply opacity-50 cursor-not-allowed;
-  }
   
   /* 트렌딩 용어 버튼 스타일 */
   .trending-term {
@@ -227,11 +552,11 @@ body {
 
 /* Message Container Styles */
 .messages-container {
-  @apply max-w-3xl mx-auto w-full px-6 sm:px-4 overflow-hidden pb-10 sm:pb-20;
+  @apply max-w-3xl mx-auto w-full pl-3 pr-6 sm:pl-3 sm:pr-4 overflow-hidden pb-4 sm:pb-12;
 }
 
 .message-group {
-  @apply py-8 first:pt-4 last:pb-4 max-w-[calc(100vw-2rem)] overflow-hidden mx-auto;
+  @apply py-8 first:pt-4 last:pb-4 max-w-[calc(100vw-2rem)] mx-auto;
 }
 
 .message-group:last-child {
@@ -245,27 +570,11 @@ body {
 }
 
 /* Message Styles */
-.message-user, .message-assistant {
+.message-user {
   @apply rounded-lg p-4 my-2;
   max-width: calc(100% - 2rem);
   word-wrap: break-word;
   overflow-wrap: break-word;
-}
-
-.message-user {
-  @apply p-6 rounded-lg max-w-full ml-auto transition-[var(--transition)];
-  background: var(--accent);
-  color: var(--foreground);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
-}
-
-.message-assistant {
-  @apply p-2 sm:p-4 rounded-none max-w-full
-         hover:opacity-95 transition-[var(--transition)];
-  /* background-color: var(--accent); */
-  /* box-shadow: 0 1px 2px rgba(0,0,0,0.1); */
-  /* border-bottom: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent); */
-
 }
 
 .message-content {
@@ -699,106 +1008,9 @@ body {
          transition-colors opacity-0 group-hover:opacity-100;
 }
 
-/* Reasoning Section Styles */
-.message-reasoning {
-  @apply mb-8 text-sm relative rounded-lg;
-  /* background-color: color-mix(in srgb, var(--background) 95%, var(--foreground) 5%); */
-  background-color: var(--accent);
+/* Legacy reasoning styles removed - using new Apple-style bubble components */
 
-  /* border: 1px solid color-mix(in srgb, var(--foreground) 15%, transparent); */
-}
 
-.message-reasoning-header {
-  @apply flex items-center justify-between gap-2 text-xs uppercase tracking-wider cursor-pointer 
-         hover:text-[var(--foreground)] transition-[var(--transition)] p-6 px-10;
-  color: var(--muted);
-  /* border-bottom: 1px solid color-mix(in srgb, var(--foreground) 15%, transparent); */
-  position: relative;
-  z-index: 2;
-  /* background-color: color-mix(in srgb, var(--background) 98%, var(--foreground) 2%); */
-}
-
-.message-reasoning-content {
-  @apply overflow-y-auto px-8 relative;
-  max-height: 300px;
-  transition: all 0.3s ease;
-  scroll-behavior: smooth;
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-  color: var(--muted);
-  mask-image: linear-gradient(
-    to bottom,
-    transparent,
-    black 10px,
-    black calc(100% - 10px),
-    transparent
-  );
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent,
-    black 10px,
-    black calc(100% - 10px),
-    transparent
-  );
-}
-
-/* Hide scrollbar for Chrome, Safari and Opera */
-.message-reasoning-content::-webkit-scrollbar {
-  display: none;
-}
-
-/* Add smooth scrolling animation */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.message-reasoning-content > * {
-  animation: fadeInUp 0.3s ease-out forwards;
-}
-
-.message-reasoning-content:not(.expanded) {
-  @apply overflow-hidden;
-  max-height: 0;
-  padding: 0;
-  opacity: 0;
-}
-
-.message-reasoning-content.expanded {
-  @apply opacity-100;
-}
-
-.message-reasoning-icon {
-  @apply w-3 h-3 transition-transform duration-300;
-}
-
-.message-reasoning-icon.expanded {
-  @apply rotate-180;
-}
-
-/* Model Selector Dropdown */
-.model-selector-dropdown,
-.model-selector-dropdown.visible,
-.model-selector-option,
-.model-selector-option.selected {
-  display: none;
-}
-
-/* Model Selector Scroll */
-.model-selector-scroll {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-}
-
-.model-selector-scroll::-webkit-scrollbar {
-  display: none;  /* Chrome, Safari, Opera */
-}
 
 /* Mention styles */
 .yeezy-input {
@@ -1154,4 +1366,141 @@ p:has(.katex) {
   color: var(--muted);
   opacity: 0.8;
 }
+
+/* Multi-bubble effect for AI responses */
+.message-segments {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Remove bubble styling when using segments */
+.imessage-receive-bubble:has(.message-segments) {
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+
+.imessage-receive-bubble:has(.message-segments)::before,
+.imessage-receive-bubble:has(.message-segments)::after {
+  display: none;
+}
+
+.message-segment {
+  position: relative;
+  padding: 12px 16px;
+  background-color: var(--accent);
+  border-radius: 18px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  opacity: 1;
+  margin: 2px 0;
+}
+
+/* Only the last segment gets the tail */
+.message-segment:last-child::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  bottom: 0;
+  width: 20px;
+  height: 25px;
+  background-color: var(--accent);
+  border-bottom-right-radius: 16px 14px;
+}
+
+.message-segment:last-child::after {
+  content: "";
+  position: absolute;
+  left: -26px;
+  bottom: 0;
+  width: 26px;
+  height: 25px;
+  background-color: var(--background);
+  border-bottom-right-radius: 10px;
+}
+
+:root[data-theme="dark"] .message-segment:last-child::after {
+  background-color: var(--background-dark);
+}
+
+/* Sidebar iMessage bubble style - no tail, fits sidebar width */
+.imessage-send-bubble.sidebar {
+  max-width: none !important;
+  width: 100% !important;
+  margin: 4px 0 !important;
+  position: relative;
+}
+
+/* Remove tail from sidebar bubbles */
+.imessage-send-bubble.sidebar::before,
+.imessage-send-bubble.sidebar::after {
+  display: none !important;
+}
+
+/* Hover effect removed for sidebar bubbles to prevent unwanted hover on selected items */
+
+/* Line clamp utilities for sidebar */
+.line-clamp-1 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* Mobile adjustments */
+@media (max-width: 640px) {
+  .message-segments {
+    gap: 4px;
+  }
+  
+  .message-segment {
+    padding: 10px 14px;
+  }
+  
+  .message-segment:not(:first-child):not(:last-child) {
+    
+  }
+}
+
+/* 편집 UI를 위한 부드러운 전환 애니메이션 */
+@keyframes edit-in-view {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-edit-in-view {
+  animation: edit-in-view 0.25s ease-out forwards;
+}
+
+/* Chat Input Dynamic Border Radius */
+.futuristic-input {
+  border-radius: 9999px; /* Default rounded-full */
+  transition: border-radius 0.2s ease;
+}
+
+/* When input has multiple lines or is taller, reduce border radius */
+.futuristic-input:not(.empty) {
+  border-radius: 20px;
+}
+
+/* For very tall content, make it even more rectangular */
+.futuristic-input[style*="height"] {
+  border-radius: 16px;
+}
+
+/* Chat Input Dynamic Border Radius */
 

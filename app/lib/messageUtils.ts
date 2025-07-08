@@ -5,64 +5,10 @@ export type File = {
   description?: string;
 };
 
-// Define a type for the annotations used in extractReasoningForMessage
+// Annotation type definition
 export type Annotation = {
   type: string;
-  data: any;
-  // Add other potential fields if necessary, e.g., timestamp, id, etc.
-};
-
-// Helper function to extract reasoning data for a single message
-export const extractReasoningForMessage = (message: any) => {
-  if (!message) return { completeData: null, progressData: [] };
-
-  const messageAnnotations = ((message.annotations || []) as Annotation[]);
-  const toolResults = (message as any).tool_results;
-
-  const reasoningAnnotations = messageAnnotations
-    .filter(a => a?.type === 'agent_reasoning' || a?.type === 'agent_reasoning_progress');
-    
-  const toolResultsReasoningData = toolResults?.agentReasoning;
-  const toolResultsSource = toolResultsReasoningData
-    ? [{ type: 'agent_reasoning', data: toolResultsReasoningData } as Annotation] 
-    : [];
-    
-  const reasoningDataSources = [...reasoningAnnotations, ...toolResultsSource];
-
-  const completeAnnotation = reasoningDataSources.find(a => 
-    a?.type === 'agent_reasoning' && (a?.data?.isComplete === true || typeof a?.data?.isComplete === 'undefined')
-  );
-  
-  const progressAnnotations = reasoningDataSources
-    .filter(a => a?.type === 'agent_reasoning_progress')
-    .sort((a, b) => new Date(b?.data?.timestamp || 0).getTime() - new Date(a?.data?.timestamp || 0).getTime()); // Newest first
-  
-  const formatReasoningData = (sourceItem: Annotation, isExplicitlyProgress: boolean) => {
-    const data = sourceItem.data;
-    const selectedTools = data?.selectedTools || [];
-    
-    return {
-      agentThoughts: data?.agentThoughts || data?.reasoning || '',
-      plan: data?.plan || '',
-      selectionReasoning: data?.selectionReasoning || '',
-      selectedTools: selectedTools,
-      // Legacy boolean fields for backward compatibility (derived from selectedTools)
-      needsWebSearch: selectedTools.includes('web_search'),
-      needsCalculator: selectedTools.includes('calculator'),
-      needsLinkReader: selectedTools.includes('link_reader'),
-      needsImageGenerator: selectedTools.includes('image_generator'),
-      needsAcademicSearch: selectedTools.includes('academic_search'),
-      needsYouTubeSearch: selectedTools.includes('youtube_search'),
-      needsYouTubeLinkAnalyzer: selectedTools.includes('youtube_link_analyzer'),
-      timestamp: data?.timestamp,
-      isComplete: isExplicitlyProgress ? false : (data?.isComplete ?? (sourceItem.type === 'agent_reasoning'))
-    };
-  };
-  
-  return {
-    completeData: completeAnnotation ? formatReasoningData(completeAnnotation, false) : null,
-    progressData: progressAnnotations.map(a => formatReasoningData(a, true))
-  };
+  data?: any;
 };
 
 // Helper function to get structured response main content

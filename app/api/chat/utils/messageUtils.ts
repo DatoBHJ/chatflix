@@ -577,7 +577,7 @@ export const convertMessageForAI = async (
     // 🆕 Include tool_results in the return value
     ...(toolResults && { tool_results: toolResults })
   };
-}; 
+};
 
 export const validateAndUpdateSession = async (supabase: any, chatId: string | undefined, userId: string, messages: Message[]) => {
   if (!chatId) return;
@@ -663,14 +663,30 @@ export function convertMultiModalToMessage(
     generatedImages?: boolean;
   }
 ): Message[] {
-  let toolResultsStats = {
-    totalMessages: messages.length,
-    messagesWithToolResults: 0,
-    includedToolResults: 0,
-    toolTypes: [] as string[]
-  };
-
   const result = messages.map(msg => {
+    // If a contextFilter is provided, decide whether to include the tool_results
+    if (contextFilter && (msg as any).tool_results) {
+      const toolResults = (msg as any).tool_results;
+      const filteredToolResults: any = {};
+      
+      if (contextFilter.calculationSteps && toolResults.calculationSteps) filteredToolResults.calculationSteps = toolResults.calculationSteps;
+      if (contextFilter.webSearchResults && toolResults.webSearchResults) filteredToolResults.webSearchResults = toolResults.webSearchResults;
+      if (contextFilter.linkReaderAttempts && toolResults.linkReaderAttempts) filteredToolResults.linkReaderAttempts = toolResults.linkReaderAttempts;
+      if (contextFilter.youtubeLinkAnalysisResults && toolResults.youtubeLinkAnalysisResults) filteredToolResults.youtubeLinkAnalysisResults = toolResults.youtubeLinkAnalysisResults;
+      if (contextFilter.youtubeSearchResults && toolResults.youtubeSearchResults) filteredToolResults.youtubeSearchResults = toolResults.youtubeSearchResults;
+      if (contextFilter.academicSearchResults && toolResults.academicSearchResults) filteredToolResults.academicSearchResults = toolResults.academicSearchResults;
+      if (contextFilter.structuredResponse && toolResults.structuredResponse) filteredToolResults.structuredResponse = toolResults.structuredResponse;
+      if (contextFilter.generatedImages && toolResults.generatedImages) filteredToolResults.generatedImages = toolResults.generatedImages;
+
+      // If any relevant tool results were found, include them. Otherwise, omit tool_results.
+      if (Object.keys(filteredToolResults).length > 0) {
+        (msg as any).tool_results = filteredToolResults;
+      } else {
+        delete (msg as any).tool_results;
+      }
+    }
+
+    // Convert the message content
     let content: string | any[];
     
     // 🔧 FIX: Preserve multimodal content instead of converting to text
@@ -723,66 +739,6 @@ export function convertMultiModalToMessage(
       content: content
     };
     
-    // tool_results가 있으면 필터 적용해서 포함
-    if ((msg as any).tool_results) {
-      const toolResults = (msg as any).tool_results;
-      toolResultsStats.messagesWithToolResults++;
-      
-      if (contextFilter) {
-        // 필터가 있으면 선택적으로 포함
-        const filteredToolResults: any = {};
-        
-        if (contextFilter.calculationSteps && toolResults.calculationSteps) {
-          filteredToolResults.calculationSteps = toolResults.calculationSteps;
-          toolResultsStats.toolTypes.push('calculationSteps');
-        }
-        if (contextFilter.webSearchResults && toolResults.webSearchResults) {
-          filteredToolResults.webSearchResults = toolResults.webSearchResults;
-          toolResultsStats.toolTypes.push('webSearchResults');
-        }
-        if (contextFilter.linkReaderAttempts && toolResults.linkReaderAttempts) {
-          filteredToolResults.linkReaderAttempts = toolResults.linkReaderAttempts;
-          toolResultsStats.toolTypes.push('linkReaderAttempts');
-        }
-        if (contextFilter.youtubeLinkAnalysisResults && toolResults.youtubeLinkAnalysisResults) {
-          filteredToolResults.youtubeLinkAnalysisResults = toolResults.youtubeLinkAnalysisResults;
-          toolResultsStats.toolTypes.push('youtubeLinkAnalysisResults');
-        }
-        if (contextFilter.youtubeSearchResults && toolResults.youtubeSearchResults) {
-          filteredToolResults.youtubeSearchResults = toolResults.youtubeSearchResults;
-          toolResultsStats.toolTypes.push('youtubeSearchResults');
-        }
-        if (contextFilter.academicSearchResults && toolResults.academicSearchResults) {
-          filteredToolResults.academicSearchResults = toolResults.academicSearchResults;
-          toolResultsStats.toolTypes.push('academicSearchResults');
-        }
-        if (contextFilter.structuredResponse && toolResults.structuredResponse) {
-          filteredToolResults.structuredResponse = toolResults.structuredResponse;
-          toolResultsStats.toolTypes.push('structuredResponse');
-        }
-        if (contextFilter.generatedImages && toolResults.generatedImages) {
-          filteredToolResults.generatedImages = toolResults.generatedImages;
-          toolResultsStats.toolTypes.push('generatedImages');
-        }
-        
-        // 필터링된 결과가 있을 때만 포함
-        if (Object.keys(filteredToolResults).length > 0) {
-          baseMessage.tool_results = filteredToolResults;
-          toolResultsStats.includedToolResults++;
-        }
-      } else {
-        // 필터가 없으면 모든 tool_results 포함
-        baseMessage.tool_results = toolResults;
-        toolResultsStats.includedToolResults++;
-        // 원본 도구 타입들 로깅
-        Object.keys(toolResults).forEach(key => {
-          if (key !== 'token_usage') {
-            toolResultsStats.toolTypes.push(key);
-          }
-        });
-      }
-    }
-    
     return baseMessage as Message; // Return as Message type
   });
 
@@ -832,8 +788,8 @@ export function selectMessagesWithinTokenLimit(
   // 필수 메시지의 토큰 수 계산
   let reservedTokens = 0;
   if (lastUserMessage) {
-    // 🆕 공통 함수 사용
-    reservedTokens = estimateMultiModalTokens(lastUserMessage as any);
+    // 🔧 MEDIUM PRIORITY OPTIMIZATION: 미리 계산된 토큰 사용
+    reservedTokens = (lastUserMessage as any)._tokenCount || estimateMultiModalTokens(lastUserMessage as any);
   }
   
   // 실제 사용 가능한 토큰 수 계산
@@ -849,8 +805,8 @@ export function selectMessagesWithinTokenLimit(
   
   // 남은 메시지들에 대해 토큰 계산 및 선택
   for (const message of remainingMessages) {
-    // 🆕 공통 함수 사용
-    const msgTokens = estimateMultiModalTokens(message as any);
+    // 🔧 MEDIUM PRIORITY OPTIMIZATION: 미리 계산된 토큰 사용
+    const msgTokens = (message as any)._tokenCount || estimateMultiModalTokens(message as any);
     
     // 토큰 한도 초과 시 중단
     if (tokenCount + msgTokens > availableTokens) {
@@ -870,7 +826,7 @@ export function selectMessagesWithinTokenLimit(
 }
 
 // 🆕 감지 함수들 (modelSelector와 동일한 로직)
-function detectImages(message: any): boolean {
+export function detectImages(message: any): boolean {
   if (Array.isArray(message.experimental_attachments)) {
     return message.experimental_attachments.some((attachment: any) => 
       attachment.fileType === 'image' || 
@@ -891,7 +847,7 @@ function detectImages(message: any): boolean {
   return false;
 }
 
-function detectPDFs(message: any): boolean {
+export function detectPDFs(message: any): boolean {
   if (Array.isArray(message.experimental_attachments)) {
     return message.experimental_attachments.some((attachment: any) => 
       attachment.fileType === 'pdf' || 
@@ -910,7 +866,7 @@ function detectPDFs(message: any): boolean {
   return false;
 }
 
-function detectCodeAttachments(message: any): boolean {
+export function detectCodeAttachments(message: any): boolean {
   return Array.isArray(message.experimental_attachments) && 
     message.experimental_attachments.some((attachment: any) => 
       attachment.fileType === 'code' || 

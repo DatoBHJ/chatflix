@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { Chat } from '@/lib/types'
@@ -9,10 +9,12 @@ import { deleteChat } from '@/app/chat/[id]/utils'
 import Link from 'next/link'
 import Image from 'next/image'
 import { defaultPromptShortcuts } from '../lib/defaultPromptShortcuts'
+import { getModelById } from '@/lib/models/config'
+import { getProviderLogo, hasLogo } from '@/app/lib/models/logoUtils'
+import { getSidebarTranslations } from '../lib/sidebarTranslations'
 
 interface SidebarProps {
   user: any;  // You might want to define a proper User type
-  onClose?: () => void;  // Add onClose prop
 }
 
 // 다른 컴포넌트에서 바로가기 패널을 열기 위한 전역 이벤트
@@ -22,7 +24,7 @@ export function expandShortcuts() {
   document.dispatchEvent(new CustomEvent(EXPAND_SHORTCUTS_EVENT));
 }
 
-export function Sidebar({ user, onClose }: SidebarProps) {
+export function Sidebar({ user }: SidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const [chats, setChats] = useState<Chat[]>([])
@@ -32,9 +34,24 @@ export function Sidebar({ user, onClose }: SidebarProps) {
   const [profileImage, setProfileImage] = useState<string | null>(null)
   const [userName, setUserName] = useState('You')
   const [isExpanded, setIsExpanded] = useState(true)
-  const [isExpandedSystem, setIsExpandedSystem] = useState(false)
   const [isExpandedShortcuts, setIsExpandedShortcuts] = useState(false)
-  const [isSidebarExpanded, setIsSidebarExpanded] = useState(true)
+  const [translations, setTranslations] = useState({
+    home: 'Home',
+    chatHistory: 'Chat History',
+    shortcuts: 'Shortcuts',
+    bookmarks: 'Bookmarks',
+    searchConversations: 'Search conversations...',
+    editShortcut: 'Edit Shortcut',
+    addShortcut: 'Add New Shortcut',
+    shortcutNamePlaceholder: 'Shortcut name (without @)',
+    promptContentPlaceholder: 'Prompt content',
+    updateButton: 'Update',
+    saveShortcutButton: 'Save Shortcut',
+    cancelButton: 'Cancel',
+    addNewShortcutButton: 'ADD NEW SHORTCUT',
+    createCustomPromptTemplates: 'Create custom prompt templates',
+    noShortcutsYet: 'No shortcuts yet. Create one to get started!'
+  });
 
   // 무한 스크롤 관련 상태 추가
   const [currentPage, setCurrentPage] = useState(1)
@@ -54,8 +71,32 @@ export function Sidebar({ user, onClose }: SidebarProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
+  // 채팅 제목 편집 관련 상태
+  const [editingChatId, setEditingChatId] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState('')
+  const titleInputRef = useRef<HTMLInputElement>(null)
+
+  // 채팅 검색 관련 상태
+  const [searchTerm, setSearchTerm] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const [searchResults, setSearchResults] = useState<Chat[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+
+  // 최적화를 위한 상태 추가
+  const [lastLoadedUserId, setLastLoadedUserId] = useState<string | null>(null)
+  const [isChatsLoaded, setIsChatsLoaded] = useState(false)
+  const lastLoadTimeRef = useRef<number>(0)
+  const CACHE_DURATION = 5 * 60 * 1000 // 5분 캐시
+
+  // 실시간 시간 업데이트를 위한 상태
+  const [currentTime, setCurrentTime] = useState(Date.now())
+
+  useEffect(() => {
+    setTranslations(getSidebarTranslations());
+  }, []);
+
   // Add function to fetch profile image
-  const fetchProfileImage = async (userId: string) => {
+  const fetchProfileImage = useCallback(async (userId: string) => {
     if (!userId) {
       console.log('No user ID provided for fetching profile image');
       return;
@@ -177,7 +218,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
     } catch (processingError) {
       console.error('Error processing profile data or getting public URL:', processingError);
     }
-  };
+  }, [supabase]);
 
   // Load user info when component mounts or user changes
   useEffect(() => {
@@ -191,7 +232,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
       
       loadUserData();
     }
-  }, [user]);
+  }, [user, supabase, fetchProfileImage]);
 
   // Effect to scroll to top when editing starts
   useEffect(() => {
@@ -217,20 +258,36 @@ export function Sidebar({ user, onClose }: SidebarProps) {
     }
   }, [user])
 
+  // 실시간 시간 업데이트
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now())
+    }, 60000) // 1분마다 업데이트
+
+    return () => clearInterval(interval)
+  }, [])
+
   useEffect(() => {
     if (user) {
-      setCurrentPage(1)
-      setHasMore(true)
-      setInitialLoadComplete(false)
-      loadChats(1, false)
+      // 사용자가 변경된 경우에만 상태 초기화
+      if (lastLoadedUserId !== user.id) {
+        setCurrentPage(1)
+        setHasMore(true)
+        setInitialLoadComplete(false)
+        setIsChatsLoaded(false)
+        setChats([])
+        setLastLoadedUserId(user.id)
+      }
     } else {
       setChats([])
+      setIsChatsLoaded(false)
+      setLastLoadedUserId(null)
     }
 
     // Only set up real-time updates if user exists
     if (!user) return
 
-    // Set up a more efficient real-time channel
+    // Set up a simplified real-time channel for essential updates only
     const channelSuffix = Date.now() + Math.random().toString(36).substr(2, 9);
     
     const chatChannel = supabase
@@ -238,57 +295,21 @@ export function Sidebar({ user, onClose }: SidebarProps) {
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: 'UPDATE',
           schema: 'public',
           table: 'chat_sessions',
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          console.log('New chat session created:', payload)
-          // 새 채팅 생성 시 첫 페이지부터 다시 로드
-          setCurrentPage(1)
-          setHasMore(true)
-          loadChats(1, false)
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `user_id=eq.${user.id}`
-        },
-        async (payload) => {
-          console.log('New message inserted:', payload)
-          // Only update if this is for an existing chat in our list
-          const chatId = payload.new.chat_session_id
-          if (chats.some(chat => chat.id === chatId)) {
-            // Find which chat needs updating
-            if (payload.new.role === 'user' && chats.find(c => c.id === chatId)?.title === 'New Chat') {
-              // This is the first user message, update title
-              loadChats(currentPage, true) // Reload all for title update
-            } else {
-              // Just update the last message time for the specific chat
-              setChats(prevChats => {
-                return prevChats.map(chat => {
-                  if (chat.id === chatId) {
-                    return {
-                      ...chat,
-                      lastMessageTime: new Date(payload.new.created_at).getTime(),
-                      lastMessage: payload.new.content
-                    }
-                  }
-                  return chat
-                }).sort((a, b) => {
-                  // Handle possibly undefined lastMessageTime values
-                  const timeA = a.lastMessageTime ?? 0;
-                  const timeB = b.lastMessageTime ?? 0;
-                  return timeB - timeA;
-                })
-              })
-            }
-          }
+          console.log('Chat session updated:', payload)
+          // Update the chat title or other properties
+          setChats(prevChats => 
+            prevChats.map(chat => 
+              chat.id === payload.new.id 
+                ? { ...chat, title: payload.new.title, current_model: payload.new.current_model }
+                : chat
+            )
+          );
         }
       )
       .on(
@@ -304,12 +325,80 @@ export function Sidebar({ user, onClose }: SidebarProps) {
           setChats(prevChats => prevChats.filter(chat => chat.id !== payload.old.id))
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('Subscription status:', status)
+        if (status === 'SUBSCRIBED') {
+          console.log('Successfully subscribed to real-time updates')
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('Error subscribing to real-time updates')
+        }
+      })
 
     return () => {
+      console.log('Cleaning up real-time subscription')
       supabase.removeChannel(chatChannel)
     }
-  }, [user])
+  }, [user, supabase]) // Add supabase to dependencies for stability
+
+  // Add custom event listener for immediate chat updates
+  useEffect(() => {
+    const handleNewChat = (event: CustomEvent) => {
+      const chatData = event.detail;
+      console.log('New chat created via custom event:', chatData);
+      
+      // 중복 방지: 이미 존재하는 채팅인지 확인
+      setChats(prevChats => {
+        const existingChat = prevChats.find(chat => chat.id === chatData.id);
+        if (existingChat) {
+          console.log('Chat already exists, skipping duplicate');
+          return prevChats;
+        }
+        
+        // 새 채팅 생성
+        const newChat: Chat = {
+          id: chatData.id,
+          title: chatData.title,
+          created_at: chatData.created_at,
+          messages: [],
+          lastMessageTime: new Date(chatData.created_at).getTime(),
+          lastMessage: chatData.initial_message || '',
+          current_model: chatData.current_model
+        };
+        
+        // 새 채팅을 맨 위에 추가하고 시간순으로 정렬
+        const updatedChats = [newChat, ...prevChats].sort((a, b) => {
+          const timeA = a.lastMessageTime ?? 0;
+          const timeB = b.lastMessageTime ?? 0;
+          return timeB - timeA;
+        });
+        
+        console.log('Updated chats with new chat:', updatedChats);
+        return updatedChats;
+      });
+    };
+
+    const handleChatTitleUpdated = (event: CustomEvent) => {
+      const { id, title } = event.detail;
+      console.log('Chat title updated via custom event:', { id, title });
+      
+      // Update the chat title in the chats array
+      setChats(prevChats => {
+        return prevChats.map(chat => 
+          chat.id === id ? { ...chat, title } : chat
+        );
+      });
+    };
+
+    // Add event listeners
+    window.addEventListener('newChatCreated', handleNewChat as EventListener);
+    window.addEventListener('chatTitleUpdated', handleChatTitleUpdated as EventListener);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('newChatCreated', handleNewChat as EventListener);
+      window.removeEventListener('chatTitleUpdated', handleChatTitleUpdated as EventListener);
+    };
+  }, []);
 
   // Add click outside handler
   useEffect(() => {
@@ -324,8 +413,17 @@ export function Sidebar({ user, onClose }: SidebarProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isMenuOpen]);
 
-  async function loadChats(page = 1, append = false) {
+  const loadChats = useCallback(async (page = 1, append = false, forceRefresh = false) => {
     if (!user) return;
+    
+    // 최적화: 캐시된 데이터가 있고 강제 새로고침이 아닌 경우 스킵
+    const now = Date.now();
+    const isCacheValid = now - lastLoadTimeRef.current < CACHE_DURATION;
+    
+    if (!forceRefresh && page === 1 && !append && isChatsLoaded && isCacheValid && lastLoadedUserId === user.id) {
+      console.log('[Sidebar] Using cached chat data');
+      return;
+    }
     
     try {
       // 추가 로드 시 로딩 상태 표시
@@ -340,7 +438,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
       // First, fetch only chat session data with limited columns
       const { data: sessions, error: sessionsError } = await supabase
         .from('chat_sessions')
-        .select('id, created_at, title')
+        .select('id, created_at, title, current_model')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .range(from, to)
@@ -367,10 +465,10 @@ export function Sidebar({ user, onClose }: SidebarProps) {
           .order('created_at', { ascending: true })
           .limit(1)
 
-        // Get the most recent message timestamp
+        // Get the most recent message timestamp and last used model
         const { data: latestMsg } = await supabase
           .from('messages')
-          .select('content, created_at')
+          .select('content, created_at, model')
           .eq('chat_session_id', session.id)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -378,8 +476,10 @@ export function Sidebar({ user, onClose }: SidebarProps) {
         const title = session.title && session.title.trim().length > 0
           ? session.title
           : (firstUserMsg && firstUserMsg.length > 0
-              ? firstUserMsg[0].content
-              : 'New Chat')
+              ? (firstUserMsg[0].content.length > 40 
+                  ? firstUserMsg[0].content.substring(0, 40) + '...' 
+                  : firstUserMsg[0].content)
+              : 'Untitled Chat')
         
         const lastMessage = latestMsg && latestMsg.length > 0
           ? latestMsg[0].content
@@ -389,6 +489,10 @@ export function Sidebar({ user, onClose }: SidebarProps) {
           ? new Date(latestMsg[0].created_at).getTime()
           : new Date(session.created_at).getTime()
 
+        // Get the current model from session or last message
+        const currentModel = session.current_model || 
+          (latestMsg && latestMsg.length > 0 ? latestMsg[0].model : null)
+
         // Create an object that matches the Chat type
         return {
           id: session.id,
@@ -396,7 +500,8 @@ export function Sidebar({ user, onClose }: SidebarProps) {
           created_at: session.created_at,
           messages: [], // Empty array since we're not loading all messages
           lastMessageTime: lastMessageTime,
-          lastMessage: lastMessage
+          lastMessage: lastMessage,
+          current_model: currentModel
         } as Chat
       })
 
@@ -411,8 +516,9 @@ export function Sidebar({ user, onClose }: SidebarProps) {
         return timeB - timeA;
       })
 
-      // title이 비어있거나 'New Chat'인 채팅방은 표시하지 않음
-      const filteredChats = newChats.filter(chat => chat.title && chat.title.trim() !== '' && chat.title !== 'New Chat');
+      // title이 비어있는 채팅방만 제외 (모든 제목 허용)
+      const filteredChats = newChats.filter(chat => chat.title && chat.title.trim() !== '');
+      
       if (append) {
         setChats(prevChats => [...prevChats, ...filteredChats])
       } else {
@@ -422,6 +528,9 @@ export function Sidebar({ user, onClose }: SidebarProps) {
       // 초기 로드 완료 표시
       if (page === 1) {
         setInitialLoadComplete(true)
+        setIsChatsLoaded(true)
+        setLastLoadedUserId(user.id)
+        lastLoadTimeRef.current = Date.now()
       }
       
       // 다음 페이지 설정
@@ -434,12 +543,129 @@ export function Sidebar({ user, onClose }: SidebarProps) {
       console.error('Error in loadChats:', error)
       setIsLoadingMore(false)
     }
-  }
+  }, [user, isChatsLoaded, lastLoadedUserId])
+
+  // 기존 방식 (폴백용)
+  const loadChatsOriginal = useCallback(async (page = 1, append = false, forceRefresh = false) => {
+    if (!user) return;
+    
+    try {
+      if (append) {
+        setIsLoadingMore(true)
+      }
+
+      const from = (page - 1) * CHATS_PER_PAGE
+      const to = from + CHATS_PER_PAGE - 1
+
+      const { data: sessions, error: sessionsError } = await supabase
+        .from('chat_sessions')
+        .select('id, created_at, title, current_model')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .range(from, to)
+
+      if (sessionsError) {
+        console.error('Error loading chat sessions:', sessionsError)
+        setIsLoadingMore(false)
+        return
+      }
+
+      if (sessions.length < CHATS_PER_PAGE) {
+        setHasMore(false)
+      }
+
+      // 🐌 기존 방식: 각 세션마다 개별 쿼리 (N+1 문제)
+      const chatPromises = sessions.map(async (session) => {
+        const { data: firstUserMsg } = await supabase
+          .from('messages')
+          .select('content, created_at')
+          .eq('chat_session_id', session.id)
+          .eq('role', 'user')
+          .order('created_at', { ascending: true })
+          .limit(1)
+
+        const { data: latestMsg } = await supabase
+          .from('messages')
+          .select('content, created_at, model')
+          .eq('chat_session_id', session.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        const title = session.title && session.title.trim().length > 0
+          ? session.title
+          : (firstUserMsg && firstUserMsg.length > 0
+              ? (firstUserMsg[0].content.length > 40 
+                  ? firstUserMsg[0].content.substring(0, 40) + '...' 
+                  : firstUserMsg[0].content)
+              : 'Untitled Chat')
+        
+        const lastMessage = latestMsg && latestMsg.length > 0
+          ? latestMsg[0].content
+          : ''
+        
+        const lastMessageTime = latestMsg && latestMsg.length > 0 
+          ? new Date(latestMsg[0].created_at).getTime()
+          : new Date(session.created_at).getTime()
+
+        const currentModel = session.current_model || 
+          (latestMsg && latestMsg.length > 0 ? latestMsg[0].model : null)
+
+        return {
+          id: session.id,
+          title: title,
+          created_at: session.created_at,
+          messages: [],
+          lastMessageTime: lastMessageTime,
+          lastMessage: lastMessage,
+          current_model: currentModel
+        } as Chat
+      })
+
+      const newChats = await Promise.all(chatPromises)
+
+      newChats.sort((a, b) => {
+        const timeA = a.lastMessageTime ?? 0;
+        const timeB = b.lastMessageTime ?? 0;
+        return timeB - timeA;
+      })
+
+      const filteredChats = newChats.filter(chat => chat.title && chat.title.trim() !== '');
+      
+      if (append) {
+        setChats(prevChats => [...prevChats, ...filteredChats])
+      } else {
+        setChats(filteredChats)
+      }
+      
+      if (page === 1) {
+        setInitialLoadComplete(true)
+        setIsChatsLoaded(true)
+        setLastLoadedUserId(user.id)
+        lastLoadTimeRef.current = Date.now()
+      }
+      
+      if (append) {
+        setCurrentPage(page)
+      }
+      
+      setIsLoadingMore(false)
+    } catch (error) {
+      console.error('Error in loadChatsOriginal:', error)
+      setIsLoadingMore(false)
+    }
+  }, [user, supabase])
+
+  // Effect to load chats when needed
+  useEffect(() => {
+    if (user && !isChatsLoaded) {
+      loadChats(1, false, true);
+    }
+  }, [user, isChatsLoaded, loadChats]);
 
   // IntersectionObserver 설정
   useEffect(() => {
-    // 스크롤 관찰자 설정 (무한 스크롤용)
-    if (isExpanded && initialLoadComplete && hasMore) {
+    // 스크롤 관찰자 설정 (무한 스크롤용) - 검색 중이 아닐 때만 활성화
+    if (isExpanded && initialLoadComplete && hasMore && !searchTerm) {
       const observer = new IntersectionObserver(
         (entries) => {
           if (entries[0].isIntersecting && !isLoadingMore && hasMore) {
@@ -461,9 +687,9 @@ export function Sidebar({ user, onClose }: SidebarProps) {
         }
       }
     }
-  }, [isExpanded, initialLoadComplete, currentPage, isLoadingMore, hasMore])
+  }, [isExpanded, initialLoadComplete, currentPage, isLoadingMore, hasMore, searchTerm])
 
-  const handleDeleteChat = async (chatId: string, e: React.MouseEvent) => {
+  const handleDeleteChat = useCallback(async (chatId: string, e: React.MouseEvent) => {
     e.stopPropagation()
     
     try {
@@ -473,14 +699,16 @@ export function Sidebar({ user, onClose }: SidebarProps) {
         router.push('/')
       }
 
-      loadChats(currentPage, false)
+      // 채팅 삭제 후 캐시 무효화하고 새로고침
+      setIsChatsLoaded(false)
+      loadChats(1, false, true)
     } catch (error) {
       console.error('Failed to delete chat:', error)
       alert('Failed to delete chat.')
     }
-  }
+  }, [pathname, router, loadChats])
 
-  const handleDeleteAllChats = async () => {
+  const handleDeleteAllChats = useCallback(async () => {
     // First confirmation - warn about data loss including AI Recap data
     if (!confirm('Warning: Deleting all chats will also remove your personalized AI Recap analytics data. This action cannot be undone.')) return
 
@@ -506,15 +734,16 @@ export function Sidebar({ user, onClose }: SidebarProps) {
       }
 
       router.push('/')
-      loadChats(currentPage, false)
+      setIsChatsLoaded(false)
+      loadChats(1, false, true)
     } catch (error) {
       console.error('Failed to delete all chats:', error)
       alert('Failed to delete chats.')
     }
-  }
+  }, [user, supabase, router, loadChats])
 
   // 프롬프트 바로가기 관련 함수들
-  async function loadShortcuts() {
+  const loadShortcuts = useCallback(async () => {
     if (!user) return;
     
     try {
@@ -547,9 +776,9 @@ export function Sidebar({ user, onClose }: SidebarProps) {
     } catch (error) {
       console.error('Error loading shortcuts:', error)
     }
-  }
+  }, [user, supabase])
 
-  async function handleAddShortcut() {
+  const handleAddShortcut = useCallback(async () => {
     if (!newName.trim() || !newContent.trim()) return
 
     try {
@@ -588,22 +817,22 @@ export function Sidebar({ user, onClose }: SidebarProps) {
     } catch (error) {
       console.error('Error saving shortcut:', error)
     }
-  }
+  }, [newName, newContent, editingId, user, supabase, loadShortcuts])
 
-  function handleEditShortcut(shortcut: any) {
+  const handleEditShortcut = useCallback((shortcut: any) => {
     setEditingId(shortcut.id)
     setNewName(shortcut.name)
     setNewContent(shortcut.content)
     setOpenMenuId(null)
-  }
+  }, [])
 
-  function handleCancelShortcut() {
+  const handleCancelShortcut = useCallback(() => {
     setEditingId(null)
     setNewName('')
     setNewContent('')
-  }
+  }, [])
 
-  async function handleDeleteShortcut(id: string) {
+  const handleDeleteShortcut = useCallback(async (id: string) => {
     try {
       const { error } = await supabase
         .from('prompt_shortcuts')
@@ -617,7 +846,68 @@ export function Sidebar({ user, onClose }: SidebarProps) {
     } catch (error) {
       console.error('Error deleting shortcut:', error)
     }
-  }
+  }, [user, supabase, loadShortcuts])
+
+  // 채팅 제목 편집 관련 함수들
+  const handleEditChatTitle = useCallback((chatId: string, currentTitle: string) => {
+    setEditingChatId(chatId)
+    setEditingTitle(currentTitle)
+    // 다음 렌더링 후 input에 포커스
+    setTimeout(() => {
+      if (titleInputRef.current) {
+        titleInputRef.current.focus()
+        titleInputRef.current.select()
+      }
+    }, 0)
+  }, [])
+
+  const handleSaveChatTitle = useCallback(async () => {
+    if (!editingChatId || !editingTitle.trim()) {
+      setEditingChatId(null)
+      setEditingTitle('')
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('chat_sessions')
+        .update({ title: editingTitle.trim() })
+        .eq('id', editingChatId)
+        .eq('user_id', user.id)
+
+      if (error) throw error
+
+      // 로컬 상태 업데이트
+      setChats(prevChats => 
+        prevChats.map(chat => 
+          chat.id === editingChatId 
+            ? { ...chat, title: editingTitle.trim() }
+            : chat
+        )
+      )
+
+      setEditingChatId(null)
+      setEditingTitle('')
+    } catch (error) {
+      console.error('Error updating chat title:', error)
+      alert('Failed to update chat title.')
+    }
+  }, [editingChatId, editingTitle, user, supabase])
+
+  const handleCancelChatTitleEdit = useCallback(() => {
+    setEditingChatId(null)
+    setEditingTitle('')
+  }, [])
+
+  const handleChatTitleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSaveChatTitle()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      handleCancelChatTitleEdit()
+    }
+  }, [handleSaveChatTitle, handleCancelChatTitleEdit])
 
   useEffect(() => {
     if (isExpandedShortcuts && user) {
@@ -625,39 +915,272 @@ export function Sidebar({ user, onClose }: SidebarProps) {
     }
   }, [isExpandedShortcuts, user]);
 
-  // 토글 함수들 단순화
-  const toggleExpanded = () => {
-    if (isExpanded) {
-      setIsExpanded(false);
-      if (!isExpandedSystem && !isExpandedShortcuts) {
-        setIsSidebarExpanded(false);
-      }
-    } else {
-      setIsSidebarExpanded(true);
-      setIsExpanded(true);
-      setIsExpandedSystem(false);
-      setIsExpandedShortcuts(false);
+  // 데이터베이스에서 채팅 검색
+  const searchChats = useCallback(async (term: string) => {
+    if (!user || !term.trim()) {
+      setIsSearching(false);
+      return;
     }
+    
+    setIsSearching(true);
+    try {
+      const search = term.toLowerCase();
+      
+      // 🚀 최적화된 검색: RPC 함수 사용
+      const { data: searchResults, error: searchError } = await supabase
+        .rpc('search_chat_sessions_with_messages', {
+          p_user_id: user.id,
+          p_search_term: search,
+          p_limit: 50
+        })
+
+      if (searchError) {
+        console.error('Error searching chats:', searchError)
+        
+        // RPC 함수가 없는 경우 기존 방식으로 폴백
+        if (searchError.message?.includes('function') || searchError.message?.includes('does not exist')) {
+          console.log('Search RPC function not found, falling back to original method')
+          return await searchChatsOriginal(term)
+        }
+        
+        setSearchResults([])
+        setIsSearching(false)
+        return
+      }
+
+      // 데이터 변환
+      const searchChatsWithDetails = searchResults.map((row: any) => {
+        const title = row.title && row.title.trim().length > 0
+          ? row.title
+          : (row.first_user_content && row.first_user_content.length > 0
+              ? (row.first_user_content.length > 40 
+                  ? row.first_user_content.substring(0, 40) + '...' 
+                  : row.first_user_content)
+              : 'Untitled Chat');
+        
+        const lastMessage = row.latest_content || '';
+        const lastMessageTime = row.latest_message_time 
+          ? new Date(row.latest_message_time).getTime()
+          : new Date(row.created_at).getTime();
+
+        const currentModel = row.current_model || row.latest_model || null;
+
+        return {
+          id: row.id,
+          title: title,
+          created_at: row.created_at,
+          messages: [],
+          lastMessageTime: lastMessageTime,
+          lastMessage: lastMessage,
+          current_model: currentModel
+        } as Chat;
+      });
+
+      // 시간순 정렬
+      searchChatsWithDetails.sort((a: Chat, b: Chat) => {
+        const timeA = a.lastMessageTime ?? 0;
+        const timeB = b.lastMessageTime ?? 0;
+        return timeB - timeA;
+      });
+
+      setSearchResults(searchChatsWithDetails);
+    } catch (error) {
+      console.error('Error searching chats:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [user?.id]); // 최소한의 의존성으로 최적화
+
+  // 기존 검색 방식 (폴백용)
+  const searchChatsOriginal = useCallback(async (term: string) => {
+    if (!user || !term.trim()) {
+      setIsSearching(false);
+      return;
+    }
+    
+    const search = term.toLowerCase();
+    
+    try {
+      // 1. 제목으로 검색
+      const { data: titleResults } = await supabase
+        .from('chat_sessions')
+        .select('id, created_at, title, current_model')
+        .eq('user_id', user.id)
+        .ilike('title', `%${search}%`)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      // 2. 메시지 내용으로 검색
+      const { data: messageResults } = await supabase
+        .from('messages')
+        .select('chat_session_id, content, created_at')
+        .eq('user_id', user.id)
+        .ilike('content', `%${search}%`)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      // 메시지 검색 결과에서 채팅 세션 ID 추출
+      const sessionIds = messageResults 
+        ? [...new Set(messageResults.map(msg => msg.chat_session_id))]
+        : [];
+
+      // 메시지 검색으로 찾은 채팅 세션 정보 가져오기
+      const { data: sessionResults } = sessionIds.length > 0 
+        ? await supabase
+            .from('chat_sessions')
+            .select('id, created_at, title, current_model')
+            .eq('user_id', user.id)
+            .in('id', sessionIds)
+        : { data: [] };
+
+      // 모든 검색 결과 병합 (중복 제거)
+      const allSessions = [...(titleResults || []), ...(sessionResults || [])];
+      const uniqueSessions = allSessions.filter((session, index, self) => 
+        index === self.findIndex(s => s.id === session.id)
+      );
+
+      // 🐌 기존 방식: 각 세션마다 개별 쿼리 (N+1 문제)
+      const searchChatsWithDetails = await Promise.all(
+        uniqueSessions.map(async (session) => {
+          // 첫 번째 사용자 메시지 (제목 폴백용)
+          const { data: firstUserMsg } = await supabase
+            .from('messages')
+            .select('content, created_at')
+            .eq('chat_session_id', session.id)
+            .eq('role', 'user')
+            .order('created_at', { ascending: true })
+            .limit(1);
+
+          // 최신 메시지
+          const { data: latestMsg } = await supabase
+            .from('messages')
+            .select('content, created_at, model')
+            .eq('chat_session_id', session.id)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          const title = session.title && session.title.trim().length > 0
+            ? session.title
+            : (firstUserMsg && firstUserMsg.length > 0
+                ? (firstUserMsg[0].content.length > 40 
+                    ? firstUserMsg[0].content.substring(0, 40) + '...' 
+                    : firstUserMsg[0].content)
+                : 'Untitled Chat');
+          
+          const lastMessage = latestMsg && latestMsg.length > 0
+            ? latestMsg[0].content
+            : '';
+          
+          const lastMessageTime = latestMsg && latestMsg.length > 0 
+            ? new Date(latestMsg[0].created_at).getTime()
+            : new Date(session.created_at).getTime();
+
+          const currentModel = session.current_model || 
+            (latestMsg && latestMsg.length > 0 ? latestMsg[0].model : null);
+
+          return {
+            id: session.id,
+            title: title,
+            created_at: session.created_at,
+            messages: [],
+            lastMessageTime: lastMessageTime,
+            lastMessage: lastMessage,
+            current_model: currentModel
+          } as Chat;
+        })
+      );
+
+      // 시간순 정렬
+      searchChatsWithDetails.sort((a: Chat, b: Chat) => {
+        const timeA = a.lastMessageTime ?? 0;
+        const timeB = b.lastMessageTime ?? 0;
+        return timeB - timeA;
+      });
+
+      setSearchResults(searchChatsWithDetails);
+    } catch (error) {
+      console.error('Error searching chats (original):', error);
+      setSearchResults([]);
+    }
+  }, [user?.id, supabase])
+
+  // 검색 초기화 함수
+  const clearSearch = useCallback(() => {
+    setSearchTerm('');
+    setSearchResults([]);
+    setIsSearching(false);
+  }, []);
+
+  // 검색어 변경 시 검색 실행 (디바운싱)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchTerm.trim()) {
+        searchChats(searchTerm);
+      } else {
+        setSearchResults([]);
+        setIsSearching(false);
+      }
+    }, 300); // 300ms 디바운싱
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]); // searchChats 의존성 제거로 불필요한 재실행 방지
+
+  // 표시할 채팅 목록 결정
+  const displayChats = useMemo(() => {
+    return searchTerm.trim() ? searchResults : chats;
+  }, [searchTerm, searchResults, chats]);
+
+  // 검색어 하이라이팅 함수
+  const highlightSearchTerm = (text: string, term: string, isSelected: boolean = false) => {
+    if (!term.trim()) return text;
+    
+    const regex = new RegExp(`(${term})`, 'gi');
+    const parts = text.split(regex);
+    
+    return parts.map((part, index) => {
+      if (regex.test(part)) {
+        return (
+          <span 
+            key={index} 
+            className={`px-0.5 rounded text-xs ${
+              isSelected 
+                ? 'bg-white/30 text-white font-medium' 
+                : 'bg-[#007AFF]/20 text-[#007AFF] font-medium'
+            }`}
+          >
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
   };
 
-  const toggleShortcuts = () => {
+  // 토글 함수들 단순화
+  const toggleExpanded = useCallback(() => {
+    if (isExpanded) {
+      setIsExpanded(false);
+      clearSearch(); // 채팅 목록을 닫을 때 검색 상태 초기화
+    } else {
+      setIsExpanded(true);
+      setIsExpandedShortcuts(false);
+    }
+  }, [isExpanded, clearSearch]);
+
+  const toggleShortcuts = useCallback(() => {
     if (isExpandedShortcuts) {
       setIsExpandedShortcuts(false);
-      if (!isExpanded && !isExpandedSystem) {
-        setIsSidebarExpanded(false);
-      }
     } else {
-      setIsSidebarExpanded(true);
       setIsExpandedShortcuts(true);
       setIsExpanded(false);
-      setIsExpandedSystem(false);
       
       // 토글할 때 바로 데이터 로딩 시작
       if (user && shortcuts.length === 0) {
         loadShortcuts();
       }
     }
-  };
+  }, [isExpandedShortcuts, user, shortcuts.length, loadShortcuts]);
 
   // 초기 렌더링 시 미리 데이터 로드
   useEffect(() => {
@@ -667,119 +1190,348 @@ export function Sidebar({ user, onClose }: SidebarProps) {
     }
   }, [user]);
 
+  // 검색 키보드 단축키 (Ctrl/Cmd + K)
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+        event.preventDefault();
+        if (isExpanded && searchInputRef.current) {
+          searchInputRef.current.focus();
+        } else if (!isExpanded) {
+          setIsExpanded(true);
+          setIsExpandedShortcuts(false);
+          // 다음 렌더링 후 포커스
+          setTimeout(() => {
+            if (searchInputRef.current) {
+              searchInputRef.current.focus();
+            }
+          }, 100);
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isExpanded]);
+
+  // 페이지 변경 시 검색 상태 초기화 (채팅 페이지가 아닌 경우에만)
+  useEffect(() => {
+    // 채팅 페이지가 아닌 다른 페이지로 이동했을 때만 검색 상태 초기화
+    if (!pathname.startsWith('/chat/') && pathname !== '/') {
+      clearSearch();
+    }
+  }, [pathname, clearSearch]);
+
+  // 컴포넌트 언마운트 시 검색 상태 초기화
+  useEffect(() => {
+    return () => {
+      clearSearch();
+    };
+  }, [clearSearch]);
+
   if (!user) {
     return null;
   }
 
   return (
-    <div className={`${isSidebarExpanded ? 'w-72 md:w-80' : 'w-16 md:w-16'} h-full bg-[var(--background)] border-r border-[var(--accent)] flex flex-col items-center overflow-hidden`}>
+    <div className="w-80 h-full bg-[var(--background)] border-r border-[var(--accent)] flex flex-col items-center overflow-hidden relative ">
       <div className="h-full flex flex-col w-full">
         {/* Top Section with Home and Chats icons */}
-        <div className="pt-5 md:pt-8 px-3 flex flex-col space-y-4 md:space-y-5">
-          <Link href="/" onClick={onClose}>
+        <div className="pt-4 px-3 flex flex-col space-y-4 md:space-y-5">
+          <Link href="/">
             <div className="flex items-center group">
-              <div className="min-w-[40px] h-10 rounded-lg flex items-center justify-center hover:bg-[var(--accent)] transition-all duration-200">
+              <div className="min-w-[40px] h-10 rounded-lg flex items-center justify-center hover:bg-[var(--foreground)]/8 transition-all duration-200">
                 <svg 
-                  width="20" 
-                  height="20" 
+                  width="16" 
+                  height="16" 
                   viewBox="0 0 24 24" 
                   fill="none" 
-                  stroke="var(--muted)"
+                  stroke="#007AFF"
                   strokeWidth="2" 
                   strokeLinecap="round" 
                   strokeLinejoin="round" 
-                  className="group-hover:scale-110 transition-transform duration-200"
+                  className="transition-transform duration-200"
                 >
                   <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                   <polyline points="9 22 9 12 15 12 15 22"></polyline>
                 </svg>
               </div>
-              <span className={`ml-3 text-sm font-medium whitespace-nowrap ${isSidebarExpanded ? 'block' : 'hidden'} text-[var(--muted)]`}>
-                Home
+              <span className="text-sm font-medium whitespace-nowrap text-[var(--muted)]">
+                {translations.home}
               </span>
             </div>
           </Link>
           
           <button onClick={toggleExpanded} className="flex items-center group w-full text-left">
-            <div className={`min-w-[40px] h-10 rounded-lg flex items-center justify-center transition-all duration-200 ${isExpanded ? 'bg-[var(--foreground)]/10' : 'hover:bg-[var(--accent)] text-[var(--muted)]'}`}>
+            <div className={`min-w-[40px] h-10 rounded-lg flex items-center justify-center transition-all duration-200 ${isExpanded ? 'bg-[var(--foreground)]/10' : 'hover:bg-[var(--foreground)]/8 text-[var(--muted)]'}`}>
               <svg 
-                width="20" 
-                height="20" 
+                width="16" 
+                height="16" 
                 viewBox="0 0 24 24" 
                 fill="none" 
-                stroke={isExpanded ? "var(--foreground)" : "currentColor"}
+                stroke="#007AFF"
                 strokeWidth="2" 
                 strokeLinecap="round" 
                 strokeLinejoin="round" 
-                className={`${isExpanded ? 'scale-110' : 'group-hover:scale-110'} transition-transform duration-200`}
+                className="transition-transform duration-200"
               >
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
               </svg>
             </div>
-            <span className={`ml-3 whitespace-nowrap ${isSidebarExpanded ? 'block' : 'hidden'} ${isExpanded ? 'text-base text-[var(--foreground)]' : 'font-medium text-sm text-[var(--muted)]'}`}>
-              Chat History
+            <span className={`text-sm font-medium whitespace-nowrap ${isExpanded ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}>
+              {translations.chatHistory}
             </span>
           </button>
         </div>
 
         {/* Main Content Area */}
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto sidebar-scroll w-full mt-4 md:mt-5 px-2 md:px-3">
-          {isExpanded && (
-            <div className="space-y-3 sm:space-y-6 pb-4 pl-0 ml-4 border-l border-[var(--sidebar-divider)] relative">
-              {chats.length > 0 ? (
+          {/* Chat History Section */}
+          {useMemo(() => {
+            if (!isExpanded) return null;
+            
+            return (
+            <div className="space-y-3">
+              {/* Search Input */}
+              <div className="px-2">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg 
+                      width="16" 
+                      height="16" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      strokeWidth="2" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"
+                      className="text-[var(--muted)]"
+                    >
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                  </div>
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder={`${translations.searchConversations} (⌘K)`}
+                    className="w-full pl-10 pr-4 py-2.5 bg-[var(--accent)] text-sm rounded-lg placeholder-[var(--muted)] focus:outline-none focus:bg-[var(--accent)] border-0 outline-none ring-0 focus:ring-0 focus:border-0 shadow-none focus:shadow-none transition-all"
+                    style={{ 
+                      outline: 'none',
+                      border: 'none',
+                      boxShadow: 'none',
+                      WebkitAppearance: 'none'
+                    }}
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={clearSearch}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                      type="button"
+                      aria-label="Clear search"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              <div className="space-y-0.5">
+              {/* 검색 로딩 상태 표시 */}
+              {isSearching && (
+                <div className="flex flex-col items-center py-4 space-y-2">
+                  <div className="w-6 h-6 border-2 border-t-transparent border-[var(--foreground)] rounded-full animate-spin"></div>
+                  <span className="text-xs text-[var(--muted)]">Searching all conversations...</span>
+                </div>
+              )}
+              
+              {/* 검색 결과 개수 표시 */}
+              {searchTerm && !isSearching && displayChats.length > 0 && (
+                <div className="px-2 py-1 text-xs text-[var(--muted)] text-center">
+                  Found {displayChats.length} conversation{displayChats.length !== 1 ? 's' : ''}
+                </div>
+              )}
+              
+              {!isSearching && displayChats.length > 0 ? (
                 <>
-               {chats.map((chat) => (
-  <Link
-    href={`/chat/${chat.id}`}
-    key={chat.id}
-    className="group shortcut-item bg-[var(--accent)]/5 hover:bg-[var(--accent)]/20 p-3 rounded-lg relative transition-all cursor-pointer block"
-    onClick={() => onClose?.()}
-  >
-    <div className="flex pr-12">
-      <div className="flex-1 flex flex-col gap-1 text-left">
-        <span className="text-sm font-medium tracking-wide">
-          {chat.title.length > 40 ? chat.title.substring(0, 40) + '...' : chat.title}
-        </span>
-        <span className="text-xs line-clamp-2 text-[var(--muted)]">
-          {(() => {
-            const date = new Date(chat.lastMessageTime || chat.created_at);
-            return date.toLocaleDateString();
-          })()}
-        </span>
-      </div>
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1 items-center justify-center">
-        <button 
-          onClick={(e) => {
-            e.preventDefault(); // 링크 이동 방지
-            e.stopPropagation();
-            handleDeleteChat(chat.id, e);
-          }}
-          className="p-1.5 rounded-md bg-[var(--accent)]/20 hover:bg-red-500/20 transition-colors"
-          title="Delete chat"
-          type="button"
-          aria-label="Delete chat"
-        >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-          </svg>
-        </button>
-      </div>
-    </div>
-  </Link>
-))}
+                    {displayChats.map((chat, index) => {
+                      const isSelected = pathname === `/chat/${chat.id}`;
+                      const getModelDisplayName = (model: string | null | undefined) => {
+                        if (!model) return 'Unknown Model';
+                        
+                        // Get model configuration from config.ts
+                        const modelConfig = getModelById(model);
+                        if (modelConfig) {
+                          // Use the actual model name instead of abbreviation
+                          return modelConfig.name;
+                        }
+                        
+                        // Fallback for models not in config
+                        return model.charAt(0).toUpperCase() + model.slice(1);
+                      };
+                      
+                      const getModelConfig = (model: string | null | undefined) => {
+                        if (!model) return null;
+                        return getModelById(model);
+                      };
+                      
+                      return (
+                        <div key={`${chat.id}-${index}`} className="border-b border-[var(--accent)] last:border-b-0">
+                          <Link
+                            href={editingChatId === chat.id ? '#' : `/chat/${chat.id}`}
+                            className={`group relative block transition-all p-3 rounded-lg ${
+                              editingChatId === chat.id 
+                                ? 'cursor-default' 
+                                : 'cursor-pointer'
+                            } ${
+                              isSelected 
+                                ? 'bg-[#007AFF] text-white' 
+                                : 'hover:bg-[var(--accent)]'
+                            }`}
+                            onClick={(e) => {
+                              if (editingChatId === chat.id) {
+                                e.preventDefault()
+                                e.stopPropagation()
+                              }
+                            }}
+                          >
+                            <div className="flex items-center gap-3 w-full">
+                              {/* Avatar */}
+                              <div className="flex-shrink-0">
+                                {(() => {
+                                  const modelConfig = getModelConfig(chat.current_model);
+                                  const avatarBg = isSelected ? 'bg-white/25' : 'bg-[var(--accent)]';
+                                  return (
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${avatarBg}`}>
+                                      {modelConfig?.provider && hasLogo(modelConfig.provider) ? (
+                                        <Image 
+                                          src={getProviderLogo(modelConfig.provider, modelConfig.id || undefined)}
+                                          alt={`${modelConfig.provider} logo`}
+                                          width={20}
+                                          height={20}
+                                          className="object-contain"
+                                        />
+                                      ) : (
+                                        <div className={`w-full h-full flex items-center justify-center rounded-full`}>
+                                          <span className={`text-lg font-semibold ${isSelected ? 'text-white' : 'text-gray-500'}`}>
+                                            {modelConfig?.provider ? modelConfig.provider.substring(0, 1).toUpperCase() : 'A'}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                              
+                              {/* Content */}
+                              <div className="flex-1 min-w-0">
+                                {/* Top line: Title + Date */}
+                                <div className="flex justify-between items-baseline">
+                                  {editingChatId === chat.id ? (
+                                    <input
+                                      ref={titleInputRef}
+                                      type="text"
+                                      value={editingTitle}
+                                      onChange={(e) => setEditingTitle(e.target.value)}
+                                      onBlur={handleSaveChatTitle}
+                                      onKeyDown={handleChatTitleKeyDown}
+                                      className={`text-sm font-semibold bg-transparent border-b-2 outline-none w-full mr-2 ${
+                                        isSelected 
+                                          ? 'text-white placeholder-white/70 border-white/50 focus:border-white' 
+                                          : 'text-[var(--foreground)] placeholder-gray-400 border-gray-300 focus:border-[var(--foreground)]'
+                                      }`}
+                                      placeholder="Enter chat title..."
+                                      maxLength={100}
+                                    />
+                                  ) : (
+                                    <p 
+                                      className={`text-sm font-semibold truncate pr-2 ${
+                                        isSelected ? 'text-white' : 'text-[var(--foreground)]'
+                                      }`}
+                                      onDoubleClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleEditChatTitle(chat.id, chat.title);
+                                      }}
+                                      title="Double-click to edit title"
+                                    >
+                                      {searchTerm ? highlightSearchTerm(chat.title, searchTerm, isSelected) : chat.title}
+                                    </p>
+                                  )}
+                                  <span className={`text-xs flex-shrink-0 ${
+                                    isSelected ? 'text-white/80' : 'text-[var(--muted)]'
+                                  }`}>
+                                    {(() => {
+                                      const date = new Date(chat.lastMessageTime || chat.created_at);
+                                      const diffMs = currentTime - date.getTime();
+                                      const diffMinutes = Math.floor(diffMs / (1000 * 60));
+                                      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                                      const diffDays = Math.floor(diffHours / 24);
+                                      if (diffMinutes < 1) return 'now';
+                                      if (diffMinutes < 60) return `${diffMinutes}m`;
+                                      if (diffHours < 24) return `${diffHours}h`;
+                                      if (diffDays === 1) return 'Yesterday';
+                                      if (diffDays < 7) return date.toLocaleDateString('en-US', { weekday: 'long' });
+                                      const month = date.getMonth() + 1;
+                                      const day = date.getDate();
+                                      const year = date.getFullYear().toString().slice(-2);
+                                      return `${month}/${day}/${year}`;
+                                    })()}
+                                  </span>
+                                </div>
+                                {/* Bottom line: Preview + Buttons */}
+                                <div className="flex justify-between items-end">
+                                  <p className={`text-xs truncate pr-2 ${
+                                    isSelected ? 'text-white/70' : 'text-[var(--muted)]'
+                                  }`}>
+                                    {chat.lastMessage 
+                                      ? (searchTerm ? highlightSearchTerm(chat.lastMessage, searchTerm, isSelected) : chat.lastMessage)
+                                      : 'No messages yet'
+                                    }
+                                  </p>
+                                  <div className={`flex gap-1 transition-opacity ${
+                                    isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                                  }`}>
+                                    <button 
+                                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleEditChatTitle(chat.id, chat.title); }}
+                                      className={`p-1 rounded-full transition-colors ${isSelected ? 'bg-white/20 hover:bg-white/30' : 'bg-[var(--accent)] hover:bg-[var(--subtle-divider)]'}`}
+                                      title="Edit title"
+                                      type="button"
+                                      aria-label="Edit chat title"
+                                    >
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                      </svg>
+                                    </button>
+                                    <button 
+                                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteChat(chat.id, e); }}
+                                      className={`p-1 rounded-full transition-colors ${isSelected ? 'bg-white/20 hover:bg-white/30' : 'bg-[var(--accent)] hover:bg-[var(--subtle-divider)]'}`}
+                                      title="Delete chat"
+                                      type="button"
+                                      aria-label="Delete chat"
+                                    >
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="3 6 5 6 21 6"></polyline>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                      </svg>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                        </div>
+                      );
+                    })}
 
-                  {/* 무한 스크롤 트리거 & 로딩 인디케이터 */}
-                  {hasMore && (
+                  {/* 무한 스크롤 트리거 & 로딩 인디케이터 - 검색 중이 아닐 때만 표시 */}
+                  {!searchTerm && hasMore && (
                     <div 
                       ref={loadMoreTriggerRef} 
                       className="flex justify-center py-4"
@@ -791,21 +1543,29 @@ export function Sidebar({ user, onClose }: SidebarProps) {
                   )}
                 </>
               ) : (
-                <div className="px-4 py-3 text-sm text-[var(--muted)] text-center bg-[var(--accent)]/5 rounded-lg">
-                  No chats yet
-                </div>
+                !isSearching && (
+                  <div className="px-4 py-3 text-sm text-[var(--muted)] text-center bg-[var(--accent)]/5 rounded-lg">
+                    {searchTerm ? 'No matching conversations found' : 'No chats yet'}
+                  </div>
+                )
               )}
+              </div>
             </div>
-          )}
+            );
+          }, [isExpanded, displayChats, pathname, handleDeleteChat, hasMore, isLoadingMore, currentTime, editingChatId, editingTitle, handleEditChatTitle, handleSaveChatTitle, handleChatTitleKeyDown, searchTerm, isSearching])}
 
-          {isExpandedShortcuts && (
-            <div className="space-y-3 pb-4 pl-0 ml-4 border-l border-[var(--sidebar-divider)] relative">
+          {/* Shortcuts Section */}
+          {useMemo(() => {
+            if (!isExpandedShortcuts) return null;
+            
+            return (
+            <div className="space-y-3 pb-4 px-2 relative">
               {editingId ? (
                 // Edit/Create Form
                 <div className="bg-[var(--accent)]/5 rounded-lg p-4 space-y-3">
                   <div className="flex justify-between items-center mb-2">
                     <h3 className="text-sm font-medium">
-                      {editingId !== 'new' ? 'Edit Shortcut' : 'Add New Shortcut'}
+                      {editingId !== 'new' ? translations.editShortcut : translations.addShortcut}
                     </h3>
                     <button 
                       onClick={handleCancelShortcut}
@@ -821,14 +1581,14 @@ export function Sidebar({ user, onClose }: SidebarProps) {
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
                     className="w-full p-2.5 bg-[var(--accent)] text-sm focus:outline-none rounded-lg"
-                    placeholder="Shortcut name (without @)"
+                    placeholder={translations.shortcutNamePlaceholder}
                   />
                   <textarea
                     ref={textareaRef}
                     value={newContent}
                     onChange={(e) => setNewContent(e.target.value)}
                     className="w-full min-h-[120px] p-2.5 bg-[var(--accent)] text-sm resize-none focus:outline-none rounded-lg"
-                    placeholder="Prompt content"
+                    placeholder={translations.promptContentPlaceholder}
                   />
                   <div className="flex gap-2">
                     <button
@@ -837,14 +1597,14 @@ export function Sidebar({ user, onClose }: SidebarProps) {
                       className="flex-1 py-2.5 text-xs uppercase tracking-wider bg-[var(--foreground)] text-[var(--background)] hover:opacity-90 transition-opacity disabled:opacity-50 rounded-lg font-medium"
                       type="button"
                     >
-                      {editingId !== 'new' ? 'Update' : 'Save Shortcut'}
+                      {editingId !== 'new' ? translations.updateButton : translations.saveShortcutButton}
                     </button>
                     <button
                       onClick={handleCancelShortcut}
                       className="w-24 py-2.5 text-xs uppercase tracking-wider bg-[var(--accent)] hover:opacity-90 transition-opacity rounded-lg font-medium"
                       type="button"
                     >
-                      Cancel
+                      {translations.cancelButton}
                     </button>
                   </div>
                 </div>
@@ -879,10 +1639,10 @@ export function Sidebar({ user, onClose }: SidebarProps) {
                       </div>
                       <div className="flex flex-col items-start gap-0.5">
                         <span className="text-xs tracking-wide text-[var(--foreground)] transition-colors font-medium">
-                        ADD NEW SHORTCUT
+                        {translations.addNewShortcutButton}
                         </span>
                         <span className="text-[10px] text-[var(--muted)] transition-colors">
-                          Create custom prompt templates
+                          {translations.createCustomPromptTemplates}
                         </span>
                       </div>
                     </div>
@@ -892,7 +1652,8 @@ export function Sidebar({ user, onClose }: SidebarProps) {
               
               {/* Shortcuts List with Loading State */}
               <div className="space-y-2 mt-3 pr-1">
-                {shortcuts.map((shortcut) => (
+                  {shortcuts.length > 0 ? (
+                    shortcuts.map((shortcut) => (
                   <div 
                     key={shortcut.id} 
                     className="shortcut-item group bg-[var(--accent)]/5 hover:bg-[var(--accent)]/20 p-3 rounded-lg relative transition-all"
@@ -950,99 +1711,77 @@ export function Sidebar({ user, onClose }: SidebarProps) {
                       </div>
                     </div>
                   </div>
-                ))}
-                {shortcuts.length === 0 && (
+                    ))
+                  ) : (
                   <div className="px-4 py-3 text-sm text-[var(--muted)] text-center bg-[var(--accent)]/5 rounded-lg">
-                    No shortcuts yet. Create one to get started!
+                    {translations.noShortcutsYet}
                   </div>
                 )}
               </div>
             </div>
-          )}
+            );
+          }, [isExpandedShortcuts, editingId, newName, newContent, shortcuts, handleCancelShortcut, handleAddShortcut, handleEditShortcut, handleDeleteShortcut])}
         </div>
 
         {/* Bottom Section */}
-        <div className="mt-6 pb-5 md:pb-8 flex flex-col space-y-4 md:space-y-5 px-3 text-[var(--muted)]">
+        <div className="mt-4 sm:mt-6 pb-5 md:pb-8 flex flex-col space-y-4 md:space-y-5 px-3 text-[var(--muted)]">
           <button
             onClick={toggleShortcuts}
             className="flex items-center group w-full text-left"
             type="button"
           >
-            <div className={`min-w-[40px] h-10 rounded-lg flex items-center justify-center transition-all duration-200 ${isExpandedShortcuts ? 'bg-[var(--foreground)]/10' : 'hover:bg-[var(--accent)]'}`}>
+            <div className={`min-w-[40px] h-10 rounded-lg flex items-center justify-center transition-all duration-200 ${isExpandedShortcuts ? 'bg-[var(--foreground)]/10' : 'hover:bg-[var(--foreground)]/8'}`}>
               <svg 
-                width="20" 
-                height="20" 
+                width="16" 
+                height="16" 
                 viewBox="0 0 24 24" 
                 fill="none" 
-                stroke={isExpandedShortcuts ? "var(--foreground)" : "currentColor"}
+                stroke="#007AFF"
                 strokeWidth="2" 
                 strokeLinecap="round" 
                 strokeLinejoin="round" 
-                className={`${isExpandedShortcuts ? 'scale-110' : 'group-hover:scale-110'} transition-transform duration-200`}
+                className="transition-transform duration-200"
               >
                 <circle cx="12" cy="12" r="4" />
                 <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" />
               </svg>
             </div>
-            <span className={`ml-3 whitespace-nowrap ${isSidebarExpanded ? 'block' : 'hidden'} ${isExpandedShortcuts ? 'text-base text-[var(--foreground)]' : 'font-medium text-sm'}`}>
-              Shortcuts
+            <span className={`text-sm font-medium whitespace-nowrap ${isExpandedShortcuts ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}>
+              {translations.shortcuts}
             </span>
           </button>
           
           <Link href="/bookmarks" className="flex items-center group">
-            <div className="min-w-[40px] h-10 rounded-lg flex items-center justify-center hover:bg-[var(--accent)] transition-all duration-200">
+            <div className={`min-w-[40px] h-10 rounded-lg flex items-center justify-center transition-all duration-200 ${pathname === '/bookmarks' ? 'bg-[var(--foreground)]/10' : 'hover:bg-[var(--foreground)]/8'}`}>
               <svg 
-                width="20" 
-                height="20" 
+                width="16" 
+                height="16" 
                 viewBox="0 0 24 24" 
                 fill="none" 
-                stroke="currentColor" 
+                stroke="#007AFF" 
                 strokeWidth="2" 
                 strokeLinecap="round" 
                 strokeLinejoin="round" 
-                className="group-hover:scale-110 transition-transform duration-200"
+                className="transition-transform duration-200"
               >
                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
               </svg>
             </div>
-            <span className={`ml-3 text-sm font-medium whitespace-nowrap ${isSidebarExpanded ? 'block' : 'hidden '}`}>
-              Bookmarks
+            <span className={`text-sm font-medium whitespace-nowrap ${pathname === '/bookmarks' ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}>
+              {translations.bookmarks}
             </span>
           </Link>
           
-          <Link href="/user-insights" onClick={onClose} className="flex items-center group">
-            <div className="min-w-[40px] h-10 rounded-lg flex items-center justify-center hover:bg-[var(--accent)] transition-all duration-200">
-              <svg 
-                width="20" 
-                height="20" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                className="group-hover:scale-110 transition-transform duration-200"
-              >
-                <line x1="18" y1="20" x2="18" y2="10"></line>
-                <line x1="12" y1="20" x2="12" y2="4"></line>
-                <line x1="6" y1="20" x2="6" y2="14"></line>
-              </svg>
-            </div>
-            <span className={`ml-3 text-sm font-medium whitespace-nowrap ${isSidebarExpanded ? 'block' : 'hidden'}`}>
-              My Chatflix Recap
-            </span>
-          </Link>
-          
+
           <button
             onClick={() => {
               setIsAccountOpen(true);
-              setIsSidebarExpanded(true);
             }}
             className="flex items-center group w-full text-left mt-2"
             type="button"
           >
-            <div className="min-w-[40px] h-10 rounded-lg flex items-center justify-center hover:bg-[var(--accent)] transition-all duration-200">
-              <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-[var(--accent)] group-hover:border-[var(--foreground)] transition-colors">
+            <div className="min-w-[40px] h-10 rounded-lg flex items-center justify-center hover:bg-[var(--foreground)]/8 transition-all duration-200">
+              <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-[var(--accent)] group-hover:border-[#007AFF] transition-colors">
                 {profileImage ? (
                   <Image 
                     src={profileImage} 
@@ -1058,7 +1797,7 @@ export function Sidebar({ user, onClose }: SidebarProps) {
                 )}
               </div>
             </div>
-            <span className={`ml-3 text-sm font-medium whitespace-nowrap ${isSidebarExpanded ? 'block' : 'hidden'}`}>
+            <span className="ml-3 text-sm font-medium whitespace-nowrap text-[var(--muted)]">
               {userName}
             </span>
           </button>
@@ -1077,10 +1816,6 @@ export function Sidebar({ user, onClose }: SidebarProps) {
                 fetchProfileImage(user.id);
               };
               refreshUserData();
-            }
-            // Check if no panels are expanded before collapsing sidebar
-            if (!isExpanded && !isExpandedSystem && !isExpandedShortcuts) {
-              setIsSidebarExpanded(false);
             }
           }}
           user={user}

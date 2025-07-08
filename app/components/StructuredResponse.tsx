@@ -5,7 +5,7 @@ import { ChevronUp, ChevronDown, FileText, Download, Copy, Check } from 'lucide-
 import { MarkdownContent } from './MarkdownContent';
 
 type File = {
-  name: string;
+  name: string | undefined;
   content: string;
   description?: string;
 };
@@ -21,6 +21,81 @@ type StructuredResponseProps = {
   fileIndex?: number;
 };
 
+// 파일 확장자에서 언어 추론
+function getLanguageFromExtension(fileName: string | undefined): string {
+  // fileName이 없으면 기본값 'text' 반환
+  if (!fileName || typeof fileName !== 'string') {
+    return 'text';
+  }
+  
+  const extension = fileName.toLowerCase().split('.').pop();
+  const languageMap: { [key: string]: string } = {
+    'js': 'javascript',
+    'jsx': 'jsx',
+    'ts': 'typescript',
+    'tsx': 'tsx',
+    'py': 'python',
+    'java': 'java',
+    'cpp': 'cpp',
+    'c': 'c',
+    'cs': 'csharp',
+    'php': 'php',
+    'rb': 'ruby',
+    'go': 'go',
+    'rs': 'rust',
+    'swift': 'swift',
+    'kt': 'kotlin',
+    'scala': 'scala',
+    'html': 'html',
+    'css': 'css',
+    'scss': 'scss',
+    'sass': 'sass',
+    'less': 'less',
+    'xml': 'xml',
+    'json': 'json',
+    'yaml': 'yaml',
+    'yml': 'yaml',
+    'toml': 'toml',
+    'sql': 'sql',
+    'sh': 'bash',
+    'bash': 'bash',
+    'zsh': 'zsh',
+    'fish': 'fish',
+    'ps1': 'powershell',
+    'r': 'r',
+    'matlab': 'matlab',
+    'm': 'objectivec',
+    'vue': 'vue',
+    'svelte': 'svelte',
+    'md': 'markdown',
+    'markdown': 'markdown',
+    'tex': 'latex',
+    'dockerfile': 'dockerfile',
+  };
+  
+  return languageMap[extension || ''] || 'text';
+}
+
+// 파일 내용을 적절한 코드 블록으로 감싸기
+function wrapContentWithCodeBlock(content: string, fileName: string | undefined): string {
+  // 이미 코드 블록으로 감싸져 있는지 확인
+  const hasCodeBlock = content.trim().startsWith('```');
+  
+  if (hasCodeBlock) {
+    return content;
+  }
+  
+  // 파일 확장자에서 언어 추론 (fileName이 없으면 'text' 반환)
+  const language = getLanguageFromExtension(fileName);
+  
+  // 마크다운 파일이거나 일반 텍스트인 경우 그대로 반환
+  if (language === 'markdown' || language === 'text') {
+    return content;
+  }
+  
+  // 코드 블록으로 감싸기
+  return `\`\`\`${language}\n${content}\n\`\`\``;
+}
 
 function getStructuredResponseData(message: any) {
   // 1. 먼저 annotations에서 확인
@@ -54,7 +129,6 @@ function getStructuredResponseData(message: any) {
   
   return null;
 }
-
 
 export const StructuredResponse = ({ message, fileIndex }: StructuredResponseProps) => {
   const [responseData, setResponseData] = useState<ResponseData | null>(null);
@@ -203,7 +277,7 @@ export const StructuredResponse = ({ message, fileIndex }: StructuredResponsePro
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = file.name;
+    a.download = file.name || '';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -308,7 +382,7 @@ export const StructuredResponse = ({ message, fileIndex }: StructuredResponsePro
                     }
                   `}</style>
                   <div className="prose prose-sm dark:prose-invert max-w-none break-words">
-                    <MarkdownContent content={file.content || ''} />
+                    <MarkdownContent content={wrapContentWithCodeBlock(file.content || '', file.name)} />
                   </div>
                 </div>
               </div>
@@ -329,7 +403,7 @@ export const StructuredResponse = ({ message, fileIndex }: StructuredResponsePro
                   >
                     <FileText className="h-4 w-4 flex-shrink-0" strokeWidth={1.5} />
                     <span className="font-mono text-sm font-medium bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)] px-2 py-0.5 rounded-md">
-                      {file.name}
+                      {file.name || 'Untitled'}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -440,7 +514,7 @@ export const StructuredResponse = ({ message, fileIndex }: StructuredResponsePro
                     }
                   `}</style>
                   <div className="prose prose-sm dark:prose-invert max-w-none break-words">
-                    <MarkdownContent content={file.content || ''} />
+                    <MarkdownContent content={wrapContentWithCodeBlock(file.content || '', file.name)} />
                   </div>
                 </div>
               </div>

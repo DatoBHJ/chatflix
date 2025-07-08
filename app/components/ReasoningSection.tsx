@@ -1,167 +1,118 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { MarkdownContent } from './MarkdownContent';
-import { Brain, ChevronDown, ChevronUp } from 'lucide-react';
+import { Brain, CheckCircle2 } from 'lucide-react';
 
 interface ReasoningSectionProps {
   content: string;
   isComplete?: boolean;
   isExpanded?: boolean;
   setIsExpanded?: (expanded: boolean) => void;
+  startTime?: number | null;
 }
-
-// MarkdownContent를 memo로 감싸서 불필요한 리렌더링 방지
-const MemoizedMarkdownContent = React.memo(MarkdownContent);
 
 function ReasoningSectionComponent({ 
   content, 
   isComplete = false, 
   isExpanded: externalIsExpanded,
-  setIsExpanded: externalSetIsExpanded 
+  setIsExpanded: externalSetIsExpanded,
+  startTime = null
 }: ReasoningSectionProps) {
-  const [internalIsExpanded, setInternalIsExpanded] = useState(!isComplete);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [contentHeight, setContentHeight] = useState<number | undefined>(undefined);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [internalIsExpanded, setInternalIsExpanded] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
 
-  // Use external state if provided, otherwise use internal state
   const isExpanded = externalIsExpanded !== undefined ? externalIsExpanded : internalIsExpanded;
   const setIsExpanded = externalSetIsExpanded || setInternalIsExpanded;
 
-  // 스크롤 조정을 지연시켜 성능 개선
-  const handleScrollToBottom = useCallback(() => {
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
-    }
-    
-    scrollTimeoutRef.current = setTimeout(() => {
-      if (contentRef.current && isExpanded && !isComplete) {
-        contentRef.current.scrollTop = contentRef.current.scrollHeight;
-      }
-    }, 50); // 50ms 지연으로 렌더링 완료 후 스크롤
-  }, [isExpanded, isComplete]);
-
-  // contentHeight 계산도 지연시켜 성능 개선
-  const updateContentHeight = useCallback(() => {
-    if (contentRef.current) {
-      const newHeight = contentRef.current.scrollHeight;
-      if (newHeight !== contentHeight) {
-        setContentHeight(newHeight);
-      }
-    }
-  }, [contentHeight]);
-
+  // Timer effect
   useEffect(() => {
-    updateContentHeight();
-    handleScrollToBottom();
-  }, [content, updateContentHeight, handleScrollToBottom]);
-
-  // Auto-expand when not complete, auto-collapse when complete (only for internal state)
-  useEffect(() => {
-    if (externalIsExpanded === undefined) {
-      if (!isComplete) {
-        setInternalIsExpanded(true);
-      } else {
-        setInternalIsExpanded(false);
-      }
+    if (startTime && !isComplete) {
+      setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
+      const timer = setInterval(() => {
+        setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
+      }, 1000);
+      return () => clearInterval(timer);
+    } else if (isComplete && startTime) {
+      setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
     }
-  }, [isComplete, externalIsExpanded]);
+  }, [startTime, isComplete]);
 
-  // cleanup timeout on unmount
+  // Auto scroll when content changes or panel is expanded
   useEffect(() => {
-    return () => {
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-    };
-  }, []);
+    if (isExpanded && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
+  }, [content, isExpanded]);
 
   const handleToggle = useCallback(() => {
-    const newExpansionState = !isExpanded;
-    setIsExpanded(newExpansionState);
+    setIsExpanded(!isExpanded);
   }, [isExpanded, setIsExpanded]);
 
-  // Status indicator를 memo로 최적화
-  const statusIndicator = useMemo(() => {
-    if (!isComplete) {
-      return (
-        <div className="inline-flex text-xs items-center gap-1.5 text-blue-400 mr-2">
-          <span className="relative flex h-2.5 w-2.5 mr-0.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
-          </span>
-          In Progress
-        </div>
-      );
-    }
-    
-    return (
-      <div className="inline-flex text-xs items-center gap-1.5 text-green-400 mr-2">
-        <span className="relative flex h-2.5 w-2.5 mr-0.5">
-          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
-        </span>
-        Complete
-      </div>
-    );
-  }, [isComplete]);
-
   return (
-    <div className="p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm mb-6">
+    <div className="flex justify-start">
       <div 
-        className="flex items-center justify-between w-full mb-4 cursor-pointer"
+        className="group relative cursor-pointer"
         onClick={handleToggle}
       >
-        <div className="flex items-center gap-2.5">
-          <Brain className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-          <h2 className="font-medium text-left tracking-tight">Thinking</h2>
+        {/* 메인 생각 버블 */}
+        <div className="flex items-center gap-2 px-3 py-2 bg-white/80 dark:bg-black/30 rounded-full backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200 ease-out">
+          <Brain className="h-3.5 w-3.5" style={{ color: 'var(--reasoning-color)' }} strokeWidth={2} />
+          
+          {/* 버블 상태: 기존의 ... 애니메이션으로 복원 */}
+          {!isComplete ? (
+            <div className="flex items-center gap-1">
+              <div className="flex gap-0.5">
+                <div className="w-0.5 h-0.5 bg-[var(--muted)] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-0.5 h-0.5 bg-[var(--muted)] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-0.5 h-0.5 bg-[var(--muted)] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              </div>
+            </div>
+          ) : (
+            <CheckCircle2 className="h-3.5 w-3.5 text-green-500" strokeWidth={2.5} />
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          {statusIndicator}
-          <div className="rounded-full p-1 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors">
-            {isExpanded ? 
-              <ChevronUp size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" /> : 
-              <ChevronDown size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" />
-            }
+
+        {/* 작은 연결 버블들 */}
+        <div className="absolute -bottom-0.5 left-4 flex gap-0.5">
+          <div className="w-1 h-1 bg-white/60 dark:bg-black/20 rounded-full"></div>
+          <div className="w-0.5 h-0.5 bg-white/40 dark:bg-black/15 rounded-full"></div>
+        </div>
+
+        {/* 상세 정보 툴팁 */}
+        <div className={`absolute top-full left-0 mt-3 w-72 sm:w-96 bg-white/95 dark:bg-black/90 backdrop-blur-xl rounded-2xl border border-black/8 dark:border-white/10 shadow-xl p-4 z-50 transition-all duration-200 ease-out ${isExpanded ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'}`}>
+          {/* 툴팁 화살표 */}
+          <div className="absolute -top-1.5 left-6 w-3 h-3 bg-white/95 dark:bg-black/90 border-l border-t border-black/8 dark:border-white/10 rotate-45"></div>
+          
+          {/* 툴팁 상태: 아이콘과 함께 상세 시간 표시 */}
+          <div className="flex items-center gap-2 mb-3">
+            {!isComplete ? (
+              <>
+                <div className="animate-spin rounded-full border-2 border-transparent border-t-[var(--reasoning-color)] h-4 w-4" style={{ animationDuration: '0.8s' }}></div>
+                <span className="text-sm font-medium text-[var(--foreground)]">
+                  Thinking for {elapsedTime}s
+                </span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-4 w-4 text-green-500" strokeWidth={2.5} />
+                <span className="text-sm font-medium text-[var(--muted)]">
+                  Took {elapsedTime}s
+                </span>
+              </>
+            )}
+          </div>
+          
+          {/* AI의 전체 생각 내용 */}
+          <div 
+            ref={scrollContainerRef}
+            className="text-sm text-[var(--foreground)] max-h-64 overflow-y-auto scrollbar-thin leading-relaxed scroll-smooth"
+          >
+            <MarkdownContent content={content} variant="clean" />
           </div>
         </div>
       </div>
-      
-      {/* framer-motion으로 부드러운 애니메이션 */}
-      <AnimatePresence initial={false}>
-        {isExpanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ 
-              height: contentHeight ? `${Math.min(contentHeight, 400)}px` : 'auto',
-              opacity: 1 
-            }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ 
-              duration: 0.3, 
-              ease: [0.4, 0, 0.2, 1] // easeOutCubic for smoother animation
-            }}
-            className="overflow-hidden"
-          >
-            <div
-              ref={contentRef}
-              className="max-h-[400px] overflow-auto px-4 sm:px-10 py-4 sm:py-6"
-              style={{
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none'
-              }}
-            >
-              <style jsx>{`
-                div::-webkit-scrollbar {
-                  display: none;
-                }
-              `}</style>
-              <MemoizedMarkdownContent content={content} />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
 
-export const ReasoningSection = React.memo(ReasoningSectionComponent); 
+export const ReasoningSection = React.memo(ReasoningSectionComponent);

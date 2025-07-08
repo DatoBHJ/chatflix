@@ -622,6 +622,10 @@ export async function updateAllMemoryBanks(
   aiMessage: string
 ): Promise<void> {
   try {
+    // 서버 측 시간 검사 로직 제거 - route.ts에서 이미 검사 완료
+    // const lastUpdate = await getLastMemoryUpdate(supabase, userId);  // 중복 검사 제거
+    // if (lastUpdate && ...) return;  // 중복 검사 제거
+    
     // Initialize timer for performance tracking
     const startTime = Date.now();
     

@@ -41,12 +41,14 @@ Gemini 2.0 Flash로 분석:
 
 | 카테고리 | 복잡도 | Chatflix Ultimate | Chatflix Ultimate Pro |
 |----------|--------|-------------------|----------------------|
-| **Math** | 모든 복잡도 | `grok-3-mini-fast` | `grok-3-mini-fast` |
-| **Technical** | Simple | `grok-3-fast` | `grok-3-fast` |
-| **Technical** | Medium/Complex | `grok-3-mini-fast` | `grok-3-mini-fast` |
-| **Other** | Simple | `gpt-4.1-mini` | `claude-sonnet-4` |
-| **Other** | Medium | `gpt-4.1-mini` | `claude-sonnet-4` |
-| **Other** | Complex | `gpt-4.1-mini` | `claude-sonnet-4-thinking` |
+| **Math** | 단순 | `grok-3` | `grok-3` |
+| **Math** | 중간 | `grok-3` | `grok-3-mini` |
+| **Math** | 복잡 | `grok-3-mini` | `deepseek-reasoner` |
+| **Technical** | 단순 | `grok-3` | `grok-3` |
+| **Technical** | 중간/복잡 | `gpt-4.1` | `claude-sonnet-4` |
+| **Other** | 단순 | `gpt-4.1-mini` | `gpt-4.1` |
+| **Other** | 중간 | `gpt-4.1-mini` | `gpt-4.1` |
+| **Other** | 복잡 | `gpt-4.1` | `claude-sonnet-4` |
 
 ### 🎯 **3단계: 개선된 컨텍스트 길이 검증 및 업그레이드**
 
@@ -146,7 +148,9 @@ contextInfo: {
 | 구분 | Chatflix Ultimate | Chatflix Ultimate Pro |
 |------|-------------------|----------------------|
 | **코딩 (비멀티모달)** | 모든 복잡도 `gpt-4.1` | 단순/중간 `claude-sonnet-4`, 복잡 `claude-sonnet-4-thinking` |
-| **기타 (비멀티모달)** | 단순 `gpt-4.1-mini`, 중간/복잡 `gpt-4.1-mini` | 단순/중간 `claude-sonnet-4`, 복잡 `claude-sonnet-4-thinking` |
+| **기타 (비멀티모달)** | 단순/중간 `gpt-4.1-mini`, 복잡 `gpt-4.1` | 단순/중간 `gpt-4.1`, 복잡 `claude-sonnet-4` |
+| **Math (비멀티모달)** | 단순/중간 `grok-3`, 복잡 `grok-3-mini` | 단순 `grok-3`, 중간 `grok-3-mini`, 복잡 `deepseek-reasoner` |
+| **Technical (비멀티모달)** | 단순 `grok-3`, 중간/복잡 `gpt-4.1` | 단순 `grok-3`, 중간/복잡 `claude-sonnet-4` |
 | **멀티모달 처리** | 더 보수적 (Gemini 중심) | 더 적극적 (Claude Sonnet 4 활용) |
 | **컨텍스트 계산** | 정교한 멀티모달 토큰 추정 + 동적 안전 마진 |
 | **폴백 메커니즘** | 강화된 에러 처리 + 안전장치 |
@@ -155,7 +159,7 @@ contextInfo: {
 
 ```text
 예시 1: 긴 코드 리뷰 요청 (코드 파일 첨부)
-1차 선택: grok-3-fast (131K 컨텍스트)
+1차 선택: gpt-4.1 (1M+ 컨텍스트) - Coding 카테고리, 비멀티모달
 컨텍스트 계산: 
   - 입력: 2K 토큰
   - 히스토리: 50K 토큰  
@@ -163,9 +167,19 @@ contextInfo: {
   - 예상 출력: 3K 토큰 (코드 작업으로 증가)
   - 안전 마진: 0.7 (첨부파일 무거움)
   - 필요 컨텍스트: (2K + 50K + 3K + 3K) / 0.7 ≈ 83K
-결과: 그대로 사용 (131K >= 83K, 충분한 컨텍스트)
+결과: 그대로 사용 (1M+ >= 83K, 충분한 컨텍스트)
 
-예시 2: 대용량 PDF 분석
+예시 2: 수학 문제 풀이 (중간 복잡도)
+1차 선택: grok-3 (131K 컨텍스트) - Math 카테고리, 비멀티모달
+컨텍스트 계산:
+  - 입력: 1K 토큰
+  - 히스토리: 20K 토큰
+  - 예상 출력: 2K 토큰 (수학 문제 풀이)
+  - 안전 마진: 0.85 (첨부파일 없음)
+  - 필요 컨텍스트: (1K + 20K + 2K) / 0.85 ≈ 27K
+결과: 그대로 사용 (131K >= 27K, 충분한 컨텍스트)
+
+예시 3: 대용량 PDF 분석
 1차 선택: gemini-2.0-flash (1M 컨텍스트)
 컨텍스트 계산:
   - 입력: 1K 토큰
@@ -176,7 +190,7 @@ contextInfo: {
   - 필요 컨텍스트: (1K + 20K + 5K + 2K) / 0.7 ≈ 40K
 결과: 그대로 사용 (1M >= 40K, 충분한 컨텍스트)
 
-예시 3: 극대용량 대화 히스토리
+예시 4: 극대용량 대화 히스토리
 1차 선택: gpt-4.1 (1M+ 컨텍스트)
 컨텍스트 계산:
   - 입력: 5K 토큰
@@ -187,13 +201,13 @@ contextInfo: {
 업그레이드 시도: 모든 모델이 1.42M 미만
 결과: gemini-2.5-pro-preview-05-06 폴백 (안정성 우선)
 
-🚨 예시 4: 에러 발생 시나리오
+🚨 예시 5: 에러 발생 시나리오
 1차 선택: claude-sonnet-4
 에러 상황: 모델 정보 로딩 실패 (네트워크 오류)
 결과: gemini-2.5-pro-preview-05-06 즉시 폴백
 upgradeReason: "Error occurred during model selection, using fallback: gemini-2.5-pro-preview-05-06"
 
-🚨 예시 5: Agent 모델 없음 시나리오
+🚨 예시 6: Agent 모델 없음 시나리오
 1차 선택: 시도 중...
 문제: isAgentEnabled: true 모델이 하나도 없음
 결과: gemini-2.5-pro-preview-05-06 폴백 (하드코딩된 안전장치)

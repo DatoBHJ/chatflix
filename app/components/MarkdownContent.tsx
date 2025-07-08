@@ -10,6 +10,8 @@ import mermaid from 'mermaid';
 import { MathJaxEquation } from './math/MathJaxEquation';
 import React from 'react';
 import dynamic from 'next/dynamic';
+import { createPortal } from 'react-dom';
+import { X, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 
 // Dynamically import DynamicChart for client-side rendering
 const DynamicChart = dynamic(() => import('./charts/DynamicChart'), {
@@ -108,15 +110,129 @@ function ensureNoLogo(url: string): string {
 
 interface MarkdownContentProps {
   content: string;
+  enableSegmentation?: boolean;
+  variant?: 'default' | 'clean'; // 'clean'은 배경색 없는 버전
 }
 
-// Image component with loading state
+// 더 적극적으로 마크다운 구조를 분할하는 함수
+const segmentContent = (content: string): string[] => {
+  if (!content || !content.trim()) return [];
+
+  const trimmedContent = content.trim();
+
+  // 1. 모든 코드 블록을 임시 플레이스홀더로 교체 (차트 블록 포함)
+  // 개선된 코드 블록 매칭 로직으로 중첩된 백틱 처리
+  const codeBlocks: string[] = [];
+  
+  // 더 정확한 코드 블록 매칭을 위한 함수
+  const extractCodeBlocks = (text: string): string => {
+    let result = text;
+    let blockIndex = 0;
+    
+    // 코드 블록을 찾기 위한 상태 기반 파싱
+    const lines = text.split('\n');
+    const processedLines: string[] = [];
+    let inCodeBlock = false;
+    let codeBlockStart = -1;
+    let codeBlockContent: string[] = [];
+    let codeBlockFence = '';
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmedLine = line.trim();
+      
+      // 백틱으로 시작하는 라인 체크
+      const fenceMatch = trimmedLine.match(/^(`{3,})/);
+      
+      if (fenceMatch && !inCodeBlock) {
+        // 코드 블록 시작
+        inCodeBlock = true;
+        codeBlockStart = i;
+        codeBlockContent = [line];
+        codeBlockFence = fenceMatch[1];
+      } else if (inCodeBlock && trimmedLine.startsWith(codeBlockFence) && trimmedLine.length === codeBlockFence.length) {
+        // 코드 블록 끝 (같은 길이의 백틱)
+        codeBlockContent.push(line);
+        
+        // 코드 블록 전체를 플레이스홀더로 교체
+        const fullCodeBlock = codeBlockContent.join('\n');
+        codeBlocks.push(fullCodeBlock);
+        processedLines.push(`<CODE_PLACEHOLDER_${blockIndex}>`);
+        blockIndex++;
+        
+        // 상태 초기화
+        inCodeBlock = false;
+        codeBlockStart = -1;
+        codeBlockContent = [];
+        codeBlockFence = '';
+      } else if (inCodeBlock) {
+        // 코드 블록 내부 라인
+        codeBlockContent.push(line);
+      } else {
+        // 일반 라인
+        processedLines.push(line);
+      }
+    }
+    
+    // 닫히지 않은 코드 블록 처리 (스트리밍 중 등)
+    if (inCodeBlock && codeBlockContent.length > 0) {
+      const fullCodeBlock = codeBlockContent.join('\n');
+      codeBlocks.push(fullCodeBlock);
+      processedLines.push(`<CODE_PLACEHOLDER_${blockIndex}>`);
+    }
+    
+    return processedLines.join('\n');
+  };
+  
+  const placeholderContent = extractCodeBlocks(trimmedContent);
+
+  // 2. 주요 구분자(---, H1, H2, H3)를 기준으로 분할
+  // 파일 생성 진행 메시지 구분자(\n\n---\n\n)와 마크다운 구분자 모두 지원
+  const separator = /(?:\n\n---\n\n)|(?:\n\s*---+\s*\n)|(?=\n#{1,3}\s)/;
+  const mainSegments = placeholderContent.split(separator);
+  
+  const finalSegments: string[] = [];
+
+  // 3. 코드 블록 플레이스홀더 복원
+  for (const segment of mainSegments) {
+    if (!segment || !segment.trim()) continue;
+    
+    const codePlaceholderRegex = /<CODE_PLACEHOLDER_(\d+)>/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = codePlaceholderRegex.exec(segment)) !== null) {
+      if (match.index > lastIndex) {
+        finalSegments.push(segment.slice(lastIndex, match.index).trim());
+      }
+      finalSegments.push(codeBlocks[parseInt(match[1], 10)]);
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < segment.length) {
+      finalSegments.push(segment.slice(lastIndex).trim());
+    }
+  }
+  
+  // 4. 최종적으로 빈 세그먼트 제거 후 반환
+  const result = finalSegments.filter(s => s.trim().length > 0);
+  
+  // 분할 결과가 없으면 원본 반환
+  if (result.length <= 1) {
+      return [trimmedContent];
+  }
+  
+  return result;
+};
+
+// Image component with loading state and modal support
 const ImageWithLoading = memo(function ImageWithLoadingComponent({ 
   src, 
   alt, 
   className = "",
+  onImageClick,
   ...props 
-}: React.ImgHTMLAttributes<HTMLImageElement>) {
+}: React.ImgHTMLAttributes<HTMLImageElement> & { onImageClick?: () => void }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -233,7 +349,8 @@ const ImageWithLoading = memo(function ImageWithLoadingComponent({
       <img
         src={src}
         alt={alt || ""}
-        className={`${className} ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 rounded-lg`}
+        className={`${className} ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 rounded-lg ${onImageClick ? 'cursor-pointer' : ''}`}
+        onClick={onImageClick}
         onLoad={() => {
           setLoadingProgress(100);
           setTimeout(() => setIsLoaded(true), 200); // 약간의 지연으로 부드러운 전환 효과
@@ -298,12 +415,62 @@ const InlineMath = ({ content }: { content: string }) => {
 };
 
 // Memoize the MarkdownContent component to prevent unnecessary re-renders
-export const MarkdownContent = memo(function MarkdownContentComponent({ content }: MarkdownContentProps) {
+export const MarkdownContent = memo(function MarkdownContentComponent({ 
+  content, 
+  enableSegmentation = false,
+  variant = 'default'
+}: MarkdownContentProps) {
+
+  // Image modal state
+  const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string } | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Check if we're in browser environment for portal rendering
+  useEffect(() => {
+    setIsMounted(true);
+    return () => setIsMounted(false);
+  }, []);
+
+  // Handle keyboard navigation for image modal
+  useEffect(() => {
+    if (!selectedImage) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closeImageModal();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [selectedImage]);
+
+  // Image modal functions
+  const openImageModal = useCallback((src: string | undefined, alt: string) => {
+    if (src && typeof src === 'string') {
+      setSelectedImage({ src, alt });
+    }
+  }, []);
+
+  const closeImageModal = useCallback(() => {
+    setSelectedImage(null);
+  }, []);
 
   // Pre-process the content to handle LaTeX and escape currency dollar signs
   const processedContent = useMemo(() => {
     return preprocessLaTeX(content);
   }, [content]);
+
+  // Segment the content if segmentation is enabled
+  const segments = useMemo(() => {
+    if (!enableSegmentation) return [processedContent];
+    return segmentContent(processedContent);
+  }, [processedContent, enableSegmentation]);
 
   // Memoize the styleMentions function to avoid recreating it on every render
   const styleMentions = useCallback((text: string) => {
@@ -449,18 +616,14 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
           
           return (
             <div className="my-4">
-              <a 
-                href={urlWithNoLogo} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="block"
-              >
+              <div className="block cursor-pointer">
                 <ImageWithLoading 
                   src={urlWithNoLogo} 
                   alt={altText || "Generated image"} 
-                  className="rounded-lg max-w-full hover:opacity-90 transition-opacity cursor-pointer border border-[var(--accent)] shadow-md" 
+                  className="rounded-lg max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md" 
+                  onImageClick={() => openImageModal(urlWithNoLogo, altText || "Generated image")}
                 />
-              </a>
+              </div>
               <div className="text-sm text-[var(--muted)] mt-2 italic text-center">{altText}</div>
             </div>
           );
@@ -477,18 +640,14 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
           
           return (
             <div className="my-4">
-              <a 
-                href={urlWithNoLogo} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="block"
-              >
+              <div className="block cursor-pointer">
                 <ImageWithLoading 
                   src={urlWithNoLogo} 
                   alt="Generated image" 
-                  className="rounded-lg max-w-full hover:opacity-90 transition-opacity cursor-pointer border border-[var(--accent)] shadow-md" 
+                  className="rounded-lg max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md" 
+                  onImageClick={() => openImageModal(urlWithNoLogo, "Generated image")}
                 />
-              </a>
+              </div>
               <div className="text-sm text-[var(--muted)] mt-2 italic text-center">Generated Image</div>
             </div>
           );
@@ -505,21 +664,17 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
             } else if (part && typeof part === 'object' && 'type' in part && part.type === 'image_link') {
               return (
                 <div key={part.key} className="my-4">
-                  <a 
-                    href={part.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block"
-                  >
+                  <div className="block cursor-pointer">
                     <ImageWithLoading 
                       src={part.url} 
                       alt="Generated image" 
-                      className="rounded-lg max-w-full hover:opacity-90 transition-opacity cursor-pointer border border-[var(--accent)] shadow-md" 
+                      className="rounded-lg max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md" 
+                      onImageClick={() => openImageModal(part.url, "Generated image")}
                     />
                     <div className="text-xs text-[var(--muted)] mt-2 text-center break-all">
                       {part.display}
                     </div>
-                  </a>
+                  </div>
                 </div>
               );
             }
@@ -530,11 +685,11 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
         }
         
         // For regular text, just render with styleMentions
-        return <p className="my-3 leading-relaxed" {...props}>{styleMentions(children)}</p>;
+        return <p className="my-3 leading-relaxed break-words" {...props}>{styleMentions(children)}</p>;
       }
       
       // If children is not a string, render as-is
-      return <p className="my-3 leading-relaxed" {...props}>{children}</p>;
+      return <p className="my-3 leading-relaxed break-words" {...props}>{children}</p>;
     },
     img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
       // Agent 도구에서 생성된 이미지 URL을 처리합니다
@@ -542,26 +697,30 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
         const urlWithNoLogo = ensureNoLogo(src);
         
         return (
-          <a 
-            href={urlWithNoLogo} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="block my-4"
-          >
-            <ImageWithLoading 
-              src={urlWithNoLogo} 
-              alt={alt || "Generated image"} 
-              className="rounded-lg max-w-full hover:opacity-90 transition-opacity cursor-pointer border border-[var(--accent)] shadow-md" 
-              {...props}
-            />
+          <div className="block my-4 cursor-pointer">
+                          <ImageWithLoading 
+                src={urlWithNoLogo} 
+                alt={alt || "Generated image"} 
+                className="rounded-lg max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md" 
+                onImageClick={() => openImageModal(urlWithNoLogo, alt || "Generated image")}
+                {...props}
+              />
             {alt && <div className="text-sm text-[var(--muted)] mt-2 italic text-center">{alt}</div>}
-          </a>
+          </div>
         );
       }
       
-      // Regular image rendering with loading state
+      // Regular image rendering with loading state and modal
       return src ? (
-        <ImageWithLoading src={src} alt={alt} className="my-4 rounded-lg max-w-full" {...props} />
+        <div className="my-4 cursor-pointer">
+          <ImageWithLoading 
+            src={src} 
+            alt={alt || "Image"} 
+            className="rounded-lg max-w-full hover:opacity-90 transition-opacity" 
+            onImageClick={() => typeof src === 'string' && openImageModal(src, alt || "Image")}            {...props} 
+          />
+          {alt && <div className="text-sm text-[var(--muted)] mt-2 italic text-center">{alt}</div>}
+        </div>
       ) : (
         <span className="text-[var(--muted)]">[Unable to load image]</span>
       );
@@ -574,18 +733,14 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
         
         return (
           <div className="my-4">
-            <a 
-              href={urlWithNoLogo} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="block"
-            >
-              <ImageWithLoading 
-                src={urlWithNoLogo} 
-                alt={linkText || "Generated image"} 
-                className="rounded-lg max-w-full hover:opacity-90 transition-opacity cursor-pointer border border-[var(--accent)] shadow-md" 
-              />
-            </a>
+            <div className="block cursor-pointer">
+                              <ImageWithLoading 
+                  src={urlWithNoLogo} 
+                  alt={linkText || "Generated image"} 
+                  className="rounded-lg max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md" 
+                  onImageClick={() => openImageModal(urlWithNoLogo, linkText || "Generated image")}
+                />
+            </div>
             <div className="text-sm text-[var(--muted)] mt-2 italic text-center">{linkText}</div>
           </div>
         );
@@ -625,6 +780,91 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
         return (
           <div className="non-paragraph-wrapper" key={key}>
             <MathBlock content={codeText} />
+          </div>
+        );
+      }
+      
+      if (language === 'diff') {
+        const lines = codeText.split('\n');
+        
+        return (
+          <div className="message-code group relative my-6 max-w-full overflow-hidden">
+            <div className="message-code-header flex items-center justify-between px-4 py-2 min-w-0">
+              <span className="text-xs uppercase tracking-wider text-[var(--muted)] break-all truncate">
+                diff
+              </span>
+              <button
+                onClick={(e) => handleCopy(codeText, e)}
+                className="text-xs uppercase tracking-wider px-2 py-1 
+                         text-[var(--muted)] hover:text-[var(--foreground)] 
+                         transition-colors whitespace-nowrap ml-2 flex-shrink-0"
+              >
+                Copy
+              </button>
+            </div>
+            <div className="hljs overflow-x-auto bg-[var(--code-bg)] text-[var(--code-text)] max-w-full">
+              <div className="font-mono text-sm">
+                {lines.map((line, index) => {
+                  const trimmedLine = line.trim();
+                  let lineClass = '';
+                  let lineStyle = {};
+                  let prefix = '';
+                  
+                  if (trimmedLine.startsWith('+')) {
+                    // Added line
+                    lineClass = 'bg-green-500/10 text-green-600 dark:text-green-400';
+                    lineStyle = { 
+                      backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                      borderLeft: '3px solid rgb(34, 197, 94)'
+                    };
+                    prefix = '+';
+                  } else if (trimmedLine.startsWith('-')) {
+                    // Removed line
+                    lineClass = 'bg-red-500/10 text-red-600 dark:text-red-400';
+                    lineStyle = { 
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      borderLeft: '3px solid rgb(239, 68, 68)'
+                    };
+                    prefix = '-';
+                  } else if (trimmedLine.startsWith('@@')) {
+                    // Hunk header
+                    lineClass = 'bg-blue-500/10 text-blue-600 dark:text-blue-400';
+                    lineStyle = { 
+                      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                      fontWeight: 'bold'
+                    };
+                    prefix = '@@';
+                  } else if (trimmedLine.startsWith('+++') || trimmedLine.startsWith('---')) {
+                    // File header
+                    lineClass = 'bg-gray-500/10 text-gray-600 dark:text-gray-400';
+                    lineStyle = { 
+                      backgroundColor: 'rgba(107, 114, 128, 0.1)',
+                      fontWeight: 'bold'
+                    };
+                    prefix = trimmedLine.startsWith('+++') ? '+++' : '---';
+                  } else {
+                    // Context line
+                    lineClass = 'text-[var(--code-text)]';
+                    prefix = ' ';
+                  }
+                  
+                  return (
+                    <div
+                      key={index}
+                      className={`px-4 py-1 ${lineClass} flex items-start hover:bg-opacity-20 transition-colors`}
+                      style={lineStyle}
+                    >
+                      <span className="inline-block w-4 text-center opacity-60 select-none mr-2 flex-shrink-0">
+                        {prefix}
+                      </span>
+                      <span className="break-words min-w-0 flex-1">
+                        {line.slice(1) || ' '}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         );
       }
@@ -814,37 +1054,39 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
       
       return (
         <div className="message-code group relative my-6 max-w-full overflow-hidden">
-          <div className="message-code-header flex items-center justify-between px-4 py-2">
-            <span className="text-xs uppercase tracking-wider text-[var(--muted)] break-all">
+          <div className="message-code-header flex items-center justify-between px-4 py-2 min-w-0">
+            <span className="text-xs uppercase tracking-wider text-[var(--muted)] break-all truncate">
               {language || 'text'}
             </span>
             <button
               onClick={(e) => handleCopy(codeText, e)}
               className="text-xs uppercase tracking-wider px-2 py-1 
                        text-[var(--muted)] hover:text-[var(--foreground)] 
-                       transition-colors whitespace-nowrap ml-2"
+                       transition-colors whitespace-nowrap ml-2 flex-shrink-0"
             >
               Copy
             </button>
           </div>
-          <div className="hljs overflow-x-auto p-4 m-0 bg-[var(--code-bg)] text-[var(--code-text)] max-w-full whitespace-pre-wrap break-all">
-            {children}
+          <div className="hljs overflow-x-auto p-4 m-0 bg-[var(--code-bg)] text-[var(--code-text)] max-w-full">
+            <pre className="whitespace-pre-wrap break-words min-w-0 font-mono text-sm">{children}</pre>
           </div>
         </div>
       );
     },
     table: ({ children, ...props }: React.PropsWithChildren<ExtraProps>) => (
-      <div className="overflow-x-auto my-6">
-        <table className="w-full border-collapse" {...props}>{children}</table>
+      <div className="overflow-x-auto my-6 max-w-full">
+        <table className="w-full border-collapse table-auto" {...props}>{children}</table>
       </div>
     ),
     th: ({ children, ...props }) => (
-      <th className="bg-[var(--accent)] font-medium text-[var(--muted)] uppercase tracking-wider p-3 border border-[var(--accent)]" {...props}>
-        {children}
+      <th className="bg-[var(--accent)] font-medium text-[var(--muted)] uppercase tracking-wider p-3 border border-[var(--accent)] text-left min-w-0" {...props}>
+        <div className="break-words">{children}</div>
       </th>
     ),
     td: ({ children, ...props }) => (
-      <td className="p-3 border border-[var(--accent)]" {...props}>{children}</td>
+      <td className="p-3 border border-[var(--accent)] min-w-0" {...props}>
+        <div className="break-words">{children}</div>
+      </td>
     ),
     blockquote: ({ children, ...props }) => (
       <blockquote className="border-l-2 border-[var(--muted)] pl-4 my-6 text-[var(--muted)] italic" {...props}>
@@ -852,26 +1094,38 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
       </blockquote>
     ),
     ul: ({ children, ...props }) => (
-      <ul className="my-4 pl-5" style={{ listStylePosition: 'outside', listStyleType: 'disc' }} {...props}>
+      <ul className="my-4 list-disc list-inside pl-5" {...props}>
         {children}
       </ul>
     ),
     ol: ({ children, ...props }) => (
-      <ol className="my-4 pl-5" style={{ listStylePosition: 'outside', listStyleType: 'decimal' }} {...props}>
+      <ol className="my-4 list-decimal list-inside pl-5" {...props}>
         {children}
       </ol>
     ),
     li: ({ children, ...props }) => (
-      <li className="my-2" style={{ display: 'list-item' }} {...props}>{children}</li>
+      <li className="my-2 break-words" style={{ display: 'list-item' }} {...props}>{children}</li>
     ),
     h1: ({ children, ...props }) => (
-      <h1 className="text-2xl font-bold mt-8 mb-4" {...props}>{children}</h1>
+      <h1 className="text-2xl font-bold mt-8 mb-4 break-words" {...props}>{children}</h1>
     ),
     h2: ({ children, ...props }) => (
-      <h2 className="text-xl font-bold mt-6 mb-3" {...props}>{children}</h2>
+      <h2 className="text-xl font-bold mt-6 mb-3 break-words" {...props}>{children}</h2>
     ),
     h3: ({ children, ...props }) => (
-      <h3 className="text-lg font-bold mt-5 mb-2" {...props}>{children}</h3>
+      <h3 className="text-lg font-bold mt-5 mb-2 break-words" {...props}>{children}</h3>
+    ),
+    strong: ({ children, ...props }) => (
+      <strong className="font-bold" {...props}>{children}</strong>
+    ),
+    em: ({ children, ...props }) => (
+      <em className="italic" {...props}>{children}</em>
+    ),
+    b: ({ children, ...props }) => (
+      <b className="font-bold" {...props}>{children}</b>
+    ),
+    i: ({ children, ...props }) => (
+      <i className="italic" {...props}>{children}</i>
     ),
     math: ({ value, inline }: MathProps) => {
       // For block math, use the dedicated wrapper component
@@ -882,7 +1136,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
       // For inline math, use the simpler inline wrapper
       return <InlineMath content={value} />;
     },
-  }), [styleMentions, styleImageUrls, extractText, handleCopy]);
+  }), [styleMentions, styleImageUrls, extractText, handleCopy, openImageModal]);
 
   // Memoize the remarkPlugins and rehypePlugins
   const remarkPlugins = useMemo(() => [remarkGfm, remarkMath], []);
@@ -895,14 +1149,123 @@ export const MarkdownContent = memo(function MarkdownContentComponent({ content 
     ] as any;
   }, []);
 
+  // If segmentation is enabled, render multiple segments
   return (
-    <ReactMarkdown
-      className="message-content break-words"
-      remarkPlugins={remarkPlugins}
-      rehypePlugins={rehypePlugins}
-      components={components}
-    >
-      {processedContent}
-    </ReactMarkdown>
+    <>
+      <div className={variant === 'clean' ? 'markdown-segments' : 'message-segments'}>
+        {segments.map((segment, index) => (
+          <div key={index} className={variant === 'clean' ? 'markdown-segment' : 'message-segment'}>
+            <ReactMarkdown
+              className="message-content break-words"
+              remarkPlugins={remarkPlugins}
+              rehypePlugins={rehypePlugins}
+              components={components}
+            >
+              {segment}
+            </ReactMarkdown>
+          </div>
+        ))}
+      </div>
+
+      {/* Image Modal */}
+      {isMounted && selectedImage && createPortal(
+        <div 
+          className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center" 
+          onClick={closeImageModal}
+        >
+          {/* Close button */}
+          <button 
+            className="absolute top-4 right-4 bg-black/40 hover:bg-black/60 p-2 rounded-full text-white transition-colors"
+            onClick={closeImageModal}
+            aria-label="Close image viewer"
+          >
+            <X size={24} />
+          </button>
+          
+          {/* View original button */}
+          <a
+            href={selectedImage.src}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute top-4 left-4 bg-black/40 hover:bg-black/60 p-2 rounded-lg text-white transition-colors flex items-center gap-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ExternalLink size={16} />
+            <span className="hidden sm:inline">View Original</span>
+          </a>
+          
+          {/* Main image container */}
+          <div 
+            className="relative flex items-center justify-center bg-transparent rounded-lg overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: '90vw', height: '90vh' }}
+          >
+            <div className="relative group cursor-pointer flex flex-col items-center">
+              <div className="relative">
+                <img
+                  src={selectedImage.src}
+                  alt={selectedImage.alt}
+                  className="rounded-md shadow-xl"
+                  style={{ 
+                    maxWidth: '100%', 
+                    maxHeight: '75vh', 
+                    objectFit: 'contain',
+                    width: 'auto',
+                    height: 'auto'
+                  }}
+                  referrerPolicy="no-referrer"
+                />
+                
+                {/* Download button */}
+                <button
+                  className="absolute bottom-4 right-4 bg-black/40 hover:bg-black/60 p-2 rounded-full text-white transition-colors z-20"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Download image by first fetching it as a blob
+                    fetch(selectedImage.src)
+                      .then(response => response.blob())
+                      .then(blob => {
+                        // Create an object URL from the blob
+                        const blobUrl = URL.createObjectURL(blob);
+                        
+                        // Create and trigger download
+                        const link = document.createElement('a');
+                        link.href = blobUrl;
+                        link.download = `image-${Date.now()}.jpg`;
+                        document.body.appendChild(link);
+                        link.click();
+                        
+                        // Clean up
+                        setTimeout(() => {
+                          document.body.removeChild(link);
+                          URL.revokeObjectURL(blobUrl);
+                        }, 100);
+                      })
+                      .catch(error => {
+                        console.error('Download failed:', error);
+                      });
+                  }}
+                  aria-label="Download image"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Caption below the image */}
+              {selectedImage.alt && (
+                <div className="text-center text-white text-sm mt-4 z-10 bg-black/30 py-2 px-4 rounded-md">
+                  {selectedImage.alt}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }); 

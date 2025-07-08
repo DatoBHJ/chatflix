@@ -18,7 +18,7 @@ export function linkifyText(text: string): React.ReactNode[] {
           href={part} 
           target="_blank" 
           rel="noopener noreferrer" 
-          className="text-blue-500 hover:underline break-all"
+          className="underline break-all"
         >
           {part}
         </a>

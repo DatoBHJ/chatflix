@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 // import { useUser } from '@/app/lib/UserContext';
 import { User } from '@supabase/supabase-js';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getSidebarTranslations } from '../lib/sidebarTranslations';
 
 // FeatureUpdate 타입을 확장하여 필요한 필드 추가
 interface ExtendedFeatureUpdate extends FeatureUpdate {
@@ -29,6 +30,16 @@ const WhatsNewContainer: React.FC = () => {
   const buttonRef = useRef<HTMLButtonElement>(null);
   // const { user } = useUser();
   const [user, setUser] = useState<User | null>(null);
+  const [translations, setTranslations] = useState({
+    notifications: 'Notifications',
+    seeAll: 'See all',
+  });
+  
+  // Fetch translations
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setTranslations(getSidebarTranslations() as any);
+  }, []);
   
   // Fetch user data
   useEffect(() => {
@@ -478,13 +489,13 @@ const WhatsNewContainer: React.FC = () => {
             }}
           >
             <div className="flex items-center justify-between p-4 border-b border-[var(--subtle-divider)]">
-              <h3 className="font-bold text-lg">Notifications</h3>
+              <h3 className="font-bold text-lg">{translations.notifications}</h3>
               <Link 
                 href="/whats-new" 
                 className="text-sm text-blue-500 hover:underline"
                 onClick={() => setIsOpen(false)}
               >
-                See all
+                {translations.seeAll}
               </Link>
             </div>
             

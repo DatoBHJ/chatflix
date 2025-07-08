@@ -1,5 +1,5 @@
-import React, { memo, useMemo } from 'react'
-import { Search, Calculator, Link2, ImageIcon, BookOpen, Youtube, Monitor } from 'lucide-react'
+import React, { memo, useMemo, useState, useCallback, useEffect } from 'react'
+import { Search, Calculator, Link2, ImageIcon, BookOpen, Youtube, Wrench } from 'lucide-react'
 import { XLogo, YouTubeLogo } from '../CanvasFolder/CanvasLogo'
 
 // Create CanvasToolsPreview component
@@ -13,7 +13,8 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
   youTubeSearchData,
   youTubeLinkAnalysisData,
   messageId,
-  togglePanel
+  togglePanel,
+  contentOnly = false
 }: {
   webSearchData?: any;
   mathCalculationData?: any;
@@ -25,12 +26,14 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
   youTubeLinkAnalysisData?: any;
   messageId: string;
   togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string, fileName?: string) => void;
+  contentOnly?: boolean; // 버블 없이 내용만 렌더링
 }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   const tools = useMemo(() => {
     const activeTools = [];
     
     if (webSearchData) {
-      // Extract search queries from args.queries
       const queries = (webSearchData.args?.queries || []) as string[];
       let displayText = '';
       
@@ -70,7 +73,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
       activeTools.push({
         id: 'web-search',
         name: 'Web Search',
-        icon: <Search size={16} />,
+        icon: <Search size={14} />,
         status: actualStatus,
         displayText
       });
@@ -111,7 +114,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
       activeTools.push({
         id: 'calculator',
         name: 'Calculator',
-        icon: <Calculator size={16} />,
+        icon: <Calculator size={14} />,
         status: actualStatus,
         displayText
       });
@@ -159,7 +162,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
       activeTools.push({
         id: 'link-reader',
         name: 'Link Reader',
-        icon: <Link2 size={16} />,
+        icon: <Link2 size={14} />,
         status: actualStatus,
         displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
       });
@@ -192,7 +195,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
       activeTools.push({
         id: 'image-generator',
         name: 'Image Generator',
-        icon: <ImageIcon size={16} />,
+        icon: <ImageIcon size={14} />,
         status: actualStatus,
         displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
       });
@@ -226,14 +229,13 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
       activeTools.push({
         id: 'academic-search',
         name: 'Academic Search',
-        icon: <BookOpen size={16} />,
+        icon: <BookOpen size={14} />,
         status: actualStatus,
         displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
       });
     }
     
     if (xSearchData) {
-      // Extract search queries from X results
       const results = xSearchData.xResults || [];
       let displayText = '';
       
@@ -251,19 +253,17 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         displayText = 'X/Twitter search';
       }
       
-      // Determine actual status - X search is completed when results exist
       let actualStatus = 'completed';
       if (xSearchData.status) {
         actualStatus = xSearchData.status;
       } else if (results.length === 0) {
-        // If no results yet, it might be processing
         actualStatus = 'processing';
       }
       
       activeTools.push({
         id: 'x-search',
         name: 'X Search',
-        icon: <XLogo size={16} />,
+        icon: <XLogo size={14} />,
         status: actualStatus,
         displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
       });
@@ -297,7 +297,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
       activeTools.push({
         id: 'youtube-search',
         name: 'YouTube Search',
-        icon: <YouTubeLogo size={16} />,
+        icon: <YouTubeLogo size={14} />,
         status: actualStatus,
         displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
       });
@@ -349,7 +349,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
       activeTools.push({
         id: 'youtube-analyzer',
         name: 'YouTube Analyzer',
-        icon: <Youtube size={16} />,
+        icon: <Youtube size={14} />,
         status: actualStatus,
         displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
       });
@@ -358,24 +358,16 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
     return activeTools;
   }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, academicSearchData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData]);
   
-  if (tools.length === 0) return null;
-  
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'processing':
-      case 'loading':
-        return 'text-amber-400';
-      case 'completed':
-      case 'success':
-        return 'text-green-400';
-      case 'error':
-      case 'failed':
-        return 'text-red-400';
-      default:
-        return 'text-blue-400';
+  const handleToggle = useCallback(() => {
+    setIsExpanded(!isExpanded);
+  }, [isExpanded]);
+
+  const handleToolClick = useCallback((toolId: string) => {
+    if (togglePanel) {
+      togglePanel(messageId, 'canvas', undefined, toolId);
     }
-  };
-  
+  }, [togglePanel, messageId]);
+
   const getStatusIndicator = (status: string) => {
     switch (status) {
       case 'processing':
@@ -388,81 +380,163 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         );
       case 'completed':
       case 'success':
-        return (
-          <span className="relative flex h-2 w-2">
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-          </span>
-        );
+        return <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>;
       case 'error':
       case 'failed':
-        return (
-          <span className="relative flex h-2 w-2">
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-          </span>
-        );
+        return <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>;
       default:
-        return (
-          <span className="relative flex h-2 w-2">
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-          </span>
-        );
+        return <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>;
     }
   };
-  
-  return (
-    <div className="mb-6 p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2.5">
-          <Monitor className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-          <h2 className="font-medium text-left tracking-tight">Canvas Preview</h2>
-        </div>
-        <button
-          onClick={() => togglePanel && togglePanel(messageId, 'canvas')}
-          className="flex items-center gap-2 px-3 py-1.5 text-xs bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)] rounded-lg transition-colors"
-        >
-          <span>View All</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M7 17 17 7" />
-            <path d="M7 7h10v10" />
-          </svg>
-        </button>
-      </div>
-      
-      <div className="grid gap-3">
-        {tools.map((tool, index) => (
+
+  if (tools.length === 0) return null;
+
+  const hasProcessingTool = tools.some(tool => tool.status === 'processing' || tool.status === 'loading');
+
+  // 도구가 진행 중일 때 자동으로 툴팁 표시
+  useEffect(() => {
+    if (hasProcessingTool && !contentOnly) {
+      setIsExpanded(true);
+    }
+  }, [hasProcessingTool, contentOnly]);
+
+  // contentOnly가 true면 도구 목록만 렌더링
+  if (contentOnly) {
+    return (
+      <div className="space-y-2">
+        {tools.map((tool) => (
           <div
             key={tool.id}
-            className="flex items-center gap-3 p-3 bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] rounded-lg min-w-0 cursor-pointer hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors"
-            onClick={() => togglePanel && togglePanel(messageId, 'canvas', undefined, tool.id)}
+            onClick={() => handleToolClick(tool.id)}
+            className="flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--accent)] transition-colors cursor-pointer group/tool"
           >
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] flex-shrink-0">
+            <div className="flex items-center justify-center w-7 h-7">
               {tool.icon}
             </div>
-            <div className="flex-1 min-w-0 overflow-hidden">
-              <div className="flex items-center gap-2 mb-1 min-w-0">
-                <span className="text-sm font-medium truncate">{tool.name}</span>
-                <div className="flex-shrink-0">
-                  {getStatusIndicator(tool.status)}
-                </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-sm font-medium text-[var(--foreground)] truncate">
+                  {tool.name}
+                </span>
+                {getStatusIndicator(tool.status)}
               </div>
               <div className="text-xs text-[var(--muted)] truncate">
                 {tool.displayText}
               </div>
             </div>
-            <div className={`text-xs font-medium flex-shrink-0 max-w-[80px] sm:max-w-none truncate ${getStatusColor(tool.status)}`}>
-              <span className="hidden sm:inline">
-                {tool.status === 'processing' || tool.status === 'loading' ? 'Processing' : 
-                 tool.status === 'completed' || tool.status === 'success' ? 'Complete' :
-                 tool.status === 'error' || tool.status === 'failed' ? 'Failed' : 'Ready'}
-              </span>
-              <span className="sm:hidden">
-                {tool.status === 'processing' || tool.status === 'loading' ? 'Processing' : 
-                 tool.status === 'completed' || tool.status === 'success' ? 'Complete' :
-                 tool.status === 'error' || tool.status === 'failed' ? 'Error' : 'Ready'}
-              </span>
-            </div>
           </div>
         ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex justify-start">
+      {/* Apple 스타일 미니 캔버스 버블 */}
+      <div 
+        className="group relative cursor-pointer"
+        onClick={handleToggle}
+      >
+        {/* 메인 캔버스 버블 */}
+        <div className="flex items-center gap-2 px-3 py-2 bg-white/80 dark:bg-black/30 rounded-full backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200 ease-out">
+          <Wrench className="h-3.5 w-3.5" style={{ color: 'var(--tools-color)' }} strokeWidth={2} />
+          
+          {/* 도구 아이콘들 미리보기 */}
+          <div className="flex items-center gap-1">
+            {tools.slice(0, 3).map((tool) => (
+              <div key={tool.id} className="flex items-center justify-center w-4 h-4">
+                <div className="text-[var(--muted)] scale-75">
+                  {tool.icon}
+                </div>
+              </div>
+            ))}
+            {tools.length > 3 && (
+              <div className="text-xs text-[var(--muted)] ml-1">
+                +{tools.length - 3}
+              </div>
+            )}
+          </div>
+
+                     {/* 전체 상태 표시 */}
+           {hasProcessingTool ? (
+             <span className="relative flex h-2 w-2">
+               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+             </span>
+           ) : (
+             <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+           )}
+        </div>
+
+        {/* 작은 연결 버블들 */}
+        <div className="absolute -bottom-0.5 left-4 flex gap-0.5">
+          <div className="w-1 h-1 bg-white/60 dark:bg-black/20 rounded-full"></div>
+          <div className="w-0.5 h-0.5 bg-white/40 dark:bg-black/15 rounded-full"></div>
+        </div>
+
+        {/* 확장된 상세 정보 툴팁 */}
+        <div className={`absolute top-full left-0 mt-3 w-72 sm:w-96 bg-white/95 dark:bg-black/90 backdrop-blur-xl rounded-2xl border border-black/8 dark:border-white/10 shadow-xl p-4 z-50 transition-all duration-200 ease-out ${
+          isExpanded ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'
+        }`}>
+          {/* 툴팁 화살표 */}
+          <div className="absolute -top-1.5 left-6 w-3 h-3 bg-white/95 dark:bg-black/90 border-l border-t border-black/8 dark:border-white/10 rotate-45"></div>
+          
+          {/* 헤더 */}
+          <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+            <Wrench className="h-4 w-4" style={{ color: 'var(--tools-color)' }} strokeWidth={2} />
+            <span className="text-sm font-medium text-[var(--foreground)]">Tools</span>
+          </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePanel && togglePanel(messageId, 'canvas');
+              }}
+              className="text-xs px-2 py-1 rounded-full font-medium transition-colors"
+              style={{ 
+                backgroundColor: 'var(--status-bg-processing)', 
+                color: 'var(--status-text-processing)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = '0.8';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = '1';
+              }}
+            >
+              View All
+            </button>
+          </div>
+          
+          {/* 도구 목록 */}
+          <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-thin">
+            {tools.map((tool) => (
+              <div
+                key={tool.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToolClick(tool.id);
+                }}
+                className="flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--accent)] transition-colors cursor-pointer group/tool"
+              >
+                <div className="flex items-center justify-center w-7 h-7">
+                  {tool.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-sm font-medium text-[var(--foreground)] truncate">
+                      {tool.name}
+                    </span>
+                    {getStatusIndicator(tool.status)}
+                  </div>
+                  <div className="text-xs text-[var(--muted)] truncate">
+                    {tool.displayText}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

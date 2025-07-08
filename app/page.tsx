@@ -4,21 +4,23 @@ import { useRouter } from 'next/navigation'
 import { useChat } from '@ai-sdk/react';
 import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { Header } from './components/Header'
-import { Sidebar } from './components/Sidebar'
+
 import { ChatInputArea } from './components/ChatInputArea'
 import { uploadFile } from '@/app/chat/[id]/utils'
 import { Attachment } from '@/lib/types'
 import { nanoid } from 'nanoid'
 import { getDefaultModelId, getSystemDefaultModelId, updateUserDefaultModel, MODEL_CONFIGS } from '@/lib/models/config'
 import { SuggestedPrompt } from '@/app/components/SuggestedPrompt/SuggestedPrompt'
+import { InteractiveBackground } from '@/app/components/InteractiveBackground'
+import { CodeMatrixBackground } from '@/app/components/CodeMatrixBackground'
+import { GlobalAIActivityBackground } from '@/app/components/GlobalAIActivityBackground'
 export default function Home() {
   const router = useRouter()
   const [currentModel, setCurrentModel] = useState(getSystemDefaultModelId()) // 초기값으로 시스템 기본 모델 사용
   const [nextModel, setNextModel] = useState(getSystemDefaultModelId()) // 초기값으로 시스템 기본 모델 사용
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [user, setUser] = useState<any>(null)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+
   const [isModelLoading, setIsModelLoading] = useState(true) // 모델 로딩 상태 추가
   const [rateLimitedLevels, setRateLimitedLevels] = useState<string[]>([])
   const [isAgentEnabled, setisAgentEnabled] = useState(false)
@@ -235,6 +237,67 @@ export default function Home() {
     }
   })
 
+  // Background title generation function
+  const generateTitleInBackground = async (sessionId: string, message: string) => {
+    try {
+      console.log('[DEBUG] Generating title from message...');
+      
+      const titleResponse = await fetch('/api/chat/summarize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: message.trim()
+        })
+      });
+
+      if (titleResponse.ok) {
+        const { summary } = await titleResponse.json();
+        if (summary) {
+          console.log('[DEBUG] Generated title:', summary);
+          
+          // Update the title in database
+          Promise.resolve(supabase
+            .from('chat_sessions')
+            .update({ title: summary })
+            .eq('id', sessionId)
+          ).then(() => {
+            console.log('[DEBUG] Updated title to:', summary);
+            // Notify sidebar of title update
+            window.dispatchEvent(new CustomEvent('chatTitleUpdated', {
+              detail: { id: sessionId, title: summary }
+            }));
+          }).catch((error: any) => {
+            console.error('Failed to update title:', error);
+          });
+          
+          return;
+        }
+      }
+    } catch (titleError) {
+      console.error('[ERROR] Failed to generate title:', titleError);
+    }
+    
+    // Fallback: use first part of input text if title generation fails
+    const fallbackTitle = message.trim().length > 40 
+      ? message.trim().substring(0, 40) + '...' 
+      : message.trim();
+    
+    Promise.resolve(supabase
+      .from('chat_sessions')
+      .update({ title: fallbackTitle })
+      .eq('id', sessionId)
+    ).then(() => {
+      console.log('[DEBUG] Updated title to fallback:', fallbackTitle);
+      window.dispatchEvent(new CustomEvent('chatTitleUpdated', {
+        detail: { id: sessionId, title: fallbackTitle }
+      }));
+    }).catch((error: any) => {
+      console.error('Failed to update fallback title:', error);
+    });
+  };
+
   const handleModelSubmit = async (e: React.FormEvent, files?: FileList) => {
     e.preventDefault()
     
@@ -264,14 +327,17 @@ export default function Home() {
       // 사용자가 선택한 모델 사용
       const modelToUse = currentModel;
 
+      // Use "New Chat" initially
+      const userInput = input.trim();
+
       // First create the session and wait for it to complete
       const { error: sessionError } = await supabase
         .from('chat_sessions')
         .insert([{
           id: sessionId,
-          title: 'New Chat',
+          title: 'New Chat', // Start with "New Chat"
           current_model: modelToUse,
-          initial_message: input.trim(),
+          initial_message: userInput,
           user_id: user.id,
         }]);
 
@@ -286,7 +352,7 @@ export default function Home() {
         .from('messages')
         .insert([{
           id: messageId,
-          content: input.trim(),
+          content: userInput,
           role: 'user',
           created_at: new Date().toISOString(),
           model: modelToUse,
@@ -306,6 +372,20 @@ export default function Home() {
         localStorage.setItem(`Agent_${sessionId}`, 'true');
         console.log('[Debug] Home page - Saved Agent state to localStorage:', sessionId);
       }
+
+      // Trigger a custom event to notify sidebar of new chat
+      window.dispatchEvent(new CustomEvent('newChatCreated', {
+        detail: {
+          id: sessionId,
+          title: 'New Chat', // Start with "New Chat"
+          created_at: new Date().toISOString(),
+          current_model: modelToUse,
+          initial_message: userInput
+        }
+      }));
+
+      // Generate title in background (don't block user)
+      generateTitleInBackground(sessionId, userInput);
 
       // 디버깅: 리다이렉트 URL 출력
       const redirectUrl = `/chat/${sessionId}${isAgentEnabled ? '?Agent=true' : ''}`;
@@ -385,14 +465,17 @@ export default function Home() {
         }
       }
 
+      // Use "New Chat" initially
+      const promptInput = prompt.trim();
+
       // Create the session directly
       const { error: sessionError } = await supabase
         .from('chat_sessions')
         .insert([{
           id: sessionId,
-          title: prompt.trim(),
+          title: 'New Chat', // Start with "New Chat"
           current_model: modelToUse,
-          initial_message: prompt.trim(),
+          initial_message: promptInput,
           user_id: user.id,
         }]);
 
@@ -407,7 +490,7 @@ export default function Home() {
         .from('messages')
         .insert([{
           id: messageId,
-          content: prompt.trim(),
+          content: promptInput,
           role: 'user',
           created_at: new Date().toISOString(),
           model: modelToUse,
@@ -427,6 +510,20 @@ export default function Home() {
         localStorage.setItem(`Agent_${sessionId}`, 'true');
         console.log('[Debug] Saved Agent state to localStorage:', sessionId);
       }
+
+      // Trigger a custom event to notify sidebar of new chat
+      window.dispatchEvent(new CustomEvent('newChatCreated', {
+        detail: {
+          id: sessionId,
+          title: 'New Chat', // Start with "New Chat"
+          created_at: new Date().toISOString(),
+          current_model: modelToUse,
+          initial_message: promptInput
+        }
+      }));
+
+      // Generate title in background (don't block user)
+      generateTitleInBackground(sessionId, promptInput);
 
       // Redirect to chat page
       const redirectUrl = `/chat/${sessionId}${useAgent ? '?Agent=true' : ''}`;
@@ -473,38 +570,18 @@ export default function Home() {
 
   // 로딩 중이거나 사용자 정보가 없는 경우 로딩 화면 표시
   if (isModelLoading || !user) {
-    return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
+    return <div className="flex h-screen items-center justify-center"></div>
   }
 
   return (
-    <main className="flex-1 flex flex-col min-h-screen">
-      <Header 
-        isSidebarOpen={isSidebarOpen}
-        onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-        user={user}
-      />
+    <main className="flex-1 flex flex-col min-h-screen relative">
+      {/* Background Options - Choose one for testing */}
+      {/* <InteractiveBackground /> */}
+      {/* <CodeMatrixBackground /> */}
+      {/* <GlobalAIActivityBackground /> */}
       
-      {/* Sidebar with improved transition */}
-      <div 
-        className={`fixed left-0 top-0 h-full transform transition-all duration-300 ease-in-out z-50 ${
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <Sidebar user={user} onClose={() => setIsSidebarOpen(false)} />
-      </div>
-
-      {/* Overlay with improved transition */}
-      <div
-        className={`fixed inset-0 backdrop-blur-[1px] bg-black transition-all duration-200 ease-in-out z-40 ${
-          isSidebarOpen 
-            ? 'opacity-40 pointer-events-auto' 
-            : 'opacity-0 pointer-events-none'
-        }`}
-        onClick={() => setIsSidebarOpen(false)}
-      />
-
-      <div className="flex-1 flex flex-col items-center justify-center">
-        <div className="w-full max-w-2xl px-6 sm:px-8 pb-12 sm:pb-32">
+      <div className="flex-1 flex flex-col items-center justify-center sm:pt-20">
+        <div className="w-full max-w-2xl px-6 sm:px-8 pb-12 sm:pb-32 ">
           <ChatInputArea
             currentModel={currentModel}
             nextModel={nextModel}
@@ -533,7 +610,7 @@ export default function Home() {
           />
           
           {/* Display suggested prompt below the chat input with more spacing */}
-          {user?.id && (
+          {/* {user?.id && (
             <div className="mt-4">
               <SuggestedPrompt 
                 userId={user.id} 
@@ -541,8 +618,31 @@ export default function Home() {
                 isVisible={!input.trim()}
               />
             </div>
-          )}
+          )} */}
         </div>
+      </div>
+      
+      {/* Contact Button - Fixed at bottom right */}
+      <div className="fixed bottom-4 right-4 z-10">
+        <a
+          href="mailto:sply@chatflix.app?subject=Contact&body=Hello, I have a question.%0D%0A%0D%0A"
+          className="flex items-center justify-center w-12 h-12 bg-[var(--accent)] hover:bg-[var(--foreground)] text-[var(--foreground)] hover:text-[var(--background)] rounded-full shadow-lg transition-[var(--transition)] group"
+          title="Contact"
+        >
+          <svg 
+            className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth={2} 
+              d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" 
+            />
+          </svg>
+        </a>
       </div>
     </main>
   )

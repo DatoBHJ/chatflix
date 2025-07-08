@@ -10,24 +10,43 @@ import Announcement from './components/Announcement'
 import useAnnouncement from './hooks/useAnnouncement'
 import { fetchUserName } from '@/app/components/AccountDialog'
 import { Toaster } from 'sonner'
+import { SidebarContext } from './lib/SidebarContext'
 
 export default function RootLayoutClient({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
   const [userName, setUserName] = useState('You')
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false) // 초기값을 false로 변경
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
   const { announcements, showAnnouncement, hideAnnouncement } = useAnnouncement()
 
-  const toggleSidebar = () => {
-    setIsSidebarOpen(prev => !prev)
-  }
+  // 화면 크기에 따른 사이드바 초기 상태 설정
+  useEffect(() => {
+    const handleResize = () => {
+      // 데스크톱(768px 이상)에서만 사이드바를 자동으로 열기
+      if (window.innerWidth >= 768) {
+        setIsSidebarOpen(true)
+      } else {
+        setIsSidebarOpen(false)
+      }
+    }
+
+    // 초기 로드시 화면 크기 체크
+    handleResize()
+
+    // 윈도우 리사이즈 이벤트 리스너 추가
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [])
 
   useEffect(() => {
     const getUser = async () => {
@@ -70,6 +89,10 @@ export default function RootLayoutClient({
     }
   }, [supabase, router, pathname])
 
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen)
+  }
+
   if (isLoading) {
     return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
   }
@@ -83,52 +106,91 @@ export default function RootLayoutClient({
   }
 
   return (
+    <SidebarContext.Provider value={{ isSidebarOpen }}>
     <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)] overflow-x-hidden">
       <Toaster position="top-right" richColors />
       <Announcement
         announcements={announcements || []}
         onClose={hideAnnouncement}
       />
+        
+        {/* Sidebar with toggle functionality */}
       {user && (
-        <Header 
-          isSidebarOpen={isSidebarOpen}
-          onSidebarToggle={toggleSidebar}
-          user={user}
+          <>
+            {/* Overlay for mobile when sidebar is open */}
+            {isSidebarOpen && (
+              <div 
+                className="fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+                onClick={toggleSidebar}
+                style={{
+                  willChange: 'opacity'
+                }}
         />
       )}
       
-      {/* Sidebar with improved transition */}
-      {user && (
-        <div 
-          className={`fixed left-0 top-0 h-full transform transition-all duration-300 ease-out z-40 ${
-            isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'
-          }`}
-        >
-          <Sidebar 
-            user={user} 
-            onClose={() => setIsSidebarOpen(false)} 
-          />
-        </div>
-      )}
+            {/* Sidebar */}
+            <div 
+              className={`fixed left-0 top-0 h-full z-50 transform transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+                isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+              }`}
+              style={{
+                willChange: 'transform'
+              }}
+            >
+              <Sidebar user={user} />
+            </div>
 
-      {/* Main Content */}
-      <div className="flex-1">
+            {/* Unified Sidebar Toggle Button */}
+            <button
+              onClick={toggleSidebar}
+              className={`sidebar-toggle-btn fixed top-5 z-[60] p-2 text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--accent)]/50 rounded-lg transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] flex items-center justify-center group ${
+                isSidebarOpen 
+                  ? 'left-[280px]' 
+                  : 'left-3'
+              }`}
+              title={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+              aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+              style={{
+                willChange: 'left, background-color, border, box-shadow',
+                outline: '0 !important',
+                border: '0 !important',
+                boxShadow: 'none !important',
+                WebkitTapHighlightColor: 'transparent',
+                WebkitAppearance: 'none',
+                MozAppearance: 'none',
+                appearance: 'none',
+                background: 'transparent',
+                borderRadius: '0.5rem'
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-all duration-300 group-hover:scale-110">
+                <path d={isSidebarOpen ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6"}></path>
+              </svg>
+            </button>
+          </>
+        )}
+
+        {/* Main Content with conditional offset */}
+        <div 
+          className={`flex-1 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+            user && isSidebarOpen ? 'ml-0 md:ml-80' : 'ml-0'
+          }`}
+          style={{
+            willChange: 'margin-left'
+          }}
+        >
+          {/* Header with toggle button */}
+          {user && (
+            <Header 
+              isSidebarOpen={isSidebarOpen}
+            user={user} 
+          />
+      )}
         {children}
       </div>
 
-      {/* Overlay with improved transition */}
-      {user && (
-        <div
-          className={`fixed inset-0 backdrop-blur-[1px] bg-black transition-all duration-300 ease-out z-30 ${
-            isSidebarOpen 
-              ? 'opacity-30 pointer-events-auto' 
-              : 'opacity-0 pointer-events-none'
-          }`}
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
       {user && <PromptShortcutsDialog user={user} />}
     </div>
+    </SidebarContext.Provider>
   )
 } 

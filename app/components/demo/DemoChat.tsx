@@ -61,7 +61,7 @@ const Tooltip: React.FC<TooltipProps> = ({ text, children, className = '' }) => 
 };
 
 export function DemoChat() {
-  const [activePanel, setActivePanel] = useState<{ messageId: string; type: 'canvas' | 'structuredResponse' } | null>(null)
+  const [activePanel, setActivePanel] = useState<{ messageId: string; type: 'canvas' | 'structuredResponse' | 'attachment' } | null>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -210,7 +210,7 @@ export function DemoChat() {
   };
 
   // Panel toggle function with user preference tracking
-  const togglePanel = (messageId: string, type: 'canvas' | 'structuredResponse') => {
+  const togglePanel = (messageId: string, type: 'canvas' | 'structuredResponse' | 'attachment', fileIndex?: number, toolType?: string, fileName?: string) => {
     if (activePanel?.messageId === messageId && activePanel?.type === type) {
       setActivePanel(null);
       setUserPanelPreference(false);
@@ -822,6 +822,7 @@ export function DemoChat() {
                           messageHasCanvasData={messageHasCanvasData}
                           activePanelMessageId={activePanel?.messageId}
                           togglePanel={togglePanel}
+                          isLastMessage={index === messages.length - 1}
                           webSearchData={webSearchData}
                           mathCalculationData={mathCalculationData}
                           linkReaderData={linkReaderData}
@@ -830,6 +831,10 @@ export function DemoChat() {
                           xSearchData={xSearchData}
                           youTubeSearchData={youTubeSearchData}
                           youTubeLinkAnalysisData={youTubeLinkAnalysisData}
+                          user={null}
+                          handleFollowUpQuestionClick={async (question: string) => handleExampleClick(question)}
+                          allMessages={messages}
+                          isGlobalLoading={isLoading}
                         />
                       </div>
                     );
@@ -898,7 +903,8 @@ export function DemoChat() {
                       </button>
                       <div className="flex flex-col">
                         <h3 className="text-lg font-semibold text-[var(--foreground)]">
-                          {activePanel.type === 'canvas' ? 'Canvas' : 'Attachment Details'}
+                          {activePanel.type === 'canvas' ? 'Canvas' : 
+                           activePanel.type === 'structuredResponse' ? 'Structured Response' : 'Attachment Details'}
                         </h3>
                         {/* 실제 페이지의 미리보기 요약 로직은 데모에서 단순화 또는 제거 가능 */}
                       </div>
@@ -946,6 +952,12 @@ export function DemoChat() {
                           )}
                           {activePanel?.type === 'structuredResponse' && (
                             <StructuredResponse message={message} />
+                          )}
+                          {activePanel?.type === 'attachment' && (
+                            <div className="p-4 text-center text-[var(--muted)]">
+                              <p>File attachments are not available in demo mode.</p>
+                              <p className="mt-2 text-sm">Sign up to use file upload features.</p>
+                            </div>
                           )}
                         </div>
                       );

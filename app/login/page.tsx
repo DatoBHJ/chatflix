@@ -5,9 +5,42 @@ import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 import { GoogleSignIn } from '../components/GoogleSignIn'
 import Image from 'next/image'
-import { DemoChat } from '../components/demo/DemoChat'
 import { MODEL_CONFIGS } from '@/lib/models/config'
 import { getProviderLogo } from '@/app/lib/models/logoUtils'
+import { Brain, Search, Calculator, Link as LinkIcon, Image as ImageIcon, GraduationCap, Video, FileVideo, Columns, MapPin, Palette, FileText, Download } from 'lucide-react'
+import { getLoginPageTranslations } from '@/app/lib/loginPageTranslations'
+
+// Tool definitions
+const TOOLS = [
+  { id: 'web_search', icon: <Search strokeWidth={1.25} />, name: 'Web Search' },
+  { id: 'link_reader', icon: <LinkIcon strokeWidth={1.25} />, name: 'Link Reader' },
+  { id: 'youtube_search', icon: <Video strokeWidth={1.25} />, name: 'YouTube' },
+  { id: 'academic_search', icon: <GraduationCap strokeWidth={1.25} />, name: 'Academic' },
+  { id: 'image_generator', icon: <ImageIcon strokeWidth={1.25} />, name: 'Image Gen' },
+  { id: 'calculator', icon: <Calculator strokeWidth={1.25} />, name: 'Calculator' },
+];
+
+// Featured prompt examples
+const FEATURED_EXAMPLES = [
+  {
+    icon: <FileVideo strokeWidth={1.5} />,
+    prompt: "Find the top 3 M4 iPad Pro review videos and create a summary document with pros and cons from each review.",
+    outcome: "Got it! I'll search YouTube for the top 3 M4 iPad Pro review videos, analyze them, and summarize the pros and cons from each in a document.",
+   tools: ['YouTube Search', 'Analysis']
+  },
+  {
+    icon: <Columns strokeWidth={1.5} />,
+    prompt: "Check out Framework Laptop's specs, find their main competitors, and create a comparison chart for me.",
+ outcome: "Sure! I'll review the Framework Laptop's product page, find its main competitors, and make a comparison chart of their specs.",
+tools: ['Link Reader', 'Web Search']
+  },
+  {
+    icon: <Palette strokeWidth={1.5} />,
+    prompt: "Create a minimalist logo design for a sustainable coffee brand called 'GreenBean' with earthy tones.",
+    outcome: "Of course. I will now generate a minimalist logo for 'GreenBean' using an earthy color palette.",
+    tools: ['Image Generator']
+  }
+];
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -16,6 +49,7 @@ export default function LoginPage() {
   const [showLoginModal, setShowLoginModal] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+  const [translations, setTranslations] = useState(getLoginPageTranslations())
   
   // Logo error handling for AI model providers
   const [logoErrors, setLogoErrors] = useState<Record<string, boolean>>({})
@@ -76,18 +110,10 @@ export default function LoginPage() {
     if (searchParams.get('signup') === 'true') {
       setShowLoginModal(true)
     }
+  }, [])
 
-    // Listen for custom event from DemoChat component
-    const handleOpenSignupModal = () => {
-      setShowLoginModal(true)
-    }
-    
-    window.addEventListener('openSignupModal', handleOpenSignupModal)
-    
-    // Clean up event listener on unmount
-    return () => {
-      window.removeEventListener('openSignupModal', handleOpenSignupModal)
-    }
+  useEffect(() => {
+    setTranslations(getLoginPageTranslations())
   }, [])
 
   // Function to close modal and clean up URL
@@ -139,7 +165,7 @@ export default function LoginPage() {
 
     if (error) {
       if (error.message === 'Anonymous sign-ins are disabled') {
-        setError('Enter email + password then\nclick Create account')
+        setError('Please enter your email and password, then click Sign Up to create your account.')
       } else {
         setError(error.message)
       }
@@ -149,93 +175,213 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--background)]">
-      {/* Hero Section */}
-      <div className="relative flex-1 flex flex-col justify-center items-center px-6 py-24 md:py-40 max-w-7xl mx-auto">
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute top-0 left-0 w-3/4 h-3/4 bg-gradient-to-br from-[var(--foreground)] opacity-[0.03] blur-[150px] rounded-full transform -translate-x-1/4 -translate-y-1/4"></div>
-          <div className="absolute bottom-0 right-0 w-3/4 h-3/4 bg-gradient-to-tl from-[var(--foreground)] opacity-[0.03] blur-[150px] rounded-full transform translate-x-1/4 translate-y-1/4"></div>
-        </div>
-        
-        <div className="max-w-3xl w-full text-center z-10">
-          <h1 className="font-light text-6xl md:text-8xl tracking-[-0.05em] mb-10 text-[var(--foreground)] uppercase">CHATFLIX</h1>
-          <div className="flex flex-col sm:flex-row gap-8 justify-center">
-            <button 
-            onClick={() => {
-              setShowLoginModal(true)
-              // Add signup parameter to URL
-              const url = new URL(window.location.href)
-              url.searchParams.set('signup', 'true')
-              window.history.replaceState({}, '', url)
-            }}
-              className="px-12 py-4 bg-[var(--foreground)] text-[var(--background)] rounded-none hover:opacity-90 transition-all duration-300 font-light text-sm tracking-widest uppercase"
-            >
-              Get Started
-            </button>
-            {/* <a 
-              href="#demo" 
-              className="px-12 py-4 border border-[var(--subtle-divider)] rounded-none hover:bg-[var(--foreground)] hover:text-[var(--background)] transition-all duration-300 font-light text-sm tracking-widest uppercase"
-            >
-              Try Now
-            </a> */}
+    <div className="min-h-screen flex flex-col bg-[var(--background)] text-[var(--foreground)]">
+      {/* Chat Interface Preview */}
+      <div className="flex-1 flex flex-col justify-center items-center px-6 pt-24 pb-24 md:pt-32">
+        <div className="w-full max-w-2xl">
+          <div className="space-y-1">
+            {/* Link Preview - above message like in real iMessage */}
+            <div className="flex justify-end">
+              <div className="max-w-[280px]">
+                <button 
+                  onClick={() => {
+                    setShowLoginModal(true)
+                    const url = new URL(window.location.href)
+                    url.searchParams.set('signup', 'true')
+                    window.history.replaceState({}, '', url)
+                  }}
+                  className="imessage-link-preview w-full text-left"
+                >
+                  <img src="/music2.png" alt="I AM AI" className="preview-image" />
+                  <div className="preview-content">
+                    <p className="preview-title">{translations.chatIsThisReal}</p>
+                    <p className="preview-domain">chatflix.app</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+            
+            {/* User Input */}
+            <div className="flex flex-col items-end">
+              <div className="imessage-send-bubble">
+                {translations.chatIsThisReal}
+              </div>
+              {/* Delivered status */}
+              <div className="text-xs text-neutral-500 mt-1 pr-2">
+                Delivered
+              </div>
+            </div>
+          </div>
+          
+          {/* AI Response - with more space above */}
+          <div className="mt-12 space-y-2">
+            {/* AI Response 1: "Yes" */}
+            <div className="flex justify-start">
+              <div className="imessage-receive-bubble">
+                {translations.yes}
+              </div>
+            </div>
+            
+            {/* AI Response 2: "Get Started" Button */}
+            <div className="flex justify-start">
+              <div className="imessage-receive-bubble p-0">
+                <button 
+                  onClick={() => {
+                    setShowLoginModal(true)
+                    const url = new URL(window.location.href)
+                    url.searchParams.set('signup', 'true')
+                    window.history.replaceState({}, '', url)
+                  }}
+                  className="hover:opacity-90 transition-all duration-300"
+                >
+                  {translations.getStarted}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Experience Section - Demo */}
-      <div id="demo" className="py-20 md:py-32 border-t border-[var(--subtle-divider)] border-opacity-30 bg-gradient-to-b from-[var(--background)] to-[var(--background-secondary)]">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="mb-16 max-w-3xl mx-auto text-center">
-            <h2 className="font-light text-4xl md:text-6xl tracking-[-0.05em] text-[var(--foreground)] uppercase mb-2">EXPERIENCE</h2>
-            <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)] mb-8">
-              Test drive Chatflix demo
-            </p>
+      {/* Capabilities Section */}
+      <div className="w-full bg-[var(--background-secondary)] py-24 md:py-40 border-t border-[var(--subtle-divider)]">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-20">
+            <h2 className="text-4xl md:text-5xl font-medium tracking-tight text-[var(--foreground)] mb-4">More than just chat.</h2>
           </div>
-          <DemoChat />
+          
+          <div className="max-w-4xl mx-auto">
+            <div className="space-y-4">
+              {/* User Prompt */}
+              <div className="flex justify-end">
+                <div className="imessage-send-bubble">
+                  What can you do besides just chatting?
+                </div>
+              </div>
+              
+                            {/* AI Response 1 - Toolset */}
+              <div className="flex justify-start">
+                <div className="imessage-receive-bubble max-w-lg">
+                  I have access to powerful tools – I can search the web, generate images, analyze documents, read any link you share, and even create files for you.
+                  <div className="flex flex-wrap gap-2 mt-4 border-t border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] dark:border-white/10 pt-3">
+                    <span className="text-xs px-2.5 py-1 bg-[var(--background)] text-[var(--muted)] dark:bg-white/10 dark:text-white/80 rounded-full font-medium tracking-wide">Web Search</span>
+                    <span className="text-xs px-2.5 py-1 bg-[var(--background)] text-[var(--muted)] dark:bg-white/10 dark:text-white/80 rounded-full font-medium tracking-wide">Image Gen</span>
+                    <span className="text-xs px-2.5 py-1 bg-[var(--background)] text-[var(--muted)] dark:bg-white/10 dark:text-white/80 rounded-full font-medium tracking-wide">Analysis</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* User Prompt 2 - Memory */}
+              <div className="flex justify-end">
+                <div className="imessage-send-bubble">
+                  Can you learn my preferences over time?
+                </div>
+              </div>
+
+                            {/* AI Response 2 - Memory */}
+              <div className="flex justify-start">
+                <div className="imessage-receive-bubble max-w-lg">
+                  Absolutely! I remember our conversations and learn your preferences over time, so I get better at helping you with each interaction.
+                </div>
+              </div>
+
+              {/* Image Preview - above message like in real iMessage */}
+              <div className="flex justify-end">
+                <div className="max-w-[280px]">
+                  <img 
+                    src="/music2.png" 
+                    alt="Chatflix logo" 
+                    className="imessage-image-attachment"
+                  />
+                </div>
+              </div>
+
+              {/* User Prompt 3 - Multi-modal */}
+              <div className="flex justify-end">
+                <div className="imessage-send-bubble">
+                  What's this?
+                </div>
+              </div>
+
+              {/* AI Response 3 - Multi-modal */}
+              <div className="flex justify-start">
+                <div className="imessage-receive-bubble max-w-lg">
+                  That's the Chatflix logo! I can see it has a modern design with clean typography.
+                </div>
+              </div>
+
+              {/* User Prompt 4 - Research */}
+              <div className="flex justify-end">
+                <div className="imessage-send-bubble">
+                  Help me research AI model comparison for a project
+                </div>
+              </div>
+
+              {/* AI Response 4 - Research with Tools */}
+              <div className="flex justify-start">
+                <div className="imessage-receive-bubble max-w-lg">
+                  I'll research the latest AI models and create a comprehensive comparison document for you.
+                  <div className="flex flex-wrap gap-2 mt-4 border-t border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] dark:border-white/10 pt-3">
+                    <span className="text-xs px-2.5 py-1 bg-[var(--background)] text-[var(--muted)] dark:bg-white/10 dark:text-white/80 rounded-full font-medium tracking-wide">Web Search</span>
+                    <span className="text-xs px-2.5 py-1 bg-[var(--background)] text-[var(--muted)] dark:bg-white/10 dark:text-white/80 rounded-full font-medium tracking-wide">Academic Search</span>
+                    <span className="text-xs px-2.5 py-1 bg-[var(--background)] text-[var(--muted)] dark:bg-white/10 dark:text-white/80 rounded-full font-medium tracking-wide">Document Generator</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* File Preview */}
+              <div className="flex justify-start pl-2">
+                <div className="imessage-file-bubble">
+                  <div className="flex-shrink-0">
+                    <FileText className="w-6 h-6 text-[var(--muted)]" />
+                  </div>
+                  <div className="flex-1 text-left overflow-hidden">
+                    <p className="font-medium truncate text-sm text-[var(--foreground)]">
+                      AI-Model-Comparison-2024.md
+                    </p>
+                    <p className="text-xs text-[var(--muted)]">
+                      12.4 KB
+                    </p>
+                  </div>
+                  <div className="p-1">
+                    <Download className="text-[var(--muted)]" size={20} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       
-      {/* Capabilities Section */}
-      <div className="w-full bg-[var(--background-secondary)] py-20 md:py-32 border-t border-[var(--subtle-divider)]">
-        <div className="max-w-5xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="font-light text-4xl md:text-6xl tracking-[-0.05em] text-[var(--foreground)] uppercase mb-2">CAPABILITIES</h2>
+      {/* Examples Section */}
+      <div className="w-full bg-[var(--background)] py-24 md:py-40 border-t border-[var(--subtle-divider)]">
+        <div className="max-w-4xl mx-auto px-6">
+          <div className="text-center mb-20">
+            <h2 className="text-4xl md:text-4xl font-medium tracking-tight text-[var(--foreground)] mb-4">Beyond Conversation. Into Action.</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-            {[ 
-              {
-                title: "Agent Mode",
-                description: "Autonomously plans, reasons, and executes complex multi-step tasks. Adapts workflow for what you need."
-              },
-              {
-                title: "Versatile Toolset",
-                description: "Web search, image generation, link reader, YouTube analysis, academic search, calculator and more."
-              },
-              {
-                title: "Personalized Memory",
-                description: "Learns your preferences and conversation context for a truly tailored experience."
-              }
-            ].map((feature) => (
-              <div key={feature.title} className="p-8 border border-[var(--subtle-divider)] bg-gradient-to-br from-[var(--background)] to-[var(--background-secondary)] flex flex-col">
-                <h3 className="font-light text-2xl text-[var(--foreground)] uppercase tracking-wider mb-4">{feature.title}</h3>
-                <p className="text-sm text-[var(--muted)] font-light flex-grow">{feature.description}</p>
-              </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {[ 
-              {
-                title: "Multi-Modal Fluency",
-                description: "Seamlessly interact with text, images, and files. Your context, understood."
-              },
-              {
-                title: "Structured Delivery",
-                description: "Clear, organized outputs. From concise answers to downloadable files and interactive charts."
-              }
-            ].map((feature) => (
-              <div key={feature.title} className="p-6 border border-[var(--subtle-divider)] bg-[var(--background)]">
-                <h3 className="font-light text-xl text-[var(--foreground)] uppercase tracking-wider mb-3">{feature.title}</h3>
-                <p className="text-sm text-[var(--muted)] font-light">{feature.description}</p>
+          
+          <div className="space-y-16">
+            {FEATURED_EXAMPLES.map((example, index) => (
+              <div key={index} className="flex flex-col gap-4">
+                {/* User Prompt */}
+                <div className="flex justify-end">
+                  <div className="imessage-send-bubble">
+                    {example.prompt}
+                  </div>
+                </div>
+                
+                                 {/* AI Response */}
+                 <div className="flex justify-start">
+                   <div className="imessage-receive-bubble max-w-lg">
+                     {example.outcome}
+                     <div className="flex flex-wrap gap-2 mt-4 border-t border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] dark:border-white/10 pt-3">
+                       {example.tools.map((tool, toolIndex) => (
+                         <span key={toolIndex} className="text-xs px-2.5 py-1 bg-[var(--background)] text-[var(--muted)] dark:bg-white/10 dark:text-white/80 rounded-full font-medium tracking-wide">
+                           {tool}
+                         </span>
+                       ))}
+                     </div>
+                   </div>
+                 </div>
               </div>
             ))}
           </div>
@@ -243,16 +389,16 @@ export default function LoginPage() {
       </div>
 
       {/* AI Models Section */}
-      <div className="w-full bg-[var(--background)] py-16 md:py-24 border-t border-[var(--subtle-divider)]">
-        <div className="max-w-5xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="font-light text-4xl md:text-6xl tracking-[-0.05em] text-[var(--foreground)] uppercase mb-2">MODELS</h2>
+      <div className="w-full bg-[var(--background)] py-24 md:py-40 border-t border-[var(--subtle-divider)]">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center mb-20">
+            <h2 className="text-4xl md:text-5xl font-medium tracking-tight text-[var(--foreground)] mb-4">Powered by the Best.</h2>
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 md:gap-x-8 gap-y-6 md:gap-y-10 mb-16">
             {/* CHATFLIX Models Box (Featured) */}
             {chatflixModels.length > 0 && chatflixModels.some(m => m.isEnabled && m.isActivated) && (
-              <div className="p-6 border border-[var(--subtle-divider)] bg-gradient-to-br from-[var(--background)] to-[var(--background-secondary)] col-span-1 sm:col-span-2 lg:col-span-3">
+              <div className="p-6 border border-[var(--subtle-divider)] bg-[var(--background-secondary)] col-span-1 sm:col-span-2 lg:col-span-3">
                 <div className="flex flex-col md:flex-row gap-10">
                   {chatflixModels.filter(m => m.isEnabled && m.isActivated).map((model) => (
                     <div key={model.id} className="flex-1 min-w-0">
@@ -271,7 +417,7 @@ export default function LoginPage() {
                         </h3>
                       </div>
                       <div className="text-sm text-[var(--muted)] mb-2">
-                        <p>{model.description || "자동으로 최적의 모델을 선택하여 작업을 수행합니다."}</p>
+                        <p>{model.description}</p>
                       </div>
                     </div>
                   ))}
@@ -281,7 +427,7 @@ export default function LoginPage() {
             
             {/* Other Model Providers */}
             {Object.entries(groupedModels).map(([provider, models]) => (
-              <div key={provider} className="p-6 border border-[var(--subtle-divider)]">
+              <div key={provider} className="p-6 border border-[var(--subtle-divider)] bg-[var(--background-secondary)]">
                 <div className="flex items-center mb-6">
                   <div className="h-6 w-6 md:h-8 md:w-8 mr-3 relative flex-shrink-0">
                     {!logoErrors[provider] ? (
@@ -313,7 +459,7 @@ export default function LoginPage() {
             ))}
           </div>
           
-          <div className="text-center">
+          <div className="text-center mt-20">
             <button 
               onClick={() => {
                 setShowLoginModal(true)
@@ -328,8 +474,10 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
-            {/* Login Modal - Modernized */}
-            {showLoginModal && (
+      
+      
+      {/* Login Modal - Modernized */}
+      {showLoginModal && (
         <div className="fixed inset-0 bg-[var(--overlay)] backdrop-blur-md flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--background)] rounded-2xl border border-[var(--subtle-divider)] shadow-2xl max-w-md w-full p-8 animate-fade-in relative overflow-hidden">
             <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-30">
@@ -338,7 +486,6 @@ export default function LoginPage() {
             
             <div className="mb-12 text-center relative">
               <h2 className="font-light text-3xl tracking-[-0.05em] text-[var(--foreground)] uppercase">CHATFLIX</h2>
-              <p className="text-[10px] text-[var(--muted)] mt-3 tracking-[0.2em] uppercase">Access your account</p>
             </div>
             
             <form className="space-y-6 relative" onSubmit={handleSignIn}>
@@ -422,7 +569,7 @@ export default function LoginPage() {
       
       {/* Footer - Minimal */}
       <footer className="py-12 border-t border-[var(--subtle-divider)] border-opacity-30">
-        <div className="max-w-6xl mx-auto px-4 text-center">
+        <div className="max-w-6xl mx-auto px-6 text-center">
           <p className="text-[var(--muted)] text-sm">© {new Date().getFullYear()} Chatflix.app. All rights reserved.</p>
           <p className="text-[var(--muted)] text-sm mt-2">
             <a href="mailto:sply@chatflix.app" className="hover:text-[var(--foreground)] transition-colors">

@@ -32,7 +32,7 @@ export function PWAInstallPrompt() {
   if (!showPrompt) return null;
 
   return (
-    <div className={`fixed inset-x-4 top-4 z-50 transition-all duration-300 ease-in-out ${
+    <div className={`fixed inset-x-4 top-4 z-[70] transition-all duration-300 ease-in-out ${
       isVisible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'
     }`}>
       <div className="relative bg-[#1C1C1E] rounded-2xl overflow-hidden shadow-2xl">

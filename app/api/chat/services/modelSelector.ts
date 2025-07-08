@@ -681,31 +681,57 @@ function selectModelBasedOnAnalysis(
   // 3단계: 텍스트만 있는 경우 (비멀티모달)
   else {
     if (analysis.category === 'math') {
-      // 수학 카테고리는 복잡도 무관 grok-3-mini-fast
-      return 'grok-3-mini-fast';
+      // 수학 카테고리
+      if (modelType === 'chatflix-ultimate-pro') {
+        // Pro 버전: 단순 grok-3, 중간 grok-3-mini, 복잡 deepseek-reasoner
+        if (analysis.complexity === 'simple') {
+          return 'grok-3';
+        } else if (analysis.complexity === 'medium') {
+          return 'grok-3-mini';
+        } else { // complex
+          return 'deepseek-reasoner';
+        }
+      } else {
+        // 일반 버전: 단순/중간 grok-3, 복잡 grok-3-mini
+        if (analysis.complexity === 'complex') {
+          return 'grok-3-mini';
+        } else { // simple/medium
+          return 'grok-3';
+        }
+      }
     }
     else if (analysis.category === 'technical') {
-      // 기술 카테고리는 복잡도에 따라 분기
-      if (analysis.complexity === 'simple') {
-        return 'grok-3-fast';
-      } else { // medium/complex
-        return 'grok-3-mini-fast';
+      // 기술 카테고리
+      if (modelType === 'chatflix-ultimate-pro') {
+        // Pro 버전: 단순 grok-3, 중간/복잡 claude-sonnet-4
+        if (analysis.complexity === 'simple') {
+          return 'grok-3';
+        } else { // medium/complex
+          return 'claude-sonnet-4-20250514';
+        }
+      } else {
+        // 일반 버전: 단순 grok-3, 중간/복잡 gpt-4.1
+        if (analysis.complexity === 'simple') {
+          return 'grok-3';
+        } else { // medium/complex
+          return 'gpt-4.1';
+        }
       }
     }
     else {
       // 기타 카테고리
       if (modelType === 'chatflix-ultimate-pro') {
-        // Pro 버전: 단순/중간은 sonnet 4, 복잡은 sonnet 4 thinking
+        // Pro 버전: 단순/중간 gpt-4.1, 복잡 claude-sonnet-4
         if (analysis.complexity === 'complex') {
-          return 'claude-sonnet-4-20250514-thinking';
-        } else { // simple/medium
           return 'claude-sonnet-4-20250514';
+        } else { // simple/medium
+          return 'gpt-4.1';
         }
       } else {
-        // 일반 버전 - Other 카테고리는 gpt-4.1-mini 사용
-        if (analysis.complexity === 'simple') {
-          return 'gpt-4.1-mini';
-        } else { // medium/complex
+        // 일반 버전: 단순/중간 gpt-4.1-mini, 복잡 gpt-4.1
+        if (analysis.complexity === 'complex') {
+          return 'gpt-4.1';
+        } else { // simple/medium
           return 'gpt-4.1-mini';
         }
       }

@@ -23,6 +23,7 @@ export interface ChatInputProps {
   popupPosition?: 'top' | 'bottom';
   isAgentEnabled?: boolean;
   setisAgentEnabled?: React.Dispatch<React.SetStateAction<boolean>>;
+  allMessages?: any[]; // 전체 대화 메시지 (대화창에서만 사용)
 }
 
 export interface FilePreviewProps {

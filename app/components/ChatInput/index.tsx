@@ -1,5 +1,5 @@
 // app/components/chat/ChatInput/index.tsx
-import { FormEvent, useEffect, useRef, useState, useCallback } from 'react';
+import { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { getModelById } from '@/lib/models/config';
 import { ChatInputProps, PromptShortcut } from './types';
@@ -7,7 +7,7 @@ import { useChatInputStyles } from './ChatInputStyles';
 import { FileUploadButton, FilePreview, fileHelpers } from './FileUpload';
 import { PromptShortcuts } from './PromptShortcuts';
 import { DragDropOverlay, ErrorToast } from './DragDropOverlay';
-import { Brain } from 'lucide-react';
+import { Brain, Gauge, AlertTriangle, CheckCircle } from 'lucide-react'; 
 import { FileMetadata } from '@/lib/types';
 import { 
   extractImageMetadata, 
@@ -15,10 +15,163 @@ import {
   extractTextMetadata, 
   extractDefaultMetadata
 } from '@/app/chat/[id]/utils';
+import { getChatInputTranslations } from '@/app/lib/chatInputTranslations';
+import { checkSubscriptionClient } from '@/lib/subscription-client';
 
 // 상수 정의
 const MENTION_CONTEXT_RANGE = 200; // 커서 주변 검색 범위 (앞뒤로)
 const DEBOUNCE_TIME = 200; // 디바운스 시간 (ms)
+const CONTEXT_WINDOW_LIMIT_NON_SUBSCRIBER = 60000; // 비구독자 컨텍스트 윈도우 제한 (60K tokens)
+
+// 토큰 추정 함수
+function estimateTokenCount(text: string): number {
+  // 대략적인 토큰 수 계산 (영어 기준 4자당 1토큰, 한글은 1-2자당 1토큰)
+  const isMainlyKorean = /[\uAC00-\uD7AF]/.test(text) && 
+                         (text.match(/[\uAC00-\uD7AF]/g)?.length || 0) / text.length > 0.3;
+  
+  if (isMainlyKorean) {
+    return Math.ceil(text.length / 1.5); // 한글은 더 많은 토큰 사용
+  }
+  return Math.ceil(text.length / 4); // 영어 기준
+}
+
+// 백엔드와 동일한 멀티모달 토큰 추정 함수
+function estimateMultiModalTokens(msg: any): number {
+  // 실제 토큰 사용량을 우선적으로 사용
+  if (msg.token_usage?.totalTokens) {
+    return msg.token_usage.totalTokens;
+  }
+
+  if (msg.tool_results?.token_usage?.totalTokens) {
+    return msg.tool_results.token_usage.totalTokens;
+  }
+  
+  let total = 0;
+  
+  // 텍스트 콘텐츠
+  if (typeof msg.content === 'string') {
+    total += estimateTokenCount(msg.content);
+  } else if (Array.isArray(msg.content)) {
+    // 멀티모달 콘텐츠 (이미지, 파일 등)
+    for (const part of msg.content) {
+      if (part.type === 'text') {
+        total += estimateTokenCount(part.text || '');
+      } else if (part.type === 'image') {
+        total += 1000; // 이미지는 약 1000 토큰으로 추정
+      } else if (part.type === 'file') {
+        total += estimateFileTokens(part.file);
+      }
+    }
+  } else {
+    // 기타 형식
+    total += estimateTokenCount(JSON.stringify(msg.content));
+  }
+  
+  // experimental_attachments 처리 (메타데이터 기반 정확한 추정)
+  if (Array.isArray(msg.experimental_attachments)) {
+    for (const attachment of msg.experimental_attachments) {
+      // 메타데이터가 있으면 정확한 토큰 수 사용
+      if (attachment.metadata && attachment.metadata.estimatedTokens) {
+        total += attachment.metadata.estimatedTokens;
+      } else {
+        total += estimateAttachmentTokens(attachment);
+      }
+    }
+  }
+  
+  return total;
+}
+
+// 파일 토큰 추정 함수
+function estimateFileTokens(file: any): number {
+  if (!file) return 0;
+  
+  const filename = file.name?.toLowerCase() || '';
+  const contentType = file.contentType || file.type || '';
+  
+  if (filename.endsWith('.pdf') || contentType === 'application/pdf') {
+    return 5000; // PDF
+  } else if (filename.match(/\.(js|ts|jsx|tsx|py|java|c|cpp|cs|go|rb|php|html|css|sql|scala|swift|kt|rs|dart|json|xml|yaml|yml)$/i)) {
+    return 3000; // 코드 파일
+  } else if (contentType?.startsWith('image/') || filename.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i)) {
+    return 1000; // 이미지
+  } else {
+    return 2000; // 기타 파일
+  }
+}
+
+// 첨부파일 토큰 추정 함수
+function estimateAttachmentTokens(attachment: any): number {
+  if (attachment.fileType === 'image' || 
+      (attachment.contentType && attachment.contentType.startsWith('image/'))) {
+    return 1000;
+  } else if (attachment.fileType === 'pdf' || 
+             attachment.contentType === 'application/pdf') {
+    return 5000;
+  } else if (attachment.fileType === 'code') {
+    return 3000;
+  } else {
+    return 2000; // 기타 파일
+  }
+}
+
+// 개선된 토큰 계산 함수
+function calculateTokens(
+  text: string,
+  allMessages: any[],
+  attachments: any[],
+  isHomePage: boolean = false
+): { conversation: number; input: number; files: number; total: number } {
+  // 현재 입력 토큰 수 계산
+  const input = estimateTokenCount(text);
+  
+  // 파일 토큰 수 계산
+  let files = 0;
+  
+  // 새로 업로드된 파일들의 토큰 수 계산
+  for (const attachment of attachments) {
+    if (attachment.file) {
+      files += estimateFileTokens(attachment.file);
+    } else if (attachment.metadata?.estimatedTokens) {
+      files += attachment.metadata.estimatedTokens;
+    } else {
+      files += estimateAttachmentTokens(attachment);
+    }
+  }
+  
+  // 대화 히스토리 토큰 수 계산 (홈페이지가 아닌 경우)
+  let conversation = 0;
+  if (!isHomePage && allMessages && allMessages.length > 0) {
+    conversation = allMessages.reduce((total, message) => {
+      return total + estimateMultiModalTokens(message);
+    }, 0);
+  }
+  
+  const total = conversation + input + files;
+  
+  return { conversation, input, files, total };
+}
+
+// 모델별 토큰 임계값 계산 함수
+function getTokenThresholds(contextWindow?: number, isSubscribed?: boolean): { warning: number; danger: number; limit: number } {
+  if (!contextWindow) {
+    // Default values (128K tokens)
+    return {
+      warning: 64000,  // 50%
+      danger: 89600,   // 70%
+      limit: 128000    // 100%
+    };
+  }
+  
+  // 비구독자인 경우 60K로 제한
+  const effectiveContextWindow = isSubscribed ? contextWindow : Math.min(contextWindow, CONTEXT_WINDOW_LIMIT_NON_SUBSCRIBER);
+  
+  return {
+    warning: Math.floor(effectiveContextWindow * 0.50),  // 50%
+    danger: Math.floor(effectiveContextWindow * 0.70),   // 70%
+    limit: effectiveContextWindow
+  };
+}
 
 export function ChatInput({
   input,
@@ -27,12 +180,13 @@ export function ChatInput({
   isLoading,
   stop,
   disabled,
-  placeholder = "Chat is this real?",
+  placeholder: propPlaceholder,
   user,
   modelId,
   popupPosition = 'top',
   isAgentEnabled,
-  setisAgentEnabled
+  setisAgentEnabled,
+  allMessages = []
 }: ChatInputProps) {
   // 기본 상태 및 참조
   const inputRef = useRef<HTMLDivElement>(null);
@@ -58,7 +212,31 @@ export function ChatInput({
   const [showPDFError, setShowPDFError] = useState(false);
   const [showFolderError, setShowFolderError] = useState(false);
   const [showVideoError, setShowVideoError] = useState(false);
-  const [showAgentDropdown, setShowAgentDropdown] = useState(false);
+  const [showAgentTooltip, setShowAgentTooltip] = useState(false);
+  const [tokenCount, setTokenCount] = useState(0);
+  const [textTokens, setTextTokens] = useState(0);
+  const [fileTokens, setFileTokens] = useState(0);
+  const [conversationTokens, setConversationTokens] = useState(0);
+  const [showTokenTooltip, setShowTokenTooltip] = useState(false);
+  const [isHoveringTokenCounter, setIsHoveringTokenCounter] = useState(false);
+  const [isHoveringTokenTooltip, setIsHoveringTokenTooltip] = useState(false);
+  const tokenTooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
+  const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(true);
+  const [isHoveringUpgrade, setIsHoveringUpgrade] = useState(false);
+  const [translations, setTranslations] = useState({
+    usesTools: 'Uses tools for better answers',
+    talkToModel: 'Talk to the model directly',
+    placeholder: 'Chat is this real?',
+    processing: 'Processing...',
+    tokenDanger: 'May not remember parts of the previous conversation, and may fail to respond.',
+    tokenWarning: 'May not remember parts of the previous conversation.',
+    tokenSafe: 'All of the conversation is included in the context.',
+    contextUsage: 'Context Usage',
+    upgradeToPro: 'Upgrade to Pro',
+    getFullContext: 'Get full {contextWindow} context window',
+    upgrade: 'Upgrade'
+  });
   
   // Supabase 클라이언트
   const supabase = createClient();
@@ -67,12 +245,62 @@ export function ChatInput({
   const modelConfig = getModelById(modelId);
   const supportsVision = modelConfig?.supportsVision ?? false;
   const supportsPDFs = modelConfig?.supportsPDFs ?? false;
+  
+  // 모델별 토큰 임계값 계산
+  const tokenThresholds = getTokenThresholds(modelConfig?.contextWindow, isSubscribed ?? false);
 
   // 멘션 감지를 위한 정규식
   const mentionRegex = /@(\w*)$/;
 
   // 스타일 적용
   useChatInputStyles();
+
+  useEffect(() => {
+    setTranslations(getChatInputTranslations());
+  }, []);
+
+  // 구독 상태 확인
+  useEffect(() => {
+    let ignore = false;
+    async function checkSubscriptionStatus() {
+      setIsSubscriptionLoading(true);
+      if (!user?.id) {
+        setIsSubscribed(false);
+        setIsSubscriptionLoading(false);
+        return;
+      }
+      try {
+        const hasSubscription = await checkSubscriptionClient();
+        if (!ignore) setIsSubscribed(hasSubscription);
+      } catch (error) {
+        if (!ignore) setIsSubscribed(false);
+      } finally {
+        if (!ignore) setIsSubscriptionLoading(false);
+      }
+    }
+    
+    checkSubscriptionStatus();
+    return () => { ignore = true; };
+  }, [user?.id]);
+
+  // 토큰 수 계산 업데이트 - 대화, 텍스트, 파일 토큰 포함
+  const tokenCounts = useMemo(() => {
+    return calculateTokens(
+      input,
+      allMessages,
+      files.map(file => ({ file })),
+      false
+    );
+  }, [input, allMessages, files]);
+
+  useEffect(() => {
+    setTextTokens(tokenCounts.input);
+    setFileTokens(tokenCounts.files);
+    setConversationTokens(tokenCounts.conversation);
+    setTokenCount(tokenCounts.total);
+  }, [tokenCounts]);
+
+  const placeholder = propPlaceholder ?? translations.placeholder;
 
   // 초기 렌더링 시 자동 포커스
   useEffect(() => {
@@ -128,6 +356,21 @@ export function ChatInput({
       inputRef.current.classList.remove('empty');
     }
     
+    // 동적 border-radius 조절
+    const inputHeight = inputRef.current.scrollHeight;
+    const minHeight = 36; // min-h-[36px]
+    
+    if (inputHeight <= minHeight + 5) {
+      // 한 줄일 때: 완전히 둥글게
+      inputRef.current.style.borderRadius = '9999px';
+    } else if (inputHeight <= minHeight + 20) {
+      // 두 줄 정도일 때: 약간 둥글게
+      inputRef.current.style.borderRadius = '20px';
+    } else {
+      // 여러 줄일 때: 더 사각형에 가깝게
+      inputRef.current.style.borderRadius = '16px';
+    }
+    
     // 부모 컴포넌트 상태 업데이트
     const event = {
       target: { value: content }
@@ -155,7 +398,7 @@ export function ChatInput({
       
       // 사용자에게 처리 중임을 알림
       const processingNode = document.createElement('span');
-      processingNode.textContent = '처리 중...';
+      processingNode.textContent = translations.processing;
       processingNode.style.opacity = '0.7';
       range.insertNode(processingNode);
       
@@ -1096,22 +1339,52 @@ export function ChatInput({
     setFiles(prevFiles => prevFiles.filter(file => (file as any).id !== fileId));
   };
 
-  // Agent 드롭다운 외부 클릭 감지
+  // Agent 툴팁 호버 상태 관리
+  const [isHoveringTooltip, setIsHoveringTooltip] = useState(false);
+  const [isHoveringButton, setIsHoveringButton] = useState(false);
+
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (agentDropdownRef.current && !agentDropdownRef.current.contains(event.target as Node)) {
-        setShowAgentDropdown(false);
+    if (!isHoveringButton && !isHoveringTooltip) {
+      const hideTimer = setTimeout(() => {
+        setShowAgentTooltip(false);
+      }, 200); // 짧은 딜레이로 마우스 이동 시간 제공
+
+      return () => clearTimeout(hideTimer);
+    }
+  }, [isHoveringButton, isHoveringTooltip]);
+
+  // Token 툴팁 호버 상태 관리
+  const showTokenTooltipFunc = () => {
+    if (tokenTooltipTimeoutRef.current) {
+      clearTimeout(tokenTooltipTimeoutRef.current);
+      tokenTooltipTimeoutRef.current = null;
+    }
+    setShowTokenTooltip(true);
+  };
+
+  const hideTokenTooltipFunc = () => {
+    tokenTooltipTimeoutRef.current = setTimeout(() => {
+      if (!isHoveringTokenCounter && !isHoveringTokenTooltip) {
+        setShowTokenTooltip(false);
+      }
+    }, 200); // 200ms 딜레이
+  };
+
+  useEffect(() => {
+    if (!isHoveringTokenCounter && !isHoveringTokenTooltip) {
+      hideTokenTooltipFunc();
+    } else if (isHoveringTokenCounter || isHoveringTokenTooltip) {
+      showTokenTooltipFunc();
+    }
+  }, [isHoveringTokenCounter, isHoveringTokenTooltip]);
+
+  useEffect(() => {
+    return () => {
+      if (tokenTooltipTimeoutRef.current) {
+        clearTimeout(tokenTooltipTimeoutRef.current);
       }
     };
-
-    if (showAgentDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showAgentDropdown]);
+  }, []);
 
   return (
     <div className="relative">
@@ -1126,14 +1399,8 @@ export function ChatInput({
         onDrop={handleDrop}
       >
         
-        {/* File preview section */}
-        <FilePreview 
-          files={files} 
-          fileMap={fileMap} 
-          removeFile={removeFile} 
-        />
-
-        {/* Error toast */}
+        <FilePreview files={files} fileMap={fileMap} removeFile={removeFile} />
+  
         <ErrorToast show={showPDFError} message={
           supportsPDFs 
             ? "This file type is not supported" 
@@ -1143,8 +1410,7 @@ export function ChatInput({
         } />
         <ErrorToast show={showFolderError} message="Folders cannot be uploaded" />
         <ErrorToast show={showVideoError} message="Video files are not supported" />
-
-        {/* Drag & drop area */}
+  
         <div 
           className={`relative transition-transform duration-300 ${dragActive ? 'scale-[1.01]' : ''}`}
           onDragEnter={handleDrag}
@@ -1159,169 +1425,300 @@ export function ChatInput({
               : (supportsVision 
                 ? "image/*,text/*,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust" 
                 : "text/*,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust")}            
-            onChange={(e) => {
-              if (e.target.files) {
-                handleFiles(e.target.files);
-              }
-            }}
+            onChange={(e) => { if (e.target.files) { handleFiles(e.target.files); } }}
             ref={fileInputRef}
             className="hidden"
             multiple
           />
           
-          <div
-            ref={inputContainerRef}
-            className="flex gap-1 items-center rounded-lg transition-all duration-300 px-2 py-1 bg-[var(--accent)] text-[var(--foreground)]"
-          >
+          <div ref={inputContainerRef} className="flex gap-3 items-end py-0">
+            {/* Agent(뇌) 버튼 */}
             {setisAgentEnabled && (
               <div className="relative" ref={agentDropdownRef}>
                 <button
                   type="button"
-                  onClick={() => setShowAgentDropdown(!showAgentDropdown)}
-                  className={`input-btn transition-all duration-300 flex items-center justify-center relative rounded-md w-9 h-9 ${
+                  onClick={() => {
+                    if (user?.hasAgentModels !== false || isAgentEnabled) {
+                      setisAgentEnabled(!isAgentEnabled);
+                    }
+                  }}
+                  onMouseEnter={() => {
+                    setShowAgentTooltip(true);
+                    setIsHoveringButton(true);
+                  }}
+                  onMouseLeave={() => {
+                    setIsHoveringButton(false);
+                  }}
+                  className={`input-btn transition-all duration-300 flex items-center justify-center relative rounded-full w-8 h-8 ${
                     isAgentEnabled ?
-                      'input-btn-active' :
+                      'bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)]' :
                       user?.hasAgentModels === false && !isAgentEnabled ?
-                        'opacity-40 cursor-not-allowed' :
-                        'text-[var(--muted)] hover:text-[var(--foreground)]'
+                        'opacity-40 cursor-not-allowed bg-[var(--chat-input-button-bg)]' :
+                        'bg-[var(--chat-input-button-bg)] hover:bg-[var(--chat-input-button-hover-bg)] text-[var(--muted)]'
                   }`}
                   disabled={user?.hasAgentModels === false && !isAgentEnabled}
                   title={
                     user?.hasAgentModels === false && !isAgentEnabled 
-                      ? "Agent mode not available - No non-rate-limited agent models available" 
-                      : "Toggle Agent mode"
+                      ? "Agent mode not available" 
+                      : ""
                   }
                 >
                   <Brain className="h-5 w-5 transition-transform duration-300" strokeWidth={1.2} />
                   {isAgentEnabled && (
-                    <span className="absolute top-1 right-1 bg-[var(--foreground)] rounded-sm w-1.5 h-1.5"></span>
+                    <span className="absolute top-1 right-1 bg-white rounded-full w-1.5 h-1.5"></span>
                   )}
                 </button>
-
-                {/* Agent Dropdown */}
-                {showAgentDropdown && (
-                  <div className="agent-dropdown absolute bottom-full mb-4 -left-2 w-80 bg-[var(--accent)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                    <div className="p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Brain className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.2} />
-                        <h3 className="font-medium text-[var(--foreground)]">Agent Mode</h3>
-                      </div>
-                      
-                      <p className="text-sm text-[var(--muted)] mb-3 leading-relaxed">
-                        {/* Advanced AI that <strong>plans</strong>, <strong>researches</strong>, and <strong>executes</strong> multi-step tasks with intelligent workflow selection. Uses 7+ specialized tools including web search, link analysis, YouTube research, image generation, academic search, and advanced calculations. */}
-                        Enable this to let Chatflix <strong>plan</strong>, <strong>research</strong>, and <strong>execute</strong> multi-step tasks using 7+ external tools with intelligent workflow selection.                        <a
-                          href="/agent-mode"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 ml-2 text-xs text-[var(--muted)] font-extrabold hover:text-[var(--foreground)] transition-colors duration-200"
-                        >
-                          Learn More
-                          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                          </svg>
-                        </a>
-                      </p>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-[var(--foreground)]">
-                          {isAgentEnabled ? 'Enabled' : 'Disabled'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setisAgentEnabled(!isAgentEnabled);
-                            setShowAgentDropdown(false);
-                          }}
-                          disabled={user?.hasAgentModels === false && !isAgentEnabled}
-                          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
-                            isAgentEnabled
-                              ? 'bg-[var(--foreground)] text-[var(--background)] hover:opacity-90'
-                              : user?.hasAgentModels === false && !isAgentEnabled
-                                ? 'bg-[var(--muted)] text-[var(--background)] opacity-50 cursor-not-allowed'
-                                : 'bg-[var(--background)] text-[var(--foreground)] border border-[var(--border)] hover:bg-[var(--muted)]'
-                          }`}
-                        >
-                          {isAgentEnabled ? 'Disable' : 'Enable'}
-                        </button>
-                      </div>
-
-                      {user?.hasAgentModels === false && !isAgentEnabled && (
-                        <div className="mt-3 p-2 bg-color-mix(in srgb, var(--foreground) 5%, transparent) rounded-md">
-                          <p className="text-xs text-[var(--muted)]">
-                            Agent mode requires non-rate-limited models
-                          </p>
+  
+                {/* Agent Tooltip */}
+                                  {showAgentTooltip && (
+                    <div 
+                      className="absolute bottom-full mb-4 -left-2 w-80 bg-white/90 dark:bg-black/80 backdrop-blur-2xl border border-black/5 dark:border-white/10 rounded-2xl z-50 p-4 shadow-2xl shadow-black/20 dark:shadow-black/60 animate-in fade-in duration-200 slide-in-from-bottom-2"
+                      onMouseEnter={() => setIsHoveringTooltip(true)}
+                      onMouseLeave={() => setIsHoveringTooltip(false)}
+                      style={{
+                        transform: 'translateY(-4px)',
+                        WebkitBackdropFilter: 'blur(24px)',
+                        backdropFilter: 'blur(24px)'
+                      }}
+                    >
+                    {/* Apple-style arrow */}
+                    <div className="absolute -bottom-1.5 left-6 w-3 h-3 bg-white/90 dark:bg-black/80 border-r border-b border-black/5 dark:border-white/10 rotate-45 backdrop-blur-2xl -z-10"></div>
+                    <div className="flex items-center justify-center gap-3 mb-3">
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--accent)]/30">
+                        <div className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${isAgentEnabled ? 'bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)]' : 'bg-[var(--chat-input-button-bg)] text-[var(--muted)]'}`}>
+                          <Brain className="h-5 w-5" strokeWidth={1.2} />
+                          {isAgentEnabled && <span className="absolute top-1 right-1 bg-white rounded-full w-1.5 h-1.5"></span>}
                         </div>
-                      )}
+                        <span className="text-xs font-medium text-gray-900 dark:text-white">{isAgentEnabled ? 'Agent' : 'Direct Chat'}</span>
+                      </div>
+                      <svg className="h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                      <div className="flex items-center gap-2 p-2 rounded-lg">
+                        <div className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${!isAgentEnabled ? 'bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)]' : 'bg-[var(--chat-input-button-bg)] text-[var(--muted)]'}`}>
+                          <Brain className="h-5 w-5" strokeWidth={1.2} />
+                          {!isAgentEnabled && <span className="absolute top-1 right-1 bg-white rounded-full w-1.5 h-1.5"></span>}
+                        </div>
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{isAgentEnabled ? 'Direct Chat' : 'Agent'}</span>
+                      </div>
                     </div>
+                    <div className="flex items-center justify-center gap-2">
+                      <p className="text-xs text-gray-700 dark:text-gray-300 font-medium leading-relaxed">{isAgentEnabled ? translations.talkToModel : translations.usesTools}</p>
+                      <a href="/agent-mode" target="_blank" rel="noopener noreferrer" className="w-4 h-4 rounded-full bg-[#007AFF]/10 hover:bg-[#007AFF]/20 flex items-center justify-center transition-colors group flex-shrink-0" title="Learn more about Agent Mode">
+                        <svg className="w-2.5 h-2.5 text-[#007AFF] group-hover:text-[#007AFF]/80" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+                      </a>
+                    </div>
+                    {user?.hasAgentModels === false && !isAgentEnabled && (
+                                              <div className="mt-2 p-2 bg-orange-500/10 rounded-lg border border-orange-500/20">
+                        <div className="flex items-center gap-2">
+                          <svg className="h-3 w-3 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.864-.833-2.634 0L3.16 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+                          <p className="text-xs text-gray-700 dark:text-gray-300 font-medium">Agent mode requires non-rate-limited models</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             )}
-
+  
             {/* File upload button */}
-            <FileUploadButton 
-              filesCount={files.length} 
-              onClick={() => fileInputRef.current?.click()} 
-            />
-
-            <div
-              ref={inputRef}
-              contentEditable
-              onInput={handleInputWithShortcuts}
-              onPaste={handlePaste}
-              onKeyDown={handleKeyDown}
-              className="futuristic-input empty flex-1 transition-colors duration-300 py-3 px-3 rounded-md outline-none text-sm sm:text-base bg-transparent overflow-y-auto overflow-x-hidden"
-              data-placeholder={placeholder}
-              suppressContentEditableWarning
-              style={{ maxHeight: '300px', wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: 'pre-wrap' }}
-            ></div>
-
-
-            {isLoading ? (
-              <button 
-                onClick={(e) => { e.preventDefault(); stop(); }} 
+            <button
                 type="button"
-                className="input-btn input-btn-active flex items-center justify-center w-9 h-9 rounded-md transition-all duration-300 mx-1"
-                aria-label="Stop generation"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center justify-center w-8 h-8 rounded-full bg-[var(--chat-input-button-bg)] hover:bg-[var(--chat-input-button-hover-bg)] transition-colors flex-shrink-0 text-[var(--muted)]"
               >
-                <span className="flex items-center justify-center w-2.5 h-2.5">■</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+  
+            <div className="flex-1 relative">
+              <div
+                ref={inputRef}
+                contentEditable
+                onInput={handleInputWithShortcuts}
+                onPaste={handlePaste}
+                onKeyDown={handleKeyDown}
+                className={`futuristic-input empty w-full transition-colors duration-300 py-2 px-4 rounded-full outline-none text-sm sm:text-base bg-[var(--chat-input-bg)] text-[var(--chat-input-text)] overflow-y-auto min-h-[36px] ${
+                  tokenCount > 0 ? 'has-token-counter' : ''
+                }`}
+                data-placeholder={placeholder}
+                suppressContentEditableWarning
+                style={{ 
+                  maxHeight: '300px', 
+                  wordBreak: 'break-word', 
+                  overflowWrap: 'break-word', 
+                  whiteSpace: 'pre-wrap', 
+                  lineHeight: '1.3',
+                  resize: 'none',
+                  caretColor: 'var(--chat-input-primary)',
+                  ...(('caretWidth' in document.documentElement.style) && { caretWidth: '2px' })
+                } as React.CSSProperties}
+              ></div>
+              
+              {/* Token Counter and Tooltip Container */}
+              {tokenCount > 0 && !modelId?.includes('chatflix') && (
+                <div 
+                  className="absolute bottom-2 right-2"
+                  onMouseEnter={() => {
+                    setIsHoveringTokenCounter(true);
+                    showTokenTooltipFunc();
+                  }}
+                  onMouseLeave={() => {
+                    setIsHoveringTokenCounter(false);
+                    hideTokenTooltipFunc();
+                  }}
+                >
+                  {/* Token Counter Badge */}
+                  <div 
+                    className={`token-counter ${
+                      tokenCount > tokenThresholds.danger ? 'error' : 
+                      tokenCount > tokenThresholds.warning ? 'warning' : ''
+                    }`}
+                  >
+                    {`${Math.round((tokenCount / tokenThresholds.limit) * 100)}%`}
+                  </div>
+                  
+                  {/* Apple-style Token Usage Tooltip */}
+                  {showTokenTooltip && (() => {
+                    const proThresholds = getTokenThresholds(modelConfig?.contextWindow, true);
+                    const nonProThresholds = tokenThresholds;
+            
+                    const isPreviewingUpgrade = !isSubscribed && isHoveringUpgrade;
+                    const displayThresholds = isPreviewingUpgrade ? proThresholds : nonProThresholds;
+                    
+                    const currentUsageColor = tokenCount > displayThresholds.danger ? 'text-red-500' : 
+                                              tokenCount > displayThresholds.warning ? 'text-orange-500' : 'text-green-500';
+            
+                    const progressBarColor = tokenCount > displayThresholds.danger ? 'bg-red-500' : 
+                                             tokenCount > displayThresholds.warning ? 'bg-orange-400' : 'bg-green-500';
+                    
+                    const progressPercentage = Math.min(100, (tokenCount / displayThresholds.limit) * 100);
+            
+                    const statusMessage = tokenCount > displayThresholds.danger ? translations.tokenDanger :
+                                          tokenCount > displayThresholds.warning ? translations.tokenWarning :
+                                          translations.tokenSafe;
+
+                    return (
+                      <div 
+                        className="absolute bottom-full mb-3 -right-2 w-64 bg-white/90 dark:bg-black/80 backdrop-blur-2xl border border-black/5 dark:border-white/10 rounded-2xl z-50 p-4 shadow-2xl shadow-black/20 dark:shadow-black/60 animate-in fade-in duration-200 slide-in-from-bottom-2"
+                        onMouseEnter={() => {
+                          setIsHoveringTokenTooltip(true);
+                          showTokenTooltipFunc();
+                        }}
+                        onMouseLeave={() => {
+                          setIsHoveringTokenTooltip(false);
+                          hideTokenTooltipFunc();
+                        }}
+                        style={{
+                          transform: 'translateY(-4px)',
+                          WebkitBackdropFilter: 'blur(24px)',
+                          backdropFilter: 'blur(24px)'
+                        }}
+                      >
+                        {/* Apple-style arrow */}
+                        <div className="absolute -bottom-1.5 right-6 w-3 h-3 bg-white/90 dark:bg-black/80 border-r border-b border-black/5 dark:border-white/10 rotate-45 backdrop-blur-2xl -z-10"></div>
+                        
+                        <div className="flex flex-col gap-3">
+                          {/* Header with icon */}
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-5 h-5 rounded-full bg-blue-500/15 flex items-center justify-center">
+                              <Gauge className="w-3 h-3 text-blue-600 dark:text-blue-400" strokeWidth={2} />
+                            </div>
+                            <span className="text-sm font-semibold text-gray-900 dark:text-white tracking-tight">
+                              {translations.contextUsage}
+                            </span>
+                          </div>
+
+                          {/* Usage stats with better typography */}
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                              Usage
+                            </span>
+                            <div className="flex items-baseline gap-1">
+                              <span className={`text-sm font-bold tabular-nums ${currentUsageColor}`}>
+                                {tokenCount > 1000 ? `${(tokenCount/1000).toFixed(1)}k` : tokenCount}
+                              </span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                                {' of '}
+                              </span>
+                              <span className={`text-sm font-bold tabular-nums ${isPreviewingUpgrade ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                                {(displayThresholds.limit / 1000).toFixed(0)}K
+                              </span>
+                            </div>
+                          </div>
+    
+                          {/* Apple-style progress bar */}
+                          <div className="relative">
+                            <div className="w-full bg-gray-200/60 dark:bg-gray-700/40 rounded-full h-1.5 overflow-hidden">
+                              <div 
+                                className={`h-full rounded-full transition-all duration-500 ease-out ${progressBarColor} shadow-sm`}
+                                style={{ width: `${progressPercentage}%` }}
+                              ></div>
+                            </div>
+                            {/* Progress percentage */}
+                            <div className="flex justify-end mt-1">
+                              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 tabular-nums">
+                                {Math.round(progressPercentage)}%
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* Status message with better styling */}
+                          <div className="flex items-start gap-2">
+                            {tokenCount > displayThresholds.danger ? (
+                              <AlertTriangle className="w-3.5 h-3.5 text-red-500 mt-0.5 flex-shrink-0" strokeWidth={2} />
+                            ) : tokenCount > displayThresholds.warning ? (
+                              <AlertTriangle className="w-3.5 h-3.5 text-orange-500 mt-0.5 flex-shrink-0" strokeWidth={2} />
+                            ) : (
+                              <CheckCircle className="w-3.5 h-3.5 text-green-500 mt-0.5 flex-shrink-0" strokeWidth={2} />
+                            )}
+                            <p className="text-xs leading-relaxed text-gray-700 dark:text-gray-300 font-medium">
+                              {statusMessage}
+                            </p>
+                          </div>
+                          
+                          {/* Pro upgrade with Apple-style button */}
+                          {!isSubscribed && modelConfig?.contextWindow && modelConfig.contextWindow > CONTEXT_WINDOW_LIMIT_NON_SUBSCRIBER && (
+                            <div className="pt-2 border-t border-gray-200/50 dark:border-gray-700/50">
+                              <a 
+                                href="/pricing" 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="group w-full inline-flex items-center justify-center gap-2.5 text-sm bg-blue-500 hover:bg-blue-600 text-white px-4 py-2.5 rounded-xl transition-all duration-200 font-semibold shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98]"
+                                onClick={(e) => e.stopPropagation()}
+                                onMouseEnter={() => setIsHoveringUpgrade(true)}
+                                onMouseLeave={() => setIsHoveringUpgrade(false)}
+                              >
+                                {/* <svg className="w-4 h-4 transition-transform duration-200 group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg> */}
+                                {translations.upgrade}
+                                <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
+            </div>
+  
+            {/* Submit Button */}
+            {isLoading ? (
+              <button onClick={(e) => { e.preventDefault(); stop(); }} type="button" className="flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300 bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)] flex-shrink-0" aria-label="Stop generation">
+                <div className="w-2.5 h-2.5 bg-current rounded-sm"></div>
               </button>
             ) : (
-              <button
-                type="submit"
-                className={`input-btn w-9 h-9 rounded-md flex items-center justify-center transition-all duration-300 mx-1 ${
-                  disabled || !input.trim() ?
-                    'text-[var(--muted)] hover:text-[var(--foreground)]' :
-                    'input-btn-active'
-                }`}
-                disabled={disabled || !input.trim()}
-                aria-label="Send message"
-              >
-                <svg 
-                  width="16" 
-                  height="16" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  strokeWidth="1.5" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round"
-                  className="transition-transform duration-300"
-                >
-                  <path d="M22 2L11 13"></path>
-                  <path d="M22 2L15 22L11 13L2 9L22 2Z"></path>
-                </svg>
+              <button type="submit" className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 flex-shrink-0 ${disabled || !input.trim() ? 'bg-[var(--chat-input-button-bg)] text-[var(--muted)] cursor-not-allowed' : 'bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)]'}`} disabled={disabled || !input.trim()} aria-label="Send message">
+                <svg width="16" height="16" viewBox="0 0 24 24" className="transition-transform duration-300"><path d="M12 2L12 22M5 9L12 2L19 9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"></path></svg>
               </button>
             )}
           </div>
-          
-         
         </div>
-
-        {/* Drag & drop overlay */}
+  
         <DragDropOverlay dragActive={dragActive} supportsPDFs={supportsPDFs} />
-
-        {/* Shortcuts popup */}
+  
         <PromptShortcuts
           showShortcuts={showShortcuts}
           shortcuts={shortcuts}
@@ -1335,4 +1732,4 @@ export function ChatInput({
       </form>
     </div>
   );
-}
+  }

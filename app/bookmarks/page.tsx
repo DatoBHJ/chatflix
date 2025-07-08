@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { getModelById } from '@/lib/models/config';
+import { getProviderLogo, hasLogo } from '@/app/lib/models/logoUtils';
 import { FeatureUpdate } from '@/app/components/WhatsNew';
 import { User } from '@supabase/supabase-js';
+import { getSidebarTranslations } from '../lib/sidebarTranslations';
 
 // 북마크된 업데이트 타입 정의
 interface BookmarkedUpdate extends FeatureUpdate {
@@ -25,6 +27,7 @@ interface BookmarkedMessage {
   model: string;
   created_at: string;
   timestamp: number;
+  chat_title?: string;
 }
 
 enum BookmarkType {
@@ -38,9 +41,26 @@ export default function BookmarksPage() {
   const [messageBookmarks, setMessageBookmarks] = useState<BookmarkedMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
+  const [translations, setTranslations] = useState({
+    bookmarks: 'Bookmarks',
+    messages: 'Messages',
+    updates: 'Updates',
+  });
   const supabase = createClient();
   const router = useRouter();
   
+  // 최적화를 위한 상태 추가
+  const [lastLoadedUserId, setLastLoadedUserId] = useState<string | null>(null);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const lastLoadTimeRef = useRef<number>(0);
+  const CACHE_DURATION = 3 * 60 * 1000; // 3분 캐시
+  
+  // Fetch translations
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setTranslations(getSidebarTranslations() as any);
+  }, []);
+
   // Fetch user data
   useEffect(() => {
     const getUser = async () => {
@@ -69,10 +89,18 @@ export default function BookmarksPage() {
     };
   }, [supabase, router]);
   
-  // 북마크 데이터 가져오기
-  useEffect(() => {
-    const fetchUpdateBookmarks = async () => {
+  // 북마크 데이터 가져오기 함수들을 useCallback으로 최적화
+  const fetchUpdateBookmarks = useCallback(async (forceRefresh = false) => {
       if (!user) {
+        return;
+      }
+      
+      // 캐시 확인 - 강제 새로고침이 아니고 캐시가 유효한 경우 스킵
+      const now = Date.now();
+      const isCacheValid = now - lastLoadTimeRef.current < CACHE_DURATION;
+      
+      if (!forceRefresh && isCacheValid && isDataLoaded && lastLoadedUserId === user.id && updateBookmarks.length > 0) {
+        console.log('[Bookmarks] Using cached update bookmark data');
         return;
       }
       
@@ -138,13 +166,27 @@ export default function BookmarksPage() {
         }));
         
         setUpdateBookmarks(formattedBookmarks);
+        
+        // 캐시 상태 업데이트
+        setIsDataLoaded(true);
+        setLastLoadedUserId(user.id);
+        lastLoadTimeRef.current = Date.now();
       } catch (error) {
         console.error('Error in fetchUpdateBookmarks:', error);
       }
-    };
+    }, [user, supabase, isDataLoaded, lastLoadedUserId, updateBookmarks.length]);
     
-    const fetchMessageBookmarks = async () => {
+    const fetchMessageBookmarks = useCallback(async (forceRefresh = false) => {
       if (!user) {
+        return;
+      }
+      
+      // 캐시 확인 - 강제 새로고침이 아니고 캐시가 유효한 경우 스킵
+      const now = Date.now();
+      const isCacheValid = now - lastLoadTimeRef.current < CACHE_DURATION;
+      
+      if (!forceRefresh && isCacheValid && isDataLoaded && lastLoadedUserId === user.id && messageBookmarks.length > 0) {
+        console.log('[Bookmarks] Using cached message bookmark data');
         return;
       }
       
@@ -166,24 +208,62 @@ export default function BookmarksPage() {
           return;
         }
         
-        // 북마크 데이터 처리
-        const formattedBookmarks = bookmarkData.map((bookmark) => ({
-          id: bookmark.id,
-          message_id: bookmark.message_id,
-          chat_session_id: bookmark.chat_session_id,
-          content: bookmark.content,
-          model: bookmark.model,
-          created_at: bookmark.created_at,
-          timestamp: new Date(bookmark.created_at).getTime()
-        }));
+        // 북마크 데이터 처리 (채팅 세션 제목 포함)
+        const formattedBookmarks = await Promise.all(
+          bookmarkData.map(async (bookmark) => {
+            // 채팅 세션 제목 가져오기
+            const { data: chatSession } = await supabase
+              .from('chat_sessions')
+              .select('title')
+              .eq('id', bookmark.chat_session_id)
+              .single();
+            
+            // 채팅 세션에 제목이 없으면 첫 번째 사용자 메시지로 제목 생성
+            let chatTitle = chatSession?.title;
+            if (!chatTitle || chatTitle.trim() === '') {
+              const { data: firstUserMsg } = await supabase
+                .from('messages')
+                .select('content')
+                .eq('chat_session_id', bookmark.chat_session_id)
+                .eq('role', 'user')
+                .order('created_at', { ascending: true })
+                .limit(1)
+                .single();
+              
+              if (firstUserMsg?.content) {
+                chatTitle = firstUserMsg.content.length > 40 
+                  ? firstUserMsg.content.substring(0, 40) + '...'
+                  : firstUserMsg.content;
+              } else {
+                chatTitle = 'Untitled Chat';
+              }
+            }
+            
+            return {
+              id: bookmark.id,
+              message_id: bookmark.message_id,
+              chat_session_id: bookmark.chat_session_id,
+              content: bookmark.content,
+              model: bookmark.model,
+              created_at: bookmark.created_at,
+              timestamp: new Date(bookmark.created_at).getTime(),
+              chat_title: chatTitle
+            };
+          })
+        );
         
         setMessageBookmarks(formattedBookmarks);
+        
+        // 캐시 상태 업데이트
+        setIsDataLoaded(true);
+        setLastLoadedUserId(user.id);
+        lastLoadTimeRef.current = Date.now();
       } catch (error) {
         console.error('Error in fetchMessageBookmarks:', error);
       }
-    };
+    }, [user, supabase, isDataLoaded, lastLoadedUserId, messageBookmarks.length]);
     
-    const fetchAllBookmarks = async () => {
+    const fetchAllBookmarks = useCallback(async (forceRefresh = false) => {
       setIsLoading(true);
       
       if (!user) {
@@ -191,16 +271,52 @@ export default function BookmarksPage() {
         return;
       }
       
+      // 사용자가 변경된 경우 캐시 초기화
+      if (lastLoadedUserId !== user.id) {
+        setUpdateBookmarks([]);
+        setMessageBookmarks([]);
+        setIsDataLoaded(false);
+        setLastLoadedUserId(user.id);
+      }
+      
       await Promise.all([
-        fetchUpdateBookmarks(),
-        fetchMessageBookmarks()
+        fetchUpdateBookmarks(forceRefresh),
+        fetchMessageBookmarks(forceRefresh)
       ]);
       
       setIsLoading(false);
-    };
-    
-    fetchAllBookmarks();
-    
+    }, [user, lastLoadedUserId, fetchUpdateBookmarks, fetchMessageBookmarks]);
+
+  // 사용자 변경 시 캐시 초기화
+  useEffect(() => {
+    if (user) {
+      // 사용자가 변경된 경우에만 상태 초기화
+      if (lastLoadedUserId !== user.id) {
+        setUpdateBookmarks([]);
+        setMessageBookmarks([]);
+        setIsDataLoaded(false);
+        setLastLoadedUserId(user.id);
+      }
+    } else {
+      // 로그아웃 시 모든 상태 초기화
+      setUpdateBookmarks([]);
+      setMessageBookmarks([]);
+      setIsDataLoaded(false);
+      setLastLoadedUserId(null);
+    }
+  }, [user, lastLoadedUserId]);
+
+  // 데이터 로딩 useEffect
+  useEffect(() => {
+    if (user && !isDataLoaded) {
+      fetchAllBookmarks(true);
+    }
+  }, [user, isDataLoaded, fetchAllBookmarks]);
+
+  // 실시간 구독 useEffect
+  useEffect(() => {
+    if (!user) return;
+
     // 북마크 변경사항 실시간 구독
     const updateBookmarkChannel = supabase
       .channel('update-bookmark-changes')
@@ -209,10 +325,10 @@ export default function BookmarksPage() {
           event: '*', 
           schema: 'public', 
           table: 'update_bookmarks', 
-          filter: user ? `user_id=eq.${user.id}` : undefined
+          filter: `user_id=eq.${user.id}`
         }, 
         () => {
-          fetchUpdateBookmarks();
+          fetchUpdateBookmarks(true);
         }
       )
       .subscribe();
@@ -224,10 +340,10 @@ export default function BookmarksPage() {
           event: '*', 
           schema: 'public', 
           table: 'message_bookmarks', 
-          filter: user ? `user_id=eq.${user.id}` : undefined
+          filter: `user_id=eq.${user.id}`
         }, 
         () => {
-          fetchMessageBookmarks();
+          fetchMessageBookmarks(true);
         }
       )
       .subscribe();
@@ -236,10 +352,10 @@ export default function BookmarksPage() {
       updateBookmarkChannel.unsubscribe();
       messageBookmarkChannel.unsubscribe();
     };
-  }, [user, supabase]);
+  }, [user, supabase, fetchUpdateBookmarks, fetchMessageBookmarks]);
   
   // 업데이트 북마크 해제 함수
-  const removeUpdateBookmark = async (updateId: string, e: React.MouseEvent) => {
+  const removeUpdateBookmark = useCallback(async (updateId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     
     if (!user) return;
@@ -258,10 +374,10 @@ export default function BookmarksPage() {
     } catch (error) {
       console.error('Error removing update bookmark:', error);
     }
-  };
+  }, [user, supabase]);
   
   // 메시지 북마크 해제 함수
-  const removeMessageBookmark = async (bookmarkId: string, e: React.MouseEvent) => {
+  const removeMessageBookmark = useCallback(async (bookmarkId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     
     if (!user) return;
@@ -280,20 +396,20 @@ export default function BookmarksPage() {
     } catch (error) {
       console.error('Error removing message bookmark:', error);
     }
-  };
+  }, [user, supabase]);
   
   // 게시물 페이지로 이동
-  const navigateToPost = (updateId: string) => {
+  const navigateToPost = useCallback((updateId: string) => {
     router.push(`/whats-new/${updateId}`);
-  };
+  }, [router]);
   
   // 메시지가 있는 채팅으로 이동
-  const navigateToMessage = (chatSessionId: string, messageId: string) => {
+  const navigateToMessage = useCallback((chatSessionId: string, messageId: string) => {
     router.push(`/chat/${chatSessionId}?scrollToMessage=${messageId}`);
-  };
+  }, [router]);
   
   // 상대적 시간 표시
-  const getRelativeTime = (timestamp: number) => {
+  const getRelativeTime = useCallback((timestamp: number) => {
     const seconds = Math.floor((Date.now() - timestamp) / 1000);
     
     let interval = Math.floor(seconds / 31536000);
@@ -312,68 +428,56 @@ export default function BookmarksPage() {
     if (interval >= 1) return `${interval}m`;
     
     return `${Math.floor(seconds)}s`;
-  };
+  }, []);
 
   // 콘텐츠 길이 제한 함수
-  const truncateContent = (content: string, maxLength: number = 250) => {
+  const truncateContent = useCallback((content: string, maxLength: number = 250) => {
     if (content.length <= maxLength) return content;
     return content.substring(0, maxLength) + '...';
-  };
+  }, []);
   
   // 현재 북마크 타입에 따라 표시할 데이터 결정
-  const currentBookmarks = bookmarkType === BookmarkType.Updates 
-    ? updateBookmarks 
-    : messageBookmarks;
+  const currentBookmarks = useMemo(() => {
+    return bookmarkType === BookmarkType.Updates 
+      ? updateBookmarks 
+      : messageBookmarks;
+  }, [bookmarkType, updateBookmarks, messageBookmarks]);
   
   // 현재 북마크 타입에 따라 북마크가 비어있는지 확인
-  const isCurrentBookmarksEmpty = bookmarkType === BookmarkType.Updates 
-    ? updateBookmarks.length === 0 
-    : messageBookmarks.length === 0;
+  const isCurrentBookmarksEmpty = useMemo(() => {
+    return bookmarkType === BookmarkType.Updates 
+      ? updateBookmarks.length === 0 
+      : messageBookmarks.length === 0;
+  }, [bookmarkType, updateBookmarks.length, messageBookmarks.length]);
     
   return (
     <main className="min-h-screen bg-[var(--background)]">
       <div className="max-w-2xl mx-auto py-8 px-4">
-        <div className="flex items-center mb-0 sm:mb-6 mt-10">
-          {/* <Link href="/" className="mr-4">
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              width="20" 
-              height="20" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-              className="text-[var(--foreground)]"
-            >
-              <path d="M19 12H5M12 19l-7-7 7-7"/>
-            </svg>
-          </Link>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">Bookmarks</h1> */}
+        <div className="flex items-center mb-6 mt-10">
+          <h1 className="text-2xl font-bold text-[var(--foreground)]">{translations.bookmarks}</h1>
         </div>
         
         {/* 북마크 타입 선택 탭 */}
-        <div className="flex border-b border-[var(--subtle-divider)] mb-6">
+        <div className="flex border-b border-[var(--accent)] mb-6">
           <button
-            className={`py-2 px-4 font-medium text-sm ${
+            className={`py-2 px-4 font-medium text-sm transition-colors ${
               bookmarkType === BookmarkType.Messages
-                ? 'text-[var(--foreground)] border-b-2 border-[var(--foreground)]'
+                ? 'text-[var(--foreground)] border-b-2 border-[#007AFF]'
                 : 'text-[var(--muted)] hover:text-[var(--foreground)]'
             }`}
-            onClick={() => setBookmarkType(BookmarkType.Messages)}
+            onClick={useCallback(() => setBookmarkType(BookmarkType.Messages), [])}
           >
-            Messages
+            {translations.messages}
           </button>
           <button
-            className={`py-2 px-4 font-medium text-sm ${
+            className={`py-2 px-4 font-medium text-sm transition-colors ${
               bookmarkType === BookmarkType.Updates
-                ? 'text-[var(--foreground)] border-b-2 border-[var(--foreground)]'
+                ? 'text-[var(--foreground)] border-b-2 border-[#007AFF]'
                 : 'text-[var(--muted)] hover:text-[var(--foreground)]'
             }`}
-            onClick={() => setBookmarkType(BookmarkType.Updates)}
+            onClick={useCallback(() => setBookmarkType(BookmarkType.Updates), [])}
           >
-            Updates
+            {translations.updates}
           </button>
         </div>
         
@@ -384,7 +488,7 @@ export default function BookmarksPage() {
         ) : !user ? (
           <div className="text-center py-12">
             <p className="text-[var(--muted)] mb-4">Please log in to view your bookmarks</p>
-            <Link href="/login" className="inline-block px-4 py-2 bg-blue-500 text-white rounded-lg">
+            <Link href="/login" className="inline-block px-4 py-2 bg-[#007AFF] text-white rounded-lg hover:bg-[#007AFF]/90 transition-colors">
               Log In
             </Link>
           </div>
@@ -407,7 +511,7 @@ export default function BookmarksPage() {
             {bookmarkType === BookmarkType.Updates ? (
               <>
                 <p className="text-[var(--muted)]">No bookmarked updates yet</p>
-                <Link href="/whats-new" className="block mt-4 text-blue-500 hover:underline">
+                <Link href="/whats-new" className="block mt-4 text-[#007AFF] hover:underline">
                   Browse updates to bookmark
                 </Link>
               </>
@@ -416,91 +520,91 @@ export default function BookmarksPage() {
             )}
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-0.5">
             {bookmarkType === BookmarkType.Updates ? (
               // 업데이트 북마크 표시
               updateBookmarks.map(update => (
                 <div 
                   key={update.id}
-                  className="border border-[var(--subtle-divider)] rounded-xl p-4 hover:border-[var(--foreground)]/20 transition-colors cursor-pointer"
-                  onClick={() => navigateToPost(update.id)}
+                  className="border-b border-[var(--accent)] last:border-b-0"
                 >
-                  <div className="flex items-start space-x-4">
-                    <div className="flex-1">
-                      <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-full overflow-hidden bg-[var(--foreground)]/10 mr-3">
+                  <div
+                    className="group cursor-pointer p-3 rounded-lg hover:bg-[var(--accent)] transition-all"
+                    onClick={() => navigateToPost(update.id)}
+                  >
+                    <div className="flex items-center gap-3 w-full">
+                      {/* Avatar */}
+                      <div className="flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-[var(--accent)]">
                           <Image 
                             src="/android-chrome-512x512.png" 
                             alt="Chatflix" 
-                            width={48} 
-                            height={48}
+                            width={40} 
+                            height={40}
                             className="w-full h-full object-cover"
                           />
                         </div>
-                        <div>
-                          <div className="font-medium">Chatflix</div>
-                          <div className="text-xs text-[var(--muted)]">{getRelativeTime(update.timestamp)}</div>
-                        </div>
                       </div>
                       
-                      <h2 className="font-bold text-lg mt-3">{update.title}</h2>
-                      <p className="text-[var(--muted)] mt-1 line-clamp-2">
-                        {update.description}
-                      </p>
-                      
-                      {update.images && update.images.length > 0 && (
-                        <div className="mt-3 rounded-lg overflow-hidden border border-[var(--subtle-divider)]">
-                          <Image 
-                            src={update.images[0]}
-                            alt={update.title}
-                            width={600}
-                            height={300}
-                            className="w-full h-auto object-cover"
-                          />
-                        </div>
-                      )}
-                      
-                      <div className="flex items-center mt-3 text-[var(--muted)] text-xs">
-                        {/* Likes count */}
-                        <div className="flex items-center mr-4">
-                          <svg 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            width="14" 
-                            height="14" 
-                            viewBox="0 0 24 24" 
-                            fill="none" 
-                            stroke="currentColor" 
-                            strokeWidth="1.5" 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round"
-                            className="mr-1"
-                          >
-                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                          </svg>
-                          {update.like_count || 0}
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        {/* Top line: Title + Date */}
+                        <div className="flex justify-between items-baseline">
+                          <p className="text-sm font-semibold truncate pr-2 text-[var(--foreground)]">
+                            {update.title}
+                          </p>
+                          <span className="text-xs flex-shrink-0 text-[var(--muted)]">
+                            {getRelativeTime(update.timestamp)}
+                          </span>
                         </div>
                         
-                        {/* Bookmark button */}
-                        <button 
-                          onClick={(e) => removeUpdateBookmark(update.id, e)}
-                          className="flex items-center text-blue-500"
-                        >
-                          <svg 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            width="14" 
-                            height="14" 
-                            viewBox="0 0 24 24" 
-                            fill="currentColor"
-                            stroke="currentColor" 
-                            strokeWidth="1.5" 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round"
-                            className="mr-1"
-                          >
-                            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-                          </svg>
-                          {update.bookmark_count || 0}
-                        </button>
+                        {/* Bottom line: Description + Buttons */}
+                        <div className="flex justify-between items-end">
+                          <p className="text-xs truncate pr-2 text-[var(--muted)]">
+                            {update.description}
+                          </p>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex items-center text-xs text-[var(--muted)] bg-[var(--accent)] px-2 py-1 rounded-full">
+                              <svg 
+                                xmlns="http://www.w3.org/2000/svg" 
+                                width="12" 
+                                height="12" 
+                                viewBox="0 0 24 24" 
+                                fill="none" 
+                                stroke="currentColor" 
+                                strokeWidth="1.5" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round"
+                                className="mr-1"
+                              >
+                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                              </svg>
+                              {update.like_count || 0}
+                            </div>
+                            <button 
+                              onClick={(e) => removeUpdateBookmark(update.id, e)}
+                              className="p-1 rounded-full bg-[var(--accent)] hover:bg-[var(--subtle-divider)] transition-colors"
+                              title="Remove bookmark"
+                              type="button"
+                              aria-label="Remove bookmark"
+                            >
+                              <svg 
+                                xmlns="http://www.w3.org/2000/svg" 
+                                width="12" 
+                                height="12" 
+                                viewBox="0 0 24 24" 
+                                fill="currentColor"
+                                stroke="currentColor" 
+                                strokeWidth="1.5" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round"
+                                className="text-[#007AFF]"
+                              >
+                                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -511,59 +615,81 @@ export default function BookmarksPage() {
               messageBookmarks.map(bookmark => (
                 <div 
                   key={bookmark.id}
-                  className="border border-[var(--subtle-divider)] rounded-xl p-4 hover:border-[var(--foreground)]/20 transition-colors cursor-pointer"
-                  onClick={() => navigateToMessage(bookmark.chat_session_id, bookmark.message_id)}
+                  className="border-b border-[var(--accent)] last:border-b-0"
                 >
-                  <div className="flex items-start space-x-4">
-                    <div className="flex-1">
-                      <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-full overflow-hidden bg-[var(--foreground)]/10 mr-3">
-                          <Image 
-                            src="/favicon-32x32.png" 
-                            alt="Chatflix" 
-                            width={32} 
-                            height={32}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="flex flex-col">
-                          <div className="font-medium">Chatflix.app</div>
-                          <div className="text-xs text-[var(--muted)] flex items-center">
-                            <span className="uppercase tracking-wider mr-2">
-                              {getModelById(bookmark.model)?.name || bookmark.model}
-                            </span>
-                            <span>・</span>
-                            <span className="ml-2">{getRelativeTime(bookmark.timestamp)}</span>
+                  <div
+                    className="group cursor-pointer p-3 rounded-lg hover:bg-[var(--accent)] transition-all"
+                    onClick={() => navigateToMessage(bookmark.chat_session_id, bookmark.message_id)}
+                  >
+                    <div className="flex items-center gap-3 w-full">
+                      {/* Avatar */}
+                      <div className="flex-shrink-0">
+                        {(() => {
+                          const modelConfig = getModelById(bookmark.model);
+                          return (
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[var(--accent)]">
+                              {modelConfig?.provider && hasLogo(modelConfig.provider) ? (
+                                <Image 
+                                  src={getProviderLogo(modelConfig.provider, modelConfig.id || undefined)}
+                                  alt={`${modelConfig.provider} logo`}
+                                  width={20}
+                                  height={20}
+                                  className="object-contain"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center rounded-full">
+                                  <span className="text-lg font-semibold text-gray-500">
+                                    {modelConfig?.provider ? modelConfig.provider.substring(0, 1).toUpperCase() : 'A'}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      
+                                             {/* Content */}
+                       <div className="flex-1 min-w-0">
+                         {/* Top line: Chat Title + Date */}
+                         <div className="flex justify-between items-baseline">
+                           <p className="text-sm font-semibold truncate pr-2 text-[var(--foreground)]">
+                             {bookmark.chat_title || 'Untitled Chat'}
+                           </p>
+                           <span className="text-xs flex-shrink-0 text-[var(--muted)]">
+                             {getRelativeTime(bookmark.timestamp)}
+                           </span>
+                         </div>
+                        
+                        {/* Bottom line: Content + Buttons */}
+                        <div className="flex justify-between items-end">
+                          <p className="text-xs truncate pr-2 text-[var(--muted)]">
+                            {truncateContent(bookmark.content, 100)}
+                          </p>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={(e) => removeMessageBookmark(bookmark.id, e)}
+                              className="p-1 rounded-full bg-[var(--accent)] hover:bg-[var(--subtle-divider)] transition-colors"
+                              title="Remove bookmark"
+                              type="button"
+                              aria-label="Remove bookmark"
+                            >
+                              <svg 
+                                xmlns="http://www.w3.org/2000/svg" 
+                                width="12" 
+                                height="12" 
+                                viewBox="0 0 24 24" 
+                                fill="currentColor"
+                                stroke="currentColor" 
+                                strokeWidth="1.5" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round"
+                                className="text-[#007AFF]"
+                              >
+                                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                              </svg>
+                            </button>
                           </div>
                         </div>
-                      </div>
-                      
-                      <div className="mt-2 prose-sm dark:prose-invert prose-p:my-1 prose-pre:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0 prose-headings:my-1">
-                        {truncateContent(bookmark.content)}
-                      </div>
-                      
-                      <div className="flex items-center mt-3 text-[var(--muted)] text-xs">
-                        {/* Remove bookmark button */}
-                        <button 
-                          onClick={(e) => removeMessageBookmark(bookmark.id, e)}
-                          className="flex items-center text-blue-500"
-                        >
-                          <svg 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            width="14" 
-                            height="14" 
-                            viewBox="0 0 24 24" 
-                            fill="currentColor"
-                            stroke="currentColor" 
-                            strokeWidth="1.5" 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round"
-                            className="mr-1"
-                          >
-                            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-                          </svg>
-                          Remove bookmark
-                        </button>
                       </div>
                     </div>
                   </div>

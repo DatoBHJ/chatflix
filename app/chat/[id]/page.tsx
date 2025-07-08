@@ -5,14 +5,11 @@ import { Message } from 'ai'
 import { useState, useEffect, use, useRef, useCallback, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { Header } from '../../components/Header'
-import { Sidebar } from '../../components/Sidebar'
 import { convertMessage, uploadFile } from './utils'
 import { PageProps, ExtendedMessage } from './types'
 import { Attachment } from '@/lib/types'
 import { useMessages } from '@/app/hooks/useMessages'
 import { getDefaultModelId, getSystemDefaultModelId, MODEL_CONFIGS } from '@/lib/models/config'
-import '@/app/styles/attachments.css'
 import '@/app/styles/loading-dots.css'
 import { Messages } from '@/app/components/Messages'
 import { SidePanel } from '@/app/components/SidePanel'
@@ -34,7 +31,7 @@ export default function Chat({ params }: PageProps) {
   const initialMessageSentRef = useRef(false)
   const [user, setUser] = useState<any>(null)
   const supabase = createClient()
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+
   const [existingMessages, setExistingMessages] = useState<Message[]>([])
   const [isModelLoading, setIsModelLoading] = useState(true)
   const [isSessionLoaded, setIsSessionLoaded] = useState(false)
@@ -43,11 +40,10 @@ export default function Chat({ params }: PageProps) {
   const [hasAgentModels, setHasAgentModels] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const isFullyLoaded = !isModelLoading && isSessionLoaded && !!currentModel
-  const summaryAttemptedRef = useRef(false); // 요약 시도 여부 플래그
-  const prevIsLoadingRef = useRef(false); // 이전 isLoading 상태 추적
+  const prevEditingMessageIdRef = useRef<string | null>(null);
   
   // 활성화된 패널과 관련 메시지 ID 상태 관리
-  const [activePanel, setActivePanel] = useState<{ messageId: string; type: 'canvas' | 'structuredResponse'; fileIndex?: number; toolType?: string; fileName?: string } | null>(null);
+  const [activePanel, setActivePanel] = useState<{ messageId: string; type: 'canvas' | 'structuredResponse' | 'attachment'; fileIndex?: number; toolType?: string; fileName?: string } | null>(null);
   // 사용자가 패널 상태를 명시적으로 제어했는지 추적하는 상태
   const [userPanelPreference, setUserPanelPreference] = useState<boolean | null>(null)
   // 마지막으로 생성된 패널 데이터가 있는 메시지 ID
@@ -624,45 +620,45 @@ export default function Chat({ params }: PageProps) {
     }
   }, [currentModel])
 
-  // Stable scroll management - inspired by reference code patterns
+  // Stable scroll management
   useEffect(() => {
-    if (messagesEndRef.current) {
-      // Auto-scroll when any operation starts (new message, regeneration, edit)
-      if (isLoading || isRegenerating) {
-        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-      }
-      // Also scroll when messages are added/updated and we're not in initial load
-      else if (isInitialized && messages.length > 0 && editingMessageId === null) {
-        // Only scroll when not editing to prevent premature scrolling
-        // Use a small delay to ensure DOM has updated
-        setTimeout(() => {
-          if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-          }
-        }, 100);
-      }
+    if (!messagesEndRef.current) return;
+  
+    const wasEditingAndCanceled = 
+      prevEditingMessageIdRef.current !== null && 
+      editingMessageId === null && 
+      !isLoading && 
+      !isRegenerating;
+  
+    if (wasEditingAndCanceled) {
+      // Do nothing, keep scroll position
+      return;
     }
-  }, [messages.length, isLoading, isRegenerating, isInitialized, editingMessageId]);
+  
+    const shouldScroll = 
+      isLoading || 
+      isRegenerating ||
+      (isInitialized && messages.length > 0 && editingMessageId === null);
 
-  // Initial scroll on page load
-  useEffect(() => {
-    if (isInitialized && isFullyLoaded && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'instant' });
-    }
-  }, [isInitialized, isFullyLoaded]);
-
-  // Handle scroll after editing operations complete - improved timing
-  useEffect(() => {
-    // Only scroll after editing operations are completely finished
-    if (!isLoading && !isRegenerating && editingMessageId === null && messagesEndRef.current) {
-      // Longer delay to ensure UI updates are complete before scrolling
+    if (shouldScroll) {
+      // 페이지 첫 로드나 세션 로드 시에는 instant로, 실시간 채팅 중에는 smooth로
+      const isPageLoad = !isInitialized || !isFullyLoaded;
+      const isRealTimeChat = isInitialized && isFullyLoaded && (isLoading || isRegenerating);
+      
       setTimeout(() => {
         if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+          messagesEndRef.current.scrollIntoView({ 
+            behavior: isPageLoad ? 'instant' : (isRealTimeChat ? 'smooth' : 'instant')
+          });
         }
-      }, 300);
+      }, isPageLoad ? 0 : (isRealTimeChat ? 100 : 0));
     }
-  }, [isLoading, isRegenerating, editingMessageId]);
+  }, [messages.length, isLoading, isRegenerating, isInitialized, editingMessageId, isFullyLoaded]);
+
+  // Update previous editing state after all effects have run
+  useEffect(() => {
+    prevEditingMessageIdRef.current = editingMessageId;
+  }, [editingMessageId]);
 
   const handleModelChange = async (newModel: string) => {
     try {
@@ -981,7 +977,7 @@ export default function Chat({ params }: PageProps) {
 
 
   // 패널 토글 함수 - 사용자 선호도 기록
-  const togglePanel = (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string, fileName?: string) => {
+  const togglePanel = (messageId: string, type: 'canvas' | 'structuredResponse' | 'attachment', fileIndex?: number, toolType?: string, fileName?: string) => {
     if (activePanel?.messageId === messageId && activePanel.type === type && activePanel?.fileIndex === fileIndex && activePanel?.toolType === toolType) {
       setActivePanel(null);
       setUserPanelPreference(false);
@@ -1105,157 +1101,52 @@ export default function Chat({ params }: PageProps) {
     lastPanelDataMessageId
   ]);
 
-  // LLM 요약 effect: 첫 user+assistant 메시지 쌍이 모두 있고, 스트리밍이 완료되었을 때만 동작
-  useEffect(() => {
-    // isLoading이 true에서 false로 막 변경된 시점인지 확인
-    const justFinishedLoading = prevIsLoadingRef.current && !isLoading;
-    prevIsLoadingRef.current = isLoading; // 현재 isLoading 상태를 다음 실행을 위해 저장
-
-    if (
-      !chatId ||
-      !user ||
-      !messages ||
-      messages.length < 2 ||
-      summaryAttemptedRef.current // 이미 요약 시도했으면 중단
-    ) {
-      return;
-    }
-
-    // 로딩이 방금 끝난 경우에만 요약 로직 진행
-    if (!justFinishedLoading) {
-      return;
-    }
-
-    const firstUserMsg = messages.find(m => m.role === 'user');
-    const firstAssistantMsg = messages.find(m => m.role === 'assistant');
-
-    // 첫 사용자 메시지, 첫 어시스턴트 메시지, 그리고 어시스턴트 메시지 내용이 모두 있어야 함
-    if (!firstUserMsg || !firstAssistantMsg || !firstAssistantMsg.content || firstAssistantMsg.content.trim() === '') {
-      return;
-    }
-
-    // 이 시점에서 isLoading은 false이고 justFinishedLoading이 true이므로,
-    // firstAssistantMsg.content는 완전한 상태여야 합니다.
-    // 요약 시도 플래그를 true로 설정
-    summaryAttemptedRef.current = true;
-
-    (async () => {
-      try {
-        const { data: session, error: sessionError } = await supabase
-          .from('chat_sessions')
-          .select('title')
-          .eq('id', chatId)
-          .eq('user_id', user.id)
-          .single();
-
-        if (sessionError) {
-          console.error('Error fetching session for summary check:', sessionError);
-          summaryAttemptedRef.current = false; // 세션 조회 실패 시, 다음 effect 실행에서 재시도 허용
-          return;
-        }
-
-        if (session && session.title && session.title.trim().length > 0 && session.title !== 'New Chat') {
-          return;
-        }
-
-        const summaryInput = `User: ${firstUserMsg.content}\nAssistant: ${firstAssistantMsg.content}`;
-        const res = await fetch('/api/chat/summarize', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: summaryInput })
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data.summary) {
-            const { error: updateError } = await supabase
-              .from('chat_sessions')
-              .update({ title: data.summary })
-              .eq('id', chatId)
-              .eq('user_id', user.id);
-            if (updateError) {
-              console.error('Failed to update chat title with LLM summary:', updateError);
-            }
-          }
-        } else {
-          console.warn('LLM summary API failed.');
-        }
-      } catch (err) {
-        console.error('Error in summary effect:', err);
-      }
-    })();
-  }, [
-    chatId, 
-    user?.id,
-    messages.length, // 메시지 수만 체크
-    messages[0]?.content, // 첫 사용자 메시지 내용
-    messages.find(m => m.role === 'assistant')?.content, // 첫 어시스턴트 메시지 내용
-    isLoading
-  ]);
-
   // 모든 데이터가 로드되기 전에는 로딩 화면 표시
   if (!isFullyLoaded || !user) {
-    return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
+    return <div className="flex h-screen items-center justify-center"></div>
   }
 
   return (
     <main className="flex-1 relative h-full">
-      <Header 
-        isSidebarOpen={isSidebarOpen}
-        onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-        user={user}
-      />
-      
-      <div className={`fixed left-0 top-0 h-full transform transition-all duration-300 ease-in-out z-50 ${
-        isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
-        <Sidebar user={user} onClose={() => setIsSidebarOpen(false)} />
-      </div>
-
-      <div
-        className={`fixed inset-0 backdrop-blur-[1px] bg-black transition-all duration-200 ease-in-out z-40 ${
-          isSidebarOpen ? 'opacity-40 pointer-events-auto' : 'opacity-0 pointer-events-none'
-        }`}
-        onClick={() => setIsSidebarOpen(false)}
-      />
-
       {/* Main content area - adjusted to account for header height */}
-      <div className="pt-[60px] h-[calc(100vh-60px)]">
+      <div className="pt-20 h-[calc(100vh-80px)]">
         {/* 주 컨텐츠 영역 */}
         <div className="flex flex-col sm:flex-row h-full sm:px-10 relative">
           {/* 채팅 패널 - 항상 표시 */}
           <div 
-            className={`overflow-y-auto pb-4 sm:pb-4 mx-auto max-w-3xl w-full 
-              ${activePanel?.messageId ? 'sm:w-2/6' : ''} 
+            className={`overflow-y-auto pb-4 sm:pb-4 mx-auto w-full 
+              ${activePanel?.messageId ? 'sm:w-2/6 sm:max-w-none' : 'sm:max-w-3xl'} 
               scrollbar-minimal
               transition-all duration-300 ease-in-out`}
             style={{ height: '100%' }}
             ref={messagesContainerRef}
           >
-            <Messages
-              messages={messages}
-              currentModel={currentModel}
-              isRegenerating={isRegenerating}
-              editingMessageId={editingMessageId}
-              editingContent={editingContent}
-              copiedMessageId={copiedMessageId}
-              onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
-              onCopy={handleCopyMessage}
-              onEditStart={handleEditStart}
-              onEditCancel={handleEditCancel}
-              onEditSave={(messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => handleEditSave(messageId, currentModel, messages, setMessages, reload, files, remainingAttachments)}
-              setEditingContent={setEditingContent}
-              chatId={chatId}
-              isLoading={isLoading}
-              activePanelMessageId={activePanel?.messageId}
-              togglePanel={togglePanel}
-              user={user}
-              handleFollowUpQuestionClick={handleFollowUpQuestionClick}
-              hasCanvasData={hasCanvasData}
-              isWaitingForToolResults={isWaitingForToolResults}
-              shouldShowSpacer={shouldShowSpacer}
-              messagesEndRef={messagesEndRef}
-            />
+            <div className={`${activePanel?.messageId ? 'max-w-none' : 'max-w-3xl mx-auto'}`}>
+              <Messages
+                messages={messages}
+                currentModel={currentModel}
+                isRegenerating={isRegenerating}
+                editingMessageId={editingMessageId}
+                editingContent={editingContent}
+                copiedMessageId={copiedMessageId}
+                onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
+                onCopy={handleCopyMessage}
+                onEditStart={handleEditStart}
+                onEditCancel={handleEditCancel}
+                onEditSave={(messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => handleEditSave(messageId, currentModel, messages, setMessages, reload, files, remainingAttachments)}
+                setEditingContent={setEditingContent}
+                chatId={chatId}
+                isLoading={isLoading}
+                activePanelMessageId={activePanel?.messageId}
+                togglePanel={togglePanel}
+                user={user}
+                handleFollowUpQuestionClick={handleFollowUpQuestionClick}
+                hasCanvasData={hasCanvasData}
+                isWaitingForToolResults={isWaitingForToolResults}
+                shouldShowSpacer={shouldShowSpacer}
+                messagesEndRef={messagesEndRef}
+              />
+            </div>
           </div>
 
           {/* 우측 사이드 패널 */}
@@ -1284,6 +1175,7 @@ export default function Chat({ params }: PageProps) {
         stop={handleStop}
         user={{...user, hasAgentModels}}
         modelId={nextModel}
+        allMessages={messages}
       />
     </main>
   )

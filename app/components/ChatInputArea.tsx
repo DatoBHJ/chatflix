@@ -4,6 +4,7 @@ import { ModelSelector } from './ModelSelector'
 import { ChatInput } from './ChatInput/index'
 import { User } from '@supabase/supabase-js'
 import React from 'react'
+import { useSidebar } from '../lib/SidebarContext'
 
 interface ChatInputAreaProps {
   // ModelSelector props
@@ -28,6 +29,9 @@ interface ChatInputAreaProps {
   // Layout props
   layout?: 'fixed' | 'inline' // 'fixed' for chat page, 'inline' for home page
   disabled?: boolean // for home page loading states
+  
+  // Messages for token counting
+  allMessages?: any[] // 전체 대화 메시지 (대화창에서만 사용)
 }
 
 export function ChatInputArea({
@@ -52,8 +56,12 @@ export function ChatInputArea({
   
   // Layout props
   layout = 'fixed',
-  disabled = false
+  disabled = false,
+  
+  // Messages
+  allMessages = []
 }: ChatInputAreaProps) {
+  const { isSidebarOpen } = useSidebar()
   if (layout === 'inline') {
     // Inline layout for home page
     return (
@@ -80,6 +88,7 @@ export function ChatInputArea({
           modelId={modelId}
           isAgentEnabled={isAgentEnabled}
           setisAgentEnabled={setisAgentEnabled}
+          allMessages={allMessages}
         />
       </div>
     )
@@ -87,10 +96,12 @@ export function ChatInputArea({
 
   // Fixed layout for chat page (default)
   return (
-    <div className="fixed inset-x-0 bottom-0 z-10 w-full">
+    <div className={`fixed bottom-0 z-10 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+      isSidebarOpen ? 'left-0 right-0 md:left-80' : 'left-0 right-0'
+    }`}>
       <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-0 pb-6 w-full">
-        <div className="max-w-3xl mx-auto w-full px-6 sm:px-8 relative flex flex-col items-center">
-          <div className="w-full max-w-[calc(100vw-2rem)]">
+        <div className="max-w-3xl mx-auto w-full px-0 sm:px-8 relative flex flex-col items-center">
+          <div className="w-full max-w-[calc(100vw-2rem)] space-y-2">
             <ModelSelector
               currentModel={currentModel}
               nextModel={nextModel}
@@ -112,6 +123,7 @@ export function ChatInputArea({
               modelId={modelId}
               isAgentEnabled={isAgentEnabled}
               setisAgentEnabled={setisAgentEnabled}
+              allMessages={allMessages}
             />
           </div>
         </div>
