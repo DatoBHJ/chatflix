@@ -86,7 +86,7 @@ export function Sidebar({ user }: SidebarProps) {
   const [lastLoadedUserId, setLastLoadedUserId] = useState<string | null>(null)
   const [isChatsLoaded, setIsChatsLoaded] = useState(false)
   const lastLoadTimeRef = useRef<number>(0)
-  const CACHE_DURATION = 5 * 60 * 1000 // 5분 캐시
+  const CACHE_DURATION = 10 * 60 * 1000 // 10분 캐시로 성능 개선
 
   // 실시간 시간 업데이트를 위한 상태
   const [currentTime, setCurrentTime] = useState(Date.now())
@@ -287,31 +287,11 @@ export function Sidebar({ user }: SidebarProps) {
     // Only set up real-time updates if user exists
     if (!user) return
 
-    // Set up a simplified real-time channel for essential updates only
+    // 🚀 실시간 구독 간소화 - 성능을 위해 최소한의 이벤트만 구독
     const channelSuffix = Date.now() + Math.random().toString(36).substr(2, 9);
     
     const chatChannel = supabase
       .channel(`chat-updates-${user.id}-${channelSuffix}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'chat_sessions',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('Chat session updated:', payload)
-          // Update the chat title or other properties
-          setChats(prevChats => 
-            prevChats.map(chat => 
-              chat.id === payload.new.id 
-                ? { ...chat, title: payload.new.title, current_model: payload.new.current_model }
-                : chat
-            )
-          );
-        }
-      )
       .on(
         'postgres_changes',
         {
@@ -325,20 +305,13 @@ export function Sidebar({ user }: SidebarProps) {
           setChats(prevChats => prevChats.filter(chat => chat.id !== payload.old.id))
         }
       )
-      .subscribe((status) => {
-        console.log('Subscription status:', status)
-        if (status === 'SUBSCRIBED') {
-          console.log('Successfully subscribed to real-time updates')
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('Error subscribing to real-time updates')
-        }
-      })
+      .subscribe()
 
     return () => {
       console.log('Cleaning up real-time subscription')
       supabase.removeChannel(chatChannel)
     }
-  }, [user, supabase]) // Add supabase to dependencies for stability
+  }, [user]) // supabase 의존성 제거 - 클라이언트는 안정적임
 
   // Add custom event listener for immediate chat updates
   useEffect(() => {
@@ -420,7 +393,7 @@ export function Sidebar({ user }: SidebarProps) {
     const now = Date.now();
     const isCacheValid = now - lastLoadTimeRef.current < CACHE_DURATION;
     
-    if (!forceRefresh && page === 1 && !append && isChatsLoaded && isCacheValid && lastLoadedUserId === user.id) {
+    if (!forceRefresh && page === 1 && !append && lastLoadedUserId === user.id && isCacheValid) {
       console.log('[Sidebar] Using cached chat data');
       return;
     }
@@ -435,7 +408,8 @@ export function Sidebar({ user }: SidebarProps) {
       const from = (page - 1) * CHATS_PER_PAGE
       const to = from + CHATS_PER_PAGE - 1
 
-      // First, fetch only chat session data with limited columns
+      // 🚀 단일 쿼리로 모든 필요한 데이터를 효율적으로 가져오기
+      // chat_sessions에서 기본 정보만 가져오기 (updated_at 없음)
       const { data: sessions, error: sessionsError } = await supabase
         .from('chat_sessions')
         .select('id, created_at, title, current_model')
@@ -454,70 +428,30 @@ export function Sidebar({ user }: SidebarProps) {
         setHasMore(false)
       }
 
-      // For each session, fetch only the most recent message and the first user message
-      const chatPromises = sessions.map(async (session) => {
-        // Get the first user message (for title fallback)
-        const { data: firstUserMsg } = await supabase
-          .from('messages')
-          .select('content, created_at')
-          .eq('chat_session_id', session.id)
-          .eq('role', 'user')
-          .order('created_at', { ascending: true })
-          .limit(1)
-
-        // Get the most recent message timestamp and last used model
-        const { data: latestMsg } = await supabase
-          .from('messages')
-          .select('content, created_at, model')
-          .eq('chat_session_id', session.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-
+      // 🎯 DB 쿼리 최소화: 메시지 정보 없이 기본 정보만 사용
+      const newChats = sessions.map((session) => {
+        // 제목이 있으면 사용, 없으면 기본 제목 사용
         const title = session.title && session.title.trim().length > 0
           ? session.title
-          : (firstUserMsg && firstUserMsg.length > 0
-              ? (firstUserMsg[0].content.length > 40 
-                  ? firstUserMsg[0].content.substring(0, 40) + '...' 
-                  : firstUserMsg[0].content)
-              : 'Untitled Chat')
+          : 'New Chat'
         
-        const lastMessage = latestMsg && latestMsg.length > 0
-          ? latestMsg[0].content
-          : ''
-        
-        const lastMessageTime = latestMsg && latestMsg.length > 0 
-          ? new Date(latestMsg[0].created_at).getTime()
-          : new Date(session.created_at).getTime()
+        // created_at을 마지막 메시지 시간으로 사용
+        const lastMessageTime = new Date(session.created_at).getTime()
 
-        // Get the current model from session or last message
-        const currentModel = session.current_model || 
-          (latestMsg && latestMsg.length > 0 ? latestMsg[0].model : null)
-
-        // Create an object that matches the Chat type
         return {
           id: session.id,
           title: title,
           created_at: session.created_at,
-          messages: [], // Empty array since we're not loading all messages
+          messages: [], // 빈 배열로 유지
           lastMessageTime: lastMessageTime,
-          lastMessage: lastMessage,
-          current_model: currentModel
+          lastMessage: '', // 성능을 위해 빈 문자열로 설정
+          current_model: session.current_model
         } as Chat
       })
 
-      // Wait for all queries to complete
-      const newChats = await Promise.all(chatPromises)
-
-      // Sort by last message time
-      newChats.sort((a, b) => {
-        // Handle possibly undefined lastMessageTime values
-        const timeA = a.lastMessageTime ?? 0;
-        const timeB = b.lastMessageTime ?? 0;
-        return timeB - timeA;
-      })
-
-      // title이 비어있는 채팅방만 제외 (모든 제목 허용)
-      const filteredChats = newChats.filter(chat => chat.title && chat.title.trim() !== '');
+      // 이미 updated_at으로 정렬되어 있으므로 추가 정렬 불필요
+      const filteredChats = newChats.filter(chat => chat.title && chat.title.trim() !== '')
+      
       if (append) {
         setChats(prevChats => [...prevChats, ...filteredChats])
       } else {
@@ -542,23 +476,33 @@ export function Sidebar({ user }: SidebarProps) {
       console.error('Error in loadChats:', error)
       setIsLoadingMore(false)
     }
-  }, [user, isChatsLoaded, lastLoadedUserId])
+  }, [user, lastLoadedUserId])
 
-  // Effect to load chats when needed
+  // Effect to load chats when needed - 중복 로드 방지
+  const isChatsLoadedRef = useRef(false)
+  const loadingRef = useRef(false)
+  isChatsLoadedRef.current = isChatsLoaded
+
   useEffect(() => {
-    if (user && !isChatsLoaded) {
-      loadChats(1, false, true);
+    if (user && !isChatsLoadedRef.current && !loadingRef.current) {
+      loadingRef.current = true
+      loadChats(1, false, true).finally(() => {
+        loadingRef.current = false
+      });
     }
-  }, [user, isChatsLoaded, loadChats]);
+  }, [user]); // 의존성을 user만으로 최소화
 
-  // IntersectionObserver 설정
+  // IntersectionObserver 설정 - loadChats ref 사용으로 의존성 최소화
+  const loadChatsRef = useRef(loadChats)
+  loadChatsRef.current = loadChats
+
   useEffect(() => {
     // 스크롤 관찰자 설정 (무한 스크롤용) - 검색 중이 아닐 때만 활성화
     if (isExpanded && initialLoadComplete && hasMore && !searchTerm) {
       const observer = new IntersectionObserver(
         (entries) => {
           if (entries[0].isIntersecting && !isLoadingMore && hasMore) {
-            loadChats(currentPage + 1, true)
+            loadChatsRef.current(currentPage + 1, true)
           }
         },
         { threshold: 0.1 }
@@ -588,14 +532,13 @@ export function Sidebar({ user }: SidebarProps) {
         router.push('/')
       }
 
-      // 채팅 삭제 후 캐시 무효화하고 새로고침
-      setIsChatsLoaded(false)
-      loadChats(1, false, true)
+      // 채팅 삭제 후 로컬 상태에서 직접 제거 (DB는 이미 deleteChat에서 처리됨)
+      setChats(prevChats => prevChats.filter(chat => chat.id !== chatId))
     } catch (error) {
       console.error('Failed to delete chat:', error)
       alert('Failed to delete chat.')
     }
-  }, [pathname, router, loadChats])
+  }, [pathname, router]) // loadChats 의존성 제거
 
   const handleDeleteAllChats = useCallback(async () => {
     // First confirmation - warn about data loss including AI Recap data
@@ -623,13 +566,13 @@ export function Sidebar({ user }: SidebarProps) {
       }
 
       router.push('/')
-      setIsChatsLoaded(false)
-      loadChats(1, false, true)
+      // 채팅 삭제 후 로컬 상태 초기화
+      setChats([])
     } catch (error) {
       console.error('Failed to delete all chats:', error)
       alert('Failed to delete chats.')
     }
-  }, [user, supabase, router, loadChats])
+  }, [user, supabase, router]) // loadChats 의존성 제거
 
   // 프롬프트 바로가기 관련 함수들
   const loadShortcuts = useCallback(async () => {
@@ -667,6 +610,10 @@ export function Sidebar({ user }: SidebarProps) {
     }
   }, [user, supabase])
 
+  // loadShortcuts ref 사용으로 의존성 최소화
+  const loadShortcutsRef = useRef(loadShortcuts)
+  loadShortcutsRef.current = loadShortcuts
+
   const handleAddShortcut = useCallback(async () => {
     if (!newName.trim() || !newContent.trim()) return
 
@@ -702,11 +649,11 @@ export function Sidebar({ user }: SidebarProps) {
       setNewName('')
       setNewContent('')
       setEditingId(null)
-      loadShortcuts()
+      loadShortcutsRef.current()
     } catch (error) {
       console.error('Error saving shortcut:', error)
     }
-  }, [newName, newContent, editingId, user, supabase, loadShortcuts])
+  }, [newName, newContent, editingId, user, supabase]) // loadShortcuts 의존성 제거
 
   const handleEditShortcut = useCallback((shortcut: any) => {
     setEditingId(shortcut.id)
@@ -731,11 +678,11 @@ export function Sidebar({ user }: SidebarProps) {
 
       if (error) throw error
       setOpenMenuId(null)
-      loadShortcuts()
+      loadShortcutsRef.current()
     } catch (error) {
       console.error('Error deleting shortcut:', error)
     }
-  }, [user, supabase, loadShortcuts])
+  }, [user, supabase]) // loadShortcuts 의존성 제거
 
   // 채팅 제목 편집 관련 함수들
   const handleEditChatTitle = useCallback((chatId: string, currentTitle: string) => {
@@ -800,9 +747,9 @@ export function Sidebar({ user }: SidebarProps) {
 
   useEffect(() => {
     if (isExpandedShortcuts && user) {
-      loadShortcuts();
+      loadShortcutsRef.current();
     }
-  }, [isExpandedShortcuts, user]);
+  }, [isExpandedShortcuts, user]); // loadShortcuts 의존성 제거
 
   // 데이터베이스에서 채팅 검색
   const searchChats = useCallback(async (term: string) => {
@@ -992,18 +939,18 @@ export function Sidebar({ user }: SidebarProps) {
       
       // 토글할 때 바로 데이터 로딩 시작
       if (user && shortcuts.length === 0) {
-        loadShortcuts();
+        loadShortcutsRef.current();
       }
     }
-  }, [isExpandedShortcuts, user, shortcuts.length, loadShortcuts]);
+  }, [isExpandedShortcuts, user, shortcuts.length]); // loadShortcuts 의존성 제거
 
-  // 초기 렌더링 시 미리 데이터 로드
+  // 초기 렌더링 시 미리 데이터 로드 - ref 사용으로 의존성 제거
   useEffect(() => {
     if (user) {
       // 사이드바 열리자마자 바로가기 데이터 미리 로드
-      loadShortcuts();
+      loadShortcutsRef.current();
     }
-  }, [user]);
+  }, [user]); // loadShortcuts 의존성 제거
 
   // 검색 키보드 단축키 (Ctrl/Cmd + K)
   useEffect(() => {
@@ -1304,10 +1251,10 @@ export function Sidebar({ user }: SidebarProps) {
                                   <p className={`text-xs truncate pr-2 ${
                                     isSelected ? 'text-white/70' : 'text-[var(--muted)]'
                                   }`}>
-                                    {chat.lastMessage 
-                                      ? (searchTerm ? highlightSearchTerm(chat.lastMessage, searchTerm, isSelected) : chat.lastMessage)
-                                      : 'No messages yet'
-                                    }
+                                    {(() => {
+                                      const model = getModelDisplayName(chat.current_model);
+                                      return model !== 'Unknown Model' ? `Using ${model}` : 'Chat conversation';
+                                    })()}
                                   </p>
                                   <div className={`flex gap-1 transition-opacity ${
                                     isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
