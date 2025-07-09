@@ -152,7 +152,7 @@ export function Header({ isSidebarOpen, onSidebarToggle, showBackButton, user }:
 
   return (
     <header 
-      className={`fixed top-0 right-0 z-30 bg-transparent transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+      className={`fixed top-0 right-0 z-30 bg-background transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
         isSidebarOpen ? 'left-80' : 'left-0'
       }`}
       style={{
