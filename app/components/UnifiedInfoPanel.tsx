@@ -143,7 +143,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
 
   if (!hasBoth) {
     return (
-      <div className="pl-2 mb-2">
+      <div className="pl-0 mb-2">
         {hasReasoning && (
           <div className="flex-shrink-0">
             {(() => {
@@ -190,7 +190,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
   }
 
   return (
-    <div className="flex justify-start pl-2 mb-2">
+    <div className="flex justify-start pl-0 mb-2">
       <div className="group relative cursor-pointer" onClick={handleBubbleClick}>
         <div className="flex items-center gap-2 px-3 py-2 bg-white/80 dark:bg-black/30 rounded-full backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200 ease-out">
           {activeTab === 'thinking' ? (
