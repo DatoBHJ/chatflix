@@ -1,7 +1,7 @@
 export interface ModelConfig {
   id: string;
   name: string;
-  cutoff: string;
+  cutoff?: string;
   pro?: boolean;
   country: string;
   description?: string;
@@ -279,7 +279,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     level: 'level5',
   },
   isEnabled: true,
-  isActivated: false,
+  isActivated: true,
   isAgentEnabled: true,
   reasoning: {
     enabled: true,
@@ -306,7 +306,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   },
   // isHot: true,
   isEnabled: true,
-  isActivated: false,
+  isActivated: true,
   isAgentEnabled: true,
   reasoning: {
     enabled: true,
@@ -315,6 +315,30 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     budgetTokens: 12000
   },
 },
+    // Grok 4 
+    // {
+    //   id: 'grok-4-0709',
+    //   name: 'Grok 4',
+    //   // cutoff: 'Jul 2025',
+    //   pro: true,
+    //   abbreviation: 'G4-0709',
+    //   country: 'US',
+    //   provider: 'xai',
+    //   supportsVision: false,
+    //   // censored: false,
+    //   rateLimit: {
+    //     level: 'level2',
+    //   },
+    //   supportsPDFs: false,
+    //   isEnabled: true,
+    //   isActivated: true,
+    //   isAgentEnabled: true,
+    //   contextWindow: 256000,
+    //   // tps: 79,
+    //   // intelligenceIndex: 51,
+    //   // latency: 0.6,
+    //   // maxOutputTokens: 16000,
+    // },
    // Grok 3 Mini (Thinking)
   {
     id: 'grok-3-mini-fast',
@@ -765,7 +789,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 1048576,
     tps: 258,
     intelligenceIndex: 48,

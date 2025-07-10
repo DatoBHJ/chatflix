@@ -391,6 +391,7 @@ function selectModelWithContextAwareness(
   try {
     // 1단계: 기존 로직으로 1차 모델 선택
     const primaryModel = selectModelBasedOnAnalysis(analysis, hasImage, hasPDF, modelType);
+    console.log('primaryModel', primaryModel);
     const primaryModelConfig = getAgentEnabledModels().find(m => m.id === primaryModel);
     
     // 2단계: 컨텍스트 용량 확인
