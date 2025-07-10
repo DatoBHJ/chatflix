@@ -279,7 +279,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     level: 'level5',
   },
   isEnabled: true,
-  isActivated: true,
+  isActivated: false,
   isAgentEnabled: true,
   reasoning: {
     enabled: true,
@@ -306,7 +306,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   },
   // isHot: true,
   isEnabled: true,
-  isActivated: true,
+  isActivated: false,
   isAgentEnabled: true,
   reasoning: {
     enabled: true,
