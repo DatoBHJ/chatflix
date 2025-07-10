@@ -1000,9 +1000,9 @@ export function ModelSelector({
                                     <div className={`rounded-full px-2 py-0.5 text-xs font-medium flex items-center gap-1 cursor-pointer min-h-[20px] ${
                                       isSelected ? 'bg-red-400/20 text-red-200' : 'bg-red-500/10 text-red-500'
                                     }`}>
-                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 flex-shrink-0">
+                                      {/* <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 flex-shrink-0">
                                         <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" clipRule="evenodd" />
-                                      </svg>
+                                      </svg> */}
                                       <span>Deactivated</span>
                                     </div>
                                   </TooltipWrapper>
