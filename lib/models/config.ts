@@ -18,6 +18,7 @@ export interface ModelConfig {
   isAgentEnabled?: boolean;
   isNew?: boolean; // Mark model as new
   isHot?: boolean; // Mark model as hot/trending
+  isBeta?: boolean; // Mark model as beta
   reasoning?: {
     enabled: boolean;
     provider?: 'openai' | 'groq' | 'together' | 'anthropic' | 'deepseek' | 'google' | 'xai';  
@@ -52,7 +53,7 @@ export const RATE_LIMITS = {
       window: '4 h'
     },
     daily: {
-      requests: 20,    
+      requests: 20,
       window: '24 h'
     }
   },
@@ -316,29 +317,30 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   },
 },
     // Grok 4 
-    // {
-    //   id: 'grok-4-0709',
-    //   name: 'Grok 4',
-    //   // cutoff: 'Jul 2025',
-    //   pro: true,
-    //   abbreviation: 'G4-0709',
-    //   country: 'US',
-    //   provider: 'xai',
-    //   supportsVision: false,
-    //   // censored: false,
-    //   rateLimit: {
-    //     level: 'level2',
-    //   },
-    //   supportsPDFs: false,
-    //   isEnabled: true,
-    //   isActivated: true,
-    //   isAgentEnabled: true,
-    //   contextWindow: 256000,
-    //   // tps: 79,
-    //   // intelligenceIndex: 51,
-    //   // latency: 0.6,
-    //   // maxOutputTokens: 16000,
-    // },
+    {
+      id: 'grok-4',
+      name: 'Grok 4',
+      // cutoff: 'Jul 2025',
+      pro: true,
+      abbreviation: 'G4-0709',
+      country: 'US',
+      provider: 'xai',
+      supportsVision: false,
+      // censored: false,
+      rateLimit: {
+        level: 'level2',
+      },
+      supportsPDFs: false,
+      isEnabled: true,
+      isActivated: true,
+      isAgentEnabled: true,
+      isBeta: true,
+      contextWindow: 256000,
+      // tps: 79,
+      // intelligenceIndex: 51,
+      // latency: 0.6,
+      // maxOutputTokens: 16000,
+    },
    // Grok 3 Mini (Thinking)
   {
     id: 'grok-3-mini-fast',
