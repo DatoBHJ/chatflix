@@ -18,7 +18,6 @@ export interface ModelConfig {
   isAgentEnabled?: boolean;
   isNew?: boolean; // Mark model as new
   isHot?: boolean; // Mark model as hot/trending
-  isBeta?: boolean; // Mark model as beta
   reasoning?: {
     enabled: boolean;
     provider?: 'openai' | 'groq' | 'together' | 'anthropic' | 'deepseek' | 'google' | 'xai';  
@@ -53,7 +52,7 @@ export const RATE_LIMITS = {
       window: '4 h'
     },
     daily: {
-      requests: 20,
+      requests: 20,    
       window: '24 h'
     }
   },
@@ -330,11 +329,11 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       rateLimit: {
         level: 'level2',
       },
+      isNew: true,
       supportsPDFs: false,
       isEnabled: true,
       isActivated: true,
       isAgentEnabled: true,
-      isBeta: true,
       contextWindow: 256000,
       // tps: 79,
       // intelligenceIndex: 51,
