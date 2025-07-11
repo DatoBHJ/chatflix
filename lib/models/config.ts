@@ -318,7 +318,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     // Grok 4 
     {
       id: 'grok-4-0709',
-      name: 'Grok 4 (0709)',
+      name: 'Grok 4 07-09',
       // cutoff: 'Jul 2025',
       pro: true,
       abbreviation: 'G4-0709',
