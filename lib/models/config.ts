@@ -335,10 +335,10 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       isActivated: true,
       isAgentEnabled: true,
       contextWindow: 256000,
-      // tps: 79,
-      // intelligenceIndex: 51,
-      // latency: 0.6,
-      // maxOutputTokens: 16000,
+      tps: 75,
+      intelligenceIndex: 73,
+      latency: 6.4,
+      maxOutputTokens: 16000,
     },
    // Grok 3 Mini (Thinking)
   {
