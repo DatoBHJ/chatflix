@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { tool } from 'ai';
-import { tavily } from '@tavily/core';
 import { deduplicateResults, normalizeUrl, getPageTitle } from './utils/toolers';
 import * as mathjs from 'mathjs';
 import Exa from 'exa-js';
@@ -23,15 +22,14 @@ dotenv.config({
 // 도구 설명 및 매개변수 정의
 const toolDefinitions = {
   webSearch: {
-    description: 'Search the web for information with multiple queries.',
+    description: 'Search the web using Exa for information with multiple queries. This tool automatically optimizes queries. Note: `include_domains` and `exclude_domains` are mutually exclusive. `include_domains` will be prioritized.',
     parameters: {
-      queries: 'Array of search queries to look up on the web. Generate 3-5 specific queries.',
-      maxResults: 'Array of maximum number of results to return per query. Use higher numbers (8-10) for broad topics.',
-      topics: 'Array of topic types to search for. Use "news" for current events and recent developments.',
-      searchDepth: 'Array of search depths to use. Use "advanced" for complex or technical topics.',
-      exclude_domains: 'A list of domains to exclude from all search results.'
-    },
-    defaultExcludeDomains: ['pinterest.com', 'quora.com']
+      queries: 'Array of search queries to look up on the web. Exa\'s autoprompt feature will optimize these. Generate 3-5 specific queries.',
+      maxResults: 'Array of maximum number of results to return per query. Use higher numbers (8-10) for broad topics. Default is 10.',
+      topics: 'Array of topic types to search for. Options: general, news, financial report, company, research paper, pdf, github, tweet, personal site, linkedin profile.',
+      include_domains: 'A list of domains to prioritize in search results. Cannot be used with exclude_domains.',
+      exclude_domains: 'A list of domains to exclude from all search results. Cannot be used with include_domains.'
+    }
   },
   jina_link_reader: {
     description: 'Read and extract content from a specific URL using Jina.ai',
@@ -104,51 +102,49 @@ export function createWebSearchTool(dataStream: any) {
     parameters: z.object({
       queries: z.array(z.string().describe(toolDefinitions.webSearch.parameters.queries)),
       maxResults: z.array(
-        z.number().describe(toolDefinitions.webSearch.parameters.maxResults).default(8),
+        z.number().describe(toolDefinitions.webSearch.parameters.maxResults).default(10),
       ),
       topics: z.array(
-        z.enum(['general', 'news']).describe(toolDefinitions.webSearch.parameters.topics)
+        z.enum(['general', 'news', 'financial report', 'company', 'research paper', 'pdf', 'github', 'tweet', 'personal site', 'linkedin profile']).describe(toolDefinitions.webSearch.parameters.topics)
       ).default(['general']).transform(topics => topics.map(t => t || 'general')),
-      searchDepth: z.array(
-        z.enum(['basic', 'advanced']).describe(toolDefinitions.webSearch.parameters.searchDepth).default('basic'),
-      ),
+      include_domains: z.array(z.string()).optional().describe(toolDefinitions.webSearch.parameters.include_domains),
       exclude_domains: z
         .array(z.string())
         .describe(toolDefinitions.webSearch.parameters.exclude_domains)
-        .default(toolDefinitions.webSearch.defaultExcludeDomains),
+        .optional(),
     }),
     execute: async ({
       queries,
       maxResults,
       topics,
-      searchDepth,
+      include_domains,
       exclude_domains,
     }: {
       queries: string[];
       maxResults: number[];
-      topics: ('general' | 'news')[];
-      searchDepth: ('basic' | 'advanced')[];
+      topics: ('general' | 'news' | 'financial report' | 'company' | 'research paper' | 'pdf' | 'github' | 'tweet' | 'personal site' | 'linkedin profile')[];
+      include_domains?: string[];
       exclude_domains?: string[];
     }) => {
-      const apiKey = process.env.TAVILY_API_KEY;
+      const apiKey = process.env.EXA_API_KEY;
       if (!apiKey) {
-        throw new Error('TAVILY_API_KEY is not defined in environment variables');
+        throw new Error('EXA_API_KEY is not defined in environment variables');
       }
       
       // Generate a unique search ID for this search attempt
       const searchId = `search_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       
-      const tvly = tavily({ apiKey });
-      const includeImageDescriptions = true;
+      const exa = new Exa(apiKey);
+      let totalCost = 0;
       
       // Debug logging for web search
-      console.log('=== Web Search Debug Info ===');
+      console.log('=== Web Search (Exa) Debug Info ===');
       console.log('Search ID:', searchId);
       console.log('Generated search queries:', queries);
       console.log('Search parameters:', {
         maxResults,
         topics,
-        searchDepth,
+        include_domains,
         exclude_domains
       });
       
@@ -179,23 +175,78 @@ export function createWebSearchTool(dataStream: any) {
             annotatedQueries.add(queryKey);
           }
           
-          // console.log(`\nExecuting search ${index + 1}/${queries.length}:`, query);
-          const data = await tvly.search(query, {
-            topic: topics[index] || topics[0] || 'general',
-            days: topics[index] === 'news' ? 7 : undefined,
-            maxResults: maxResults[index] || maxResults[0] || 10,
-            searchDepth: searchDepth[index] || searchDepth[0] || 'basic',
-            includeAnswer: true,
-            includeImages: true,
-            includeImageDescriptions: includeImageDescriptions,
-            excludeDomains: exclude_domains,
-          });
+          const currentTopic = topics[index] || topics[0] || 'general';
+          const currentMaxResults = maxResults[index] || maxResults[0] || 10;
           
-          // 검색 결과에서 중복 제거
-          const deduplicatedResults = deduplicateResults(data.results);
+          const searchOptions: any = {
+            numResults: currentMaxResults,
+            useAutoprompt: true,
+            text: true,
+            summary: true,
+            highlights: true,
+          };
           
-          // 이미지에서 중복 제거 (대신 이미지는 URL만 중복 제거)
-          const deduplicatedImages = data.images ? deduplicateResults(data.images) : [];
+          if (currentTopic !== 'general') {
+            searchOptions.category = currentTopic;
+          }
+          
+          if (currentTopic === 'news') {
+            const today = new Date();
+            const lastWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
+            searchOptions.startPublishedDate = lastWeek.toISOString().split('T')[0];
+          }
+          
+          if (include_domains && include_domains.length > 0) {
+            searchOptions.includeDomains = include_domains;
+          } else if (exclude_domains && exclude_domains.length > 0) {
+            searchOptions.excludeDomains = exclude_domains;
+          }
+          
+          const SCORE_THRESHOLD = 0.6; // 0.7점 이상만 허용
+          const MIN_RESULTS = 3; // 최소 결과 보장 수
+          const data = await exa.searchAndContents(query, searchOptions);
+          
+          if (data.costDollars && typeof data.costDollars.total === 'number') {
+            totalCost += data.costDollars.total;
+          }
+          
+          const filteredResults = data.results
+          .filter((result: any) => result.score >= SCORE_THRESHOLD)
+          .map((result: any) => ({
+            url: result.url,
+            title: result.title || '',
+            content: (result.text || '').substring(0, 4000),
+            publishedDate: result.publishedDate,
+            author: result.author,
+            score: result.score, // 점수 정보 유지
+            summary: result.summary,
+            highlights: result.highlights,
+            highlightScores: result.highlightScores,
+          }));
+        
+        if (filteredResults.length < MIN_RESULTS) {
+          // 점수 낮은 결과 추가 (최소 3개 보장)
+          const additional = data.results
+            .filter((r: any) => r.score < SCORE_THRESHOLD)
+            .slice(0, MIN_RESULTS - filteredResults.length)
+            .map((result: any) => ({
+              ...result,
+              content: (result.text || '').substring(0, 4000),
+              lowQuality: true // 저품질 마킹
+            }));
+          filteredResults.push(...additional);
+        }
+        
+          const rawResults = filteredResults; // 기존 rawResults 대체
+
+          const rawImages = data.results.filter((r: any) => r.image).map((r: any) => ({
+              url: r.image,
+              description: r.title || (r.text ? r.text.substring(0, 100) + '...' : ''),
+          }));
+
+          const deduplicatedResults = deduplicateResults(rawResults);
+          const deduplicatedImages = rawImages.length > 0 ? deduplicateResults(rawImages) : [];
+          
           // Add annotation for query completion
           const completedQueryKey = `${query}-${index}-completed`;
           if (!annotatedQueries.has(completedQueryKey)) {
@@ -221,7 +272,7 @@ export function createWebSearchTool(dataStream: any) {
             images: deduplicatedImages
           };
         } catch (error) {
-          console.error(`Error searching for query "${query}":`, error);
+          console.error(`Error searching with Exa for query "${query}":`, error);
           
           // Add annotation for failed query
           const errorQueryKey = `${query}-${index}-error`;
@@ -254,6 +305,8 @@ export function createWebSearchTool(dataStream: any) {
       
       // 모든 검색 완료 후 결과 수집
       const searches = await Promise.all(searchPromises);
+      
+      console.log(`=== Exa Search Complete: Total cost: $${totalCost.toFixed(6)} ===`);
       
       // 모든 검색 결과를 합쳐서 다시 한번 전체 결과에서 중복 제거
       const allResults: Array<{ url: string; query: string; result: any }> = [];
