@@ -898,9 +898,9 @@ ${userLanguageContext}
                   let accumulatedContent = ''; // 누적된 컨텐츠 저장
                   let sentProgressMessages: string[] = []; // 전송된 진행 메시지들 추적
                   
-                  // Determine the model for file generation (replace deepseek with Gemini 2.5 Pro)
+                  // Determine the model for file generation (replace deepseek and claude sonnet  with Gemini 2.5 Pro)
                   let fileGenerationModel = model;
-                  if (model.toLowerCase().includes('deepseek')) {
+                  if (model.toLowerCase().includes('deepseek') || (model.includes('claude') && model.includes('sonnet'))) {
                     fileGenerationModel = 'gemini-2.5-pro';
                   }
 
