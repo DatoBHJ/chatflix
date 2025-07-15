@@ -349,13 +349,6 @@ export function ChatInput({
     if (content === lastTextContentRef.current) return;
     lastTextContentRef.current = content;
     
-    // placeholder를 위한 empty 클래스 설정
-    if (content.trim() === '') {
-      inputRef.current.classList.add('empty');
-    } else {
-      inputRef.current.classList.remove('empty');
-    }
-    
     // 동적 border-radius 조절
     const inputHeight = inputRef.current.scrollHeight;
     const minHeight = 36; // min-h-[36px]
@@ -371,11 +364,10 @@ export function ChatInput({
       inputRef.current.style.borderRadius = '16px';
     }
     
-    // 부모 컴포넌트 상태 업데이트
-    const event = {
+    // 상위 컴포넌트로 변경 사항 전파
+    handleInputChange({
       target: { value: content }
-    } as React.ChangeEvent<HTMLTextAreaElement>;
-    handleInputChange(event);
+    } as any);
   }, [handleInputChange]);
 
   // 붙여넣기 이벤트 핸들러 - 성능 최적화 버전
@@ -536,8 +528,10 @@ export function ChatInput({
       clearTimeout(debounceTimerRef.current);
     }
     
-    // 기본 입력 처리는 즉시 수행 (반응성 유지)
+    // DOM 업데이트 완료 후 입력 처리 (placeholder 타이밍 이슈 해결)
+    requestAnimationFrame(() => {
     debouncedInputHandler();
+    });
     
     // 멘션 검색은 디바운스 적용 (비용이 많이 드는 작업)
     debounceTimerRef.current = setTimeout(() => {
@@ -1009,6 +1003,13 @@ export function ChatInput({
     } else if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
       // Command+X (잘라내기) 최적화
       handleOptimizedCut();
+    } else if (e.key === 'Backspace') {
+      const currentContent = inputRef.current?.innerText ?? '';
+      // Backspace로 모든 내용 지웠을 때 placeholder 다시 보이게
+      if (currentContent === '' || currentContent === '\n') {
+        // When clearing input with backspace, ensure handler is called
+        debouncedInputHandler();
+      }
     }
   };
 
@@ -1431,7 +1432,7 @@ export function ChatInput({
             multiple
           />
           
-          <div ref={inputContainerRef} className="flex gap-3 items-end py-0">
+          <div ref={inputContainerRef} className="flex gap-1 sm:gap-3 items-end py-0">
             {/* Agent(뇌) 버튼 */}
             {setisAgentEnabled && (
               <div className="relative" ref={agentDropdownRef}>
@@ -1535,7 +1536,7 @@ export function ChatInput({
                 onInput={handleInputWithShortcuts}
                 onPaste={handlePaste}
                 onKeyDown={handleKeyDown}
-                className={`futuristic-input empty w-full transition-colors duration-300 py-2 px-4 rounded-full outline-none text-sm sm:text-base bg-[var(--chat-input-bg)] text-[var(--chat-input-text)] overflow-y-auto min-h-[36px] ${
+                className={`futuristic-input ${input.trim() === '' ? 'empty' : ''} w-full transition-colors duration-300 py-2 px-4 rounded-full outline-none text-sm sm:text-base bg-[var(--chat-input-bg)] text-[var(--chat-input-text)] overflow-y-auto min-h-[36px] ${
                   tokenCount > 0 ? 'has-token-counter' : ''
                 }`}
                 data-placeholder={placeholder}
