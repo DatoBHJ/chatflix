@@ -276,7 +276,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   supportsVision: true,
   supportsPDFs: true,
   rateLimit: {
-    level: 'level5',
+    level: 'level0',
   },
   isEnabled: true,
   isActivated: true,
@@ -302,7 +302,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   supportsVision: true,
   supportsPDFs: true,
   rateLimit: {
-    level: 'level5',
+    level: 'level0',
   },
   // isHot: true,
   isEnabled: true,
@@ -611,7 +611,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: "openai",
     supportsVision: true,
     rateLimit: {
-      level: "level5",
+      level: "level4",
     },
     reasoning: {
       enabled: true,
@@ -780,7 +780,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'groq',
     supportsVision: false,
     rateLimit: {
-      level: 'level0',
+      level: 'level3',
     },
     supportsPDFs: false,
     isEnabled: true,
@@ -803,7 +803,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'groq',
     supportsVision: false,
     rateLimit: {
-      level: 'level0',
+      level: 'level1',
     },
     supportsPDFs: false,
     isEnabled: true,
@@ -875,7 +875,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'deepseek',
     supportsVision: false,
     rateLimit: {
-      level: 'level3',
+      level: 'level1',
     },
     supportsPDFs: false,
     reasoning: {
@@ -902,7 +902,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'deepseek',
     supportsVision: false,
     rateLimit: {
-      level: 'level3',
+      level: 'level1',
     },
     supportsPDFs: false,
     isEnabled: true,

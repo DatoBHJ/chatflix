@@ -9,7 +9,7 @@ import { convertMessage, uploadFile } from './utils'
 import { PageProps, ExtendedMessage } from './types'
 import { Attachment } from '@/lib/types'
 import { useMessages } from '@/app/hooks/useMessages'
-import { getDefaultModelId, getSystemDefaultModelId, MODEL_CONFIGS } from '@/lib/models/config'
+import { getDefaultModelId, getSystemDefaultModelId, MODEL_CONFIGS, RATE_LIMITS } from '@/lib/models/config'
 import '@/app/styles/loading-dots.css'
 import { Messages } from '@/app/components/Messages'
 import { SidePanel } from '@/app/components/SidePanel'
@@ -96,11 +96,16 @@ export default function Chat({ params }: PageProps) {
         
         // Extract data from response
         const reset = errorData?.reset || new Date(Date.now() + 60000).toISOString();
-        const limit = errorData?.limit || 10;
         const level = errorData?.level || '';
         const modelId = errorData?.model || nextModel;
         const resetTime = new Date(reset);
         const minutesUntilReset = Math.max(1, Math.ceil((resetTime.getTime() - Date.now()) / 60000));
+        
+        // Get detailed rate limit info from RATE_LIMITS configuration
+        const rateLimitInfo = RATE_LIMITS[level as keyof typeof RATE_LIMITS] || {
+          hourly: { requests: 10, window: '4 h' },
+          daily: { requests: 20, window: '24 h' }
+        };
         
         // Update rate limit information in localStorage
         if (level) {
@@ -152,9 +157,12 @@ export default function Chat({ params }: PageProps) {
               {
                 type: 'rate_limit_status',
                 data: {
-                  message: `Rate limit reached. Try again in ${minutesUntilReset} minute${minutesUntilReset > 1 ? 's' : ''}, switch to a different model, or`,
+                  minutesUntilReset: minutesUntilReset,
                   reset: reset,
-                  limit: limit,
+                  hourlyLimit: rateLimitInfo.hourly.requests,
+                  hourlyWindow: rateLimitInfo.hourly.window,
+                  dailyLimit: rateLimitInfo.daily.requests,
+                  dailyWindow: rateLimitInfo.daily.window,
                   level: level,
                   model: modelId,
                   upgradeUrl: '/pricing'

@@ -23,6 +23,8 @@ import { LinkPreview } from './LinkPreview'
 import { formatMessageTime } from '../lib/messageTimeUtils'
 import { FollowUpQuestions } from './FollowUpQuestions'
 import { User } from '@supabase/supabase-js'
+import { getMessageComponentTranslations } from '@/app/lib/messageComponentTranslations';
+import { AlertTriangle } from 'lucide-react';
 
 
 interface MessageProps {
@@ -670,6 +672,32 @@ const Message = memo(function MessageComponent({
     return false;
   }, [message, structuredDescription, hasAttachments, hasActualCanvasData]);
 
+  // Check if message has rate limit status annotation
+  const rateLimitAnnotation = useMemo(() => {
+    if (!message.annotations) return null;
+    return message.annotations.find((annotation: any) => annotation?.type === 'rate_limit_status');
+  }, [message.annotations]);
+
+  // Type guard for rate limit annotation data
+  const rateLimitData = useMemo(() => {
+    if (!rateLimitAnnotation || typeof rateLimitAnnotation !== 'object' || !('data' in rateLimitAnnotation)) {
+      return null;
+    }
+    return rateLimitAnnotation.data as {
+      minutesUntilReset?: number;
+      upgradeUrl?: string;
+      model?: string;
+      level?: string;
+      hourlyLimit?: number;
+      hourlyWindow?: string;
+      dailyLimit?: number;
+      dailyWindow?: string;
+      reset?: string;
+    };
+  }, [rateLimitAnnotation]);
+
+  const translations = useMemo(() => getMessageComponentTranslations(), []);
+
   return (
     <div className={`message-group group animate-fade-in ${getMinHeight}`} id={message.id}>
       <UnifiedInfoPanel
@@ -696,6 +724,50 @@ const Message = memo(function MessageComponent({
         messageId={message.id}
         togglePanel={togglePanel}
       />
+      
+      {/* Rate Limit Status Message */}
+      {rateLimitAnnotation && (
+        <div className="flex justify-start mb-4">
+          <div className="max-w-[85%] md:max-w-[75%]">
+            {rateLimitData && (
+              <div className="bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800/50 rounded-lg p-4 flex items-start space-x-3">
+                <div className="flex-shrink-0">
+                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-red-800 dark:text-red-200">{translations.rateLimitReachedTitle}</h4>
+                  <p className="text-sm text-red-700 dark:text-red-300">
+                    {rateLimitData.minutesUntilReset && translations.rateLimitMessage.replace('{minutes}', rateLimitData.minutesUntilReset.toString())}{' '}
+                    <a href={rateLimitData.upgradeUrl} className="font-bold underline hover:text-red-800 dark:hover:text-red-200">
+                      {translations.upgradeToPro}.
+                    </a>
+                  </p>
+                  <div className="mt-4 space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                    <div>{translations.model}: <span className="font-medium">{rateLimitData?.model}</span></div>
+                    <div>{translations.level}: <span className="font-medium">{rateLimitData?.level}</span></div>
+                    <div>{translations.limit}: <span className="font-medium">
+                      {translations.limitValue
+                          .replace('{hourlyLimit}', rateLimitData.hourlyLimit?.toString() || '')
+                          .replace('{hourlyWindow}', rateLimitData.hourlyWindow || '')
+                          .replace('{dailyLimit}', rateLimitData.dailyLimit?.toString() || '')
+                          .replace('{dailyWindow}', rateLimitData.dailyWindow || '')
+                      }
+                    </span></div>
+                    {rateLimitData?.reset && (
+                      <div>
+                        {translations.resets}: <span className="font-medium">
+                          {new Date(rateLimitData.reset).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className={`flex ${isUser ? `justify-end` : `justify-start`}`}>
         {isUser ? (
           <div className="w-full" style={{ minHeight: containerMinHeight }}>

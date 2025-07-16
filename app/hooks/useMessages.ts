@@ -303,59 +303,8 @@ export function useMessages(chatId: string, userId: string) {
 
       // Check if current model is rate limited
       let modelToUse = currentModel;
-      if (typeof window !== 'undefined') {
-        try {
-          // Check for multiple rate limited levels
-          const rateLimitLevelsStr = localStorage.getItem('rateLimitLevels')
-          if (rateLimitLevelsStr) {
-            const levelsData = JSON.parse(rateLimitLevelsStr)
-            const currentTime = Date.now()
-            
-            // Filter out expired levels and collect valid ones
-            const validLevels = Object.entries(levelsData)
-              .filter(([_, data]: [string, any]) => data.reset > currentTime)
-              .map(([level, _]: [string, any]) => level)
-            
-            if (validLevels.length > 0) {
-              const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel)
-              if (currentModelConfig && validLevels.includes(currentModelConfig.rateLimit.level)) {
-                // Find a model from a different level that's not rate limited
-                const alternativeModel = MODEL_CONFIGS.find(m => 
-                  m.isEnabled && !validLevels.includes(m.rateLimit.level)
-                )
-                if (alternativeModel) {
-                  modelToUse = alternativeModel.id
-                  // console.log(`Current model ${currentModel} is rate limited. Using alternative model: ${modelToUse}`)
-                }
-              }
-            }
-          } else {
-            // For backward compatibility, check the old format
-            const rateLimitInfoStr = localStorage.getItem('rateLimitInfo')
-            if (rateLimitInfoStr) {
-              const rateLimitInfo = JSON.parse(rateLimitInfoStr)
-              
-              // Check if the rate limit is still valid
-              if (rateLimitInfo.reset > Date.now()) {
-                const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel)
-                if (currentModelConfig && currentModelConfig.rateLimit.level === rateLimitInfo.level) {
-                  // Find a model from a different level
-                  const alternativeModel = MODEL_CONFIGS.find(m => 
-                    m.isEnabled && m.rateLimit.level !== rateLimitInfo.level
-                  )
-                  if (alternativeModel) {
-                    modelToUse = alternativeModel.id
-                    // console.log(`Current model ${currentModel} is rate limited. Using alternative model: ${modelToUse}`)
-                  }
-                }
-              }
-            }
-          }
-        } catch (error) {
-          // console.error('Error parsing rate limit info:', error)
-        }
-      }
-
+      // Removed automatic model switching logic - let rate limits be handled properly
+      
       try {
         // console.log('Reloading with model:', modelToUse);
         // console.log('🔍 [DEBUG] Final editingContent before reload:', currentEditingContent); // 디버깅 추가
@@ -385,7 +334,7 @@ export function useMessages(chatId: string, userId: string) {
         await reload({
           body: {
             messages: messagesWithMetadata,
-            model: modelToUse, // Use alternative model if current is rate limited
+            model: modelToUse, // Use original model - rate limits will be handled by error handlers
             chatId,
             isRegeneration: true,
             existingMessageId: assistantMessageId
@@ -521,59 +470,8 @@ export function useMessages(chatId: string, userId: string) {
 
       // Check if current model is rate limited
       let modelToUse = currentModel;
-      if (typeof window !== 'undefined') {
-        try {
-          // Check for multiple rate limited levels
-          const rateLimitLevelsStr = localStorage.getItem('rateLimitLevels')
-          if (rateLimitLevelsStr) {
-            const levelsData = JSON.parse(rateLimitLevelsStr)
-            const currentTime = Date.now()
-            
-            // Filter out expired levels and collect valid ones
-            const validLevels = Object.entries(levelsData)
-              .filter(([_, data]: [string, any]) => data.reset > currentTime)
-              .map(([level, _]: [string, any]) => level)
-            
-            if (validLevels.length > 0) {
-              const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel)
-              if (currentModelConfig && validLevels.includes(currentModelConfig.rateLimit.level)) {
-                // Find a model from a different level that's not rate limited
-                const alternativeModel = MODEL_CONFIGS.find(m => 
-                  m.isEnabled && !validLevels.includes(m.rateLimit.level)
-                )
-                if (alternativeModel) {
-                  modelToUse = alternativeModel.id
-                  // console.log(`Current model ${currentModel} is rate limited. Using alternative model: ${modelToUse}`)
-                }
-              }
-            }
-          } else {
-            // For backward compatibility, check the old format
-            const rateLimitInfoStr = localStorage.getItem('rateLimitInfo')
-            if (rateLimitInfoStr) {
-              const rateLimitInfo = JSON.parse(rateLimitInfoStr)
-              
-              // Check if the rate limit is still valid
-              if (rateLimitInfo.reset > Date.now()) {
-                const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel)
-                if (currentModelConfig && currentModelConfig.rateLimit.level === rateLimitInfo.level) {
-                  // Find a model from a different level
-                  const alternativeModel = MODEL_CONFIGS.find(m => 
-                    m.isEnabled && m.rateLimit.level !== rateLimitInfo.level
-                  )
-                  if (alternativeModel) {
-                    modelToUse = alternativeModel.id
-                    // console.log(`Current model ${currentModel} is rate limited. Using alternative model: ${modelToUse}`)
-                  }
-                }
-              }
-            }
-          }
-        } catch (error) {
-          // console.error('Error parsing rate limit info:', error)
-        }
-      }
-
+      // Removed automatic model switching logic - let rate limits be handled properly
+      
       try {
         // 🆕 재생성할 메시지의 첨부파일 메타데이터 추출
         let enrichedTargetMessage = { ...targetUserMessage };
@@ -600,7 +498,7 @@ export function useMessages(chatId: string, userId: string) {
               createdAt: enrichedTargetMessage.createdAt,
               experimental_attachments: (enrichedTargetMessage as any).experimental_attachments
             }],
-            model: modelToUse, // Use alternative model if current is rate limited
+            model: modelToUse, // Use original model - rate limits will be handled by error handlers
             chatId,
             isRegeneration: true,
             existingMessageId: assistantMessageId,
