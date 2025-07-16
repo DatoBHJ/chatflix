@@ -78,6 +78,29 @@ export const updateUserName = async (userId: string, userName: string, supabase:
       }
     }
 
+    // 🚀 즉시 메모리 뱅크 업데이트 (백그라운드에서 실행)
+    try {
+      const response = await fetch('/api/memory-bank/update-personal-info', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ trigger: 'name_change' }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Personal info memory updated immediately:', result.message);
+      } else {
+        const error = await response.json();
+        console.warn('⚠️ Failed to update memory immediately:', error.message);
+        // 실패해도 전체 프로세스는 계속 진행
+      }
+    } catch (memoryError) {
+      console.warn('⚠️ Memory update failed but name change succeeded:', memoryError);
+      // 메모리 업데이트 실패는 전체 프로세스를 중단시키지 않음
+    }
+
     return true;
   } catch (error) {
     console.error('Error updating user name:', error);
@@ -386,6 +409,23 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
       setProfileImage(cacheBustedUrl);
       
       console.log('Image upload successful');
+      
+      // 🚀 프로필 이미지 변경 시에도 즉시 메모리 업데이트 (선택사항)
+      try {
+        const response = await fetch('/api/memory-bank/update-personal-info', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ trigger: 'profile_image' }),
+        });
+
+        if (response.ok) {
+          console.log('✅ Profile image change reflected in memory');
+        }
+      } catch (error) {
+        console.warn('⚠️ Memory update failed for profile image:', error);
+      }
     } catch (error) {
       console.error('Error uploading profile image:', error);
       alert(`Error uploading image: ${error instanceof Error ? error.message : 'Unknown error'}`);

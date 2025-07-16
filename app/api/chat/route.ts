@@ -44,7 +44,7 @@ const CONTEXT_WINDOW_LIMIT_NON_SUBSCRIBER = 60000; // 60K tokens
 
 // 메모리 관련 import
 import { initializeMemoryBank, getAllMemoryBank, getLastMemoryUpdate } from '@/utils/memory-bank';
-import { updateAllMemoryBanks } from './services/memoryService';
+import { updateAllMemoryBanks, smartUpdateMemoryBanks } from './services/memoryService';
 import { estimateTokenCount } from '@/utils/context-manager';
 import { selectOptimalModel, estimateMultiModalTokens } from './services/modelSelector';
 import { 
@@ -756,22 +756,21 @@ Now, ask the following question in a similar conversational manner: "${routingDe
                       }
                     );
 
-                    // 4. Update memory bank in the background (Vercel 서버리스 환경 최적화)
+                    // 4. 🆕 Smart Memory Update - AI 분석 기반 지능적 업데이트
                     setTimeout(async () => {
                       try {
-                        // DB 기반 30분 간격 체크 (서버리스 환경에서 안정적)
-                        const lastUpdate = await getLastMemoryUpdate(supabase, user!.id);
-                        const now = new Date();
-                        
-                        if (!lastUpdate || (now.getTime() - lastUpdate.getTime()) > MEMORY_UPDATE_THRESHOLD) {
-                          await updateAllMemoryBanks(supabase, user!.id, chatId, finalMessages, userQuery, completion.text);
-                        } else {
-                          console.log(`Skipping memory update for ${user!.id} (updated recently at ${lastUpdate.toISOString()})`);
-                        }
+                        await smartUpdateMemoryBanks(
+                          supabase, 
+                          user!.id, 
+                          chatId, 
+                          finalMessages, 
+                          userQuery, 
+                          completion.text
+                        );
                       } catch (error) {
-                        console.error('Memory update failed:', error);
+                        console.error('Smart memory update failed:', error);
                       }
-                    }, 3000);
+                    }, 1000); // 1초로 단축 (분석 자체에서 딜레이 결정)
                   }
                 });
 
@@ -1225,22 +1224,21 @@ This is MANDATORY for proper rendering. Examples:
 
                   await incrementSuccessfulRequestCount(supabase, user!.id, today, currentRequestCount, isSubscribed);
                   
-                  // Update memory bank in the background (Vercel 서버리스 환경 최적화)
+                  // 🆕 Smart Memory Update for file generation
                   setTimeout(async () => {
                     try {
-                      // DB 기반 30분 간격 체크 (서버리스 환경에서 안정적)
-                      const lastUpdate = await getLastMemoryUpdate(supabase, user!.id);
-                      const now = new Date();
-                      
-                      if (!lastUpdate || (now.getTime() - lastUpdate.getTime()) > MEMORY_UPDATE_THRESHOLD) {
-                        await updateAllMemoryBanks(supabase, user!.id, chatId, finalMessages, userQuery, fileDescription);
-                      } else {
-                        console.log(`Skipping memory update for ${user!.id} (updated recently at ${lastUpdate.toISOString()})`);
-                      }
+                      await smartUpdateMemoryBanks(
+                        supabase, 
+                        user!.id, 
+                        chatId, 
+                        finalMessages, 
+                        userQuery, 
+                        fileDescription
+                      );
                     } catch (error) {
-                      console.error('Memory update failed:', error);
+                      console.error('Smart memory update failed:', error);
                     }
-                  }, 3000);
+                  }, 1000);
                 }
                 
                 break;
@@ -1308,7 +1306,7 @@ This is MANDATORY for proper rendering. Examples:
                   );
                 }
 
-                // 백그라운드에서 메모리 업데이트 수행 (Vercel 서버리스 환경 최적화)
+                // 🆕 Smart Memory Update for regular chat
                 if (chatId && !abortController.signal.aborted) {
                   // AI의 응답과 사용자 메시지 준비
                   const userMessage = typeof processedLastMessage.content === 'string' 
@@ -1316,29 +1314,21 @@ This is MANDATORY for proper rendering. Examples:
                     : JSON.stringify(processedLastMessage.content);
                   const aiMessage = completion.text;
                   
-                  // 3초 딜레이로 백그라운드 업데이트 실행
+                  // 1초 딜레이로 Smart 업데이트 실행
                   setTimeout(async () => {
                     try {
-                      // DB 기반 30분 간격 체크 (서버리스 환경에서 안정적)
-                      const lastUpdate = await getLastMemoryUpdate(supabase, user!.id);
-                      const now = new Date();
-                      
-                      if (!lastUpdate || (now.getTime() - lastUpdate.getTime()) > MEMORY_UPDATE_THRESHOLD) {
-                        await updateAllMemoryBanks(
-                          supabase, 
-                          user!.id, 
-                          chatId, 
-                          optimizedMessages, 
-                          userMessage, 
-                          aiMessage
-                        );
-                      } else {
-                        console.log(`Skipping memory update for ${user!.id} (updated recently at ${lastUpdate.toISOString()})`);
-                      }
+                      await smartUpdateMemoryBanks(
+                        supabase, 
+                        user!.id, 
+                        chatId, 
+                        optimizedMessages, 
+                        userMessage, 
+                        aiMessage
+                      );
                     } catch (error) {
-                      console.error('Memory update failed:', error);
+                      console.error('Smart memory update failed:', error);
                     }
-                  }, 3000);
+                  }, 1000);
                 }
               }
             });

@@ -1,12 +1,240 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { updateMemoryBank } from '@/utils/memory-bank';
+import { updateMemoryBank, getLastMemoryUpdate } from '@/utils/memory-bank';
 import { MultiModalMessage } from '../types';
 import { callMemoryBankUpdate } from '@/app/api/chat/utils/callMemoryBankUpdate';
+
+// fetchUserName 함수 - 최적화된 버전 (중복 auth 호출 방지)
+const fetchUserName = async (userId: string, supabase: SupabaseClient) => {
+  try {
+    console.log(`👤 [USER NAME] Fetching name for user ${userId}`);
+    
+    // First try to get name from all_user table
+    const { data, error } = await supabase
+      .from('all_user')
+      .select('name')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      console.log(`👤 [USER NAME] all_user lookup failed (${error.code}), checking auth metadata...`);
+      
+      // Single auth call with better error handling
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !user) {
+          console.warn(`👤 [USER NAME] Auth lookup also failed, using default 'You'`);
+          return 'You';
+        }
+        
+        const authName = user.user_metadata?.full_name || user.user_metadata?.name || 'You';
+        console.log(`👤 [USER NAME] Using auth metadata name: ${authName}`);
+        return authName;
+      } catch (authErr) {
+        console.error(`❌ [USER NAME] Auth error:`, authErr);
+        return 'You';
+      }
+    } else if (data?.name) {
+      console.log(`👤 [USER NAME] Found name in all_user table: ${data.name}`);
+      return data.name;
+    } else {
+      console.log(`👤 [USER NAME] No name data found, using default 'You'`);
+      return 'You';
+    }
+  } catch (error) {
+    console.error('❌ [USER NAME] Unexpected error fetching user name:', error);
+    return 'You'; // 안전한 폴백
+  }
+};
 
 // 메모리 뱅크 업데이트에 사용할 AI 모델 및 설정
 const MEMORY_UPDATE_MODEL = 'gpt-4.1-nano';
 const MEMORY_UPDATE_MAX_TOKENS = 800;
 const MEMORY_UPDATE_TEMPERATURE = 0.3;
+
+// 🆕 Smart Trigger 관련 상수
+const MEMORY_ANALYSIS_MODEL = 'gpt-4.1-nano'; // OpenAI API 호환 모델 사용
+const MIN_MESSAGE_LENGTH = 20; // 최소 메시지 길이
+const MAX_TIME_SINCE_LAST_UPDATE = 24 * 60 * 60 * 1000; // 최대 24시간
+
+/**
+ * 메모리 업데이트 필요성 분석 (Smart Trigger)
+ */
+export async function shouldUpdateMemory(
+  supabase: SupabaseClient,
+  userId: string,
+  messages: MultiModalMessage[],
+  userMessage: string,
+  aiMessage: string
+): Promise<{
+  shouldUpdate: boolean;
+  reasons: string[];
+  categories: string[];
+  priority: 'high' | 'medium' | 'low';
+}> {
+  try {
+    // 1. 기본 조건 확인
+    const lastUpdate = await getLastMemoryUpdate(supabase, userId);
+    const now = new Date();
+    const timeSinceLastUpdate = lastUpdate ? (now.getTime() - lastUpdate.getTime()) : Infinity;
+    
+    // 2. 강제 업데이트 조건들
+    if (!lastUpdate || timeSinceLastUpdate > MAX_TIME_SINCE_LAST_UPDATE) {
+      return {
+        shouldUpdate: true,
+        reasons: ['Maximum time threshold reached'],
+        categories: ['all'],
+        priority: 'medium'
+      };
+    }
+    
+    // 3. 메시지 길이 확인
+    if (userMessage.length < MIN_MESSAGE_LENGTH && aiMessage.length < 100) {
+      return {
+        shouldUpdate: false,
+        reasons: ['Messages too short for meaningful analysis'],
+        categories: [],
+        priority: 'low'
+      };
+    }
+    
+    // 4. AI 분석을 통한 컨텍스트 중요도 판단
+    const recentConversation = messages.slice(-3).map(msg => 
+      typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+    ).join('\n');
+    
+    const analysisPrompt = `Analyze this conversation to determine if user memory should be updated.
+    
+USER MESSAGE: "${userMessage}"
+AI RESPONSE: "${aiMessage}"
+RECENT CONTEXT: "${recentConversation}"
+
+Determine:
+1. Should memory be updated? (yes/no)
+2. What categories need updating? (personal-info, preferences, interests, interaction-history, relationship)
+3. Priority level? (high/medium/low)
+4. Brief reasons
+
+Respond in JSON format:
+{
+  "shouldUpdate": boolean,
+  "categories": ["category1", "category2"],
+  "priority": "high|medium|low",
+  "reasons": ["reason1", "reason2"]
+}
+
+RULES:
+- HIGH priority: Personal info changes, strong preferences expressed, emotional responses
+- MEDIUM priority: New interests, learning patterns, significant technical discussions
+- LOW priority: Simple questions, greetings, basic clarifications
+- Skip update for: Very short exchanges, purely factual Q&A without personal context`;
+
+    // AI 분석 호출 (경량 모델 사용)
+    const analysisResult = await callMemoryBankUpdate(
+      MEMORY_ANALYSIS_MODEL,
+      'You are an AI assistant that analyzes conversations to determine memory update necessity.',
+      analysisPrompt,
+      200,
+      0.1
+    );
+    
+    if (analysisResult) {
+      try {
+        const analysis = JSON.parse(analysisResult);
+        console.log(`🧠 [SMART TRIGGER] Analysis result:`, analysis);
+        return {
+          shouldUpdate: analysis.shouldUpdate || false,
+          reasons: analysis.reasons || [],
+          categories: analysis.categories || [],
+          priority: analysis.priority || 'low'
+        };
+      } catch (parseError) {
+        console.error('❌ [SMART TRIGGER] Failed to parse analysis result:', parseError);
+      }
+    }
+    
+    // 폴백: 기본 휴리스틱 분석
+    return analyzeWithHeuristics(userMessage, aiMessage, timeSinceLastUpdate);
+    
+  } catch (error) {
+    console.error('❌ [SMART TRIGGER] Analysis failed:', error);
+    // 안전한 폴백
+    return {
+      shouldUpdate: false,
+      reasons: ['Analysis failed'],
+      categories: [],
+      priority: 'low'
+    };
+  }
+}
+
+/**
+ * 휴리스틱 기반 메모리 업데이트 필요성 분석 (AI 분석 실패 시 폴백)
+ */
+function analyzeWithHeuristics(
+  userMessage: string, 
+  aiMessage: string, 
+  timeSinceLastUpdate: number
+): {
+  shouldUpdate: boolean;
+  reasons: string[];
+  categories: string[];
+  priority: 'high' | 'medium' | 'low';
+} {
+  const reasons: string[] = [];
+  const categories: string[] = [];
+  let priority: 'high' | 'medium' | 'low' = 'low';
+  
+  // 키워드 기반 분석
+  const personalInfoKeywords = ['my name', 'i am', 'i work', 'my job', 'my role', 'call me', '제 이름', '저는', '제가'];
+  const preferencesKeywords = ['i prefer', 'i like', 'i want', 'i need', 'prefer', '선호', '좋아해', '원해'];
+  const interestsKeywords = ['interested in', 'learning', 'studying', 'working on', '관심', '배우고', '공부'];
+  
+  const combinedText = (userMessage + ' ' + aiMessage).toLowerCase();
+  
+  // Personal info 체크
+  if (personalInfoKeywords.some(keyword => combinedText.includes(keyword))) {
+    categories.push('personal-info');
+    reasons.push('Personal information mentioned');
+    priority = 'high';
+  }
+  
+  // Preferences 체크
+  if (preferencesKeywords.some(keyword => combinedText.includes(keyword))) {
+    categories.push('preferences');
+    reasons.push('User preferences expressed');
+    if (priority !== 'high') priority = 'medium';
+  }
+  
+  // Interests 체크
+  if (interestsKeywords.some(keyword => combinedText.includes(keyword))) {
+    categories.push('interests');
+    reasons.push('New interests or learning topics mentioned');
+    if (priority === 'low') priority = 'medium';
+  }
+  
+  // 시간 기반 체크
+  const oneHour = 60 * 60 * 1000;
+  if (timeSinceLastUpdate > oneHour) {
+    categories.push('interaction-history');
+    reasons.push('Sufficient time since last update');
+    if (priority === 'low') priority = 'medium';
+  }
+  
+  // 긴 대화 체크
+  if (userMessage.length > 200 || aiMessage.length > 500) {
+    categories.push('relationship');
+    reasons.push('Substantial conversation for relationship analysis');
+    if (priority === 'low') priority = 'medium';
+  }
+  
+  return {
+    shouldUpdate: categories.length > 0,
+    reasons,
+    categories,
+    priority
+  };
+}
 
 // 최근 메시지 추출을 위한 상수
 // 가장 최근 메시지 5개만 고려 - 현재 대화의 직접적인 컨텍스트를 캡처하기 위함
@@ -60,7 +288,7 @@ function getRecentConversationText(messages: MultiModalMessage[], count: number 
 }
 
 /**
- * Retrieve user basic information from auth.users
+ * Retrieve user basic information from auth.users and all_user table
  */
 async function getUserBasicInfo(supabase: SupabaseClient, userId: string): Promise<any> {
   try {
@@ -86,11 +314,15 @@ async function getUserBasicInfo(supabase: SupabaseClient, userId: string): Promi
     
     // Extract relevant information
     const user = data.user;
+    
+    // 🚀 개선: fetchUserName 함수를 사용하여 더 정확한 사용자 이름 가져오기
+    const userName = await fetchUserName(userId, supabase);
+    
     const basicInfo = {
       email: user.email,
       created_at: user.created_at,
       last_sign_in_at: user.last_sign_in_at,
-      name: user.user_metadata?.full_name || user.user_metadata?.name,
+      name: userName, // 개선된 이름 가져오기 로직 사용
       avatar_url: user.user_metadata?.avatar_url,
       provider: user.app_metadata?.provider
     };
@@ -216,6 +448,8 @@ async function updateMemoryCategory(
   maxTokens: number = MEMORY_UPDATE_MAX_TOKENS
 ): Promise<string | null> {
   try {
+    console.log(`📝 [MEMORY CATEGORY] Updating ${category} for user ${userId}`);
+    
     const result = await callMemoryBankUpdate(
       MEMORY_UPDATE_MODEL,
       systemPromptText,
@@ -225,19 +459,30 @@ async function updateMemoryCategory(
     );
     
     if (result) {
-      await updateMemoryBank(supabase, userId, category, result);
+      console.log(`💾 [MEMORY CATEGORY] Saving ${category} to database...`);
+      const dbResult = await updateMemoryBank(supabase, userId, category, result);
+      
+      if (dbResult.error) {
+        console.error(`❌ [MEMORY CATEGORY] Database save failed for ${category}:`, dbResult.error);
+        return null;
+      }
+      
+      console.log(`✅ [MEMORY CATEGORY] Successfully updated ${category} for user ${userId}`);
       return result;
+    } else {
+      console.error(`❌ [MEMORY CATEGORY] AI generation failed for ${category}`);
     }
     
     return null;
   } catch (error) {
-    console.error(`Error updating memory category ${category}:`, error);
+    console.error(`❌ [MEMORY CATEGORY] Error updating memory category ${category}:`, error);
     return null;
   }
 }
 
 /**
  * Update the user's personal information
+ * 🚀 EXPORTED: 이름 변경 등 즉시 반영이 필요한 경우 사용
  */
 export async function updatePersonalInfo(
   supabase: SupabaseClient,
@@ -629,8 +874,8 @@ export async function updateAllMemoryBanks(
     // Initialize timer for performance tracking
     const startTime = Date.now();
     
-    // Update all memory categories in parallel
-    await Promise.all([
+    // Update all memory categories in parallel (allow individual failures)
+    const results = await Promise.allSettled([
       updatePersonalInfo(supabase, userId, messages),
       updatePreferences(supabase, userId, messages),
       updateInterests(supabase, userId, messages),
@@ -639,8 +884,158 @@ export async function updateAllMemoryBanks(
     ]);
     
     const duration = Date.now() - startTime;
-    console.log(`All user profile memory banks updated successfully in ${duration}ms`);
+    
+    // Count successes and failures
+    const categoryNames = ['personal-info', 'preferences', 'interests', 'interaction-history', 'relationship'];
+    const successes = results.filter(result => result.status === 'fulfilled').length;
+    const failures = results.filter(result => result.status === 'rejected').length;
+    
+    // Log individual failures for debugging
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        console.error(`❌ [MEMORY UPDATE] Failed to update ${categoryNames[index]}:`, result.reason);
+      }
+    });
+    
+    if (successes > 0) {
+      console.log(`✅ [MEMORY UPDATE] ${successes}/${results.length} memory banks updated successfully in ${duration}ms`);
+    } else {
+      console.error(`❌ [MEMORY UPDATE] All ${results.length} memory bank updates failed in ${duration}ms`);
+    }
   } catch (error) {
     console.error("Memory update process failed:", error);
+  }
+} 
+
+/**
+ * Selective memory update - 특정 카테고리만 업데이트
+ */
+export async function updateSelectiveMemoryBanks(
+  supabase: SupabaseClient,
+  userId: string,
+  chatId: string,
+  messages: MultiModalMessage[],
+  userMessage: string,
+  aiMessage: string,
+  categories: string[],
+  priority: 'high' | 'medium' | 'low'
+): Promise<void> {
+  try {
+    const startTime = Date.now();
+    console.log(`🎯 [SELECTIVE UPDATE] Updating categories: ${categories.join(', ')} with ${priority} priority`);
+    
+    const updatePromises: Promise<any>[] = [];
+    
+    // 카테고리별 업데이트 함수 매핑
+    const updateFunctions = {
+      'personal-info': () => updatePersonalInfo(supabase, userId, messages),
+      'preferences': () => updatePreferences(supabase, userId, messages),
+      'interests': () => updateInterests(supabase, userId, messages),
+      'interaction-history': () => updateInteractionHistory(supabase, userId, messages),
+      'relationship': () => updateRelationship(supabase, userId, messages, userMessage, aiMessage),
+      'all': () => Promise.all([
+        updatePersonalInfo(supabase, userId, messages),
+        updatePreferences(supabase, userId, messages),
+        updateInterests(supabase, userId, messages),
+        updateInteractionHistory(supabase, userId, messages),
+        updateRelationship(supabase, userId, messages, userMessage, aiMessage)
+      ])
+    };
+    
+    // 선택된 카테고리만 업데이트
+    categories.forEach(category => {
+      if (updateFunctions[category as keyof typeof updateFunctions]) {
+        updatePromises.push(updateFunctions[category as keyof typeof updateFunctions]());
+      }
+    });
+    
+    if (updatePromises.length === 0) {
+      console.log(`⏭️ [SELECTIVE UPDATE] No valid categories to update`);
+      return;
+    }
+    
+    // 선택적 업데이트 실행
+    const results = await Promise.allSettled(updatePromises);
+    
+    const duration = Date.now() - startTime;
+    const successes = results.filter(result => result.status === 'fulfilled').length;
+    const failures = results.filter(result => result.status === 'rejected').length;
+    
+    // 실패한 업데이트 로그
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        console.error(`❌ [SELECTIVE UPDATE] Failed to update ${categories[index]}:`, result.reason);
+      }
+    });
+    
+    if (successes > 0) {
+      console.log(`✅ [SELECTIVE UPDATE] ${successes}/${categories.length} categories updated successfully in ${duration}ms`);
+    } else {
+      console.error(`❌ [SELECTIVE UPDATE] All ${categories.length} category updates failed in ${duration}ms`);
+    }
+    
+  } catch (error) {
+    console.error("❌ [SELECTIVE UPDATE] Selective memory update failed:", error);
+  }
+}
+
+/**
+ * Smart Memory Update - AI 분석 기반 지능적 업데이트
+ */
+export async function smartUpdateMemoryBanks(
+  supabase: SupabaseClient,
+  userId: string,
+  chatId: string,
+  messages: MultiModalMessage[],
+  userMessage: string,
+  aiMessage: string
+): Promise<void> {
+  try {
+    // 1. 메모리 업데이트 필요성 분석
+    const analysis = await shouldUpdateMemory(supabase, userId, messages, userMessage, aiMessage);
+    
+    console.log(`🧠 [SMART UPDATE] Analysis complete:`, {
+      shouldUpdate: analysis.shouldUpdate,
+      priority: analysis.priority,
+      categories: analysis.categories,
+      reasons: analysis.reasons
+    });
+    
+    // 2. 업데이트 불필요 시 건너뛰기
+    if (!analysis.shouldUpdate) {
+      console.log(`⏭️ [SMART UPDATE] Skipping update - ${analysis.reasons.join(', ')}`);
+      return;
+    }
+    
+    // 3. 우선순위에 따른 선택적 업데이트
+    if (analysis.priority === 'high') {
+      // 높은 우선순위: 즉시 업데이트
+      console.log(`🔥 [SMART UPDATE] High priority - immediate update`);
+      await updateSelectiveMemoryBanks(
+        supabase, userId, chatId, messages, userMessage, aiMessage, 
+        analysis.categories, analysis.priority
+      );
+    } else if (analysis.priority === 'medium') {
+      // 중간 우선순위: 3초 딜레이 후 업데이트
+      console.log(`⏱️ [SMART UPDATE] Medium priority - delayed update (3s)`);
+      setTimeout(async () => {
+        await updateSelectiveMemoryBanks(
+          supabase, userId, chatId, messages, userMessage, aiMessage, 
+          analysis.categories, analysis.priority
+        );
+      }, 3000);
+    } else {
+      // 낮은 우선순위: 30초 딜레이 후 업데이트 (배치 처리 가능)
+      console.log(`🐌 [SMART UPDATE] Low priority - batch update (30s)`);
+      setTimeout(async () => {
+        await updateSelectiveMemoryBanks(
+          supabase, userId, chatId, messages, userMessage, aiMessage, 
+          analysis.categories, analysis.priority
+        );
+      }, 30000);
+    }
+    
+  } catch (error) {
+    console.error("❌ [SMART UPDATE] Smart memory update failed:", error);
   }
 } 

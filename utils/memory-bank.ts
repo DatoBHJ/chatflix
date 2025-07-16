@@ -81,8 +81,7 @@ export async function updateMemoryBank(
       user_id: userId,
       category,
       content,
-      updated_at: new Date().toISOString(),
-      last_updated: new Date().toISOString()
+      updated_at: new Date().toISOString()
     }, { onConflict: 'user_id,category' });
   
   return { data, error };
@@ -99,13 +98,13 @@ export async function getLastMemoryUpdate(
   try {
     const { data } = await supabase
       .from('memory_bank')
-      .select('last_updated')
+      .select('updated_at')
       .eq('user_id', userId)
-      .order('last_updated', { ascending: false })
+      .order('updated_at', { ascending: false })
       .limit(1)
       .single();
 
-    return data?.last_updated ? new Date(data.last_updated) : null;
+    return data?.updated_at ? new Date(data.updated_at) : null;
   } catch (error) {
     // 데이터가 없거나 오류 발생 시 null 반환 (첫 업데이트 허용)
     return null;
