@@ -10,7 +10,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { defaultPromptShortcuts } from '../lib/defaultPromptShortcuts'
 import { getModelById } from '@/lib/models/config'
-import { getProviderLogo, hasLogo } from '@/app/lib/models/logoUtils'
+import { getProviderLogo, hasLogo } from '@/lib/models/logoUtils'
 import { getSidebarTranslations } from '../lib/sidebarTranslations'
 
 interface SidebarProps {

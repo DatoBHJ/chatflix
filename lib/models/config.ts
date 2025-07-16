@@ -5,7 +5,7 @@ export interface ModelConfig {
   pro?: boolean;
   country: string;
   description?: string;
-  provider: 'anthropic' | 'openai' | 'google' | 'deepseek' | 'together' | 'groq' | 'xai';
+  provider: 'anthropic' | 'openai' | 'google' | 'deepseek' | 'together' | 'groq' | 'xai' ;
   supportsVision: boolean;
   supportsPDFs: boolean;
   // censored?: boolean;
@@ -20,7 +20,7 @@ export interface ModelConfig {
   isHot?: boolean; // Mark model as hot/trending
   reasoning?: {
     enabled: boolean;
-    provider?: 'openai' | 'groq' | 'together' | 'anthropic' | 'deepseek' | 'google' | 'xai';  
+    provider?: 'openai' | 'groq' | 'together' | 'anthropic' | 'deepseek' | 'google' | 'xai' ;  
     baseModelId?: string; 
     budgetTokens?: number;
   };
@@ -329,7 +329,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       rateLimit: {
         level: 'level2',
       },
-      isNew: true,
       supportsPDFs: false,
       isEnabled: true,
       isActivated: true,
@@ -654,33 +653,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   //   // tps: 188,
   //   intelligenceIndex: 67,
   // },
-   // QwQ-32B (Thinking)
-   {
-    id: 'qwen-qwq-32b',
-    name: 'QwQ-32B (Thinking)',
-    cutoff: 'June 2024',
-    abbreviation: 'QwQ-T',
-    country: 'CHINA',
-    provider: 'groq',
-    supportsVision: false,
-    rateLimit: {
-      level: 'level3',
-    },
-    reasoning: {
-      enabled: true,
-      provider: 'groq',
-      baseModelId: 'qwen-qwq-32b',
-    },
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: false,
-    supportsPDFs: false,
-    contextWindow: 131000,
-    tps: 422,
-    latency: 6.1,
-    intelligenceIndex: 58,
-    maxOutputTokens: 32768,
-  },
   // Gemini 2.5 Pro 
   {
     id: 'gemini-2.5-pro',
@@ -797,6 +769,29 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     latency: 0.4,
     maxOutputTokens: 8192,
   },
+  // Kimi K2
+  {
+    id: 'moonshotai/kimi-k2-instruct',
+    name: 'Kimi K2',
+    // cutoff: 'Dec 2023',
+    abbreviation: 'K2',
+    country: 'US',
+    description: 'Developed by Moonshot AI, powered by Groq',
+    provider: 'groq',
+    supportsVision: false,
+    rateLimit: {
+      level: 'level0',
+    },
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: true,
+    contextWindow: 131072,
+    latency: 0.2,
+    tps: 176,
+    intelligenceIndex: 57,
+    isNew: true,
+  },
   // Llama 3.3 70B
   {
     id: 'llama-3.3-70b-versatile',
@@ -804,6 +799,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'Dec 2023',
     abbreviation: 'L3.3',
     country: 'US',
+    description: 'Developed by Meta, powered by Groq',
     provider: 'groq',
     supportsVision: false,
     rateLimit: {
@@ -818,6 +814,57 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 468,
     intelligenceIndex: 41,
   },
+   // QwQ-32B (Thinking)
+   {
+    id: 'qwen-qwq-32b',
+    name: 'QwQ-32B (Thinking)',
+    cutoff: 'June 2024',
+    abbreviation: 'QwQ-T',
+    country: 'CHINA',
+    description: 'Developed by Alibaba, powered by Groq',
+    provider: 'groq',
+    supportsVision: false,
+    rateLimit: {
+      level: 'level3',
+    },
+    reasoning: {
+      enabled: true,
+      provider: 'groq',
+      baseModelId: 'qwen-qwq-32b',
+    },
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: false,
+    supportsPDFs: false,
+    contextWindow: 131000,
+    tps: 422,
+    latency: 6.1,
+    intelligenceIndex: 58,
+    maxOutputTokens: 32768,
+  },
+    // Kimi K2 
+    {
+      id: 'moonshotai/Kimi-K2-Instruct',
+      name: 'Kimi K2',
+      // cutoff: 'July 2024',
+      abbreviation: 'K2',
+      country: 'CHINA',
+      description: 'Developed by Moonshot AI, powered by TogetherAI',
+      provider: 'together',
+      supportsVision: false,
+      rateLimit: {
+        level: 'level3',
+      },
+      supportsPDFs: false,
+      isEnabled: true,
+      isActivated: true,
+      isAgentEnabled: true,
+      contextWindow: 131072,
+      tps: 24,
+      intelligenceIndex: 57,
+      latency: 0.6,
+      isNew: true,
+    },
    // DeepSeek R1 (Thinking)
    {
     id: 'deepseek-reasoner',
@@ -860,7 +907,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 128000,
     tps: 28,
     intelligenceIndex: 53,
@@ -872,6 +919,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'mid-2024 (estimated)',
     abbreviation: 'Q3-235B-A22B-T',
     country: 'CHINA',
+    description: 'Developed by Alibaba, powered by TogetherAI',
     provider: 'together',
     supportsVision: false,
     rateLimit: {
@@ -895,11 +943,11 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   // DeepSeek R1 (Thinking)
   {
     id: 'deepseek-ai/DeepSeek-R1',
-    name: 'DeepSeek R1 0528 Fast (Thinking)',
+    name: 'DeepSeek R1 0528 (Thinking)',
     cutoff: 'July 2024',
     abbreviation: 'DSR1-T',
     country: 'CHINA',
-    // description: 'High speed version of DeepSeek R1',
+    description: 'Developed by DeepSeek, powered by TogetherAI',
     provider: 'together',
     supportsVision: false,
     rateLimit: {
@@ -924,11 +972,11 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   // DeepSeek V3 (Mar' 25)
   {
     id: 'deepseek-ai/DeepSeek-V3',
-    name: 'DeepSeek V3 Fast',
+    name: 'DeepSeek V3',
     cutoff: 'July 2024',
     abbreviation: 'DSV3',
     country: 'CHINA',
-    // description: 'High speed version of DeepSeek V3',
+    description: 'Developed by DeepSeek, powered by TogetherAI',
     provider: 'together',
     supportsVision: false,
     rateLimit: {

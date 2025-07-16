@@ -147,6 +147,9 @@ const Message = memo(function MessageComponent({
 
   const bubbleRef = useRef<HTMLDivElement>(null);
   const aiBubbleRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [containerMinHeight, setContainerMinHeight] = useState<string | number>('auto');
+  const viewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (bubbleRef.current) {
@@ -206,6 +209,15 @@ const Message = memo(function MessageComponent({
 
 
   
+  const handleEditStartClick = () => {
+    if (viewRef.current) {
+      const originalHeight = viewRef.current.offsetHeight;
+      const maxHeight = window.innerHeight * 0.8; // Cap at 80% of viewport height
+      setContainerMinHeight(Math.min(originalHeight, maxHeight));
+    }
+    onEditStart(message);
+  };
+
   // Reasoning part state management
   const reasoningPart = message.parts?.find(part => part.type === 'reasoning');
   const reasoningComplete = isReasoningComplete(message);
@@ -293,11 +305,11 @@ const Message = memo(function MessageComponent({
     if (!selectedFiles || selectedFiles.length === 0) return;
 
     const newFiles: globalThis.File[] = [];
-    const newFileMap = new Map(editingFileMap);
+    const newFileMapEntries: [string, { file: globalThis.File, url: string }][] = [];
 
     for (let i = 0; i < selectedFiles.length; i++) {
       const file = selectedFiles[i];
-      const fileId = `new-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const fileId = `new-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 9)}`;
       
       // Add unique ID for tracking
       (file as any).id = fileId;
@@ -307,15 +319,21 @@ const Message = memo(function MessageComponent({
       const url = URL.createObjectURL(file);
       
       newFiles.push(file);
-      newFileMap.set(fileId, { file, url });
+      newFileMapEntries.push([fileId, { file, url }]);
     }
 
     setEditingFiles(prev => [...prev, ...newFiles]);
-    setEditingFileMap(newFileMap);
+    setEditingFileMap(prev => {
+      const newMap = new Map(prev);
+      newFileMapEntries.forEach(([id, data]) => {
+        newMap.set(id, data);
+      });
+      return newMap;
+    });
 
     // Reset file input
     e.target.value = '';
-  }, [editingFileMap]);
+  }, []);
 
   // 드래그&드롭 핸들러들 추가
   const handleDrag = useCallback((e: React.DragEvent) => {
@@ -350,11 +368,11 @@ const Message = memo(function MessageComponent({
   // 파일 처리 핸들러 (ChatInput의 handleFiles와 유사하게 구현)
   const handleFilesFromDrop = useCallback(async (fileList: FileList) => {
     const newFiles: globalThis.File[] = [];
-    const newFileMap = new Map(editingFileMap);
+    const newFileMapEntries: [string, { file: globalThis.File, url: string }][] = [];
 
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
-      const fileId = `new-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const fileId = `drop-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 9)}`;
       
       // Add unique ID for tracking
       (file as any).id = fileId;
@@ -364,12 +382,18 @@ const Message = memo(function MessageComponent({
       const url = URL.createObjectURL(file);
       
       newFiles.push(file);
-      newFileMap.set(fileId, { file, url });
+      newFileMapEntries.push([fileId, { file, url }]);
     }
 
     setEditingFiles(prev => [...prev, ...newFiles]);
-    setEditingFileMap(newFileMap);
-  }, [editingFileMap]);
+    setEditingFileMap(prev => {
+      const newMap = new Map(prev);
+      newFileMapEntries.forEach(([id, data]) => {
+        newMap.set(id, data);
+      });
+      return newMap;
+    });
+  }, []);
 
   // 파일 제거 핸들러
   const handleRemoveFile = useCallback((fileToRemove: globalThis.File) => {
@@ -402,6 +426,7 @@ const Message = memo(function MessageComponent({
       .filter(Boolean);
     
     onEditSave(message.id, newFiles, remainingExistingAttachments);
+    setContainerMinHeight('auto');
   }, [editingFiles, onEditSave, message.id]);
 
   // 편집 취소 핸들러 수정
@@ -420,6 +445,7 @@ const Message = memo(function MessageComponent({
     setEditingFiles([]);
     setEditingFileMap(new Map());
     onEditCancel();
+    setContainerMinHeight('auto');
   }, [editingFiles, editingFileMap, onEditCancel]);
   
 
@@ -442,6 +468,41 @@ const Message = memo(function MessageComponent({
   }, []);
 
   const isEditing = editingMessageId === message.id;
+
+  // 편집 모드 시작 시 텍스트 영역을 설정하는 효과
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      const textarea = textareaRef.current;
+
+      const resizeTextarea = () => {
+        textarea.style.height = 'auto';
+        const scrollHeight = textarea.scrollHeight;
+        // Ensure getComputedStyle runs only in browser
+        if (typeof window !== 'undefined') {
+          const maxHeight = parseInt(window.getComputedStyle(textarea).maxHeight, 10);
+          
+          if (scrollHeight > maxHeight) {
+            textarea.style.height = `${maxHeight}px`;
+          } else {
+            textarea.style.height = `${scrollHeight}px`;
+          }
+        } else {
+           textarea.style.height = `${scrollHeight}px`;
+        }
+      };
+
+      resizeTextarea();
+      textarea.focus();
+      const len = textarea.value.length;
+      textarea.setSelectionRange(len, len);
+
+      // 메시지 그룹을 화면 중앙으로 스크롤
+      setTimeout(() => {
+        textarea.closest('.message-group')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100); // DOM 업데이트 후 스크롤
+    }
+  }, [isEditing, textareaRef]);
+
   const isCopied = copiedMessageId === message.id;
   const isAssistant = message.role === 'assistant';
   const isUser = message.role === 'user';
@@ -636,132 +697,144 @@ const Message = memo(function MessageComponent({
         togglePanel={togglePanel}
       />
       <div className={`flex ${isUser ? `justify-end` : `justify-start`}`}>
-        {isUser && !isEditing ? (
-          <div className="flex flex-col items-end gap-1">
-            {hasAttachments && message.experimental_attachments!.map((attachment, index) => (
-              <AttachmentPreview 
-                key={`${message.id}-att-${index}`} 
-                attachment={attachment} 
-                messageId={message.id}
-                attachmentIndex={index}
-                togglePanel={togglePanel}
-              />
-            ))}
-            {hasContent && (() => {
-              const urlRegex = /(https?:\/\/[^\s]+)/g;
-              const urls = message.content.match(urlRegex) || [];
-              
-              return urls.map((url, index) => (
-                <LinkPreview key={`${message.id}-url-${index}`} url={url} />
-              ));
-            })()}
-            {hasContent && (
-              <div className="imessage-send-bubble" ref={bubbleRef}>
-                <UserMessageContent content={message.content} />
-              </div>
-            )}
-            <div className="text-xs text-neutral-500 mt-1 pr-1">
-              {formatMessageTime((message as any).createdAt || new Date())}
-            </div>
-          </div>
-        ) : isUser && isEditing ? (
-          <div 
-            className="w-full max-w-4xl mx-auto relative animate-edit-in-view"
-            ref={editingContainerRef}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            <div className="bg-[var(--background)] border border-[var(--accent)] rounded-lg p-4 flex flex-col gap-4">
-              
-              {/* 파일 미리보기 영역 */}
-              {editingFiles.length > 0 && (
-                <EditingFilePreview 
-                  files={editingFiles}
-                  fileMap={editingFileMap}
-                  removeFile={handleRemoveFile}
-                />
-              )}
+        {isUser ? (
+          <div className="w-full" style={{ minHeight: containerMinHeight }}>
+            {isEditing ? (
+              <div 
+                className="w-full animate-edit-in-view"
+                ref={editingContainerRef}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+              >
+                <div className="flex flex-col items-end gap-1 w-full">
+                  {editingFiles.length > 0 && (
+                    <div className="flex flex-col items-end gap-1 mb-2 w-full">
+                      <EditingFilePreview 
+                        files={editingFiles}
+                        fileMap={editingFileMap}
+                        removeFile={handleRemoveFile}
+                      />
+                    </div>
+                  )}
+                  <div className="relative w-full">
+                    <div className="imessage-edit-bubble">
+                      <textarea
+                        ref={textareaRef}
+                        value={editingContent}
+                        onChange={(e) => {
+                          setEditingContent(e.target.value);
+                          const textarea = e.currentTarget;
+                          textarea.style.height = 'auto';
+                          const scrollHeight = textarea.scrollHeight;
+                          if (typeof window !== 'undefined') {
+                            const maxHeight = parseInt(window.getComputedStyle(textarea).maxHeight, 10);
+                            if (scrollHeight > maxHeight) {
+                              textarea.style.height = `${maxHeight}px`;
+                            } else {
+                              textarea.style.height = `${scrollHeight}px`;
+                            }
+                          } else {
+                            textarea.style.height = `${scrollHeight}px`;
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleEditSave();
+                          }
+                        }}
+                        className="imessage-edit-textarea scrollbar-thin"
+                        placeholder="Edit your message..."
+                      />
+                    </div>
+                    {dragActive && <DragDropOverlay dragActive={dragActive} supportsPDFs={true} />}
+                  </div>
 
-              {/* 자동 높이 조절 Textarea */}
-              <textarea
-                value={editingContent}
-                onChange={(e) => {
-                    setEditingContent(e.target.value);
-                    e.target.style.height = 'auto';
-                    e.target.style.height = `${e.target.scrollHeight}px`;
-                }}
-                onFocus={(e) => {
-                    e.target.style.height = 'auto';
-                    e.target.style.height = `${e.target.scrollHeight}px`;
-                    const len = e.target.value.length;
-                    e.target.setSelectionRange(len, len);
-                }}
-                ref={(textarea) => {
-                  if (textarea) {
-                      setTimeout(() => {
-                        textarea.style.height = 'auto';
-                        textarea.style.height = `${textarea.scrollHeight}px`;
-                      }, 0);
-                    }
-                }}
-                className="w-full min-h-[120px] p-3 rounded-lg bg-[var(--accent)] text-[var(--foreground)] resize-none focus:outline-none"
-                placeholder="Edit your message..."
-                autoFocus
-              />
-              
-              {/* 액션 버튼 및 파일 업로드 */}
-              <div className="flex items-center justify-between">
-                {/* 좌측: 파일 업로드 */}
-                <div className="flex items-center gap-2">
-                  <FileUploadButton 
-                    filesCount={editingFiles.length}
-                    onClick={handleFileSelect}
-                  />
-                  <input
-                    ref={fileInputRef}
-                        type="file"
-                    multiple
-                        onChange={handleFileChange}
-                        className="hidden"
-                        accept="image/*,video/*,audio/*,text/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.tar,.gz"
-                  />
-                  <span className="text-xs text-[var(--muted)]">
-                        or drag and drop files here
-                  </span>
-                </div>
-                
-                {/* 우측: 취소/저장 버튼 */}
-                <div className="flex justify-end gap-2">
-                <button
-                    onClick={handleEditCancel}
-                        className="px-4 py-2 text-sm border border-[var(--accent)] text-[var(--muted)] rounded-lg hover:bg-[var(--accent)] transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                    onClick={handleEditSave}
-                        className="px-4 py-2 text-sm bg-[var(--accent)] text-[var(--foreground)] rounded-lg hover:opacity-80 transition-opacity"
-                >
-                        Save
-                </button>
+                  <div className="flex w-full items-center justify-between gap-2 mt-2 relative z-20">
+                    <div className="flex items-center gap-2">
+                      <button onClick={handleFileSelect} className="imessage-edit-control-btn" title="Add files">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14,2 14,8 20,8"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg>
+                      </button>
+                      <span className="text-xs text-neutral-500/80">or drag & drop files</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <input ref={fileInputRef} type="file" multiple onChange={handleFileChange} className="hidden" accept="image/*,video/*,audio/*,text/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.tar,.gz" />
+                      <button onClick={handleEditCancel} className="imessage-edit-control-btn cancel" title="Cancel">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                      <button onClick={handleEditSave} className="imessage-edit-control-btn save" title="Save">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20,6 9,17 4,12"/></svg>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-
-            {/* 드래그 앤 드롭 오버레이 */}
-            {dragActive && (
-              <DragDropOverlay 
-                dragActive={dragActive}
-                supportsPDFs={true}
-              />
+            ) : (
+              <div ref={viewRef}>
+                <div className="flex flex-col items-end gap-1">
+                  {hasAttachments && message.experimental_attachments!.map((attachment, index) => (
+                    <AttachmentPreview 
+                      key={`${message.id}-att-${index}`} 
+                      attachment={attachment} 
+                      messageId={message.id}
+                      attachmentIndex={index}
+                      togglePanel={togglePanel}
+                    />
+                  ))}
+                  {hasContent && (() => {
+                    const urlRegex = /(https?:\/\/[^\s]+)/g;
+                    const urls = message.content.match(urlRegex) || [];
+                    return urls.map((url, index) => (
+                      <LinkPreview key={`${message.id}-url-${index}`} url={url} />
+                    ));
+                  })()}
+                  {hasContent && (
+                    <div className="imessage-send-bubble" ref={bubbleRef}>
+                      <UserMessageContent content={message.content} />
+                    </div>
+                  )}
+                  <div className="text-xs text-neutral-500 mt-1 pr-1">
+                    {formatMessageTime((message as any).createdAt || new Date())}
+                  </div>
+                </div>
+                <div className="flex justify-end mt-2 gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
+                  <button
+                    onClick={handleEditStartClick}
+                    className="imessage-control-btn"
+                    title="Edit message"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => onCopy(message)}
+                    className={`imessage-control-btn ${isCopied ? 'copied' : ''}`}
+                    title={isCopied ? "Copied!" : "Copy message"}
+                  >
+                    {isCopied ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20,6 9,17 4,12"/>
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         ) : (
           <>
           {(hasAnyContent || structuredDescription) && (
-            <div className="imessage-receive-bubble max-w-full" ref={aiBubbleRef}>
+            <div className="imessage-receive-bubble" ref={aiBubbleRef}>
               <div className="imessage-content-wrapper">
                 {/* 기존 컨텐츠 렌더링 로직 */}
               {hasAttachments && message.experimental_attachments!.map((attachment, index) => (
@@ -794,42 +867,46 @@ const Message = memo(function MessageComponent({
       )}
     </div>
     {isAssistant && !isStreaming && (
-      <div className="flex justify-start mt-2 gap-4 items-center opacity-100 transition-opacity duration-300">
+      <div className="flex justify-start mt-2 gap-2 items-center opacity-100 transition-opacity duration-300">
         <button 
           onClick={onRegenerate(message.id)}
           disabled={isRegenerating}
-          className={`text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2 ${ 
-            isRegenerating ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
+          className={`imessage-control-btn ${isRegenerating ? 'loading' : ''}`}
           title="Regenerate response"
         >
-          <IconRefresh className={`w-3 h-3 ${isRegenerating ? 'animate-spin' : ''}`} />
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isRegenerating ? 'animate-spin' : ''}>
+            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+            <path d="M21 3v5h-5"/>
+            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+            <path d="M3 21v-5h5"/>
+          </svg>
         </button>
         <button
           onClick={() => onCopy(message)}
-          className={`text-xs hover:text-[var(--foreground)] transition-colors flex items-center gap-2 ${ 
-            isCopied ? 'text-green-500' : 'text-[var(--muted)]'
-          }`}
+          className={`imessage-control-btn ${isCopied ? 'copied' : ''}`}
           title={isCopied ? "Copied!" : "Copy message"}
         >
           {isCopied ? (
-            <IconCheck className="w-3 h-3" />
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20,6 9,17 4,12"/>
+            </svg>
           ) : (
-            <IconCopy className="w-3 h-3" />
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
           )}
         </button>
         <button
           onClick={toggleBookmark}
-          className={`text-xs transition-colors flex items-center gap-2 ${ 
-            isBookmarked ? 'text-blue-500' : 'text-[var(--muted)] hover:text-[var(--foreground)]'
-          } ${isBookmarkLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          className={`imessage-control-btn ${isBookmarked ? 'bookmarked' : ''} ${isBookmarkLoading ? 'loading' : ''}`}
           title={isBookmarked ? "Remove bookmark" : "Bookmark message"}
           disabled={isBookmarkLoading}
         >
           <svg 
             xmlns="http://www.w3.org/2000/svg" 
-            width="12" 
-            height="12" 
+            width="14" 
+            height="14" 
             viewBox="0 0 24 24" 
             fill={isBookmarked ? "currentColor" : "none"}
             stroke="currentColor" 
@@ -842,6 +919,9 @@ const Message = memo(function MessageComponent({
           </svg>
         </button>
         
+        {/* 구분선 */}
+        <div className="w-px h-4 bg-[var(--subtle-divider)] mx-2"></div>
+        
         {/* Model capability badges first */}
         <ModelCapabilityBadges modelId={(message as ExtendedMessage).model || currentModel} />
         
@@ -851,37 +931,9 @@ const Message = memo(function MessageComponent({
         {/* Canvas 버튼 제거됨 */}
       </div>
     )}
-    {isUser && (
-      <div className="flex justify-end mt-2 gap-4 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
-        <button
-          onClick={() => onEditStart(message)}
-          className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-2"
-          title="Edit message"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-          </svg>
-        </button>
-        <button
-          onClick={() => onCopy(message)}
-          className={`text-xs hover:text-[var(--foreground)] transition-colors flex items-center gap-2 ${ 
-            isCopied ? 'text-green-500' : 'text-[var(--muted)]'
-          }`}
-          title={isCopied ? "Copied!" : "Copy message"}
-        >
-          {isCopied ? (
-            <IconCheck className="w-3 h-3" />
-          ) : (
-            <IconCopy className="w-3 h-3" />
-          )}
-        </button>
-      </div>
-    )}
-
     {/* Add follow-up questions for the last assistant message */}
     {isAssistant && isLastMessage && !isGlobalLoading && !isStreaming && user && handleFollowUpQuestionClick && allMessages && chatId && (
-      <div className="mt-4 sm:mt-6 pl-2">
+      <div className="follow-up-questions-section">
         <FollowUpQuestions 
           chatId={chatId} 
           userId={user.id} 

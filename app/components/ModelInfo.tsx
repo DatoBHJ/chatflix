@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { getModelById } from '@/lib/models/config'
-import { getProviderLogo, hasLogo } from '@/app/lib/models/logoUtils'
+import { getProviderLogo, hasLogo } from '@/lib/models/logoUtils'
 
 // Model name with logo component
 export const ModelNameWithLogo = ({ modelId }: { modelId: string }) => {

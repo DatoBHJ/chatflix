@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { getModelById } from '@/lib/models/config';
-import { getProviderLogo, hasLogo } from '@/app/lib/models/logoUtils';
+import { getProviderLogo, hasLogo } from '@/lib/models/logoUtils';
 import { FeatureUpdate } from '@/app/components/WhatsNew';
 import { User } from '@supabase/supabase-js';
 import { getSidebarTranslations } from '../lib/sidebarTranslations';

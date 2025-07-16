@@ -37,8 +37,9 @@
 
 /* iMessage bubble styles */
 .imessage-send-bubble {
+  display: inline-block;
   position: relative;
-  max-width: 560px;
+  max-width: 780px;
   padding: 5px 11px;
   margin: 2px 0;
   background-color: #007AFF;
@@ -112,7 +113,7 @@
 /* Mobile responsiveness for iMessage bubbles */
 @media (max-width: 640px) {
   .imessage-send-bubble {
-    max-width: 280px;
+    max-width: 320px;
     padding: 8px 12px;
   }
   
@@ -141,6 +142,7 @@
 
   .imessage-receive-bubble {
     padding: 8px 12px;
+    max-width: 360px;
   }
 
   .imessage-receive-bubble::before {
@@ -290,7 +292,9 @@
 }
 
 .imessage-receive-bubble {
+  display: inline-block;
   position: relative;
+  max-width: 780px;
   padding: 5px 11px;
   margin: 2px 0;
   background-color: var(--accent); 
@@ -636,13 +640,25 @@ body {
   animation: fadeInScale 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
+/* Message Timestamp Separator */
+.message-timestamp {
+  text-align: center;
+  font-size: 0.75rem; /* 12px */
+  color: var(--muted);
+  padding: 16px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
 /* Message Container Styles */
 .messages-container {
-  @apply max-w-3xl mx-auto w-full pl-3 pr-3 overflow-hidden pb-4 sm:pb-12;
+  @apply max-w-7xl mx-auto w-full pl-3 pr-3 overflow-hidden pb-4 sm:pb-12;
+  padding-top: 1rem; /* Add consistent top padding */
 }
 
 .message-group {
-  @apply py-6 first:pt-4 last:pb-4 max-w-[calc(100vw-2rem)] mx-auto;
+  @apply py-6 first:pt-2 last:pb-4 max-w-[calc(100vw-2rem)] mx-auto;
 }
 
 .message-group:last-child {
@@ -1458,6 +1474,7 @@ p:has(.katex) {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  align-items: flex-start;
 }
 
 /* Remove bubble styling when using segments */
@@ -1615,6 +1632,153 @@ p:has(.katex) {
   animation: edit-in-view 0.25s ease-out forwards;
 }
 
+/* 편집 중인 메시지 버블 스타일 */
+.imessage-edit-bubble {
+  position: relative;
+  background-color: var(--background);
+  border: 2px dashed #9FD0FA;
+  border-radius: 22px;
+  padding: 12px 16px;
+  margin: 2px 0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.1);
+}
+
+.imessage-edit-bubble:hover {
+  border-color: #0056CC;
+  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.15);
+}
+
+/* 편집 중인 textarea 스타일 */
+.imessage-edit-textarea {
+  width: 100%;
+  min-height: 48px;
+  max-height: 70vh; /* Generous max height for editing long messages */
+  overflow-y: auto;   /* Allow scrolling when content exceeds max height */
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-size: 15px;
+  line-height: 1.4;
+  color: #3478F6;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 400;
+  padding: 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.imessage-edit-textarea::placeholder {
+  color: #3478F6;
+  opacity: 0.6;
+}
+
+/* 편집 컨트롤 버튼들 */
+.imessage-edit-control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background-color: var(--accent);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0.8;
+}
+
+.imessage-edit-control-btn:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.imessage-edit-control-btn:active {
+  transform: scale(0.9);
+}
+
+/* 특별한 버튼 색상 */
+.imessage-edit-control-btn.save {
+  background-color: #34C759;
+  color: white;
+}
+
+.imessage-edit-control-btn.save:hover {
+  background-color: #2DB653;
+}
+
+.imessage-edit-control-btn.cancel {
+  background-color: #FF3B30;
+  color: white;
+}
+
+.imessage-edit-control-btn.cancel:hover {
+  background-color: #E6342A;
+}
+
+/* 다크 모드 지원 */
+:root[data-theme="dark"] .imessage-edit-bubble {
+  background-color: var(--background);
+  border-color: #183859;
+  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.2);
+}
+
+:root[data-theme="dark"] .imessage-edit-bubble:hover {
+  border-color: #369EFF;
+  box-shadow: 0 4px 16px rgba(10, 132, 255, 0.3);
+}
+
+:root[data-theme="dark"] .imessage-edit-textarea {
+  color: #3C82F3;
+}
+
+:root[data-theme="dark"] .imessage-edit-textarea::placeholder {
+  color: #3C82F3;
+  opacity: 0.7;
+}
+
+/* 시스템 다크 모드 */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .imessage-edit-bubble {
+    background-color: var(--background);
+    border-color: #183859;
+    box-shadow: 0 2px 8px rgba(10, 132, 255, 0.2);
+  }
+
+  :root[data-theme="system"] .imessage-edit-bubble:hover {
+    border-color: #369EFF;
+    box-shadow: 0 4px 16px rgba(10, 132, 255, 0.3);
+  }
+
+  :root[data-theme="system"] .imessage-edit-textarea {
+    color: #3C82F3;
+  }
+
+  :root[data-theme="system"] .imessage-edit-textarea::placeholder {
+    color: #3C82F3;
+    opacity: 0.7;
+  }
+}
+
+/* 모바일 반응형 */
+@media (max-width: 640px) {
+  .imessage-edit-bubble {
+    padding: 10px 14px;
+    border-radius: 18px;
+  }
+  
+  .imessage-edit-textarea {
+    font-size: 16px; /* iOS에서 zoom-in 방지 */
+  }
+  
+  .imessage-edit-control-btn {
+    width: 28px;
+    height: 28px;
+  }
+}
+
 /* Chat Input Dynamic Border Radius */
 .futuristic-input {
   border-radius: 9999px; /* Default rounded-full */
@@ -1632,4 +1796,264 @@ p:has(.katex) {
 }
 
 /* Chat Input Dynamic Border Radius */
+
+/* Follow-up Question Container Styles */
+.follow-up-questions-section {
+  position: relative;
+  margin-top: 1rem;
+  min-height: 0;
+  contain: layout;
+}
+
+@media (min-width: 640px) {
+  .follow-up-questions-section {
+    margin-top: 1.5rem;
+  }
+}
+
+.follow-up-questions-container {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2.5rem;
+  contain: layout;
+}
+
+.follow-up-questions-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  min-height: fit-content;
+  contain: layout;
+}
+
+/* Follow-up Question Interaction Styles */
+.imessage-send-bubble.follow-up-question {
+  position: relative;
+  cursor: pointer;
+  text-align: left;
+  background-color: var(--background);
+  color: #3478F6;
+  border-style: dashed;
+  border-width: 1px;
+  border-color: #9FD0FA;
+  transition: transform 0.15s ease, background-color 0.15s ease, color 0.15s ease, border-style 0.15s ease, border-color 0.15s ease;
+  transform-origin: center;
+  will-change: transform, background-color, color, border-style;
+  contain: layout style;
+  isolation: isolate;
+}
+
+.imessage-send-bubble.follow-up-question::before {
+  content: "";
+  position: absolute;
+  right: -8px;
+  bottom: 0;
+  width: 15px;
+  height: 16px;
+  background-color: var(--background);
+  border-color: #9FD0FA;
+  border-style: dashed;
+  border-width: 1px;
+  border-top: none;
+  border-left: none;
+  border-bottom-left-radius: 16px 14px;
+  transition: background-color 0.15s ease, border-color 0.15s ease, border-style 0.15s ease;
+}
+
+.imessage-send-bubble.follow-up-question::after {
+  content: "";
+  position: absolute;
+  right: -10px;
+  bottom: 0;
+  width: 10px;
+  height: 16px;
+  background-color: var(--background);
+  border-color: #9FD0FA;
+  border-style: dashed;
+  border-width: 1px;
+  border-right: none;
+  border-top: none;
+  border-bottom-left-radius: 10px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+/* --- Hover & Active States --- */
+
+.imessage-send-bubble.follow-up-question:hover {
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+}
+
+.imessage-send-bubble.follow-up-question:hover::before {
+  right: -7px;
+  width: 20px;
+  height: 16px;
+  background-color: #3b82f6;
+  border: none;
+  border-bottom-left-radius: 16px 14px;
+}
+
+.imessage-send-bubble.follow-up-question:hover::after {
+  right: -26px;
+  width: 26px;
+  height: 16px;
+  border: none;
+  border-bottom-left-radius: 10px;
+}
+
+.imessage-send-bubble.follow-up-question:active {
+  transform: scale(0.97);
+  background-color: #2563eb;
+  border: none;
+}
+
+.imessage-send-bubble.follow-up-question:active::before {
+  right: -7px;
+  width: 20px;
+  height: 16px;
+  background-color: #2563eb;
+  border: none;
+  border-bottom-left-radius: 16px 14px;
+}
+
+.imessage-send-bubble.follow-up-question:active::after {
+  right: -26px;
+  width: 26px;
+  height: 16px;
+  border: none;
+  border-bottom-left-radius: 10px;
+}
+
+/* --- Dark Mode --- */
+
+:root[data-theme="dark"] .imessage-send-bubble.follow-up-question {
+  background-color: var(--background);
+  color: #3C82F3;
+  border-color: #183859;
+}
+
+:root[data-theme="dark"] .imessage-send-bubble.follow-up-question::before {
+  background-color: var(--background);
+  border-color: #183859;
+}
+
+:root[data-theme="dark"] .imessage-send-bubble.follow-up-question::after {
+  border-color: #183859;
+}
+
+:root[data-theme="dark"] .imessage-send-bubble.follow-up-question:hover {
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+}
+
+:root[data-theme="dark"] .imessage-send-bubble.follow-up-question:hover::before {
+  right: -7px;
+  width: 20px;
+  height: 16px;
+  background-color: #3b82f6;
+  border: none;
+  border-bottom-left-radius: 16px 14px;
+}
+
+:root[data-theme="dark"] .imessage-send-bubble.follow-up-question:hover::after {
+  right: -26px;
+  width: 26px;
+  height: 16px;
+  border: none;
+  border-bottom-left-radius: 10px;
+}
+
+:root[data-theme="dark"] .imessage-send-bubble.follow-up-question:active {
+  background-color: #2563eb;
+  border: none;
+}
+
+:root[data-theme="dark"] .imessage-send-bubble.follow-up-question:active::before {
+  right: -7px;
+  width: 20px;
+  height: 16px;
+  background-color: #2563eb;
+  border: none;
+  border-bottom-left-radius: 16px 14px;
+}
+
+:root[data-theme="dark"] .imessage-send-bubble.follow-up-question:active::after {
+  right: -26px;
+  width: 26px;
+  height: 16px;
+  border: none;
+  border-bottom-left-radius: 10px;
+}
+
+/* 일반 메시지 컨트롤 버튼 스타일 */
+.imessage-control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background-color: var(--accent);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0.7;
+}
+
+.imessage-control-btn:hover {
+  opacity: 1;
+  transform: scale(1.1);
+  background-color: var(--accent);
+  color: var(--muted);
+}
+
+.imessage-control-btn:active {
+  transform: scale(0.9);
+}
+
+.imessage-control-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.imessage-control-btn:disabled:hover {
+  transform: none;
+  background-color: var(--accent);
+  color: var(--muted);
+}
+
+/* 특별한 상태 색상 */
+.imessage-control-btn.copied {
+  background-color: #34C759;
+  color: white;
+  opacity: 1;
+}
+
+.imessage-control-btn.bookmarked {
+  background-color: #007AFF;
+  color: white;
+  opacity: 1;
+}
+
+.imessage-control-btn.loading {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 모바일 반응형 */
+@media (max-width: 640px) {
+  .imessage-control-btn {
+    width: 24px;
+    height: 24px;
+  }
+}
+
 

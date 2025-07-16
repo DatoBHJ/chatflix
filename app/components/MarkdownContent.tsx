@@ -11,7 +11,7 @@ import { MathJaxEquation } from './math/MathJaxEquation';
 import React from 'react';
 import dynamic from 'next/dynamic';
 import { createPortal } from 'react-dom';
-import { X, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, ExternalLink, Play } from 'lucide-react';
 
 // Dynamically import DynamicChart for client-side rendering
 const DynamicChart = dynamic(() => import('./charts/DynamicChart'), {
@@ -368,6 +368,124 @@ const ImageWithLoading = memo(function ImageWithLoadingComponent({
   );
 });
 
+// YouTube utility functions
+const isYouTubeUrl = (url: string): boolean => {
+  if (!url) return false;
+  const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be|m\.youtube\.com)\/.+/i;
+  return youtubeRegex.test(url);
+};
+
+const extractYouTubeVideoId = (url: string): string | null => {
+  if (!url) return null;
+  
+  // Handle different YouTube URL formats
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|m\.youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]{11})/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  
+  return null;
+};
+
+// YouTube Embed Player Component
+const YouTubeEmbed = memo(function YouTubeEmbedComponent({ 
+  videoId, 
+  title = "YouTube video",
+  originalUrl 
+}: { 
+  videoId: string; 
+  title?: string; 
+  originalUrl?: string;
+}) {
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  
+  const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+  
+  return (
+    <div className="my-6 w-full">
+      <div className="relative w-full bg-black rounded-lg overflow-hidden shadow-lg" style={{ aspectRatio: '16/9' }}>
+        {/* Loading state */}
+        {isLoading && !hasError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500 mx-auto mb-2"></div>
+              <p className="text-white text-sm">Loading video...</p>
+            </div>
+          </div>
+        )}
+        
+        {/* Error state */}
+        {hasError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+            <div className="text-center p-4">
+              <div className="w-12 h-12 mx-auto mb-2 bg-red-500 rounded-full flex items-center justify-center">
+                <X size={24} className="text-white" />
+              </div>
+              <p className="text-white text-sm mb-2">Video failed to load</p>
+              {originalUrl && (
+                <a
+                  href={originalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-red-400 hover:text-red-300 text-xs underline"
+                >
+                  Open on YouTube
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {/* YouTube iframe */}
+        <iframe
+          src={embedUrl}
+          title={title}
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          className="absolute inset-0 w-full h-full"
+          onLoad={() => setIsLoading(false)}
+          onError={() => {
+            setHasError(true);
+            setIsLoading(false);
+          }}
+        />
+      </div>
+      
+      {/* Video info */}
+      <div className="mt-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+            <Play size={8} className="text-white ml-0.5" />
+          </div>
+          <span className="text-sm text-[var(--muted-foreground)]">
+            {title}
+          </span>
+        </div>
+        {originalUrl && (
+          <a
+            href={originalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors flex items-center gap-1"
+          >
+            <ExternalLink size={12} />
+            YouTube
+          </a>
+        )}
+      </div>
+    </div>
+  );
+});
+
 interface MathProps {
   value: string;
   inline?: boolean;
@@ -556,6 +674,45 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     return parts.length > 0 ? parts : text;
   }, []);
 
+  // Function to detect YouTube URLs in text
+  const styleYouTubeUrls = useCallback((text: string) => {
+    if (!text.includes('youtube.com') && !text.includes('youtu.be')) return text;
+    
+    const youtubeUrlRegex = /(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|m\.youtube\.com\/watch\?v=)[a-zA-Z0-9_-]{11}(?:\S*)?)/g;
+    
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = youtubeUrlRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      
+      const youtubeUrl = match[1];
+      const videoId = extractYouTubeVideoId(youtubeUrl);
+      
+      if (videoId) {
+        parts.push({
+          type: 'youtube_link',
+          key: match.index,
+          url: youtubeUrl,
+          videoId: videoId
+        });
+      } else {
+        parts.push(youtubeUrl);
+      }
+      
+      lastIndex = match.index + match[0].length;
+    }
+    
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+    
+    return parts.length > 0 ? parts : text;
+  }, []);
+
   // Memoize the extractText function
   const extractText = useCallback((node: any): string => {
     if (typeof node === 'string') return node;
@@ -654,29 +811,43 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
         }
         
         // Process for raw image URLs
-        const processedContent = styleImageUrls(children);
+        const processedImageContent = styleImageUrls(children);
         
-        // Handle special image links
+        // Process for raw YouTube URLs
+        const processedContent = Array.isArray(processedImageContent) ? processedImageContent : styleYouTubeUrls(processedImageContent);
+        
+        // Handle special links (images and YouTube)
         if (Array.isArray(processedContent)) {
           const elements = processedContent.map((part, index) => {
             if (typeof part === 'string') {
               return <span key={index}>{styleMentions(part)}</span>;
-            } else if (part && typeof part === 'object' && 'type' in part && part.type === 'image_link') {
-              return (
-                <div key={part.key} className="my-4">
-                  <div className="block cursor-pointer">
-                    <ImageWithLoading 
-                      src={part.url} 
-                      alt="Generated image" 
-                      className="rounded-lg max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md" 
-                      onImageClick={() => openImageModal(part.url, "Generated image")}
-                    />
-                    <div className="text-xs text-[var(--muted)] mt-2 text-center break-all">
-                      {part.display}
+            } else if (part && typeof part === 'object' && 'type' in part) {
+              if (part.type === 'image_link' && 'display' in part) {
+                return (
+                  <div key={part.key} className="my-4">
+                    <div className="block cursor-pointer">
+                      <ImageWithLoading 
+                        src={part.url} 
+                        alt="Generated image" 
+                        className="rounded-lg max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md" 
+                        onImageClick={() => openImageModal(part.url, "Generated image")}
+                      />
+                      <div className="text-xs text-[var(--muted)] mt-2 text-center break-all">
+                        {part.display}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
+                );
+              } else if (part.type === 'youtube_link' && 'videoId' in part) {
+                return (
+                  <YouTubeEmbed 
+                    key={part.key}
+                    videoId={part.videoId} 
+                    title="YouTube video" 
+                    originalUrl={part.url}
+                  />
+                );
+              }
             }
             return null;
           });
@@ -726,6 +897,22 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       );
     },
     a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
+      // Check if this is a YouTube link
+      if (href && isYouTubeUrl(href)) {
+        const videoId = extractYouTubeVideoId(href);
+        const linkText = typeof children === 'string' ? children : extractText(children);
+        
+        if (videoId) {
+          return (
+            <YouTubeEmbed 
+              videoId={videoId} 
+              title={linkText || "YouTube video"} 
+              originalUrl={href}
+            />
+          );
+        }
+      }
+      
       // Check if this is a pollinations.ai image link
       if (href && href.includes('image.pollinations.ai')) {
         const urlWithNoLogo = ensureNoLogo(href);
@@ -857,7 +1044,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                       <span className="inline-block w-4 text-center opacity-60 select-none mr-2 flex-shrink-0">
                         {prefix}
                       </span>
-                      <span className="break-words min-w-0 flex-1">
+                      <span className="break-words min-w-0 flex-1 whitespace-pre-wrap">
                         {line.slice(1) || ' '}
                       </span>
                     </div>
@@ -1154,15 +1341,17 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     <>
       <div className={variant === 'clean' ? 'markdown-segments' : 'message-segments'}>
         {segments.map((segment, index) => (
-          <div key={index} className={variant === 'clean' ? 'markdown-segment' : 'message-segment'}>
-            <ReactMarkdown
-              className="message-content break-words"
-              remarkPlugins={remarkPlugins}
-              rehypePlugins={rehypePlugins}
-              components={components}
-            >
-              {segment}
-            </ReactMarkdown>
+          <div key={index} className={`${variant === 'clean' ? 'markdown-segment' : 'message-segment'}`}>
+            <div className="max-w-full overflow-x-auto">
+              <ReactMarkdown
+                className="message-content break-words"
+                remarkPlugins={remarkPlugins}
+                rehypePlugins={rehypePlugins}
+                components={components}
+              >
+                {segment}
+              </ReactMarkdown>
+            </div>
           </div>
         ))}
       </div>

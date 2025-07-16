@@ -67,6 +67,29 @@ export function SidePanel({
         };
         return toolNames[activePanel.toolType] || 'Canvas Tool';
       }
+      
+      // If no toolType specified, determine title based on available data
+      // Show specific tool name if only one tool has data
+      const activeToolsCount = [
+        webSearchData,
+        mathCalculationData,
+        linkReaderData,
+        imageGeneratorData,
+        academicSearchData,
+        youTubeSearchData,
+        youTubeLinkAnalysisData
+      ].filter(Boolean).length;
+      
+      if (activeToolsCount === 1) {
+        if (webSearchData) return 'Web Search';
+        if (mathCalculationData) return 'Calculator';
+        if (linkReaderData) return 'Link Reader';
+        if (imageGeneratorData) return 'Image Generator';
+        if (academicSearchData) return 'Academic Search';
+        if (youTubeSearchData) return 'YouTube Search';
+        if (youTubeLinkAnalysisData) return 'YouTube Analysis';
+      }
+      
       return 'Canvas';
     }
     if (activePanel.type === 'attachment') {
@@ -86,7 +109,8 @@ export function SidePanel({
       if (youTubeSearchData) canvasDataSummary.push('YouTube Search');
       if (youTubeLinkAnalysisData) canvasDataSummary.push('YouTube Analysis');
 
-      if (canvasDataSummary.length > 0) {
+      // Only show subtitle if there are multiple tools (since single tool name is already in title)
+      if (canvasDataSummary.length > 1) {
         return canvasDataSummary.join(', ');
       }
     }
@@ -313,13 +337,13 @@ export function SidePanel({
 
   return (
     <div 
-      className={`fixed sm:relative top-[60px] sm:top-0 right-0 bottom-0 
-        w-full sm:w-4/6 bg-[var(--background)] sm:border-l 
+      className="fixed sm:relative top-[60px] sm:top-0 right-0 bottom-0 
+        w-full sm:w-full sm:h-full bg-[var(--background)] sm:border-l 
         border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] 
         overflow-y-auto z-0 
         transition-all duration-300 ease-in-out transform 
         translate-x-0 opacity-100 sm:flex-shrink-0 
-        scrollbar-minimal`}
+        scrollbar-minimal"
       style={{ 
         height: 'calc(100vh - 60px)',
         maxHeight: '100%',
@@ -328,7 +352,7 @@ export function SidePanel({
       ref={canvasContainerRef}
     >
       {/* 패널 헤더 */}
-      <div className="sticky top-0 z-10 bg-[var(--background)] flex items-center justify-between px-3 sm:px-4 h-auto py-2 sm:py-2.5 border-b border-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
+      <div className="sticky top-0 z-20 bg-[var(--background)] flex items-center justify-between px-3 sm:px-4 h-auto py-2 sm:py-2.5 border-b border-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
         <div className="flex items-center min-w-0 flex-1">
           <button 
             onClick={() => togglePanel(activePanel.messageId, activePanel.type, activePanel.fileIndex, activePanel.toolType)}

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Globe, Search, ExternalLink, Calendar, ImageIcon, ChevronDown, ChevronUp, Layers, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Globe, Search, ExternalLink, Calendar, ImageIcon, ChevronDown, ChevronUp, Layers, X, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, User, Zap } from 'lucide-react';
 
 type SearchImage = {
   url: string;
@@ -13,6 +13,11 @@ type SearchResult = {
   content: string;
   raw_content: string;
   published_date?: string;
+  // Exa-specific fields
+  summary?: string;
+  score?: number;
+  author?: string;
+  publishedDate?: string;
 };
 
 type SearchQueryResult = {
@@ -83,27 +88,60 @@ const extractDomain = (url: string): string => {
 
 // Result card component
 const ResultCard = ({ result }: { result: SearchResult }) => {
+  // Determine which content to display - prioritize summary for Exa results
+  const hasExaData = result.summary;
+  
   return (
     <a
       href={result.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="block py-3 cursor-pointer transition-all duration-300 rounded-md group hover:scale-[1.01] origin-left"
+      className="block py-4 px-4 mx-[-1rem] cursor-pointer transition-colors duration-200 rounded-lg group hover:bg-[color-mix(in_srgb,var(--accent)_100%,black_4%)] dark:hover:bg-[color-mix(in_srgb,var(--accent)_100%,white_4%)]"
     > 
-      <h3 className="font-medium text-sm mb-1.5 line-clamp-2 group-hover:text-[color-mix(in_srgb,var(--foreground)_100%,transparent)] transition-colors duration-300">
+      <h3 className="font-medium text-sm mb-1.5 line-clamp-2 text-[var(--foreground)] transition-colors duration-300">
         {result.title}
       </h3>
 
-      <p className="text-sm text-[var(--muted)] mb-2 line-clamp-3 break-words overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
-        {result.content}
-      </p>
-
-      {result.published_date && (
-        <time className="text-xs text-[var(--muted)] flex items-center gap-1.5">
-          <Calendar className="h-3 w-3" strokeWidth={1.5} />
-          {new Date(result.published_date).toLocaleDateString()}
-        </time>
+      {/* Display content based on available data */}
+      {hasExaData ? (
+        <div className="space-y-2">
+          {/* Display summary if available */}
+          {result.summary && (
+            <p className="text-sm text-[var(--muted)] line-clamp-3 break-words overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+              {result.summary}
+            </p>
+          )}
+        </div>
+      ) : (
+        /* Fallback to original content for Tavily results */
+        <p className="text-sm text-[var(--muted)] mb-2 line-clamp-3 break-words overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+          {result.content}
+        </p>
       )}
+
+      {/* Metadata Section */}
+      <div className="flex items-center gap-4 mt-3 text-xs text-[var(--muted)]">
+        {(result.published_date || result.publishedDate) && (
+          <div className="flex items-center gap-1.5">
+            <Calendar className="h-3 w-3" strokeWidth={1.5} />
+            <span>{new Date(result.published_date || result.publishedDate!).toLocaleDateString()}</span>
+          </div>
+        )}
+        
+        {result.author && (
+          <div className="flex items-center gap-1.5 min-w-0">
+            <User className="h-3 w-3 flex-shrink-0" strokeWidth={1.5} />
+            <span className="truncate">{result.author}</span>
+          </div>
+        )}
+        
+        {result.score && (
+          <div className="flex items-center gap-1.5">
+            <Zap className="h-3 w-3" strokeWidth={1.5} />
+            <span>{Math.round(result.score * 100)}% relevance</span>
+          </div>
+        )}
+      </div>
     </a>
   );
 };
@@ -119,14 +157,15 @@ const DomainGroup = ({
   const domainUrl = `https://${domain}`;
   
   return (
-    <div className="group mb-10 last:mb-0">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <div className="w-6 h-6 rounded-full bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] flex items-center justify-center overflow-hidden flex-shrink-0">
+    <div className="relative group bg-[var(--accent)]/40 rounded-xl p-0">
+      <div className="absolute left-5 top-12 bottom-4 w-px bg-[var(--subtle-divider)]" />
+      <div className="relative z-10 flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1 min-w-0 flex-1">
+          <div className="w-10 h-10 rounded-full bg-white dark:bg-black flex items-center justify-center overflow-hidden flex-shrink-0">
             <img
               src={`https://www.google.com/s2/favicons?sz=128&domain=${domain}`}
               alt=""
-              className="w-4 h-4 object-contain"
+              className="w-5 h-5 object-contain"
               onError={(e) => {
                 e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='16'/%3E%3Cline x1='8' y1='12' x2='16' y2='12'/%3E%3C/svg%3E";
               }}
@@ -136,15 +175,15 @@ const DomainGroup = ({
             href={domainUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm font-medium hover:underline flex items-center gap-1.5 group-hover:text-[var(--foreground)] transition-colors"
+            className="text-sm font-semibold hover:underline flex items-center gap-1.5 text-[var(--foreground)] transition-colors"
           >
             {domain}
-            <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+            <ExternalLink className="h-3.5 w-3.5 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0" />
           </a>
         </div>
       </div>
       
-      <div className="space-y-0 pl-8">
+      <div className="space-y-0 divide-y divide-[var(--subtle-divider)] pl-11">
         {results.map((result, index) => (
           <ResultCard key={`${domain}-${index}`} result={result} />
         ))}
@@ -336,28 +375,26 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
   return (
     <div className="mb-8" ref={gridRef}>
       {/* Minimal header with just image count and toggle button */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-1.5">
-          <ImageIcon className="h-3.5 w-3.5 text-[color-mix(in_srgb,var(--foreground)_70%,transparent)]" strokeWidth={1.5} />
-          <span className="text-xs text-[color-mix(in_srgb,var(--foreground)_70%,transparent)]">images</span>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <ImageIcon className="h-4 w-4 text-[var(--muted)]" strokeWidth={1.5} />
+          <span className="text-sm font-medium text-[var(--muted)]">Images</span>
         </div>
         
         {/* Always show toggle button in header */}
         <button 
           onClick={toggleExpanded} 
-          className="text-xs flex items-center gap-1.5 text-[color-mix(in_srgb,var(--foreground)_70%,transparent)] hover:text-[color-mix(in_srgb,var(--foreground)_90%,transparent)] transition-colors"
+          className="text-xs flex items-center gap-1.5 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors font-medium"
         >
           {expanded ? (
             <>
               <ChevronUp className="h-3 w-3" strokeWidth={2} />
-              <span className="hidden sm:inline">Collapse</span>
-              <span className="sm:hidden">Less</span>
+              <span>Collapse</span>
             </>
           ) : (
             <>
               <ChevronDown className="h-3 w-3" strokeWidth={2} />
-              <span className="hidden sm:inline">View All</span>
-              <span className="sm:hidden">More</span>
+              <span>View All</span>
             </>
           )}
         </button>
@@ -385,6 +422,7 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
           transition: all 0.3s ease;
           transform: translateY(0);
           box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+          border: 1px solid var(--subtle-divider);
         }
         
         .tetris-item:hover {
@@ -424,15 +462,16 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          background: linear-gradient(145deg, color-mix(in srgb, var(--foreground) 5%, transparent), color-mix(in srgb, var(--foreground) 12%, transparent));
+          background: var(--accent);
           cursor: pointer;
           font-weight: 500;
           position: relative;
           overflow: hidden;
+          border: 1px solid var(--subtle-divider);
         }
         
         .show-more-card:hover {
-          background: linear-gradient(145deg, color-mix(in srgb, var(--foreground) 8%, transparent), color-mix(in srgb, var(--foreground) 18%, transparent));
+          background: color-mix(in srgb, var(--accent) 90%, var(--foreground) 5%);
         }
         
         .show-more-content {
@@ -744,7 +783,7 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
                 />
               ))}
             </div>
-            <div className="show-more-content">
+            <div className="show-more-content !bg-transparent backdrop-filter-none">
               <span className="text-2xl font-semibold mb-2">+{validImages.length - 7}</span>
               <span className="text-sm mb-1">View All Images</span>
               <ChevronDown className="h-4 w-4 mt-1 animate-bounce" strokeWidth={2} />
@@ -789,9 +828,50 @@ const MultiSearch: React.FC<{
 }) => {
   // 1. 모든 useState 훅을 상단에 배치
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'relevance' | 'date' | 'none'>('none');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   
   // 초기 쿼리 순서를 저장하는 ref
   const initialQueryOrderRef = useRef<string[]>([]);
+  
+  // Sorting function for search results
+  const sortResults = (results: SearchResult[]) => {
+    if (sortOrder === 'none') return results;
+    
+    return [...results].sort((a, b) => {
+      let comparison = 0;
+      
+      if (sortOrder === 'relevance') {
+        const scoreA = a.score || 0;
+        const scoreB = b.score || 0;
+        comparison = scoreB - scoreA; // Higher score first by default
+      } else if (sortOrder === 'date') {
+        const dateA = new Date(a.publishedDate || a.published_date || 0);
+        const dateB = new Date(b.publishedDate || b.published_date || 0);
+        comparison = dateB.getTime() - dateA.getTime(); // Newer first by default
+      }
+      
+      return sortDirection === 'desc' ? comparison : -comparison;
+    });
+  };
+  
+  // Toggle sort function
+  const toggleSort = (newSortOrder: 'relevance' | 'date') => {
+    if (sortOrder === newSortOrder) {
+      // If same sort order, toggle direction
+      setSortDirection(prev => prev === 'desc' ? 'asc' : 'desc');
+    } else {
+      // If different sort order, set new order with default direction
+      setSortOrder(newSortOrder);
+      setSortDirection(newSortOrder === 'relevance' ? 'desc' : 'desc'); // Higher relevance and newer dates first
+    }
+  };
+  
+  // Clear sort function
+  const clearSort = () => {
+    setSortOrder('none');
+    setSortDirection('desc');
+  };
   
   // 2. 모든 useMemo를 조건 없이 호출 (Hook 순서 일관성 유지)
   // Track if we're loading results for any searchId
@@ -1025,7 +1105,7 @@ const MultiSearch: React.FC<{
     });
   }, [allCompletedSearches, result]);
 
-  // Group all results by domain
+  // Group all results by domain or show as flat list when sorting
   const domainGroups = useMemo(() => {
     // Use allCompletedSearches if available
     const searchesToUse = allCompletedSearches.length > 0 
@@ -1034,27 +1114,62 @@ const MultiSearch: React.FC<{
     
     if (!searchesToUse.length) return [];
     
+    // If filter is active, only include results from that search query
+    const filteredSearches = activeFilter 
+      ? searchesToUse.filter(search => search.query === activeFilter)
+      : searchesToUse;
+    
+    // Collect all results from all searches
+    const allResults: SearchResult[] = [];
+    filteredSearches.forEach(search => {
+      allResults.push(...search.results);
+    });
+    
+    // If sorting is active, return flat sorted list without domain grouping
+    if (sortOrder !== 'none') {
+      const sortedResults = sortResults(allResults);
+      return [['all_results', sortedResults]];
+    }
+    
+    // Otherwise, group by domain as before
     const groups: Record<string, SearchResult[]> = {};
+    allResults.forEach(result => {
+      const domain = extractDomain(result.url);
+      if (!groups[domain]) {
+        groups[domain] = [];
+      }
+      groups[domain].push(result);
+    });
+    
+    // Sort by result count (keep domain-level sorting by count)
+    return Object.entries(groups)
+      .sort(([, resultsA], [, resultsB]) => resultsB.length - resultsA.length);
+  }, [allCompletedSearches, result, activeFilter]);
+
+  // Get sorted flat results when sorting is active
+  const sortedFlatResults = useMemo(() => {
+    if (sortOrder === 'none') return null;
+    
+    // Use allCompletedSearches if available
+    const searchesToUse = allCompletedSearches.length > 0 
+      ? allCompletedSearches 
+      : (result && result.searches ? result.searches : []);
+    
+    if (!searchesToUse.length) return null;
     
     // If filter is active, only include results from that search query
     const filteredSearches = activeFilter 
       ? searchesToUse.filter(search => search.query === activeFilter)
       : searchesToUse;
     
+    // Collect all results from all searches
+    const allResults: SearchResult[] = [];
     filteredSearches.forEach(search => {
-      search.results.forEach(result => {
-        const domain = extractDomain(result.url);
-        if (!groups[domain]) {
-          groups[domain] = [];
-        }
-        groups[domain].push(result);
-      });
+      allResults.push(...search.results);
     });
     
-    // Sort by result count
-    return Object.entries(groups)
-      .sort(([, resultsA], [, resultsB]) => resultsB.length - resultsA.length);
-  }, [allCompletedSearches, result, activeFilter]);
+    return sortResults(allResults);
+  }, [allCompletedSearches, result, activeFilter, sortOrder, sortDirection]);
 
   // Calculate total results based on active filter
   const totalResults = useMemo(() => {
@@ -1126,18 +1241,18 @@ const MultiSearch: React.FC<{
     <div className="w-full space-y-4 my-4">
       <div className="px-0 sm:px-4">
         {/* 통합된 쿼리 필터 (완료된 쿼리 + 로딩 중인 쿼리) */}
-        <div className="flex flex-wrap gap-2 mb-8">
-          <div
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button
             onClick={() => setActiveFilter(null)}
-            className={`px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all
+            className={`px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all text-sm font-medium
                       ${activeFilter === null 
-                        ? "bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_15%,transparent)] to-[color-mix(in_srgb,var(--foreground)_10%,transparent)]" 
-                        : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
+                        ? "bg-[#007AFF] text-white" 
+                        : "bg-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_90%,var(--foreground)_5%)]"
                       }`}
           >
-            <Search className="h-3.5 w-3.5 min-w-[14px] min-h-[14px]" strokeWidth={1.5} />
-            <span className="text-sm font-medium">All Queries</span>
-          </div>
+            <Layers className="h-3.5 w-3.5" strokeWidth={1.5} />
+            <span>All Queries</span>
+          </button>
 
           {/* 모든 쿼리 표시: 완료된 것과 로딩 중인 것 모두 표시 */}
           {allQueries.map((query, i) => {
@@ -1146,19 +1261,20 @@ const MultiSearch: React.FC<{
             const isLoading = isQueryLoading(query);
             
             return (
-              <div
+              <button
                 key={i}
                 onClick={() => !isLoading && setActiveFilter(query === activeFilter ? null : query)}
-                className={`px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all break-keep
+                disabled={isLoading}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all break-keep text-sm font-medium
                           ${query === activeFilter 
-                            ? "bg-gradient-to-r from-[color-mix(in_srgb,var(--foreground)_15%,transparent)] to-[color-mix(in_srgb,var(--foreground)_10%,transparent)]" 
+                            ? "bg-[#007AFF] text-white" 
                             : isLoading
-                              ? "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)]" 
-                              : "bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
+                              ? "bg-[var(--accent)] opacity-60 cursor-not-allowed" 
+                              : "bg-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_90%,var(--foreground)_5%)]"
                           }`}
               >
                 <Search className="h-3.5 w-3.5 min-w-[14px] min-h-[14px]" strokeWidth={1.5} />
-                <span className="text-sm font-medium">{query}</span>
+                <span>{query}</span>
                 
                 {/* 로딩 중인 경우 스피너 표시 */}
                 {isLoading && (
@@ -1169,10 +1285,61 @@ const MultiSearch: React.FC<{
                 {searchResult && searchResult.results.length > 0 && (
                   <span className="text-xs text-[var(--muted)]">({searchResult.results.length})</span>
                 )}
-              </div>
+              </button>
             );
           })}
         </div>
+        
+        {/* Sorting Controls */}
+        {domainGroups.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mb-4 pb-4 border-b border-[var(--subtle-divider)]">
+            <span className="text-xs text-[var(--muted)] self-center mr-2">Sort by:</span>
+            
+            {/* Relevance Sort Button */}
+            <button
+              onClick={() => toggleSort('relevance')}
+              className={`px-2.5 py-1 rounded-md flex items-center gap-1.5 text-xs transition-all
+                        ${sortOrder === 'relevance' 
+                          ? "bg-[var(--accent)] text-[var(--foreground)]" 
+                          : "bg-transparent text-[var(--muted)] hover:bg-[var(--accent)]"
+                        }`}
+            >
+              <span>Relevance</span>
+              {sortOrder === 'relevance' ? (
+                sortDirection === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />
+              ) : (
+                <ArrowUpDown className="h-3 w-3" />
+              )}
+            </button>
+            
+            {/* Date Sort Button */}
+            <button
+              onClick={() => toggleSort('date')}
+              className={`px-2.5 py-1 rounded-md flex items-center gap-1.5 text-xs transition-all
+                        ${sortOrder === 'date' 
+                          ? "bg-[var(--accent)] text-[var(--foreground)]" 
+                          : "bg-transparent text-[var(--muted)] hover:bg-[var(--accent)]"
+                        }`}
+            >
+              <span>Date</span>
+              {sortOrder === 'date' ? (
+                sortDirection === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />
+              ) : (
+                <ArrowUpDown className="h-3 w-3" />
+              )}
+            </button>
+            
+            {/* Clear Sort Button */}
+            {sortOrder !== 'none' && (
+              <button
+                onClick={clearSort}
+                className="px-2.5 py-1 rounded-md text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
         
         {/* Image Gallery */}
         {displayImages.length > 0 && (
@@ -1180,14 +1347,54 @@ const MultiSearch: React.FC<{
         )}
         
         {/* Display search results directly in the main area */}
-        <div className="mt-4 space-y-10 min-h-[150px]">
-          {domainGroups.map(([domain, results]) => (
-            <DomainGroup 
-              key={domain} 
-              domain={domain} 
-              results={results}
-            />
-          ))}
+        <div className="mt-4 space-y-6 min-h-[150px]">
+          {sortedFlatResults ? (
+            // When sorting is active, display flat sorted results
+            <div className="bg-[var(--accent)]/40 rounded-xl">
+              <div className="divide-y divide-[var(--subtle-divider)]">
+                {sortedFlatResults.map((result, index) => {
+                  const domain = extractDomain(result.url);
+                  const domainUrl = `https://${domain}`;
+                  return (
+                    <div key={`sorted-${index}`} className="p-4 hover:bg-[color-mix(in_srgb,var(--accent)_100%,black_4%)] dark:hover:bg-[color-mix(in_srgb,var(--accent)_100%,white_4%)] rounded-lg group">
+                      <div className="flex items-center gap-2 min-w-0 mb-2">
+                        <div className="w-5 h-5 rounded-full bg-[var(--accent)] flex items-center justify-center overflow-hidden flex-shrink-0">
+                          <img
+                            src={`https://www.google.com/s2/favicons?sz=128&domain=${domain}`}
+                            alt=""
+                            className="w-3.5 h-3.5 object-contain"
+                            onError={(e) => {
+                              e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='16'/%3E%3Cline x1='8' y1='12' x2='16' y2='12'/%3E%3C/svg%3E";
+                            }}
+                          />
+                        </div>
+                        <a 
+                          href={domainUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-medium hover:underline flex items-center gap-1.5 text-[var(--muted)] transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {domain}
+                          <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                        </a>
+                      </div>
+                      <ResultCard result={result} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            // Normal domain grouping when not sorting
+            domainGroups.map(([domain, results]) => (
+              <DomainGroup 
+                key={domain as string} 
+                domain={domain as string} 
+                results={results as SearchResult[]}
+              />
+            ))
+          )}
           
           {/* 검색 결과가 없을 경우 공간 유지를 위한 빈 요소 */}
           {domainGroups.length === 0 && allCompletedSearches.length === 0 && loadingQueries.length > 0 && (

@@ -62,9 +62,13 @@ function estimateMultiModalTokens(msg: any): number {
         total += estimateFileTokens(part.file);
       }
     }
-  } else {
-    // 기타 형식
+  } else if (msg.content) { // msg.content가 null이 아닌 객체일 경우
     total += estimateTokenCount(JSON.stringify(msg.content));
+  }
+
+  // tool_results 콘텐츠 토큰 추정 (token_usage가 없을 경우)
+  if (msg.tool_results && !msg.tool_results.token_usage) {
+    total += estimateTokenCount(JSON.stringify(msg.tool_results));
   }
   
   // experimental_attachments 처리 (메타데이터 기반 정확한 추정)

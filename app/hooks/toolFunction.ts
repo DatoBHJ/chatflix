@@ -33,6 +33,22 @@ export const getWebSearchResults = (message: Message) => {
     const completedSearchIdSet = new Set<string>();
     const allResults: any[] = [];
     
+    // Helper function to process search results and ensure Exa fields are preserved
+    const processSearchResults = (searches: any[]) => {
+      return searches.map(search => ({
+        ...search,
+        results: (search.results || []).map((result: any) => ({
+          ...result,
+          // Ensure Exa-specific fields are preserved
+          summary: result.summary || undefined,
+          score: result.score || undefined,
+          author: result.author || undefined,
+          publishedDate: result.publishedDate || result.published_date || undefined,
+        })),
+        images: search.images || []
+      }));
+    };
+    
     // Process web search completions to determine which searches are complete
     if (webSearchCompletions.length > 0) {
       // Group web search completions by searchId
@@ -56,6 +72,7 @@ export const getWebSearchResults = (message: Message) => {
         
         // Extract all searches from this searchId
         const searchesForThisId: any[] = [];
+        
         completions.forEach(completion => {
           if (completion.data && completion.data.searches) {
             searchesForThisId.push(...completion.data.searches);
@@ -86,11 +103,18 @@ export const getWebSearchResults = (message: Message) => {
               typeof img === 'string' ? img : img.url
             ));
             
-            // 결과 추가 (중복 제거)
+            // 결과 추가 (중복 제거) with Exa field preservation
             if (search.results) {
               search.results.forEach((result: any) => {
                 if (!urlSet.has(result.url)) {
-                  currentSearch.results.push(result);
+                  currentSearch.results.push({
+                    ...result,
+                    // Preserve Exa-specific fields
+                    summary: result.summary || undefined,
+                    score: result.score || undefined,
+                    author: result.author || undefined,
+                    publishedDate: result.publishedDate || result.published_date || undefined,
+                  });
                   urlSet.add(result.url);
                 }
               });
@@ -213,7 +237,7 @@ export const getWebSearchResults = (message: Message) => {
               processedIds.add(searchId);
               storedResults.push({
                 searchId,
-                searches: result.searches || [],
+                searches: processSearchResults(result.searches || []),
                 isComplete: true
               });
             }
@@ -225,7 +249,7 @@ export const getWebSearchResults = (message: Message) => {
             if (mergedSearches.length > 0) {
               storedResults.push({
                 searchId: 'legacy',
-                searches: mergedSearches,
+                searches: processSearchResults(mergedSearches),
                 isComplete: true
               });
             }
@@ -245,7 +269,7 @@ export const getWebSearchResults = (message: Message) => {
               processedIds.add(searchId);
               storedResults.push({
                 searchId,
-                searches: result.searches || [],
+                searches: processSearchResults(result.searches || []),
                 isComplete: true
               });
             }
@@ -256,7 +280,7 @@ export const getWebSearchResults = (message: Message) => {
           if (mergedSearches.length > 0) {
             storedResults.push({
               searchId: 'legacy',
-              searches: mergedSearches,
+              searches: processSearchResults(mergedSearches),
               isComplete: true
             });
           }
@@ -308,14 +332,14 @@ export const getWebSearchResults = (message: Message) => {
               processedSearchIds.add(result.searchId);
               allInvocationResults.push({
                 searchId: result.searchId,
-                searches: result.searches || [],
+                searches: processSearchResults(result.searches || []),
                 isComplete: true
               });
             } else if (!result.searchId) {
               // Legacy result without searchId
               allInvocationResults.push({
                 searchId: 'legacy_invocation',
-                searches: result.searches || [],
+                searches: processSearchResults(result.searches || []),
                 isComplete: true
               });
             }
@@ -362,7 +386,7 @@ export const getWebSearchResults = (message: Message) => {
           if (searches.length > 0) {
             allInvocationResults.push({
               searchId,
-              searches,
+              searches: processSearchResults(searches),
               isComplete: true
             });
           }

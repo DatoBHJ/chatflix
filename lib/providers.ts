@@ -6,6 +6,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createXai } from '@ai-sdk/xai';
+import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { MODEL_CONFIGS, ModelConfig } from './models/config';
 
 // Create provider instances
@@ -46,7 +47,7 @@ const providerMap: Record<ModelConfig['provider'], ProviderFunction> = {
   deepseek,
   together,
   groq,
-  xai
+  xai,
 };
 
 // Helper function to create a model with reasoning middleware

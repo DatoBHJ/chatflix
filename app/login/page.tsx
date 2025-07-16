@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { GoogleSignIn } from '../components/GoogleSignIn'
 import Image from 'next/image'
 import { MODEL_CONFIGS } from '@/lib/models/config'
-import { getProviderLogo } from '@/app/lib/models/logoUtils'
+import { getProviderLogo } from '@/lib/models/logoUtils'
 import { Brain, Search, Calculator, Link as LinkIcon, Image as ImageIcon, GraduationCap, Video, FileVideo, Columns, MapPin, Palette, FileText, Download } from 'lucide-react'
 import { getLoginPageTranslations } from '@/app/lib/loginPageTranslations'
 

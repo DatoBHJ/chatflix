@@ -220,6 +220,10 @@ export async function selectOptimalModel(
       modelType, 
       contextInfo
     );
+
+    console.log('--------------------------------');
+    console.log('modelSelectionResult', modelSelectionResult);
+    console.log('--------------------------------');
     
     return {
       selectedModel: modelSelectionResult.selectedModel,
@@ -408,7 +412,24 @@ function selectModelWithContextAwareness(
       };
     }
     
-    // 3단계: 컨텍스트 부족 - 업그레이드 필요
+    // 🆕 3단계: 특별 라우팅 규칙 - moonshotai/kimi-k2-instruct 컨텍스트 부족 시 gpt-4.1 폴백
+    if (primaryModel === 'moonshotai/kimi-k2-instruct') {
+      const gpt41ModelConfig = getAgentEnabledModels().find(m => m.id === 'gpt-4.1');
+      if (gpt41ModelConfig && gpt41ModelConfig.contextWindow && 
+          gpt41ModelConfig.contextWindow >= contextInfo.requiredContext) {
+        return {
+          selectedModel: 'gpt-4.1',
+          contextInfo: {
+            ...contextInfo,
+            selectedModelContext: gpt41ModelConfig.contextWindow,
+            wasUpgraded: true,
+            upgradeReason: 'Upgraded from moonshotai/kimi-k2-instruct to gpt-4.1 due to insufficient context'
+          }
+        };
+      }
+    }
+    
+    // 4단계: 컨텍스트 부족 - 일반적인 업그레이드 필요
     const agentModels = getAgentEnabledModels();
     const compatibleModels = agentModels.filter(model => 
       model.contextWindow && model.contextWindow >= contextInfo.requiredContext
@@ -445,7 +466,7 @@ function selectModelWithContextAwareness(
       };
     }
     
-    // 4단계: 최적 모델 선택 (효율성 점수 기반)
+    // 5단계: 최적 모델 선택 (효율성 점수 기반)
     const scoredModels = compatibleModels.map(model => ({
       model,
       score: calculateEfficiencyScore(model, analysis, hasImage, hasPDF, contextInfo)
@@ -610,10 +631,12 @@ function selectModelBasedOnAnalysis(
         }
       } else {
         // 비멀티모달 + 코딩
-        if (analysis.complexity === 'complex') {
-          return 'claude-sonnet-4-20250514-thinking'; // sonnet 4 thinking
-        } else { // simple/medium
+        if (analysis.complexity === 'simple') {
+          return 'moonshotai/kimi-k2-instruct';
+        } else if (analysis.complexity === 'medium') {
           return 'claude-sonnet-4-20250514'; // sonnet 4
+        } else { // complex
+          return 'claude-sonnet-4-20250514-thinking'; // sonnet 4 thinking
         }
       }
     } else {
@@ -626,8 +649,8 @@ function selectModelBasedOnAnalysis(
           return 'gpt-4.1'; // gpt-4.1
         }
       } else {
-        // 비멀티모달 + 코딩: 복잡도 무상관 gpt-4.1
-        return 'gpt-4.1';
+        // 비멀티모달 + 코딩: 복잡도 무상관 moonshotai/kimi-k2-instruct
+        return 'moonshotai/kimi-k2-instruct';
       }
     }
   }
@@ -679,62 +702,52 @@ function selectModelBasedOnAnalysis(
     }
   }
   
-  // 3단계: 텍스트만 있는 경우 (비멀티모달)
+  // 3단계: 텍스트만 있는 경우 (비멀티모달) - 🆕 2025-07-15 업데이트
   else {
     if (analysis.category === 'math') {
       // 수학 카테고리
       if (modelType === 'chatflix-ultimate-pro') {
-        // Pro 버전: 단순 grok-3, 중간 grok-3-mini, 복잡 deepseek-reasoner
+        // Pro 버전: 단순 moonshotai/kimi-k2-instruct, 중간/복잡 grok-3-mini
         if (analysis.complexity === 'simple') {
-          return 'grok-3';
-        } else if (analysis.complexity === 'medium') {
+          return 'moonshotai/kimi-k2-instruct';
+        } else { // medium/complex
           return 'grok-3-mini';
-        } else { // complex
-          return 'deepseek-reasoner';
         }
       } else {
-        // 일반 버전: 단순/중간 grok-3, 복잡 grok-3-mini
+        // 일반 버전: 단순/중간 moonshotai/kimi-k2-instruct, 복잡 grok-3-mini
         if (analysis.complexity === 'complex') {
           return 'grok-3-mini';
         } else { // simple/medium
-          return 'grok-3';
+          return 'moonshotai/kimi-k2-instruct';
         }
       }
     }
     else if (analysis.category === 'technical') {
       // 기술 카테고리
       if (modelType === 'chatflix-ultimate-pro') {
-        // Pro 버전: 단순 grok-3, 중간/복잡 claude-sonnet-4
+        // Pro 버전: 단순 moonshotai/kimi-k2-instruct, 중간/복잡 claude-sonnet-4
         if (analysis.complexity === 'simple') {
-          return 'grok-3';
+          return 'moonshotai/kimi-k2-instruct';
         } else { // medium/complex
           return 'claude-sonnet-4-20250514';
         }
       } else {
-        // 일반 버전: 단순 grok-3, 중간/복잡 gpt-4.1
-        if (analysis.complexity === 'simple') {
-          return 'grok-3';
-        } else { // medium/complex
-          return 'gpt-4.1';
-        }
+        // 일반 버전: 모든 복잡도 moonshotai/kimi-k2-instruct
+        return 'moonshotai/kimi-k2-instruct';
       }
     }
     else {
       // 기타 카테고리
       if (modelType === 'chatflix-ultimate-pro') {
-        // Pro 버전: 단순/중간 gpt-4.1, 복잡 claude-sonnet-4
+        // Pro 버전: 단순/중간 moonshotai/kimi-k2-instruct, 복잡 claude-sonnet-4
         if (analysis.complexity === 'complex') {
           return 'claude-sonnet-4-20250514';
         } else { // simple/medium
-          return 'gpt-4.1';
+          return 'moonshotai/kimi-k2-instruct';
         }
       } else {
-        // 일반 버전: 단순/중간 gpt-4.1-mini, 복잡 gpt-4.1
-        if (analysis.complexity === 'complex') {
-          return 'gpt-4.1';
-        } else { // simple/medium
-          return 'gpt-4.1-mini';
-        }
+        // 일반 버전: 모든 복잡도 moonshotai/kimi-k2-instruct
+        return 'moonshotai/kimi-k2-instruct';
       }
     }
   }

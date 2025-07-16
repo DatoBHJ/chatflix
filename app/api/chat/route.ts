@@ -635,6 +635,13 @@ export async function POST(req: Request) {
             
             const routingDecision = routeAnalysisResult.object;
 
+            // 🆕 툴 사용 시 moonshotai/kimi-k2-instruct (groq) → moonshotai/Kimi-K2-Instruct (togetherai) 대체
+            if ((routingDecision.route === 'TEXT_RESPONSE' || routingDecision.route === 'FILE_RESPONSE') && 
+                routingDecision.tools && routingDecision.tools.length > 0 && model === 'moonshotai/kimi-k2-instruct') {
+              model = 'moonshotai/Kimi-K2-Instruct'; // togetherai provider 사용
+              console.log('Tool calling detected: Switched from moonshotai/kimi-k2-instruct (groq) to moonshotai/Kimi-K2-Instruct (togetherai)');
+            }
+
             // =================================================================
             // START: NEW V6 LOGIC (now using V7's final message list)
             // =================================================================
@@ -706,6 +713,7 @@ Now, ask the following question in a similar conversational manner: "${routingDe
                   messages: convertMultiModalToMessage(finalMessages), // Convert back for the SDK
                   tools,
                   maxSteps: 20,
+                  maxRetries:3,
                   providerOptions,
                   onFinish: async (completion) => {
                     if (abortController.signal.aborted) return;
@@ -855,7 +863,8 @@ ${userLanguageContext}
                     system: systemPromptForFileStep1,
                     messages: finalMessagesConverted,
                     tools,
-                    maxSteps: 20, // Allow tools to be executed and conclude properly
+                    maxSteps: 20, 
+                    maxRetries:3,
                     providerOptions,
                     onFinish: async (toolExecutionCompletion) => {
                       if (abortController.signal.aborted) return;
@@ -897,12 +906,19 @@ ${userLanguageContext}
                   let isFileGenerationComplete = false;
                   let accumulatedContent = ''; // 누적된 컨텐츠 저장
                   let sentProgressMessages: string[] = []; // 전송된 진행 메시지들 추적
-                  
-                  // Determine the model for file generation (replace deepseek and claude sonnet  with Gemini 2.5 Pro)
+                                
+                  // Determine the model for file generation (replace deepseek, claude sonnet, and grok-4 with Gemini 2.5 Pro)
                   let fileGenerationModel = model;
-                  if (model.toLowerCase().includes('deepseek') || (model.includes('claude') && model.includes('sonnet'))) {
+                  if (model.includes('DeepSeek-R1') || 
+                      (model.includes('claude') && model.includes('sonnet')) || 
+                      model.toLowerCase().startsWith('grok-4')) {
                     fileGenerationModel = 'gemini-2.5-pro';
+                  } else if (model === 'moonshotai/kimi-k2-instruct') {
+                    // 🆕 moonshotai/kimi-k2-instruct는 streamObject 호환성을 위해 gpt-4.1로 대체
+                    fileGenerationModel = 'gpt-4.1';
                   }
+
+                  console.log('fileGenerationModel', fileGenerationModel);
 
                   // Helper function to generate intermediate progress messages
                   async function generateProgressMessage(progressCount: number, userQuery: string, estimatedTimeElapsed: number, memoryData?: string) {
@@ -990,14 +1006,14 @@ Generate a different waiting message.`,
                       const progressResult = await generateProgressMessage(progressCount, userQuery, elapsedTime, memoryData || undefined);
                     };
 
-                    // Send first progress message after 5 seconds
-                    setTimeout(sendProgressMessage, 5000);
+                    // Send first progress message after 15 seconds
+                    setTimeout(sendProgressMessage, 15000);
                     
-                    // Then send progress messages every 30-40 seconds (randomized)
+                    // Then send progress messages every 90-120 seconds (randomized)
                     const scheduleNextProgressMessage = () => {
                       if (isFileGenerationComplete) return;
                       
-                      const randomInterval = 30000 + Math.random() * 10000; // 30-40 seconds
+                      const randomInterval = 90000 + Math.random() * 30000; // 90-120 seconds
                       progressInterval = setTimeout(async () => {
                         await sendProgressMessage();
                         scheduleNextProgressMessage();

@@ -234,9 +234,6 @@ export default function Canvas({
 
   // 컴팩트 모드일 때 적용할 추가 클래스
   const compactModeClasses = isCompact ? 'my-2 space-y-2' : 'my-4 space-y-4';
-  const panelClasses = isCompact 
-    ? 'p-3 sm:p-3 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-lg border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm'
-    : 'p-4 sm:p-5 bg-gradient-to-br from-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] to-[color-mix(in_srgb,var(--background)_99%,var(--foreground)_1%)] backdrop-blur-xl rounded-xl border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] shadow-sm';
   
   // 컴팩트 모드에서 컨텐츠 최대 높이 설정 (메시지 내에서 너무 길어지지 않도록)
   const maxContentHeight = isCompact ? '300px' : '5000px';
@@ -246,7 +243,7 @@ export default function Canvas({
     <div className={`tool-results-canvas ${compactModeClasses}`}>
       {/* Web Search Results or Loading State */}
       {(!selectedTool || selectedTool === 'web-search') && webSearchData && (
-        <div className={selectedTool ? '' : panelClasses}>
+        <div className="">
           {!selectedTool && (
           <div 
             className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
@@ -299,7 +296,7 @@ export default function Canvas({
       
       {/* Math Calculation Results */}
       {(!selectedTool || selectedTool === 'calculator') && mathCalculationData && (
-        <div className={selectedTool ? '' : panelClasses}>
+        <div className="">
           {!selectedTool && (
           <div 
             className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
@@ -349,7 +346,7 @@ export default function Canvas({
       
       {/* Link Reader Results */}
       {(!selectedTool || selectedTool === 'link-reader') && linkReaderData && (
-        <div className={selectedTool ? '' : panelClasses}>
+        <div className="">
           {!selectedTool && (
           <div 
             className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
@@ -399,7 +396,7 @@ export default function Canvas({
 
       {/* Image Generator Results */}
       {(!selectedTool || selectedTool === 'image-generator') && imageGeneratorData && imageGeneratorData.generatedImages.length > 0 && (
-        <div className={selectedTool ? '' : panelClasses}>
+        <div className="">
           {!selectedTool && (
           <div 
             className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
@@ -474,7 +471,7 @@ export default function Canvas({
       
       {/* Academic Search Results */}
       {(!selectedTool || selectedTool === 'academic-search') && academicSearchData && academicSearchData.academicResults.length > 0 && (
-        <div className={selectedTool ? '' : panelClasses}>
+        <div className="">
           {!selectedTool && (
           <div 
             className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
@@ -552,7 +549,7 @@ export default function Canvas({
       
       {/* YouTube Search Results */}
       {(!selectedTool || selectedTool === 'youtube-search') && youTubeSearchData && (
-        <div className={selectedTool ? '' : panelClasses}>
+        <div className="">
           {!selectedTool && (
           <div 
             className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
@@ -645,7 +642,7 @@ export default function Canvas({
 
       {/* YouTube Link Analysis Results */}
       {(!selectedTool || selectedTool === 'youtube-analyzer') && youTubeLinkAnalysisData && (
-        <div className={selectedTool ? '' : panelClasses}>
+        <div className="">
           {!selectedTool && (
           <div 
             className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}

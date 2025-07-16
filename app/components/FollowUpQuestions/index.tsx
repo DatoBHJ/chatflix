@@ -86,16 +86,18 @@ export function FollowUpQuestions({ chatId, userId, messages, onQuestionClick }:
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {followUpQuestions.map((question, index) => (
-        <button
-          key={index}
-          onClick={() => onQuestionClick(question)}
-          className="text-sm text-left bg-foreground/5 hover:bg-foreground/10 text-foreground/80 hover:text-foreground/90 px-3 py-1.5 rounded-full transition-colors"
-        >
-          {question}
-        </button>
-      ))}
+    <div className="follow-up-questions-container">
+      <div className="follow-up-questions-wrapper">
+        {followUpQuestions.slice(0, 3).map((question, index) => (
+          <button
+            key={index}
+            onClick={() => onQuestionClick(question)}
+            className="imessage-send-bubble follow-up-question"
+          >
+            {question}
+          </button>
+        ))}
+      </div>
     </div>
   );
 } 

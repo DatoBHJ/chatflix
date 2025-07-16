@@ -99,9 +99,9 @@ export function ChatInputArea({
     <div className={`fixed bottom-0 z-10 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
       isSidebarOpen ? 'left-0 right-0 md:left-80' : 'left-0 right-0'
     }`}>
-      <div className="bg-gradient-to-t from-[var(--background)] from-50% via-[var(--background)]/80 to-transparent pt-0 pb-6 w-full">
+      <div className="bg-gradient-to-t from-[var(--background)] from-70% to-transparent md:from-20% md:via-[var(--background)]/90 md:via-30% md:to-[var(--background)]/40 md:to-70% pt-2 md:pt-20 pb-6 w-full">
         <div className="max-w-3xl mx-auto w-full px-0 sm:px-8 relative flex flex-col items-center">
-          <div className="w-full max-w-[calc(100vw-2rem)] space-y-2">
+                      <div className="w-full max-w-[calc(100vw-2rem)] space-y-0">
             <ModelSelector
               currentModel={currentModel}
               nextModel={nextModel}

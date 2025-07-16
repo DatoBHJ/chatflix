@@ -107,7 +107,7 @@ export default function RootLayoutClient({
 
   return (
     <SidebarContext.Provider value={{ isSidebarOpen }}>
-    <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)] overflow-x-hidden">
+    <div className="flex h-screen bg-transparent text-[var(--foreground)] overflow-x-hidden">
       <Toaster position="top-right" richColors />
       <Announcement
         announcements={announcements || []}

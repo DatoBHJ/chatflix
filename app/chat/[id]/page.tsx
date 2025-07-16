@@ -16,6 +16,7 @@ import { SidePanel } from '@/app/components/SidePanel'
 import { ChatInputArea } from '@/app/components/ChatInputArea';
 import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getXSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getAcademicSearchData } from '@/app/hooks/toolFunction';
 import { Annotation } from '@/app/lib/messageUtils';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 export default function Chat({ params }: PageProps) {
   const { id: chatId } = use(params)
@@ -189,7 +190,7 @@ export default function Chat({ params }: PageProps) {
     setEditingContent
   } = useMessages(chatId, user?.id)
 
-  // 특정 메시지로 스크롤하는 함수 개선 - 캔버스 동기화
+  // 특정 메시지로 스크롤하는 함수
   const scrollToMessage = useCallback((messageId: string) => {
     if (!messageId) return;
     
@@ -203,15 +204,6 @@ export default function Chat({ params }: PageProps) {
       setTimeout(() => {
         messageElement.classList.remove('highlight-message');
       }, 2000);
-      
-      // 관련 캔버스 요소 찾기 및 스크롤
-      const canvasElement = document.getElementById(`canvas-${messageId}`);
-      if (canvasElement && canvasContainerRef.current) {
-        canvasContainerRef.current.scrollTo({
-          top: canvasElement.offsetTop - 20,
-          behavior: 'smooth'
-        });
-      }
     }
   }, []);
 
@@ -999,17 +991,6 @@ export default function Chat({ params }: PageProps) {
     await handleModelSubmit(e, files);
   }, [handleModelSubmit]);
 
-  // Simplified spacer logic based on reference implementation
-  const shouldShowSpacer = useMemo(() => {
-    // Don't show spacer when we have messages and assistant has responded
-    if (messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      // Only show spacer when loading/regenerating or last message is from user
-      return isLoading || isRegenerating || lastMessage?.role === 'user';
-    }
-    return false;
-  }, [messages, isLoading, isRegenerating]);
-
   // 해당 메시지에 캔버스 데이터가 있는지 확인하는 함수
   const hasCanvasData = (message: Message) => {
     // StructuredResponse에 데이터가 있는지 확인
@@ -1107,55 +1088,96 @@ export default function Chat({ params }: PageProps) {
   }
 
   return (
-    <main className="flex-1 relative h-full">
-      {/* Main content area - adjusted to account for header height */}
-      <div className="pt-20 h-[calc(100vh-80px)]">
-        {/* 주 컨텐츠 영역 */}
-        <div className="flex flex-col sm:flex-row h-full sm:px-10 relative">
-          {/* 채팅 패널 - 항상 표시 */}
-          <div 
-            className={`overflow-y-auto pb-4 sm:pb-4 mx-auto w-full 
-              ${activePanel?.messageId ? 'sm:w-2/6 sm:max-w-none' : 'sm:max-w-3xl'} 
-              scrollbar-minimal
-              transition-all duration-300 ease-in-out`}
-            style={{ height: '100%' }}
-            ref={messagesContainerRef}
-          >
-            <div className={`${activePanel?.messageId ? 'max-w-none' : 'max-w-3xl mx-auto'}`}>
-              <Messages
-                messages={messages}
-                currentModel={currentModel}
-                isRegenerating={isRegenerating}
-                editingMessageId={editingMessageId}
-                editingContent={editingContent}
-                copiedMessageId={copiedMessageId}
-                onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
-                onCopy={handleCopyMessage}
-                onEditStart={handleEditStart}
-                onEditCancel={handleEditCancel}
-                onEditSave={(messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => handleEditSave(messageId, currentModel, messages, setMessages, reload, files, remainingAttachments)}
-                setEditingContent={setEditingContent}
-                chatId={chatId}
-                isLoading={isLoading}
-                activePanelMessageId={activePanel?.messageId}
-                togglePanel={togglePanel}
-                user={user}
-                handleFollowUpQuestionClick={handleFollowUpQuestionClick}
-                hasCanvasData={hasCanvasData}
-                isWaitingForToolResults={isWaitingForToolResults}
-                shouldShowSpacer={shouldShowSpacer}
-                messagesEndRef={messagesEndRef}
-              />
-            </div>
+    <main className="flex-1 relative h-screen flex flex-col">
+      {/* Header is positioned fixed, so content area starts from the top */}
+      <div className="flex-1 pt-[60px] flex flex-col min-h-0">
+        {/* 주 컨텐츠 영역 - Mobile/Desktop Responsive */}
+        {/* Mobile Layout */}
+        <div className="flex flex-col sm:hidden min-h-0 flex-1">
+          <div className="overflow-y-auto pb-44 flex-1 scrollbar-minimal" ref={messagesContainerRef}>
+            <Messages
+              messages={messages}
+              currentModel={currentModel}
+              isRegenerating={isRegenerating}
+              editingMessageId={editingMessageId}
+              editingContent={editingContent}
+              copiedMessageId={copiedMessageId}
+              onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
+              onCopy={handleCopyMessage}
+              onEditStart={handleEditStart}
+              onEditCancel={handleEditCancel}
+              onEditSave={(messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => handleEditSave(messageId, currentModel, messages, setMessages, reload, files, remainingAttachments)}
+              setEditingContent={setEditingContent}
+              chatId={chatId}
+              isLoading={isLoading}
+              activePanelMessageId={activePanel?.messageId ?? null}
+              togglePanel={togglePanel}
+              user={user}
+              handleFollowUpQuestionClick={handleFollowUpQuestionClick}
+              hasCanvasData={hasCanvasData}
+              isWaitingForToolResults={isWaitingForToolResults}
+              messagesEndRef={messagesEndRef}
+            />
           </div>
-
-          {/* 우측 사이드 패널 */}
-          <SidePanel
-            activePanel={activePanel}
-            messages={messages}
-            togglePanel={togglePanel}
-            canvasContainerRef={canvasContainerRef}
-          />
+          {activePanel?.messageId && (
+            <SidePanel
+              activePanel={activePanel}
+              messages={messages}
+              togglePanel={togglePanel}
+              canvasContainerRef={canvasContainerRef}
+            />
+          )}
+        </div>
+        
+        {/* Desktop Layout */}
+        <div className="hidden sm:flex min-h-0 flex-1">
+          <PanelGroup direction="horizontal" className="flex-1">
+            <Panel defaultSize={100} minSize={20} className="flex flex-col">
+              <div className="overflow-y-auto pb-44 flex-1 scrollbar-minimal" ref={messagesContainerRef}>
+                <div className={`${activePanel?.messageId ? 'max-w-none' : 'w-full mx-auto'}`}>
+                  <Messages
+                    messages={messages}
+                    currentModel={currentModel}
+                    isRegenerating={isRegenerating}
+                    editingMessageId={editingMessageId}
+                    editingContent={editingContent}
+                    copiedMessageId={copiedMessageId}
+                    onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, currentModel, reload)}
+                    onCopy={handleCopyMessage}
+                    onEditStart={handleEditStart}
+                    onEditCancel={handleEditCancel}
+                    onEditSave={(messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => handleEditSave(messageId, currentModel, messages, setMessages, reload, files, remainingAttachments)}
+                    setEditingContent={setEditingContent}
+                    chatId={chatId}
+                    isLoading={isLoading}
+                    activePanelMessageId={activePanel?.messageId ?? null}
+                    togglePanel={togglePanel}
+                    user={user}
+                    handleFollowUpQuestionClick={handleFollowUpQuestionClick}
+                    hasCanvasData={hasCanvasData}
+                    isWaitingForToolResults={isWaitingForToolResults}
+                    messagesEndRef={messagesEndRef}
+                  />
+                </div>
+              </div>
+            </Panel>
+            {activePanel?.messageId && (
+              <>
+                <PanelResizeHandle className="group relative flex w-5 cursor-col-resize items-center justify-center focus:outline-none">
+                  {/* Handle */}
+                  <div className="h-14 w-[8px] rounded-full bg-[var(--accent)] transition-colors group-hover:bg-[var(--muted)]" />
+                </PanelResizeHandle>
+                <Panel defaultSize={50} minSize={20} className="flex flex-col">
+                  <SidePanel
+                    activePanel={activePanel}
+                    messages={messages}
+                    togglePanel={togglePanel}
+                    canvasContainerRef={canvasContainerRef}
+                  />
+                </Panel>
+              </>
+            )}
+          </PanelGroup>
         </div>
       </div>
 

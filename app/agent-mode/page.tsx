@@ -3,7 +3,7 @@
 import { Brain, Search, Calculator, Link, Image, GraduationCap, Video, Sparkles, FileText, FileVideo, Library, Columns, TrendingUp, BatteryCharging, MapPin, Coffee, BookOpen, ChevronDown, ChevronRight, Palette, X, Download } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import NextImage from 'next/image';
-import { getProviderLogo } from '../lib/models/logoUtils';
+import { getProviderLogo } from '../../lib/models/logoUtils';
 import { getIcon } from 'material-file-icons';
 import { fileHelpers } from '../components/ChatInput/FileUpload';
 

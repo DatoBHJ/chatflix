@@ -21,6 +21,85 @@ type StructuredResponseProps = {
   fileIndex?: number;
 };
 
+// CSV 파싱 함수
+function parseCSV(csvContent: string): string[][] {
+  const lines = csvContent.trim().split('\n');
+  const result: string[][] = [];
+  
+  for (const line of lines) {
+    // 간단한 CSV 파싱 (콤마로 구분, 따옴표 처리)
+    const row: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      
+      if (char === '"' && !inQuotes) {
+        inQuotes = true;
+      } else if (char === '"' && inQuotes) {
+        inQuotes = false;
+      } else if (char === ',' && !inQuotes) {
+        row.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    
+    // 마지막 컬럼 추가
+    row.push(current.trim());
+    result.push(row);
+  }
+  
+  return result;
+}
+
+// CSV 테이블 컴포넌트
+function CSVTable({ content }: { content: string }) {
+  const data = parseCSV(content);
+  
+  if (data.length === 0) {
+    return <div className="text-[var(--muted)] text-center py-4">Empty CSV file</div>;
+  }
+  
+  const headers = data[0];
+  const rows = data.slice(1);
+  
+  return (
+    <div className="overflow-x-auto my-4">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr>
+            {headers.map((header, index) => (
+              <th
+                key={index}
+                className="border border-[var(--accent)] p-2 bg-[var(--accent)] font-medium text-[var(--muted)] uppercase tracking-wider text-left"
+              >
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIndex) => (
+            <tr key={rowIndex} className="hover:bg-[var(--accent)]">
+              {row.map((cell, cellIndex) => (
+                <td
+                  key={cellIndex}
+                  className="border border-[var(--accent)] p-2 text-[var(--foreground)]"
+                >
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // 파일 확장자에서 언어 추론
 function getLanguageFromExtension(fileName: string | undefined): string {
   // fileName이 없으면 기본값 'text' 반환
@@ -71,13 +150,52 @@ function getLanguageFromExtension(fileName: string | undefined): string {
     'markdown': 'markdown',
     'tex': 'latex',
     'dockerfile': 'dockerfile',
+    'csv': 'csv',
   };
   
   return languageMap[extension || ''] || 'text';
 }
 
-// 파일 내용을 적절한 코드 블록으로 감싸기
+// CSV 파일인지 확인하는 함수
+function isCSVFile(fileName: string | undefined): boolean {
+  if (!fileName) return false;
+  const extension = fileName.toLowerCase().split('.').pop();
+  return extension === 'csv';
+}
+
+// 파일 내용을 적절한 형태로 렌더링
+function renderFileContent(content: string, fileName: string | undefined): React.ReactNode {
+  // CSV 파일인 경우 테이블로 렌더링
+  if (isCSVFile(fileName)) {
+    return <CSVTable content={content} />;
+  }
+  
+  // 기존 로직: 코드 블록으로 감싸기
+  const hasCodeBlock = content.trim().startsWith('```');
+  
+  if (hasCodeBlock) {
+    return <MarkdownContent content={content} />;
+  }
+  
+  // 파일 확장자에서 언어 추론 (fileName이 없으면 'text' 반환)
+  const language = getLanguageFromExtension(fileName);
+  
+  // 마크다운 파일이거나 일반 텍스트인 경우 그대로 반환
+  if (language === 'markdown' || language === 'text') {
+    return <MarkdownContent content={content} />;
+  }
+  
+  // 코드 블록으로 감싸기
+  return <MarkdownContent content={`\`\`\`${language}\n${content}\n\`\`\``} />;
+}
+
+// 파일 내용을 적절한 코드 블록으로 감싸기 (기존 함수 - 호환성 유지)
 function wrapContentWithCodeBlock(content: string, fileName: string | undefined): string {
+  // CSV 파일인 경우 원본 콘텐츠 반환 (테이블 렌더링은 renderFileContent에서 처리)
+  if (isCSVFile(fileName)) {
+    return content;
+  }
+  
   // 이미 코드 블록으로 감싸져 있는지 확인
   const hasCodeBlock = content.trim().startsWith('```');
   
@@ -194,22 +312,6 @@ export const StructuredResponse = ({ message, fileIndex }: StructuredResponsePro
     }
   }, [message, storageKey, fileIndex]);
   
-  // 파일 콘텐츠의 높이 측정 (ResizeObserver로 대체됨)
-  // useEffect(() => {
-  //   if (responseData?.files) {
-  //     const newHeights: {[key: number]: number} = {};
-      
-  //     openFileIndexes.forEach(index => {
-  //       const ref = fileContentRefs.current[index];
-  //       if (ref) {
-  //         newHeights[index] = ref.scrollHeight;
-  //       }
-  //     });
-      
-  //     setFileContentHeights(prev => ({...prev, ...newHeights}));
-  //   }
-  // }, [responseData, openFileIndexes]);
-
   // New useEffect for dynamic height adjustment using ResizeObserver
   useEffect(() => {
     const activeObservers = new Map<number, ResizeObserver>();
@@ -286,7 +388,14 @@ export const StructuredResponse = ({ message, fileIndex }: StructuredResponsePro
   
   // 파일 내용 복사 핸들러
   const copyFileContent = (file: File, index: number) => {
-    navigator.clipboard.writeText(file.content)
+    // 코드블록 마크다운(예: ```js ... ```) 제거
+    let content = file.content;
+    // ```로 시작하는 코드블록 감지
+    if (content.trim().startsWith('```')) {
+      // 첫 줄(언어명) 제거, 마지막 ``` 제거
+      content = content.trim().replace(/^```[^\n]*\n?/, '').replace(/```$/, '');
+    }
+    navigator.clipboard.writeText(content)
       .then(() => {
         setCopiedFileIndex(index);
         // 복사 상태 2초 후 초기화
@@ -382,7 +491,7 @@ export const StructuredResponse = ({ message, fileIndex }: StructuredResponsePro
                     }
                   `}</style>
                   <div className="prose prose-sm dark:prose-invert max-w-none break-words">
-                    <MarkdownContent content={wrapContentWithCodeBlock(file.content || '', file.name)} />
+                    {renderFileContent(file.content || '', file.name)}
                   </div>
                 </div>
               </div>
@@ -514,7 +623,7 @@ export const StructuredResponse = ({ message, fileIndex }: StructuredResponsePro
                     }
                   `}</style>
                   <div className="prose prose-sm dark:prose-invert max-w-none break-words">
-                    <MarkdownContent content={wrapContentWithCodeBlock(file.content || '', file.name)} />
+                    {renderFileContent(file.content || '', file.name)}
                   </div>
                 </div>
               </div>
