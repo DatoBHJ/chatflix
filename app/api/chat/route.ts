@@ -635,12 +635,12 @@ export async function POST(req: Request) {
             
             const routingDecision = routeAnalysisResult.object;
 
-            // 🆕 툴 사용 시 moonshotai/kimi-k2-instruct (groq) → moonshotai/Kimi-K2-Instruct (togetherai) 대체
-            if ((routingDecision.route === 'TEXT_RESPONSE' || routingDecision.route === 'FILE_RESPONSE') && 
-                routingDecision.tools && routingDecision.tools.length > 0 && model === 'moonshotai/kimi-k2-instruct') {
-              model = 'moonshotai/Kimi-K2-Instruct'; // togetherai provider 사용
-              console.log('Tool calling detected: Switched from moonshotai/kimi-k2-instruct (groq) to moonshotai/Kimi-K2-Instruct (togetherai)');
-            }
+            // // 🆕 툴 사용 시 moonshotai/kimi-k2-instruct (groq) → moonshotai/Kimi-K2-Instruct (togetherai) 대체
+            // if ((routingDecision.route === 'TEXT_RESPONSE' || routingDecision.route === 'FILE_RESPONSE') && 
+            //     routingDecision.tools && routingDecision.tools.length > 0 && model === 'moonshotai/kimi-k2-instruct') {
+            //   model = 'moonshotai/Kimi-K2-Instruct'; // togetherai provider 사용
+            //   console.log('Tool calling detected: Switched from moonshotai/kimi-k2-instruct (groq) to moonshotai/Kimi-K2-Instruct (togetherai)');
+            // }
 
             // =================================================================
             // START: NEW V6 LOGIC (now using V7's final message list)
