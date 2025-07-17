@@ -32,7 +32,8 @@ import {
   createYouTubeSearchTool, 
   createYouTubeLinkAnalyzerTool, 
 } from './tools';
-import { handleRateLimiting } from './utils/ratelimit';
+// 🆕 Import both rate limiting functions
+import { handleRateLimiting, handleChatflixRateLimiting } from './utils/ratelimit';
 // import { toolPrompts } from './prompts/toolPrompts';
 import { checkSubscription } from '@/lib/polar';
 
@@ -260,39 +261,72 @@ export async function POST(req: Request) {
     // 현재 요청 횟수 (없으면 0으로 시작)
     const currentRequestCount = userRequests?.count || 0;
   
-    const rateLimitResult = await handleRateLimiting(user.id, requestData.originalModel === 'chatflix-ultimate' ? 'chatflix-ultimate' : model);
-    if (!rateLimitResult.success) {
-      const { error } = rateLimitResult;
-      
-      if (error) {
-        return new Response(JSON.stringify({
-          error: 'Too many requests',
-          message: error.message,
-          retryAfter: error.retryAfter,
-          reset: new Date(error.reset).toISOString(),
-          limit: error.limit,
-          level: error.level,
-          model: model
-        }), {
-          status: 429,
-          headers: {
-            'Content-Type': 'application/json',
-            'X-RateLimit-Limit': error.limit.toString(),
-            'X-RateLimit-Remaining': '0',
-            'X-RateLimit-Reset': new Date(error.reset).toISOString(),
-          }
-        });
-      } else {
-        // Fallback in case error is undefined
-        return new Response(JSON.stringify({
-          error: 'Too many requests',
-          message: 'Rate limit exceeded'
-        }), {
-          status: 429,
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
+    // 🆕 Handle rate limiting based on model type
+    const originalModel = requestData.originalModel;
+    const isChatflixModel = originalModel === 'chatflix-ultimate' || originalModel === 'chatflix-ultimate-pro';
+    
+    if (isChatflixModel) {
+      // Chatflix 모델은 자체 rate limit만 체크 (선택된 개별 모델 rate limit 무시)
+      const chatflixRateLimitResult = await handleChatflixRateLimiting(user.id, originalModel);
+      if (!chatflixRateLimitResult.success) {
+        const { error } = chatflixRateLimitResult;
+        
+        if (error) {
+          return new Response(JSON.stringify({
+            error: 'Too many requests',
+            message: error.message,
+            retryAfter: error.retryAfter,
+            reset: new Date(error.reset).toISOString(),
+            limit: error.limit,
+            level: error.level,
+            model: originalModel // Use original Chatflix model name
+          }), {
+            status: 429,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-RateLimit-Limit': error.limit.toString(),
+              'X-RateLimit-Remaining': '0',
+              'X-RateLimit-Reset': new Date(error.reset).toISOString(),
+            }
+          });
+        }
+      }
+    } else {
+      // 일반 모델은 기존 로직 사용
+      const rateLimitResult = await handleRateLimiting(user.id, model);
+      if (!rateLimitResult.success) {
+        const { error } = rateLimitResult;
+        
+        if (error) {
+          return new Response(JSON.stringify({
+            error: 'Too many requests',
+            message: error.message,
+            retryAfter: error.retryAfter,
+            reset: new Date(error.reset).toISOString(),
+            limit: error.limit,
+            level: error.level,
+            model: model
+          }), {
+            status: 429,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-RateLimit-Limit': error.limit.toString(),
+              'X-RateLimit-Remaining': '0',
+              'X-RateLimit-Reset': new Date(error.reset).toISOString(),
+            }
+          });
+        } else {
+          // Fallback in case error is undefined
+          return new Response(JSON.stringify({
+            error: 'Too many requests',
+            message: 'Rate limit exceeded'
+          }), {
+            status: 429,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+        }
       }
     }
 
@@ -770,7 +804,7 @@ Now, ask the following question in a similar conversational manner: "${routingDe
                       } catch (error) {
                         console.error('Smart memory update failed:', error);
                       }
-                    }, 1000); // 1초로 단축 (분석 자체에서 딜레이 결정)
+                    }, 1000);
                   }
                 });
 
@@ -916,8 +950,6 @@ ${userLanguageContext}
                     // 🆕 moonshotai/kimi-k2-instruct는 streamObject 호환성을 위해 gpt-4.1로 대체
                     fileGenerationModel = 'gpt-4.1';
                   }
-
-                  console.log('fileGenerationModel', fileGenerationModel);
 
                   // Helper function to generate intermediate progress messages
                   async function generateProgressMessage(progressCount: number, userQuery: string, estimatedTimeElapsed: number, memoryData?: string) {

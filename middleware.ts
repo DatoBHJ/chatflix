@@ -175,13 +175,6 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // Skip rate limiting for the chat API - it's already handled in the route handler
-  // But still update the session to maintain authentication state
-  if (request.nextUrl.pathname.startsWith('/api/chat')) {
-    const response = await updateSession(request);
-    return response;
-  }
-
   // Admin route protection (both pages and API)
   if (request.nextUrl.pathname.startsWith('/admin') || request.nextUrl.pathname.startsWith('/api/admin')) {
     try {
@@ -352,6 +345,11 @@ export async function middleware(request: NextRequest) {
       }
       
       const modelId = body.model;
+      
+      // 🆕 Skip rate limiting for Chatflix models - they should bypass individual model limits
+      if (modelId === 'chatflix-ultimate' || modelId === 'chatflix-ultimate-pro') {
+        return await updateSession(request);
+      }
       
       // console.log(`[DEBUG-RATELIMIT-MIDDLEWARE] Processing request for user ${userId}, model ${modelId}`);
       
