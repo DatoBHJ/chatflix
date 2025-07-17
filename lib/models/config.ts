@@ -279,7 +279,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     level: 'level0',
   },
   isEnabled: true,
-  isActivated: true,
+  isActivated: false,
   isAgentEnabled: true,
   reasoning: {
     enabled: true,
