@@ -235,7 +235,7 @@ export async function POST(req: Request) {
         } catch (error) {
           // console.error('Error in model selection:', error);
           // 오류 발생 시 기본 모델 사용
-          model = 'gemini-2.5-pro-preview-05-06';
+          model = 'gemini-2.5-pro';
         }
       }
 
@@ -615,7 +615,7 @@ export async function POST(req: Request) {
             ];
 
             // Filter tools based on model capabilities
-            if (model === 'gemini-2.5-pro-preview-05-06' || model === 'gemini-2.5-flash-preview-04-17') {
+            if (model === 'gemini-2.5-pro' || model === 'gemini-2.5-flash') {
               baseAvailableToolsList = baseAvailableToolsList.filter(tool => tool !== 'link_reader' && tool !== 'youtube_link_analyzer');
             }
 

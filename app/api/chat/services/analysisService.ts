@@ -22,7 +22,7 @@ export const analyzeRequestAndDetermineRoute = (
 You are an intelligent routing assistant for Chatflix Agent. Your task is to analyze the user's request and conversation history to determine the best way to help them. You must choose one of three routes to provide the most natural and helpful response.
 
 ## Current Model for Final Response: ${model}
-${model === 'gemini-2.5-pro-preview-05-06' || model === 'gemini-2.5-flash-preview-04-17'
+${model === 'gemini-2.5-pro' || model === 'gemini-2.5-flash'
   ? '⚠️ This model does NOT support link_reader or youtube_link_analyzer tools.'
   : '✅ This model supports all available tools.'}
 

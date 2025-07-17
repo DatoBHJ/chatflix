@@ -93,7 +93,7 @@ if (선택된_모델_컨텍스트 >= 필요_컨텍스트) {
 ```typescript
 // 업그레이드 실패 시나리오
 if (업그레이드_실패 || 에러_발생 || 적합한_모델_없음) {
-  ⚡ 무조건 gemini-2.5-pro-preview-05-06 사용
+  ⚡ 무조건 gemini-2.5-pro 사용
   📝 upgradeReason: "Fallback to gemini-2.5-pro due to [error/failure reason]"
 }
 
@@ -102,7 +102,7 @@ try {
   // 모델 선택 로직 실행
 } catch (error) {
   // 에러 발생 시 즉시 폴백
-  return gemini-2.5-pro-preview-05-06
+  return gemini-2.5-pro
 }
 ```
 
@@ -114,7 +114,7 @@ try {
 5. **Agent 활성화된 모델이 없는 경우**
 
 **폴백 우선순위:**
-1. **1순위**: `gemini-2.5-pro-preview-05-06` (안정성과 범용성이 검증된 모델)
+1. **1순위**: `gemini-2.5-pro` (안정성과 범용성이 검증된 모델)
 2. **2순위**: 첫 번째 사용 가능한 `isAgentEnabled: true` 모델 (최후의 수단)
 
 ### 🆕 **특별 라우팅 규칙 (2025-07-15 추가)**
@@ -221,13 +221,13 @@ contextInfo: {
 🚨 예시 5: 에러 발생 시나리오
 1차 선택: claude-sonnet-4
 에러 상황: 모델 정보 로딩 실패 (네트워크 오류)
-결과: gemini-2.5-pro-preview-05-06 즉시 폴백
-upgradeReason: "Error occurred during model selection, using fallback: gemini-2.5-pro-preview-05-06"
+결과: gemini-2.5-pro 즉시 폴백
+upgradeReason: "Error occurred during model selection, using fallback: gemini-2.5-pro"
 
 🚨 예시 6: Agent 모델 없음 시나리오
 1차 선택: 시도 중...
 문제: isAgentEnabled: true 모델이 하나도 없음
-결과: gemini-2.5-pro-preview-05-06 폴백 (하드코딩된 안전장치)
+결과: gemini-2.5-pro 폴백 (하드코딩된 안전장치)
 upgradeReason: "No agent-enabled models available, using fallback"
 
 🔧 예시 7: 툴 사용 시나리오

@@ -240,9 +240,9 @@ export async function selectOptimalModel(
   } catch (error) {
     console.error('Error in Chatflix Ultimate routing:', error);
     // 오류 발생 시 기본 Agent 모델 사용
-    const fallbackModel = getAgentEnabledModels().find(m => m.id === 'gemini-2.5-pro-preview-05-06');
+    const fallbackModel = getAgentEnabledModels().find(m => m.id === 'gemini-2.5-pro');
     return {
-      selectedModel: fallbackModel?.id || 'gemini-2.5-pro-preview-05-06',
+      selectedModel: fallbackModel?.id || 'gemini-2.5-pro',
       analysis: {
         category: 'other',
         complexity: 'medium',
@@ -264,9 +264,9 @@ function getAgentEnabledModels(): ModelConfig[] {
   );
   
   // gemini-2.5-pro가 목록에 있는지 확인
-  const hasFallback = models.some(m => m.id === 'gemini-2.5-pro-preview-05-06');
+  const hasFallback = models.some(m => m.id === 'gemini-2.5-pro');
   if (!hasFallback) {
-    // console.warn('Fallback model gemini-2.5-pro-preview-05-06 not found in agent-enabled models');
+    // console.warn('Fallback model gemini-2.5-pro not found in agent-enabled models');
   }
   
   return models;
@@ -437,7 +437,7 @@ function selectModelWithContextAwareness(
     
     if (compatibleModels.length === 0) {
       // 🆕 폴백 로직: 적합한 모델이 없으면 gemini-2.5-pro 사용
-      const fallbackModel = agentModels.find(m => m.id === 'gemini-2.5-pro-preview-05-06');
+      const fallbackModel = agentModels.find(m => m.id === 'gemini-2.5-pro');
       if (fallbackModel) {
         return {
           selectedModel: fallbackModel.id,
@@ -445,7 +445,7 @@ function selectModelWithContextAwareness(
             ...contextInfo,
             selectedModelContext: fallbackModel.contextWindow || 0,
             wasUpgraded: true,
-            upgradeReason: 'No suitable model found, using fallback: gemini-2.5-pro-preview-05-06'
+            upgradeReason: 'No suitable model found, using fallback: gemini-2.5-pro'
           }
         };
       }
@@ -492,7 +492,7 @@ function selectModelWithContextAwareness(
     // console.error('Model selection error:', error);
     
     const agentModels = getAgentEnabledModels();
-    const fallbackModel = agentModels.find(m => m.id === 'gemini-2.5-pro-preview-05-06');
+    const fallbackModel = agentModels.find(m => m.id === 'gemini-2.5-pro');
     
     if (fallbackModel) {
       return {
@@ -501,7 +501,7 @@ function selectModelWithContextAwareness(
           ...contextInfo,
           selectedModelContext: fallbackModel.contextWindow || 0,
           wasUpgraded: true,
-          upgradeReason: `Error occurred during model selection, using fallback: gemini-2.5-pro-preview-05-06`
+          upgradeReason: `Error occurred during model selection, using fallback: gemini-2.5-pro`
         }
       };
     }
@@ -509,7 +509,7 @@ function selectModelWithContextAwareness(
     // 최후의 수단: 첫 번째 사용 가능한 모델
     const firstAvailable = agentModels[0];
     return {
-      selectedModel: firstAvailable?.id || 'gemini-2.5-pro-preview-05-06',
+      selectedModel: firstAvailable?.id || 'gemini-2.5-pro',
       contextInfo: {
         ...contextInfo,
         selectedModelContext: firstAvailable?.contextWindow || 0,
@@ -627,7 +627,7 @@ function selectModelBasedOnAnalysis(
         if (analysis.complexity === 'simple') {
           return 'claude-sonnet-4-20250514'; // sonnet 4
         } else { // medium/complex
-          return 'gemini-2.5-pro-preview-05-06'; // gemini 2.5 pro
+          return 'gemini-2.5-pro'; // gemini 2.5 pro
         }
       } else {
         // 비멀티모달 + 코딩
@@ -644,7 +644,7 @@ function selectModelBasedOnAnalysis(
       if (hasImage || hasPDF) {
         // 멀티모달 + 코딩
         if (analysis.complexity === 'complex') {
-          return 'gemini-2.5-pro-preview-05-06'; // gemini 2.5 pro
+          return 'gemini-2.5-pro'; // gemini 2.5 pro
         } else { // simple/medium
           return 'gpt-4.1'; // gpt-4.1
         }
@@ -659,45 +659,45 @@ function selectModelBasedOnAnalysis(
   else if (hasImage) {
     if (analysis.category === 'technical' || analysis.category === 'math') {
       // 이미지 + 기술/수학은 무조건 gemini 2.5 pro
-      return 'gemini-2.5-pro-preview-05-06';
-    } else {
-      // 이미지 + 기타 카테고리
-      if (modelType === 'chatflix-ultimate-pro') {
-        // Pro 버전: 단순/중간은 gemini 2.5 flash, 복잡은 gemini 2.5 pro
-        if (analysis.complexity === 'complex') {
-          return 'gemini-2.5-pro-preview-05-06';
-        } else { // simple/medium
-          return 'gemini-2.5-flash-preview-04-17';
-        }
-      } else {
-        // 일반 버전
-        if (analysis.complexity === 'simple') {
-          return 'gemini-2.0-flash';
-        } else if (analysis.complexity === 'medium') {
-          return 'gemini-2.5-flash-preview-04-17';
-        } else { // complex
-          return 'gemini-2.5-pro-preview-05-06';
+      return 'gemini-2.5-pro';
+          } else {
+        // 이미지 + 기타 카테고리
+        if (modelType === 'chatflix-ultimate-pro') {
+          // Pro 버전: 단순/중간은 gemini 2.5 flash, 복잡은 gemini 2.5 pro
+          if (analysis.complexity === 'complex') {
+            return 'gemini-2.5-pro';
+          } else { // simple/medium
+            return 'gemini-2.5-flash';
+          }
+        } else {
+          // 일반 버전
+          if (analysis.complexity === 'simple') {
+            return 'gemini-2.0-flash';
+          } else if (analysis.complexity === 'medium') {
+            return 'gemini-2.5-flash';
+          } else { // complex
+            return 'gemini-2.5-pro';
+          }
         }
       }
-    }
   }
   else if (hasPDF) {
     // PDF 처리 (카테고리 무관)
     if (modelType === 'chatflix-ultimate-pro') {
       // Pro 버전: 모든 복잡도에서 gemini 2.5 flash (단순/중간), gemini 2.5 pro (복잡)
       if (analysis.complexity === 'complex') {
-        return 'gemini-2.5-pro-preview-05-06';
+        return 'gemini-2.5-pro';
       } else { // simple/medium
-        return 'gemini-2.5-flash-preview-04-17';
+        return 'gemini-2.5-flash';
       }
     } else {
       // 일반 버전
       if (analysis.complexity === 'simple') {
         return 'gemini-2.0-flash';
       } else if (analysis.complexity === 'medium') {
-        return 'gemini-2.5-flash-preview-04-17';
+        return 'gemini-2.5-flash';
       } else { // complex
-        return 'gemini-2.5-pro-preview-05-06';
+        return 'gemini-2.5-pro';
       }
     }
   }

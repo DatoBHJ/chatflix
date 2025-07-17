@@ -279,7 +279,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     level: 'level0',
   },
   isEnabled: true,
-  isActivated: false,
+  isActivated: true,
   isAgentEnabled: true,
   reasoning: {
     enabled: true,
@@ -703,7 +703,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   },
   // Gemini 2.5 Pro 
   // {
-  //   id: 'gemini-2.5-pro-preview-05-06',
+  //   id: 'gemini-2.5-pro',
   //   name: 'Gemini 2.5 Pro Preview 05-06',
   //   pro: true,
   //   cutoff: 'Jan 2025',
