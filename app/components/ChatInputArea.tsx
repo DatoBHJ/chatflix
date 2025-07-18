@@ -101,7 +101,7 @@ export function ChatInputArea({
     }`}>
       <div className="bg-gradient-to-t from-[var(--background)] from-70% to-transparent md:from-20% md:via-[var(--background)]/90 md:via-30% md:to-[var(--background)]/40 md:to-70% pt-2 md:pt-20 pb-6 w-full">
         <div className="max-w-3xl mx-auto w-full px-0 sm:px-8 relative flex flex-col items-center">
-                      <div className="w-full max-w-[calc(100vw-2rem)] space-y-0">
+                      <div className="w-full max-w-[calc(100vw-2rem)] space-y-1">
             <ModelSelector
               currentModel={currentModel}
               nextModel={nextModel}

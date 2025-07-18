@@ -63,6 +63,13 @@ export function ModelSelector({
     context: 'Context'
   });
   
+  // Add search functionality
+  const [searchTerm, setSearchTerm] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  
+  // Add keyboard navigation state
+  const [keyboardSelectedIndex, setKeyboardSelectedIndex] = useState<number>(-1);
+  
   // Context window limit for non-subscribers (60K tokens)
   const CONTEXT_WINDOW_LIMIT_NON_SUBSCRIBER = 60000;
 
@@ -127,7 +134,7 @@ export function ModelSelector({
     ? allModels.filter(model => model.isAgentEnabled) 
     : allModels;
     
-  // Apply thinking/regular filter and sorting
+  // Apply thinking/regular filter, search filter, and sorting
   const MODEL_OPTIONS = (() => {
     // First filter models based on the model type filter
     let filteredByType: ModelConfig[] = [];
@@ -135,8 +142,17 @@ export function ModelSelector({
     if (modelFilter === 'thinking') filteredByType = filteredModels.filter(model => model.name.includes('(Thinking)'));
     if (modelFilter === 'regular') filteredByType = filteredModels.filter(model => !model.name.includes('(Thinking)'));
     
+    // Apply search filter
+    const filteredBySearch = searchTerm.trim() 
+      ? filteredByType.filter(model => 
+          model.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          model.provider.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (model.description && model.description.toLowerCase().includes(searchTerm.toLowerCase()))
+        )
+      : filteredByType;
+    
     // Now sort based on selected criteria
-    return [...filteredByType].sort((a, b) => {
+    return [...filteredBySearch].sort((a, b) => {
       if (sortCriteria === 'default') {
         // Default sorting: chatflix models first, then new models
       const aChatflix = a.id === 'chatflix-ultimate' || a.id === 'chatflix-ultimate-pro';
@@ -183,6 +199,89 @@ export function ModelSelector({
     allDisabledLevels.push(disabledLevel);
   }
 
+  // Reset keyboard selection when search term changes or models change
+  useEffect(() => {
+    setKeyboardSelectedIndex(-1);
+  }, [searchTerm, modelFilter, sortCriteria]);
+
+  // Keyboard navigation handler
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!isOpen) return;
+      
+      const enabledModels = MODEL_OPTIONS.filter(option => {
+        const isModelDisabled = disabledModels.includes(option.id) || 
+                             (allDisabledLevels.length > 0 && allDisabledLevels.includes(option.rateLimit.level)) ||
+                             !option.isActivated ||
+                             (option.pro && !(isSubscribed ?? false));
+        return !isModelDisabled;
+      });
+
+      if (enabledModels.length === 0) return;
+      
+      switch (event.key) {
+        case 'ArrowDown':
+          event.preventDefault();
+          setKeyboardSelectedIndex(prev => {
+            const newIndex = prev < enabledModels.length - 1 ? prev + 1 : 0;
+            const targetModel = enabledModels[newIndex];
+            const overallIndex = MODEL_OPTIONS.findIndex(m => m.id === targetModel.id);
+            if (overallIndex !== -1) {
+              setTimeout(() => scrollToSelectedItem(overallIndex), 0);
+            }
+            return newIndex;
+          });
+          break;
+        case 'ArrowUp':
+          event.preventDefault();
+          setKeyboardSelectedIndex(prev => {
+            const newIndex = prev > 0 ? prev - 1 : enabledModels.length - 1;
+            const targetModel = enabledModels[newIndex];
+            const overallIndex = MODEL_OPTIONS.findIndex(m => m.id === targetModel.id);
+            if (overallIndex !== -1) {
+              setTimeout(() => scrollToSelectedItem(overallIndex), 0);
+            }
+            return newIndex;
+          });
+          break;
+        case 'Enter':
+          event.preventDefault();
+          if (keyboardSelectedIndex >= 0 && keyboardSelectedIndex < enabledModels.length) {
+            const selectedModel = enabledModels[keyboardSelectedIndex];
+            setNextModel(selectedModel.id);
+            if (setCurrentModel) {
+              setCurrentModel(selectedModel.id);
+            }
+            setIsOpen(false);
+            setSearchTerm('');
+            setKeyboardSelectedIndex(-1);
+          }
+          break;
+        case 'Escape':
+          event.preventDefault();
+          setIsOpen(false);
+          setSearchTerm('');
+          setKeyboardSelectedIndex(-1);
+          break;
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, keyboardSelectedIndex, MODEL_OPTIONS, disabledModels, allDisabledLevels, isSubscribed, setNextModel, setCurrentModel]);
+
+  // Scroll to selected item function
+  const scrollToSelectedItem = (index: number) => {
+    const modelElements = containerRef.current?.querySelectorAll('[data-model-option]');
+    if (modelElements && modelElements[index]) {
+      const element = modelElements[index] as HTMLElement;
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest'
+      });
+    }
+  };
+
   // Update selected model when filter changes
   useEffect(() => {
     if (modelFilter === 'all') return;
@@ -207,6 +306,8 @@ export function ModelSelector({
     function handleClickOutside(event: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        setSearchTerm(''); // Clear search when closing
+        setKeyboardSelectedIndex(-1);
       }
     }
 
@@ -219,6 +320,8 @@ export function ModelSelector({
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setIsOpen(false);
+        setSearchTerm(''); // Clear search when closing
+        setKeyboardSelectedIndex(-1);
       }
     }
 
@@ -392,38 +495,65 @@ export function ModelSelector({
   return (
     <div className="relative" ref={containerRef}>
       <div className="flex items-center gap-4 pb-0">
-        <div className={`relative ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
-          <button
-            onClick={() => !disabled && setIsOpen(!isOpen)}
-            className={`futuristic-select-button px-3 py-0 text-sm tracking-wide transition-all flex items-center ${isOpen ? 'text-[var(--foreground)] active' : 'text-[var(--muted)] hover:text-[var(--foreground)]'}`}
-            disabled={disabled}
-            aria-expanded={isOpen}
-            aria-haspopup="listbox"
+        <div className={`relative inline-block ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+          {/* iMessage-style "To:" field */}
+          <div 
+            className={`flex items-center gap-2 cursor-text px-2 pl-3 ${disabled ? 'cursor-not-allowed' : ''}`}
+            onClick={() => {
+              if (!disabled) {
+                setIsOpen(true);
+                setTimeout(() => inputRef.current?.focus(), 100);
+              }
+            }}
           >
-            <div className="flex items-center gap-2">
-              {currentModelOption?.provider && (
-                <div 
-                  className="provider-logo w-4 h-4 flex-shrink-0"
-                >
-                  {hasLogo(currentModelOption.provider) ? (
-                    <Image 
-                      src={getProviderLogo(currentModelOption.provider, currentModelOption.id)}
-                      alt={`${currentModelOption.provider} logo`}
-                      width={16}
-                      height={16}
-                      className="object-contain"
-                    />
-                  ) : (
-                    <div className="w-4 h-4 flex items-center justify-center text-[8px] uppercase bg-[var(--accent)]/10 rounded-sm">
-                      {currentModelOption.provider.substring(0, 1)}
+            <span className="text-[var(--muted)] text-sm font-medium">To:</span>
+            
+            {!isOpen ? (
+              // Show selected model when not searching
+              <>
+                <div className="flex items-center gap-2 backdrop-blur-md bg-[#007AFF]/5 dark:bg-[#007AFF]/10 px-2 py-1 rounded-full">
+                  {/* {currentModelOption?.provider && (
+                    <div className="provider-logo w-4 h-4 flex-shrink-0">
+                      {hasLogo(currentModelOption.provider) ? (
+                        <Image 
+                          src={getProviderLogo(currentModelOption.provider, currentModelOption.id)}
+                          alt={`${currentModelOption.provider} logo`}
+                          width={16}
+                          height={16}
+                          className="object-contain"
+                        />
+                      ) : (
+                        <div className="w-4 h-4 flex items-center justify-center text-[8px] uppercase bg-[#007AFF]/20 text-[#007AFF] rounded-sm">
+                          {currentModelOption.provider.substring(0, 1)}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  )} */}
+                  <span className="text-[#007AFF]/100 dark:text-[#007AFF] text-sm font-medium">
+                    {currentModelOption?.name || nextModel}
+                  </span>
                 </div>
-              )}
-              <span>{currentModelOption?.name || nextModel}</span>
-            </div>
-            <span className="ml-1 opacity-60 text-xl">▾</span>
-          </button>
+                {/* <span className="ml-1 opacity-60 text-xl text-[var(--muted)]">▾</span> */}
+              </>
+            ) : (
+              // Show search input when open
+              <>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search models..."
+                  className="flex-1 bg-transparent border-none outline-none text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] min-w-[200px]"
+                  disabled={disabled}
+                />
+                {/* Search icon - only show when active */}
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-[var(--muted)] flex-shrink-0">
+                  <path fillRule="evenodd" d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM2.25 10.5a8.25 8.25 0 1114.59 5.28l4.69 4.69a.75.75 0 11-1.06 1.06l-4.69-4.69A8.25 8.25 0 012.25 10.5z" clipRule="evenodd" />
+                </svg>
+              </>
+            )}
+          </div>
         
           {isOpen && !disabled && (
             <div 
@@ -627,6 +757,17 @@ export function ModelSelector({
                       
                       const isSelected = option.id === nextModel;
                       
+                      // Get index in enabled models for keyboard navigation
+                      const enabledModels = MODEL_OPTIONS.filter(opt => {
+                        const isDisabled = disabledModels.includes(opt.id) || 
+                                       (allDisabledLevels.length > 0 && allDisabledLevels.includes(opt.rateLimit.level)) ||
+                                       !opt.isActivated ||
+                                       (opt.pro && !(isSubscribed ?? false));
+                        return !isDisabled;
+                      });
+                      const enabledIndex = enabledModels.findIndex(opt => opt.id === option.id);
+                      const isKeyboardSelected = !isModelDisabled && enabledIndex === keyboardSelectedIndex;
+                      
                       // Calculate max value for the selected metric to scale bars
                       const maxValue = sortCriteria !== 'default' ? 
                         Math.max(...MODEL_OPTIONS
@@ -661,12 +802,15 @@ export function ModelSelector({
                       return (
                         <div key={option.id} className="border-b border-black/5 dark:border-white/5 last:border-b-0">
                           <div 
+                            data-model-option
                             className={`group relative transition-all p-3 rounded-xl cursor-pointer
                                      ${isModelDisabled 
                                        ? 'opacity-50 cursor-not-allowed disabled' 
                                        : ''}
                                      ${isSelected 
                                        ? 'bg-[#007AFF] text-white' 
+                                       : isKeyboardSelected
+                                       ? 'bg-black/5 dark:bg-white/5'
                                        : 'hover:bg-black/5 dark:hover:bg-white/5'}`}
                             onClick={() => {
                               if (!isModelDisabled) {
@@ -675,9 +819,19 @@ export function ModelSelector({
                                   setCurrentModel(option.id);
                                 }
                                 setIsOpen(false);
+                                setSearchTerm(''); // Clear search when selecting
+                                setKeyboardSelectedIndex(-1);
                               }
                             }}
-                            onMouseEnter={() => !isModelDisabled && setHoverIndex(index)}
+                            onMouseEnter={() => {
+                              if (!isModelDisabled) {
+                                setHoverIndex(index);
+                                // Update keyboard selection to match mouse hover for enabled models
+                                if (enabledIndex >= 0) {
+                                  setKeyboardSelectedIndex(enabledIndex);
+                                }
+                              }
+                            }}
                             onMouseLeave={() => !isModelDisabled && setHoverIndex(null)}
                             role="option"
                             aria-selected={isSelected}
@@ -1039,7 +1193,9 @@ export function ModelSelector({
                       );
                     })
                   ) : (
-                  <div className="text-center py-4 text-gray-500">No models available</div>
+                  <div className="text-center py-4 text-gray-500">
+                    {searchTerm ? `No models found for "${searchTerm}"` : 'No models available'}
+                  </div>
                 )}
               </div>
             </div>
