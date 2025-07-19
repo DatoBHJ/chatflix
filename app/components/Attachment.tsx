@@ -11,12 +11,6 @@ interface AttachmentPreviewProps {
   togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse' | 'attachment', fileIndex?: number, toolType?: string, fileName?: string) => void;
 }
 
-// Function to get file extension from filename
-function getFileExtension(fileName: string): string {
-  if (!fileName) return '';
-  const parts = fileName.split('.');
-  return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
-}
 
 export const AttachmentPreview = memo(function AttachmentPreviewComponent({ 
   attachment, 
@@ -37,6 +31,23 @@ export const AttachmentPreview = memo(function AttachmentPreviewComponent({
       // togglePanel이 없으면 새 탭에서 열기
       window.open(attachment.url, '_blank');
     }
+  };
+
+  // 다운로드 핸들러
+  const handleDownload = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // 파일 다운로드 링크 생성
+    const link = document.createElement('a');
+    link.href = attachment.url;
+    link.download = attachment.name || 'download';
+    link.target = '_blank';
+    
+    // 링크를 DOM에 추가하고 클릭한 후 제거
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   if (isImage) {
@@ -84,7 +95,13 @@ export const AttachmentPreview = memo(function AttachmentPreviewComponent({
       </div>
       {/* Download Icon */}
       <div className="p-1">
-         <Download className="text-neutral-500" size={20} />
+        <button
+          onClick={handleDownload}
+          className="hover:bg-black/10 dark:hover:bg-white/10 rounded p-1 transition-colors"
+          title="Download file"
+        >
+          <Download className="text-neutral-500" size={20} />
+        </button>
       </div>
     </div>
   );

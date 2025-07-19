@@ -54,35 +54,62 @@ export const FilesPreview = memo(function FilesPreview({
     return null;
   }
 
-  const getFileIconElement = (fileName?: string) => {
-    if (!fileName) {
-      // 로딩 중일 때 기본 파일 아이콘
-      const defaultIcon = getIcon('file.txt');
-      return (
-        <div 
-          style={{ width: '24px', height: '24px' }}
-          dangerouslySetInnerHTML={{ __html: defaultIcon.svg }}
-        />
-      );
-    }
-    
-    const icon = getIcon(fileName);
-    return (
-      <div 
-        style={{ width: '24px', height: '24px' }}
-        dangerouslySetInnerHTML={{ __html: icon.svg }}
-      />
-    );
-  };
+  const isLoading = responseData.isProgress === true;
 
-  // 파일 크기 계산 함수 (UTF-8 바이트 크기)
-  const calculateFileSize = (content?: string): number => {
-    if (!content) return 0;
-    // UTF-8 인코딩에서 문자열의 바이트 크기 계산
+  // 파일 크기 계산 함수
+  const calculateFileSize = (content: string): number => {
+    // UTF-8 인코딩 기준으로 바이트 크기 계산
     return new Blob([content]).size;
   };
 
-  const isLoading = responseData.isProgress === true;
+  // 파일 아이콘 엘리먼트 생성 함수
+  const getFileIconElement = (fileName: string) => {
+    try {
+      const icon = getIcon(fileName || '');
+      return (
+        <div 
+          style={{ width: '24px', height: '24px' }}
+          dangerouslySetInnerHTML={{ __html: icon.svg }}
+        />
+      );
+    } catch (error) {
+      // 아이콘 생성 실패 시 기본 파일 아이콘
+      return (
+        <div className="w-6 h-6 bg-gray-300 rounded flex items-center justify-center text-xs text-gray-600">
+          📄
+        </div>
+      );
+    }
+  };
+
+  // 파일 다운로드 핸들러
+  const handleDownload = (e: React.MouseEvent, file: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!file.content || isLoading) return;
+    
+    try {
+      // Blob 생성
+      const blob = new Blob([file.content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      
+      // 다운로드 링크 생성
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.name || 'download.txt';
+      
+      // 링크를 DOM에 추가하고 클릭한 후 제거
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // URL 정리
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-2 mt-2">
@@ -126,16 +153,24 @@ export const FilesPreview = memo(function FilesPreview({
             {/* Download Icon - 완료된 파일에만 표시 */}
             {!isLoading && (
               <div className="p-1">
-                <Download className="text-neutral-500" size={20} />
+                <button
+                  onClick={(e) => handleDownload(e, file)}
+                  className="hover:bg-black/10 dark:hover:bg-white/10 rounded p-1 transition-colors"
+                  title="Download file"
+                >
+                  <Download className="text-neutral-500" size={20} />
+                </button>
               </div>
             )}
             {/* 로딩 중일 때 로딩 표시 */}
             {isLoading && (
               <div className="p-1">
-                <div className="loading-dots text-xs">
-                  <span>.</span>
-                  <span>.</span>
-                  <span>.</span>
+                <div className="w-5 h-5 flex items-center justify-center">
+                  <div className="loading-dots text-xs">
+                    <span>.</span>
+                    <span>.</span>
+                    <span>.</span>
+                  </div>
                 </div>
               </div>
             )}

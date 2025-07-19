@@ -41,9 +41,9 @@ Gemini 2.0 Flash로 분석:
 
 | 카테고리 | 복잡도 | Chatflix Ultimate | Chatflix Ultimate Pro |
 |----------|--------|-------------------|----------------------|
-| **Math** | 단순 | `moonshotai/kimi-k2-instruct` | `moonshotai/kimi-k2-instruct` |
-| **Math** | 중간 | `moonshotai/kimi-k2-instruct` | `grok-3-mini` |
-| **Math** | 복잡 | `grok-3-mini` | `grok-3-mini` |
+| **Math** | 단순 | `grok-4-0709` | `grok-4-0709` |
+| **Math** | 중간 | `grok-4-0709` | `grok-4-0709` |
+| **Math** | 복잡 | `grok-4-0709` | `grok-4-0709` |
 | **Technical** | 단순 | `moonshotai/kimi-k2-instruct` | `moonshotai/kimi-k2-instruct` |
 | **Technical** | 중간/복잡 | `moonshotai/kimi-k2-instruct` | `claude-sonnet-4` |
 | **Other** | 단순 | `moonshotai/kimi-k2-instruct` | `moonshotai/kimi-k2-instruct` |
@@ -166,7 +166,7 @@ contextInfo: {
 |------|-------------------|----------------------|
 | **코딩 (비멀티모달)** | 모든 복잡도 `moonshotai/kimi-k2-instruct` | 단순 `moonshotai/kimi-k2-instruct`, 중간 `claude-sonnet-4`, 복잡 `claude-sonnet-4-thinking` |
 | **기타 (비멀티모달)** | 모든 복잡도 `moonshotai/kimi-k2-instruct` | 단순/중간 `moonshotai/kimi-k2-instruct`, 복잡 `claude-sonnet-4` |
-| **Math (비멀티모달)** | 단순/중간 `moonshotai/kimi-k2-instruct`, 복잡 `grok-3-mini` | 단순 `moonshotai/kimi-k2-instruct`, 중간/복잡 `grok-3-mini` |
+| **Math (비멀티모달)** | 모든 복잡도 `grok-4-0709` | 모든 복잡도 `grok-4-0709` |
 | **Technical (비멀티모달)** | 모든 복잡도 `moonshotai/kimi-k2-instruct` | 단순 `moonshotai/kimi-k2-instruct`, 중간/복잡 `claude-sonnet-4` |
 | **멀티모달 처리** | 더 보수적 (Gemini 중심) | 더 적극적 (Claude Sonnet 4 활용) |
 | **컨텍스트 계산** | 정교한 멀티모달 토큰 추정 + 동적 안전 마진 |

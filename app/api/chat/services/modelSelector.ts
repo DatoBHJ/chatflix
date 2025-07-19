@@ -705,22 +705,8 @@ function selectModelBasedOnAnalysis(
   // 3단계: 텍스트만 있는 경우 (비멀티모달) - 🆕 2025-07-15 업데이트
   else {
     if (analysis.category === 'math') {
-      // 수학 카테고리
-      if (modelType === 'chatflix-ultimate-pro') {
-        // Pro 버전: 단순 moonshotai/kimi-k2-instruct, 중간/복잡 grok-3-mini
-        if (analysis.complexity === 'simple') {
-          return 'moonshotai/kimi-k2-instruct';
-        } else { // medium/complex
-          return 'grok-3-mini';
-        }
-      } else {
-        // 일반 버전: 단순/중간 moonshotai/kimi-k2-instruct, 복잡 grok-3-mini
-        if (analysis.complexity === 'complex') {
-          return 'grok-3-mini';
-        } else { // simple/medium
-          return 'moonshotai/kimi-k2-instruct';
-        }
-      }
+      // 수학 카테고리 - 모든 복잡도에서 grok-4-0709 사용
+      return 'grok-4-0709';
     }
     else if (analysis.category === 'technical') {
       // 기술 카테고리

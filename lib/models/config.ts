@@ -324,7 +324,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       abbreviation: 'G4-0709',
       country: 'US',
       provider: 'xai',
-      supportsVision: false,
+      supportsVision: true,
       // censored: false,
       rateLimit: {
         level: 'level2',
