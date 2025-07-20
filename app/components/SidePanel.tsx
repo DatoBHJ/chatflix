@@ -177,7 +177,12 @@ export function SidePanel({
       };
       
       const copyFileContent = () => {
-        navigator.clipboard.writeText(selectedFile.content)
+        let content = selectedFile.content;
+        // 코드 블록 제거
+        if (content.trim().startsWith('```')) {
+          content = content.trim().replace(/^```[^\n]*\n?/, '').replace(/```$/, '');
+        }
+        navigator.clipboard.writeText(content)
           .then(() => {
             setCopiedFileIndex(copyKey);
             // 2초 후 복사 상태 초기화

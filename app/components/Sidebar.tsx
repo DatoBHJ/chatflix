@@ -12,12 +12,16 @@ import { defaultPromptShortcuts } from '../lib/defaultPromptShortcuts'
 import { getModelById } from '@/lib/models/config'
 import { getProviderLogo, hasLogo } from '@/lib/models/logoUtils'
 import { getSidebarTranslations } from '../lib/sidebarTranslations'
+import { clearAllSubscriptionCache } from '@/lib/utils'
+import { useSidebar } from '@/app/lib/SidebarContext'
+import { Settings, LifeBuoy, Zap, LogOut, CreditCard } from 'lucide-react'
+import { ProblemReportDialog } from './ProblemReportDialog'
 
 interface SidebarProps {
   user: any;  // You might want to define a proper User type
 }
 
-// 다른 컴포넌트에서 바로가기 패널을 열기 위한 전역 이벤트
+// Global event to open the shortcuts panel from other components
 const EXPAND_SHORTCUTS_EVENT = 'expand-shortcuts';
 
 export function expandShortcuts() {
@@ -30,7 +34,9 @@ export function Sidebar({ user }: SidebarProps) {
   const [chats, setChats] = useState<Chat[]>([])
   const supabase = createClient()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [isAccountOpen, setIsAccountOpen] = useState(false)
+  const { isAccountOpen, setIsAccountOpen } = useSidebar()
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
+  const [isProblemReportOpen, setIsProblemReportOpen] = useState(false)
   const [profileImage, setProfileImage] = useState<string | null>(null)
   const [userName, setUserName] = useState('You')
   const [isExpanded, setIsExpanded] = useState(true)
@@ -53,7 +59,7 @@ export function Sidebar({ user }: SidebarProps) {
     noShortcutsYet: 'No shortcuts yet. Create one to get started!'
   });
 
-  // 무한 스크롤 관련 상태 추가
+  // State for infinite scroll
   const [currentPage, setCurrentPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -62,7 +68,7 @@ export function Sidebar({ user }: SidebarProps) {
   const observerRef = useRef<IntersectionObserver | null>(null)
   const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null)
 
-  // Shortcuts 관련 상태
+  // State for Shortcuts
   const [shortcuts, setShortcuts] = useState<any[]>([])
   const [newName, setNewName] = useState('')
   const [newContent, setNewContent] = useState('')
@@ -70,25 +76,27 @@ export function Sidebar({ user }: SidebarProps) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const accountButtonRef = useRef<HTMLButtonElement>(null)
+  const accountMenuRef = useRef<HTMLDivElement>(null)
 
-  // 채팅 제목 편집 관련 상태
+  // State for chat title editing
   const [editingChatId, setEditingChatId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const titleInputRef = useRef<HTMLInputElement>(null)
 
-  // 채팅 검색 관련 상태
+  // State for chat search
   const [searchTerm, setSearchTerm] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [searchResults, setSearchResults] = useState<Chat[]>([])
   const [isSearching, setIsSearching] = useState(false)
 
-  // 최적화를 위한 상태 추가
+  // State for optimization
   const [lastLoadedUserId, setLastLoadedUserId] = useState<string | null>(null)
   const [isChatsLoaded, setIsChatsLoaded] = useState(false)
   const lastLoadTimeRef = useRef<number>(0)
-  const CACHE_DURATION = 10 * 60 * 1000 // 10분 캐시로 성능 개선
+  const CACHE_DURATION = 10 * 60 * 1000 // 10 minute cache for performance improvement
 
-  // 실시간 시간 업데이트를 위한 상태
+  // State for real-time updates
   const [currentTime, setCurrentTime] = useState(Date.now())
 
   useEffect(() => {
@@ -244,7 +252,7 @@ export function Sidebar({ user }: SidebarProps) {
     }
   }, [editingId]);
 
-  // 전역 이벤트 리스너 등록
+  // Register global event listener
   useEffect(() => {
     const handleExpandShortcuts = () => {
       if (user) {
@@ -258,18 +266,18 @@ export function Sidebar({ user }: SidebarProps) {
     }
   }, [user])
 
-  // 실시간 시간 업데이트
+  // Real-time update
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(Date.now())
-    }, 60000) // 1분마다 업데이트
+    }, 60000) // Update every minute
 
     return () => clearInterval(interval)
   }, [])
 
   useEffect(() => {
     if (user) {
-      // 사용자가 변경된 경우에만 상태 초기화
+      // Reset state only if the user has changed
       if (lastLoadedUserId !== user.id) {
         setCurrentPage(1)
         setHasMore(true)
@@ -287,7 +295,7 @@ export function Sidebar({ user }: SidebarProps) {
     // Only set up real-time updates if user exists
     if (!user) return
 
-    // 🚀 실시간 구독 간소화 - 성능을 위해 최소한의 이벤트만 구독
+    // 🚀 Simplified real-time subscription - subscribe to minimal events for performance
     const channelSuffix = Date.now() + Math.random().toString(36).substr(2, 9);
     
     const chatChannel = supabase
@@ -311,7 +319,7 @@ export function Sidebar({ user }: SidebarProps) {
       console.log('Cleaning up real-time subscription')
       supabase.removeChannel(chatChannel)
     }
-  }, [user]) // supabase 의존성 제거 - 클라이언트는 안정적임
+  }, [user]) // Removed supabase dependency - client is stable
 
   // Add custom event listener for immediate chat updates
   useEffect(() => {
@@ -319,7 +327,7 @@ export function Sidebar({ user }: SidebarProps) {
       const chatData = event.detail;
       console.log('New chat created via custom event:', chatData);
       
-      // 중복 방지: 이미 존재하는 채팅인지 확인
+      // Prevent duplicates: check if the chat already exists
       setChats(prevChats => {
         const existingChat = prevChats.find(chat => chat.id === chatData.id);
         if (existingChat) {
@@ -327,7 +335,7 @@ export function Sidebar({ user }: SidebarProps) {
           return prevChats;
         }
         
-        // 새 채팅 생성
+        // Create new chat
         const newChat: Chat = {
           id: chatData.id,
           title: chatData.title,
@@ -338,7 +346,7 @@ export function Sidebar({ user }: SidebarProps) {
           current_model: chatData.current_model
         };
         
-        // 새 채팅을 맨 위에 추가하고 시간순으로 정렬
+        // Add new chat to the top and sort by time
         const updatedChats = [newChat, ...prevChats].sort((a, b) => {
           const timeA = a.lastMessageTime ?? 0;
           const timeB = b.lastMessageTime ?? 0;
@@ -386,10 +394,29 @@ export function Sidebar({ user }: SidebarProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isMenuOpen]);
 
+  useEffect(() => {
+    function handleClickOutsideAccountMenu(event: MouseEvent) {
+      if (
+        accountMenuRef.current &&
+        !accountMenuRef.current.contains(event.target as Node) &&
+        accountButtonRef.current &&
+        !accountButtonRef.current.contains(event.target as Node)
+      ) {
+        setIsAccountMenuOpen(false);
+      }
+    }
+    if (isAccountMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutsideAccountMenu);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutsideAccountMenu);
+    };
+  }, [isAccountMenuOpen]);
+
   const loadChats = useCallback(async (page = 1, append = false, forceRefresh = false) => {
     if (!user) return;
     
-    // 최적화: 캐시된 데이터가 있고 강제 새로고침이 아닌 경우 스킵
+    // Optimization: skip if cached data exists and it's not a forced refresh
     const now = Date.now();
     const isCacheValid = now - lastLoadTimeRef.current < CACHE_DURATION;
     
@@ -399,17 +426,17 @@ export function Sidebar({ user }: SidebarProps) {
     }
     
     try {
-      // 추가 로드 시 로딩 상태 표시
+      // Show loading state when loading more
       if (append) {
         setIsLoadingMore(true)
       }
 
-      // 페이지네이션 적용
+      // Apply pagination
       const from = (page - 1) * CHATS_PER_PAGE
       const to = from + CHATS_PER_PAGE - 1
 
-      // 🚀 단일 쿼리로 모든 필요한 데이터를 효율적으로 가져오기
-      // chat_sessions에서 기본 정보만 가져오기 (updated_at 없음)
+      // 🚀 Efficiently fetch all necessary data with a single query
+      // Fetch only basic info from chat_sessions (no updated_at)
       const { data: sessions, error: sessionsError } = await supabase
         .from('chat_sessions')
         .select('id, created_at, title, current_model')
@@ -423,17 +450,17 @@ export function Sidebar({ user }: SidebarProps) {
         return
       }
 
-      // 더 이상 불러올 채팅이 없는지 확인
+      // Check if there are more chats to load
       if (sessions.length < CHATS_PER_PAGE) {
         setHasMore(false)
       }
 
-      // 첫 번째 사용자 메시지들을 효율적으로 가져오기
+      // Efficiently fetch the first user messages
       const sessionIds = sessions.map(s => s.id);
       let firstMessages: Record<string, string> = {};
       
       if (sessionIds.length > 0) {
-        // 모든 세션의 첫 번째 사용자 메시지를 한 번에 가져오기
+        // Fetch the first user message for all sessions at once
         const { data: messagesData } = await supabase
           .from('messages')
           .select('chat_session_id, content')
@@ -441,7 +468,7 @@ export function Sidebar({ user }: SidebarProps) {
           .eq('role', 'user')
           .order('created_at', { ascending: true });
         
-        // 각 세션의 첫 번째 메시지 매핑
+        // Map the first message for each session
         if (messagesData) {
           const firstMsgMap: Record<string, string> = {};
           messagesData.forEach(msg => {
@@ -454,15 +481,15 @@ export function Sidebar({ user }: SidebarProps) {
       }
 
       const newChats = sessions.map((session) => {
-        // 제목이 있으면 사용, 없으면 기본 제목 사용
+        // Use title if it exists, otherwise use default title
         const title = session.title && session.title.trim().length > 0
           ? session.title
           : 'New Chat'
         
-        // created_at을 마지막 메시지 시간으로 사용
+        // Use created_at as the last message time
         const lastMessageTime = new Date(session.created_at).getTime()
 
-        // 첫 번째 메시지 내용 (최대 100자로 제한)
+        // First message content (limited to 100 characters)
         const firstMessage = firstMessages[session.id] || '';
         const truncatedFirstMessage = firstMessage.length > 100 
           ? firstMessage.substring(0, 100) + '...' 
@@ -472,14 +499,14 @@ export function Sidebar({ user }: SidebarProps) {
           id: session.id,
           title: title,
           created_at: session.created_at,
-          messages: [], // 빈 배열로 유지
+          messages: [], // Keep as an empty array
           lastMessageTime: lastMessageTime,
-          lastMessage: truncatedFirstMessage, // 첫 번째 메시지로 설정
+          lastMessage: truncatedFirstMessage, // Set as the first message
           current_model: session.current_model
         } as Chat
       })
 
-      // 이미 updated_at으로 정렬되어 있으므로 추가 정렬 불필요
+      // Already sorted by updated_at, so no additional sorting needed
       const filteredChats = newChats.filter(chat => chat.title && chat.title.trim() !== '')
       
       if (append) {
@@ -488,7 +515,7 @@ export function Sidebar({ user }: SidebarProps) {
         setChats(filteredChats)
       }
       
-      // 초기 로드 완료 표시
+      // Mark initial load as complete
       if (page === 1) {
         setInitialLoadComplete(true)
         setIsChatsLoaded(true)
@@ -496,7 +523,7 @@ export function Sidebar({ user }: SidebarProps) {
         lastLoadTimeRef.current = Date.now()
       }
       
-      // 다음 페이지 설정
+      // Set next page
       if (append) {
         setCurrentPage(page)
       }
@@ -508,7 +535,7 @@ export function Sidebar({ user }: SidebarProps) {
     }
   }, [user, lastLoadedUserId])
 
-  // Effect to load chats when needed - 중복 로드 방지
+  // Effect to load chats when needed - prevent duplicate loading
   const isChatsLoadedRef = useRef(false)
   const loadingRef = useRef(false)
   isChatsLoadedRef.current = isChatsLoaded
@@ -520,14 +547,14 @@ export function Sidebar({ user }: SidebarProps) {
         loadingRef.current = false
       });
     }
-  }, [user]); // 의존성을 user만으로 최소화
+  }, [user]); // Minimize dependencies to just user
 
-  // IntersectionObserver 설정 - loadChats ref 사용으로 의존성 최소화
+  // Set up IntersectionObserver - minimize dependencies using loadChats ref
   const loadChatsRef = useRef(loadChats)
   loadChatsRef.current = loadChats
 
   useEffect(() => {
-    // 스크롤 관찰자 설정 (무한 스크롤용) - 검색 중이 아닐 때만 활성화
+    // Set up scroll observer (for infinite scroll) - activate only when not searching
     if (isExpanded && initialLoadComplete && hasMore && !searchTerm) {
       const observer = new IntersectionObserver(
         (entries) => {
@@ -562,13 +589,13 @@ export function Sidebar({ user }: SidebarProps) {
         router.push('/')
       }
 
-      // 채팅 삭제 후 로컬 상태에서 직접 제거 (DB는 이미 deleteChat에서 처리됨)
+      // Remove directly from local state after deleting chat (DB is already handled in deleteChat)
       setChats(prevChats => prevChats.filter(chat => chat.id !== chatId))
     } catch (error) {
       console.error('Failed to delete chat:', error)
       alert('Failed to delete chat.')
     }
-  }, [pathname, router]) // loadChats 의존성 제거
+  }, [pathname, router]) // Removed loadChats dependency
 
   const handleDeleteAllChats = useCallback(async () => {
     // First confirmation - warn about data loss including AI Recap data
@@ -596,15 +623,15 @@ export function Sidebar({ user }: SidebarProps) {
       }
 
       router.push('/')
-      // 채팅 삭제 후 로컬 상태 초기화
+      // Reset local state after deleting chats
       setChats([])
     } catch (error) {
       console.error('Failed to delete all chats:', error)
       alert('Failed to delete chats.')
     }
-  }, [user, supabase, router]) // loadChats 의존성 제거
+  }, [user, supabase, router]) // Removed loadChats dependency
 
-  // 프롬프트 바로가기 관련 함수들
+  // Functions related to prompt shortcuts
   const loadShortcuts = useCallback(async () => {
     if (!user) return;
     
@@ -640,7 +667,7 @@ export function Sidebar({ user }: SidebarProps) {
     }
   }, [user, supabase])
 
-  // loadShortcuts ref 사용으로 의존성 최소화
+  // Minimize dependencies using loadShortcuts ref
   const loadShortcutsRef = useRef(loadShortcuts)
   loadShortcutsRef.current = loadShortcuts
 
@@ -683,7 +710,7 @@ export function Sidebar({ user }: SidebarProps) {
     } catch (error) {
       console.error('Error saving shortcut:', error)
     }
-  }, [newName, newContent, editingId, user, supabase]) // loadShortcuts 의존성 제거
+  }, [newName, newContent, editingId, user, supabase]) // Removed loadShortcuts dependency
 
   const handleEditShortcut = useCallback((shortcut: any) => {
     setEditingId(shortcut.id)
@@ -712,13 +739,13 @@ export function Sidebar({ user }: SidebarProps) {
     } catch (error) {
       console.error('Error deleting shortcut:', error)
     }
-  }, [user, supabase]) // loadShortcuts 의존성 제거
+  }, [user, supabase]) // Removed loadShortcuts dependency
 
-  // 채팅 제목 편집 관련 함수들
+  // Functions related to chat title editing
   const handleEditChatTitle = useCallback((chatId: string, currentTitle: string) => {
     setEditingChatId(chatId)
     setEditingTitle(currentTitle)
-    // 다음 렌더링 후 input에 포커스
+    // Focus on input after the next render
     setTimeout(() => {
       if (titleInputRef.current) {
         titleInputRef.current.focus()
@@ -743,7 +770,7 @@ export function Sidebar({ user }: SidebarProps) {
 
       if (error) throw error
 
-      // 로컬 상태 업데이트
+      // Update local state
       setChats(prevChats => 
         prevChats.map(chat => 
           chat.id === editingChatId 
@@ -779,9 +806,9 @@ export function Sidebar({ user }: SidebarProps) {
     if (isExpandedShortcuts && user) {
       loadShortcutsRef.current();
     }
-  }, [isExpandedShortcuts, user]); // loadShortcuts 의존성 제거
+  }, [isExpandedShortcuts, user]); // Removed loadShortcuts dependency
 
-  // 데이터베이스에서 채팅 검색
+  // Search chats in the database
   const searchChats = useCallback(async (term: string) => {
     if (!user || !term.trim()) {
       setIsSearching(false);
@@ -792,7 +819,7 @@ export function Sidebar({ user }: SidebarProps) {
     try {
       const search = term.toLowerCase();
       
-      // 1. 제목으로 검색
+      // 1. Search by title
       const { data: titleResults } = await supabase
         .from('chat_sessions')
         .select('id, created_at, title, current_model')
@@ -801,7 +828,7 @@ export function Sidebar({ user }: SidebarProps) {
         .order('created_at', { ascending: false })
         .limit(20);
 
-      // 2. 메시지 내용으로 검색
+      // 2. Search by message content
       const { data: messageResults } = await supabase
         .from('messages')
         .select('chat_session_id, content, created_at')
@@ -810,12 +837,12 @@ export function Sidebar({ user }: SidebarProps) {
         .order('created_at', { ascending: false })
         .limit(50);
 
-      // 메시지 검색 결과에서 채팅 세션 ID 추출
+      // Extract chat session IDs from message search results
       const sessionIds = messageResults 
         ? [...new Set(messageResults.map(msg => msg.chat_session_id))]
         : [];
 
-      // 메시지 검색으로 찾은 채팅 세션 정보 가져오기
+      // Fetch chat session info found by message search
       const { data: sessionResults } = sessionIds.length > 0 
         ? await supabase
             .from('chat_sessions')
@@ -824,16 +851,16 @@ export function Sidebar({ user }: SidebarProps) {
             .in('id', sessionIds)
         : { data: [] };
 
-      // 모든 검색 결과 병합 (중복 제거)
+      // Merge all search results (remove duplicates)
       const allSessions = [...(titleResults || []), ...(sessionResults || [])];
       const uniqueSessions = allSessions.filter((session, index, self) => 
         index === self.findIndex(s => s.id === session.id)
       );
 
-      // 각 세션에 대해 첫 번째 사용자 메시지와 최신 메시지 가져오기
+      // For each session, fetch the first user message and the latest message
       const searchChatsWithDetails = await Promise.all(
         uniqueSessions.map(async (session) => {
-          // 첫 번째 사용자 메시지 (제목 폴백용)
+          // First user message (for title fallback)
           const { data: firstUserMsg } = await supabase
             .from('messages')
             .select('content, created_at')
@@ -842,7 +869,7 @@ export function Sidebar({ user }: SidebarProps) {
             .order('created_at', { ascending: true })
             .limit(1);
 
-          // 최신 메시지
+          // Latest message
           const { data: latestMsg } = await supabase
             .from('messages')
             .select('content, created_at, model')
@@ -881,7 +908,7 @@ export function Sidebar({ user }: SidebarProps) {
         })
       );
 
-      // 시간순 정렬
+      // Sort by time
       searchChatsWithDetails.sort((a, b) => {
         const timeA = a.lastMessageTime ?? 0;
         const timeB = b.lastMessageTime ?? 0;
@@ -895,16 +922,16 @@ export function Sidebar({ user }: SidebarProps) {
     } finally {
       setIsSearching(false);
     }
-  }, [user?.id]); // 최소한의 의존성으로 최적화
+  }, [user?.id]); // Optimized with minimal dependencies
 
-  // 검색 초기화 함수
+  // Clear search function
   const clearSearch = useCallback(() => {
     setSearchTerm('');
     setSearchResults([]);
     setIsSearching(false);
   }, []);
 
-  // 검색어 변경 시 검색 실행 (디바운싱)
+  // Execute search on term change (debounced)
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (searchTerm.trim()) {
@@ -913,17 +940,17 @@ export function Sidebar({ user }: SidebarProps) {
         setSearchResults([]);
         setIsSearching(false);
       }
-    }, 300); // 300ms 디바운싱
+    }, 300); // 300ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [searchTerm]); // searchChats 의존성 제거로 불필요한 재실행 방지
+  }, [searchTerm]); // Removed searchChats dependency to prevent unnecessary re-executions
 
-  // 표시할 채팅 목록 결정
+  // Determine the list of chats to display
   const displayChats = useMemo(() => {
     return searchTerm.trim() ? searchResults : chats;
   }, [searchTerm, searchResults, chats]);
 
-  // 검색어 하이라이팅 함수
+  // Search term highlighting function
   const highlightSearchTerm = (text: string, term: string, isSelected: boolean = false) => {
     if (!term.trim()) return text;
     
@@ -935,7 +962,7 @@ export function Sidebar({ user }: SidebarProps) {
         return (
           <span 
             key={index} 
-            className={`px-0.5 rounded text-xs ${
+            className={`px-0.5 rounded text-xs ${ 
               isSelected 
                 ? 'bg-white/30 text-white font-medium' 
                 : 'bg-[#007AFF]/20 text-[#007AFF] font-medium'
@@ -949,11 +976,11 @@ export function Sidebar({ user }: SidebarProps) {
     });
   };
 
-  // 토글 함수들 단순화
+  // Simplify toggle functions
   const toggleExpanded = useCallback(() => {
     if (isExpanded) {
       setIsExpanded(false);
-      clearSearch(); // 채팅 목록을 닫을 때 검색 상태 초기화
+      clearSearch(); // Clear search state when closing the chat list
     } else {
       setIsExpanded(true);
       setIsExpandedShortcuts(false);
@@ -967,22 +994,22 @@ export function Sidebar({ user }: SidebarProps) {
       setIsExpandedShortcuts(true);
       setIsExpanded(false);
       
-      // 토글할 때 바로 데이터 로딩 시작
+      // Start loading data immediately on toggle
       if (user && shortcuts.length === 0) {
         loadShortcutsRef.current();
       }
     }
-  }, [isExpandedShortcuts, user, shortcuts.length]); // loadShortcuts 의존성 제거
+  }, [isExpandedShortcuts, user, shortcuts.length]); // Removed loadShortcuts dependency
 
-  // 초기 렌더링 시 미리 데이터 로드 - ref 사용으로 의존성 제거
+  // Preload data on initial render - removed dependency using ref
   useEffect(() => {
     if (user) {
-      // 사이드바 열리자마자 바로가기 데이터 미리 로드
+      // Preload shortcut data as soon as the sidebar opens
       loadShortcutsRef.current();
     }
-  }, [user]); // loadShortcuts 의존성 제거
+  }, [user]); // Removed loadShortcuts dependency
 
-  // 검색 키보드 단축키 (Ctrl/Cmd + K)
+  // Keyboard shortcut for search (Ctrl/Cmd + K)
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
@@ -992,7 +1019,7 @@ export function Sidebar({ user }: SidebarProps) {
         } else if (!isExpanded) {
           setIsExpanded(true);
           setIsExpandedShortcuts(false);
-          // 다음 렌더링 후 포커스
+          // Focus after the next render
           setTimeout(() => {
             if (searchInputRef.current) {
               searchInputRef.current.focus();
@@ -1006,27 +1033,39 @@ export function Sidebar({ user }: SidebarProps) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isExpanded]);
 
-  // 페이지 변경 시 검색 상태 초기화 (채팅 페이지가 아닌 경우에만)
+  // Clear search state on page change (only if not on a chat page)
   useEffect(() => {
-    // 채팅 페이지가 아닌 다른 페이지로 이동했을 때만 검색 상태 초기화
+    // Clear search state only when navigating to a page other than a chat page
     if (!pathname.startsWith('/chat/') && pathname !== '/') {
       clearSearch();
     }
   }, [pathname, clearSearch]);
 
-  // 컴포넌트 언마운트 시 검색 상태 초기화
+  // Clear search state on component unmount
   useEffect(() => {
     return () => {
       clearSearch();
     };
   }, [clearSearch]);
 
+  const handleSignOut = async () => {
+    try {
+      clearAllSubscriptionCache();
+      
+      await supabase.auth.signOut();
+      router.push('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+      alert('Failed to sign out. Please try again.');
+    }
+  };
+
   if (!user) {
     return null;
   }
 
   return (
-    <div className="w-80 h-full bg-[var(--background)] border-r border-[var(--accent)] flex flex-col items-center overflow-hidden relative ">
+    <div className="w-80 h-full bg-[var(--background)] sm:bg-transparent border-r border-[var(--accent)] flex flex-col items-center overflow-hidden relative ">
       <div className="h-full flex flex-col w-full">
         {/* Top Section with Home and Chats icons */}
         <div className="pt-4 px-3 flex flex-col space-y-4 md:space-y-5">
@@ -1057,8 +1096,8 @@ export function Sidebar({ user }: SidebarProps) {
           <button onClick={toggleExpanded} className="flex items-center group w-full text-left">
             <div className={`min-w-[40px] h-10 rounded-lg flex items-center justify-center transition-all duration-200 ${isExpanded ? 'bg-[var(--foreground)]/10' : 'hover:bg-[var(--foreground)]/8 text-[var(--muted)]'}`}>
               <svg 
-                width="16" 
-                height="16" 
+                width="18" 
+                height="18" 
                 viewBox="0 0 24 24" 
                 fill="none" 
                 stroke="#007AFF"
@@ -1067,7 +1106,8 @@ export function Sidebar({ user }: SidebarProps) {
                 strokeLinejoin="round" 
                 className="transition-transform duration-200"
               >
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                <path d="M4.4999 3L4.4999 8H9.49988M4.4999 7.99645C5.93133 5.3205 8.75302 3.5 11.9999 3.5C16.6943 3.5 20.4999 7.30558 20.4999 12C20.4999 16.6944 16.6943 20.5 11.9999 20.5C7.6438 20.5 4.05303 17.2232 3.55811 13"></path>
+                <path d="M15 9L12 12V16"></path>
               </svg>
             </div>
             <span className={`text-sm font-medium whitespace-nowrap ${isExpanded ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}>
@@ -1134,7 +1174,7 @@ export function Sidebar({ user }: SidebarProps) {
               </div>
               
               <div className="space-y-0.5">
-              {/* 검색 로딩 상태 표시 */}
+              {/* Show search loading state */}
               {isSearching && (
                 <div className="flex flex-col items-center py-4 space-y-2">
                   <div className="w-6 h-6 border-2 border-t-transparent border-[var(--foreground)] rounded-full animate-spin"></div>
@@ -1142,7 +1182,7 @@ export function Sidebar({ user }: SidebarProps) {
                 </div>
               )}
               
-              {/* 검색 결과 개수 표시 */}
+              {/* Show number of search results */}
               {searchTerm && !isSearching && displayChats.length > 0 && (
                 <div className="px-2 py-1 text-xs text-[var(--muted)] text-center">
                   Found {displayChats.length} conversation{displayChats.length !== 1 ? 's' : ''}
@@ -1176,11 +1216,11 @@ export function Sidebar({ user }: SidebarProps) {
                         <div key={`${chat.id}-${index}`} className="border-b border-[var(--accent)] last:border-b-0">
                           <Link
                             href={editingChatId === chat.id ? '#' : `/chat/${chat.id}`}
-                            className={`group relative block transition-all p-3 rounded-lg ${
+                            className={`group relative block transition-all p-3 rounded-lg ${ 
                               editingChatId === chat.id 
                                 ? 'cursor-default' 
                                 : 'cursor-pointer'
-                            } ${
+                            } ${ 
                               isSelected 
                                 ? 'bg-[#007AFF] text-white' 
                                 : 'hover:bg-[var(--accent)]'
@@ -1232,7 +1272,7 @@ export function Sidebar({ user }: SidebarProps) {
                                       onChange={(e) => setEditingTitle(e.target.value)}
                                       onBlur={handleSaveChatTitle}
                                       onKeyDown={handleChatTitleKeyDown}
-                                      className={`text-sm font-semibold bg-transparent border-b-2 outline-none w-full mr-2 ${
+                                      className={`text-sm font-semibold bg-transparent border-b-2 outline-none w-full mr-2 ${ 
                                         isSelected 
                                           ? 'text-white placeholder-white/70 border-white/50 focus:border-white' 
                                           : 'text-[var(--foreground)] placeholder-gray-400 border-gray-300 focus:border-[var(--foreground)]'
@@ -1242,7 +1282,7 @@ export function Sidebar({ user }: SidebarProps) {
                                     />
                                   ) : (
                                     <p 
-                                      className={`text-sm font-semibold truncate pr-2 ${
+                                      className={`text-sm font-semibold truncate pr-2 ${ 
                                         isSelected ? 'text-white' : 'text-[var(--foreground)]'
                                       }`}
                                       onDoubleClick={(e) => {
@@ -1255,7 +1295,7 @@ export function Sidebar({ user }: SidebarProps) {
                                       {searchTerm ? highlightSearchTerm(chat.title, searchTerm, isSelected) : chat.title}
                                     </p>
                                   )}
-                                  <span className={`text-xs flex-shrink-0 ${
+                                  <span className={`text-xs flex-shrink-0 ${ 
                                     isSelected ? 'text-white/80' : 'text-[var(--muted)]'
                                   }`}>
                                     {(() => {
@@ -1278,7 +1318,7 @@ export function Sidebar({ user }: SidebarProps) {
                                 </div>
                                 {/* Bottom line: Preview + Buttons */}
                                 <div className="flex justify-between items-end">
-                                  <p className={`text-xs truncate pr-2 ${
+                                  <p className={`text-xs truncate pr-2 ${ 
                                     isSelected ? 'text-white/70' : 'text-[var(--muted)]'
                                   }`}>
                                     {searchTerm && chat.lastMessage 
@@ -1286,7 +1326,7 @@ export function Sidebar({ user }: SidebarProps) {
                                       : (chat.lastMessage || 'No messages yet')
                                     }
                                   </p>
-                                  <div className={`flex gap-1 transition-opacity ${
+                                  <div className={`flex gap-1 transition-opacity ${ 
                                     isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                                   }`}>
                                     <button 
@@ -1322,7 +1362,7 @@ export function Sidebar({ user }: SidebarProps) {
                       );
                     })}
 
-                  {/* 무한 스크롤 트리거 & 로딩 인디케이터 - 검색 중이 아닐 때만 표시 */}
+                  {/* Infinite scroll trigger & loading indicator - show only when not searching */}
                   {!searchTerm && hasMore && (
                     <div 
                       ref={loadMoreTriggerRef} 
@@ -1566,8 +1606,9 @@ export function Sidebar({ user }: SidebarProps) {
           
 
           <button
+            ref={accountButtonRef}
             onClick={() => {
-              setIsAccountOpen(true);
+              setIsAccountMenuOpen(prev => !prev);
             }}
             className="flex items-center group w-full text-left mt-2"
             type="button"
@@ -1595,6 +1636,58 @@ export function Sidebar({ user }: SidebarProps) {
           </button>
         </div>
 
+        {/* Account Popover Menu */}
+        {isAccountMenuOpen && (
+          <div
+            ref={accountMenuRef}
+            className="absolute w-72 bg-background rounded-xl shadow-2xl p-2 z-50 border border-[var(--accent)]"
+            style={{
+              bottom: '80px',
+              left: '1rem'
+            }}
+          >
+            <div className="p-2">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-[var(--accent)]">
+                  {profileImage ? (
+                    <Image
+                      src={profileImage}
+                      alt={userName}
+                      width={40}
+                      height={40}
+                      className="object-cover w-full h-full"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-[var(--foreground)] text-[var(--background)]">
+                      {userName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div className="font-semibold text-sm text-[var(--foreground)]">{userName}</div>
+                  <div className="text-xs text-[var(--muted)]">{user.email}</div>
+                </div>
+              </div>
+            </div>
+            <div className="my-2 h-[1px] bg-[var(--accent)]" />
+            <div className="flex flex-col text-[var(--foreground)]">
+              <button onClick={() => { setIsAccountOpen(true); setIsAccountMenuOpen(false); }} className="flex items-center gap-3 text-left p-2 hover:bg-[var(--accent)] rounded-md text-sm">
+                <Settings size={16} /> Settings
+              </button>
+              <button onClick={() => { setIsProblemReportOpen(true); setIsAccountMenuOpen(false); }} className="flex items-center gap-3 text-left p-2 hover:bg-[var(--accent)] rounded-md text-sm">
+                <LifeBuoy size={16} /> Report Issue
+              </button>
+              <Link href="/pricing" className="flex items-center gap-3 text-left p-2 hover:bg-[var(--accent)] rounded-md text-sm">
+                <CreditCard size={16} /> Subscription
+              </Link>
+            </div>
+            <div className="my-2 h-[1px] bg-[var(--accent)]" />
+            <button onClick={handleSignOut} className="flex items-center gap-3 w-full text-left p-2 hover:bg-[var(--accent)] rounded-md text-sm text-[var(--foreground)]">
+              <LogOut size={16} /> Log Out
+            </button>
+          </div>
+        )}
+
         {/* Account Dialog (remains as a modal) */}
         <AccountDialog
           isOpen={isAccountOpen}
@@ -1615,6 +1708,11 @@ export function Sidebar({ user }: SidebarProps) {
           handleDeleteAllChats={handleDeleteAllChats}
         />
       </div>
+      <ProblemReportDialog
+        isOpen={isProblemReportOpen}
+        onClose={() => setIsProblemReportOpen(false)}
+        user={user}
+      />
     </div>
   )
 } 
