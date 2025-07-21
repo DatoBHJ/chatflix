@@ -10,6 +10,9 @@ export const analyzeRequestAndDetermineRoute = (
   toolDescriptions: Record<string, string>
 ) => {
 
+  // 최근 4개 메시지만 사용
+  const recentMessages = messages.length > 4 ? messages.slice(-4) : messages;
+
   return generateObject({
     model: providers.languageModel(analysisModel),
     system: `# Agentic Request Analyzer & Router
@@ -59,7 +62,7 @@ ${baseAvailableToolsList.map(tool => `- "${tool}": ${toolDescriptions[tool]}`).j
    - "explain how React works" → TEXT_RESPONSE
 
 - Respond in the user's language for the reasoning field.`,
-    messages: messages,
+    messages: recentMessages,
     schema: z.discriminatedUnion('route', [
       z.object({
         route: z.literal('CLARIFY'),
