@@ -240,6 +240,9 @@ const ImageWithLoading = memo(function ImageWithLoadingComponent({
   // 로딩 애니메이션 효과를 위한 상태
   const [loadingTime, setLoadingTime] = useState(0);
   
+  // pollination 이미지인지 확인
+  const isPollinationImage = src && typeof src === 'string' && src.includes('image.pollinations.ai');
+  
   // 로딩이 시작되면 진행 상태를 시뮬레이션
   useEffect(() => {
     if (!isLoaded && !error) {
@@ -273,6 +276,11 @@ const ImageWithLoading = memo(function ImageWithLoadingComponent({
         <div>Invalid image URL</div>
       </div>
     );
+  }
+
+  // 일반 이미지가 에러나면 아무것도 렌더링하지 않음
+  if (error && !isPollinationImage) {
+    return null;
   }
   
   return (
@@ -326,7 +334,7 @@ const ImageWithLoading = memo(function ImageWithLoadingComponent({
         </div>
       )}
       
-      {error && (
+      {error && isPollinationImage && (
         <div className="bg-[var(--accent)] rounded-lg p-6 text-center text-[var(--muted)]">
           <svg className="w-10 h-10 mx-auto mb-3 text-[var(--muted)]" fill="none" strokeWidth="1.5" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />

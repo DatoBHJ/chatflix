@@ -474,7 +474,7 @@ export async function POST(req: Request) {
           // 3. 향상된 시스템 프롬프트 (사용자 프로필 컨텍스트 추가)
           const currentSystemPrompt = buildSystemPrompt(
             isAgentEnabled ? 'agent' : 'regular',
-            'text',
+            'TEXT_RESPONSE',
             // 초기 템플릿인 경우에는 사용자 프로필 컨텍스트를 추가하지 않음
             isDefaultMemory ? undefined : (memoryData || undefined)
           );
@@ -501,7 +501,7 @@ export async function POST(req: Request) {
             // Re-calculate system tokens specifically for agent mode for accuracy
             const agentSystemPromptForCalc = buildSystemPrompt(
               'agent',
-              'file_generation', // Use the potentially longest prompt for a safe calculation
+              'FILE_RESPONSE', // Use the potentially longest prompt for a safe calculation
               isDefaultMemory ? undefined : (memoryData || undefined)
             );
             const agentSystemTokens = estimateTokenCount(agentSystemPromptForCalc);
@@ -616,11 +616,6 @@ export async function POST(req: Request) {
               'youtube_link_analyzer'
             ];
 
-            // Filter tools based on model capabilities
-            if (model === 'gemini-2.5-pro' || model === 'gemini-2.5-flash') {
-              baseAvailableToolsList = baseAvailableToolsList.filter(tool => tool !== 'link_reader' && tool !== 'youtube_link_analyzer');
-            }
-
             const analysisModel = 'gemini-2.0-flash';
 
             // 도구 설명 객체 정의 (분석에서 사용)
@@ -670,17 +665,6 @@ export async function POST(req: Request) {
             }));
             
             const routingDecision = routeAnalysisResult.object;
-
-            // // 🆕 툴 사용 시 moonshotai/kimi-k2-instruct (groq) → moonshotai/Kimi-K2-Instruct (togetherai) 대체
-            // if ((routingDecision.route === 'TEXT_RESPONSE' || routingDecision.route === 'FILE_RESPONSE') && 
-            //     routingDecision.tools && routingDecision.tools.length > 0 && model === 'moonshotai/kimi-k2-instruct') {
-            //   model = 'moonshotai/Kimi-K2-Instruct'; // togetherai provider 사용
-            //   console.log('Tool calling detected: Switched from moonshotai/kimi-k2-instruct (groq) to moonshotai/Kimi-K2-Instruct (togetherai)');
-            // }
-
-            // =================================================================
-            // START: NEW V6 LOGIC (now using V7's final message list)
-            // =================================================================
 
             const hasImage = messagesWithTokens.some(msg => detectImages(msg));
             const hasFile = messagesWithTokens.some(msg => detectPDFs(msg) || detectCodeAttachments(msg));
@@ -740,7 +724,7 @@ Now, ask the following question in a conversational manner in the user's languag
                 });
 
                 // V7: Recalculate context for the specific route
-                const systemPrompt = buildSystemPrompt('agent', 'text', memoryData || undefined);
+                const systemPrompt = buildSystemPrompt('agent', 'TEXT_RESPONSE', memoryData || undefined);
                 const preciseSystemTokens = estimateTokenCount(systemPrompt);
                 const preciseRemainingTokens = maxContextTokens - preciseSystemTokens;
                 const finalMessages = selectMessagesWithinTokenLimit(
@@ -1104,7 +1088,7 @@ Generate a new, different waiting message.`,
                   
                   // Step 2: Generate the file using the collected results
                   const fileGenerationSystemPrompt = toolResults 
-                    ? `${buildSystemPrompt('agent', 'file_generation', memoryData || undefined)}
+                    ? `${buildSystemPrompt('agent', 'FILE_RESPONSE', memoryData || undefined)}
 
 Tool results available:
 <tool_results>
@@ -1127,7 +1111,7 @@ This is MANDATORY for proper rendering. Examples:
 - Any code file: \`\`\`[language]
 
 **NEVER generate bare code without code block syntax - this causes rendering issues!**`
-                    : `${buildSystemPrompt('agent', 'file_generation', memoryData || undefined)}
+                    : `${buildSystemPrompt('agent', 'FILE_RESPONSE', memoryData || undefined)}
 ${hasImage ? `\n- An image has been provided. You can analyze it to inform your file creation.` : ''}
 ${hasFile ? `\n- A file has been provided. You can read its content to inform your file creation.` : ''}
 
