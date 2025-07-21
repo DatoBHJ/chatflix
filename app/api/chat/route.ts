@@ -1,9 +1,10 @@
-import { streamText, createDataStreamResponse, streamObject, generateObject } from 'ai';
+import { streamText, smoothStream, createDataStreamResponse, streamObject, generateObject } from 'ai';
 import { createClient } from '@/utils/supabase/server';
 import { providers } from '@/lib/providers';
 import { getModelById} from '@/lib/models/config';
 import { MultiModalMessage } from './types';
 import { z } from 'zod';
+// import { markdownJoinerTransform } from 'markdown-transform';
 import { 
   handlePromptShortcuts,
   saveUserMessage,
@@ -52,6 +53,7 @@ import {
   analyzeRequestAndDetermineRoute,
   analyzeContextRelevance 
 } from './services/analysisService';
+import { markdownJoinerTransform } from './markdown-transform';
 
 
 // Helper function to increment user daily request count
@@ -688,25 +690,30 @@ export async function POST(req: Request) {
                 // Route to ask the user a clarifying question.
                 const clarificationResult = streamText({
                   model: providers.languageModel('gemini-2.0-flash'),
-                  system: `You are Chatflix, a friendly and helpful AI assistant. The user's request needs a bit more information before you can proceed. Your task is to naturally ask the user the clarifying question provided below in a conversational manner.
+                  experimental_transform: [
+                    smoothStream({delayInMs: 25}),
+                    markdownJoinerTransform(),
+                  ],
+                  system: `You are Chatflix, a friendly and helpful AI assistant. The user's request needs more information. Your task is to ask the user the clarifying question provided below in a natural, conversational way.
+
+**Core Instruction: ALWAYS respond in the user's language.**
 
 **Instructions:**
-- Start with a brief, friendly acknowledgment or lead-in
-- Then, ask the clarifying question naturally
-- Keep it conversational and helpful, like a real person would
-- Always respond in the user's language
+- Start with a brief, friendly acknowledgment.
+- Then, ask the clarifying question naturally.
+- Be conversational and helpful.
 
-**Good Examples:**
-- "Yeah, I can totally help with that! Just need to know [question]"
-- "Oh cool! I just need a bit more info - [question]"
-- "Sure thing! Quick question though - [question]"
+**Style Examples (adapt to user's language):**
+The following are English examples of the TONE. Do NOT use them literally if the user is not speaking English.
+- "I can help with that! First, could you tell me [question]?"
+- "Happy to help! I just need a bit more info - [question]"
+- "Sure thing! Quick question for you - [question]"
 
-**Bad Examples:**
-- Just asking the question without any lead-in
-- Being too formal or robotic
-- Using technical jargon unnecessarily
+**Bad Examples (wrong tone):**
+- Asking the question without any lead-in.
+- Being too formal or robotic.
 
-Now, ask the following question in a similar conversational manner: "${routingDecision.question}"`,
+Now, ask the following question in a conversational manner in the user's language: "${routingDecision.question}"`,
                   prompt: `Ask this question naturally: ${routingDecision.question}`,
                   onFinish: async (completion) => {
                     if (abortController.signal.aborted) return;
@@ -741,8 +748,17 @@ Now, ask the following question in a similar conversational manner: "${routingDe
                   preciseRemainingTokens,
                 );
 
+                // moonshotai/kimi-k2-instruct → moonshotai/Kimi-K2-Instruct (도구 사용 시)
+                let toolExecutionModel = (model.startsWith('gemini')) ? 'claude-sonnet-4-20250514' : model;
+                if (toolExecutionModel === 'moonshotai/kimi-k2-instruct') {
+                  toolExecutionModel = 'moonshotai/Kimi-K2-Instruct';
+                }
                 const textResponsePromise = streamText({
-                  model: providers.languageModel(model),
+                  model: providers.languageModel(toolExecutionModel),
+                  experimental_transform: [
+                    smoothStream({delayInMs: 25}),
+                    markdownJoinerTransform(),
+                  ],
                   system: systemPrompt,
                   messages: convertMultiModalToMessage(finalMessages), // Convert back for the SDK
                   tools,
@@ -830,55 +846,54 @@ Now, ask the following question in a similar conversational manner: "${routingDe
                                      (model.includes('claude') && model.includes('sonnet'));
                 
                 const systemPromptForFileStep1 = needsTools 
-                  ? `You are Chatflix, a friendly and helpful AI assistant. You're in the data collection phase for file generation. Your goal is to use the provided tools to gather necessary information, but do it in a natural, conversational way.
+                  ? `You are Chatflix, a friendly and helpful AI assistant. You are in the data collection phase for file generation. Your goal is to use tools to gather information while communicating naturally with the user.
 
-**CRITICAL INSTRUCTIONS:**
-- Keep your responses brief but friendly and natural
-- Tell the user what you're doing in a conversational way (e.g., "Let me search for the latest documentation on that..." or "I'll look that up for you...")
-- Use the necessary tools to collect information
-- When finished, naturally indicate you're ready to create the file (e.g., "Alright, I have what I need. Let me put that file together for you.")
-- Be helpful and personable, like a real person would be
-- DO NOT provide detailed explanations or content in chat - save all that for the file
+**Core Instruction: ALWAYS respond in the user's language.** Your responses should feel like a real person sending a message.
 
-**Good Examples:**
-- "Let me search for the latest information on that..."
-- "I'll look that up for you real quick..."
-- "Let me check what's available..."
-- "Perfect! I have everything I need. Let me create that file for you now."
-- "Awesome! Got what I need. I'll whip that file up for you!"
-- "Nice! I'm all set. Let me put this together for you."
+**Your Task:**
+1.  Briefly and conversationally tell the user what you are doing (e.g., searching for information).
+2.  Use the necessary tools to collect information.
+3.  When finished, let the user know you are ready to create the file.
+4.  Do NOT provide detailed explanations in the chat; save that for the file.
+
+**Style Examples (adapt to user's language):**
+The following are English examples of the TONE. Do NOT use them literally if the user is not speaking English.
+- "Let me look that up for you..."
+- "I'll search for the latest info on that..."
+- "Alright, I have what I need. Let me put that file together for you."
+- "Okay, I'm all set. I'll get that file ready now."
 
 Today's date is ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.
 ${userLanguageContext}
 
-**IMPORTANT: Always respond in the same language as the user's query.** If user profile indicates preferred language, use that language.`
-                  : `You are Chatflix, a friendly and helpful AI assistant. You're about to create a file for the user. This is NOT the main response phase - you're just letting them know you're starting to work on their file.
+**IMPORTANT: Always respond in the same language as the user's query.** If a user profile indicates a preferred language, use that language.`
+                  : `You are Chatflix, a friendly and helpful AI assistant. You're about to create a file for the user. This is NOT the main response phase; you are just announcing that you're starting the work.
 
-**CRITICAL INSTRUCTIONS:**
-- Write 1-2 SHORT, friendly sentences in the user's language to announce that you're starting to create the file
-- Your tone should be helpful and natural, like a person confirming a file creation request
-- DO NOT write the file content or describe what will be in it
-- Keep it conversational and reassuring
-- MUST mention "file" or equivalent word in the user's language
-${isSlowerModel ? `- **IMPORTANT**: Since you're using a ${model.includes('deepseek') ? 'DeepSeek' : 'Claude Sonnet'} model, mention that file generation might take a bit longer but will provide high quality results` : ''}
+**Core Instruction: ALWAYS respond in the user's language.** Your response should feel like a real person sending a quick confirmation message.
 
-**Good Examples:**
+**Your Task:**
+- Write 1-2 SHORT, friendly sentences to announce that you're starting to create the file.
+- Your tone should be helpful and natural.
+- You MUST mention the word "file" (or its equivalent in the user's language).
+${isSlowerModel ? `- **IMPORTANT**: Since you're using a ${model.includes('deepseek') ? 'DeepSeek' : 'Claude Sonnet'} model, mention that file generation might take a bit longer but will provide high-quality results.` : ''}
+
+**Style Examples (adapt to user's language):**
+The following are English examples of the TONE. Do NOT use them literally if the user is not speaking English.
 - "Sure thing! Let me create that file for you."
 - "Got it! I'll put together that file right away."
 - "Perfect! I'll generate that file for you now."
 - "Alright! I'll whip up that file for you."
-- "Je vais créer ce fichier pour vous!" (French example)
-${isSlowerModel ? `- "I'll create that file for you - it might take a moment since I'm using a high-performance model for better quality!"` : ''}
+${isSlowerModel ? `- "I'll create that file for you. It might take a moment as I'm using a high-performance model for better quality!"` : ''}
 
-**Bad Examples:**
+**Bad Examples (wrong tone):**
 - "Generating file." (too robotic)
 - "File creation initiated." (too formal)
-- "I'll put that together." (doesn't mention file)
+- "I'll put that together." (doesn't mention "file")
 
 Today's date is ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.
 ${userLanguageContext}
 
-**IMPORTANT: Always respond in the same language as the user's query.** If user profile indicates preferred language, use that language.`;
+**IMPORTANT: Always respond in the same language as the user's query.** If a user profile indicates a preferred language, use that language.`;
 
                 const preciseSystemTokensFile = estimateTokenCount(systemPromptForFileStep1);
                 const preciseRemainingTokensFile = maxContextTokens - preciseSystemTokensFile;
@@ -891,8 +906,17 @@ ${userLanguageContext}
 
                 if (needsTools) {
                   // Step 1: Execute tools and interact with the user (only if tools are needed)
-                  const toolExecutionPromise = streamText({
-                    model: providers.languageModel(model),
+                // Gemini 모델로 도구 실행 시 Claude Sonnet 4로 대체
+                let toolExecutionModel = (model.startsWith('gemini')) ? 'claude-sonnet-4-20250514' : model;
+                if (toolExecutionModel === 'moonshotai/kimi-k2-instruct') {
+                  toolExecutionModel = 'moonshotai/Kimi-K2-Instruct';
+                }
+                const toolExecutionPromise = streamText({
+                  model: providers.languageModel(toolExecutionModel),
+                    experimental_transform: [
+                      smoothStream({delayInMs: 25}),
+                      markdownJoinerTransform(),
+                    ],
                     system: systemPromptForFileStep1,
                     messages: finalMessagesConverted,
                     tools,
@@ -914,6 +938,10 @@ ${userLanguageContext}
                   // No tools needed - but still provide a brief explanation before file generation
                   const briefExplanationPromise = streamText({
                     model: providers.languageModel('gemini-2.0-flash'),
+                    experimental_transform: [
+                      smoothStream({delayInMs: 25}),
+                      markdownJoinerTransform(),
+                    ],
                     // providerOptions,
                     temperature: 0.0,
                     maxTokens: 3000,
@@ -940,13 +968,15 @@ ${userLanguageContext}
                   let accumulatedContent = ''; // 누적된 컨텐츠 저장
                   let sentProgressMessages: string[] = []; // 전송된 진행 메시지들 추적
                                 
-                  // Determine the model for file generation (replace deepseek, claude sonnet, and grok-4 with Gemini 2.5 Pro)
+                  // Determine the model for file generation (replace claude sonnet, and grok-4 with Gemini 2.5 Pro)
                   let fileGenerationModel = model;
-                  if (model.includes('DeepSeek-R1') || 
+                  if (
                       (model.includes('claude') && model.includes('sonnet')) || 
                       model.toLowerCase().startsWith('grok-4')) {
                     fileGenerationModel = 'gemini-2.5-pro';
-                  } else if (model === 'moonshotai/kimi-k2-instruct') {
+                  } 
+                  
+                  else if (model === 'moonshotai/kimi-k2-instruct') {
                     // 🆕 moonshotai/kimi-k2-instruct는 streamObject 호환성을 위해 gpt-4.1로 대체
                     fileGenerationModel = 'gpt-4.1';
                   }
@@ -959,32 +989,37 @@ ${userLanguageContext}
                       
                       const progressResult = streamText({
                         model: providers.languageModel('gemini-2.0-flash'),
-                        system: `You are Chatflix. You're preparing to generate files, which can take some time. Send a brief waiting message.
+                        experimental_transform: [
+                          smoothStream({delayInMs: 25}),
+                          markdownJoinerTransform(),
+                        ],
+                        system: `You are Chatflix, an AI assistant generating a file for the user. This can take some time, so you need to send a brief, natural-sounding waiting message.
+
+**Core Instruction: ALWAYS respond in the user's language.** Your message should sound like a real person sending a quick text.
 
 **User's Request:** ${userQuery}
+**Time Elapsed:** About ${estimatedTimeElapsed} seconds.
 
-**Situation:** File generation preparation - NOT actual progress, just waiting/preparation time.
+**Your Task:**
+- Send a short, reassuring message (1 sentence).
+- Acknowledge that file generation can take time.
+- Vary your message each time.
 
-**Instructions:**
-1. Brief message (1 sentence max)
-2. Acknowledge that file generation takes time
-3. Be natural and reassuring
-4. Vary your messages each time
+**Message Type Examples (adapt to user's language):**
+Rotate between these types of messages. Do NOT use the English text literally if the user speaks another language.
+- **Time Expectation:** "Just a heads-up, this file is taking a moment to generate..."
+- **Patience Request:** "Thanks for your patience, still working on this file for you."
+- **Process Explanation:** "Still getting everything ready for your file..."
+- **Reassurance:** "Still here and working on it! Complex files can sometimes take a bit longer."
 
-**Message types to rotate:**
-- Time expectation: "File generation can take a moment..."
-- Patience request: "This might take a bit longer than usual..."
-- Process explanation: "Setting everything up for file creation..."
-- Reassurance: "Still preparing - complex files take time..."
-
-**Previous messages sent:** ${sentProgressMessages.length}
+**Previously Sent Messages:** ${sentProgressMessages.join(', ')}
 
 ${memoryData ? `**User Profile Context:**
 ${memoryData}
 
-**CRITICAL: Always respond in the user's preferred language as indicated in their profile. If no specific language preference is mentioned, respond in the same language as the user's query.**` : '**IMPORTANT: Always respond in the same language as the user used in their query.**'}
+**CRITICAL: Respond in the user's preferred language from their profile. If none, use the language of their query.**` : '**IMPORTANT: Always respond in the language of the user\'s query.**'}
 
-Generate a different waiting message.`,
+Generate a new, different waiting message.`,
                         prompt: `Brief waiting message #${progressCount}`,
                         temperature: 0.8,
                         maxTokens: 50,
@@ -1293,6 +1328,10 @@ This is MANDATORY for proper rendering. Examples:
 
             const result = streamText({
               model: providers.languageModel(model),
+              experimental_transform: [
+                smoothStream({delayInMs: 25}),
+                markdownJoinerTransform(),
+              ],
               system: currentSystemPrompt, // Use the 'regular' prompt calculated earlier
               messages: messages,
               // temperature: 0.7,
@@ -1374,3 +1413,5 @@ This is MANDATORY for proper rendering. Examples:
       }
           });
 }
+
+
