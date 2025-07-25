@@ -17,7 +17,7 @@ import {
   Database
 } from 'lucide-react'
 import Link from 'next/link'
-import { useHomeStarryNight } from '@/app/page'
+import { useHomeStarryNight } from '@/app/hooks/useHomeStarryNight'
 import { getSidebarTranslations } from '../lib/sidebarTranslations'
 
 // 다크모드 감지 훅
