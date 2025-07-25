@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Home, BarChart, Settings, Sparkles, FileWarning } from 'lucide-react';
 
 interface NavItem {
   name: string;
@@ -12,10 +13,10 @@ export default function AdminNavigation() {
   const pathname = usePathname();
   
   const navItems: NavItem[] = [
-    { name: 'Model Management', href: '/admin' },
-    // { name: 'User Insights', href: '/admin/insights' },
-    { name: 'Analytics', href: '/admin/analytics' },
-    { name: 'Home', href: '/' },
+    { name: 'Dashboard', href: '/admin', icon: Home },
+    { name: 'Analytics', href: '/admin/analytics', icon: BarChart },
+    { name: 'What\'s New', href: '/admin/whats-new', icon: Sparkles },
+    { name: 'Problem Reports', href: '/admin/problem-reports', icon: FileWarning },
   ];
 
   return (

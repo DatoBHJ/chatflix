@@ -237,6 +237,15 @@ export function createWebSearchTool(dataStream: any) {
           const deduplicatedResults = deduplicateResults(rawResults);
           const deduplicatedImages = rawImages.length > 0 ? deduplicateResults(rawImages) : [];
           
+          // Generate unique IDs for images and create mapping
+          const imagesWithIds = deduplicatedImages.map((image: any, imageIndex: number) => {
+            const imageId = `search_img_${searchId}_${index}_${imageIndex}`;
+            return {
+              ...image,
+              id: imageId
+            };
+          });
+          
           // Add annotation for query completion
           const completedQueryKey = `${query}-${index}-completed`;
           if (!annotatedQueries.has(completedQueryKey)) {
@@ -259,7 +268,7 @@ export function createWebSearchTool(dataStream: any) {
           return {
             query,
             results: deduplicatedResults,
-            images: deduplicatedImages
+            images: imagesWithIds
           };
         } catch (error) {
           console.error(`Error searching with Exa for query "${query}":`, error);
@@ -354,13 +363,23 @@ export function createWebSearchTool(dataStream: any) {
         };
       });
       
-      // 최종 검색 결과를 저장
-      const finalResult = { searchId, searches: finalSearches };
+      // Create image mapping for all images across all searches
+      const imageMap: { [key: string]: string } = {};
+      finalSearches.forEach(search => {
+        search.images.forEach((image: any) => {
+          if (image.id && image.url) {
+            imageMap[image.id] = image.url;
+          }
+        });
+      });
+      
+      // 최종 검색 결과를 저장 (imageMap 포함)
+      const finalResult = { searchId, searches: finalSearches, imageMap };
       
       // 배열에 결과 추가하고 UI를 위한 어노테이션도 전송
       searchResults.push(finalResult);
       
-      // 모든 검색 결과가 합쳐진 결과를 어노테이션으로 전송
+      // 모든 검색 결과가 합쳐진 결과를 어노테이션으로 전송 (imageMap 포함)
       dataStream.writeMessageAnnotation({
         type: 'web_search_complete',
         data: finalResult

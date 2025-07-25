@@ -11,9 +11,92 @@ import { Attachment } from '@/lib/types'
 import { nanoid } from 'nanoid'
 import { getDefaultModelId, getSystemDefaultModelId, updateUserDefaultModel, MODEL_CONFIGS } from '@/lib/models/config'
 import { SuggestedPrompt } from '@/app/components/SuggestedPrompt/SuggestedPrompt'
-import { InteractiveBackground } from '@/app/components/InteractiveBackground'
 import { CodeMatrixBackground } from '@/app/components/CodeMatrixBackground'
 import { GlobalAIActivityBackground } from '@/app/components/GlobalAIActivityBackground'
+import { StarryNightBackground } from './components/StarryNightBackground'
+
+// 다크모드 감지 훅
+function useDarkMode() {
+  const [isDark, setIsDark] = useState(false)
+
+  useEffect(() => {
+    const updateTheme = () => {
+      const root = document.documentElement
+      const theme = root.getAttribute('data-theme')
+      
+      setIsDark(
+        theme === 'dark' || 
+        (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches) ||
+        (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      )
+    }
+
+    updateTheme()
+
+    const observer = new MutationObserver(updateTheme)
+    observer.observe(document.documentElement, { 
+      attributes: true, 
+      attributeFilter: ['data-theme'] 
+    })
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    mediaQuery.addEventListener('change', updateTheme)
+
+    return () => {
+      observer.disconnect()
+      mediaQuery.removeEventListener('change', updateTheme)
+    }
+  }, [])
+
+  return isDark
+}
+
+// 홈 화면 별 효과 설정 훅
+function useHomeStarryNight() {
+  const [isEnabled, setIsEnabled] = useState(true) // 기본값은 true (활성화)
+
+  useEffect(() => {
+    // localStorage에서 설정 읽기
+    const saved = localStorage.getItem('homeStarryNightEnabled')
+    if (saved !== null) {
+      setIsEnabled(JSON.parse(saved))
+    }
+
+    // localStorage 변경 감지 (다른 탭/컴포넌트에서 변경된 경우)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'homeStarryNightEnabled' && e.newValue !== null) {
+        setIsEnabled(JSON.parse(e.newValue))
+      }
+    }
+
+    // 커스텀 이벤트 감지 (같은 탭 내에서 변경된 경우)
+    const handleCustomEvent = (e: CustomEvent) => {
+      setIsEnabled(e.detail.enabled)
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('homeStarryNightChanged', handleCustomEvent as EventListener)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('homeStarryNightChanged', handleCustomEvent as EventListener)
+    }
+  }, [])
+
+  const toggle = () => {
+    const newValue = !isEnabled
+    setIsEnabled(newValue)
+    localStorage.setItem('homeStarryNightEnabled', JSON.stringify(newValue))
+    
+    // 다른 컴포넌트들에게 변경 알림
+    window.dispatchEvent(new CustomEvent('homeStarryNightChanged', {
+      detail: { enabled: newValue }
+    }))
+  }
+
+  return { isEnabled, toggle }
+}
+
 export default function Home() {
   const router = useRouter()
   const [currentModel, setCurrentModel] = useState(getSystemDefaultModelId()) // 초기값으로 시스템 기본 모델 사용
@@ -26,6 +109,8 @@ export default function Home() {
   const [isAgentEnabled, setisAgentEnabled] = useState(false)
   const [hasAgentModels, setHasAgentModels] = useState(true)
   const supabase = createClient()
+  const isDarkMode = useDarkMode()
+  const { isEnabled: isStarryNightEnabled } = useHomeStarryNight()
 
   // Handle toggling the agent with rate-limit awareness
   const handleAgentToggle = (newState: boolean) => {
@@ -575,6 +660,9 @@ export default function Home() {
 
   return (
     <main className="flex-1 flex flex-col min-h-screen relative">
+      {/* StarryNightBackground - 홈화면에서만 다크모드이고 설정이 활성화된 경우에만 표시 */}
+      {isDarkMode && isStarryNightEnabled && <StarryNightBackground />}
+      
       {/* Background Options - Choose one for testing */}
       {/* <InteractiveBackground /> */}
       {/* <CodeMatrixBackground /> */}
@@ -610,7 +698,7 @@ export default function Home() {
           />
           
           {/* Display suggested prompt below the chat input with more spacing */}
-          {/* {user?.id && (
+          {user?.id && (
             <div className="mt-4">
               <SuggestedPrompt 
                 userId={user.id} 
@@ -618,7 +706,7 @@ export default function Home() {
                 isVisible={!input.trim()}
               />
             </div>
-          )} */}
+          )}
         </div>
       </div>
       
@@ -647,3 +735,6 @@ export default function Home() {
     </main>
   )
 }
+
+// Export the hook for use in AccountDialog
+export { useHomeStarryNight }

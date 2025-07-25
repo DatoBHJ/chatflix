@@ -596,14 +596,15 @@ export async function POST(req: Request) {
             const currentMessage = optimizedMessagesForRouting[optimizedMessagesForRouting.length - 1];
             userQuery = extractTextFromMessage(currentMessage);
 
-
             // 🆕 STEP 0: Parallel Analysis - Context Relevance & Request Routing
             const hasToolResultsInHistory = messagesWithTokens.slice(0, -1).some(msg => 
               (msg as any).tool_results && 
               Object.keys((msg as any).tool_results).some(key => key !== 'token_usage')
             );
+
             const hasPreviousConversation = messagesWithTokens.length > 1;
-            const shouldAnalyzeContext = hasPreviousConversation && hasToolResultsInHistory && messagesWithTokens.length > 3;
+            const shouldAnalyzeContext = hasPreviousConversation && hasToolResultsInHistory
+
 
             // Define available tools list early for analysis
             let baseAvailableToolsList = [
@@ -722,6 +723,10 @@ Now, ask the following question in a conversational manner in the user's languag
                 routingDecision.tools.forEach((toolName: string) => {
                   tools[toolName] = initializeTool(toolName, dataStream);
                 });
+
+                console.log('--------------------------------');
+                console.log('tools', tools);
+                console.log('--------------------------------');
 
                 // V7: Recalculate context for the specific route
                 const systemPrompt = buildSystemPrompt('agent', 'TEXT_RESPONSE', memoryData || undefined);
@@ -955,8 +960,10 @@ ${userLanguageContext}
                   // Determine the model for file generation (replace claude sonnet, and grok-4 with Gemini 2.5 Pro)
                   let fileGenerationModel = model;
                   if (
-                      (model.includes('claude') && model.includes('sonnet')) || 
-                      model.toLowerCase().startsWith('grok-4')) {
+                      (model.includes('claude') && model.includes('sonnet')) 
+                      // || model.toLowerCase().startsWith('grok-4')
+                    ) 
+                      {
                     fileGenerationModel = 'gemini-2.5-pro';
                   } 
                   

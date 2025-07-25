@@ -391,11 +391,8 @@ export const StructuredResponse = ({ message, fileIndex }: StructuredResponsePro
     // 코드블록 마크다운(예: ```js ... ```) 제거
     let content = file.content;
     // ```로 시작하는 코드블록 감지
-    if (content.trim().startsWith('```')) {
-      // 첫 줄(언어명) 제거, 마지막 ``` 제거
-      content = content.trim().replace(/^```[^\n]*\n?/, '').replace(/```$/, '');
-    }
-    navigator.clipboard.writeText(content)
+    navigator.clipboard.writeText(file.content)
+
       .then(() => {
         setCopiedFileIndex(index);
         // 복사 상태 2초 후 초기화

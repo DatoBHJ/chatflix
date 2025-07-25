@@ -438,7 +438,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         onClick={handleToggle}
       >
         {/* 메인 캔버스 버블 */}
-        <div className="flex items-center gap-2 px-3 py-2 bg-white/80 dark:bg-black/30 rounded-full backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200 ease-out">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-full backdrop-blur-xl border border-[var(--subtle-divider)] shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200 ease-out" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 80%, transparent)' }}>
           <Wrench className="h-3.5 w-3.5" style={{ color: 'var(--tools-color)' }} strokeWidth={2} />
           
           {/* 도구 아이콘들 미리보기 */}
@@ -469,18 +469,16 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         </div>
 
         {/* 작은 연결 버블들 */}
-        <div className="absolute -bottom-0.5 left-4 flex gap-0.5">
-          <div className="w-1 h-1 bg-white/60 dark:bg-black/20 rounded-full"></div>
-          <div className="w-0.5 h-0.5 bg-white/40 dark:bg-black/15 rounded-full"></div>
-        </div>
+        {/* <div className="absolute -bottom-0.5 left-4 flex gap-0.5">
+          <div className="w-1 h-1 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 60%, transparent)' }}></div>
+          <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 40%, transparent)' }}></div>
+        </div> */}
 
         {/* 확장된 상세 정보 툴팁 */}
-        <div className={`absolute top-full left-0 mt-3 w-72 sm:w-96 bg-white/95 dark:bg-black/90 backdrop-blur-xl rounded-2xl border border-black/8 dark:border-white/10 shadow-xl p-4 z-50 transition-all duration-200 ease-out ${
-          isExpanded ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'
-        }`}>
+        <div className={`absolute bottom-full left-0 mb-3 w-80 sm:w-96 bg-[var(--background)] backdrop-blur-xl rounded-2xl border border-[var(--subtle-divider)] shadow-lg p-4 z-50 transition-all duration-200 ease-out ${ 
+        isExpanded ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-1 pointer-events-none'        }`} style={{ boxShadow: '0 10px 25px -5px var(--overlay), 0 4px 6px -2px var(--overlay)' }}>
           {/* 툴팁 화살표 */}
-          <div className="absolute -top-1.5 left-6 w-3 h-3 bg-white/95 dark:bg-black/90 border-l border-t border-black/8 dark:border-white/10 rotate-45"></div>
-          
+          <div className="absolute -bottom-1.5 left-6 w-3 h-3 bg-[var(--background)] border-r border-b border-[var(--subtle-divider)] rotate-45"></div>          
           {/* 헤더 */}
           <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
@@ -492,16 +490,10 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
                 e.stopPropagation();
                 togglePanel && togglePanel(messageId, 'canvas');
               }}
-              className="text-xs px-2 py-1 rounded-full font-medium transition-colors"
+              className="text-xs px-2 py-1 rounded-full font-medium transition-all hover:opacity-80"
               style={{ 
                 backgroundColor: 'var(--status-bg-processing)', 
                 color: 'var(--status-text-processing)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = '0.8';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = '1';
               }}
             >
               View All
@@ -509,7 +501,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
           </div>
           
           {/* 도구 목록 */}
-          <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-thin">
+          <div className="space-y-2 max-h-24 overflow-y-auto scrollbar-thin">
             {tools.map((tool) => (
               <div
                 key={tool.id}

@@ -1,10 +1,60 @@
 import { useState, useEffect, useRef } from 'react'
+import ReactDOM from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { getCustomerPortalUrl } from '@/lib/polar'
-import { checkSubscriptionClient } from '@/lib/subscription-client'
 import { clearAllSubscriptionCache } from '@/lib/utils'
 import Image from 'next/image'
+import { ThemeToggle } from './ThemeToggle'
+import {
+  User,
+  Settings,
+  FileText,
+  MessageSquare,
+  LogOut,
+  LifeBuoy,
+  Users,
+  PaintBucket,
+  Database
+} from 'lucide-react'
+import Link from 'next/link'
+import { useHomeStarryNight } from '@/app/page'
+import { getSidebarTranslations } from '../lib/sidebarTranslations'
+
+// 다크모드 감지 훅
+function useDarkMode() {
+  const [isDark, setIsDark] = useState(false)
+
+  useEffect(() => {
+    const updateTheme = () => {
+      const root = document.documentElement
+      const theme = root.getAttribute('data-theme')
+      
+      setIsDark(
+        theme === 'dark' || 
+        (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches) ||
+        (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      )
+    }
+
+    updateTheme()
+
+    const observer = new MutationObserver(updateTheme)
+    observer.observe(document.documentElement, { 
+      attributes: true, 
+      attributeFilter: ['data-theme'] 
+    })
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    mediaQuery.addEventListener('change', updateTheme)
+
+    return () => {
+      observer.disconnect()
+      mediaQuery.removeEventListener('change', updateTheme)
+    }
+  }, [])
+
+  return isDark
+}
 
 // Export these functions to be used elsewhere
 export const fetchUserName = async (userId: string, supabase: any) => {
@@ -78,7 +128,7 @@ export const updateUserName = async (userId: string, userName: string, supabase:
       }
     }
 
-    // 🚀 즉시 메모리 뱅크 업데이트 (백그라운드에서 실행)
+    // 🚀 Immediately update memory bank (runs in the background)
     try {
       const response = await fetch('/api/memory-bank/update-personal-info', {
         method: 'POST',
@@ -94,11 +144,11 @@ export const updateUserName = async (userId: string, userName: string, supabase:
       } else {
         const error = await response.json();
         console.warn('⚠️ Failed to update memory immediately:', error.message);
-        // 실패해도 전체 프로세스는 계속 진행
+        // The overall process continues even if this fails
       }
     } catch (memoryError) {
       console.warn('⚠️ Memory update failed but name change succeeded:', memoryError);
-      // 메모리 업데이트 실패는 전체 프로세스를 중단시키지 않음
+      // Memory update failure does not stop the entire process
     }
 
     return true;
@@ -118,24 +168,62 @@ interface AccountDialogProps {
 
 export function AccountDialog({ user, isOpen, onClose, profileImage: initialProfileImage, handleDeleteAllChats }: AccountDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false)
-  const [isSubscribed, setIsSubscribed] = useState(false)
-  const [isManagingSubscription, setIsManagingSubscription] = useState(false)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [showDeactivationOptions, setShowDeactivationOptions] = useState(false)
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleteReason, setDeleteReason] = useState('')
-  const [isEditing, setIsEditing] = useState(false)
+
   const [userName, setUserName] = useState(user?.user_metadata?.name || 'You')
+  const [originalUserName, setOriginalUserName] = useState(user?.user_metadata?.name || 'You')
   const [profileImage, setProfileImage] = useState<string | null>(initialProfileImage || null)
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
+  const [activeTab, setActiveTab] = useState('account')
+  const [isMobile, setIsMobile] = useState(false)
+  const [mobileView, setMobileView] = useState<string | null>(null)
+  const isDarkMode = useDarkMode()
+  const { isEnabled: isStarryNightEnabled, toggle: toggleStarryNight } = useHomeStarryNight()
+  const [translations, setTranslations] = useState({
+    profile: 'Profile',
+    appearance: 'Appearance',
+    dataControls: 'Data Controls',
+    settings: 'Settings',
+    light: 'Light',
+    dark: 'Dark',
+    system: 'System',
+    starryNightBackground: 'Home Screen Starry Night Effect',
+    deleteAllChats: 'Delete All Chats',
+    delete: 'Delete',
+    deleteAccount: 'Delete Account',
+    permanentlyDelete: 'Permanently Delete',
+    permanentlyDeleteAccount: 'Permanently Delete Account',
+    thisActionCannotBeUndone: 'This action cannot be undone.',
+    goBack: 'Go back',
+    close: 'Close',
+    theNameChatflixWillCallYou: 'The name Chatflix will call you',
+    enterYourName: 'Enter your name',
+    changeProfilePicture: 'Change profile picture',
+    logOut: 'Log Out'
+  });
+
+  useEffect(() => {
+    setTranslations(getSidebarTranslations());
+  }, []);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     if (user?.id && isOpen) {
-      checkUserSubscription();
       fetchProfileImage(user.id);
       loadUserName(user.id);
     }
@@ -149,12 +237,14 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
       setShowDeleteConfirmation(false);
       setDeleteConfirmText('');
       setDeleteReason('');
+      setMobileView(null);
     }
   }, [isOpen]);
 
   const loadUserName = async (userId: string) => {
     const name = await fetchUserName(userId, supabase);
     setUserName(name);
+    setOriginalUserName(name);
   };
 
   const fetchProfileImage = async (userId: string) => {
@@ -188,48 +278,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     }
   };
 
-  const checkUserSubscription = async () => {
-    if (!user) return;
-    
-    try {
-      const hasSubscription = await checkSubscriptionClient();
-      setIsSubscribed(hasSubscription);
-    } catch (error) {
-      // console.error('Error checking subscription:', error);
-      setIsSubscribed(false);
-    }
-  };
 
-  const handleManageSubscription = async () => {
-    if (!user) return;
-    
-    setIsManagingSubscription(true);
-    try {
-      const response = await fetch('/api/subscription/portal', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      const data = await response.json()
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to get customer portal URL')
-      }
-
-      if (data.portalUrl) {
-        window.location.href = data.portalUrl
-      } else {
-        throw new Error('Invalid portal URL response')
-      }
-    } catch (error) {
-      console.error('Error getting customer portal URL:', error);
-      alert('Failed to access subscription management. Please try again.');
-    } finally {
-      setIsManagingSubscription(false);
-    }
-  };
 
   const handleSignOut = async () => {
     try {
@@ -251,7 +300,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     try {
       setIsUploading(true);
 
-      // 파일 크기 체크 (3MB 제한)
+      // Check file size (3MB limit)
       const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB
       if (file.size > MAX_FILE_SIZE) {
         alert("File size should be less than 3MB");
@@ -259,7 +308,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
         return;
       }
 
-      // 이미지 확장자 체크
+      // Check image extension
       const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
       if (!validTypes.includes(file.type)) {
         alert("Please upload a valid image file (JPEG, PNG, GIF, or WEBP)");
@@ -267,7 +316,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
         return;
       }
 
-      // 이미지 압축을 위한 함수
+      // Function for image compression
       const compressImage = async (file: File, maxSizeMB = 1): Promise<File> => {
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
@@ -280,7 +329,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
               let width = img.width;
               let height = img.height;
               
-              // 이미지 크기 제한
+              // Image size limit
               const MAX_WIDTH = 800;
               const MAX_HEIGHT = 800;
               
@@ -302,7 +351,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
               const ctx = canvas.getContext('2d');
               ctx?.drawImage(img, 0, 0, width, height);
               
-              // 압축 품질 조정 (0.7 = 70% 품질)
+              // Adjust compression quality (0.7 = 70% quality)
               const quality = 0.7;
               canvas.toBlob(
                 (blob) => {
@@ -330,19 +379,19 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
         });
       };
 
-      // 이미지 압축 후 업로드
+      // Upload after image compression
       let fileToUpload = file;
       try {
-        if (file.size > 1 * 1024 * 1024) { // 1MB 이상이면 압축
+        if (file.size > 1 * 1024 * 1024) { // Compress if larger than 1MB
           fileToUpload = await compressImage(file);
           console.log(`Compressed image from ${file.size} to ${fileToUpload.size} bytes`);
         }
       } catch (compressionError) {
         console.error('Error compressing image:', compressionError);
-        // 압축 실패 시 원본 파일 사용
+        // Use original file if compression fails
       }
 
-      // 먼저 기존 파일 제거
+      // First, remove existing files
       try {
         const { data: existingFiles } = await supabase.storage
           .from('profile-pics')
@@ -355,10 +404,10 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
         }
       } catch (error) {
         console.error('Error removing existing files:', error);
-        // 기존 파일 제거 실패해도 계속 진행
+        // Continue even if removing existing files fails
       }
 
-      // RLS 정책 때문에 인증 세션을 통한 업로드 사용
+      // Use authenticated session for upload due to RLS policy
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
@@ -368,7 +417,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
         return;
       }
 
-      // 타임스탬프로 파일명 생성
+      // Generate filename with timestamp
       const timestamp = new Date().getTime();
       const fileExt = file.name.split('.').pop();
       const fileName = `profile_${timestamp}.${fileExt}`;
@@ -384,7 +433,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
       if (uploadError) {
         console.error('Error uploading profile image:', uploadError);
         
-        // RLS 정책 오류 특별 처리
+        // Special handling for RLS policy errors
         if (uploadError.message?.includes('row-level security') || 
             (uploadError as any).statusCode === 403 || 
             uploadError.message?.includes('Unauthorized')) {
@@ -395,7 +444,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
         return;
       }
 
-      // URL 가져오기 및 캐시 버스팅
+      // Get URL and cache busting
       const { data } = supabase.storage
         .from('profile-pics')
         .getPublicUrl(filePath);
@@ -410,7 +459,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
       
       console.log('Image upload successful');
       
-      // 🚀 프로필 이미지 변경 시에도 즉시 메모리 업데이트 (선택사항)
+      // 🚀 Immediately update memory on profile image change (optional)
       try {
         const response = await fetch('/api/memory-bank/update-personal-info', {
           method: 'POST',
@@ -437,31 +486,28 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
   const handleUpdateUserName = async () => {
     if (!user) return;
 
+    // Don't make an API request if the name hasn't changed
+    if (userName.trim() === originalUserName.trim()) {
+      return;
+    }
+
     try {
       await updateUserName(user.id, userName, supabase);
-      setIsEditing(false);
+      setOriginalUserName(userName); // Update original name on success
     } catch (error) {
       console.error('Error updating user name:', error);
       alert(`Error updating name: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
-  const handleEditToggle = () => {
-    if (isEditing) {
-      handleUpdateUserName();
-    } else {
-      setIsEditing(true);
-    }
-  };
-
   const handleDeleteAccount = async () => {
-    // 확인 텍스트가 정확하지 않으면 삭제 불가
+    // Cannot delete if confirmation text is incorrect
     if (deleteConfirmText !== `delete ${user.email}`) {
       alert('Please enter the confirmation text exactly as shown to proceed.');
       return;
     }
     
-    // 삭제 이유를 선택하지 않으면 삭제 불가
+    // Cannot delete if a reason is not selected
     if (!deleteReason) {
       alert('Please select a reason for deleting your account.');
       return;
@@ -514,265 +560,450 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     }
   }
 
-  if (!isOpen) return null
-
-  // 계정 삭제 확인 화면
-  if (showDeleteConfirmation) {
+  const renderMobileList = () => {
     return (
-      <div 
-        className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 overflow-hidden backdrop-blur-sm"
-        onClick={(e) => {
-          if (e.target === e.currentTarget) setShowDeleteConfirmation(false)
-        }}
-      >
-        <div className="w-full max-w-2xl bg-[var(--background)] h-full flex flex-col shadow-xl">
-          <div className="pt-12 px-6 pb-6 border-b border-[var(--accent)]">
-            <h2 className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider text-red-500">Permanently Delete Account</h2>
-          </div>
-          
-          <div className="flex-1 overflow-y-auto">
-            <div className="p-6">
-              <div className="mb-8 space-y-6">
-                <div className="p-4 bg-red-500/10 text-red-500 text-sm">
-                  <p className="font-medium mb-2">Warning: This action cannot be undone</p>
-                  <p>Deleting your account will:</p>
-                  <ul className="list-disc pl-5 mt-2 space-y-1">
-                    <li>Permanently delete all your conversations</li>
-                    <li>Cancel any active subscriptions</li>
-                    <li>Remove all your data from our servers</li>
-                    <li>Prevent you from recovering this account</li>
-                  </ul>
-                </div>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider text-[var(--muted)] mb-2">
-                      Please select a reason for deleting your account:
-                    </label>
-                    <select 
-                      value={deleteReason}
-                      onChange={(e) => setDeleteReason(e.target.value)}
-                      className="w-full p-3 bg-[var(--accent)] text-sm"
-                      required
-                    >
-                      <option value="">Select a reason...</option>
-                      <option value="privacy">Privacy concerns</option>
-                      <option value="not_useful">Not useful for me</option>
-                      <option value="too_expensive">Too expensive</option>
-                      <option value="found_alternative">Found an alternative</option>
-                      <option value="temporary">Temporary break</option>
-                      <option value="other">Other reason</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider text-[var(--muted)] mb-2">
-                      To confirm, please type <span className="font-medium text-red-500">{`delete ${user.email}`}</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={deleteConfirmText}
-                      onChange={(e) => setDeleteConfirmText(e.target.value)}
-                      className="w-full p-3 bg-[var(--accent)] text-sm"
-                      placeholder="Type the confirmation text"
-                      required
-                    />
-                  </div>
-                </div>
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-6">
+          <div className="space-y-1">
+            <button 
+              onClick={() => setMobileView('account')}
+              className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <User size={20} />
+                <span className="text-base">{translations.profile}</span>
               </div>
-              
-              <div className="space-y-2">
-                <button
-                  onClick={handleDeleteAccount}
-                  disabled={isDeleting || deleteConfirmText !== `delete ${user.email}` || !deleteReason}
-                  className="w-full p-4 text-xs uppercase tracking-wider text-red-500 bg-red-500/10 
-                           hover:bg-red-500/20 transition-colors disabled:opacity-50"
-                >
-                  {isDeleting ? 'Deleting...' : 'Permanently Delete My Account'}
-                </button>
-                
-                <button
-                  onClick={() => setShowDeleteConfirmation(false)}
-                  className="w-full p-4 text-xs uppercase tracking-wider bg-[var(--accent)] hover:opacity-90 transition-opacity"
-                >
-                  Cancel
-                </button>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+            
+            <button 
+              onClick={() => setMobileView('appearance')}
+              className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <PaintBucket size={20} />
+                <span className="text-base">{translations.appearance}</span>
               </div>
-            </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+            
+
+            
+            <button 
+              onClick={() => setMobileView('data-controls')}
+              className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Database size={20} />
+                <span className="text-base">{translations.dataControls}</span>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+            
+            <div className="my-6 h-[1px] bg-[var(--accent)]" />
+            
+            <button 
+              onClick={handleSignOut}
+              className="w-full flex items-center justify-between p-4 hover:bg-red-500/10 rounded-lg transition-colors text-red-500"
+            >
+              <div className="flex items-center gap-3">
+                <LogOut size={20} />
+                <span className="text-base">{translations.logOut}</span>
+              </div>
+            </button>
           </div>
         </div>
       </div>
     );
+  };
+
+  const renderContentByTab = (tab: string) => {
+    switch (tab) {
+            case 'account':
+        return (
+          <div className="p-8 sm:py-20 h-full flex flex-col items-center">
+            {/* Profile Section - Centered */}
+            <div className="flex flex-col items-center gap-6 w-full max-w-sm">
+              {/* Profile Image */}
+              <div className="relative group">
+                <div className="relative w-24 h-24 rounded-full bg-[var(--foreground)] flex items-center justify-center overflow-hidden">
+                  {profileImage ? (
+                    <Image src={profileImage} alt={userName} fill sizes="96px" className="object-cover" />
+                  ) : (
+                    <span className="text-3xl font-bold text-[var(--background)]">{userName.charAt(0).toUpperCase()}</span>
+                  )}
+                  
+                  {isUploading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Edit Button - Bottom right of profile picture */}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute -bottom-1 -right-1 w-8 h-8 bg-[#007AFF] hover:bg-[#0056CC] rounded-full flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-110"
+                  title={translations.changeProfilePicture}
+                >
+                  <svg 
+                    width="16" 
+                    height="16" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="white" 
+                    strokeWidth="2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
+                  >
+                    <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
+                    <circle cx="12" cy="13" r="3"></circle>
+                  </svg>
+                </button>
+                
+                <input type="file" ref={fileInputRef} onChange={handleImageUpload} className="hidden" accept="image/*" />
+              </div>
+
+              {/* Name Input Area */}
+              <div className="w-full">
+                <input
+                  type="text"
+                  value={userName}
+                  onChange={(e) => setUserName(e.target.value)}
+                  className="w-full text-xl font-medium text-center bg-[var(--accent)] border border-[var(--accent)] rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#007AFF] focus:border-transparent transition-all"
+                  maxLength={30}
+                  onBlur={handleUpdateUserName}
+                  onKeyDown={(e) => e.key === 'Enter' && handleUpdateUserName()}
+                  placeholder={translations.enterYourName}
+                />
+                
+                {/* Description Text */}
+                <p className="text-center text-sm text-[var(--muted)] mt-2">
+                  {translations.theNameChatflixWillCallYou}
+                </p>
+              </div>
+            </div>
+          </div>
+        )
+      case 'appearance':
+        return (
+          <div className="p-6 sm:py-20 h-full flex flex-col">
+            <div className="space-y-6">
+              {/* Theme Card Section */}
+              <div className="grid grid-cols-3 gap-4">
+                <button 
+                  className="flex flex-col items-center justify-center p-6 bg-[var(--accent)] rounded-2xl border border-[var(--accent)]"
+                  onClick={() => {
+                    localStorage.setItem('theme', 'light');
+                    document.documentElement.setAttribute('data-theme', 'light');
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-2">
+                    <circle cx="12" cy="12" r="4"></circle>
+                    <path d="M12 2v2"></path>
+                    <path d="M12 20v2"></path>
+                    <path d="m4.93 4.93 1.41 1.41"></path>
+                    <path d="m17.66 17.66 1.41 1.41"></path>
+                    <path d="M2 12h2"></path>
+                    <path d="M20 12h2"></path>
+                    <path d="m6.34 17.66-1.41 1.41"></path>
+                    <path d="m19.07 4.93-1.41 1.41"></path>
+                  </svg>
+                  <span className="text-sm font-medium">{translations.light}</span>
+                </button>
+                
+                <button 
+                  className="flex flex-col items-center justify-center p-6 bg-[var(--accent)] rounded-2xl border border-[var(--accent)]"
+                  onClick={() => {
+                    localStorage.setItem('theme', 'dark');
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-2">
+                    <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+                  </svg>
+                  <span className="text-sm font-medium">{translations.dark}</span>
+                </button>
+                
+                <button 
+                  className="flex flex-col items-center justify-center p-6 bg-[var(--accent)] rounded-2xl border border-[var(--accent)]"
+                  onClick={() => {
+                    localStorage.removeItem('theme');
+                    document.documentElement.setAttribute('data-theme', 'system');
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-2">
+                    <rect width="20" height="14" x="2" y="3" rx="2"></rect>
+                    <line x1="8" x2="16" y1="21" y2="21"></line>
+                    <line x1="12" x2="12" y1="17" y2="21"></line>
+                  </svg>
+                  <span className="text-sm font-medium">{translations.system}</span>
+                </button>
+              </div>
+              
+              {/* 다크모드일 때만 별 효과 토글 표시 */}
+              {isDarkMode && (
+                <div className="flex items-center justify-between mt-4">
+                  <span className="text-base">{translations.starryNightBackground}</span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isStarryNightEnabled}
+                      onChange={toggleStarryNight}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#007AFF] shadow-inner"></div>
+                  </label>
+                </div>
+              )}
+
+            </div>
+          </div>
+        )
+
+      case 'data-controls':
+        return (
+          <div className="p-6 sm:py-20 h-full flex flex-col">
+            <div className="space-y-6">
+                              {handleDeleteAllChats && (
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base text-[var(--foreground)]">
+                      {translations.deleteAllChats}
+                    </h3>
+                    <button
+                      onClick={handleDeleteAllChats}
+                      className="px-4 py-2 bg-[var(--accent)] text-[var(--foreground)] text-sm font-medium rounded-lg"
+                    >
+                      {translations.delete}
+                    </button>
+                  </div>
+                )}
+                
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base text-[var(--foreground)]">
+                    {translations.deleteAccount}
+                  </h3>
+                  <button
+                    onClick={() => setShowDeleteConfirmation(true)}
+                    className="px-4 py-2 bg-[var(--accent)] text-red-600 dark:text-red-400 text-sm font-medium rounded-lg"
+                  >
+                    {translations.permanentlyDelete}
+                  </button>
+                </div>
+            </div>
+          </div>
+        )
+      default:
+        return null
+    }
+  };
+
+  const renderContent = () => {
+    return renderContentByTab(activeTab);
   }
 
-  // 기본 계정 설정 화면
-  return (
-    <div 
-      className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 overflow-hidden backdrop-blur-sm"
+  if (!isOpen) return null
+
+  // Account Deletion Confirmation Screen
+  if (showDeleteConfirmation) {
+    const confirmationText = `delete ${user.email}`;
+    return ReactDOM.createPortal(
+      <div 
+        className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-hidden backdrop-blur-sm"
+        onClick={() => setShowDeleteConfirmation(false)}
+      >
+        <div 
+          className="w-full max-w-lg bg-[var(--background)] rounded-2xl flex flex-col shadow-xl overflow-hidden"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="p-6 border-b border-[var(--accent)]">
+            <h2 className="text-lg font-semibold text-red-500">{translations.permanentlyDeleteAccount}</h2>
+            <p className="text-sm text-[var(--muted)] mt-1">{translations.thisActionCannotBeUndone}</p>
+          </div>
+          
+          <div className="p-6">
+            <div className="mb-6 space-y-4">
+              <div className="p-4 bg-red-500/10 text-red-500 text-sm rounded-lg">
+                <p>Deleting your account will permanently remove all conversations, subscription information, and data.</p>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-[var(--muted)] mb-2">
+                    Please select a reason for deletion:
+                  </label>
+                  <select 
+                    value={deleteReason}
+                    onChange={(e) => setDeleteReason(e.target.value)}
+                    className="w-full p-3 bg-[var(--accent)] text-sm rounded-md"
+                    required
+                  >
+                    <option value="">Select...</option>
+                    <option value="privacy">Privacy concerns</option>
+                    <option value="not_useful">No longer useful</option>
+                    <option value="too_expensive">Cost issues</option>
+                    <option value="found_alternative">Found an alternative</option>
+                    <option value="temporary">Temporary deactivation</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-[var(--muted)] mb-2">
+                    To confirm, please type <span className="font-medium text-red-500">{confirmationText}</span>.
+                  </label>
+                  <input
+                    type="text"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    className="w-full p-3 bg-[var(--accent)] text-sm rounded-md"
+                    placeholder="Enter the text shown above"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirmation(false)}
+                className="flex-1 p-3 text-sm bg-[var(--accent)] hover:opacity-90 transition-opacity rounded-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={isDeleting || deleteConfirmText !== confirmationText || !deleteReason}
+                className="flex-1 p-3 text-sm text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50 rounded-md"
+              >
+                {isDeleting ? 'Deleting...' : translations.permanentlyDeleteAccount}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>,
+      document.getElementById('portal-root')!
+    );
+  }
+
+  const modalContent = (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 overflow-hidden backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="w-full max-w-2xl bg-[var(--background)] h-full flex flex-col shadow-xl">
-        {/* Fixed Header */}
-        <div className="pt-12 px-6 pb-6 border-b border-[var(--accent)]">
-          <h2 className="w-full h-[46px] flex items-center justify-center text-sm uppercase tracking-wider hover:text-[var(--muted)] transition-colors">Account Settings</h2>
+      <div 
+        className="w-full bg-[var(--background)] flex flex-col shadow-xl overflow-hidden rounded-t-2xl sm:rounded-2xl sm:w-[800px] sm:h-[600px] h-[85vh] border border-[var(--accent)]"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="sm:hidden text-center pt-4 pb-2 shrink-0">
+          <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto" />
         </div>
-
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-6">
-            {/* User Info */}
-            <div className="mb-8">
-              <div className="space-y-6">
-                <div className="flex flex-col items-center gap-4">
-                  {/* 프로필 이미지 섹션 - user-insights/page.tsx 스타일 적용 */}
-                  <div className="inline-block relative group">
-                    <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[var(--foreground)] flex items-center justify-center overflow-hidden z-10">
-                      {profileImage ? (
-                        <Image 
-                          src={profileImage} 
-                          alt={userName} 
-                          fill 
-                          sizes="96px"
-                          className="object-cover"
-                        />
-                      ) : (
-                        <span className="text-3xl font-bold text-[var(--background)]">
-                          {userName.charAt(0).toUpperCase()}
-                        </span>
-                      )}
-                      
-                      {/* Edit overlay */}
-                      <div 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                      >
-                        <span className="text-white text-xs">Change</span>
-                      </div>
-                    </div>
-                    <div className="absolute inset-0 bg-[var(--foreground)] opacity-20 blur-lg rounded-full"></div>
-                    
-                    {isUploading && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full z-20">
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      </div>
-                    )}
-                    <input 
-                      type="file" 
-                      ref={fileInputRef}
-                      onChange={handleImageUpload}
-                      className="hidden"
-                      accept="image/*"
-                    />
-                  </div>
-                  
-                  {/* 이름 편집 섹션 - user-insights/page.tsx 스타일 적용 */}
-                  <div className="mt-4 flex items-center justify-center">
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={userName}
-                        onChange={(e) => setUserName(e.target.value)}
-                        className="text-xl sm:text-2xl font-bold bg-transparent border-b border-[var(--foreground)] text-center focus:outline-none"
-                        autoFocus
-                        maxLength={30}
-                      />
-                    ) : (
-                      <h2 className="text-xl sm:text-2xl font-bold">{userName}</h2>
-                    )}
-                    
-                    <button 
-                      onClick={handleEditToggle}
-                      className="ml-2 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-                    >
-                      {isEditing ? "✓" : "✎"}
-                    </button>
-                  </div>
-                  <div className="text-sm text-[var(--muted)]">{user.email}</div>
-                </div>
-                <div className="h-[1px] bg-[var(--accent)]" />
-                <div className="space-y-1">
-                  <div className="text-xs uppercase tracking-wider text-[var(--muted)]">Actions</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Account Actions */}
-            <div className="space-y-2">
-              <button
-                onClick={handleSignOut}
-                className="w-full p-4 text-xs uppercase tracking-wider bg-[var(--accent)] hover:opacity-90 transition-opacity"
-              >
-                Sign Out
-              </button>
-              
-              {/* Done button */}
-              <button
-                onClick={onClose}
-                className="w-full mt-4 p-4 text-xs uppercase tracking-wider 
-                         bg-[var(--foreground)] text-[var(--background)] 
-                         hover:opacity-90 transition-opacity"
-              >
-                Done
-              </button>
-              
-              {/* Advanced Settings Toggle */}
-              <div className="mt-16 text-center">
+        
+        {/* Mobile Layout */}
+        {isMobile ? (
+          <div className="flex flex-col flex-1 min-h-0">
+            <div className="relative flex items-center justify-center py-4 border-b border-[var(--accent)] shrink-0">
+              {mobileView && (
                 <button 
-                  onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-                  className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                  onClick={() => setMobileView(null)}
+                  className="absolute left-4 p-2 hover:bg-[var(--accent)] rounded-lg transition-colors"
+                  aria-label={translations.goBack}
                 >
-                  {showAdvancedSettings ? 'Hide Advanced Settings' : 'Show Advanced Settings'}
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 12H5" />
+                    <path d="M12 19l-7-7 7-7" />
+                  </svg>
                 </button>
-              </div>
-              
-              {/* Advanced Settings Section */}
-              {showAdvancedSettings && (
-                <div className="mt-4 pt-4 border-t border-[var(--accent)]">
-                  <div className="space-y-4">
-                    {/* 구독 관리 버튼 */}
-                    {isSubscribed && (
-                      <button
-                        onClick={handleManageSubscription}
-                        disabled={isManagingSubscription}
-                        className="w-full p-3 text-xs text-[var(--muted)] bg-[var(--background)] border border-[var(--accent)] hover:bg-[var(--accent)] transition-colors"
-                      >
-                        {isManagingSubscription ? 'Loading...' : 'Manage Billing Settings'}
-                      </button>
-                    )}
-                    
-                    {/* 모든 채팅 삭제 버튼 */}
-                    {handleDeleteAllChats && (
-                      <button
-                        onClick={handleDeleteAllChats}
-                        className="w-full p-3 text-xs text-red-500 hover:text-red-700 bg-[var(--background)] border border-[var(--accent)] hover:bg-[var(--accent)] transition-colors flex items-center justify-center gap-2"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                          <path d="M3 6h18" />
-                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                          <line x1="10" y1="11" x2="10" y2="17" />
-                          <line x1="14" y1="11" x2="14" y2="17" />
-                        </svg>
-                        <span>Delete All Chats</span>
-                      </button>
-                    )}
-                    
-                    {/* 계정 삭제 버튼 */}
-                    <button
-                      onClick={() => setShowDeleteConfirmation(true)}
-                      className="w-full p-3 text-xs text-[var(--muted)] bg-[var(--background)] border border-[var(--accent)] hover:bg-[var(--accent)] transition-colors"
-                    >
-                      Delete Account
-                    </button>
-                  </div>
-                </div>
               )}
+              <h2 className="text-lg font-semibold">
+                {mobileView ? 
+                  (mobileView === 'account' ? translations.profile :
+                   mobileView === 'appearance' ? translations.appearance :
+                   mobileView === 'data-controls' ? translations.dataControls : translations.settings)
+                  : translations.settings}
+              </h2>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              {mobileView ? renderContentByTab(mobileView) : renderMobileList()}
             </div>
           </div>
-        </div>
+        ) : (
+          /* Desktop Layout */
+          <div className="flex flex-col sm:flex-row flex-1 min-h-0">
+            {/* Sidebar */}
+            <div className="w-full sm:w-56 sm:bg-[var(--accent)] p-4 flex flex-col border-b sm:border-b-0 sm:border-r border-[var(--accent)]">
+              <h2 className="text-lg font-semibold mb-6 px-2 hidden sm:block">{translations.settings}</h2>
+              <nav className="flex sm:flex-col gap-1 overflow-x-auto pb-2 sm:pb-0 -mx-4 px-4">
+                <button onClick={() => setActiveTab('account')} className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm shrink-0 ${activeTab === 'account' ? 'bg-[var(--accent)]' : 'hover:bg-[var(--accent)]'}`}>
+                  <User size={16} /> <span className="hidden sm:inline">{translations.profile}</span>
+                </button>
+                <button onClick={() => setActiveTab('appearance')} className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm shrink-0 ${activeTab === 'appearance' ? 'bg-[var(--accent)]' : 'hover:bg-[var(--accent)]'}`}>
+                  <PaintBucket size={16} /> <span className="hidden sm:inline">{translations.appearance}</span>
+                </button>
+
+                <button onClick={() => setActiveTab('data-controls')} className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm shrink-0 ${activeTab === 'data-controls' ? 'bg-[var(--accent)]' : 'hover:bg-[var(--accent)]'}`}>
+                  <Database size={16} /> <span className="hidden sm:inline">{translations.dataControls}</span>
+                </button>
+              </nav>
+              <div className="mt-auto hidden sm:block">
+                <button onClick={handleSignOut} className="flex items-center gap-3 px-2 py-2 rounded-md text-sm w-full text-left text-red-500 hover:bg-red-500/10">
+                  <LogOut size={16} /> {translations.logOut}
+                </button>
+              </div>
+            </div>
+            
+            {/* Content */}
+            <div className="flex-1 flex flex-col overflow-y-auto relative">
+              {/* Close Button - Top right */}
+              <button 
+                onClick={onClose} 
+                className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full flex items-center justify-center"
+                title={translations.close}
+              >
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  width="16" 
+                  height="16" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
+                  className="text-[var(--muted)]"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+              
+              <div className="flex-1">
+                {renderContent()}
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   )
+
+  // Handle portal usage in SSR environment
+  if (typeof window === 'object') {
+    const portalRoot = document.getElementById('portal-root');
+    if (portalRoot) {
+      return ReactDOM.createPortal(modalContent, portalRoot);
+    }
+  }
+
+  // If document is not available or portal-root is not found (e.g., SSR)
+  return modalContent;
 } 

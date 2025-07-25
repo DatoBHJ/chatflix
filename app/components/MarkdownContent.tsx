@@ -982,6 +982,15 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       if (language === 'diff') {
         const lines = codeText.split('\n');
         
+        // 실제 diff 형식인지 미리 판단
+        const hasGitDiffMarkers = lines.some(line => {
+          const trimmed = line.trim();
+          return trimmed.startsWith('@@') || // hunk 헤더
+                 trimmed.startsWith('+++') || // 새 파일
+                 trimmed.startsWith('---') || // 기존 파일
+                 trimmed.match(/^diff --git/); // git diff 헤더
+        });
+      
         return (
           <div className="message-code group relative my-6 max-w-full overflow-hidden">
             <div className="message-code-header flex items-center justify-between px-4 py-2 min-w-0">
@@ -991,8 +1000,8 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               <button
                 onClick={(e) => handleCopy(codeText, e)}
                 className="text-xs uppercase tracking-wider px-2 py-1 
-                         text-[var(--muted)] hover:text-[var(--foreground)] 
-                         transition-colors whitespace-nowrap ml-2 flex-shrink-0"
+                           text-[var(--muted)] hover:text-[var(--foreground)] 
+                           transition-colors whitespace-nowrap ml-2 flex-shrink-0"
               >
                 Copy
               </button>
@@ -1004,45 +1013,63 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                   let lineClass = '';
                   let lineStyle = {};
                   let prefix = '';
-                  
-                  if (trimmedLine.startsWith('+')) {
-                    // Added line
-                    lineClass = 'bg-green-500/10 text-green-600 dark:text-green-400';
-                    lineStyle = { 
-                      backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                      borderLeft: '3px solid rgb(34, 197, 94)'
-                    };
-                    prefix = '+';
-                  } else if (trimmedLine.startsWith('-')) {
-                    // Removed line
-                    lineClass = 'bg-red-500/10 text-red-600 dark:text-red-400';
-                    lineStyle = { 
-                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                      borderLeft: '3px solid rgb(239, 68, 68)'
-                    };
-                    prefix = '-';
-                  } else if (trimmedLine.startsWith('@@')) {
-                    // Hunk header
-                    lineClass = 'bg-blue-500/10 text-blue-600 dark:text-blue-400';
-                    lineStyle = { 
-                      backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                      fontWeight: 'bold'
-                    };
-                    prefix = '@@';
-                  } else if (trimmedLine.startsWith('+++') || trimmedLine.startsWith('---')) {
-                    // File header
-                    lineClass = 'bg-gray-500/10 text-gray-600 dark:text-gray-400';
-                    lineStyle = { 
-                      backgroundColor: 'rgba(107, 114, 128, 0.1)',
-                      fontWeight: 'bold'
-                    };
-                    prefix = trimmedLine.startsWith('+++') ? '+++' : '---';
+      
+                  if (hasGitDiffMarkers) {
+                    // 실제 git diff 형식일 때만 색상 처리
+                    if (trimmedLine.startsWith('@@')) {
+                      // Hunk 헤더
+                      lineClass = 'bg-blue-500/10 text-blue-600 dark:text-blue-400';
+                      lineStyle = {
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fontWeight: 'bold'
+                      };
+                      prefix = '@@';
+                    } else if (trimmedLine.startsWith('+')) {
+                      // 추가된 줄
+                      lineClass = 'bg-green-500/10 text-green-600 dark:text-green-400';
+                      lineStyle = {
+                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                        borderLeft: '3px solid rgb(34, 197, 94)'
+                      };
+                      prefix = '+';
+                    } else if (trimmedLine.startsWith('-')) {
+                      // 삭제된 줄
+                      lineClass = 'bg-red-500/10 text-red-600 dark:text-red-400';
+                      lineStyle = {
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        borderLeft: '3px solid rgb(239, 68, 68)'
+                      };
+                      prefix = '-';
+                    } else if (trimmedLine.startsWith('+++') || trimmedLine.startsWith('---')) {
+                      // 파일 헤더
+                      lineClass = 'bg-gray-500/10 text-gray-600 dark:text-gray-400';
+                      lineStyle = {
+                        backgroundColor: 'rgba(107, 114, 128, 0.1)',
+                        fontWeight: 'bold'
+                      };
+                      prefix = trimmedLine.startsWith('+++') ? '+++' : '---';
+                    } else {
+                      // 컨텍스트 줄
+                      lineClass = 'text-[var(--code-text)]';
+                      prefix = ' ';
+                    }
                   } else {
-                    // Context line
+                    // 실제 diff가 아닌 경우 - 모든 줄을 일반 텍스트로 처리
                     lineClass = 'text-[var(--code-text)]';
-                    prefix = ' ';
+                    if (trimmedLine.startsWith('-')) {
+                      prefix = '-'; // bullet point로 처리
+                    } else if (trimmedLine.startsWith('+')) {
+                      prefix = '+';
+                    } else {
+                      prefix = '';
+                    }
                   }
-                  
+      
+                  // prefix 제거 (실제 diff가 아닌 경우는 제거하지 않음)
+                  const displayLine = hasGitDiffMarkers && line.startsWith(prefix) 
+                    ? line.slice(prefix.length) 
+                    : line;
+      
                   return (
                     <div
                       key={index}
@@ -1050,10 +1077,10 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                       style={lineStyle}
                     >
                       <span className="inline-block w-4 text-center opacity-60 select-none mr-2 flex-shrink-0">
-                        {prefix}
+                        {hasGitDiffMarkers ? prefix : ''}
                       </span>
                       <span className="break-words min-w-0 flex-1 whitespace-pre-wrap">
-                        {line.slice(1) || ' '}
+                        {displayLine || ' '}
                       </span>
                     </div>
                   );
@@ -1063,6 +1090,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           </div>
         );
       }
+      
       
       if (language === 'chartjs') {
         
@@ -1452,8 +1480,11 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                 </button>
               </div>
               
-              {/* Caption below the image */}
+              {/* Caption below the image - only for generated images */}
               {selectedImage.alt && (
+                selectedImage.src.includes('image.pollinations.ai') || 
+                selectedImage.alt.includes('Generated image')
+              ) && (
                 <div className="text-center text-white text-sm mt-4 z-10 bg-black/30 py-2 px-4 rounded-md">
                   {selectedImage.alt}
                 </div>

@@ -24,6 +24,7 @@ ${baseAvailableToolsList.map(tool => `- "${tool}": ${toolDescriptions[tool]}`).j
 ## Special Tool Selection Guidelines:
 
 ### Image-related Requests:
+- **IMPORTANT**: If user query seems to even slightly requires external urls of images, always select web_search tool. 
 - **SEARCH FIRST**: For requests like "show me", "find", "I want to see" → prioritize web_search
 - **GENERATE ONLY**: When explicitly asked to "create", "generate", "draw", "make an image"
 - **CLARIFY AMBIGUOUS**: When unclear whether user wants search or generation
@@ -31,6 +32,7 @@ ${baseAvailableToolsList.map(tool => `- "${tool}": ${toolDescriptions[tool]}`).j
 #### Examples:
 - "show me photos of Paris" → web_search 
 - "find images of cats" → web_search
+- "Send me some meme images" → web_search
 - "create a fantasy landscape" → image_generator
 - "draw a cartoon character" → image_generator
 - "I need an image of a car" → CLARIFY (search vs generate?)

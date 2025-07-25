@@ -14,6 +14,14 @@ export const getWebSearchResults = (message: Message) => {
       ? (message.annotations as any[]).filter(a => a?.type === 'web_search_complete')
       : [];
 
+    // Extract imageMap from annotations
+    let imageMap: { [key: string]: string } = {};
+    webSearchCompletions.forEach(completion => {
+      if (completion.data?.imageMap) {
+        imageMap = { ...imageMap, ...completion.data.imageMap };
+      }
+    });
+
     // Group query completions by searchId
     const queryCompletionsBySearchId = new Map<string, any[]>();
     queryCompletions.forEach(completion => {
@@ -211,13 +219,29 @@ export const getWebSearchResults = (message: Message) => {
         result: null, // For backward compatibility
         args: null,
         annotations: queryCompletions,
-        results: allResults
+        results: allResults,
+        imageMap
       };
     }
     
     // Check for stored tool results as a fallback
     if ((message as any).tool_results) {
       const toolResults = (message as any).tool_results;
+      
+      // Extract imageMap from tool_results
+      if (toolResults.webSearchResults) {
+        toolResults.webSearchResults.forEach((result: any) => {
+          if (result.imageMap) {
+            imageMap = { ...imageMap, ...result.imageMap };
+          }
+        });
+      } else if (Array.isArray(toolResults)) {
+        toolResults.forEach((result: any) => {
+          if (result.imageMap) {
+            imageMap = { ...imageMap, ...result.imageMap };
+          }
+        });
+      }
       
       // Handle both new and legacy formats
       let storedResults: any[] = [];
@@ -292,7 +316,8 @@ export const getWebSearchResults = (message: Message) => {
           result: null, // For backward compatibility
           args: null,
           annotations: queryCompletions,
-          results: storedResults
+          results: storedResults,
+          imageMap
         };
       }
     }
@@ -310,7 +335,8 @@ export const getWebSearchResults = (message: Message) => {
             searches: [],
             isComplete: false,
             annotations: queryCompletions
-          }]
+          }],
+          imageMap
         };
       }
       return null;
@@ -328,6 +354,12 @@ export const getWebSearchResults = (message: Message) => {
           if (invocation.args) allArgs.push(JSON.parse(JSON.stringify(invocation.args)));
           if (invocation.result) {
             const result = JSON.parse(JSON.stringify(invocation.result));
+            
+            // Extract imageMap from invocation result
+            if (result.imageMap) {
+              imageMap = { ...imageMap, ...result.imageMap };
+            }
+            
             if (result.searchId && !processedSearchIds.has(result.searchId)) {
               processedSearchIds.add(result.searchId);
               allInvocationResults.push({
@@ -412,7 +444,8 @@ export const getWebSearchResults = (message: Message) => {
         result: null, // For backward compatibility 
         args: allArgs[0] || null,
         annotations: queryCompletions,
-        results: allInvocationResults
+        results: allInvocationResults,
+        imageMap
       };
     }
     
@@ -427,7 +460,8 @@ export const getWebSearchResults = (message: Message) => {
           searches: [],
           isComplete: false,
           annotations: queryCompletions
-        }]
+        }],
+        imageMap
       };
     }
     

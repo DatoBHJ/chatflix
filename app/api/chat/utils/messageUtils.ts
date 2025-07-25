@@ -742,17 +742,6 @@ export function convertMultiModalToMessage(
     return baseMessage as Message; // Return as Message type
   });
 
-  // 디버깅 로그 출력
-  if (contextFilter) {
-    // console.log('🔧 [TOOL RESULTS DEBUG]', {
-    //   totalMessages: toolResultsStats.totalMessages,
-    //   messagesWithToolResults: toolResultsStats.messagesWithToolResults,
-    //   includedAfterFilter: toolResultsStats.includedToolResults,
-    //   includedToolTypes: [...new Set(toolResultsStats.toolTypes)],
-    //   filterEnabled: Object.entries(contextFilter).filter(([k,v]) => k !== 'reasoning' && v).map(([k]) => k)
-    // });
-  }
-
   return result;
 }
 

@@ -12,15 +12,12 @@ import { fetchUserName } from '@/app/components/AccountDialog'
 import { Toaster } from 'sonner'
 import { SidebarContext } from './lib/SidebarContext'
 
-export default function RootLayoutClient({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+function LayoutContent({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
   const [userName, setUserName] = useState('You')
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false) // 초기값을 false로 변경
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isAccountOpen, setIsAccountOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -106,8 +103,8 @@ export default function RootLayoutClient({
   }
 
   return (
-    <SidebarContext.Provider value={{ isSidebarOpen }}>
-    <div className="flex h-screen bg-transparent text-[var(--foreground)] overflow-x-hidden">
+    <SidebarContext.Provider value={{ isSidebarOpen, toggleSidebar, isAccountOpen, setIsAccountOpen }}>
+    <div className="flex h-screen bg-background dark:bg-transparent text-[var(--foreground)] overflow-x-hidden">
       <Toaster position="top-right" richColors />
       <Announcement
         announcements={announcements || []}
@@ -141,32 +138,34 @@ export default function RootLayoutClient({
             </div>
 
             {/* Unified Sidebar Toggle Button */}
-            <button
-              onClick={toggleSidebar}
-              className={`sidebar-toggle-btn fixed top-5 z-[60] p-2 text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--accent)]/50 rounded-lg transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] flex items-center justify-center group ${
-                isSidebarOpen 
-                  ? 'left-[280px]' 
-                  : 'left-3'
-              }`}
-              title={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
-              aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
-              style={{
-                willChange: 'left, background-color, border, box-shadow',
-                outline: '0 !important',
-                border: '0 !important',
-                boxShadow: 'none !important',
-                WebkitTapHighlightColor: 'transparent',
-                WebkitAppearance: 'none',
-                MozAppearance: 'none',
-                appearance: 'none',
-                background: 'transparent',
-                borderRadius: '0.5rem'
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-all duration-300 group-hover:scale-110">
-                <path d={isSidebarOpen ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6"}></path>
-              </svg>
-            </button>
+            {!isAccountOpen && (
+              <button
+                onClick={toggleSidebar}
+                className={`sidebar-toggle-btn fixed top-5 z-[60] p-2 text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--accent)]/50 rounded-lg transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] flex items-center justify-center group ${
+                  isSidebarOpen 
+                    ? 'left-[280px]' 
+                    : 'left-3'
+                }`}
+                title={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+                aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+                style={{
+                  willChange: 'left, background-color, border, box-shadow',
+                  outline: '0 !important',
+                  border: '0 !important',
+                  boxShadow: 'none !important',
+                  WebkitTapHighlightColor: 'transparent',
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'none',
+                  appearance: 'none',
+                  background: 'transparent',
+                  borderRadius: '0.5rem'
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-all duration-300 group-hover:scale-110">
+                  <path d={isSidebarOpen ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6"}></path>
+                </svg>
+              </button>
+            )}
           </>
         )}
 
@@ -183,6 +182,7 @@ export default function RootLayoutClient({
           {user && (
             <Header 
               isSidebarOpen={isSidebarOpen}
+              toggleSidebar={toggleSidebar}
             user={user} 
           />
       )}
@@ -190,7 +190,17 @@ export default function RootLayoutClient({
       </div>
 
       {user && <PromptShortcutsDialog user={user} />}
+      <div id="portal-root"></div>
     </div>
     </SidebarContext.Provider>
   )
+}
+
+
+export default function RootLayoutClient({
+  children
+}: {
+  children: React.ReactNode
+}) {
+  return <LayoutContent>{children}</LayoutContent>
 } 

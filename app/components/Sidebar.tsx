@@ -56,7 +56,11 @@ export function Sidebar({ user }: SidebarProps) {
     cancelButton: 'Cancel',
     addNewShortcutButton: 'ADD NEW SHORTCUT',
     createCustomPromptTemplates: 'Create custom prompt templates',
-    noShortcutsYet: 'No shortcuts yet. Create one to get started!'
+    noShortcutsYet: 'No shortcuts yet. Create one to get started!',
+    settings: 'Settings',
+    reportIssue: 'Report Issue',
+    subscription: 'Subscription',
+    logOut: 'Log Out'
   });
 
   // State for infinite scroll
@@ -1672,18 +1676,18 @@ export function Sidebar({ user }: SidebarProps) {
             <div className="my-2 h-[1px] bg-[var(--accent)]" />
             <div className="flex flex-col text-[var(--foreground)]">
               <button onClick={() => { setIsAccountOpen(true); setIsAccountMenuOpen(false); }} className="flex items-center gap-3 text-left p-2 hover:bg-[var(--accent)] rounded-md text-sm">
-                <Settings size={16} /> Settings
+                <Settings size={16} /> {translations.settings}
               </button>
               <button onClick={() => { setIsProblemReportOpen(true); setIsAccountMenuOpen(false); }} className="flex items-center gap-3 text-left p-2 hover:bg-[var(--accent)] rounded-md text-sm">
-                <LifeBuoy size={16} /> Report Issue
+                <LifeBuoy size={16} /> {translations.reportIssue}
               </button>
               <Link href="/pricing" className="flex items-center gap-3 text-left p-2 hover:bg-[var(--accent)] rounded-md text-sm">
-                <CreditCard size={16} /> Subscription
+                <CreditCard size={16} /> {translations.subscription}
               </Link>
             </div>
             <div className="my-2 h-[1px] bg-[var(--accent)]" />
             <button onClick={handleSignOut} className="flex items-center gap-3 w-full text-left p-2 hover:bg-[var(--accent)] rounded-md text-sm text-[var(--foreground)]">
-              <LogOut size={16} /> Log Out
+              <LogOut size={16} /> {translations.logOut}
             </button>
           </div>
         )}

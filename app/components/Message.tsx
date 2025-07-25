@@ -59,6 +59,7 @@ interface MessageProps {
   handleFollowUpQuestionClick?: (question: string) => Promise<void>
   allMessages?: AIMessage[]
   isGlobalLoading?: boolean
+  imageMap?: { [key: string]: string }
 }
 
 function isReasoningComplete(message: any): boolean {
@@ -145,7 +146,64 @@ const Message = memo(function MessageComponent({
   handleFollowUpQuestionClick,
   allMessages,
   isGlobalLoading,
+  imageMap = {},
 }: MessageProps) {
+
+  // Pre-compiled regex for better performance
+  const IMAGE_ID_REGEX = useMemo(() => /\[IMAGE_ID:([^\]]+)\]/g, []);
+
+  // Memoized function to replace image placeholders with actual URLs
+  const processedContent = useMemo(() => {
+    const content = message.content;
+    if (!content) return content;
+    
+    // Quick check: if no placeholder exists, return original content immediately
+    if (!content.includes('[IMAGE_ID:')) {
+      return content;
+    }
+    
+    // Process placeholders only when necessary
+    return content.replace(IMAGE_ID_REGEX, (match, imageId) => {
+      // Only show image if imageMap exists AND has the specific URL
+      if (imageMap && Object.keys(imageMap).length > 0) {
+        const imageUrl = imageMap[imageId];
+        if (imageUrl) {
+          // Use empty alt text for clean display
+          return `![](${imageUrl})`;
+        }
+      }
+      // Remove placeholder completely in all other cases
+      return '';
+    });
+  }, [message.content, imageMap, IMAGE_ID_REGEX]);
+
+  // Memoized function for parts processing
+  const processedParts = useMemo(() => {
+    if (!message.parts) return null;
+    
+    return message.parts.map(part => {
+      if (part.type === 'text' && part.text) {
+        // Quick check for performance
+        if (!part.text.includes('[IMAGE_ID:')) {
+          return part;
+        }
+        
+        return {
+          ...part,
+          text: part.text.replace(IMAGE_ID_REGEX, (match, imageId) => {
+            if (imageMap && Object.keys(imageMap).length > 0) {
+              const imageUrl = imageMap[imageId];
+              if (imageUrl) {
+                return `![](${imageUrl})`;
+              }
+            }
+            return '';
+          })
+        };
+      }
+      return part;
+    });
+  }, [message.parts, imageMap, IMAGE_ID_REGEX]);
 
   const bubbleRef = useRef<HTMLDivElement>(null);
   const aiBubbleRef = useRef<HTMLDivElement>(null);
@@ -914,11 +972,11 @@ const Message = memo(function MessageComponent({
               ))}
             
             {message.parts ? (
-                  message.parts.map((part, index) => (
+                    processedParts?.map((part, index) => (
                     part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant && !isFileGenerationRelated} />
                   ))
                         ) : (
-                    (hasContent && !hasStructuredData) && <MarkdownContent content={message.content} enableSegmentation={isAssistant && !isFileGenerationRelated} />
+                      (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant && !isFileGenerationRelated} />
                   )}
                   
                   <FilesPreview

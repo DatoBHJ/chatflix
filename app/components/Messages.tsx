@@ -90,6 +90,7 @@ export function Messages({
           }
           
           const webSearchData = getWebSearchResults(message);
+          const imageMap = webSearchData?.imageMap || {};
           const mathCalculationData = getMathCalculationData(message);
           const linkReaderData = getLinkReaderData(message);
           const imageGeneratorData = getImageGeneratorData(message);
@@ -137,6 +138,7 @@ export function Messages({
                     handleFollowUpQuestionClick={handleFollowUpQuestionClick}
                     allMessages={messages}
                     isGlobalLoading={isLoading}
+                    imageMap={imageMap}
                   />
                 </div>
               </div>

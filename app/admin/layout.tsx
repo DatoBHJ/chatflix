@@ -15,7 +15,7 @@ export default function AdminLayout({
   return (
     <AdminGuard>
       <div 
-        className="min-h-screen"
+        className="min-h-screen pt-[60px]"
         style={{ backgroundColor: 'var(--background)' }}
       >
         <AdminNavigation />
