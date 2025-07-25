@@ -100,7 +100,7 @@ export default function SubscriptionSuccess() {
       <Header 
         showBackButton={false}
         isSidebarOpen={false}
-        onSidebarToggle={() => {}}
+        toggleSidebar={() => {}}
         user={user}
       />
       

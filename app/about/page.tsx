@@ -34,7 +34,7 @@ export default function About() {
       <Header 
         showBackButton={true}
         isSidebarOpen={false}
-        onSidebarToggle={() => {}}
+        toggleSidebar={() => {}}
         user={user}
       />
       

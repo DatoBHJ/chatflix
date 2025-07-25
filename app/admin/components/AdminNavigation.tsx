@@ -7,6 +7,7 @@ import { Home, BarChart, Settings, Sparkles, FileWarning } from 'lucide-react';
 interface NavItem {
   name: string;
   href: string;
+  icon: React.ComponentType<any>;
 }
 
 export default function AdminNavigation() {
@@ -27,18 +28,20 @@ export default function AdminNavigation() {
       <div className="flex space-x-6">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
+          const IconComponent = item.icon;
           
           return (
             <Link 
               key={item.href}
               href={item.href}
-              className={`text-sm ${isActive ? 'font-semibold' : 'opacity-70 hover:opacity-100'}`}
+              className={`flex items-center space-x-2 text-sm ${isActive ? 'font-semibold' : 'opacity-70 hover:opacity-100'}`}
               style={{ 
                 color: 'var(--foreground)',
                 transition: 'opacity 0.15s ease-in-out'
               }}
             >
-              {item.name}
+              <IconComponent size={16} />
+              <span>{item.name}</span>
             </Link>
           );
         })}
