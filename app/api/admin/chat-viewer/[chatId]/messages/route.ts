@@ -2,7 +2,10 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET(req: NextRequest, { params }: { params: { chatId: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ chatId: string }> }) {
+  // Await the params as they're now a Promise in Next.js 13+
+  const { chatId } = await params
+  
   // First authenticate the request using regular client
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -21,7 +24,7 @@ export async function GET(req: NextRequest, { params }: { params: { chatId: stri
     const { data, error } = await serviceSupabase
       .from('messages')
       .select('id, content, role, created_at, model, experimental_attachments')
-      .eq('chat_session_id', params.chatId)
+      .eq('chat_session_id', chatId)
       .order('created_at', { ascending: true })
 
     if (error) {
