@@ -1,14 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { getCustomerPortalUrl } from '@/lib/polar'
+import { NextResponse } from 'next/server'
 
-export async function GET(request: NextRequest) {
+export async function POST() {
   try {
     const supabase = await createClient()
-    
+
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
+      console.error('User error:', userError)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -18,6 +19,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ portalUrl })
   } catch (error) {
     console.error('Error getting customer portal URL:', error)
-    return NextResponse.json({ error: 'Failed to get customer portal URL' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Failed to get portal URL' }, 
+      { status: 500 }
+    )
   }
 } 

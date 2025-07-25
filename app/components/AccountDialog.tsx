@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { clearAllSubscriptionCache } from '@/lib/utils'
+
 import Image from 'next/image'
 import { ThemeToggle } from './ThemeToggle'
 import {
@@ -14,7 +15,8 @@ import {
   LifeBuoy,
   Users,
   PaintBucket,
-  Database
+  Database,
+  CreditCard
 } from 'lucide-react'
 import Link from 'next/link'
 import { useHomeStarryNight } from '@/app/hooks/useHomeStarryNight'
@@ -178,6 +180,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
   const [originalUserName, setOriginalUserName] = useState(user?.user_metadata?.name || 'You')
   const [profileImage, setProfileImage] = useState<string | null>(initialProfileImage || null)
   const [isUploading, setIsUploading] = useState(false)
+  const [isLoadingPortal, setIsLoadingPortal] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -206,7 +209,11 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     theNameChatflixWillCallYou: 'The name Chatflix will call you',
     enterYourName: 'Enter your name',
     changeProfilePicture: 'Change profile picture',
-    logOut: 'Log Out'
+    logOut: 'Log Out',
+    subscription: 'Subscription',
+    manageSubscription: 'Manage Subscription',
+    billing: 'Billing',
+    subscriptionPortalError: 'Unable to open subscription management page. Please try again later.'
   });
 
   useEffect(() => {
@@ -500,6 +507,32 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     }
   };
 
+  const handleManageSubscription = async () => {
+    if (!user?.id) return;
+    
+    setIsLoadingPortal(true);
+    try {
+      const response = await fetch('/api/subscription/portal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get portal URL');
+      }
+
+      const data = await response.json();
+      window.open(data.portalUrl, '_blank');
+    } catch (error) {
+      console.error('Error getting customer portal URL:', error);
+      alert(translations.subscriptionPortalError);
+    } finally {
+      setIsLoadingPortal(false);
+    }
+  };
+
   const handleDeleteAccount = async () => {
     // Cannot delete if confirmation text is incorrect
     if (deleteConfirmText !== `delete ${user.email}`) {
@@ -603,6 +636,23 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
               </div>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+
+            <button 
+              onClick={handleManageSubscription}
+              disabled={isLoadingPortal}
+              className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors disabled:opacity-50"
+            >
+              <div className="flex items-center gap-3">
+                <CreditCard size={20} />
+                <span className="text-base">{translations.manageSubscription}</span>
+                {isLoadingPortal && (
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin ml-2"></div>
+                )}
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M7 17L17 7M17 7H7M17 7V17" />
               </svg>
             </button>
             
@@ -953,7 +1003,18 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
                   <Database size={16} /> <span className="hidden sm:inline">{translations.dataControls}</span>
                 </button>
               </nav>
-              <div className="mt-auto hidden sm:block">
+              <div className="mt-auto hidden sm:block space-y-1">
+                <button 
+                  onClick={handleManageSubscription} 
+                  disabled={isLoadingPortal}
+                  className="flex items-center gap-3 px-2 py-2 rounded-md text-sm w-full text-left hover:bg-[var(--accent)] disabled:opacity-50"
+                >
+                  <CreditCard size={16} /> 
+                  <span>{translations.manageSubscription}</span>
+                  {isLoadingPortal && (
+                    <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin ml-auto"></div>
+                  )}
+                </button>
                 <button onClick={handleSignOut} className="flex items-center gap-3 px-2 py-2 rounded-md text-sm w-full text-left text-red-500 hover:bg-red-500/10">
                   <LogOut size={16} /> {translations.logOut}
                 </button>
