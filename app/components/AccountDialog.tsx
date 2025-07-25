@@ -181,6 +181,8 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
   const [profileImage, setProfileImage] = useState<string | null>(initialProfileImage || null)
   const [isUploading, setIsUploading] = useState(false)
   const [isLoadingPortal, setIsLoadingPortal] = useState(false)
+  const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null)
+  const [isLoadingSubscription, setIsLoadingSubscription] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -233,8 +235,30 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     if (user?.id && isOpen) {
       fetchProfileImage(user.id);
       loadUserName(user.id);
+      checkSubscriptionStatus();
     }
   }, [user?.id, isOpen]);
+
+  const checkSubscriptionStatus = async () => {
+    if (!user?.id) return;
+    
+    setIsLoadingSubscription(true);
+    try {
+      const response = await fetch('/api/subscription/check');
+      if (response.ok) {
+        const data = await response.json();
+        setIsSubscribed(data.isSubscribed);
+      } else {
+        console.error('Failed to check subscription status');
+        setIsSubscribed(false);
+      }
+    } catch (error) {
+      console.error('Error checking subscription status:', error);
+      setIsSubscribed(false);
+    } finally {
+      setIsLoadingSubscription(false);
+    }
+  };
 
   // Reset all states when dialog closes
   useEffect(() => {
@@ -639,22 +663,24 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
               </svg>
             </button>
 
-            <button 
-              onClick={handleManageSubscription}
-              disabled={isLoadingPortal}
-              className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors disabled:opacity-50"
-            >
-              <div className="flex items-center gap-3">
-                <CreditCard size={20} />
-                <span className="text-base">{translations.manageSubscription}</span>
-                {isLoadingPortal && (
-                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin ml-2"></div>
-                )}
-              </div>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M7 17L17 7M17 7H7M17 7V17" />
-              </svg>
-            </button>
+            {isSubscribed && (
+              <button 
+                onClick={handleManageSubscription}
+                disabled={isLoadingPortal}
+                className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors disabled:opacity-50"
+              >
+                <div className="flex items-center gap-3">
+                  <CreditCard size={20} />
+                  <span className="text-base">{translations.manageSubscription}</span>
+                  {isLoadingPortal && (
+                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin ml-2"></div>
+                  )}
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M7 17L17 7M17 7H7M17 7V17" />
+                </svg>
+              </button>
+            )}
             
             <div className="my-6 h-[1px] bg-[var(--accent)]" />
             
@@ -1004,17 +1030,19 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
                 </button>
               </nav>
               <div className="mt-auto hidden sm:block space-y-1">
-                <button 
-                  onClick={handleManageSubscription} 
-                  disabled={isLoadingPortal}
-                  className="flex items-center gap-3 px-2 py-2 rounded-md text-sm w-full text-left hover:bg-[var(--accent)] disabled:opacity-50"
-                >
-                  <CreditCard size={16} /> 
-                  <span>{translations.manageSubscription}</span>
-                  {isLoadingPortal && (
-                    <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin ml-auto"></div>
-                  )}
-                </button>
+                {isSubscribed && (
+                  <button 
+                    onClick={handleManageSubscription} 
+                    disabled={isLoadingPortal}
+                    className="flex items-center gap-3 px-2 py-2 rounded-md text-sm w-full text-left hover:bg-[var(--accent)] disabled:opacity-50"
+                  >
+                    <CreditCard size={16} /> 
+                    <span>{translations.manageSubscription}</span>
+                    {isLoadingPortal && (
+                      <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin ml-auto"></div>
+                    )}
+                  </button>
+                )}
                 <button onClick={handleSignOut} className="flex items-center gap-3 px-2 py-2 rounded-md text-sm w-full text-left text-red-500 hover:bg-red-500/10">
                   <LogOut size={16} /> {translations.logOut}
                 </button>
