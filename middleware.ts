@@ -117,7 +117,7 @@ export async function middleware(request: NextRequest) {
   // Admin route protection (both pages and API)
   if (request.nextUrl.pathname.startsWith('/admin') || request.nextUrl.pathname.startsWith('/api/admin')) {
     try {
-      // Import supabase here to avoid loading it on every request
+      // Create a Supabase client for the middleware
       const { createServerClient } = await import('@supabase/ssr')
       
       const supabase = createServerClient(
@@ -126,42 +126,113 @@ export async function middleware(request: NextRequest) {
         {
           cookies: {
             getAll() {
-              return request.cookies.getAll().map(cookie => ({
-                name: cookie.name,
-                value: cookie.value
-              }))
+              return request.cookies.getAll()
             },
             setAll() {
-              // No-op in middleware
-            }
-          }
+              // We don't need to set cookies in this context
+            },
+          },
         }
       )
-
-      const { data: { user }, error } = await supabase.auth.getUser()
       
-      if (error || !user) {
-        // Redirect to login for admin routes
-        return NextResponse.redirect(new URL('/login', request.url))
-      }
-
+      // Get the user
+      const { data: { user } } = await supabase.auth.getUser()
+      
       // Check if user is admin
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('is_admin')
-        .eq('user_id', user.id)
-        .single()
-
-      if (!profile?.is_admin) {
-        // Redirect to home if not admin
-        return NextResponse.redirect(new URL('/', request.url))
+      const { isAdminUser } = await import('@/lib/admin')
+      const adminAccess = user && isAdminUser(user.id, user.email || undefined)
+      
+      if (!adminAccess) {
+        // Handle API routes with JSON response
+        if (request.nextUrl.pathname.startsWith('/api/admin')) {
+          return new NextResponse(
+            JSON.stringify({
+              error: 'Unauthorized',
+              message: 'Admin access required'
+            }),
+            {
+              status: 403,
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            }
+          )
+        }
+        
+        // Handle page routes
+        if (!user) {
+          return NextResponse.redirect(new URL('/login?message=Admin access required', request.url))
+        } else {
+          return new NextResponse(
+            `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unauthorized Access</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #0a0a0a;
+      color: #ffffff;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      font-weight: 700;
+      color: #ef4444;
+    }
+    p {
+      font-size: 1.25rem;
+      opacity: 0.8;
+      margin-bottom: 2rem;
+    }
+    .button {
+      background-color: #3b82f6;
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 0.5rem;
+      text-decoration: none;
+      font-size: 1rem;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+    .button:hover {
+      background-color: #2563eb;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>F*ck off lol</h1>
+    <p>You don't have permission to access this page</p>
+    <a href="/" class="button">Go back to Home</a>
+  </div>
+</body>
+</html>`,
+            {
+              status: 403,
+              headers: {
+                'Content-Type': 'text/html',
+              },
+            }
+          )
+        }
       }
-
-      // Continue to admin route
-      return await updateSession(request)
     } catch (error) {
-      console.error('Error in admin route protection:', error)
-      return NextResponse.redirect(new URL('/login', request.url))
+      console.error('Error checking admin access:', error)
+      return NextResponse.redirect(new URL('/login?message=Authentication error', request.url))
     }
   }
 
