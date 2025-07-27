@@ -269,7 +269,7 @@ export async function POST(req: Request) {
     
     if (isChatflixModel) {
       // Chatflix 모델은 자체 rate limit만 체크 (선택된 개별 모델 rate limit 무시)
-      const chatflixRateLimitResult = await handleChatflixRateLimiting(user.id, originalModel);
+      const chatflixRateLimitResult = await handleChatflixRateLimiting(user.id, originalModel, isSubscribed);
       if (!chatflixRateLimitResult.success) {
         const { error } = chatflixRateLimitResult;
         
@@ -281,7 +281,8 @@ export async function POST(req: Request) {
             reset: new Date(error.reset).toISOString(),
             limit: error.limit,
             level: error.level,
-            model: originalModel // Use original Chatflix model name
+            model: originalModel, // Use original Chatflix model name
+            isSubscribed: isSubscribed // 구독 상태 포함
           }), {
             status: 429,
             headers: {
@@ -295,7 +296,7 @@ export async function POST(req: Request) {
       }
     } else {
       // 일반 모델은 기존 로직 사용
-      const rateLimitResult = await handleRateLimiting(user.id, model);
+      const rateLimitResult = await handleRateLimiting(user.id, model, isSubscribed);
       if (!rateLimitResult.success) {
         const { error } = rateLimitResult;
         
@@ -307,7 +308,8 @@ export async function POST(req: Request) {
             reset: new Date(error.reset).toISOString(),
             limit: error.limit,
             level: error.level,
-            model: model
+            model: model,
+            isSubscribed: isSubscribed // 구독 상태 포함
           }), {
             status: 429,
             headers: {
@@ -321,7 +323,8 @@ export async function POST(req: Request) {
           // Fallback in case error is undefined
           return new Response(JSON.stringify({
             error: 'Too many requests',
-            message: 'Rate limit exceeded'
+            message: 'Rate limit exceeded',
+            isSubscribed: isSubscribed // 구독 상태 포함
           }), {
             status: 429,
             headers: {

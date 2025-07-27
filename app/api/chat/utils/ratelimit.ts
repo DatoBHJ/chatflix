@@ -2,9 +2,14 @@ import { getRateLimiter, createRateLimitKey } from '@/lib/ratelimit';
 import { getModelById, RATE_LIMITS } from '@/lib/models/config';
 
 // 🆕 Chatflix 모델 전용 rate limiting 함수
-export const handleChatflixRateLimiting = async (userId: string, chatflixModelId: string) => {
+export const handleChatflixRateLimiting = async (userId: string, chatflixModelId: string, isSubscribed: boolean = false) => {
   if (!userId) {
     throw new Error('User ID is required for rate limiting');
+  }
+  
+  // 🎉 구독자는 레이트 리미트 없음
+  if (isSubscribed) {
+    return { success: true };
   }
   
   if (chatflixModelId !== 'chatflix-ultimate' && chatflixModelId !== 'chatflix-ultimate-pro') {
@@ -66,9 +71,14 @@ export const handleChatflixRateLimiting = async (userId: string, chatflixModelId
   return { success: true };
 };
 
-export const handleRateLimiting = async (userId: string, model: string) => {
+export const handleRateLimiting = async (userId: string, model: string, isSubscribed: boolean = false) => {
     if (!userId) {
       throw new Error('User ID is required for rate limiting');
+    }
+    
+    // 🎉 구독자는 레이트 리미트 없음
+    if (isSubscribed) {
+      return { success: true };
     }
     
     const modelConfig = getModelById(model);
