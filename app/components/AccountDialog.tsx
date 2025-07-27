@@ -183,6 +183,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
   const [isLoadingPortal, setIsLoadingPortal] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null)
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(true)
+  const [isLoadingProfileImage, setIsLoadingProfileImage] = useState(!initialProfileImage)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -280,6 +281,11 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
 
   const fetchProfileImage = async (userId: string) => {
     try {
+      // Don't show loading if we already have an initial image
+      if (!initialProfileImage) {
+        setIsLoadingProfileImage(true)
+      }
+      
       // Try to get profile image from storage
       const { data: profileData, error: profileError } = await supabase
         .storage
@@ -288,6 +294,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
 
       if (profileError) {
         console.error('Error fetching profile image:', profileError);
+        setIsLoadingProfileImage(false)
         return;
       }
 
@@ -306,6 +313,8 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
       }
     } catch (error) {
       console.error('Error fetching profile image:', error);
+    } finally {
+      setIsLoadingProfileImage(false)
     }
   };
 
@@ -619,81 +628,79 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
 
   const renderMobileList = () => {
     return (
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-6">
-          <div className="space-y-1">
-            <button 
-              onClick={() => setMobileView('account')}
-              className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <User size={20} />
-                <span className="text-base">{translations.profile}</span>
-              </div>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </button>
-            
-            <button 
-              onClick={() => setMobileView('appearance')}
-              className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <PaintBucket size={20} />
-                <span className="text-base">{translations.appearance}</span>
-              </div>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </button>
-            
+      <div className="p-6">
+        <div className="space-y-1">
+          <button
+            onClick={() => setMobileView('account')}
+            className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <User size={20} />
+              <span className="text-base">{translations.profile}</span>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
 
-            
-            <button 
-              onClick={() => setMobileView('data-controls')}
-              className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors"
+          <button
+            onClick={() => setMobileView('appearance')}
+            className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <PaintBucket size={20} />
+              <span className="text-base">{translations.appearance}</span>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+
+
+
+          <button
+            onClick={() => setMobileView('data-controls')}
+            className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <Database size={20} />
+              <span className="text-base">{translations.dataControls}</span>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+
+          {isSubscribed && (
+            <button
+              onClick={handleManageSubscription}
+              disabled={isLoadingPortal}
+              className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors disabled:opacity-50"
             >
               <div className="flex items-center gap-3">
-                <Database size={20} />
-                <span className="text-base">{translations.dataControls}</span>
+                <CreditCard size={20} />
+                <span className="text-base">{translations.manageSubscription}</span>
+                {isLoadingPortal && (
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin ml-2"></div>
+                )}
               </div>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 18l6-6-6-6" />
+                <path d="M7 17L17 7M17 7H7M17 7V17" />
               </svg>
             </button>
+          )}
 
-            {isSubscribed && (
-              <button 
-                onClick={handleManageSubscription}
-                disabled={isLoadingPortal}
-                className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors disabled:opacity-50"
-              >
-                <div className="flex items-center gap-3">
-                  <CreditCard size={20} />
-                  <span className="text-base">{translations.manageSubscription}</span>
-                  {isLoadingPortal && (
-                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin ml-2"></div>
-                  )}
-                </div>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M7 17L17 7M17 7H7M17 7V17" />
-                </svg>
-              </button>
-            )}
-            
-            <div className="my-6 h-[1px] bg-[var(--accent)]" />
-            
-            <button 
-              onClick={handleSignOut}
-              className="w-full flex items-center justify-between p-4 hover:bg-red-500/10 rounded-lg transition-colors text-red-500"
-            >
-              <div className="flex items-center gap-3">
-                <LogOut size={20} />
-                <span className="text-base">{translations.logOut}</span>
-              </div>
-            </button>
-          </div>
+          <div className="my-6 h-[1px] bg-[var(--accent)]" />
+
+          <button
+            onClick={handleSignOut}
+            className="w-full flex items-center justify-between p-4 hover:bg-red-500/10 rounded-lg transition-colors text-red-500"
+          >
+            <div className="flex items-center gap-3">
+              <LogOut size={20} />
+              <span className="text-base">{translations.logOut}</span>
+            </div>
+          </button>
         </div>
       </div>
     );
@@ -703,13 +710,13 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     switch (tab) {
             case 'account':
         return (
-          <div className="p-8 sm:py-20 h-full flex flex-col items-center">
+          <div className="p-8 sm:py-20 h-full flex flex-col">
             {/* Profile Section - Centered */}
-            <div className="flex flex-col items-center gap-6 w-full max-w-sm">
+            <div className="flex flex-col items-center gap-6 w-full max-w-sm mx-auto">
               {/* Profile Image */}
               <div className="relative group">
                 <div className="relative w-24 h-24 rounded-full bg-[var(--foreground)] flex items-center justify-center overflow-hidden">
-                  {profileImage ? (
+                  {!isLoadingProfileImage && profileImage ? (
                     <Image src={profileImage} alt={userName} fill sizes="96px" className="object-cover" />
                   ) : (
                     <span className="text-3xl font-bold text-[var(--background)]">{userName.charAt(0).toUpperCase()}</span>
@@ -725,7 +732,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
                 {/* Edit Button - Bottom right of profile picture */}
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="absolute -bottom-1 -right-1 w-8 h-8 bg-[#007AFF] hover:bg-[#0056CC] rounded-full flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-110"
+                  className="absolute -bottom-1 -right-1 w-8 h-8 bg-[#007AFF] hover:bg-[#0056CC] rounded-full flex items-center justify-center shadow-lg transition duration-200 hover:scale-110"
                   title={translations.changeProfilePicture}
                 >
                   <svg 
@@ -752,7 +759,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
                   type="text"
                   value={userName}
                   onChange={(e) => setUserName(e.target.value)}
-                  className="w-full text-xl font-medium text-center bg-[var(--accent)] border border-[var(--accent)] rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#007AFF] focus:border-transparent transition-all"
+                  className="w-full text-xl font-medium text-center bg-[var(--accent)] border border-[var(--accent)] rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#007AFF] focus:border-transparent transition-colors"
                   maxLength={30}
                   onBlur={handleUpdateUserName}
                   onKeyDown={(e) => e.key === 'Enter' && handleUpdateUserName()}
@@ -1007,7 +1014,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
                   : translations.settings}
               </h2>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto" key={mobileView || 'main'}>
               {mobileView ? renderContentByTab(mobileView) : renderMobileList()}
             </div>
           </div>
