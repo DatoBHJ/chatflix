@@ -28,6 +28,17 @@ export async function getMemoryBankEntry(
 }
 
 /**
+ * Get user's personal info from memory bank
+ */
+export async function getUserPersonalInfo(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<string | null> {
+  const { data, error } = await getMemoryBankEntry(supabase, userId, '00-personal-info');
+  return error ? null : data;
+}
+
+/**
  * Retrieve all memory bank entries for a user
  */
 export async function getAllMemoryBank(
