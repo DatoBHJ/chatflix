@@ -1,10 +1,9 @@
-import { streamText, smoothStream, createDataStreamResponse, streamObject, generateObject } from 'ai';
+import { streamText, smoothStream, createDataStreamResponse, streamObject, generateObject, Message } from 'ai';
 import { createClient } from '@/utils/supabase/server';
 import { providers } from '@/lib/providers';
 import { getModelById} from '@/lib/models/config';
 import { MultiModalMessage } from './types';
 import { z } from 'zod';
-// import { markdownJoinerTransform } from 'markdown-transform';
 import { 
   handlePromptShortcuts,
   saveUserMessage,
@@ -33,20 +32,16 @@ import {
   createYouTubeSearchTool, 
   createYouTubeLinkAnalyzerTool, 
 } from './tools';
-// 🆕 Import both rate limiting functions
 import { handleRateLimiting, handleChatflixRateLimiting } from './utils/ratelimit';
 // import { toolPrompts } from './prompts/toolPrompts';
 import { checkSubscription } from '@/lib/polar';
-
-// 메모리 업데이트 최적화 관련 상수
-const MEMORY_UPDATE_THRESHOLD = 30 * 60 * 1000; // 30분 간격
 
 // 비구독자 컨텍스트 윈도우 제한
 const CONTEXT_WINDOW_LIMIT_NON_SUBSCRIBER = 60000; // 60K tokens
 
 // 메모리 관련 import
-import { initializeMemoryBank, getAllMemoryBank, getLastMemoryUpdate } from '@/utils/memory-bank';
-import { updateAllMemoryBanks, smartUpdateMemoryBanks } from './services/memoryService';
+import { initializeMemoryBank, getAllMemoryBank, getUserPersonalInfo } from '@/utils/memory-bank';
+import { smartUpdateMemoryBanks } from './services/memoryService';
 import { estimateTokenCount } from '@/utils/context-manager';
 import { selectOptimalModel, estimateMultiModalTokens } from './services/modelSelector';
 import { 
@@ -74,10 +69,34 @@ async function incrementSuccessfulRequestCount(
         last_request_at: new Date().toISOString(),
         is_subscribed: isUserSubscribed
       }, {
-        onConflict: 'user_id,date' // This ensures that if a record for the user and date already exists, it's updated.
+        onConflict: 'user_id,date' 
       });
   } catch (error) {
     // console.error('Failed to update successful request count:', error);
+  }
+}
+
+// Tool initialization helper function
+function initializeTool(type: string, dataStream: any) {
+  switch (type) {
+    case 'web_search':
+      return createWebSearchTool(dataStream);
+    case 'calculator':
+      return createCalculatorTool(dataStream);
+    case 'link_reader':
+      return createJinaLinkReaderTool(dataStream);
+    case 'image_generator':
+      return createImageGeneratorTool(dataStream);
+    case 'academic_search':
+      return createAcademicSearchTool(dataStream);
+    // case 'x_search':
+    //   return createXSearchTool(dataStream);
+    case 'youtube_search':
+      return createYouTubeSearchTool(dataStream);
+    case 'youtube_link_analyzer':
+      return createYouTubeLinkAnalyzerTool(dataStream);
+    default:
+      throw new Error(`Unknown tool type: ${type}`);
   }
 }
 
@@ -187,30 +206,6 @@ Context: ${contextInfo}
   }
 }
 
-// Tool initialization helper function
-function initializeTool(type: string, dataStream: any) {
-  switch (type) {
-    case 'web_search':
-      return createWebSearchTool(dataStream);
-    case 'calculator':
-      return createCalculatorTool(dataStream);
-    case 'link_reader':
-      return createJinaLinkReaderTool(dataStream);
-    case 'image_generator':
-      return createImageGeneratorTool(dataStream);
-    case 'academic_search':
-      return createAcademicSearchTool(dataStream);
-    // case 'x_search':
-    //   return createXSearchTool(dataStream);
-    case 'youtube_search':
-      return createYouTubeSearchTool(dataStream);
-    case 'youtube_link_analyzer':
-      return createYouTubeLinkAnalyzerTool(dataStream);
-    default:
-      throw new Error(`Unknown tool type: ${type}`);
-  }
-}
-
 export async function POST(req: Request) {
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -235,18 +230,9 @@ export async function POST(req: Request) {
           const { selectedModel } = await selectOptimalModel(messages, modelType);
           model = selectedModel;
         } catch (error) {
-          // console.error('Error in model selection:', error);
-          // 오류 발생 시 기본 모델 사용
           model = 'gemini-2.5-pro';
         }
       }
-
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return new Response(JSON.stringify({ error: 'Invalid messages format' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
 
     // 구독 상태 확인
     const isSubscribed = await checkSubscription(user.id);
@@ -267,6 +253,7 @@ export async function POST(req: Request) {
     const originalModel = requestData.originalModel;
     const isChatflixModel = originalModel === 'chatflix-ultimate' || originalModel === 'chatflix-ultimate-pro';
     
+    // rate limit 체크
     if (isChatflixModel) {
       // Chatflix 모델은 자체 rate limit만 체크 (선택된 개별 모델 rate limit 무시)
       const chatflixRateLimitResult = await handleChatflixRateLimiting(user.id, originalModel, isSubscribed);
@@ -356,7 +343,7 @@ export async function POST(req: Request) {
           });
           
           // Process messages in parallel
-          const processMessagesPromises = messages.map(async (msg) => {
+          const processMessagesPromises = messages.map(async (msg: Message) => {
             const converted = await convertMessageForAI(msg, model, supabase);
             return {
               id: msg.id,
@@ -436,6 +423,7 @@ export async function POST(req: Request) {
 
           const providerOptions: any = {};
 
+          // setting provider options
           if (supportsReasoning) {
             providerOptions.anthropic = { 
               thinking: { 
@@ -483,11 +471,11 @@ export async function POST(req: Request) {
           );
           
           // 🔧 MEDIUM PRIORITY OPTIMIZATION: 시스템 프롬프트 토큰 계산 한 번만 수행
-          const systemTokens = estimateTokenCount(currentSystemPrompt);
+          const systemTokensCounts = estimateTokenCount(currentSystemPrompt);
           const maxContextTokens = isSubscribed 
-            ? (modelConfig?.contextWindow || 8000)
+            ? (modelConfig?.contextWindow || 120000)
             : CONTEXT_WINDOW_LIMIT_NON_SUBSCRIBER;
-          let remainingTokens = maxContextTokens - systemTokens;
+          let remainingTokens = maxContextTokens - systemTokensCounts;
           
           // 🔧 MEDIUM PRIORITY OPTIMIZATION: 메시지별 토큰 미리 계산 및 캐싱
           const messagesWithTokens = processMessages.map(msg => {
@@ -740,11 +728,16 @@ Now, ask the following question in a conversational manner in the user's languag
                   preciseRemainingTokens,
                 );
 
-                // moonshotai/kimi-k2-instruct → moonshotai/Kimi-K2-Instruct (도구 사용 시)
-                let toolExecutionModel = (model.startsWith('gemini')) ? 'claude-sonnet-4-20250514' : model;
-                if (toolExecutionModel === 'moonshotai/kimi-k2-instruct') {
-                  toolExecutionModel = 'moonshotai/Kimi-K2-Instruct';
+                // TEXT_RESPONSE: 도구 실행 모델 결정
+                let toolExecutionModel = (model === 'gemini-2.5-pro') ? 'claude-sonnet-4-20250514' : model;
+                if (toolExecutionModel !== model) {
+                  console.log(`[모델 변경] 도구 실행: ${model} → ${toolExecutionModel}`);
                 }
+                // if (toolExecutionModel === 'moonshotai/kimi-k2-instruct') {
+                //   console.log(`[모델 변경] 도구 실행: moonshotai/kimi-k2-instruct → moonshotai/Kimi-K2-Instruct`);
+                //   toolExecutionModel = 'moonshotai/Kimi-K2-Instruct';
+                // }
+
                 const textResponsePromise = streamText({
                   model: providers.languageModel(toolExecutionModel),
                   experimental_transform: [
@@ -830,62 +823,21 @@ Now, ask the following question in a conversational manner in the user's languag
                 // Check if tools are needed
                 const needsTools = routingDecision.tools.length > 0;
 
-                // 🔧 FIX: Step 1에서는 간단한 전용 프롬프트 사용 + 사용자 언어 정보 추가
-                const userLanguageContext = memoryData ? `\n\n## USER PROFILE CONTEXT\n${memoryData}` : '';
-                
                 // Check if using DeepSeek or Claude Sonnet models (these may take longer for file generation)
                 const isSlowerModel = model.toLowerCase().includes('deepseek') || 
                                      (model.includes('claude') && model.includes('sonnet'));
                 
-                const systemPromptForFileStep1 = needsTools 
-                  ? `You are Chatflix, a friendly and helpful AI assistant. You are in the data collection phase for file generation. Your goal is to use tools to gather information while communicating naturally with the user.
-
-**Core Instruction: ALWAYS respond in the user's language.** Your responses should feel like a real person sending a message.
-
-**Your Task:**
-1.  Briefly and conversationally tell the user what you are doing (e.g., searching for information).
-2.  Use the necessary tools to collect information.
-3.  When finished, let the user know you are ready to create the file.
-4.  Do NOT provide detailed explanations in the chat; save that for the file.
-
-**Style Examples (adapt to user's language):**
-The following are English examples of the TONE. Do NOT use them literally if the user is not speaking English.
-- "Let me look that up for you..."
-- "I'll search for the latest info on that..."
-- "Alright, I have what I need. Let me put that file together for you."
-- "Okay, I'm all set. I'll get that file ready now."
-
-Today's date is ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.
-${userLanguageContext}
-
-**IMPORTANT: Always respond in the same language as the user's query.** If a user profile indicates a preferred language, use that language.`
-                  : `You are Chatflix, a friendly and helpful AI assistant. You're about to create a file for the user. This is NOT the main response phase; you are just announcing that you're starting the work.
-
-**Core Instruction: ALWAYS respond in the user's language.** Your response should feel like a real person sending a quick confirmation message.
-
-**Your Task:**
-- Write 1-2 SHORT, friendly sentences to announce that you're starting to create the file.
-- Your tone should be helpful and natural.
-- You MUST mention the word "file" (or its equivalent in the user's language).
-${isSlowerModel ? `- **IMPORTANT**: Since you're using a ${model.includes('deepseek') ? 'DeepSeek' : 'Claude Sonnet'} model, mention that file generation might take a bit longer but will provide high-quality results.` : ''}
-
-**Style Examples (adapt to user's language):**
-The following are English examples of the TONE. Do NOT use them literally if the user is not speaking English.
-- "Sure thing! Let me create that file for you."
-- "Got it! I'll put together that file right away."
-- "Perfect! I'll generate that file for you now."
-- "Alright! I'll whip up that file for you."
-${isSlowerModel ? `- "I'll create that file for you. It might take a moment as I'm using a high-performance model for better quality!"` : ''}
-
-**Bad Examples (wrong tone):**
-- "Generating file." (too robotic)
-- "File creation initiated." (too formal)
-- "I'll put that together." (doesn't mention "file")
-
-Today's date is ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.
-${userLanguageContext}
-
-**IMPORTANT: Always respond in the same language as the user's query.** If a user profile indicates a preferred language, use that language.`;
+                const personalInfo = await getUserPersonalInfo(supabase, user.id);
+                const systemPromptForFileStep1 = buildSystemPrompt(
+                  'agent',
+                  'FILE_STEP1',
+                  personalInfo || undefined,
+                  {
+                    needsTools,
+                    isSlowerModel,
+                    model
+                  }
+                );
 
                 const preciseSystemTokensFile = estimateTokenCount(systemPromptForFileStep1);
                 const preciseRemainingTokensFile = maxContextTokens - preciseSystemTokensFile;
@@ -898,34 +850,40 @@ ${userLanguageContext}
 
                 if (needsTools) {
                   // Step 1: Execute tools and interact with the user (only if tools are needed)
-                // Gemini 모델로 도구 실행 시 Claude Sonnet 4로 대체
-                let toolExecutionModel = (model.startsWith('gemini')) ? 'claude-sonnet-4-20250514' : model;
-                if (toolExecutionModel === 'moonshotai/kimi-k2-instruct') {
-                  toolExecutionModel = 'moonshotai/Kimi-K2-Instruct';
-                }
-                const toolExecutionPromise = streamText({
-                  model: providers.languageModel(toolExecutionModel),
-                    experimental_transform: [
-                      smoothStream({delayInMs: 25}),
-                      markdownJoinerTransform(),
-                    ],
-                    system: systemPromptForFileStep1,
-                    messages: finalMessagesConverted,
-                    tools,
-                    maxSteps: 20, 
-                    maxRetries:3,
-                    providerOptions,
-                    onFinish: async (toolExecutionCompletion) => {
-                      if (abortController.signal.aborted) return;
-                      
-                      // 🔧 FIX: 도구별 결과 수집 (FILE_RESPONSE - 도구 사용 케이스, 통합 함수 사용)
-                      const collectedToolResults = collectToolResults(tools, routingDecision.tools);
-                      
-                      await generateFileWithToolResults(collectedToolResults, toolExecutionCompletion, finalMessagesConverted);
+
+                  // FILE_RESPONSE (도구 실행 단계)
+                  let toolExecutionModel = (model === 'gemini-2.5-pro') ? 'claude-sonnet-4-20250514' : model;
+                  if (toolExecutionModel !== model) {
+                      console.log(`[모델 변경] 파일 도구 실행: ${model} → ${toolExecutionModel}`);
                     }
-                  });
-                  
-                  toolExecutionPromise.mergeIntoDataStream(dataStream, { sendReasoning: true });
+                  // if (toolExecutionModel === 'moonshotai/kimi-k2-instruct') {
+                  //   console.log(`[모델 변경] 파일 도구 실행: moonshotai/kimi-k2-instruct → moonshotai/Kimi-K2-Instruct`);
+                  //   toolExecutionModel = 'moonshotai/Kimi-K2-Instruct';
+                  // }
+
+                  const toolExecutionPromise = streamText({
+                    model: providers.languageModel(toolExecutionModel),
+                      experimental_transform: [
+                        smoothStream({delayInMs: 25}),
+                        markdownJoinerTransform(),
+                      ],
+                      system: systemPromptForFileStep1,
+                      messages: finalMessagesConverted,
+                      tools,
+                      maxSteps: 20, 
+                      maxRetries:3,
+                      providerOptions,
+                      onFinish: async (toolExecutionCompletion) => {
+                        if (abortController.signal.aborted) return;
+                        
+                        // 🔧 FIX: 도구별 결과 수집 (FILE_RESPONSE - 도구 사용 케이스, 통합 함수 사용)
+                        const collectedToolResults = collectToolResults(tools, routingDecision.tools);
+                        
+                        await generateFileWithToolResults(collectedToolResults, toolExecutionCompletion, finalMessagesConverted);
+                      }
+                    });
+                    
+                    toolExecutionPromise.mergeIntoDataStream(dataStream, { sendReasoning: true });
                 } else {
                   // No tools needed - but still provide a brief explanation before file generation
                   const briefExplanationPromise = streamText({
@@ -960,18 +918,10 @@ ${userLanguageContext}
                   let accumulatedContent = ''; // 누적된 컨텐츠 저장
                   let sentProgressMessages: string[] = []; // 전송된 진행 메시지들 추적
                                 
-                  // Determine the model for file generation (replace claude sonnet, and grok-4 with Gemini 2.5 Pro)
+                  // FILE_RESPONSE (파일 생성 단계)
                   let fileGenerationModel = model;
-                  if (
-                      (model.includes('claude') && model.includes('sonnet')) 
-                      // || model.toLowerCase().startsWith('grok-4')
-                    ) 
-                      {
-                    fileGenerationModel = 'gemini-2.5-pro';
-                  } 
-                  
-                  else if (model === 'moonshotai/kimi-k2-instruct') {
-                    // 🆕 moonshotai/kimi-k2-instruct는 streamObject 호환성을 위해 gpt-4.1로 대체
+                  if (model === 'moonshotai/kimi-k2-instruct') {
+                    console.log(`[모델 변경] 파일 생성: moonshotai/kimi-k2-instruct → gpt-4.1`);
                     fileGenerationModel = 'gpt-4.1';
                   }
 
@@ -1097,50 +1047,16 @@ Generate a new, different waiting message.`,
                   }
                   
                   // Step 2: Generate the file using the collected results
-                  const fileGenerationSystemPrompt = toolResults 
-                    ? `${buildSystemPrompt('agent', 'FILE_RESPONSE', memoryData || undefined)}
-
-Tool results available:
-<tool_results>
-${JSON.stringify(toolResults, null, 2)}
-</tool_results>
-
-🚨 **CRITICAL FILE GENERATION RULE** 🚨
-For ALL programming/code files (js, ts, py, java, cpp, html, css, json, xml, yaml, etc.), the file content MUST start with the appropriate code block syntax:
-
-\`\`\`language
-[your code here]
-\`\`\`
-
-This is MANDATORY for proper rendering. Examples:
-- JavaScript/TypeScript: \`\`\`javascript or \`\`\`typescript
-- Python: \`\`\`python
-- HTML: \`\`\`html
-- CSS: \`\`\`css
-- JSON: \`\`\`json
-- Any code file: \`\`\`[language]
-
-**NEVER generate bare code without code block syntax - this causes rendering issues!**`
-                    : `${buildSystemPrompt('agent', 'FILE_RESPONSE', memoryData || undefined)}
-${hasImage ? `\n- An image has been provided. You can analyze it to inform your file creation.` : ''}
-${hasFile ? `\n- A file has been provided. You can read its content to inform your file creation.` : ''}
-
-🚨 **CRITICAL FILE GENERATION RULE** 🚨
-For ALL programming/code files (js, ts, py, java, cpp, html, css, json, xml, yaml, etc.), the file content MUST start with the appropriate code block syntax:
-
-\`\`\`language
-[your code here]
-\`\`\`
-
-This is MANDATORY for proper rendering. Examples:
-- JavaScript/TypeScript: \`\`\`javascript or \`\`\`typescript
-- Python: \`\`\`python
-- HTML: \`\`\`html
-- CSS: \`\`\`css
-- JSON: \`\`\`json
-- Any code file: \`\`\`[language]
-
-**NEVER generate bare code without code block syntax - this causes rendering issues!**`;
+                  const fileGenerationSystemPrompt = buildSystemPrompt(
+                    'agent', 
+                    'FILE_RESPONSE', 
+                    memoryData || undefined,
+                    {
+                      toolResults,
+                      hasImage,
+                      hasFile
+                    }
+                  );
 
                   const fileGenerationResult = await streamObject({
                     model: providers.languageModel(fileGenerationModel),

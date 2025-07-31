@@ -856,58 +856,6 @@ IMPORTANT GUIDELINES:
 }
 
 /**
- * Update all memory banks in parallel
- */
-export async function updateAllMemoryBanks(
-  supabase: SupabaseClient, 
-  userId: string, 
-  chatId: string, 
-  messages: MultiModalMessage[], 
-  userMessage: string, 
-  aiMessage: string
-): Promise<void> {
-  try {
-    // 서버 측 시간 검사 로직 제거 - route.ts에서 이미 검사 완료
-    // const lastUpdate = await getLastMemoryUpdate(supabase, userId);  // 중복 검사 제거
-    // if (lastUpdate && ...) return;  // 중복 검사 제거
-    
-    // Initialize timer for performance tracking
-    const startTime = Date.now();
-    
-    // Update all memory categories in parallel (allow individual failures)
-    const results = await Promise.allSettled([
-      updatePersonalInfo(supabase, userId, messages),
-      updatePreferences(supabase, userId, messages),
-      updateInterests(supabase, userId, messages),
-      updateInteractionHistory(supabase, userId, messages),
-      updateRelationship(supabase, userId, messages, userMessage, aiMessage)
-    ]);
-    
-    const duration = Date.now() - startTime;
-    
-    // Count successes and failures
-    const categoryNames = ['personal-info', 'preferences', 'interests', 'interaction-history', 'relationship'];
-    const successes = results.filter(result => result.status === 'fulfilled').length;
-    const failures = results.filter(result => result.status === 'rejected').length;
-    
-    // Log individual failures for debugging
-    results.forEach((result, index) => {
-      if (result.status === 'rejected') {
-        console.error(`❌ [MEMORY UPDATE] Failed to update ${categoryNames[index]}:`, result.reason);
-      }
-    });
-    
-    if (successes > 0) {
-      console.log(`✅ [MEMORY UPDATE] ${successes}/${results.length} memory banks updated successfully in ${duration}ms`);
-    } else {
-      console.error(`❌ [MEMORY UPDATE] All ${results.length} memory bank updates failed in ${duration}ms`);
-    }
-  } catch (error) {
-    console.error("Memory update process failed:", error);
-  }
-} 
-
-/**
  * Selective memory update - 특정 카테고리만 업데이트
  */
 export async function updateSelectiveMemoryBanks(

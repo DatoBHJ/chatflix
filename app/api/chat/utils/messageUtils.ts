@@ -767,7 +767,7 @@ export function selectMessagesWithinTokenLimit(
     : isAttachmentsHeavy(messages as any[], hasImage, hasPDF, hasCodeAttachment);
   
   // 파일 첨부물이 많은 경우 추가 안전 마진 적용
-  const safetyMargin = isHeavy ? 0.7 : 0.85; // 70% 또는 85%만 사용
+  const safetyMargin = isHeavy ? 0.7 : 0.8; // 70% 또는 80%만 사용
   const adjustedMaxTokens = Math.floor(maxTokens * safetyMargin);
     
   // 필수 포함 메시지 (마지막 사용자 메시지는 항상 포함)

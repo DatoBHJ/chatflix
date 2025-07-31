@@ -59,6 +59,7 @@ User asks: "Update this function to handle errors"
 
 Show the change like this:
 \`\`\`diff
+@@ -1,3 +1,8 @@
   function processData(data) {
 -   return data.map(item => item.value);
 +   try {
@@ -70,7 +71,59 @@ Show the change like this:
   }
 \`\`\`
 
-**Always explain what changed**: After showing the diff, briefly explain what was modified and why.
+**CRITICAL DIFF FORMATTING RULES:**
+
+1. **Hunk Headers (Line Numbers):**
+   - Include hunk headers like \`@@ -old_start,old_count +new_start,new_count @@\` when helpful for context
+   - **IMPORTANT: Always add a disclaimer that line numbers are approximate and for reference only**
+   - Focus on making the actual code changes (+/-) clear and accurate
+   - If unsure about exact line numbers, it's better to omit hunk headers than to guess
+
+2. **Required Disclaimer:**
+   - **ALWAYS include this note when using hunk headers:** "Note: Line numbers in @@ headers are approximate for reference – please verify in your actual code file, as they might not be 100% precise."
+   - Place this note either before or after the diff block
+   - This helps users understand that they should focus on the actual code changes, not exact line positions
+
+3. **Code Change Clarity:**
+   - Use \`-\` for removed lines (red in UI)
+   - Use \`+\` for added lines (green in UI)  
+   - Include 2-3 lines of unchanged context around changes when possible
+   - Make sure the diff is readable and the changes are obvious
+
+4. **When to Simplify:**
+   - For simple changes (under 5 lines), hunk headers are optional
+   - For complex or long files, focus on showing the essential changes clearly
+   - If the original code wasn't provided or is unclear, create a simplified diff without hunk headers
+
+**Complete Example with Disclaimer:**
+\`\`\`diff
+@@ -15,3 +15,8 @@
+  const handleSubmit = async (data) => {
+-   const result = await api.post('/submit', data);
+-   return result;
++   try {
++     const result = await api.post('/submit', data);
++     return result;
++   } catch (error) {
++     console.error('Submission failed:', error);
++     throw error;
++   }
+  };
+\`\`\`
+
+**Note: Line numbers in @@ headers are approximate for reference – please verify in your actual code file, as they might not be 100% precise.**
+
+**Always explain what changed**: After showing the diff, briefly explain what was modified and why, focusing on the functional changes rather than line positions.
+
+**Alternative Format for Simple Changes:**
+For very simple modifications, you can use a clean diff without hunk headers:
+\`\`\`diff
+- const oldValue = 'original';
++ const newValue = 'updated';
+\`\`\`
+
+This approach prioritizes clarity of the actual changes over precise line numbering.
+
 
 ## Chart Guidelines
 When creating charts, use the \`\`\`chartjs code block with VALID JSON format:
@@ -254,6 +307,7 @@ User asks: "Update this function to handle errors"
 
 Show the change like this:
 \`\`\`diff
+@@ -1,3 +1,8 @@
   function processData(data) {
 -   return data.map(item => item.value);
 +   try {
@@ -265,7 +319,59 @@ Show the change like this:
   }
 \`\`\`
 
-**Always explain what changed**: After showing the diff, briefly explain what was modified and why.
+**CRITICAL DIFF FORMATTING RULES:**
+
+1. **Hunk Headers (Line Numbers):**
+   - Include hunk headers like \`@@ -old_start,old_count +new_start,new_count @@\` when helpful for context
+   - **IMPORTANT: Always add a disclaimer that line numbers are approximate and for reference only**
+   - Focus on making the actual code changes (+/-) clear and accurate
+   - If unsure about exact line numbers, it's better to omit hunk headers than to guess
+
+2. **Required Disclaimer:**
+   - **ALWAYS include this note when using hunk headers:** "Note: Line numbers in @@ headers are approximate for reference – please verify in your actual code file, as they might not be 100% precise."
+   - Place this note either before or after the diff block
+   - This helps users understand that they should focus on the actual code changes, not exact line positions
+
+3. **Code Change Clarity:**
+   - Use \`-\` for removed lines (red in UI)
+   - Use \`+\` for added lines (green in UI)  
+   - Include 2-3 lines of unchanged context around changes when possible
+   - Make sure the diff is readable and the changes are obvious
+
+4. **When to Simplify:**
+   - For simple changes (under 5 lines), hunk headers are optional
+   - For complex or long files, focus on showing the essential changes clearly
+   - If the original code wasn't provided or is unclear, create a simplified diff without hunk headers
+
+**Complete Example with Disclaimer:**
+\`\`\`diff
+@@ -15,3 +15,8 @@
+  const handleSubmit = async (data) => {
+-   const result = await api.post('/submit', data);
+-   return result;
++   try {
++     const result = await api.post('/submit', data);
++     return result;
++   } catch (error) {
++     console.error('Submission failed:', error);
++     throw error;
++   }
+  };
+\`\`\`
+
+**Note: Line numbers in @@ headers are approximate for reference – please verify in your actual code file, as they might not be 100% precise.**
+
+**Always explain what changed**: After showing the diff, briefly explain what was modified and why, focusing on the functional changes rather than line positions.
+
+**Alternative Format for Simple Changes:**
+For very simple modifications, you can use a clean diff without hunk headers:
+\`\`\`diff
+- const oldValue = 'original';
++ const newValue = 'updated';
+\`\`\`
+
+This approach prioritizes clarity of the actual changes over precise line numbering.
+
 
 ## Chart Guidelines
 **CRITICAL DECISION: When to Create Charts**
@@ -396,8 +502,16 @@ userProfileGuidelines: `## User Profile Response Guidelines
 export const buildSystemPrompt = (
   mode: 'regular' | 'agent', 
   // The 'stage' parameter is now more descriptive of the specific task
-  stage: 'TEXT_RESPONSE' | 'FILE_RESPONSE',
+  stage: 'TEXT_RESPONSE' | 'FILE_RESPONSE' | 'FILE_STEP1',
   userProfile?: string, 
+  options?: {
+    toolResults?: any;
+    hasImage?: boolean;
+    hasFile?: boolean;
+    needsTools?: boolean;
+    isSlowerModel?: boolean;
+    model?: string;
+  }
 ): string => {
   const config = SYSTEM_PROMPTS[mode];
   let prompt = config.basePrompt;
@@ -488,6 +602,61 @@ export const buildSystemPrompt = (
        - Images: [IMAGE_ID:unique_id] (system will replace with actual image)`;
                break; 
 
+      case 'FILE_STEP1':
+        // File announcement phase - either tool execution or simple announcement
+        if (options?.needsTools) {
+          prompt += `\n\n# Conversation Strategy: File Generation - Data Collection Phase
+You are Chatflix, a friendly and helpful AI assistant. You are in the data collection phase for file generation. Your goal is to use tools to gather information while communicating naturally with the user.
+
+**Core Instruction: ALWAYS respond in the user's language.** Your responses should feel like a real person sending a message.
+
+**Your Task:**
+1.  Briefly and conversationally tell the user what you are doing (e.g., searching for information).
+2.  Use the necessary tools to collect information.
+3.  When finished, let the user know you are ready to create the file.
+4.  Do NOT provide detailed explanations in the chat; save that for the file.
+
+**Style Examples (adapt to user's language):**
+The following are English examples of the TONE. Do NOT use them literally if the user is not speaking English.
+- "Let me look that up for you..."
+- "I'll search for the latest info on that..."
+- "Alright, I have what I need. Let me put that file together for you."
+- "Okay, I'm all set. I'll get that file ready now."
+
+Today's date is ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.
+
+**IMPORTANT: Always respond in the same language as the user's query.** If a user profile indicates a preferred language, use that language.`;
+        } else {
+          prompt += `\n\n# Conversation Strategy: File Generation - Announcement Phase
+You are Chatflix, a friendly and helpful AI assistant. You're about to create a file for the user. This is NOT the main response phase; you are just announcing that you're starting the work.
+
+**Core Instruction: ALWAYS respond in the user's language.** Your response should feel like a real person sending a quick confirmation message.
+
+**Your Task:**
+- Write 1-2 SHORT, friendly sentences to announce that you're starting to create the file.
+- Your tone should be helpful and natural.
+- You MUST mention the word "file" (or its equivalent in the user's language).
+${options?.isSlowerModel ? `- **IMPORTANT**: Since you're using a ${options.model?.includes('deepseek') ? 'DeepSeek' : 'Claude Sonnet'} model, mention that file generation might take a bit longer but will provide high-quality results.` : ''}
+
+**Style Examples (adapt to user's language):**
+The following are English examples of the TONE. Do NOT use them literally if the user is not speaking English.
+- "Sure thing! Let me create that file for you."
+- "Got it! I'll put together that file right away."
+- "Perfect! I'll generate that file for you now."
+- "Alright! I'll whip up that file for you."
+${options?.isSlowerModel ? `- "I'll create that file for you. It might take a moment as I'm using a high-performance model for better quality!"` : ''}
+
+**Bad Examples (wrong tone):**
+- "Generating file." (too robotic)
+- "File creation initiated." (too formal)
+- "I'll put that together." (doesn't mention "file")
+
+Today's date is ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.
+
+**IMPORTANT: Always respond in the same language as the user's query.** If a user profile indicates a preferred language, use that language.`;
+        }
+        break;
+
       case 'FILE_RESPONSE':
         // This stage is special. The core prompt is constructed in route.ts, 
         // but we can add base formatting guidelines here.
@@ -523,6 +692,38 @@ You are now creating the content for one or more files.
 - **NEVER use markdown code blocks (\`\`\`markdown)** - just write markdown directly
 - Only use code blocks for actual code (\`\`\`python, \`\`\`javascript, etc.)
 - Format content appropriately for the file type (HTML for .html files, Python for .py files, etc.)`;
+
+        // Add tool results if available
+        if (options?.toolResults) {
+          prompt += `\n\nTool results available:\n<tool_results>\n${JSON.stringify(options.toolResults, null, 2)}\n</tool_results>`;
+        }
+
+        // Add image/file context if available
+        if (options?.hasImage) {
+          prompt += `\n- An image has been provided. You can analyze it to inform your file creation.`;
+        }
+
+        if (options?.hasFile) {
+          prompt += `\n- A file has been provided. You can read its content to inform your file creation.`;
+        }
+
+        // Add critical code block rules
+        prompt += `\n\n🚨 **CRITICAL FILE GENERATION RULE** 🚨
+For ALL programming/code files (js, ts, py, java, cpp, html, css, json, xml, yaml, etc.), the file content MUST start with the appropriate code block syntax:
+
+\`\`\`language
+[your code here]
+\`\`\`
+
+This is MANDATORY for proper rendering. Examples:
+- JavaScript/TypeScript: \`\`\`javascript or \`\`\`typescript
+- Python: \`\`\`python
+- HTML: \`\`\`html
+- CSS: \`\`\`css
+- JSON: \`\`\`json
+- Any code file: \`\`\`[language]
+
+**NEVER generate bare code without code block syntax - this causes rendering issues!**`;
         break;
     }
   }
