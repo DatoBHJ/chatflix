@@ -47,17 +47,69 @@ const preprocessLaTeX = (content: string) => {
   });
 
   // 인라인 수식 ($...$) 보존 - 화폐 값과 구분
-  // Matches $math$ not adjacent to word characters and not part of an HTML entity (like &#36;)
+  // 더 정확한 LaTeX 수식 패턴 매칭
   const inlineRegex = /(?<![\w&])\$((?:\\\$|[^$])+?)\$(?![\w])/g;
   const inlines: string[] = [];
   processedContent = processedContent.replace(inlineRegex, (match) => {
-    // Ensure inner content is not empty after trim, to avoid issues with "$ $"
-    if (match.substring(1, match.length - 1).trim() === "") {
-        return match; // Not a valid math expression, leave it.
+    const innerContent = match.substring(1, match.length - 1).trim();
+    
+    // 빈 내용이면 수식이 아님
+    if (innerContent === "") {
+        return match;
     }
-    const id = inlines.length;
-    inlines.push(match);
-    return `___LATEX_INLINE_${id}___`;
+    
+    // 화폐 패턴인지 확인 (이미 이스케이프된 화폐 기호는 제외)
+    const isCurrencyPattern = /^(\d+(?:[.,]\d+)*(?:[KMBkmb])?)$/.test(innerContent) ||
+                             /^(\d+(?:[.,]\d+)*\s+(?:million|billion|thousand|trillion|M|B|K|k))$/i.test(innerContent);
+    
+    // 프로그래밍 변수 패턴 확인 (예: $variable, $user_name)
+    const isProgrammingVariable = /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(innerContent);
+    
+    // 템플릿 변수 패턴 확인 (예: ${variableName})
+    const isTemplateVariable = /^\{[a-zA-Z_][a-zA-Z0-9_.]*\}$/.test(innerContent);
+    
+    // 실제 수학 표현식인지 확인 (수학 기호나 변수가 포함되어 있는지)
+    const hasMathSymbols = /[+\-*/=<>()\[\]{}^_\\]/.test(innerContent) ||
+                           /[a-zA-Z]/.test(innerContent) ||
+                           /\\[a-zA-Z]/.test(innerContent); // LaTeX 명령어
+    
+    // LaTeX 명령어가 있는지 확인 (더 정확한 수식 판별)
+    const hasLatexCommands = /\\[a-zA-Z]/.test(innerContent);
+    
+    // 그리스 문자나 수학 기호가 있는지 확인
+    const hasGreekOrMath = /[αβγδεζηθικλμνξοπρστυφχψωςΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ]/.test(innerContent) ||
+                           /[∫∑∏√∞±×÷≤≥≠≈≡]/.test(innerContent);
+    
+    // 짧은 수식 패턴 확인 (예: $x$, $y$, $z$)
+    const isShortMathVariable = /^[a-zA-Z]$/.test(innerContent);
+    
+    // 화폐 패턴이면서 수학 기호가 없으면 화폐로 처리
+    if (isCurrencyPattern && !hasMathSymbols && !hasLatexCommands && !hasGreekOrMath) {
+        return match; // 수식으로 처리하지 않음
+    }
+    
+    // 프로그래밍 변수나 템플릿 변수는 화폐로 처리
+    if (isProgrammingVariable || isTemplateVariable) {
+        return match; // 수식으로 처리하지 않음
+    }
+    
+    // 짧은 수학 변수는 LaTeX로 처리 (예: $x$, $y$, $z$)
+    if (isShortMathVariable) {
+        const id = inlines.length;
+        inlines.push(match);
+        return `___LATEX_INLINE_${id}___`;
+    }
+    
+    // 실제 수학 표현식인 경우에만 LaTeX로 처리
+    if (hasMathSymbols || hasLatexCommands || hasGreekOrMath || innerContent.length > 3) { 
+        // 길이가 3보다 크고 복잡한 패턴이면 수식일 가능성이 높음
+        const id = inlines.length;
+        inlines.push(match);
+        return `___LATEX_INLINE_${id}___`;
+    }
+    
+    // 그 외의 경우는 화폐로 간주
+    return match;
   });
 
   // 이스케이프된 구분자 복원
@@ -79,15 +131,63 @@ const preprocessLaTeX = (content: string) => {
   return processedContent;
 };
 
-// 단순화된 화폐 기호 처리 함수
+// 정교한 화폐 기호 처리 함수
 function escapeCurrencyDollars(text: string): string {
-  // This comment is no longer accurate with the new logic
   if (!text.includes('$')) return text;
   
-  // 금액 패턴 (예: $100, $1,000.50)
-  // Regex to identify currency: $ not preceded by alnum/backslash, followed by number, then boundary/non-word.
-  const currencyRegex = /(?<![\\a-zA-Z0-9_])\$(\d+(?:[.,]\d+)*)(?=\b|[^\w])/g;
-  return text.replace(currencyRegex, '&#36;$1');
+  // 1. 이미 HTML 엔티티로 이스케이프된 달러 기호는 건너뛰기
+  const htmlEntityRegex = /&#36;/g;
+  const htmlEntities: string[] = [];
+  let entityIndex = 0;
+  text = text.replace(htmlEntityRegex, () => {
+    htmlEntities.push('&#36;');
+    return `___HTML_ENTITY_${entityIndex++}___`;
+  });
+  
+  // 2. 화폐 패턴들을 더 정확하게 식별
+  // 패턴 1: $숫자 (예: $100, $1,000, $570M, $1.5B)
+  const currencyPattern1 = /(?<![\\a-zA-Z0-9_])\$(\d+(?:[.,]\d+)*(?:[KMBkmb])?)(?=\b|[^\w\s])/g;
+  
+  // 패턴 2: $숫자M, $숫자B 등 (예: $570M, $1.5B)
+  const currencyPattern2 = /(?<![\\a-zA-Z0-9_])\$(\d+(?:[.,]\d+)*[KMBkmb])(?=\b|[^\w\s])/g;
+  
+  // 패턴 3: 일반적인 화폐 표현 (예: $100 million, $1.5 billion)
+  const currencyPattern3 = /(?<![\\a-zA-Z0-9_])\$(\d+(?:[.,]\d+)*\s+(?:million|billion|thousand|trillion|M|B|K|k))(?=\b|[^\w\s])/gi;
+  
+  // 패턴 4: 프로그래밍 변수 (예: $variable, $user_name) - 화폐로 처리하지 않음
+  const programmingVariablePattern = /(?<![\\a-zA-Z0-9_])\$([a-zA-Z_][a-zA-Z0-9_]*)(?=\b|[^\w\s])/g;
+  
+  // 패턴 5: 템플릿 변수 (예: ${variableName}) - 화폐로 처리하지 않음
+  const templateVariablePattern = /(?<![\\a-zA-Z0-9_])\$\{[a-zA-Z_][a-zA-Z0-9_.]*\}(?=\b|[^\w\s])/g;
+  
+  // 패턴 6: 백슬래시로 이스케이프된 달러는 LaTeX 수식이므로 건드리지 않음
+  const escapedDollarRegex = /\\\$/g;
+  const escapedDollars: string[] = [];
+  let escapedIndex = 0;
+  text = text.replace(escapedDollarRegex, () => {
+    escapedDollars.push('\\$');
+    return `___ESCAPED_DOLLAR_${escapedIndex++}___`;
+  });
+  
+  // 3. 화폐 패턴들을 HTML 엔티티로 변환 (프로그래밍/템플릿 변수는 제외)
+  text = text.replace(currencyPattern1, '&#36;$1');
+  text = text.replace(currencyPattern2, '&#36;$1');
+  text = text.replace(currencyPattern3, '&#36;$1');
+  
+  // 프로그래밍 변수와 템플릿 변수는 그대로 유지 (화폐로 처리하지 않음)
+  // 이들은 LaTeX 수식 처리 단계에서 적절히 처리됨
+  
+  // 4. 이스케이프된 달러 복원
+  text = text.replace(/___ESCAPED_DOLLAR_(\d+)___/g, (_, id) => {
+    return escapedDollars[parseInt(id)];
+  });
+  
+  // 5. HTML 엔티티 복원
+  text = text.replace(/___HTML_ENTITY_(\d+)___/g, (_, id) => {
+    return htmlEntities[parseInt(id)];
+  });
+  
+  return text;
 }
 
 // Pollination 이미지 URL에 nologo 옵션 추가하는 함수
