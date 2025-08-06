@@ -728,12 +728,8 @@ function selectModelBasedOnAnalysis(
     else {
       // 기타 카테고리
       if (modelType === 'chatflix-ultimate-pro') {
-        // Pro 버전: 단순/중간 moonshotai/kimi-k2-instruct, 복잡 claude-sonnet-4
-        if (analysis.complexity === 'complex') {
-          return 'claude-sonnet-4-20250514';
-        } else { // simple/medium
-          return 'moonshotai/kimi-k2-instruct';
-        }
+        // Pro 버전: 모든 복잡도 claude-sonnet-4
+        return 'claude-sonnet-4-20250514';
       } else {
         // 일반 버전: 모든 복잡도 moonshotai/kimi-k2-instruct
         return 'moonshotai/kimi-k2-instruct';

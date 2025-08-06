@@ -37,7 +37,7 @@ Gemini 2.0 Flash로 분석:
 | **Medium** | `gemini-2.5-flash` | `gemini-2.5-flash` |
 | **Complex** | `gemini-2.5-pro` | `gemini-2.5-pro` |
 
-#### **📝 텍스트만 (비멀티모달) - 🆕 2025-07-15 업데이트**
+#### **📝 텍스트만 (비멀티모달) - 🆕 2025-08-07 업데이트**
 
 | 카테고리 | 복잡도 | Chatflix Ultimate | Chatflix Ultimate Pro |
 |----------|--------|-------------------|----------------------|
@@ -46,8 +46,8 @@ Gemini 2.0 Flash로 분석:
 | **Math** | 복잡 | `grok-4-0709` | `grok-4-0709` |
 | **Technical** | 단순 | `moonshotai/kimi-k2-instruct` | `moonshotai/kimi-k2-instruct` |
 | **Technical** | 중간/복잡 | `moonshotai/kimi-k2-instruct` | `claude-sonnet-4` |
-| **Other** | 단순 | `moonshotai/kimi-k2-instruct` | `moonshotai/kimi-k2-instruct` |
-| **Other** | 중간 | `moonshotai/kimi-k2-instruct` | `moonshotai/kimi-k2-instruct` |
+| **Other** | 단순 | `moonshotai/kimi-k2-instruct` | `claude-sonnet-4` |
+| **Other** | 중간 | `moonshotai/kimi-k2-instruct` | `claude-sonnet-4` |
 | **Other** | 복잡 | `moonshotai/kimi-k2-instruct` | `claude-sonnet-4` |
 
 ### 🎯 **3단계: 개선된 컨텍스트 길이 검증 및 업그레이드**
@@ -117,7 +117,7 @@ try {
 1. **1순위**: `gemini-2.5-pro` (안정성과 범용성이 검증된 모델)
 2. **2순위**: 첫 번째 사용 가능한 `isAgentEnabled: true` 모델 (최후의 수단)
 
-### 🆕 **특별 라우팅 규칙 (2025-07-15 추가)**
+### 🆕 **특별 라우팅 규칙 (2025-08-07 추가)**
 
 1.  **`moonshotai/kimi-k2-instruct` 컨텍스트 부족 시 폴백:**
     -   **조건:** 1차 선택 모델이 `moonshotai/kimi-k2-instruct`이지만, 계산된 `필요_컨텍스트`를 충족하지 못할 경우.
@@ -160,12 +160,12 @@ contextInfo: {
 }
 ```
 
-## 🔍 **주요 차이점 요약 (2025-07-15 업데이트)**
+## 🔍 **주요 차이점 요약 (2025-08-07 업데이트)**
 
 | 구분 | Chatflix Ultimate | Chatflix Ultimate Pro |
 |------|-------------------|----------------------|
 | **코딩 (비멀티모달)** | 모든 복잡도 `moonshotai/kimi-k2-instruct` | 단순 `moonshotai/kimi-k2-instruct`, 중간 `claude-sonnet-4`, 복잡 `claude-sonnet-4-thinking` |
-| **기타 (비멀티모달)** | 모든 복잡도 `moonshotai/kimi-k2-instruct` | 단순/중간 `moonshotai/kimi-k2-instruct`, 복잡 `claude-sonnet-4` |
+| **기타 (비멀티모달)** | 모든 복잡도 `moonshotai/kimi-k2-instruct` | 모든 복잡도 `claude-sonnet-4` |
 | **Math (비멀티모달)** | 모든 복잡도 `grok-4-0709` | 모든 복잡도 `grok-4-0709` |
 | **Technical (비멀티모달)** | 모든 복잡도 `moonshotai/kimi-k2-instruct` | 단순 `moonshotai/kimi-k2-instruct`, 중간/복잡 `claude-sonnet-4` |
 | **멀티모달 처리** | 더 보수적 (Gemini 중심) | 더 적극적 (Claude Sonnet 4 활용) |
