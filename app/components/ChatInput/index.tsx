@@ -1437,7 +1437,7 @@ export function ChatInput({
             multiple
           />
           
-          <div ref={inputContainerRef} className="flex gap-1 sm:gap-3 items-end py-0">
+          <div ref={inputContainerRef} className="flex gap-1 sm:gap-3 items-center py-0">
             {/* Agent(뇌) 버튼 */}
             {setisAgentEnabled && (
               <div className="relative" ref={agentDropdownRef}>
@@ -1544,7 +1544,7 @@ export function ChatInput({
                 onInput={handleInputWithShortcuts}
                 onPaste={handlePaste}
                 onKeyDown={handleKeyDown}
-                className={`futuristic-input ${input.trim() === '' ? 'empty' : ''} w-full transition-colors duration-300 py-2 px-4 rounded-full outline-none text-sm sm:text-base bg-[var(--chat-input-bg)] text-[var(--chat-input-text)] overflow-y-auto min-h-[36px] ${
+                className={`futuristic-input ${input.trim() === '' ? 'empty' : ''} w-full transition-colors duration-300 py-1 px-4 rounded-full outline-none text-sm sm:text-base bg-[var(--chat-input-bg)] text-[var(--chat-input-text)] overflow-y-auto min-h-[32px] ${
                   tokenCount > 0 ? 'has-token-counter' : ''
                 }`}
                 data-placeholder={placeholder}
