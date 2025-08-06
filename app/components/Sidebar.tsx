@@ -8,27 +8,24 @@ import { AccountDialog, fetchUserName } from './AccountDialog'
 import { deleteChat } from '@/app/chat/[id]/utils'
 import Link from 'next/link'
 import Image from 'next/image'
-import { defaultPromptShortcuts } from '../lib/defaultPromptShortcuts'
+
 import { getModelById } from '@/lib/models/config'
 import { getProviderLogo, hasLogo } from '@/lib/models/logoUtils'
 import { getSidebarTranslations } from '../lib/sidebarTranslations'
 import { clearAllSubscriptionCache } from '@/lib/utils'
 import { useSidebar } from '@/app/lib/SidebarContext'
 import { Settings, LifeBuoy, Zap, LogOut, CreditCard } from 'lucide-react'
+import { SquarePencil } from 'react-ios-icons'
 import { ProblemReportDialog } from './ProblemReportDialog'
 
 interface SidebarProps {
   user: any;  // You might want to define a proper User type
+  toggleSidebar?: () => void;
 }
 
-// Global event to open the shortcuts panel from other components
-const EXPAND_SHORTCUTS_EVENT = 'expand-shortcuts';
 
-export function expandShortcuts() {
-  document.dispatchEvent(new CustomEvent(EXPAND_SHORTCUTS_EVENT));
-}
 
-export function Sidebar({ user }: SidebarProps) {
+export function Sidebar({ user, toggleSidebar }: SidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const [chats, setChats] = useState<Chat[]>([])
@@ -39,24 +36,12 @@ export function Sidebar({ user }: SidebarProps) {
   const [isProblemReportOpen, setIsProblemReportOpen] = useState(false)
   const [profileImage, setProfileImage] = useState<string | null>(null)
   const [userName, setUserName] = useState('You')
-  const [isExpanded, setIsExpanded] = useState(true)
-  const [isExpandedShortcuts, setIsExpandedShortcuts] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(true) // Always expanded - no toggle needed
   const [translations, setTranslations] = useState({
     home: 'Home',
     chatHistory: 'Chat History',
-    shortcuts: 'Shortcuts',
     bookmarks: 'Bookmarks',
     searchConversations: 'Search conversations...',
-    editShortcut: 'Edit Shortcut',
-    addShortcut: 'Add New Shortcut',
-    shortcutNamePlaceholder: 'Shortcut name (without @)',
-    promptContentPlaceholder: 'Prompt content',
-    updateButton: 'Update',
-    saveShortcutButton: 'Save Shortcut',
-    cancelButton: 'Cancel',
-    addNewShortcutButton: 'ADD NEW SHORTCUT',
-    createCustomPromptTemplates: 'Create custom prompt templates',
-    noShortcutsYet: 'No shortcuts yet. Create one to get started!',
     settings: 'Settings',
     reportIssue: 'Report Issue',
     subscription: 'Subscription',
@@ -72,13 +57,7 @@ export function Sidebar({ user }: SidebarProps) {
   const observerRef = useRef<IntersectionObserver | null>(null)
   const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null)
 
-  // State for Shortcuts
-  const [shortcuts, setShortcuts] = useState<any[]>([])
-  const [newName, setNewName] = useState('')
-  const [newContent, setNewContent] = useState('')
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const accountButtonRef = useRef<HTMLButtonElement>(null)
   const accountMenuRef = useRef<HTMLDivElement>(null)
@@ -246,29 +225,23 @@ export function Sidebar({ user }: SidebarProps) {
     }
   }, [user, supabase, fetchProfileImage]);
 
-  // Effect to scroll to top when editing starts
+  // Listen for user name updates from other components
   useEffect(() => {
-    if (editingId && scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-      });
-    }
-  }, [editingId]);
+    const handleUserNameUpdate = (event: CustomEvent) => {
+      const { newName } = event.detail;
+      setUserName(newName);
+    };
 
-  // Register global event listener
-  useEffect(() => {
-    const handleExpandShortcuts = () => {
-      if (user) {
-        setIsExpandedShortcuts(true)
-      }
-    }
+    window.addEventListener('userNameUpdated', handleUserNameUpdate as EventListener);
     
-    document.addEventListener(EXPAND_SHORTCUTS_EVENT, handleExpandShortcuts)
     return () => {
-      document.removeEventListener(EXPAND_SHORTCUTS_EVENT, handleExpandShortcuts)
-    }
-  }, [user])
+      window.removeEventListener('userNameUpdated', handleUserNameUpdate as EventListener);
+    };
+  }, []);
+
+
+
+
 
   // Real-time update
   useEffect(() => {
@@ -557,9 +530,9 @@ export function Sidebar({ user }: SidebarProps) {
   const loadChatsRef = useRef(loadChats)
   loadChatsRef.current = loadChats
 
-  useEffect(() => {
-    // Set up scroll observer (for infinite scroll) - activate only when not searching
-    if (isExpanded && initialLoadComplete && hasMore && !searchTerm) {
+      useEffect(() => {
+      // Set up scroll observer (for infinite scroll) - activate only when not searching
+      if (initialLoadComplete && hasMore && !searchTerm) {
       const observer = new IntersectionObserver(
         (entries) => {
           if (entries[0].isIntersecting && !isLoadingMore && hasMore) {
@@ -579,9 +552,9 @@ export function Sidebar({ user }: SidebarProps) {
         if (observerRef.current) {
           observerRef.current.disconnect()
         }
+              }
       }
-    }
-  }, [isExpanded, initialLoadComplete, currentPage, isLoadingMore, hasMore, searchTerm])
+    }, [initialLoadComplete, currentPage, isLoadingMore, hasMore, searchTerm])
 
   const handleDeleteChat = useCallback(async (chatId: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -635,115 +608,7 @@ export function Sidebar({ user }: SidebarProps) {
     }
   }, [user, supabase, router]) // Removed loadChats dependency
 
-  // Functions related to prompt shortcuts
-  const loadShortcuts = useCallback(async () => {
-    if (!user) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from('prompt_shortcuts')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
 
-      if (error) throw error
-      
-      // If user has no shortcuts, add default ones
-      if (!data || data.length === 0) {
-        const defaultShortcutsWithIds = defaultPromptShortcuts.map((shortcut) => ({
-          id: `ps-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-          name: shortcut.name,
-          content: shortcut.content,
-          user_id: user.id
-        }))
-
-        const { error: insertError } = await supabase
-          .from('prompt_shortcuts')
-          .insert(defaultShortcutsWithIds)
-
-        if (insertError) throw insertError
-        setShortcuts(defaultShortcutsWithIds)
-      } else {
-        setShortcuts(data)
-      }
-    } catch (error) {
-      console.error('Error loading shortcuts:', error)
-    }
-  }, [user, supabase])
-
-  // Minimize dependencies using loadShortcuts ref
-  const loadShortcutsRef = useRef(loadShortcuts)
-  loadShortcutsRef.current = loadShortcuts
-
-  const handleAddShortcut = useCallback(async () => {
-    if (!newName.trim() || !newContent.trim()) return
-
-    try {
-      const formattedName = newName.trim().replace(/\s+/g, '_')
-
-      if (editingId && editingId !== 'new') {
-        // Update existing shortcut
-        const { error } = await supabase
-          .from('prompt_shortcuts')
-          .update({
-            name: formattedName,
-            content: newContent.trim(),
-          })
-          .eq('id', editingId)
-          .eq('user_id', user.id)
-
-        if (error) throw error
-      } else {
-        // Add new shortcut
-        const { error } = await supabase
-          .from('prompt_shortcuts')
-          .insert({
-            id: `ps-${Date.now()}`,
-            name: formattedName,
-            content: newContent.trim(),
-            user_id: user.id
-          })
-
-        if (error) throw error
-      }
-      
-      setNewName('')
-      setNewContent('')
-      setEditingId(null)
-      loadShortcutsRef.current()
-    } catch (error) {
-      console.error('Error saving shortcut:', error)
-    }
-  }, [newName, newContent, editingId, user, supabase]) // Removed loadShortcuts dependency
-
-  const handleEditShortcut = useCallback((shortcut: any) => {
-    setEditingId(shortcut.id)
-    setNewName(shortcut.name)
-    setNewContent(shortcut.content)
-    setOpenMenuId(null)
-  }, [])
-
-  const handleCancelShortcut = useCallback(() => {
-    setEditingId(null)
-    setNewName('')
-    setNewContent('')
-  }, [])
-
-  const handleDeleteShortcut = useCallback(async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from('prompt_shortcuts')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id)
-
-      if (error) throw error
-      setOpenMenuId(null)
-      loadShortcutsRef.current()
-    } catch (error) {
-      console.error('Error deleting shortcut:', error)
-    }
-  }, [user, supabase]) // Removed loadShortcuts dependency
 
   // Functions related to chat title editing
   const handleEditChatTitle = useCallback((chatId: string, currentTitle: string) => {
@@ -806,11 +671,7 @@ export function Sidebar({ user }: SidebarProps) {
     }
   }, [handleSaveChatTitle, handleCancelChatTitleEdit])
 
-  useEffect(() => {
-    if (isExpandedShortcuts && user) {
-      loadShortcutsRef.current();
-    }
-  }, [isExpandedShortcuts, user]); // Removed loadShortcuts dependency
+
 
   // Search chats in the database
   const searchChats = useCallback(async (term: string) => {
@@ -980,62 +841,26 @@ export function Sidebar({ user }: SidebarProps) {
     });
   };
 
-  // Simplify toggle functions
-  const toggleExpanded = useCallback(() => {
-    if (isExpanded) {
-      setIsExpanded(false);
-      clearSearch(); // Clear search state when closing the chat list
-    } else {
-      setIsExpanded(true);
-      setIsExpandedShortcuts(false);
-    }
-  }, [isExpanded, clearSearch]);
 
-  const toggleShortcuts = useCallback(() => {
-    if (isExpandedShortcuts) {
-      setIsExpandedShortcuts(false);
-    } else {
-      setIsExpandedShortcuts(true);
-      setIsExpanded(false);
-      
-      // Start loading data immediately on toggle
-      if (user && shortcuts.length === 0) {
-        loadShortcutsRef.current();
-      }
-    }
-  }, [isExpandedShortcuts, user, shortcuts.length]); // Removed loadShortcuts dependency
 
-  // Preload data on initial render - removed dependency using ref
-  useEffect(() => {
-    if (user) {
-      // Preload shortcut data as soon as the sidebar opens
-      loadShortcutsRef.current();
-    }
-  }, [user]); // Removed loadShortcuts dependency
+
+
+
 
   // Keyboard shortcut for search (Ctrl/Cmd + K)
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
-        event.preventDefault();
-        if (isExpanded && searchInputRef.current) {
-          searchInputRef.current.focus();
-        } else if (!isExpanded) {
-          setIsExpanded(true);
-          setIsExpandedShortcuts(false);
-          // Focus after the next render
-          setTimeout(() => {
-            if (searchInputRef.current) {
-              searchInputRef.current.focus();
-            }
-          }, 100);
+              if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+          event.preventDefault();
+          if (searchInputRef.current) {
+            searchInputRef.current.focus();
+          }
         }
-      }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isExpanded]);
+          document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
   // Clear search state on page change (only if not on a chat page)
   useEffect(() => {
@@ -1069,63 +894,24 @@ export function Sidebar({ user }: SidebarProps) {
   }
 
   return (
-    <div className="w-80 h-full bg-[var(--background)] sm:bg-transparent border-r border-[var(--accent)] flex flex-col items-center overflow-hidden relative ">
+    <div className="w-80 h-full bg-[var(--accent)] flex flex-col items-center overflow-hidden relative ">
       <div className="h-full flex flex-col w-full">
-        {/* Top Section with Home and Chats icons */}
-        <div className="pt-4 px-3 flex flex-col space-y-4 md:space-y-5">
-          <Link href="/">
-            <div className="flex items-center group">
-              <div className="min-w-[40px] h-10 rounded-lg flex items-center justify-center hover:bg-[var(--foreground)]/8 transition-all duration-200">
-                <svg 
-                  width="16" 
-                  height="16" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="#007AFF"
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  className="transition-transform duration-200"
-                >
-                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                </svg>
-              </div>
-              <span className="text-sm font-medium whitespace-nowrap text-[var(--muted)]">
-                {translations.home}
-              </span>
-            </div>
-          </Link>
+        {/* Top Section with Home, Bookmarks and History icons */}
+        <div className="pt-4 px-[14px] sm:px-[14px] flex flex-col space-y-0">
+          {/* Empty space for hamburger icon (maintained for UI consistency) */}
+          <div className="min-w-[40px] h-6 sm:h-10 ounded-lg flex items-center justify-start">
+            <div className="w-4 h-4"></div>
+          </div>
           
-          <button onClick={toggleExpanded} className="flex items-center group w-full text-left">
-            <div className={`min-w-[40px] h-10 rounded-lg flex items-center justify-center transition-all duration-200 ${isExpanded ? 'bg-[var(--foreground)]/10' : 'hover:bg-[var(--foreground)]/8 text-[var(--muted)]'}`}>
-              <svg 
-                width="18" 
-                height="18" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="#007AFF"
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                className="transition-transform duration-200"
-              >
-                <path d="M4.4999 3L4.4999 8H9.49988M4.4999 7.99645C5.93133 5.3205 8.75302 3.5 11.9999 3.5C16.6943 3.5 20.4999 7.30558 20.4999 12C20.4999 16.6944 16.6943 20.5 11.9999 20.5C7.6438 20.5 4.05303 17.2232 3.55811 13"></path>
-                <path d="M15 9L12 12V16"></path>
-              </svg>
-            </div>
-            <span className={`text-sm font-medium whitespace-nowrap ${isExpanded ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}>
-              {translations.chatHistory}
-            </span>
-          </button>
+
+          
+
         </div>
 
         {/* Main Content Area */}
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto sidebar-scroll w-full mt-4 md:mt-5 px-2 md:px-3">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto sidebar-scroll w-full mt-3 md:mt-0 px-4 md:px-3">
           {/* Chat History Section */}
           {useMemo(() => {
-            if (!isExpanded) return null;
-            
             return (
             <div className="space-y-3">
               {/* Search Input */}
@@ -1153,7 +939,7 @@ export function Sidebar({ user }: SidebarProps) {
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder={`${translations.searchConversations} (⌘K)`}
-                    className="w-full pl-10 pr-4 py-2.5 bg-[var(--accent)] text-sm rounded-lg placeholder-[var(--muted)] focus:outline-none focus:bg-[var(--accent)] border-0 outline-none ring-0 focus:ring-0 focus:border-0 shadow-none focus:shadow-none transition-all"
+                    className="w-full pl-10 pr-4 py-2.5 bg-transparent text-sm rounded-lg placeholder-[var(--muted)] focus:outline-none focus:bg-transparent border-0 outline-none ring-0 focus:ring-0 focus:border-0 shadow-none focus:shadow-none transition-all"
                     style={{ 
                       outline: 'none',
                       border: 'none',
@@ -1217,7 +1003,7 @@ export function Sidebar({ user }: SidebarProps) {
                       };
                       
                       return (
-                        <div key={`${chat.id}-${index}`} className="border-b border-[var(--accent)] last:border-b-0">
+                        <div key={`${chat.id}-${index}`} className="last:border-b-0">
                           <Link
                             href={editingChatId === chat.id ? '#' : `/chat/${chat.id}`}
                             className={`group relative block transition-all p-3 rounded-lg ${ 
@@ -1388,207 +1174,16 @@ export function Sidebar({ user }: SidebarProps) {
               </div>
             </div>
             );
-          }, [isExpanded, displayChats, pathname, handleDeleteChat, hasMore, isLoadingMore, currentTime, editingChatId, editingTitle, handleEditChatTitle, handleSaveChatTitle, handleChatTitleKeyDown, searchTerm, isSearching])}
+          }, [displayChats, pathname, handleDeleteChat, hasMore, isLoadingMore, currentTime, editingChatId, editingTitle, handleEditChatTitle, handleSaveChatTitle, handleChatTitleKeyDown, searchTerm, isSearching])}
 
-          {/* Shortcuts Section */}
-          {useMemo(() => {
-            if (!isExpandedShortcuts) return null;
-            
-            return (
-            <div className="space-y-3 pb-4 px-2 relative">
-              {editingId ? (
-                // Edit/Create Form
-                <div className="bg-[var(--accent)]/5 rounded-lg p-4 space-y-3">
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-sm font-medium">
-                      {editingId !== 'new' ? translations.editShortcut : translations.addShortcut}
-                    </h3>
-                    <button 
-                      onClick={handleCancelShortcut}
-                      className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-                      type="button"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  
-                  <input
-                    type="text"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    className="w-full p-2.5 bg-[var(--accent)] text-sm focus:outline-none rounded-lg"
-                    placeholder={translations.shortcutNamePlaceholder}
-                  />
-                  <textarea
-                    ref={textareaRef}
-                    value={newContent}
-                    onChange={(e) => setNewContent(e.target.value)}
-                    className="w-full min-h-[120px] p-2.5 bg-[var(--accent)] text-sm resize-none focus:outline-none rounded-lg"
-                    placeholder={translations.promptContentPlaceholder}
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleAddShortcut}
-                      disabled={!newName.trim() || !newContent.trim()}
-                      className="flex-1 py-2.5 text-xs uppercase tracking-wider bg-[var(--foreground)] text-[var(--background)] hover:opacity-90 transition-opacity disabled:opacity-50 rounded-lg font-medium"
-                      type="button"
-                    >
-                      {editingId !== 'new' ? translations.updateButton : translations.saveShortcutButton}
-                    </button>
-                    <button
-                      onClick={handleCancelShortcut}
-                      className="w-24 py-2.5 text-xs uppercase tracking-wider bg-[var(--accent)] hover:opacity-90 transition-opacity rounded-lg font-medium"
-                      type="button"
-                    >
-                      {translations.cancelButton}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                // Add New Button
-                <button
-                  onClick={() => {
-                    setEditingId('new');
-                    setNewName('');
-                    setNewContent('');
-                  }}
-                  className="w-full px-4 py-3 text-left transition-all duration-300 group relative overflow-hidden bg-[var(--accent)]/5 hover:bg-[var(--accent)]/20 rounded-lg"
-                  type="button"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-[var(--accent)]/10 to-transparent opacity-100 transition-opacity duration-300" />
-                  <div className="flex items-center justify-between relative">
-                    <div className="flex items-center gap-3">
-                      <div className="w-6 h-6 rounded-md bg-[var(--accent)]/20 flex items-center justify-center transition-all duration-300 group-hover:scale-110">
-                        <svg 
-                          width="14" 
-                          height="14" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          strokeWidth="1.5" 
-                          strokeLinecap="round" 
-                          className="text-[var(--foreground)] transition-colors transform rotate-0 duration-300"
-                        >
-                          <line x1="12" y1="5" x2="12" y2="19" />
-                          <line x1="5" y1="12" x2="19" y2="12" />
-                        </svg>
-                      </div>
-                      <div className="flex flex-col items-start gap-0.5">
-                        <span className="text-xs tracking-wide text-[var(--foreground)] transition-colors font-medium">
-                        {translations.addNewShortcutButton}
-                        </span>
-                        <span className="text-[10px] text-[var(--muted)] transition-colors">
-                          {translations.createCustomPromptTemplates}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              )}
-              
-              {/* Shortcuts List with Loading State */}
-              <div className="space-y-2 mt-3 pr-1">
-                  {shortcuts.length > 0 ? (
-                    shortcuts.map((shortcut) => (
-                  <div 
-                    key={shortcut.id} 
-                    className="shortcut-item group bg-[var(--accent)]/5 hover:bg-[var(--accent)]/20 p-3 rounded-lg relative transition-all"
-                  >
-                    <div className="flex pr-16">
-                      <div className="flex-1 flex flex-col gap-1 text-left">
-                        <span className="text-sm font-medium tracking-wide">
-                          @{shortcut.name}
-                        </span>
-                        <span className="text-xs line-clamp-2 text-[var(--muted)]">
-                          {shortcut.content.substring(0, 80)}{shortcut.content.length > 80 ? '...' : ''}
-                        </span>
-                      </div>
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1 items-center justify-center">
-                        <button 
-                          onClick={() => handleEditShortcut(shortcut)}
-                          className="p-1.5 rounded-md bg-[var(--accent)]/20 hover:bg-[var(--accent)]/40 transition-colors"
-                          type="button"
-                          aria-label="Edit shortcut"
-                        >
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                          </svg>
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteShortcut(shortcut.id)}
-                          className="p-1.5 rounded-md bg-[var(--accent)]/20 hover:bg-red-500/20 transition-colors"
-                          type="button"
-                          aria-label="Delete shortcut"
-                        >
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <polyline points="3 6 5 6 21 6"></polyline>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                    ))
-                  ) : (
-                  <div className="px-4 py-3 text-sm text-[var(--muted)] text-center bg-[var(--accent)]/5 rounded-lg">
-                    {translations.noShortcutsYet}
-                  </div>
-                )}
-              </div>
-            </div>
-            );
-          }, [isExpandedShortcuts, editingId, newName, newContent, shortcuts, handleCancelShortcut, handleAddShortcut, handleEditShortcut, handleDeleteShortcut])}
+
         </div>
 
         {/* Bottom Section */}
-        <div className="mt-4 sm:mt-6 pb-5 md:pb-8 flex flex-col space-y-4 md:space-y-5 px-3 text-[var(--muted)]">
-          <button
-            onClick={toggleShortcuts}
-            className="flex items-center group w-full text-left"
-            type="button"
-          >
-            <div className={`min-w-[40px] h-10 rounded-lg flex items-center justify-center transition-all duration-200 ${isExpandedShortcuts ? 'bg-[var(--foreground)]/10' : 'hover:bg-[var(--foreground)]/8'}`}>
-              <svg 
-                width="16" 
-                height="16" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="#007AFF"
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                className="transition-transform duration-200"
-              >
-                <circle cx="12" cy="12" r="4" />
-                <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" />
-              </svg>
-            </div>
-            <span className={`text-sm font-medium whitespace-nowrap ${isExpandedShortcuts ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}>
-              {translations.shortcuts}
-            </span>
-          </button>
-          
-          <Link href="/bookmarks" className="flex items-center group">
-            <div className={`min-w-[40px] h-10 rounded-lg flex items-center justify-center transition-all duration-200 ${pathname === '/bookmarks' ? 'bg-[var(--foreground)]/10' : 'hover:bg-[var(--foreground)]/8'}`}>
+        <div className="mt-3 sm:mt-6 pb-5 md:pb-8 flex flex-col space-y-0 px-3 text-[var(--muted)]">
+
+          <Link href="/bookmarks" className="flex items-center group w-full text-left">
+            <div className="min-w-[40px] h-10 rounded-lg flex items-center justify-center">
               <svg 
                 width="16" 
                 height="16" 
@@ -1597,17 +1192,15 @@ export function Sidebar({ user }: SidebarProps) {
                 stroke="#007AFF" 
                 strokeWidth="2" 
                 strokeLinecap="round" 
-                strokeLinejoin="round" 
-                className="transition-transform duration-200"
+                strokeLinejoin="round"
               >
                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
               </svg>
             </div>
-            <span className={`text-sm font-medium whitespace-nowrap ${pathname === '/bookmarks' ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}>
+            <span className="ml-3 text-sm font-medium whitespace-nowrap text-[var(--muted)]">
               {translations.bookmarks}
             </span>
           </Link>
-          
 
           <button
             ref={accountButtonRef}

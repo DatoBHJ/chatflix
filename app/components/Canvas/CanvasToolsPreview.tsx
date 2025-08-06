@@ -480,7 +480,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
           {/* 툴팁 화살표 */}
           <div className="absolute -bottom-1.5 left-6 w-3 h-3 bg-[var(--background)] border-r border-b border-[var(--subtle-divider)] rotate-45"></div>          
           {/* 헤더 */}
-          <div className="flex items-center justify-between mb-3">
+          {/* <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
             <Wrench className="h-4 w-4" style={{ color: 'var(--tools-color)' }} strokeWidth={2} />
             <span className="text-sm font-medium text-[var(--foreground)]">Tools</span>
@@ -498,7 +498,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
             >
               View All
             </button>
-          </div>
+          </div> */}
           
           {/* 도구 목록 */}
           <div className="space-y-2 max-h-24 overflow-y-auto scrollbar-thin">

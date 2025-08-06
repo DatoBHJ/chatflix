@@ -2,6 +2,7 @@ import { Message } from 'ai';
 import { CompletionResult } from '@/lib/types';
 import { generateMessageId } from '../utils/messageUtils';
 import { MultiModalMessage, ProcessedMessage } from '../types';
+import { toolPrompts } from '../prompts/toolPrompts';
 
 export interface SystemPromptConfig {
   basePrompt: string;
@@ -10,7 +11,7 @@ export interface SystemPromptConfig {
   responseGuidelines?: string;
 }
 
-const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+const getCurrentDate = () => new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
 // 중앙화된 시스템 프롬프트 정의
 export const SYSTEM_PROMPTS: Record<'regular' | 'agent', SystemPromptConfig> = {
@@ -19,7 +20,7 @@ export const SYSTEM_PROMPTS: Record<'regular' | 'agent', SystemPromptConfig> = {
 
 ## Introduction and Role
 You are Chatflix, a friendly, conversational, and genuinely helpful AI assistant. 
-Today's date is ${today}.
+Today's date is ${getCurrentDate()}.
 
 **Your Personality:**
 - **Casual & Friendly**: Talk like you're chatting with a good friend. Use relaxed, everyday language and be genuinely excited to help.
@@ -247,7 +248,7 @@ userProfileGuidelines: `## User Profile Response Guidelines
 
 ## Introduction and Role
 You are Chatflix Agent, a friendly, conversational, and highly capable AI assistant with access to various tools and capabilities.  
-Today's date is ${today}.
+Today's date is ${getCurrentDate()}.
 
 **Your Personality:**
 - **Casual & Friendly**: Talk like you're chatting with a good friend. Use relaxed, everyday language and be genuinely excited to help.
@@ -511,6 +512,10 @@ export const buildSystemPrompt = (
     needsTools?: boolean;
     isSlowerModel?: boolean;
     model?: string;
+    selectedTools?: string[]; // 새로 추가: 선택된 도구들
+    executionPlan?: string; // 🆕 추가: 도구 실행 계획
+    refinedUserInput?: string; // 🆕 추가: 정제된 사용자 입력
+    essentialContext?: string; // 🆕 추가: 필수 컨텍스트
   }
 ): string => {
   const config = SYSTEM_PROMPTS[mode];
@@ -526,10 +531,40 @@ export const buildSystemPrompt = (
   if (mode === 'agent') {
     switch (stage) {
       case 'TEXT_RESPONSE':
+        // 🆕 통합된 프롬프트: 계획 정보가 있으면 전통 방식에 추가
         prompt += `\n\n# Conversation Strategy: Conversational Response
         Your goal is to provide a comprehensive, text-based answer while being genuinely helpful and conversational.
         
-        **CRITICAL: ALWAYS respond in the user's language. Do not use English unless the user is specifically using English.**
+        **CRITICAL: ALWAYS respond in the user's language. Do not use English unless the user is specifically using English.**`;
+
+        // 🆕 계획 정보가 있으면 가장 먼저 추가
+        if (options?.executionPlan && options?.refinedUserInput && options?.essentialContext) {
+          prompt += `\n\n# 🎯 EXECUTION PLAN (Follow This First)
+**EXECUTION PLAN:**
+${options.executionPlan}
+
+**REFINED USER REQUEST:**
+${options.refinedUserInput}
+
+**ESSENTIAL CONTEXT:**
+${options.essentialContext}
+
+**PLAN-BASED INSTRUCTIONS:**
+1. **Follow the Execution Plan**: Execute the tools exactly as planned above
+2. **Use Refined Input**: Focus on the refined user request, not the original vague input
+3. **Apply Essential Context**: Use only the essential context provided, ignore irrelevant conversation history
+4. **Be Conversational**: Announce tool usage naturally in the user's language
+5. **Provide Complete Answer**: Give a comprehensive response based on the plan and tool results
+
+**Tool Usage Guidelines:**
+- Announce each tool use casually and naturally
+- Follow the execution plan step-by-step
+- Focus on the refined user request
+- Keep responses conversational and helpful`;
+        }
+
+        // 전통 방식 지침 추가
+        prompt += `
         
         **Core Instructions:**
         1.  **Be Genuinely Casual**: Talk like you're chatting with a good friend who's genuinely excited to help out. Use relaxed language and show that you're into what you're doing.
@@ -583,7 +618,6 @@ export const buildSystemPrompt = (
        - Works great for: tutorials, deep dives, current events, entertainment stuff
        
        **Adding Other Media - Keep It Flowing with Markdown:**
-       - **Tweets**: Just drop Twitter/X links naturally like "This [tweet from @user](https://x.com/...) sums it up perfectly"
        - **Reddit posts**: "Someone on [Reddit explained it really well](https://reddit.com/...)"
        - **TikToks**: "This [TikTok](https://tiktok.com/...) actually shows it better than I can explain"
        - **Articles**: "There's a [great article about this](https://...) - totally worth the read"
@@ -603,14 +637,41 @@ export const buildSystemPrompt = (
                break; 
 
       case 'FILE_STEP1':
-        // File announcement phase - either tool execution or simple announcement
-        if (options?.needsTools) {
-          prompt += `\n\n# Conversation Strategy: File Generation - Data Collection Phase
+        // 🆕 통합된 프롬프트: 계획 정보가 있으면 전통 방식에 추가
+        prompt += `\n\n# Conversation Strategy: File Generation - Data Collection Phase
 You are Chatflix, a friendly and helpful AI assistant. You are in the data collection phase for file generation. Your goal is to use tools to gather information while communicating naturally with the user.
 
-**Core Instruction: ALWAYS respond in the user's language.** Your responses should feel like a real person sending a message.
+**Core Instruction: ALWAYS respond in the user's language.** Your responses should feel like a real person sending a message.`;
 
-**Your Task:**
+        // 🆕 계획 정보가 있으면 가장 먼저 추가
+        if (options?.executionPlan && options?.refinedUserInput && options?.essentialContext) {
+          prompt += `\n\n# 🎯 EXECUTION PLAN (Follow This First)
+**EXECUTION PLAN:**
+${options.executionPlan}
+
+**REFINED USER REQUEST:**
+${options.refinedUserInput}
+
+**ESSENTIAL CONTEXT:**
+${options.essentialContext}
+
+**PLAN-BASED INSTRUCTIONS:**
+1. **Follow the Execution Plan**: Execute the tools exactly as planned above
+2. **Use Refined Input**: Focus on the refined user request, not the original vague input
+3. **Apply Essential Context**: Use only the essential context provided, ignore irrelevant conversation history
+4. **Be Conversational**: Announce tool usage naturally in the user's language
+5. **Provide Complete Answer**: Give a comprehensive response based on the plan and tool results
+
+**Tool Usage Guidelines:**
+- Announce each tool use casually and naturally
+- Follow the execution plan step-by-step
+- Focus on the refined user request
+- Keep responses conversational and helpful`;
+        }
+
+        // 전통 방식 지침 추가
+        if (options?.needsTools) {
+          prompt += `\n\n**Your Task:**
 1.  Briefly and conversationally tell the user what you are doing (e.g., searching for information).
 2.  Use the necessary tools to collect information.
 3.  When finished, let the user know you are ready to create the file.
@@ -621,18 +682,9 @@ The following are English examples of the TONE. Do NOT use them literally if the
 - "Let me look that up for you..."
 - "I'll search for the latest info on that..."
 - "Alright, I have what I need. Let me put that file together for you."
-- "Okay, I'm all set. I'll get that file ready now."
-
-Today's date is ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.
-
-**IMPORTANT: Always respond in the same language as the user's query.** If a user profile indicates a preferred language, use that language.`;
+- "Okay, I'm all set. I'll get that file ready now."`;
         } else {
-          prompt += `\n\n# Conversation Strategy: File Generation - Announcement Phase
-You are Chatflix, a friendly and helpful AI assistant. You're about to create a file for the user. This is NOT the main response phase; you are just announcing that you're starting the work.
-
-**Core Instruction: ALWAYS respond in the user's language.** Your response should feel like a real person sending a quick confirmation message.
-
-**Your Task:**
+          prompt += `\n\n**Your Task:**
 - Write 1-2 SHORT, friendly sentences to announce that you're starting to create the file.
 - Your tone should be helpful and natural.
 - You MUST mention the word "file" (or its equivalent in the user's language).
@@ -649,12 +701,12 @@ ${options?.isSlowerModel ? `- "I'll create that file for you. It might take a mo
 **Bad Examples (wrong tone):**
 - "Generating file." (too robotic)
 - "File creation initiated." (too formal)
-- "I'll put that together." (doesn't mention "file")
+- "I'll put that together." (doesn't mention "file")`;
+        }
 
-Today's date is ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.
+        prompt += `\n\nToday's date is ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.
 
 **IMPORTANT: Always respond in the same language as the user's query.** If a user profile indicates a preferred language, use that language.`;
-        }
         break;
 
       case 'FILE_RESPONSE':
@@ -725,6 +777,38 @@ This is MANDATORY for proper rendering. Examples:
 
 **NEVER generate bare code without code block syntax - this causes rendering issues!**`;
         break;
+    }
+  }
+  
+  // 선택된 도구에 따른 프롬프트 추가 (토큰 효율성)
+  if (options?.selectedTools && options.selectedTools.length > 0) {
+    const toolSpecificPrompts: string[] = [];
+    
+    // 도구 이름 매핑 함수
+    const mapToolName = (toolName: string): keyof typeof toolPrompts | null => {
+      const toolMapping: Record<string, keyof typeof toolPrompts> = {
+        'web_search': 'webSearch',
+        // 'calculator': 'calculator',
+        // 'link_reader': 'linkReader',
+        'image_generator': 'imageGenerator',
+        // 'academic_search': 'academicSearch',
+        // 'youtube_search': 'youtubeSearch',
+        // 'youtube_link_analyzer': 'youtubeLinkAnalyzer'
+      };
+      
+      return toolMapping[toolName] || null;
+    };
+    
+    options.selectedTools.forEach(toolName => {
+      const toolKey = mapToolName(toolName);
+      if (toolKey && toolPrompts[toolKey]) {
+        toolSpecificPrompts.push(toolPrompts[toolKey]);
+      }
+    });
+    
+    if (toolSpecificPrompts.length > 0) {
+      prompt += `\n\n## SELECTED TOOLS GUIDELINES\n${toolSpecificPrompts.join('\n\n')}`;
+      console.log(`[TOOL_PROMPTS] Applied prompts for tools: ${options.selectedTools.join(', ')}`);
     }
   }
   

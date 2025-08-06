@@ -1,5 +1,5 @@
 import { Dispatch, SetStateAction, useState, useRef, useEffect } from 'react';
-import { getEnabledModels } from '@/lib/models/config';
+import { getEnabledModels, getActivatedModels, getModelById, isChatflixModel } from '@/lib/models/config';
 import Image from 'next/image';
 import type { ModelConfig } from '@/lib/models/config';
 import { getProviderLogo, hasLogo } from '@/lib/models/logoUtils';
@@ -69,6 +69,8 @@ export function ModelSelector({
   
   // Add keyboard navigation state
   const [keyboardSelectedIndex, setKeyboardSelectedIndex] = useState<number>(-1);
+  const [showTopGradient, setShowTopGradient] = useState(false);
+  const [showBottomGradient, setShowBottomGradient] = useState(false);
   
   // Context window limit for non-subscribers (60K tokens)
   const CONTEXT_WINDOW_LIMIT_NON_SUBSCRIBER = 60000;
@@ -131,7 +133,7 @@ export function ModelSelector({
   // Get all models and filter based on web search enabled state and model filter
   const allModels = getEnabledModels();
   const filteredModels = isAgentEnabled 
-    ? allModels.filter(model => model.isAgentEnabled) 
+    ? allModels.filter(model => model.isAgentEnabled === true) 
     : allModels;
     
   // Apply thinking/regular filter, search filter, and sorting
@@ -268,7 +270,7 @@ export function ModelSelector({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, keyboardSelectedIndex, MODEL_OPTIONS, disabledModels, allDisabledLevels, isSubscribed, setNextModel, setCurrentModel]);
+  }, [isOpen, keyboardSelectedIndex, MODEL_OPTIONS, disabledModels, allDisabledLevels, isSubscribed, setNextModel, setCurrentModel, currentModel]);
 
   // Scroll to selected item function
   const scrollToSelectedItem = (index: number) => {
@@ -328,6 +330,33 @@ export function ModelSelector({
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
+
+  // Handle scroll events for gradient overlays - desktop only
+  useEffect(() => {
+    if (!isOpen || isMobile) return;
+
+    const dropdown = containerRef.current?.querySelector('.model-dropdown');
+    if (!dropdown) return;
+
+    const handleScroll = () => {
+      const scrollTop = dropdown.scrollTop;
+      const scrollHeight = dropdown.scrollHeight;
+      const clientHeight = dropdown.clientHeight;
+      
+      // Show top gradient when scrolled down
+      setShowTopGradient(scrollTop > 10);
+      
+      // Show bottom gradient when not at the bottom
+      setShowBottomGradient(scrollTop + clientHeight < scrollHeight - 10);
+    };
+
+    dropdown.addEventListener('scroll', handleScroll);
+    
+    // Initial check
+    handleScroll();
+    
+    return () => dropdown.removeEventListener('scroll', handleScroll);
+  }, [isOpen, isMobile]);
 
   const currentModelOption = MODEL_OPTIONS.find(option => option.id === nextModel) || 
     allModels.find(model => model.id === nextModel);
@@ -419,9 +448,12 @@ export function ModelSelector({
 
     const handleMouseLeave = () => {
       if (!isMobile) {
-        timeoutRef.current = setTimeout(() => {
-          setHoveredTooltip(null);
-        }, 300); // 300ms 딜레이로 충분한 시간 제공
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+        // 즉시 숨김
+        setHoveredTooltip(null);
       }
     };
 
@@ -433,6 +465,14 @@ export function ModelSelector({
     };
 
     const handleTooltipMouseLeave = () => {
+      if (!isMobile) {
+        // 즉시 숨김
+        setHoveredTooltip(null);
+      }
+    };
+
+    // 추가 안전장치: 포커스 아웃 시에도 툴팁 숨김
+    const handleBlur = () => {
       if (!isMobile) {
         setHoveredTooltip(null);
       }
@@ -451,6 +491,8 @@ export function ModelSelector({
         className="relative"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onBlur={handleBlur}
+        onPointerLeave={handleMouseLeave}
         onClick={(e) => {
           if (isMobile) {
             e.preventDefault();
@@ -469,6 +511,7 @@ export function ModelSelector({
             }`}
             onMouseEnter={handleTooltipMouseEnter}
             onMouseLeave={handleTooltipMouseLeave}
+            onPointerLeave={handleTooltipMouseLeave}
             style={{
               transform: 'translateY(-4px)',
               WebkitBackdropFilter: 'blur(24px)',
@@ -498,7 +541,7 @@ export function ModelSelector({
         <div className={`relative inline-block ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
           {/* iMessage-style "To:" field */}
           <div 
-            className={`flex items-center gap-2 cursor-text px-2 pl-3 ${disabled ? 'cursor-not-allowed' : ''}`}
+            className={`flex items-center gap-2 cursor-text px-2 pl-3 h-8 ${disabled ? 'cursor-not-allowed' : ''}`}
             onClick={() => {
               if (!disabled) {
                 setIsOpen(true);
@@ -511,7 +554,7 @@ export function ModelSelector({
             {!isOpen ? (
               // Show selected model when not searching
               <>
-                <div className="flex items-center gap-2 backdrop-blur-md bg-[#007AFF]/5 dark:bg-[#007AFF]/10 px-2 py-1 rounded-full">
+                <div className="flex items-center gap-2 backdrop-blur-md bg-[#007AFF]/5 dark:bg-[#007AFF]/10 px-2 py-1 rounded-full h-6">
                   {/* {currentModelOption?.provider && (
                     <div className="provider-logo w-4 h-4 flex-shrink-0">
                       {hasLogo(currentModelOption.provider) ? (
@@ -544,7 +587,7 @@ export function ModelSelector({
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search models..."
-                  className="flex-1 bg-transparent border-none outline-none text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] min-w-[200px]"
+                  className="flex-1 bg-transparent border-none outline-none text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] min-w-[200px] h-6"
                   disabled={disabled}
                 />
                 {/* Search icon - only show when active */}
@@ -556,41 +599,44 @@ export function ModelSelector({
           </div>
         
           {isOpen && !disabled && (
-            <div 
-              className={`
-                model-dropdown
-                ${isMobile 
-                  ? 'px-2 fixed inset-x-0 bottom-0 w-full max-h-[80vh] overflow-y-auto pb-6 model-selector-scroll rounded-t-2xl bg-white/80 dark:bg-neutral-950/80 backdrop-blur-2xl shadow-2xl border-t border-black/5 dark:border-white/5' 
-                  : `absolute left-1 ${position === 'top' ? 'bottom-full mb-2 w-[592px] max-h-[600px]' : 'top-full mt-2 w-[600px] max-h-[400px]'} px-2 md:px-3 left-0 overflow-y-auto model-selector-scroll rounded-2xl bg-white/80 dark:bg-neutral-950/80 backdrop-blur-2xl shadow-2xl border border-black/5 dark:border-white/5`
-                }
-                z-50
-              `}
-              role="listbox"
-            >
+                          <>
+                {isMobile && (
+                  <div 
+                    className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 overflow-hidden backdrop-blur-sm" 
+                    onClick={() => setIsOpen(false)}
+                  />
+                )}
+              <div 
+                className={`
+                  model-dropdown
+                  ${isMobile 
+                    ? 'fixed inset-x-0 bottom-0 w-full h-[85vh] bg-[var(--background)] flex flex-col shadow-xl overflow-hidden rounded-t-2xl border border-[var(--accent)]' 
+                    : `absolute left-1 ${position === 'top' ? 'bottom-full mb-2 w-[592px] max-h-[600px] shadow-[0_8px_32px_-8px_rgba(0,0,0,0.15)] dark:shadow-[0_8px_32px_-8px_rgba(0,0,0,0.4)]' : 'top-full mt-2 w-[600px] max-h-[400px] shadow-[0_-8px_32px_-8px_rgba(0,0,0,0.15)] dark:shadow-[0_-8px_32px_-8px_rgba(0,0,0,0.4)]'} px-2 md:px-3 left-0 overflow-y-auto model-selector-scroll rounded-2xl bg-white/80 dark:bg-neutral-950/80 backdrop-blur-2xl border border-black/5 dark:border-white/5`
+                  }
+                  z-50
+                `}
+                role="listbox"
+              >
 
               
               {/* Mobile mode header */}
               {isMobile && (
-                <div className="sticky top-0 z-10 bg-white/95 dark:bg-neutral-950/95 pt-6 pb-3 -mx-2 px-2">
-                  <div className="mobile-handle"></div>
-                  <div className="flex items-center justify-between px-4 mt-2">
-                    <div className="flex flex-col">
-                      <span className="text-xs uppercase tracking-wider opacity-70">Models</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => setIsOpen(false)}
-                        className="text-[var(--muted)] hover:text-[var(--foreground)] text-xs"
-                      >
-                        Close
-                      </button>
-                    </div>
+                <>
+                  <div className="text-center pt-4 pb-2 shrink-0">
+                    <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto" />
                   </div>
-                </div>
+                  <div className="relative flex items-center justify-center py-4 border-b border-[var(--accent)] shrink-0">
+                    <h2 className="text-lg font-semibold">Models</h2>
+                  </div>
+                </>
               )}
               
               {/* Sort Controls */}
-              <div className="sticky top-0 z-10 bg-white/95 dark:bg-neutral-950/95 border-b border-black/5 dark:border-white/5 px-4 py-3 -mx-2 md:-mx-3">
+              <div className={`sticky top-0 z-10 border-b border-black/5 dark:border-white/5 px-4 py-3 ${isMobile ? 'shrink-0' : '-mx-2 md:-mx-3'}`}>
+                {/* Apple-style gradient overlay for smooth scrolling - desktop only */}
+                {!isMobile && showTopGradient && (
+                  <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white/98 dark:from-neutral-950/98 via-white/80 dark:via-neutral-950/80 to-transparent pointer-events-none transition-opacity duration-200"></div>
+                )}
                 <div className="flex items-center gap-1 sm:gap-3 flex-wrap relative">
                   {/* Sort Icon */}
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-[var(--muted)] flex-shrink-0">
@@ -745,14 +791,17 @@ export function ModelSelector({
             
               
               {/* Model options list */}
-              <div className="py-2">
+              <div className={`py-2 relative ${isMobile ? 'flex-1 min-h-0 overflow-y-auto px-4' : ''}`}>
+                {/* Bottom gradient overlay for smooth scrolling - desktop only */}
+                {!isMobile && showBottomGradient && (
+                  <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white/98 dark:from-neutral-950/98 via-white/80 dark:via-neutral-950/80 to-transparent pointer-events-none transition-opacity duration-200"></div>
+                )}
                   {MODEL_OPTIONS.length > 0 ? (
                     MODEL_OPTIONS.map((option, index) => {
                       // Check if this model is disabled
                       const isModelDisabled = disabledModels.includes(option.id) || 
                                            (allDisabledLevels.length > 0 && allDisabledLevels.includes(option.rateLimit.level)) ||
                                            !option.isActivated ||
-                                           // Add Pro model check
                                            (option.pro && !(isSubscribed ?? false));
                       
                       const isSelected = option.id === nextModel;
@@ -1199,6 +1248,7 @@ export function ModelSelector({
                 )}
               </div>
             </div>
+              </>
           )}
         </div>
       </div>

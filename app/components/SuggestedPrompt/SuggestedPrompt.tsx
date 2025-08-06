@@ -1,37 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createClient } from '@/utils/supabase/client';
+import { fetchUserName } from '../AccountDialog';
+import { formatMessageTime } from '@/app/lib/messageTimeUtils';
 
-// 기본 영어 예시 쿼리 목록
-export const DEFAULT_EXAMPLE_PROMPTS = [
-  // "Write a masterpiece that describes my aura",
-  "4, 8, 15, 16, 23, 42",
-  "Draw a Catwoman", 
-  "I AM MUSIC Album Review",
-  "Summarize this PDF: https://www.nasa.gov/wp-content/uploads/2023/01/55583main_vision_space_exploration2.pdf",
-  "Summarize this link: https://www.numeroberlin.de/2023/11/numero-berlin-zukunft-x-playboi-carti/",
-  "Summarize this youtube video: https://youtu.be/rHO6TiPLHqw?si=EeNnPSQqUCHRFkCC",
-  "Latest US stock market news in the style of a bedtime story",
-  "Find scientific reasons why cats ignore humans",
-  "Research why programmers are obsessed with dark mode",
-  "Explain why people love horror movies using psychological theories",
-  "List the top 5 weirdest trends in AI right now",
-  "Research the psychological effects of drug use on creativity",
-  "List the most controversial moments in human history",
-  "Latest on the Mars mission?",
-  "Why do some dumbass people think the earth is flat?",
-  "Find the most absurd laws that still exist and research their historical origins",
-  "Calculate how much money influencers actually make and compare it to real jobs",
-  "Find the most ridiculous startup ideas that actually got funded",
-  "Provide me a digest of world news in the last 24 hours",
-  "What is the most viral meme in 2022?",
-  "Can you recommend the top 10 burger places in London?",
-  "Where is the best place to go skiing this year?",
-  "What are some recently discovered alternative DNA shapes?",
-  "What are the latest releases at OpenAI?",
-  "Latest updates on Israel Gaza war",
-  "What is the most popular song in 2025?",
-  "The most popular movie in 2025?",
-  "Latest IOS update",
-  "What can you do?"
+// 기본 프롬프트 배열 (3개)
+export const DEFAULT_PROMPTS = [
+  "Tell me the latest news.",
+  "send me funny cat gifs",
+  "what do u know about me"
 ];
 
 export interface SuggestedPromptProps {
@@ -42,12 +18,22 @@ export interface SuggestedPromptProps {
 }
 
 export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisible = true }: SuggestedPromptProps) {
-  const [suggestedPrompt, setSuggestedPrompt] = useState<string | null>(null);
-  const [displayedText, setDisplayedText] = useState<string>('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [showCursor, setShowCursor] = useState(true);
-  const [isHovered, setIsHovered] = useState(false);
-  const [typingIndex, setTypingIndex] = useState(0);
+  const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>(DEFAULT_PROMPTS);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isUserInfoLoading, setIsUserInfoLoading] = useState(true);
+  const [hoveredPromptIndex, setHoveredPromptIndex] = useState<number>(-1);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingPromptIndex, setEditingPromptIndex] = useState<number>(-1);
+  const [editingContent, setEditingContent] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [newPromptContent, setNewPromptContent] = useState<string>('');
+  const [userName, setUserName] = useState<string>('You');
+  const [isMobile, setIsMobile] = useState(false);
+  const [userCreatedAt, setUserCreatedAt] = useState<Date | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const newPromptTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const supabase = createClient();
 
   // URL 정규식 (http, https, www)
   const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
@@ -82,136 +68,458 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     });
   }
 
-  // 새로운 프롬프트를 표시하는 함수
-  const showRandomPrompt = () => {
-    if (isHovered || !isVisible) return; // 호버 중이거나 숨겨진 상태일 때는 변경하지 않음
-
-    // 기본 예시 목록에서 랜덤하게 선택
-    const randomIndex = Math.floor(Math.random() * DEFAULT_EXAMPLE_PROMPTS.length);
-    const newPrompt = DEFAULT_EXAMPLE_PROMPTS[randomIndex];
-    
-    // 현재 프롬프트와 다른 것을 선택하도록 보장
-    if (newPrompt === suggestedPrompt && DEFAULT_EXAMPLE_PROMPTS.length > 1) {
-      showRandomPrompt();
+  // Supabase에서 사용자 프롬프트 불러오기 (실패 시 조용히 기본값 사용)
+  const loadUserPrompts = async () => {
+    if (!userId) {
+      setSuggestedPrompts(DEFAULT_PROMPTS);
+      setIsInitialLoading(false);
       return;
     }
-
-    setSuggestedPrompt(newPrompt);
-    setDisplayedText('');
-    setTypingIndex(0);
-    setIsTyping(true);
+    
+    try {
+      const { data } = await supabase
+        .from('initial_prompts')
+        .select('prompts')
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      if (data?.prompts && Array.isArray(data.prompts) && data.prompts.length > 0) {
+        setSuggestedPrompts(data.prompts);
+      } else {
+        setSuggestedPrompts(DEFAULT_PROMPTS);
+      }
+    } catch (err) {
+      // 에러 발생 시 조용히 기본값 사용
+      console.log('Using default prompts due to load error');
+      setSuggestedPrompts(DEFAULT_PROMPTS);
+    } finally {
+      setIsInitialLoading(false);
+    }
   };
 
-  // 타이핑 효과
-  useEffect(() => {
-    if (!suggestedPrompt || !isTyping || !isVisible) return; // isVisible 체크 추가
-
-    if (typingIndex < suggestedPrompt.length) {
-      const timer = setTimeout(() => {
-        setDisplayedText(suggestedPrompt.slice(0, typingIndex + 1));
-        setTypingIndex(prev => prev + 1);
-      }, 50 + Math.random() * 30); // 50-80ms 사이의 랜덤한 타이핑 속도
-
-      return () => clearTimeout(timer);
-    } else {
-      // 타이핑 완료
-      setIsTyping(false);
+  // Supabase에 사용자 프롬프트 저장하기 (실패 시 조용히 무시)
+  const saveUserPrompts = async (prompts: string[]) => {
+    if (!userId || prompts.length === 0) return;
+    
+    try {
+      setIsSaving(true);
+      
+      await supabase
+        .from('initial_prompts')
+        .upsert({
+          user_id: userId,
+          prompts: prompts
+        }, {
+          onConflict: 'user_id'
+        });
+      
+    } catch (err) {
+      // 에러 발생 시 조용히 무시
+      console.log('Failed to save prompts, but continuing');
+    } finally {
+      setIsSaving(false);
     }
-  }, [suggestedPrompt, typingIndex, isTyping, isVisible]);
+  };
 
-  // 커서 깜빡임 효과 (타이핑 중일 때만) - 블록 스타일
-  useEffect(() => {
-    if (!isTyping || !isVisible) { // isVisible 체크 추가
-      setShowCursor(false); // 타이핑 완료 시 커서 숨기기
+  // 사용자 이름과 가입일 로드 함수
+  const loadUserInfo = async () => {
+    if (!userId) {
+      setIsUserInfoLoading(false);
       return;
     }
-
-    const cursorInterval = setInterval(() => {
-      setShowCursor(prev => !prev);
-    }, 400); // 더 빠른 깜빡임으로 터미널 느낌
-
-    return () => clearInterval(cursorInterval);
-  }, [isTyping, isVisible]);
-
-  // 초기 프롬프트 설정
-  useEffect(() => {
-    if (isVisible) {
-      showRandomPrompt();
+    
+    try {
+      setIsUserInfoLoading(true);
+      
+      // 사용자 이름과 가입일을 병렬로 가져오기
+      const [nameResult, userResult] = await Promise.all([
+        fetchUserName(userId, supabase).catch(() => 'You'),
+        supabase.auth.getUser()
+      ]);
+      
+      setUserName(nameResult);
+      
+      if (!userResult.error && userResult.data.user && userResult.data.user.created_at) {
+        setUserCreatedAt(new Date(userResult.data.user.created_at));
+      }
+    } catch (error) {
+      console.error('Error loading user info:', error);
+      setUserName('You');
+      setUserCreatedAt(null);
+    } finally {
+      setIsUserInfoLoading(false);
     }
-  }, [userId, isVisible]);
+  };
 
-  // 자동 프롬프트 변경
+  // 사용자 ID 변경 시 프롬프트와 이름 불러오기
   useEffect(() => {
-    if (isHovered || isTyping || !isVisible) return; // isVisible 체크 추가
+    setIsInitialLoading(true);
+    setIsUserInfoLoading(true);
+    loadUserPrompts();
+    loadUserInfo();
+  }, [userId]);
 
-    const timer = setTimeout(() => {
-      showRandomPrompt();
-    }, 4000); // 타이핑 완료 후 4초 대기
+  // 모바일 감지
+  useEffect(() => {
+    const checkIfMobile = () => {
+      setIsMobile(window.innerWidth < 640); // sm breakpoint
+    };
+    
+    checkIfMobile();
+    window.addEventListener('resize', checkIfMobile);
+    return () => window.removeEventListener('resize', checkIfMobile);
+  }, []);
 
-    return () => clearTimeout(timer);
-  }, [isHovered, isTyping, suggestedPrompt, isVisible]);
+  // 편집 시작
+  const handleEditStart = (promptIndex: number) => {
+    setIsEditing(true);
+    setEditingPromptIndex(promptIndex);
+    setEditingContent(suggestedPrompts[promptIndex]);
+    
+    // 다음 렌더링 후 초기 너비 설정
+    setTimeout(() => {
+      if (textareaRef.current) {
+        const textarea = textareaRef.current;
+        const container = textarea.closest('.relative') as HTMLElement;
+        if (container) {
+          const textWidth = textarea.scrollWidth;
+          const minWidth = 200;
+          const maxWidth = 600;
+          const newWidth = Math.max(minWidth, Math.min(maxWidth, textWidth + 40));
+          container.style.width = `${newWidth}px`;
+        }
+      }
+    }, 0);
+  };
+
+  // 편집 취소
+  const handleEditCancel = () => {
+    setIsEditing(false);
+    setEditingPromptIndex(-1);
+    setEditingContent('');
+  };
+
+  // 편집 저장
+  const handleEditSave = async () => {
+    if (!editingContent.trim() || editingPromptIndex === -1) {
+      return;
+    }
+    
+    const updatedPrompts = [...suggestedPrompts];
+    updatedPrompts[editingPromptIndex] = editingContent.trim();
+    setSuggestedPrompts(updatedPrompts);
+    setIsEditing(false);
+    setEditingPromptIndex(-1);
+    setEditingContent('');
+    
+    // 백그라운드에서 저장 (실패해도 UI는 이미 업데이트됨)
+    await saveUserPrompts(updatedPrompts);
+  };
+
+  // 프롬프트 삭제
+  const handleDeletePrompt = async (promptIndex: number) => {
+    if (suggestedPrompts.length <= 1) {
+      // 최소 1개는 유지
+      return;
+    }
+    
+    const updatedPrompts = suggestedPrompts.filter((_, index) => index !== promptIndex);
+    setSuggestedPrompts(updatedPrompts);
+    
+    // 백그라운드에서 저장
+    await saveUserPrompts(updatedPrompts);
+  };
+
+  // 새 프롬프트 추가 시작
+  const handleAddPromptStart = () => {
+    setIsAdding(true);
+    setNewPromptContent('');
+    
+    // 다음 렌더링 후 포커스
+    setTimeout(() => {
+      if (newPromptTextareaRef.current) {
+        newPromptTextareaRef.current.focus();
+      }
+    }, 0);
+  };
+
+  // 새 프롬프트 추가 취소
+  const handleAddPromptCancel = () => {
+    setIsAdding(false);
+    setNewPromptContent('');
+  };
+
+  // 새 프롬프트 추가 저장
+  const handleAddPromptSave = async () => {
+    if (!newPromptContent.trim()) {
+      return;
+    }
+    
+    const updatedPrompts = [...suggestedPrompts, newPromptContent.trim()];
+    setSuggestedPrompts(updatedPrompts);
+    setIsAdding(false);
+    setNewPromptContent('');
+    
+    // 백그라운드에서 저장
+    await saveUserPrompts(updatedPrompts);
+  };
+
+  // 텍스트 영역 자동 리사이즈
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      const textarea = textareaRef.current;
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    }
+  }, [isEditing]);
+
+  // 새 프롬프트 텍스트 영역 자동 리사이즈
+  useEffect(() => {
+    if (isAdding && newPromptTextareaRef.current) {
+      const textarea = newPromptTextareaRef.current;
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  }, [isAdding, newPromptContent]);
 
   // 마우스 이벤트 핸들러
-  const handleMouseEnter = () => {
+  const handleMouseEnter = (promptIndex: number) => {
     if (isVisible) {
-      setIsHovered(true);
+      setHoveredPromptIndex(promptIndex);
     }
   };
 
   const handleMouseLeave = () => {
-    setIsHovered(false);
+    setHoveredPromptIndex(-1);
   };
 
-  const handleClick = () => {
-    if (suggestedPrompt && isVisible) {
-      onPromptClick(suggestedPrompt);
+  const handleClick = (prompt: string) => {
+    if (prompt && isVisible && !isEditing && !isAdding && !isInitialLoading) {
+      onPromptClick(prompt);
     }
   };
 
-  return (
-    <div className={`min-h-16 relative flex items-start justify-start ${className}`}>
-      {suggestedPrompt && (
-        <div
-          className={`px-4 sm:px-4 text-sm sm:text-base cursor-pointer transition-all duration-300 text-left break-words whitespace-normal max-w-full font-mono leading-snug sm:leading-relaxed group ${
-            isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
-          onClick={handleClick}
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-        >
-          {/* 터미널 스타일 프롬프트 */}
-          <div className="flex items-start gap-2">
-            <span className="text-green-500 dark:text-green-400 opacity-70 select-none shrink-0 text-sm sm:text-base">
-              ›
-            </span>
-            <span className="inline-block text-green-500 dark:text-green-400 group-hover:text-green-600 dark:group-hover:text-green-300 transition-colors duration-300 font-semibold">
-              {renderPromptWithLinks(displayedText)}
-              {/* 터미널 스타일 블록 커서 - 조건부 너비로 간격 문제 해결 */}
-              <span 
-                className={`inline-block h-4 sm:h-5 ml-0.5 bg-green-500 dark:bg-green-400 transition-all duration-100 ${
-                  isTyping && showCursor ? 'opacity-70 w-2' : 'opacity-0 w-0 ml-0'
-                }`}
-                style={{
-                  animation: isTyping ? 'none' : undefined,
-                }}
-              />
-            </span>
-          </div>
-        </div>
-      )}
-      
-      {/* 향상된 스타일 */}
-      <style jsx>{`
+  // 초기 로딩 중이거나 사용자 정보 로딩 중에는 아무것도 보여주지 않음
+  if (isInitialLoading || isUserInfoLoading) {
+    return <div className={`min-h-16 relative flex items-center justify-end ${className}`}></div>;
+  }
 
-        @keyframes blink {
-          0%, 50% { opacity: 0.7; }
-          51%, 100% { opacity: 0; }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 0.5; }
-          50% { opacity: 0.8; }
-        }
-      `}</style>
+  return (
+    <div className={`min-h-16 relative flex flex-col items-end ${className} group `}>
+      {suggestedPrompts.length > 0 && (
+        <>
+          {/* AI 메시지 */}
+          <div className="flex justify-start w-full group">
+            <div className="max-w-[85%] md:max-w-[75%]">
+              <div className="imessage-receive-bubble">
+                <span>{userName === 'You' ? '' : `yo ${userName}`}</span>
+              </div>
+            </div>
+          </div>
+          {/* 사용자 메시지 */}
+          <div className="flex justify-end w-full group mb-4">
+            <div className="max-w-[85%] md:max-w-[75%]">
+              <div className="flex flex-col items-end gap-0">
+                <div className="imessage-send-bubble">
+                  <span>hey</span>
+                </div>
+                <div className="text-xs text-neutral-500 mt-1 pr-1">
+                  {userCreatedAt ? formatMessageTime(userCreatedAt) : ''}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 모든 프롬프트를 개별적으로 표시 */}
+          <div className="flex flex-col items-end gap-2 w-full">
+            {suggestedPrompts.map((prompt, index) => (
+              <div 
+                key={index} 
+                className="flex items-center justify-end gap-2 w-full group/prompt"
+                onMouseEnter={() => handleMouseEnter(index)}
+                onMouseLeave={handleMouseLeave}
+              >
+                {isEditing && editingPromptIndex === index ? (
+                  <div className="flex items-center justify-end gap-2 w-full">
+                    <div className="relative" style={{ width: 'fit-content', minWidth: '200px' }}>
+                      <div className="imessage-edit-bubble">
+                        <textarea
+                          ref={textareaRef}
+                          value={editingContent}
+                          onChange={(e) => {
+                            setEditingContent(e.target.value);
+                            const textarea = e.currentTarget;
+                            textarea.style.height = 'auto';
+                            textarea.style.height = `${textarea.scrollHeight}px`;
+                            // 너비도 동적으로 조정
+                            const container = textarea.closest('.relative') as HTMLElement;
+                            if (container) {
+                              const textWidth = textarea.scrollWidth;
+                              const minWidth = 200;
+                              const maxWidth = 600;
+                              const newWidth = Math.max(minWidth, Math.min(maxWidth, textWidth + 40));
+                              container.style.width = `${newWidth}px`;
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleEditSave();
+                            }
+                          }}
+                          className="imessage-edit-textarea scrollbar-thin"
+                          placeholder="Edit your prompt..."
+                          disabled={isSaving}
+                          style={{ width: '100%', resize: 'none' }}
+                        />
+                      </div>
+                    </div>
+                    <button 
+                      onClick={handleEditCancel} 
+                      className="imessage-edit-control-btn cancel" 
+                      title="Cancel"
+                      disabled={isSaving}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                    <button 
+                      onClick={handleEditSave} 
+                      className="imessage-edit-control-btn save" 
+                      title="Save"
+                      disabled={isSaving || !editingContent.trim()}
+                    >
+                      {isSaving ? (
+                        <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                          <polyline points="17 21 17 13 7 13 7 21"/>
+                          <polyline points="7 3 7 8 15 8"/>
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-end gap-2 w-full">
+                    {!isMobile && (
+                      <div className={`flex items-center gap-2 transition-opacity duration-300 ${
+                        hoveredPromptIndex === index ? 'opacity-100' : 'opacity-0'
+                      }`}>
+                        <button
+                          onClick={() => handleEditStart(index)}
+                          className="imessage-control-btn"
+                          title="Edit prompt"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        </button>
+                        {suggestedPrompts.length > 1 && (
+                          <button
+                            onClick={() => handleDeletePrompt(index)}
+                            className="imessage-control-btn text-red-500 hover:text-red-700"
+                            title="Delete prompt"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3,6 5,6 21,6"/>
+                              <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    <button
+                      className={`imessage-send-bubble follow-up-question max-w-md ${
+                        isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                      }`}
+                      onClick={() => handleClick(prompt)}
+                    >
+                      {renderPromptWithLinks(prompt)}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* 새 프롬프트 추가 UI */}
+            {isAdding ? (
+              <div className="flex items-center justify-end gap-2 w-full">
+                <div className="relative" style={{ width: 'fit-content', minWidth: '200px' }}>
+                  <div className="imessage-edit-bubble">
+                    <textarea
+                      ref={newPromptTextareaRef}
+                      value={newPromptContent}
+                      onChange={(e) => {
+                        setNewPromptContent(e.target.value);
+                        const textarea = e.currentTarget;
+                        textarea.style.height = 'auto';
+                        textarea.style.height = `${textarea.scrollHeight}px`;
+                        // 너비도 동적으로 조정
+                        const container = textarea.closest('.relative') as HTMLElement;
+                        if (container) {
+                          const textWidth = textarea.scrollWidth;
+                          const minWidth = 200;
+                          const maxWidth = 600;
+                          const newWidth = Math.max(minWidth, Math.min(maxWidth, textWidth + 40));
+                          container.style.width = `${newWidth}px`;
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleAddPromptSave();
+                        }
+                      }}
+                      className="imessage-edit-textarea scrollbar-thin"
+                      placeholder="Add new prompt..."
+                      style={{ width: '100%', resize: 'none' }}
+                    />
+                  </div>
+                </div>
+                <button 
+                  onClick={handleAddPromptCancel} 
+                  className="imessage-edit-control-btn cancel" 
+                  title="Cancel"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+                <button 
+                  onClick={handleAddPromptSave} 
+                  className="imessage-edit-control-btn save" 
+                  title="Add prompt"
+                  disabled={!newPromptContent.trim()}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              /* 새 프롬프트 추가 버튼 */
+              !isMobile && (
+                <div className="flex items-center justify-end gap-2 w-full">
+                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <button
+                      onClick={handleAddPromptStart}
+                      className="imessage-control-btn text-green-500 hover:text-green-700"
+                      title="Add new prompt"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { generateObject } from 'ai';
 import { providers } from '@/lib/providers';
 import { z } from 'zod';
-import { MODEL_CONFIGS, ModelConfig } from '@/lib/models/config';
+import { MODEL_CONFIGS, ModelConfig, isChatflixModel } from '@/lib/models/config';
 import { estimateTokenCount } from '@/utils/context-manager';
 
 interface Message {
@@ -221,10 +221,6 @@ export async function selectOptimalModel(
       contextInfo
     );
 
-    console.log('--------------------------------');
-    console.log('modelSelectionResult', modelSelectionResult);
-    console.log('--------------------------------');
-    
     return {
       selectedModel: modelSelectionResult.selectedModel,
       analysis: {
@@ -238,9 +234,8 @@ export async function selectOptimalModel(
     };
     
   } catch (error) {
-    console.error('Error in Chatflix Ultimate routing:', error);
     // 오류 발생 시 기본 Agent 모델 사용
-    const fallbackModel = getAgentEnabledModels().find(m => m.id === 'gemini-2.5-pro');
+    const fallbackModel = getAgentEnabledModels(modelType).find(m => m.id === 'gemini-2.5-pro');
     return {
       selectedModel: fallbackModel?.id || 'gemini-2.5-pro',
       analysis: {
@@ -256,7 +251,17 @@ export async function selectOptimalModel(
 }
 
 // Agent 활성화된 모델만 필터링하는 함수
-function getAgentEnabledModels(): ModelConfig[] {
+function getAgentEnabledModels(selectedModel?: string, rateLimitedLevels: string[] = []): ModelConfig[] {
+  // 챗플릭스 모델이 선택된 경우 rate limit만 체크하고 나머지 플래그는 무시
+  if (selectedModel && isChatflixModel(selectedModel)) {
+    return MODEL_CONFIGS.filter(model => {
+      // rate limit은 기존처럼 체크
+      const isRateLimited = rateLimitedLevels.includes(model.rateLimit?.level || '');
+      return !isRateLimited;
+    });
+  }
+  
+  // 기존 로직 유지 (모든 플래그 체크)
   const models = MODEL_CONFIGS.filter(model => 
     model.isEnabled && 
     model.isActivated && 
@@ -395,8 +400,7 @@ function selectModelWithContextAwareness(
   try {
     // 1단계: 기존 로직으로 1차 모델 선택
     const primaryModel = selectModelBasedOnAnalysis(analysis, hasImage, hasPDF, modelType);
-    console.log('primaryModel', primaryModel);
-    const primaryModelConfig = getAgentEnabledModels().find(m => m.id === primaryModel);
+    const primaryModelConfig = getAgentEnabledModels(modelType).find(m => m.id === primaryModel);
     
     // 2단계: 컨텍스트 용량 확인
     if (primaryModelConfig && primaryModelConfig.contextWindow && 
@@ -414,7 +418,7 @@ function selectModelWithContextAwareness(
     
     // 🆕 3단계: 특별 라우팅 규칙 - moonshotai/kimi-k2-instruct 컨텍스트 부족 시 gpt-4.1 폴백
     if (primaryModel === 'moonshotai/kimi-k2-instruct') {
-      const gpt41ModelConfig = getAgentEnabledModels().find(m => m.id === 'gpt-4.1');
+      const gpt41ModelConfig = getAgentEnabledModels(modelType).find(m => m.id === 'gpt-4.1');
       if (gpt41ModelConfig && gpt41ModelConfig.contextWindow && 
           gpt41ModelConfig.contextWindow >= contextInfo.requiredContext) {
         return {
@@ -430,7 +434,7 @@ function selectModelWithContextAwareness(
     }
     
     // 4단계: 컨텍스트 부족 - 일반적인 업그레이드 필요
-    const agentModels = getAgentEnabledModels();
+    const agentModels = getAgentEnabledModels(modelType);
     const compatibleModels = agentModels.filter(model => 
       model.contextWindow && model.contextWindow >= contextInfo.requiredContext
     );
@@ -489,9 +493,8 @@ function selectModelWithContextAwareness(
     
   } catch (error) {
     // 🆕 에러 발생 시 폴백 로직
-    // console.error('Model selection error:', error);
     
-    const agentModels = getAgentEnabledModels();
+    const agentModels = getAgentEnabledModels(modelType);
     const fallbackModel = agentModels.find(m => m.id === 'gemini-2.5-pro');
     
     if (fallbackModel) {

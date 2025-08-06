@@ -206,6 +206,126 @@ Context: ${contextInfo}
   }
 }
 
+// Helper function to generate tool execution plan
+async function generateToolExecutionPlan(
+  userQuery: string,
+  selectedTools: string[],
+  contextMessages: any[],
+  toolDescriptions: Record<string, string>
+): Promise<{
+  plan: string;
+  refinedUserInput: string;
+  essentialContext: string;
+}> {
+  try {
+    // 🆕 토큰 제한 적용 (Gemini 2.0 Flash의 컨텍스트 윈도우 고려)
+    const maxContextTokens = 1000000; // Gemini 2.0 Flash의 안전한 토큰 제한
+    
+    // 첨부파일 감지
+    const hasAttachments = contextMessages.some(msg => {
+      if (Array.isArray(msg.content)) {
+        return msg.content.some((part: any) => part.type === 'image' || part.type === 'file');
+      }
+      return Array.isArray(msg.experimental_attachments) && msg.experimental_attachments.length > 0;
+    });
+    
+    // 시스템 프롬프트 (첨부파일 유무에 따라 다르게)
+    const currentDate = new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      weekday: 'long'
+    });
+    
+    const systemPrompt = `You are an AI assistant analyzing a user's request to create a detailed execution plan for using tools.
+
+**Current Date:** ${currentDate}
+**User's Request:** ${userQuery}
+**Selected Tools:** ${selectedTools.join(', ')}
+**Available Tools:** ${Object.entries(toolDescriptions).map(([key, desc]) => `${key}: ${desc}`).join('\n')}
+
+${hasAttachments ? `**CRITICAL: ATTACHMENTS DETECTED**
+The conversation contains attached files (PDFs, images, documents). You MUST:
+1. **Extract ALL specific details** from attached files that are relevant to the user's request
+2. **List every specific entity** (companies, people, places, dates, numbers, etc.) mentioned in attachments
+3. **Include ALL relevant context** from attachments in your plan
+4. **Be extremely detailed** about what information to search for based on attachment content
+5. **Mention specific search terms** and entities that should be researched
+6. **Consider temporal relevance** - if attachments contain dates, check if information is current as of ${currentDate}
+
+**Example for company-related requests:**
+- If user asks "check if mentioned companies are listed" and PDF contains companies A, B, C
+- Your plan MUST list: "Search for: Company A, Company B, Company C"
+- Include any additional details from PDF about these companies
+
+**Example for data analysis requests:**
+- If user asks "analyze this data" and PDF contains specific data points
+- Your plan MUST include: "Search for: [specific data points], [relevant metrics], [related trends]"
+
+**ATTACHMENT ANALYSIS REQUIREMENTS:**
+- Extract ALL company names, product names, dates, locations, numbers, statistics
+- Include ALL relevant keywords and search terms
+- Be comprehensive - don't miss any important details
+- If attachment contains lists, include ALL items in the list
+- If attachment contains tables, extract ALL relevant data points
+- **Temporal Analysis**: If attachments contain dates, determine if information needs current verification as of ${currentDate}` : ''}
+
+**Your Task:**
+1. **Analyze User Intent**: Understand what the user really wants
+2. **Refine User Input**: If the user's input is vague or incomplete, create a more specific version
+3. **Create Execution Plan**: Detail how to use each selected tool effectively${hasAttachments ? ', including ALL specific details from attachments' : ''}
+4. **Extract Essential Context**: Identify only the most relevant context from conversation history${hasAttachments ? ', with comprehensive details from attached files' : ''}
+
+**Requirements:**
+- Respond in the user's language
+- Be specific about tool usage order and purpose
+- Focus on what will help the user most
+- Extract only context that directly relates to the current request
+- **Consider temporal relevance** - if the request involves time-sensitive information, prioritize current data as of ${currentDate}${hasAttachments ? `
+- **MANDATORY**: Include ALL specific entities, numbers, dates, and details from attachments
+- **MANDATORY**: List every search term and entity that should be researched
+- **MANDATORY**: Be exhaustive - don't skip any relevant details from attachments
+- **MANDATORY**: For any dates in attachments, determine if current verification is needed as of ${currentDate}` : ''}
+
+**Output Format:**
+- Plan: Step-by-step tool execution strategy${hasAttachments ? ' with ALL specific details from attachments' : ''}
+- Refined User Input: Clear, specific version of user's request
+- Essential Context: Only the most relevant parts of conversation history${hasAttachments ? ', including comprehensive attachment details' : ''}`;
+
+    const systemTokens = estimateTokenCount(systemPrompt);
+    const remainingTokens = maxContextTokens - systemTokens;
+    
+    // 🆕 토큰 제한 내에서 메시지 선택
+    const optimizedContextMessages = selectMessagesWithinTokenLimit(
+      contextMessages,
+      remainingTokens,
+    );
+    
+    // 🆕 메시지 변환
+    const convertedMessages = convertMultiModalToMessage(optimizedContextMessages);
+    
+    const planResult = await generateObject({
+      model: providers.languageModel('gemini-2.0-flash'),
+      system: systemPrompt,
+      messages: convertedMessages,
+      schema: z.object({
+        plan: z.string().describe('Detailed step-by-step plan for tool execution'),
+        refinedUserInput: z.string().describe('Clear, specific version of user\'s request'),
+        essentialContext: z.string().describe('Only the most relevant context from conversation history')
+      })
+    });
+    
+    return planResult.object;
+  } catch (error) {
+    console.error('Failed to generate tool execution plan:', error);
+    return {
+      plan: 'Execute tools in order to fulfill user request',
+      refinedUserInput: userQuery,
+      essentialContext: 'No specific context available'
+    };
+  }
+}
+
 export async function POST(req: Request) {
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -236,6 +356,12 @@ export async function POST(req: Request) {
 
     // 구독 상태 확인
     const isSubscribed = await checkSubscription(user.id);
+    
+    // 모델이 바뀐 후 최종 모델 설정으로 maxContextTokens 재계산
+    const finalModelConfig = getModelById(model);
+    const maxContextTokens = isSubscribed 
+      ? (finalModelConfig?.contextWindow || 120000)
+      : CONTEXT_WINDOW_LIMIT_NON_SUBSCRIBER;
     
     // 사용자의 오늘 요청 횟수 확인
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD 형식
@@ -425,6 +551,12 @@ export async function POST(req: Request) {
 
           // setting provider options
           if (supportsReasoning) {
+
+            providerOptions.groq = {
+              reasoningEffort: 'high',
+              parallelToolCalls: true,
+            };
+            
             providerOptions.anthropic = { 
               thinking: { 
                 type: 'enabled', 
@@ -472,9 +604,7 @@ export async function POST(req: Request) {
           
           // 🔧 MEDIUM PRIORITY OPTIMIZATION: 시스템 프롬프트 토큰 계산 한 번만 수행
           const systemTokensCounts = estimateTokenCount(currentSystemPrompt);
-          const maxContextTokens = isSubscribed 
-            ? (modelConfig?.contextWindow || 120000)
-            : CONTEXT_WINDOW_LIMIT_NON_SUBSCRIBER;
+          // 이미 위에서 계산된 maxContextTokens 사용
           let remainingTokens = maxContextTokens - systemTokensCounts;
           
           // 🔧 MEDIUM PRIORITY OPTIMIZATION: 메시지별 토큰 미리 계산 및 캐싱
@@ -715,28 +845,137 @@ Now, ask the following question in a conversational manner in the user's languag
                   tools[toolName] = initializeTool(toolName, dataStream);
                 });
 
-                console.log('--------------------------------');
-                console.log('tools', tools);
-                console.log('--------------------------------');
 
-                // V7: Recalculate context for the specific route
-                const systemPrompt = buildSystemPrompt('agent', 'TEXT_RESPONSE', memoryData || undefined);
-                const preciseSystemTokens = estimateTokenCount(systemPrompt);
-                const preciseRemainingTokens = maxContextTokens - preciseSystemTokens;
-                const finalMessages = selectMessagesWithinTokenLimit(
-                  messagesWithTokensFinal,
-                  preciseRemainingTokens,
-                );
+
+                // 🆕 STEP 1: Tool Execution Planning (only when tools are selected)
+                let executionPlan: any = null;
+                let refinedUserInput = userQuery;
+                let essentialContext = '';
+                
+                const needsTools = routingDecision.tools.length > 0;
+                
+                if (needsTools) {
+
+                  console.log('--------------------------------');
+                  console.log('tools', tools);
+                  console.log('--------------------------------');
+                  
+                  // 계획 수립 (전체 메시지 컨텍스트 사용)
+                  const planResult = await generateToolExecutionPlan(
+                    userQuery,
+                    routingDecision.tools,
+                    messagesWithTokensFinal,
+                    toolDescriptions
+                  );
+                  
+                  executionPlan = planResult.plan;
+                  refinedUserInput = planResult.refinedUserInput;
+                  essentialContext = planResult.essentialContext;
+
+                  console.log('--------------------------------');
+                  console.log('executionPlan', executionPlan);
+                  console.log('refinedUserInput', refinedUserInput);
+                  console.log('essentialContext', essentialContext);
+                  console.log('--------------------------------');
+
+                }
 
                 // TEXT_RESPONSE: 도구 실행 모델 결정
-                let toolExecutionModel = (model === 'gemini-2.5-pro') ? 'claude-sonnet-4-20250514' : model;
+                let toolExecutionModel = model;
+                
+                // 도구가 있는 경우에만 Gemini 모델을 다른 모델로 변경
+                if (needsTools) {
+                  if (model === 'gemini-2.5-pro') {
+                    toolExecutionModel = 'claude-sonnet-4-20250514';
+                  } else if (model === 'gemini-2.5-flash') {
+                    toolExecutionModel = 'claude-sonnet-4-20250514';
+                  } else if (model === 'gemini-2.0-flash') {
+                    toolExecutionModel = 'claude-sonnet-4-20250514';
+                  }
+                }
+                
                 if (toolExecutionModel !== model) {
                   console.log(`[모델 변경] 도구 실행: ${model} → ${toolExecutionModel}`);
                 }
+                
                 // if (toolExecutionModel === 'moonshotai/kimi-k2-instruct') {
                 //   console.log(`[모델 변경] 도구 실행: moonshotai/kimi-k2-instruct → moonshotai/Kimi-K2-Instruct`);
                 //   toolExecutionModel = 'moonshotai/Kimi-K2-Instruct';
                 // }
+
+                // 모델이 바뀐 경우 maxContextTokens 재계산
+                const toolExecutionModelConfig = getModelById(toolExecutionModel);
+                const toolExecutionMaxContextTokens = isSubscribed 
+                  ? (toolExecutionModelConfig?.contextWindow || 120000)
+                  : CONTEXT_WINDOW_LIMIT_NON_SUBSCRIBER;
+
+                // 🆕 STEP 2: Prepare optimized messages for final execution
+                let finalMessagesForExecution: any[];
+                let systemPrompt: string;
+                
+                if (needsTools && executionPlan) {
+                  // 도구가 선택된 경우: 계획 + 사용자 최종 메시지만 전달
+                  const personalInfo = await getUserPersonalInfo(supabase, user.id);
+                  systemPrompt = buildSystemPrompt(
+                    'agent', 
+                    'TEXT_RESPONSE', 
+                    personalInfo || undefined,
+                    {
+                      selectedTools: routingDecision.tools,
+                      executionPlan: executionPlan,
+                      refinedUserInput: refinedUserInput,
+                      essentialContext: essentialContext
+                    }
+                  );
+
+                  console.log('--------------------------------');
+                  console.log('systemPrompt', systemPrompt);
+                  console.log('--------------------------------');
+
+                  const preciseSystemTokens = estimateTokenCount(systemPrompt);
+                  const preciseRemainingTokens = toolExecutionMaxContextTokens - preciseSystemTokens;
+                  
+                  // 사용자의 최종 메시지만 선택 (계획과 함께 전달)
+                  const lastMessage = messagesWithTokensFinal[messagesWithTokensFinal.length - 1];
+                  const lastMessageTokens = estimateMultiModalTokens(lastMessage as any);
+                  
+                  if (lastMessageTokens <= preciseRemainingTokens) {
+                    finalMessagesForExecution = [convertMultiModalToMessage([lastMessage])[0]];
+                  } else {
+                    // 토큰 제한이 있는 경우 메시지 축약
+                    const optimizedMessages = selectMessagesWithinTokenLimit(
+                      [lastMessage],
+                      preciseRemainingTokens,
+                    );
+                    finalMessagesForExecution = convertMultiModalToMessage(optimizedMessages);
+                  }
+                  
+
+                } else {
+                  // 도구가 없는 경우: 기존 방식 사용
+                  // const personalInfo = await getUserPersonalInfo(supabase, user.id);
+                  systemPrompt = buildSystemPrompt(
+                    'agent', 
+                    'TEXT_RESPONSE', 
+                    memoryData || undefined,
+                    {
+                      selectedTools: routingDecision.tools
+                    }
+                  );
+
+                  const preciseSystemTokens = estimateTokenCount(systemPrompt);
+                  const preciseRemainingTokens = toolExecutionMaxContextTokens - preciseSystemTokens;
+                  const prefinalMessages = selectMessagesWithinTokenLimit(
+                    messagesWithTokensFinal,
+                    preciseRemainingTokens,
+                  );
+
+                  finalMessagesForExecution = convertMultiModalToMessage(prefinalMessages);
+                }
+
+                // console.log('--------------------------------');
+                // console.log('finalMessagesForExecution', finalMessagesForExecution);
+                // console.log('--------------------------------');
 
                 const textResponsePromise = streamText({
                   model: providers.languageModel(toolExecutionModel),
@@ -745,7 +984,7 @@ Now, ask the following question in a conversational manner in the user's languag
                     markdownJoinerTransform(),
                   ],
                   system: systemPrompt,
-                  messages: convertMultiModalToMessage(finalMessages), // Convert back for the SDK
+                  messages: finalMessagesForExecution,
                   tools,
                   maxSteps: 20,
                   maxRetries:3,
@@ -798,7 +1037,7 @@ Now, ask the following question in a conversational manner in the user's languag
                           supabase, 
                           user!.id, 
                           chatId, 
-                          finalMessages, 
+                          finalMessagesForExecution, 
                           userQuery, 
                           completion.text
                         );
@@ -823,6 +1062,28 @@ Now, ask the following question in a conversational manner in the user's languag
                 // Check if tools are needed
                 const needsTools = routingDecision.tools.length > 0;
 
+                // 🆕 STEP 1: 도구가 선택된 경우 계획 생성 단계 추가
+                let executionPlan: string | undefined;
+                let refinedUserInput: string | undefined;
+                let essentialContext: string | undefined;
+
+                if (needsTools) {
+                  try {
+                    const planResult = await generateToolExecutionPlan(
+                      userQuery,
+                      routingDecision.tools,
+                      messagesWithTokensFinal,
+                      toolDescriptions
+                    );
+
+                    executionPlan = planResult.plan;
+                    refinedUserInput = planResult.refinedUserInput;
+                    essentialContext = planResult.essentialContext;
+                  } catch (error) {
+                    console.error('Tool execution plan generation failed:', error);
+                  }
+                }
+
                 // Check if using DeepSeek or Claude Sonnet models (these may take longer for file generation)
                 const isSlowerModel = model.toLowerCase().includes('deepseek') || 
                                      (model.includes('claude') && model.includes('sonnet'));
@@ -835,31 +1096,79 @@ Now, ask the following question in a conversational manner in the user's languag
                   {
                     needsTools,
                     isSlowerModel,
-                    model
+                    model,
+                    selectedTools: 'tools' in routingDecision ? routingDecision.tools : [],
+                    executionPlan,
+                    refinedUserInput,
+                    essentialContext
                   }
                 );
 
-                const preciseSystemTokensFile = estimateTokenCount(systemPromptForFileStep1);
-                const preciseRemainingTokensFile = maxContextTokens - preciseSystemTokensFile;
-                const finalMessages = selectMessagesWithinTokenLimit(
-                  messagesWithTokensFinal,
-                  preciseRemainingTokensFile,
-                );
-                const finalMessagesConverted = convertMultiModalToMessage(finalMessages);
+                // FILE_RESPONSE (도구 실행 단계) - 모델 결정을 먼저 수행
+                let toolExecutionModel = model;
+                
+                // 도구가 있는 경우에만 Gemini 모델을 다른 모델로 변경
+                if (needsTools) {
+                  if (model === 'gemini-2.5-pro') {
+                    toolExecutionModel = 'claude-sonnet-4-20250514';
+                  } else if (model === 'gemini-2.5-flash') {
+                    toolExecutionModel = 'claude-sonnet-4-20250514';
+                  } else if (model === 'gemini-2.0-flash') {
+                    toolExecutionModel = 'claude-sonnet-4-20250514';
+                  }
+                }
+                
+                if (toolExecutionModel !== model) {
+                    console.log(`[모델 변경] 파일 도구 실행: ${model} → ${toolExecutionModel}`);
+                  }
+
+                // if (toolExecutionModel === 'moonshotai/kimi-k2-instruct') {
+                //   console.log(`[모델 변경] 파일 도구 실행: moonshotai/kimi-k2-instruct → moonshotai/Kimi-K2-Instruct`);
+                //   toolExecutionModel = 'moonshotai/Kimi-K2-Instruct';
+                // }
+
+                // 🆕 STEP 2: 최종 실행을 위한 메시지 최적화
+                let finalMessagesForExecution: any[];
+                let systemPromptForExecution: string;
+
+                if (needsTools && executionPlan && refinedUserInput && essentialContext) {
+                  // 계획이 있는 경우: 마지막 메시지만 사용
+                  finalMessagesForExecution = [lastMessage];
+                  systemPromptForExecution = buildSystemPrompt(
+                    'agent',
+                    'FILE_STEP1',
+                    personalInfo || undefined,
+                    {
+                      needsTools,
+                      isSlowerModel,
+                      model,
+                      selectedTools: routingDecision.tools,
+                      executionPlan,
+                      refinedUserInput,
+                      essentialContext
+                    }
+                  );
+                } else {
+                  // 전통 방식: 토큰 제한 내에서 메시지 선택
+                  const fileToolExecutionModelConfig = getModelById(toolExecutionModel);
+                  const fileToolExecutionMaxContextTokens = isSubscribed 
+                    ? (fileToolExecutionModelConfig?.contextWindow || 120000)
+                    : CONTEXT_WINDOW_LIMIT_NON_SUBSCRIBER;
+
+                  const preciseSystemTokensFile = estimateTokenCount(systemPromptForFileStep1);
+                  const preciseRemainingTokensFile = fileToolExecutionMaxContextTokens - preciseSystemTokensFile;
+                  finalMessagesForExecution = selectMessagesWithinTokenLimit(
+                    messagesWithTokensFinal,
+                    preciseRemainingTokensFile,
+                  );
+                  systemPromptForExecution = systemPromptForFileStep1;
+                }
+
+                const finalMessagesConverted = convertMultiModalToMessage(finalMessagesForExecution);
 
 
                 if (needsTools) {
                   // Step 1: Execute tools and interact with the user (only if tools are needed)
-
-                  // FILE_RESPONSE (도구 실행 단계)
-                  let toolExecutionModel = (model === 'gemini-2.5-pro') ? 'claude-sonnet-4-20250514' : model;
-                  if (toolExecutionModel !== model) {
-                      console.log(`[모델 변경] 파일 도구 실행: ${model} → ${toolExecutionModel}`);
-                    }
-                  // if (toolExecutionModel === 'moonshotai/kimi-k2-instruct') {
-                  //   console.log(`[모델 변경] 파일 도구 실행: moonshotai/kimi-k2-instruct → moonshotai/Kimi-K2-Instruct`);
-                  //   toolExecutionModel = 'moonshotai/Kimi-K2-Instruct';
-                  // }
 
                   const toolExecutionPromise = streamText({
                     model: providers.languageModel(toolExecutionModel),
@@ -867,7 +1176,7 @@ Now, ask the following question in a conversational manner in the user's languag
                         smoothStream({delayInMs: 25}),
                         markdownJoinerTransform(),
                       ],
-                      system: systemPromptForFileStep1,
+                      system: systemPromptForExecution,
                       messages: finalMessagesConverted,
                       tools,
                       maxSteps: 20, 
@@ -895,7 +1204,7 @@ Now, ask the following question in a conversational manner in the user's languag
                     // providerOptions,
                     temperature: 0.0,
                     maxTokens: 3000,
-                    system: systemPromptForFileStep1, // Re-use the 'file_announcement' prompt
+                    system: systemPromptForExecution, // Use the optimized system prompt
                     messages: finalMessagesConverted,
                     onFinish: async (briefCompletion) => {
                       if (abortController.signal.aborted) return;
@@ -921,7 +1230,6 @@ Now, ask the following question in a conversational manner in the user's languag
                   // FILE_RESPONSE (파일 생성 단계)
                   let fileGenerationModel = model;
                   if (model === 'moonshotai/kimi-k2-instruct') {
-                    console.log(`[모델 변경] 파일 생성: moonshotai/kimi-k2-instruct → gpt-4.1`);
                     fileGenerationModel = 'gpt-4.1';
                   }
 
@@ -1054,7 +1362,8 @@ Generate a new, different waiting message.`,
                     {
                       toolResults,
                       hasImage,
-                      hasFile
+                      hasFile,
+                      selectedTools: 'tools' in routingDecision ? routingDecision.tools : [] // 선택된 도구 정보 전달
                     }
                   );
 
@@ -1208,7 +1517,7 @@ Generate a new, different waiting message.`,
                         supabase, 
                         user!.id, 
                         chatId, 
-                        finalMessages, 
+                        finalMessagesForExecution, 
                         userQuery, 
                         fileDescription
                       );

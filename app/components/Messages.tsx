@@ -2,10 +2,11 @@
 
 import { Message as AIMessage } from 'ai'
 import { User } from '@supabase/supabase-js'
-import React from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Message as MessageComponent } from '@/app/components/Message'
 import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getAcademicSearchData } from '@/app/hooks/toolFunction';
 import { formatMessageGroupTimestamp } from '@/app/lib/messageGroupTimeUtils';
+import { createClient } from '@/utils/supabase/client';
 
 interface MessagesProps {
   messages: AIMessage[]
@@ -54,6 +55,123 @@ export function Messages({
   handleFollowUpQuestionClick,
   messagesEndRef
 }: MessagesProps) {
+  // Bookmark state management
+  const [bookmarkedMessageIds, setBookmarkedMessageIds] = useState<Set<string>>(new Set());
+  const [isBookmarksLoading, setIsBookmarksLoading] = useState(false);
+
+  // Fetch bookmarks for current chat session (하이브리드 방식)
+  const fetchBookmarks = useCallback(async () => {
+    if (!user || !chatId) return;
+    
+    setIsBookmarksLoading(true);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('message_bookmarks')
+        .select('message_id, content')
+        .eq('user_id', user.id)
+        .eq('chat_session_id', chatId);
+        
+      if (error) {
+        console.error('Error fetching bookmarks:', error);
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        const matchedMessageIds = new Set<string>();
+        
+        // 각 북마크에 대해 매칭 시도
+        for (const bookmark of data) {
+          if (bookmark.message_id.startsWith('msg-')) {
+            // 임시 ID인 경우 content로 매칭
+            const matchingMessage = messages.find(m => 
+              m.content === bookmark.content && 
+              m.role === 'assistant'
+            );
+            if (matchingMessage) {
+              matchedMessageIds.add(matchingMessage.id);
+            }
+          } else {
+            // 실제 DB ID인 경우 그대로 사용
+            matchedMessageIds.add(bookmark.message_id);
+          }
+        }
+        
+        setBookmarkedMessageIds(matchedMessageIds);
+      } else {
+        setBookmarkedMessageIds(new Set());
+      }
+    } catch (error) {
+      console.error('Error fetching bookmarks:', error);
+    } finally {
+      setIsBookmarksLoading(false);
+    }
+  }, [user, chatId, messages]);
+
+  // Fetch bookmarks when user or chatId changes
+  useEffect(() => {
+    fetchBookmarks();
+  }, [fetchBookmarks]);
+
+  // Handle bookmark toggle
+  const handleBookmarkToggle = useCallback(async (messageId: string, shouldBookmark: boolean) => {
+    if (!user || !chatId || !messageId) return;
+    
+    try {
+      const supabase = createClient();
+      const message = messages.find(m => m.id === messageId);
+      if (!message) return;
+      
+      if (shouldBookmark) {
+        // 북마크 시점에서 실제 DB ID 조회
+        const { data: dbMessage, error: findError } = await supabase
+          .from('messages')
+          .select('id')
+          .eq('content', message.content)
+          .eq('role', message.role)
+          .eq('chat_session_id', chatId)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+          
+        if (findError) {
+          console.error('Error finding message in DB:', findError);
+          return;
+        }
+        
+        // 실제 DB ID로 북마크 저장
+        const { error } = await supabase
+          .from('message_bookmarks')
+          .insert({
+            message_id: dbMessage.id, // 실제 DB ID 사용
+            user_id: user.id,
+            chat_session_id: chatId,
+            content: message.content,
+            model: (message as any).model || currentModel,
+            created_at: new Date().toISOString()
+          });
+          
+        if (error) throw error;
+      } else {
+        // Remove bookmark - message_id로 정확한 삭제
+        const { error } = await supabase
+          .from('message_bookmarks')
+          .delete()
+          .eq('message_id', messageId)
+          .eq('user_id', user.id)
+          .eq('chat_session_id', chatId);
+          
+        if (error) throw error;
+      }
+      
+      // Refresh bookmarks after toggle
+      fetchBookmarks();
+    } catch (error) {
+      console.error('Error toggling bookmark:', error);
+    }
+  }, [user, chatId, messages, currentModel, fetchBookmarks]);
+
   // Function to determine if a separator should be shown
   const shouldShowTimestamp = (currentMessage: AIMessage, previousMessage?: AIMessage): boolean => {
     if (!previousMessage) return true; // Always show for the first message
@@ -68,6 +186,13 @@ export function Messages({
   return (
     <div className="messages-container mb-4 flex flex-col sm:px-4">
       <div className="flex-grow">
+        {/* Chatflix label - iMessage style */}
+        {messages.length > 0 && (
+          <div className="message-timestamp" style={{ paddingBottom: '0', textTransform: 'none', color: '#737373' }}>
+            Chatflix
+          </div>
+        )}
+        
         {messages.map((message, index) => {
           const previousMessage = index > 0 ? messages[index - 1] : undefined;
           const showTimestamp = shouldShowTimestamp(message, previousMessage);
@@ -101,7 +226,7 @@ export function Messages({
           return (
             <React.Fragment key={message.id}>
               {showTimestamp && (
-                <div className="message-timestamp">
+                <div className="message-timestamp" style={index === 0 ? { paddingTop: '0' } : {}}>
                   {formatMessageGroupTimestamp((message as any).createdAt || new Date())}
                 </div>
               )}
@@ -139,6 +264,9 @@ export function Messages({
                     allMessages={messages}
                     isGlobalLoading={isLoading}
                     imageMap={imageMap}
+                    isBookmarked={bookmarkedMessageIds.has(message.id)}
+                    onBookmarkToggle={handleBookmarkToggle}
+                    isBookmarksLoading={isBookmarksLoading}
                   />
                 </div>
               </div>

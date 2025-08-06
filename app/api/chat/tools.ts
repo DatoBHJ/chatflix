@@ -22,11 +22,11 @@ dotenv.config({
 // 도구 설명 및 매개변수 정의
 const toolDefinitions = {
   webSearch: {
-    description: 'Search the web using Exa for information with multiple queries. This tool automatically optimizes queries. Note: `include_domains` and `exclude_domains` are mutually exclusive. `include_domains` will be prioritized.',
+    description: 'Search the web using Exa for information with multiple queries. This tool automatically optimizes queries. Note: `include_domains` and `exclude_domains` are mutually exclusive. `include_domains` will be prioritized. CRITICAL: Always use diverse topic types (news, research papers, financial reports, company, pdf, github, personal site, linkedin profile) to get comprehensive results. Generate 3-5 different queries with varying approaches and topic types.',
     parameters: {
-      queries: 'Array of search queries to look up on the web. Exa\'s autoprompt feature will optimize these. Generate 3-5 specific queries.',
+      queries: 'Array of search queries to look up on the web. Exa\'s autoprompt feature will optimize these. Generate 3-5 specific queries with different keywords and angles.',
       maxResults: 'Array of maximum number of results to return per query. Use higher numbers (8-10) for broad topics. Default is 10.',
-      topics: 'Array of topic types to search for. Options: general, news, financial report, company, research paper, pdf, github, tweet, personal site, linkedin profile.',
+      topics: 'Array of topic types to search for. CRITICAL: Use diverse topic types for comprehensive results. Options: general, news, financial report, company, research paper, pdf, github, personal site, linkedin profile. Choose appropriate topics based on query content: news for current events, research papers for academic info, financial reports for business data, company for corporate info, pdf for official documents, github for code/tech, personal site for blogs, linkedin profile for professional info.',
       include_domains: 'A list of domains to prioritize in search results. Cannot be used with exclude_domains.',
       exclude_domains: 'A list of domains to exclude from all search results. Cannot be used with include_domains.'
     }
@@ -105,7 +105,7 @@ export function createWebSearchTool(dataStream: any) {
         z.number().describe(toolDefinitions.webSearch.parameters.maxResults).default(10),
       ),
       topics: z.array(
-        z.enum(['general', 'news', 'financial report', 'company', 'research paper', 'pdf', 'github', 'tweet', 'personal site', 'linkedin profile']).describe(toolDefinitions.webSearch.parameters.topics)
+        z.enum(['general', 'news', 'financial report', 'company', 'research paper', 'pdf', 'github', 'personal site', 'linkedin profile']).describe(toolDefinitions.webSearch.parameters.topics)
       ).default(['general']).transform(topics => topics.map(t => t || 'general')),
       include_domains: z.array(z.string()).optional().describe(toolDefinitions.webSearch.parameters.include_domains),
       exclude_domains: z
@@ -122,7 +122,7 @@ export function createWebSearchTool(dataStream: any) {
     }: {
       queries: string[];
       maxResults: number[];
-      topics: ('general' | 'news' | 'financial report' | 'company' | 'research paper' | 'pdf' | 'github' | 'tweet' | 'personal site' | 'linkedin profile')[];
+      topics: ('general' | 'news' | 'financial report' | 'company' | 'research paper' | 'pdf' | 'github' | 'personal site' | 'linkedin profile')[];
       include_domains?: string[];
       exclude_domains?: string[];
     }) => {
@@ -155,6 +155,11 @@ export function createWebSearchTool(dataStream: any) {
         try {
           // 중복 체크 - 이미 처리한 쿼리는 건너뜀
           const queryKey = `${query}-${index}`;
+          const currentTopic = topics[index] || topics[0] || 'general';
+          
+          // 토픽 활용 로깅
+          console.log(`[SEARCH_DEBUG] Query ${index + 1}: "${query}" using topic: "${currentTopic}"`);
+          
           if (!annotatedQueries.has(queryKey)) {
             // 각 쿼리 검색 시작 시 in_progress 상태 알림
             dataStream.writeMessageAnnotation({
@@ -166,15 +171,14 @@ export function createWebSearchTool(dataStream: any) {
                 total: queries.length,
                 status: 'in_progress',
                 resultsCount: 0,
-                imagesCount: 0
+                imagesCount: 0,
+                topic: currentTopic
               }
             });
             
             // 처리한 쿼리 추적에 추가
             annotatedQueries.add(queryKey);
           }
-          
-          const currentTopic = topics[index] || topics[0] || 'general';
           const currentMaxResults = maxResults[index] || maxResults[0] || 10;
           
           const searchOptions: any = {
@@ -187,12 +191,14 @@ export function createWebSearchTool(dataStream: any) {
           
           if (currentTopic !== 'general') {
             searchOptions.category = currentTopic;
+            console.log(`[SEARCH_DEBUG] Using category: "${currentTopic}" for query: "${query}"`);
           }
           
           if (currentTopic === 'news') {
             const today = new Date();
             const lastWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
             searchOptions.startPublishedDate = lastWeek.toISOString().split('T')[0];
+            console.log(`[SEARCH_DEBUG] News search with date filter: ${searchOptions.startPublishedDate}`);
           }
           
           if (include_domains && include_domains.length > 0) {
@@ -258,7 +264,8 @@ export function createWebSearchTool(dataStream: any) {
                 total: queries.length,
                 status: 'completed',
                 resultsCount: deduplicatedResults.length,
-                imagesCount: deduplicatedImages.length
+                imagesCount: deduplicatedImages.length,
+                topic: currentTopic
               }
             });
             // 완료 상태 쿼리 추적에 추가
@@ -267,6 +274,7 @@ export function createWebSearchTool(dataStream: any) {
           
           return {
             query,
+            topic: currentTopic,
             results: deduplicatedResults,
             images: imagesWithIds
           };
@@ -275,6 +283,8 @@ export function createWebSearchTool(dataStream: any) {
           
           // Add annotation for failed query
           const errorQueryKey = `${query}-${index}-error`;
+          const currentTopicForError = topics[index] || topics[0] || 'general';
+          
           if (!annotatedQueries.has(errorQueryKey)) {
             dataStream.writeMessageAnnotation({
               type: 'query_completion',
@@ -286,7 +296,8 @@ export function createWebSearchTool(dataStream: any) {
                 status: 'completed',
                 resultsCount: 0,
                 imagesCount: 0,
-                error: error instanceof Error ? error.message : 'Unknown error'
+                error: error instanceof Error ? error.message : 'Unknown error',
+                topic: currentTopicForError
               }
             });
             // 에러 상태 쿼리 추적에 추가
@@ -356,8 +367,13 @@ export function createWebSearchTool(dataStream: any) {
           return true;
         });
         
+        // 해당 쿼리의 topic 정보 찾기
+        const queryIndex = queries.findIndex(q => q === search.query);
+        const topic = queryIndex >= 0 ? topics[queryIndex] || topics[0] || 'general' : 'general';
+        
         return {
           ...search,
+          topic,
           results: filteredResults,
           images: filteredImages
         };

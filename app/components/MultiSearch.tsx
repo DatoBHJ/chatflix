@@ -1,6 +1,31 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Globe, Search, ExternalLink, Calendar, ImageIcon, ChevronDown, ChevronUp, Layers, X, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, User, Zap } from 'lucide-react';
+import { 
+  Globe, 
+  Search, 
+  ExternalLink, 
+  Calendar, 
+  ImageIcon, 
+  ChevronDown, 
+  ChevronUp, 
+  Layers, 
+  X, 
+  ChevronLeft, 
+  ChevronRight, 
+  ArrowUpDown, 
+  ArrowUp, 
+  ArrowDown, 
+  User, 
+  Zap,
+  Github,
+  Newspaper,
+  Building,
+  BarChart3,
+  FileText,
+  Twitter,
+  Briefcase,
+  BookOpen
+} from 'lucide-react';
 
 type SearchImage = {
   url: string;
@@ -22,6 +47,8 @@ type SearchResult = {
 
 type SearchQueryResult = {
   query: string;
+  topic?: string;
+  topicIcon?: string;
   results: SearchResult[];
   images: SearchImage[];
 };
@@ -83,6 +110,34 @@ const extractDomain = (url: string): string => {
     return hostname;
   } catch (e) {
     return url;
+  }
+};
+
+// Topic icon mapping function
+const getTopicIconComponent = (topicIcon: string) => {
+  const iconProps = { size: 14, strokeWidth: 1.5 };
+  
+  switch (topicIcon) {
+    case 'github':
+      return <Github {...iconProps} />;
+    case 'newspaper':
+      return <Newspaper {...iconProps} />;
+    case 'building':
+      return <Building {...iconProps} />;
+    case 'bar-chart':
+      return <BarChart3 {...iconProps} />;
+    case 'file-text':
+      return <FileText {...iconProps} />;
+    case 'twitter':
+      return <Twitter {...iconProps} />;
+    case 'user':
+      return <User {...iconProps} />;
+    case 'briefcase':
+      return <Briefcase {...iconProps} />;
+    case 'book-open':
+      return <BookOpen {...iconProps} />;
+    default:
+      return <Search {...iconProps} />;
   }
 };
 
@@ -1260,6 +1315,15 @@ const MultiSearch: React.FC<{
             const searchResult = allCompletedSearches.find(s => s.query === query);
             const isLoading = isQueryLoading(query);
             
+            // 로딩 중인 쿼리의 topic 정보 가져오기
+            const loadingTopicInfo = results
+              .filter(r => !r.isComplete)
+              .flatMap(r => r.searches || [])
+              .find(s => s.query === query);
+            
+            // Topic 아이콘 결정
+            const topicIcon = searchResult?.topicIcon || loadingTopicInfo?.topicIcon || 'search';
+            
             return (
               <button
                 key={i}
@@ -1273,7 +1337,8 @@ const MultiSearch: React.FC<{
                               : "bg-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_90%,var(--foreground)_5%)]"
                           }`}
               >
-                <Search className="h-3.5 w-3.5 min-w-[14px] min-h-[14px]" strokeWidth={1.5} />
+                {/* Topic 아이콘 표시 */}
+                {getTopicIconComponent(topicIcon)}
                 <span>{query}</span>
                 
                 {/* 로딩 중인 경우 스피너 표시 */}

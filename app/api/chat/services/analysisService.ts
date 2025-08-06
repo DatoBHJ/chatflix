@@ -1,6 +1,7 @@
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import { providers } from '@/lib/providers';
+import { detectImages, detectPDFs, detectCodeAttachments } from '../utils/messageUtils';
 
 export const analyzeRequestAndDetermineRoute = (
   analysisModel: string,
@@ -12,18 +13,61 @@ export const analyzeRequestAndDetermineRoute = (
 
   // 최근 4개 메시지만 사용
   const recentMessages = messages.length > 4 ? messages.slice(-4) : messages;
+  
+  // 첨부물 감지
+  const hasImage = recentMessages.some(msg => detectImages(msg));
+  const hasPDF = recentMessages.some(msg => detectPDFs(msg));
+  const hasCodeAttachment = recentMessages.some(msg => detectCodeAttachments(msg));
+  const hasAttachments = hasImage || hasPDF || hasCodeAttachment;
 
-  return generateObject({
-    model: providers.languageModel(analysisModel),
-    system: `# Agentic Request Analyzer & Router
+  // 첨부물이 있는 경우와 없는 경우에 따라 다른 프롬프트 사용
+  const basePrompt = `# Agentic Request Analyzer & Router
 You are an intelligent routing assistant for Chatflix Agent. Your task is to analyze the user's request and conversation history to determine the best way to help them. You must choose one of three routes to provide the most natural and helpful response.
 
+## Current Model: ${model}
+## Attachments Detected: ${hasAttachments ? `Yes (Images: ${hasImage}, PDFs: ${hasPDF}, Code: ${hasCodeAttachment})` : 'No'}
+
 ## Available Tools for subsequent steps:
-${baseAvailableToolsList.map(tool => `- "${tool}": ${toolDescriptions[tool]}`).join('\n')}
+${baseAvailableToolsList.map(tool => `- "${tool}": ${toolDescriptions[tool]}`).join('\n')}`;
 
-## Special Tool Selection Guidelines:
+  const attachmentPrompt = hasAttachments ? `
 
-### Image-related Requests:
+## 🆕 ATTACHMENT-AWARE TOOL SELECTION GUIDELINES:
+
+### When Attachments Are Present (Images, PDFs, Code Files):
+**CRITICAL**: When users have attached files, you must carefully analyze whether tools are actually needed before selecting them.
+
+#### Step-by-Step Analysis Process:
+1. **FIRST**: Analyze the user's intent with the attached content
+2. **SECOND**: Determine if the request can be answered using only the attached content
+3. **THIRD**: Only select tools if external information is explicitly required
+
+#### Tool Selection Rules for Attachments:
+- **NO TOOLS NEEDED** (Most Common):
+  - "Summarize this document" → No tools needed
+  - "Explain this code" → No tools needed  
+  - "What's in this image?" → No tools needed
+  - "Translate this text" → No tools needed
+  - "Fix the bugs in this code" → No tools needed
+  - "Improve this code" → No tools needed
+  - "Analyze this data" → No tools needed
+
+- **TOOLS MAY BE NEEDED** (Only when explicitly requesting external info):
+  - "Find the source of this document" → web_search
+  - "Find similar research papers" → academic_search
+  - "Find related images online" → web_search
+  - "Find more information about this topic" → web_search
+  - "Calculate something based on this data" → calculator
+
+#### Examples:
+- Attachment + "Summarize this" → NO TOOLS (use attached content directly)
+- Attachment + "Find the source" → web_search (external info needed)
+- Attachment + "Explain this code" → NO TOOLS (use attached content directly)
+- Attachment + "Find similar examples online" → web_search (external info needed)` : '';
+
+  const imagePrompt = !hasAttachments ? `
+
+### Image-related Requests (No Attachments):
 - **IMPORTANT**: If user query seems to even slightly requires external urls of images, always select web_search tool. 
 - **SEARCH FIRST**: For requests like "show me", "find", "I want to see" → prioritize web_search
 - **GENERATE ONLY**: When explicitly asked to "create", "generate", "draw", "make an image"
@@ -35,7 +79,9 @@ ${baseAvailableToolsList.map(tool => `- "${tool}": ${toolDescriptions[tool]}`).j
 - "Send me some meme images" → web_search
 - "create a fantasy landscape" → image_generator
 - "draw a cartoon character" → image_generator
-- "I need an image of a car" → CLARIFY (search vs generate?)
+- "I need an image of a car" → CLARIFY (search vs generate?)` : '';
+
+  const systemPrompt = basePrompt + attachmentPrompt + imagePrompt + `
 
 ## Routing Logic - Choose ONE route:
 
@@ -72,7 +118,11 @@ ${baseAvailableToolsList.map(tool => `- "${tool}": ${toolDescriptions[tool]}`).j
    - "analyze data.json file" → TEXT_RESPONSE
    - "explain how React works" → TEXT_RESPONSE
 
-- Respond in the user's language for the reasoning field.`,
+- Respond in the user's language for the reasoning field.`;
+
+  return generateObject({
+    model: providers.languageModel(analysisModel),
+    system: systemPrompt,
     messages: recentMessages,
     schema: z.discriminatedUnion('route', [
       z.object({

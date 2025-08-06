@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, Search, Calculator, Link, Image, GraduationCap, Video, Sparkles, FileText, FileVideo, Library, Columns, TrendingUp, BatteryCharging, MapPin, Coffee, BookOpen, ChevronDown, ChevronRight, Palette, X, Download } from 'lucide-react';
+import { Brain, Search, Calculator, Link, Image, GraduationCap, Video, Sparkles, FileText, FileVideo, Library, Columns, TrendingUp, BatteryCharging, MapPin, Coffee, BookOpen, ChevronDown, ChevronRight, Palette, X, Download, Github, Building, BarChart3, FileText as FileTextIcon, User, Briefcase, BookOpen as BookOpenIcon, Newspaper } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import NextImage from 'next/image';
 import { getProviderLogo } from '../../lib/models/logoUtils';
@@ -10,10 +10,17 @@ import { fileHelpers } from '../components/ChatInput/FileUpload';
 // Tool definitions with their identifiers
 const TOOLS = [
   { id: 'web_search', icon: <Search strokeWidth={1.5} />, name: 'Web Search' },
+  { id: 'github_search', icon: <Github strokeWidth={1.5} />, name: 'GitHub Search' },
+  { id: 'news_search', icon: <Newspaper strokeWidth={1.5} />, name: 'News Search' },
+  { id: 'company_search', icon: <Building strokeWidth={1.5} />, name: 'Company Search' },
+  { id: 'financial_search', icon: <BarChart3 strokeWidth={1.5} />, name: 'Financial Reports' },
+  { id: 'pdf_search', icon: <FileTextIcon strokeWidth={1.5} />, name: 'PDF Search' },
+  { id: 'personal_site_search', icon: <User strokeWidth={1.5} />, name: 'Personal Sites' },
+  { id: 'linkedin_search', icon: <Briefcase strokeWidth={1.5} />, name: 'LinkedIn Profiles' },
+  { id: 'academic_search', icon: <BookOpenIcon strokeWidth={1.5} />, name: 'Academic Papers' },
   { id: 'link_reader', icon: <Link strokeWidth={1.5} />, name: 'Link Reader' },
   { id: 'youtube_search', icon: <Video strokeWidth={1.5} />, name: 'YouTube Search' },
   { id: 'youtube_analyzer', icon: <Video strokeWidth={1.5} />, name: 'YouTube Analyzer' },
-  { id: 'academic_search', icon: <GraduationCap strokeWidth={1.5} />, name: 'Academic Search' },
   { id: 'image_generator', icon: <Image strokeWidth={1.5} />, name: 'Image Generator' },
   { id: 'calculator', icon: <Calculator strokeWidth={1.5} />, name: 'Calculator' },
 ];
@@ -106,6 +113,73 @@ const PROMPT_EXAMPLES = [
     outcome: "I'll analyze the video content to extract the key claims, then search academic databases to find peer-reviewed research that supports or contradicts these claims, giving you a fact-checked summary.",
     tools: ['YouTube Analyzer', 'Academic Search'],
     hasFile: false
+  },
+  {
+    icon: <Github strokeWidth={1.5} />,
+    prompt: "Find the most popular React state management libraries on GitHub and compare their features, stars, and recent activity.",
+    outcome: "I'll search GitHub for the top React state management libraries, analyze their features, star counts, and recent development activity to give you a comprehensive comparison.",
+    tools: ['GitHub Search', 'Analysis'],
+    hasFile: true,
+    fileData: {
+      fileName: "React-State-Management-Comparison.md",
+      fileSize: "5.3 KB",
+      fileType: "markdown"
+    }
+  },
+  {
+    icon: <Building strokeWidth={1.5} />,
+    prompt: "Research Tesla's latest financial performance and find their main competitors in the EV market.",
+    outcome: "I'll search for Tesla's latest financial reports and identify their main competitors in the electric vehicle market, providing you with a comprehensive market analysis.",
+    tools: ['Company Search', 'Financial Reports'],
+    hasFile: true,
+    fileData: {
+      fileName: "Tesla-Market-Analysis.md",
+      fileSize: "6.8 KB",
+      fileType: "markdown"
+    }
+  },
+  {
+    icon: <Newspaper strokeWidth={1.5} />,
+    prompt: "Find the latest news about AI regulation and summarize the key developments from the past week.",
+    outcome: "I'll search for the most recent news about AI regulation, focusing on developments from the past week, and provide you with a concise summary of the key points.",
+    tools: ['News Search'],
+    hasFile: false
+  },
+  {
+    icon: <FileTextIcon strokeWidth={1.5} />,
+    prompt: "Find PDF documents about renewable energy policies and extract the key findings from the most recent reports.",
+    outcome: "I'll search for PDF documents on renewable energy policies, focusing on the most recent reports, and extract the key findings and policy recommendations for you.",
+    tools: ['PDF Search', 'Analysis'],
+    hasFile: true,
+    fileData: {
+      fileName: "Renewable-Energy-Policy-Summary.md",
+      fileSize: "7.5 KB",
+      fileType: "markdown"
+    }
+  },
+  {
+    icon: <User strokeWidth={1.5} />,
+    prompt: "Find personal websites of top UX designers and analyze their portfolio structures and design approaches.",
+    outcome: "I'll search for personal websites of leading UX designers, analyze their portfolio structures, design approaches, and presentation styles to give you insights into current trends.",
+    tools: ['Personal Sites Search', 'Analysis'],
+    hasFile: true,
+    fileData: {
+      fileName: "UX-Designer-Portfolio-Analysis.md",
+      fileSize: "4.9 KB",
+      fileType: "markdown"
+    }
+  },
+  {
+    icon: <Briefcase strokeWidth={1.5} />,
+    prompt: "Find LinkedIn profiles of senior product managers at tech companies and analyze their career paths and skills.",
+    outcome: "I'll search for LinkedIn profiles of senior product managers at major tech companies, analyze their career progression, skills, and experience patterns to help you understand the role requirements.",
+    tools: ['LinkedIn Profiles Search', 'Analysis'],
+    hasFile: true,
+    fileData: {
+      fileName: "Senior-PM-Career-Analysis.md",
+      fileSize: "5.7 KB",
+      fileType: "markdown"
+    }
   }
 ];
 
@@ -187,17 +261,17 @@ const ConversationExample = ({ example }: { example: typeof PROMPT_EXAMPLES[0] }
 // A reusable component for displaying tool cards
 const ToolCard = ({ tool, isSelected, onClick }: { tool: typeof TOOLS[0]; isSelected: boolean; onClick: () => void }) => (
   <div 
-    className={`flex flex-col items-center justify-center text-center gap-3 p-4 rounded-xl transition-all duration-200 h-full cursor-pointer ${
+    className={`flex flex-col items-center justify-center text-center gap-2 p-3 rounded-xl transition-all duration-200 h-20 cursor-pointer ${
       isSelected 
         ? 'bg-[var(--foreground)] text-[var(--background)]' 
         : 'bg-[var(--accent)] hover:bg-color-mix(in srgb, var(--foreground) 4%, var(--accent))'
     }`}
     onClick={onClick}
   >
-    <div className="h-8 w-8">
+    <div className="h-6 w-6">
       {tool.icon}
     </div>
-    <span className="text-sm font-medium">{tool.name}</span>
+    <span className="text-xs font-medium leading-tight">{tool.name}</span>
   </div>
 );
 
@@ -211,11 +285,28 @@ export default function AgentModePage() {
 
   // Filter prompts based on selected tool
   const filteredPrompts = selectedTool 
-    ? PROMPT_EXAMPLES.filter(example => 
-        example.tools.some(tool => 
-          TOOLS.find(t => t.id === selectedTool)?.name === tool
-        )
-      )
+    ? PROMPT_EXAMPLES.filter(example => {
+        // Map tool IDs to their corresponding names for filtering
+        const toolNameMap: { [key: string]: string } = {
+          'web_search': 'Web Search',
+          'github_search': 'GitHub Search',
+          'news_search': 'News Search',
+          'company_search': 'Company Search',
+          'financial_search': 'Financial Reports',
+          'pdf_search': 'PDF Search',
+          'personal_site_search': 'Personal Sites Search',
+          'linkedin_search': 'LinkedIn Profiles Search',
+          'academic_search': 'Academic Papers',
+          'link_reader': 'Link Reader',
+          'youtube_search': 'YouTube Search',
+          'youtube_analyzer': 'YouTube Analyzer',
+          'image_generator': 'Image Generator',
+          'calculator': 'Calculator'
+        };
+        
+        const selectedToolName = toolNameMap[selectedTool];
+        return example.tools.some(tool => tool === selectedToolName);
+      })
     : PROMPT_EXAMPLES;
 
   const handleToolClick = (toolId: string) => {
@@ -247,7 +338,7 @@ export default function AgentModePage() {
         {/* Tools Section */}
         <section className="mb-20 text-center">
           <h2 className="text-2xl font-semibold mb-8">Available Tools</h2>
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-4">
             {TOOLS.map((tool) => (
               <ToolCard 
                 key={tool.id}

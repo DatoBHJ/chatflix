@@ -45,6 +45,8 @@ export const getWebSearchResults = (message: Message) => {
     const processSearchResults = (searches: any[]) => {
       return searches.map(search => ({
         ...search,
+        topic: search.topic || 'general',
+        topicIcon: getTopicIcon(search.topic || 'general'),
         results: (search.results || []).map((result: any) => ({
           ...result,
           // Ensure Exa-specific fields are preserved
@@ -55,6 +57,32 @@ export const getWebSearchResults = (message: Message) => {
         })),
         images: search.images || []
       }));
+    };
+
+    // Helper function to get topic icon
+    const getTopicIcon = (topic: string) => {
+      switch (topic) {
+        case 'github':
+          return 'github'; // GitHub icon
+        case 'news':
+          return 'newspaper'; // News icon
+        case 'company':
+          return 'building'; // Company icon
+        case 'financial report':
+          return 'bar-chart'; // Financial report icon
+        case 'pdf':
+          return 'file-text'; // PDF icon
+        case 'tweet':
+          return 'twitter'; // Twitter/X icon
+        case 'personal site':
+          return 'user'; // Personal site icon
+        case 'linkedin profile':
+          return 'briefcase'; // LinkedIn icon
+        case 'research paper':
+          return 'book-open'; // Research paper icon
+        default:
+          return 'search'; // Default search icon
+      }
     };
     
     // Process web search completions to determine which searches are complete
@@ -91,12 +119,27 @@ export const getWebSearchResults = (message: Message) => {
           // Deduplicate results within this searchId
           const uniqueResults = new Map<string, any>();
           
+          // Get topic information from query completions for this searchId
+          const searchIdQueryCompletions = queryCompletionsBySearchId.get(searchId) || [];
+          const queryTopicMap = new Map<string, string>();
+          
+          searchIdQueryCompletions.forEach(completion => {
+            const query = completion.data?.query;
+            const topic = completion.data?.topic || 'general';
+            if (query) {
+              queryTopicMap.set(query, topic);
+            }
+          });
+          
           searchesForThisId.forEach(search => {
             const query = search.query;
+            const topic = queryTopicMap.get(query) || 'general';
             
             if (!uniqueResults.has(query)) {
               uniqueResults.set(query, {
                 query,
+                topic,
+                topicIcon: getTopicIcon(topic),
                 results: [],
                 images: []
               });
@@ -184,6 +227,8 @@ export const getWebSearchResults = (message: Message) => {
       // 완료된 쿼리로 검색 결과 객체 생성
       const completedSearches = Array.from(completedQueries.values()).map(completion => ({
         query: completion.data.query,
+        topic: completion.data.topic || 'general',
+        topicIcon: getTopicIcon(completion.data.topic || 'general'),
         results: [], // 실제 결과는 web_search_complete 어노테이션에 있음
         images: []
       }));
@@ -191,6 +236,8 @@ export const getWebSearchResults = (message: Message) => {
       // 진행 중인 쿼리로 검색 결과 객체 생성
       const inProgressSearches = Array.from(inProgressQueries.values()).map(completion => ({
         query: completion.data.query,
+        topic: completion.data.topic || 'general',
+        topicIcon: getTopicIcon(completion.data.topic || 'general'),
         results: [],
         images: []
       }));

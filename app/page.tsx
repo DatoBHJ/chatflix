@@ -15,6 +15,7 @@ import { CodeMatrixBackground } from '@/app/components/CodeMatrixBackground'
 import { GlobalAIActivityBackground } from '@/app/components/GlobalAIActivityBackground'
 import { StarryNightBackground } from './components/StarryNightBackground'
 import { useHomeStarryNight } from './hooks/useHomeStarryNight'
+import { formatMessageGroupTimestamp } from '@/app/lib/messageGroupTimeUtils'
 
 // 다크모드 감지 훅
 function useDarkMode() {
@@ -66,6 +67,43 @@ export default function Home() {
   const supabase = createClient()
   const isDarkMode = useDarkMode()
   const { isEnabled: isStarryNightEnabled } = useHomeStarryNight()
+
+
+
+  // Function to get an available model when current model is disabled
+  const getAvailableModel = (requireAgentEnabled = false) => {
+    // First, try to find a non-rate-limited model
+    const availableModels = MODEL_CONFIGS.filter(model => 
+      model.isEnabled && 
+      model.isActivated && 
+      !rateLimitedLevels.includes(model.rateLimit.level) &&
+      (!requireAgentEnabled || model.isAgentEnabled === true)
+    );
+    
+    if (availableModels.length > 0) {
+      return availableModels[0].id;
+    }
+    
+    // If all models are rate-limited, return the system default
+    return getSystemDefaultModelId();
+  };
+
+  // Effect to handle rate-limited or disabled models
+  useEffect(() => {
+    const currentModelConfig = MODEL_CONFIGS.find(m => m.id === currentModel);
+    
+    // Check if current model is disabled or rate-limited
+    const isCurrentModelDisabled = !currentModelConfig?.isEnabled || 
+                                 !currentModelConfig?.isActivated || 
+                                 rateLimitedLevels.includes(currentModelConfig?.rateLimit.level || '');
+    
+    if (isCurrentModelDisabled) {
+      const availableModelId = getAvailableModel();
+      console.log('[Debug] Current model is disabled/rate-limited, switching to:', availableModelId);
+      setCurrentModel(availableModelId);
+      setNextModel(availableModelId);
+    }
+  }, [currentModel, rateLimitedLevels]);
 
   // Handle toggling the agent with rate-limit awareness
   const handleAgentToggle = (newState: boolean) => {
@@ -464,21 +502,15 @@ export default function Home() {
       
       // If agent mode is enabled, ensure we're using an agent-compatible model
       if (useAgent) {
-        const allModels = MODEL_CONFIGS.filter(model => model.isEnabled && model.isActivated);
-        const currentModelData = allModels.find(m => m.id === nextModel);
+        const currentModelData = MODEL_CONFIGS.find(m => m.id === nextModel);
         
         // Check if current model supports agent mode
         if (!currentModelData?.isAgentEnabled) {
-          // Find a non-rate-limited agent-enabled model
-          const nonRateLimitedAgentModels = allModels.filter(model => 
-            model.isAgentEnabled === true && 
-            model.isActivated && 
-            !rateLimitedLevels.includes(model.rateLimit.level)
-          );
+          // Use the consolidated getAvailableModel function
+          const agentModelId = getAvailableModel(true); // true = require agent enabled
           
-          // If we have non-rate-limited agent models, use the first one
-          if (nonRateLimitedAgentModels.length > 0) {
-            modelToUse = nonRateLimitedAgentModels[0].id;
+          if (agentModelId) {
+            modelToUse = agentModelId;
             console.log('[Debug] Switched to agent-compatible model:', modelToUse);
             // Also update the UI model selection states to keep in sync
             setNextModel(modelToUse);
@@ -585,20 +617,11 @@ export default function Home() {
       
       // If current model doesn't support agent, find a compatible one
       if (!currentModelConfig?.isAgentEnabled) {
-        // Find non-rate-limited agent-enabled models
-        const nonRateLimitedAgentModels = MODEL_CONFIGS.filter(model => 
-          model.isAgentEnabled === true && 
-          model.isActivated && 
-          model.isEnabled && 
-          !rateLimitedLevels.includes(model.rateLimit.level)
-        );
-        
-        // Switch to first available agent-compatible model
-        if (nonRateLimitedAgentModels.length > 0) {
-          const newModelId = nonRateLimitedAgentModels[0].id;
-          setCurrentModel(newModelId);
-          setNextModel(newModelId);
-          console.log('[Debug] Switched to agent-compatible model:', newModelId);
+        const agentModelId = getAvailableModel(true); // true = require agent enabled
+        if (agentModelId) {
+          setCurrentModel(agentModelId);
+          setNextModel(agentModelId);
+          console.log('[Debug] Switched to agent-compatible model:', agentModelId);
         } else {
           // No agent models available, disable agent mode
           setisAgentEnabled(false);
@@ -614,7 +637,7 @@ export default function Home() {
   }
 
   return (
-    <main className="flex-1 flex flex-col min-h-screen relative">
+    <main className="flex-1 relative h-screen flex flex-col">
       {/* StarryNightBackground - 홈화면에서만 다크모드이고 설정이 활성화된 경우에만 표시 */}
       {isDarkMode && isStarryNightEnabled && <StarryNightBackground />}
       
@@ -623,50 +646,111 @@ export default function Home() {
       {/* <CodeMatrixBackground /> */}
       {/* <GlobalAIActivityBackground /> */}
       
-      <div className="flex-1 flex flex-col items-center justify-center sm:pt-20">
-        <div className="w-full max-w-2xl px-6 sm:px-8 pb-12 sm:pb-32 ">
-          <ChatInputArea
-            currentModel={currentModel}
-            nextModel={nextModel}
-            setNextModel={(model) => {
-              if (typeof model === 'function') {
-                const newModel = model(nextModel);
-                handleModelChange(newModel);
-              } else {
-                handleModelChange(model);
-              }
-            }}
-            setCurrentModel={setCurrentModel}
-            disabledLevels={rateLimitedLevels}
-            isAgentEnabled={isAgentEnabled}
-            onAgentAvailabilityChange={setHasAgentModels}
-            setisAgentEnabled={setAgentEnabledHandler}
-            input={input}
-            handleInputChange={handleInputChange}
-            handleSubmit={handleModelSubmit}
-            isLoading={isLoading}
-            stop={stop}
-            user={{...user, hasAgentModels}}
-            modelId={currentModel}
-            layout="inline"
-            disabled={isSubmitting}
-          />
-          
-          {/* Display suggested prompt below the chat input with more spacing */}
-          {/* {user?.id && (
-            <div className="mt-4">
-              <SuggestedPrompt 
-                userId={user.id} 
-                onPromptClick={handleSuggestedPromptClick}
-                isVisible={!input.trim()}
-              />
+      {/* Header is positioned fixed, so content area starts from the top */}
+      <div className="flex-1 pt-[45px] sm:pt-[45px] flex flex-col min-h-0">
+        {/* 주 컨텐츠 영역 - Mobile/Desktop Responsive */}
+        {/* Mobile Layout */}
+        <div className="flex flex-col sm:hidden min-h-0 flex-1">
+          <div className="overflow-y-auto pb-44 flex-1 scrollbar-minimal">
+            <div className="messages-container mb-4 flex flex-col sm:px-4">
+              <div className="flex-grow">
+                {/* Chatflix label - iMessage style */}
+                <div className="message-timestamp" style={{ paddingBottom: '0', textTransform: 'none', color: '#737373' }}>
+                  Chatflix
+                </div>
+                
+                {/* Date display - centered at the top */}
+                <div className="message-timestamp" style={{ paddingTop: '0', textTransform: 'none', color: '#737373' }}>
+                  {formatMessageGroupTimestamp(new Date())}
+                </div>
+                
+                {/* Center section for suggested prompts */}
+                <div className="flex-1 flex flex-col items-center justify-center">
+                  {/* Display suggested prompt in the center area - with message-group styling */}
+                  {user?.id && (
+                    <div className="w-full max-w-2xl mb-2 pt-2">
+                      <div className="message-group group animate-fade-in">
+                        <SuggestedPrompt 
+                          userId={user.id} 
+                          onPromptClick={handleSuggestedPromptClick}
+                          isVisible={!input.trim()}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-          )} */}
+          </div>
+        </div>
+        
+        {/* Desktop Layout */}
+        <div className="hidden sm:flex min-h-0 flex-1">
+          <div className="overflow-y-auto pb-44 flex-1 scrollbar-minimal">
+            <div className="w-full mx-auto">
+              <div className="messages-container mb-4 flex flex-col sm:px-4">
+                <div className="flex-grow">
+                  {/* Chatflix label - iMessage style */}
+                  <div className="message-timestamp" style={{ paddingBottom: '0', textTransform: 'none', color: '#737373' }}>
+                    Chatflix
+                  </div>
+                  
+                  {/* Date display - centered at the top */}
+                  <div className="message-timestamp" style={{ paddingTop: '0', textTransform: 'none', color: '#737373' }}>
+                    {formatMessageGroupTimestamp(new Date())}
+                  </div>
+                  
+                  {/* Center section for suggested prompts */}
+                  <div className="flex-1 flex flex-col items-center justify-center">
+                                      {/* Display suggested prompt in the center area - with message-group styling */}
+                  {user?.id && (
+                    <div className="w-full max-w-2xl mb-2 pt-2">
+                      <div className="message-group group animate-fade-in">
+                        <SuggestedPrompt 
+                          userId={user.id} 
+                          onPromptClick={handleSuggestedPromptClick}
+                          isVisible={!input.trim()}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Bottom fixed chat input area - exactly matching chat page */}
+      <ChatInputArea
+        currentModel={currentModel}
+        nextModel={nextModel}
+        setNextModel={(model) => {
+          if (typeof model === 'function') {
+            const newModel = model(nextModel);
+            handleModelChange(newModel);
+          } else {
+            handleModelChange(model);
+          }
+        }}
+        setCurrentModel={setCurrentModel}
+        disabledLevels={rateLimitedLevels}
+        isAgentEnabled={isAgentEnabled}
+        onAgentAvailabilityChange={setHasAgentModels}
+        setisAgentEnabled={setAgentEnabledHandler}
+        input={input}
+        handleInputChange={handleInputChange}
+        handleSubmit={handleModelSubmit}
+        isLoading={isLoading}
+        stop={stop}
+        user={{...user, hasAgentModels}}
+        modelId={currentModel}
+        disabled={isSubmitting}
+      />
       
       {/* Contact Button - Fixed at bottom right */}
-      <div className="fixed bottom-4 right-4 z-10">
+      {/* <div className="fixed bottom-4 right-4 z-10">
         <a
           href="mailto:sply@chatflix.app?subject=Contact&body=Hello, I have a question.%0D%0A%0D%0A"
           className="flex items-center justify-center w-12 h-12 bg-[var(--accent)] hover:bg-[var(--foreground)] text-[var(--foreground)] hover:text-[var(--background)] rounded-full shadow-lg transition-[var(--transition)] group"
@@ -686,7 +770,7 @@ export default function Home() {
             />
           </svg>
         </a>
-      </div>
+      </div> */}
     </main>
   )
 }

@@ -1,13 +1,11 @@
 import type { Message as AIMessage } from 'ai'
-import { IconCheck, IconCopy, IconRefresh } from './icons'
 import { MarkdownContent } from './MarkdownContent' 
 import { ExtendedMessage } from '../chat/[id]/types'
 import { Attachment } from '@/lib/types'
 import React, { memo, useCallback, useState, useEffect, useMemo, useRef } from 'react'
-import { createClient } from '@/utils/supabase/client'
+
 import { useRouter } from 'next/navigation';
 import { AttachmentPreview } from './Attachment'
-import { FileUploadButton } from './ChatInput/FileUpload'; 
 import { DragDropOverlay } from './ChatInput/DragDropOverlay'; 
 import { 
   getStructuredResponseMainContent, 
@@ -60,6 +58,9 @@ interface MessageProps {
   allMessages?: AIMessage[]
   isGlobalLoading?: boolean
   imageMap?: { [key: string]: string }
+  isBookmarked?: boolean
+  onBookmarkToggle?: (messageId: string, shouldBookmark: boolean) => Promise<void>
+  isBookmarksLoading?: boolean
 }
 
 function isReasoningComplete(message: any): boolean {
@@ -147,6 +148,9 @@ const Message = memo(function MessageComponent({
   allMessages,
   isGlobalLoading,
   imageMap = {},
+  isBookmarked,
+  onBookmarkToggle,
+  isBookmarksLoading,
 }: MessageProps) {
 
   // Pre-compiled regex for better performance
@@ -250,9 +254,7 @@ const Message = memo(function MessageComponent({
     });
   }, [message.content, isStreaming]);
 
-  // Bookmark state
-  const [isBookmarked, setIsBookmarked] = useState(false);
-  const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
+  // Bookmark state - now managed by parent component
 
   // 편집 모드용 파일 상태 추가
   const [editingFiles, setEditingFiles] = useState<globalThis.File[]>([]);
@@ -569,6 +571,8 @@ const Message = memo(function MessageComponent({
   const hasAttachments = message.experimental_attachments && message.experimental_attachments.length > 0;
   const hasContent = message.content && message.content.trim().length > 0;
   
+
+  
   const hasActualCanvasData = useMemo(() => {
     return !!(
       webSearchData ||
@@ -606,30 +610,7 @@ const Message = memo(function MessageComponent({
 
   const hasAnyContent = hasContent || structuredMainResponse || isInProgress; // hasAnyContent도 진행 중 상태 고려
 
-  // Check if message is bookmarked when component mounts
-  useEffect(() => {
-    if (!user || !isAssistant || !message.id) return;
-    
-    const checkBookmarkStatus = async () => {
-      try {
-        const supabase = createClient(); // supabase client 생성
-        const { data, error } = await supabase
-          .from('message_bookmarks')
-          .select('id')
-          .eq('message_id', message.id)
-          .eq('user_id', user.id)
-          .maybeSingle();
-          
-        if (!error && data) {
-          setIsBookmarked(true);
-        }
-      } catch (error) {
-        console.error('Error checking bookmark status:', error);
-      }
-    };
-    
-    checkBookmarkStatus();
-  }, [user, message.id, isAssistant]); // supabase 의존성 제거 (함수 내부에서 생성)
+  // Bookmark status is now managed by parent component
 
   // 마지막 어시스턴트 메시지인지 확인
   const isLastAssistantMessage = isLastMessage && message.role === 'assistant';
@@ -670,48 +651,17 @@ const Message = memo(function MessageComponent({
     }
   }, [isLastAssistantMessage, isLongOrHasFiles, isMobile]);
 
-  // Toggle bookmark function
+  // Toggle bookmark function - now uses parent callback
   const toggleBookmark = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
-    if (!user || !message.id || !chatId || isBookmarkLoading) return;
-    
-    setIsBookmarkLoading(true);
+    if (!user || !message.id || !chatId || isBookmarksLoading || !onBookmarkToggle) return;
     
     try {
-      if (isBookmarked) {
-        // Remove bookmark
-        const supabase = createClient(); // supabase client 생성
-        const { error } = await supabase
-          .from('message_bookmarks')
-          .delete()
-          .eq('message_id', message.id)
-          .eq('user_id', user.id);
-          
-        if (error) throw error;
-        setIsBookmarked(false);
-      } else {
-        // Add bookmark
-        const supabase = createClient(); // supabase client 생성
-        const { error } = await supabase
-          .from('message_bookmarks')
-          .insert({
-            message_id: message.id,
-            user_id: user.id,
-            chat_session_id: chatId,
-            content: message.content,
-            model: (message as ExtendedMessage).model || currentModel,
-            created_at: new Date().toISOString()
-          });
-          
-        if (error) throw error;
-        setIsBookmarked(true);
-      }
+      await onBookmarkToggle(message.id, !isBookmarked);
     } catch (error) {
       console.error('Error toggling bookmark:', error);
-    } finally {
-      setIsBookmarkLoading(false);
     }
   };
 
@@ -838,9 +788,9 @@ const Message = memo(function MessageComponent({
                 onDragOver={handleDrag}
                 onDrop={handleDrop}
               >
-                <div className="flex flex-col items-end gap-1 w-full">
+                <div className="flex flex-col items-end gap-0 w-full">
                   {editingFiles.length > 0 && (
-                    <div className="flex flex-col items-end gap-1 mb-2 w-full">
+                    <div className="flex flex-col items-end gap-0 mb-2 w-full">
                       <EditingFilePreview 
                         files={editingFiles}
                         fileMap={editingFileMap}
@@ -904,7 +854,7 @@ const Message = memo(function MessageComponent({
               </div>
             ) : (
               <div ref={viewRef}>
-                <div className="flex flex-col items-end gap-1">
+                <div className="flex flex-col items-end gap-0">
                   {hasAttachments && message.experimental_attachments!.map((attachment, index) => (
                     <AttachmentPreview 
                       key={`${message.id}-att-${index}`} 
@@ -1029,9 +979,9 @@ const Message = memo(function MessageComponent({
         </button>
         <button
           onClick={toggleBookmark}
-          className={`imessage-control-btn ${isBookmarked ? 'bookmarked' : ''} ${isBookmarkLoading ? 'loading' : ''}`}
+          className={`imessage-control-btn ${isBookmarked ? 'bookmarked' : ''} ${isBookmarksLoading ? 'loading' : ''}`}
           title={isBookmarked ? "Remove bookmark" : "Bookmark message"}
-          disabled={isBookmarkLoading}
+          disabled={isBookmarksLoading}
         >
           <svg 
             xmlns="http://www.w3.org/2000/svg" 
@@ -1043,7 +993,7 @@ const Message = memo(function MessageComponent({
             strokeWidth="2" 
             strokeLinecap="round" 
             strokeLinejoin="round"
-            className={isBookmarkLoading ? "animate-pulse" : ""}
+            className={isBookmarksLoading ? "animate-pulse" : ""}
           >
             <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
           </svg>

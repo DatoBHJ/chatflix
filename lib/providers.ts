@@ -6,7 +6,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createXai } from '@ai-sdk/xai';
-import { MODEL_CONFIGS, ModelConfig } from './models/config';
+import { MODEL_CONFIGS, ModelConfig, isChatflixModel } from './models/config';
 
 // Create provider instances
 const deepseek = createDeepSeek({
@@ -70,7 +70,8 @@ function createReasoningModel(config: ModelConfig): LanguageModelV1 {
 
 // Create language models configuration from MODEL_CONFIGS
 const languageModels = MODEL_CONFIGS.reduce<Record<string, LanguageModelV1>>((acc, model) => {
-  if (!model.isEnabled) return acc;
+  // 모든 모델을 providers에 포함 (챗플릭스 모델의 내부 라우팅을 위해)
+  // 실제 사용 시 제약은 modelSelector.ts에서 처리
 
   try {
     // If model has reasoning enabled, create a reasoning model

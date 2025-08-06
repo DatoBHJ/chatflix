@@ -9,7 +9,7 @@ import { convertMessage, uploadFile } from './utils'
 import { PageProps, ExtendedMessage } from './types'
 import { Attachment } from '@/lib/types'
 import { useMessages } from '@/app/hooks/useMessages'
-import { getDefaultModelId, getSystemDefaultModelId, MODEL_CONFIGS, RATE_LIMITS } from '@/lib/models/config'
+import { getDefaultModelId, getSystemDefaultModelId, MODEL_CONFIGS, RATE_LIMITS, isChatflixModel } from '@/lib/models/config'
 import '@/app/styles/loading-dots.css'
 import { Messages } from '@/app/components/Messages'
 import { SidePanel } from '@/app/components/SidePanel'
@@ -867,7 +867,13 @@ export default function Chat({ params }: PageProps) {
 
   // Handle toggling the agent with rate-limit awareness
   const handleAgentToggle = (newState: boolean) => {
-    // Only allow enabling agent if agent models are available
+    // 챗플릭스 모델이 선택된 경우 에이전트 모드 제약 해제
+    if (isChatflixModel(currentModel)) {
+      setisAgentEnabled(newState);
+      return;
+    }
+    
+    // 기존 로직: 에이전트 모델이 있는 경우에만 허용
     if (newState && !hasAgentModels) {
       console.warn('Cannot enable agent: No non-rate-limited agent models available')
       return
@@ -1098,7 +1104,7 @@ export default function Chat({ params }: PageProps) {
   return (
     <main className="flex-1 relative h-screen flex flex-col">
       {/* Header is positioned fixed, so content area starts from the top */}
-      <div className="flex-1 pt-[60px] flex flex-col min-h-0">
+      <div className="flex-1 pt-[45px] sm:pt-[45px] flex flex-col min-h-0">
         {/* 주 컨텐츠 영역 - Mobile/Desktop Responsive */}
         {/* Mobile Layout */}
         <div className="flex flex-col sm:hidden min-h-0 flex-1">

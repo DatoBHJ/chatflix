@@ -61,7 +61,10 @@ export function ChatInputArea({
   // Messages
   allMessages = []
 }: ChatInputAreaProps) {
-  const { isSidebarOpen } = useSidebar()
+  const { isSidebarOpen, isHovering, isMobile } = useSidebar()
+  
+  // 데스크탑에서는 호버 상태 또는 사이드바 열림 상태에 따라, 모바일에서는 isSidebarOpen 상태에 따라 사이드바 표시
+  const shouldShowSidebar = isMobile ? isSidebarOpen : (isHovering || isSidebarOpen)
   if (layout === 'inline') {
     // Inline layout for home page
     return (
@@ -97,7 +100,7 @@ export function ChatInputArea({
   // Fixed layout for chat page (default)
   return (
     <div className={`fixed bottom-0 z-10 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-      isSidebarOpen ? 'left-0 right-0 md:left-80' : 'left-0 right-0'
+      shouldShowSidebar ? 'left-0 right-0 md:left-80' : 'left-0 right-0'
     }`}>
       <div className="bg-gradient-to-t from-[var(--background)] from-70% to-transparent md:from-20% md:via-[var(--background)]/90 md:via-30% md:to-[var(--background)]/40 md:to-70% pt-2 md:pt-20 pb-6 w-full">
         <div className="max-w-3xl mx-auto w-full px-0 sm:px-8 relative flex flex-col items-center">

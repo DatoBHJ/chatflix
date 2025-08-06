@@ -7,7 +7,8 @@ import { useChatInputStyles } from './ChatInputStyles';
 import { FileUploadButton, FilePreview, fileHelpers } from './FileUpload';
 import { PromptShortcuts } from './PromptShortcuts';
 import { DragDropOverlay, ErrorToast } from './DragDropOverlay';
-import { Brain, Gauge, AlertTriangle, CheckCircle } from 'lucide-react'; 
+import { Brain, Gauge, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Brain as BrainIOS, LightBulb, Apple, Folder, Send } from 'react-ios-icons'; 
 import { FileMetadata } from '@/lib/types';
 import { 
   extractImageMetadata, 
@@ -1468,7 +1469,8 @@ export function ChatInput({
                       : ""
                   }
                 >
-                  <Brain className="h-5 w-5 transition-transform duration-300" strokeWidth={1.2} />
+                  <BrainIOS className="h-5 w-5 transition-transform duration-300" />
+                  {/* <Brain className="h-5 w-5 transition-transform duration-300" strokeWidth={1.2} /> */}
                   {isAgentEnabled && (
                     <span className="absolute top-1 right-1 bg-white rounded-full w-1.5 h-1.5"></span>
                   )}
@@ -1491,7 +1493,8 @@ export function ChatInput({
                     <div className="flex items-center justify-center gap-3 mb-3">
                       <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--accent)]/30">
                         <div className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${isAgentEnabled ? 'bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)]' : 'bg-[var(--chat-input-button-bg)] text-[var(--muted)]'}`}>
-                          <Brain className="h-5 w-5" strokeWidth={1.2} />
+                          <BrainIOS className="h-5 w-5" />
+                          {/* <Brain className="h-5 w-5" strokeWidth={1.2} /> */}
                           {isAgentEnabled && <span className="absolute top-1 right-1 bg-white rounded-full w-1.5 h-1.5"></span>}
                         </div>
                         <span className="text-xs font-medium text-gray-900 dark:text-white">{isAgentEnabled ? 'Agent' : 'Direct Chat'}</span>
@@ -1499,7 +1502,8 @@ export function ChatInput({
                       <svg className="h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                       <div className="flex items-center gap-2 p-2 rounded-lg">
                         <div className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${!isAgentEnabled ? 'bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)]' : 'bg-[var(--chat-input-button-bg)] text-[var(--muted)]'}`}>
-                          <Brain className="h-5 w-5" strokeWidth={1.2} />
+                          <BrainIOS className="h-5 w-5" />
+                          {/* <Brain className="h-5 w-5" strokeWidth={1.2} /> */}
                           {!isAgentEnabled && <span className="absolute top-1 right-1 bg-white rounded-full w-1.5 h-1.5"></span>}
                         </div>
                         <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{isAgentEnabled ? 'Direct Chat' : 'Agent'}</span>
@@ -1553,6 +1557,7 @@ export function ChatInput({
                   lineHeight: '1.3',
                   resize: 'none',
                   caretColor: 'var(--chat-input-primary)',
+                  border: '1px solid var(--chat-input-border)',
                   ...(('caretWidth' in document.documentElement.style) && { caretWidth: '2px' })
                 } as React.CSSProperties}
               ></div>

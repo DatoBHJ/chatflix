@@ -70,7 +70,7 @@
   position: absolute;
   right: -7px;
   bottom: 0;
-  width: 20px;
+  width: 18px;
   height: 16px;
   background-color: #007AFF;
   border-bottom-left-radius: 16px 14px;
@@ -114,58 +114,60 @@
 @media (max-width: 640px) {
   .imessage-send-bubble {
     max-width: 320px;
-    padding: 8px 12px;
+    padding: 5px 11px;
   }
   
   .imessage-send-bubble::before {
-    right: -6px;
-    width: 16px;
+    right: -7px;
+    width: 18px;
     height: 16px;
-    border-bottom-left-radius: 14px 12px;
+    border-bottom-left-radius: 16px 14px;
   }
   
   .imessage-send-bubble.multi-line::before {
     height: 16px;
+    border-bottom-left-radius: 16px 14px;
   }
   
   .imessage-send-bubble::after {
-    right: -21px;
-    width: 21px;
+    right: -26px;
+    width: 26px;
     height: 16px;
-    border-bottom-left-radius: 9px;
+    border-bottom-left-radius: 10px;
   }
   
   .imessage-send-bubble.multi-line::after {
     height: 16px;
-    border-bottom-left-radius: 8px;
+    border-bottom-left-radius: 10px;
   }
 
   .imessage-receive-bubble {
-    padding: 8px 12px;
+    padding: 5px 11px;
     max-width: 360px;
   }
 
   .imessage-receive-bubble::before {
-    left: -6px;
-    width: 16px;
+    left: -7px;
+    width: 20px;
     height: 16px;
-    border-bottom-right-radius: 14px 12px;
+    border-bottom-right-radius: 16px 14px;
   }
 
   .imessage-receive-bubble.multi-line::before {
     height: 16px;
+    border-bottom-right-radius: 16px 14px;
   }
 
   .imessage-receive-bubble::after {
-    left: -21px;
-    width: 21px;
+    left: -26px;
+    width: 26px;
     height: 16px;
-    border-bottom-right-radius: 9px;
+    border-bottom-right-radius: 10px;
   }
 
   .imessage-receive-bubble.multi-line::after {
     height: 16px;
-    border-bottom-right-radius: 8px;
+    border-bottom-right-radius: 10px;
   }
 }
 
@@ -372,6 +374,7 @@
   --foreground-dark: #e5e5e5;
   --accent-dark: #262626; */
 
+  /* --background-dark: #0e0e0e; */
   --background-dark: #000000;
   --foreground-dark: #e5e5e5;
   --accent-dark: #131313;
@@ -439,7 +442,8 @@
   --chat-input-primary-foreground-light: #ffffff;
   --chat-input-primary-foreground-dark: #ffffff;
 
-  --chat-input-bg: var(--accent);
+  --chat-input-bg: var(--background);
+  --chat-input-border: var(--accent);
   --chat-input-text: var(--foreground);
   --chat-input-button-bg: var(--accent);
   --chat-input-button-hover-bg: var(--chat-input-button-hover-bg-light);
@@ -473,7 +477,8 @@
     --status-text-complete: var(--status-text-complete-dark);
 
     /* Chat Input Styles */
-    --chat-input-bg: var(--accent);
+    --chat-input-bg: var(--background);
+    --chat-input-border: var(--accent);
     --chat-input-text: var(--foreground);
     --chat-input-button-bg: var(--accent);
     --chat-input-button-hover-bg: var(--chat-input-button-hover-bg-dark);
@@ -507,7 +512,8 @@
   --status-text-complete: var(--status-text-complete-dark);
 
   /* Chat Input Styles */
-  --chat-input-bg: var(--accent);
+  --chat-input-bg: var(--background);
+  --chat-input-border: var(--accent);
   --chat-input-text: var(--foreground);
   --chat-input-button-bg: var(--accent);
   --chat-input-button-hover-bg: var(--chat-input-button-hover-bg-dark);
@@ -540,7 +546,8 @@
   --status-text-complete: var(--status-text-complete-light);
 
   /* Chat Input Styles */
-  --chat-input-bg: var(--accent);
+  --chat-input-bg: var(--background);
+  --chat-input-border: var(--accent);
   --chat-input-text: var(--foreground);
   --chat-input-button-bg: var(--accent);
   --chat-input-button-hover-bg: var(--chat-input-button-hover-bg-light);
@@ -643,9 +650,9 @@ body {
 /* Message Timestamp Separator */
 .message-timestamp {
   text-align: center;
-  font-size: 0.75rem; /* 12px */
+  font-size: 0.7rem; /* 12px */
   color: var(--muted);
-  padding: 16px 0;
+  padding: 3px 0;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 500;
@@ -653,7 +660,7 @@ body {
 
 /* Message Container Styles */
 .messages-container {
-  @apply max-w-7xl mx-auto w-full pl-3 pr-3 overflow-hidden pb-4 sm:pb-12;
+  @apply max-w-7xl mx-auto w-full pl-3 pr-3 overflow-hidden pb-10 sm:pb-12;
   padding-top: 1rem; /* Add consistent top padding */
 }
 
@@ -1516,7 +1523,7 @@ p:has(.katex) {
 .message-segment:last-child::before {
   content: "";
   position: absolute;
-  left: -7px;
+  left: -8px;
   bottom: 0;
   width: 20px;
   height: 16px;
@@ -1589,30 +1596,31 @@ p:has(.katex) {
   }
   
   .message-segment {
-    padding: 8px 12px;
+    padding: 5px 11px;
   }
   
   .message-segment:last-child::before {
-    left: -6px;
-    width: 16px;
+    left: -7px;
+    width: 20px;
     height: 16px;
-    border-bottom-right-radius: 14px 12px;
+    border-bottom-right-radius: 16px 14px;
   }
   
   .message-segment.multi-line:last-child::before {
     height: 16px;
+    border-bottom-right-radius: 16px 14px;
   }
   
   .message-segment:last-child::after {
-    left: -21px;
-    width: 21px;
+    left: -26px;
+    width: 26px;
     height: 16px;
-    border-bottom-right-radius: 9px;
+    border-bottom-right-radius: 10px;
   }
   
   .message-segment.multi-line:last-child::after {
     height: 16px;
-    border-bottom-right-radius: 8px;
+    border-bottom-right-radius: 10px;
   }
 }
 
@@ -1840,18 +1848,21 @@ p:has(.katex) {
   border-style: dashed;
   border-width: 1px;
   border-color: #9FD0FA;
+  padding: 5px 11px;
+  margin: 2px 0;
   transition: transform 0.15s ease, background-color 0.15s ease, color 0.15s ease, border-style 0.15s ease, border-color 0.15s ease;
   transform-origin: center;
   will-change: transform, background-color, color, border-style;
   contain: layout style;
   isolation: isolate;
+  box-sizing: border-box;
 }
 
 .imessage-send-bubble.follow-up-question::before {
   content: "";
   position: absolute;
   right: -8px;
-  bottom: 0;
+  bottom: -1px;
   width: 15px;
   height: 16px;
   background-color: var(--background);
@@ -1868,7 +1879,7 @@ p:has(.katex) {
   content: "";
   position: absolute;
   right: -10px;
-  bottom: 0;
+  bottom: -1px;
   width: 10px;
   height: 16px;
   background-color: var(--background);
@@ -1884,23 +1895,27 @@ p:has(.katex) {
 /* --- Hover & Active States --- */
 
 .imessage-send-bubble.follow-up-question:hover {
-  background-color: #3b82f6;
+  background-color: #007AFF;
   color: white;
-  border: none;
+  border: 1px solid transparent;
+  padding: 5px 11px;
+  margin: 2px 0;
 }
 
 .imessage-send-bubble.follow-up-question:hover::before {
-  right: -7px;
-  width: 20px;
+  right: -8px;
+  bottom: -1px;
+  width: 18px;
   height: 16px;
-  background-color: #3b82f6;
+  background-color: #007AFF;
   border: none;
   border-bottom-left-radius: 16px 14px;
 }
 
 .imessage-send-bubble.follow-up-question:hover::after {
-  right: -26px;
-  width: 26px;
+  right: -31px;
+  bottom: -1px;
+  width: 30px;
   height: 16px;
   border: none;
   border-bottom-left-radius: 10px;
@@ -1908,22 +1923,26 @@ p:has(.katex) {
 
 .imessage-send-bubble.follow-up-question:active {
   transform: scale(0.97);
-  background-color: #2563eb;
-  border: none;
+  background-color: #007AFF;
+  border: 1px solid transparent;
+  padding: 5px 11px;
+  margin: 2px 0;
 }
 
 .imessage-send-bubble.follow-up-question:active::before {
-  right: -7px;
-  width: 20px;
+  right: -8px;
+  bottom: -1px;
+  width: 18px;
   height: 16px;
-  background-color: #2563eb;
+  background-color: #007AFF;
   border: none;
   border-bottom-left-radius: 16px 14px;
 }
 
 .imessage-send-bubble.follow-up-question:active::after {
-  right: -26px;
-  width: 26px;
+  right: -31px;
+  bottom: -1px;
+  width: 30px;
   height: 16px;
   border: none;
   border-bottom-left-radius: 10px;
@@ -1947,45 +1966,53 @@ p:has(.katex) {
 }
 
 :root[data-theme="dark"] .imessage-send-bubble.follow-up-question:hover {
-  background-color: #3b82f6;
+  background-color: #007AFF;
   color: white;
-  border: none;
+  border: 1px solid transparent;
+  padding: 5px 11px;
+  margin: 2px 0;
 }
 
 :root[data-theme="dark"] .imessage-send-bubble.follow-up-question:hover::before {
-  right: -7px;
-  width: 20px;
+  right: -8px;
+  bottom: -1px;
+  width: 18px;
   height: 16px;
-  background-color: #3b82f6;
+  background-color: #007AFF;
   border: none;
   border-bottom-left-radius: 16px 14px;
 }
 
 :root[data-theme="dark"] .imessage-send-bubble.follow-up-question:hover::after {
-  right: -26px;
-  width: 26px;
+  right: -31px;
+  bottom: -1px;
+  width: 30px;
   height: 16px;
   border: none;
   border-bottom-left-radius: 10px;
 }
 
 :root[data-theme="dark"] .imessage-send-bubble.follow-up-question:active {
-  background-color: #2563eb;
-  border: none;
+  background-color: #007AFF;
+  border: 1px solid transparent;
+  padding: 5px 11px;
+  margin: 2px 0;
 }
 
 :root[data-theme="dark"] .imessage-send-bubble.follow-up-question:active::before {
-  right: -7px;
-  width: 20px;
+  right: -8px;
+  bottom: -1px;
+  width: 18px;
   height: 16px;
-  background-color: #2563eb;
+  background-color: #007AFF;
   border: none;
   border-bottom-left-radius: 16px 14px;
 }
 
 :root[data-theme="dark"] .imessage-send-bubble.follow-up-question:active::after {
-  right: -26px;
-  width: 26px;
+  right: -31px;
+  bottom: -1px;
+  width: 30px;
   height: 16px;
   border: none;
   border-bottom-left-radius: 10px;

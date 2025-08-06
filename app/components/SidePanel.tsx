@@ -25,16 +25,17 @@ export function SidePanel({
   if (!activePanel?.messageId) {
     return (
       <div 
-        className={`fixed sm:relative top-[60px] sm:top-0 right-0 bottom-0 
+        className={`fixed sm:relative sm:top-0 right-0 bottom-0 
           w-full sm:w-0 bg-[var(--background)] sm:border-l 
           border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] 
-          overflow-hidden z-0 
+          overflow-hidden z-[60] 
           transition-all duration-300 ease-in-out transform 
           translate-x-full sm:translate-x-0 sm:opacity-0 
           scrollbar-minimal`}
         style={{ 
-          height: 'calc(100vh - 60px)',
-          maxHeight: '100%'
+          // height: 'calc(100vh - 60px)',
+          maxHeight: '100%',
+          top: '0' // 모바일에서 헤더를 무시하고 전체 화면 사용
         }}
         ref={canvasContainerRef}
       />
@@ -342,17 +343,18 @@ export function SidePanel({
 
   return (
     <div 
-      className="fixed sm:relative top-[60px] sm:top-0 right-0 bottom-0 
+      className="fixed sm:relative sm:top-0 right-0 bottom-0 
         w-full sm:w-full sm:h-full bg-[var(--background)] sm:border-l 
         border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] 
-        overflow-y-auto z-0 
+        overflow-y-auto z-[60] 
         transition-all duration-300 ease-in-out transform 
         translate-x-0 opacity-100 sm:flex-shrink-0 
         scrollbar-minimal"
       style={{ 
-        height: 'calc(100vh - 60px)',
+        // height: 'calc(100vh - 60px)',
         maxHeight: '100%',
-        minWidth: 0 // Prevent flex item from overflowing
+        minWidth: 0, // Prevent flex item from overflowing
+        top: '0' // 모바일에서 헤더를 무시하고 전체 화면 사용
       }}
       ref={canvasContainerRef}
     >
@@ -384,7 +386,7 @@ export function SidePanel({
       </div>
 
       {/* 패널 내용 */}
-      <div className="px-3 sm:px-4 pt-3 sm:pt-4 pb-28 min-w-0 flex-1 overflow-hidden">
+      <div className="px-3 sm:px-4 pt-0 sm:pt-4 pb-28 min-w-0 flex-1 overflow-hidden">
         <div key={`panel-content-${activeMessage.id}`} className="h-full overflow-y-auto">
           {activePanel.type === 'canvas' && (
             <Canvas

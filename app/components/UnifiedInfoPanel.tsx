@@ -388,10 +388,10 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
           </div>
         </div>
 
-        <div className="absolute -bottom-0.5 left-4 flex gap-0.5">
+        {/* <div className="absolute -bottom-0.5 left-4 flex gap-0.5">
           <div className="w-1 h-1 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 60%, transparent)' }}></div>
           <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 40%, transparent)' }}></div>
-        </div>
+        </div> */}
 
         <div className={`absolute bottom-full left-0 mb-3 w-80 sm:w-96 bg-[var(--background)] backdrop-blur-xl rounded-2xl border border-[var(--subtle-divider)] shadow-lg p-4 z-50 transition-all duration-200 ease-out ${isExpanded ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-1 pointer-events-none'}`} style={{ boxShadow: '0 10px 25px -5px var(--overlay), 0 4px 6px -2px var(--overlay)' }}>
           <div className="absolute -bottom-1.5 left-6 w-3 h-3 bg-[var(--background)] border-r border-b border-[var(--subtle-divider)] rotate-45"></div>
@@ -403,10 +403,10 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
                   e.stopPropagation();
                   handleTabChange('thinking');
                 }}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex-1 justify-center ${activeTab === 'thinking' ? 'bg-[var(--background)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--foreground)]'}`}
+                className={`flex items-center gap-2 px-3 py-0 sm:py-1 rounded-md text-xs font-medium transition-colors flex-1 justify-center ${activeTab === 'thinking' ? 'bg-[var(--background)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--foreground)]'}`}
                 style={{ color: activeTab === 'thinking' ? 'var(--reasoning-color)' : undefined }}
               >
-                <Brain className="h-3.5 w-3.5" strokeWidth={2} />
+                <Brain className="h-3 w-3" strokeWidth={2} />
                 <span>Thinking</span>
                 {!reasoningComplete && (
                   <div className="flex gap-0.5">
@@ -419,10 +419,10 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
                   e.stopPropagation();
                   handleTabChange('tools');
                 }}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex-1 justify-center ${activeTab === 'tools' ? 'bg-[var(--background)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--foreground)]'}`}
+                className={`flex items-center gap-2 px-3 py-0 sm:py-1 rounded-md text-xs font-medium transition-colors flex-1 justify-center ${activeTab === 'tools' ? 'bg-[var(--background)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--foreground)]'}`}
                 style={{ color: activeTab === 'tools' ? 'var(--tools-color)' : undefined }}
               >
-                <Wrench className="h-3.5 w-3.5" strokeWidth={2} />
+                <Wrench className="h-3 w-3" strokeWidth={2} />
                 <span>Tools</span>
                 {hasProcessingTool && (
                   <span className="relative flex h-2 w-2">

@@ -7,6 +7,8 @@ interface SidebarContextType {
   toggleSidebar: () => void
   isAccountOpen: boolean
   setIsAccountOpen: (isOpen: boolean) => void
+  isHovering: boolean
+  isMobile: boolean
 }
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined)
@@ -18,7 +20,9 @@ export const useSidebar = () => {
       isSidebarOpen: false, 
       toggleSidebar: () => {},
       isAccountOpen: false,
-      setIsAccountOpen: () => {}
+      setIsAccountOpen: () => {},
+      isHovering: false,
+      isMobile: false
     } // 기본값
   }
   return context
