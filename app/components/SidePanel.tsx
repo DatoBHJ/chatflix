@@ -25,7 +25,7 @@ export function SidePanel({
   if (!activePanel?.messageId) {
     return (
       <div 
-        className={`fixed sm:relative sm:top-0 right-0 bottom-0 
+        className={`fixed sm:relative sm:top-1.5 right-0 bottom-0 
           w-full sm:w-0 bg-[var(--background)] sm:border-l 
           border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] 
           overflow-hidden z-[60] 
@@ -34,8 +34,7 @@ export function SidePanel({
           scrollbar-minimal`}
         style={{ 
           // height: 'calc(100vh - 60px)',
-          maxHeight: '100%',
-          top: '0' // 모바일에서 헤더를 무시하고 전체 화면 사용
+          maxHeight: '100%'
         }}
         ref={canvasContainerRef}
       />
@@ -342,8 +341,8 @@ export function SidePanel({
   };
 
   return (
-    <div 
-      className="fixed sm:relative sm:top-0 right-0 bottom-0 
+        <div 
+      className="fixed sm:relative sm:top-1.5 right-0 bottom-0 
         w-full sm:w-full sm:h-full bg-[var(--background)] sm:border-l 
         border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] 
         overflow-y-auto z-[60] 
@@ -353,8 +352,7 @@ export function SidePanel({
       style={{ 
         // height: 'calc(100vh - 60px)',
         maxHeight: '100%',
-        minWidth: 0, // Prevent flex item from overflowing
-        top: '0' // 모바일에서 헤더를 무시하고 전체 화면 사용
+        minWidth: 0 // Prevent flex item from overflowing
       }}
       ref={canvasContainerRef}
     >
