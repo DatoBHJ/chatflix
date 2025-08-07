@@ -38,6 +38,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
   const [touchStartTime, setTouchStartTime] = useState<number>(0);
   const [touchStartY, setTouchStartY] = useState<number>(0);
+  const [isLongPressActive, setIsLongPressActive] = useState(false);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const newPromptTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -194,11 +195,13 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     e.preventDefault();
     setTouchStartTime(Date.now());
     setTouchStartY(e.touches[0].clientY);
+    setIsLongPressActive(false);
     
     // 롱프레스 타이머 시작 (500ms)
     const timer = setTimeout(() => {
       setLongPressIndex(promptIndex);
       setShowMobileActions(true);
+      setIsLongPressActive(true);
     }, 500);
     
     setLongPressTimer(timer);
@@ -219,6 +222,11 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     const touchEndTime = Date.now();
     const touchDuration = touchEndTime - touchStartTime;
     
+    // 롱프레스가 활성화된 상태에서는 일반 클릭 방지
+    if (isLongPressActive) {
+      return;
+    }
+    
     // 짧은 터치인 경우 일반 클릭으로 처리
     if (touchDuration < 500 && longPressIndex === -1) {
       const promptIndex = parseInt(e.currentTarget.getAttribute('data-prompt-index') || '-1');
@@ -230,6 +238,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     // 롱프레스 상태 초기화
     setLongPressIndex(-1);
     setShowMobileActions(false);
+    setIsLongPressActive(false);
   };
 
   // 터치 이동 핸들러 (스크롤 방지)
@@ -247,23 +256,29 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
       }
       setLongPressIndex(-1);
       setShowMobileActions(false);
+      setIsLongPressActive(false);
     }
   };
 
   // 모바일 액션 핸들러들
   const handleMobileEdit = (promptIndex: number) => {
     setShowMobileActions(false);
+    setLongPressIndex(-1);
+    setIsLongPressActive(false);
     handleEditStart(promptIndex);
   };
 
   const handleMobileDelete = (promptIndex: number) => {
     setShowMobileActions(false);
+    setLongPressIndex(-1);
+    setIsLongPressActive(false);
     handleDeletePrompt(promptIndex);
   };
 
-  const handleMobileAdd = () => {
+  const handleMobileCancel = () => {
     setShowMobileActions(false);
-    handleAddPromptStart();
+    setLongPressIndex(-1);
+    setIsLongPressActive(false);
   };
 
   // 편집 시작
@@ -530,9 +545,19 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                     {isMobile && showMobileActions && longPressIndex === index && (
                       <div className="flex items-center gap-2 opacity-100 transition-opacity duration-300">
                         <button
-                          onClick={() => handleMobileEdit(index)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleMobileEdit(index);
+                          }}
                           className="imessage-control-btn"
                           title="Edit prompt"
+                          style={{
+                            WebkitTapHighlightColor: 'transparent',
+                            WebkitTouchCallout: 'none',
+                            WebkitUserSelect: 'none',
+                            userSelect: 'none'
+                          }}
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
@@ -541,9 +566,19 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                         </button>
                         {suggestedPrompts.length > 1 && (
                           <button
-                            onClick={() => handleMobileDelete(index)}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleMobileDelete(index);
+                            }}
                             className="imessage-control-btn text-red-500 hover:text-red-700"
                             title="Delete prompt"
+                            style={{
+                              WebkitTapHighlightColor: 'transparent',
+                              WebkitTouchCallout: 'none',
+                              WebkitUserSelect: 'none',
+                              userSelect: 'none'
+                            }}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="3,6 5,6 21,6"/>
@@ -552,9 +587,19 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                           </button>
                         )}
                         <button
-                          onClick={() => setShowMobileActions(false)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleMobileCancel();
+                          }}
                           className="imessage-control-btn text-gray-500 hover:text-gray-700"
                           title="Cancel"
+                          style={{
+                            WebkitTapHighlightColor: 'transparent',
+                            WebkitTouchCallout: 'none',
+                            WebkitUserSelect: 'none',
+                            userSelect: 'none'
+                          }}
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <line x1="18" y1="6" x2="6" y2="18"/>
@@ -567,7 +612,11 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                       className={`imessage-send-bubble follow-up-question max-w-md ${
                         isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
                       } ${isMobile ? 'touch-manipulation' : ''}`}
-                      onClick={() => handleClick(prompt)}
+                      onClick={() => {
+                        if (!isLongPressActive) {
+                          handleClick(prompt);
+                        }
+                      }}
                       onTouchStart={(e) => handleTouchStart(e, index)}
                       onTouchEnd={handleTouchEnd}
                       onTouchMove={handleTouchMove}
