@@ -342,7 +342,7 @@ export function SidePanel({
 
   return (
         <div 
-      className="fixed sm:relative sm:top-1.5 right-0 bottom-0 
+      className="side-panel fixed sm:relative sm:top-1.5 right-0 bottom-0 
         w-full sm:w-full sm:h-full bg-[var(--background)] sm:border-l 
         border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] 
         overflow-y-auto z-[60] 
@@ -356,29 +356,97 @@ export function SidePanel({
       }}
       ref={canvasContainerRef}
     >
-      {/* 패널 헤더 */}
-      <div className="sticky top-0 z-20 bg-[var(--background)] flex items-center justify-between px-3 sm:px-4 h-auto py-2 sm:py-2.5 border-b border-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
-        <div className="flex items-center min-w-0 flex-1">
-          <button 
-            onClick={() => togglePanel(activePanel.messageId, activePanel.type, activePanel.fileIndex, activePanel.toolType)}
-            className="w-8 h-8 flex items-center justify-center mr-2 sm:mr-3 flex-shrink-0"
-            aria-label="Close panel"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-          <div className="flex flex-col min-w-0 flex-1">
-            <h3 className="text-base sm:text-lg font-semibold truncate">
-              {getPanelTitle()}
-            </h3>
-            {getPanelSubtitle() && (
-              <p className="text-xs text-[var(--muted)] mt-0.5 truncate">{getPanelSubtitle()}</p>
-            )}
+      {/* 사파리 스타일 헤더 */}
+      <div className="sticky top-0 z-20 bg-[var(--background)] flex items-center justify-between px-2 sm:px-4 py-1.5 border-b border-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
+        <div className="flex items-center gap-1">
+          {/* 모바일: 닫기 버튼만, 데스크톱: 사파리 스타일 버튼들 */}
+          <div className="sm:safari-window-buttons">
+            {/* 모바일 닫기 버튼 */}
+            <button 
+              onClick={() => togglePanel(activePanel.messageId, activePanel.type, activePanel.fileIndex, activePanel.toolType)}
+              className="imessage-control-btn sm:hidden"
+              title="Close panel"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            
+            {/* 데스크톱 사파리 스타일 버튼들 */}
+            <div className="hidden sm:flex items-center gap-2">
+              {/* 빨간색 닫기 버튼 */}
+              <button 
+                onClick={() => togglePanel(activePanel.messageId, activePanel.type, activePanel.fileIndex, activePanel.toolType)}
+                className="safari-window-button close"
+                title="Close panel"
+              >
+                <div className="icon">
+                  <svg viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M1 1L7 7M7 1L1 7" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+                  </svg>
+                </div>
+              </button>
+              
+              {/* 회색 최소화 버튼 (비활성) */}
+              <button 
+                className="safari-window-button minimize"
+                title="Minimize (not available)"
+                disabled
+              />
+              
+              {/* 초록색 최대화 버튼 */}
+              <button 
+                onClick={() => {
+                  // 창 최대화/복원 효과
+                  const panel = canvasContainerRef.current;
+                  if (panel) {
+                    if (panel.classList.contains('maximized')) {
+                      // 최대화 상태에서 원래 크기로 복원
+                      panel.classList.remove('maximized');
+                      panel.style.position = '';
+                      panel.style.top = '';
+                      panel.style.right = '';
+                      panel.style.bottom = '';
+                      panel.style.left = '';
+                      panel.style.width = '';
+                      panel.style.height = '';
+                      panel.style.zIndex = '';
+                      panel.style.transform = '';
+                      panel.style.borderRadius = '';
+                    } else {
+                      // 기본 상태에서 전체 화면으로 최대화
+                      panel.classList.add('maximized');
+                      panel.style.position = 'fixed';
+                      panel.style.top = '0';
+                      panel.style.right = '0';
+                      panel.style.bottom = '0';
+                      panel.style.left = '0';
+                      panel.style.width = '100vw';
+                      panel.style.height = '100vh';
+                      panel.style.zIndex = '9999';
+                      panel.style.transform = 'scale(1)';
+                      panel.style.borderRadius = '0';
+                    }
+                  }
+                }}
+                className="safari-window-button maximize"
+                title="Toggle maximize"
+              >
+                <div className="icon">
+                  <svg viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="2" y="2" width="4" height="4" stroke="currentColor" strokeWidth="1" fill="none"/>
+                  </svg>
+                </div>
+              </button>
+            </div>
           </div>
+          
+
         </div>
-        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+        
+        {/* 우측 액션 버튼들 */}
+        <div className="flex items-center gap-1">
           {renderFileActions()}
         </div>
       </div>
