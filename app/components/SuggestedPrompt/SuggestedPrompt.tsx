@@ -31,6 +31,14 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   const [userName, setUserName] = useState<string>('You');
   const [isMobile, setIsMobile] = useState(false);
   const [userCreatedAt, setUserCreatedAt] = useState<Date | null>(null);
+  
+  // 롱프레스 관련 상태
+  const [longPressIndex, setLongPressIndex] = useState<number>(-1);
+  const [showMobileActions, setShowMobileActions] = useState(false);
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
+  const [touchStartTime, setTouchStartTime] = useState<number>(0);
+  const [touchStartY, setTouchStartY] = useState<number>(0);
+  
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const newPromptTextareaRef = useRef<HTMLTextAreaElement>(null);
   const supabase = createClient();
@@ -170,6 +178,94 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     return () => window.removeEventListener('resize', checkIfMobile);
   }, []);
 
+  // 롱프레스 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+      }
+    };
+  }, [longPressTimer]);
+
+  // 터치 시작 핸들러
+  const handleTouchStart = (e: React.TouchEvent, promptIndex: number) => {
+    if (!isMobile) return;
+    
+    e.preventDefault();
+    setTouchStartTime(Date.now());
+    setTouchStartY(e.touches[0].clientY);
+    
+    // 롱프레스 타이머 시작 (500ms)
+    const timer = setTimeout(() => {
+      setLongPressIndex(promptIndex);
+      setShowMobileActions(true);
+    }, 500);
+    
+    setLongPressTimer(timer);
+  };
+
+  // 터치 종료 핸들러
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!isMobile) return;
+    
+    e.preventDefault();
+    
+    // 타이머 정리
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+    
+    const touchEndTime = Date.now();
+    const touchDuration = touchEndTime - touchStartTime;
+    
+    // 짧은 터치인 경우 일반 클릭으로 처리
+    if (touchDuration < 500 && longPressIndex === -1) {
+      const promptIndex = parseInt(e.currentTarget.getAttribute('data-prompt-index') || '-1');
+      if (promptIndex >= 0) {
+        handleClick(suggestedPrompts[promptIndex]);
+      }
+    }
+    
+    // 롱프레스 상태 초기화
+    setLongPressIndex(-1);
+    setShowMobileActions(false);
+  };
+
+  // 터치 이동 핸들러 (스크롤 방지)
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isMobile) return;
+    
+    const currentY = e.touches[0].clientY;
+    const deltaY = Math.abs(currentY - touchStartY);
+    
+    // 수직 이동이 10px 이상이면 롱프레스 취소
+    if (deltaY > 10) {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        setLongPressTimer(null);
+      }
+      setLongPressIndex(-1);
+      setShowMobileActions(false);
+    }
+  };
+
+  // 모바일 액션 핸들러들
+  const handleMobileEdit = (promptIndex: number) => {
+    setShowMobileActions(false);
+    handleEditStart(promptIndex);
+  };
+
+  const handleMobileDelete = (promptIndex: number) => {
+    setShowMobileActions(false);
+    handleDeletePrompt(promptIndex);
+  };
+
+  const handleMobileAdd = () => {
+    setShowMobileActions(false);
+    handleAddPromptStart();
+  };
+
   // 편집 시작
   const handleEditStart = (promptIndex: number) => {
     setIsEditing(true);
@@ -286,7 +382,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
 
   // 마우스 이벤트 핸들러
   const handleMouseEnter = (promptIndex: number) => {
-    if (isVisible) {
+    if (isVisible && !isMobile) {
       setHoveredPromptIndex(promptIndex);
     }
   };
@@ -431,11 +527,57 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                         )}
                       </div>
                     )}
+                    {isMobile && showMobileActions && longPressIndex === index && (
+                      <div className="flex items-center gap-2 opacity-100 transition-opacity duration-300">
+                        <button
+                          onClick={() => handleMobileEdit(index)}
+                          className="imessage-control-btn"
+                          title="Edit prompt"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        </button>
+                        {suggestedPrompts.length > 1 && (
+                          <button
+                            onClick={() => handleMobileDelete(index)}
+                            className="imessage-control-btn text-red-500 hover:text-red-700"
+                            title="Delete prompt"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3,6 5,6 21,6"/>
+                              <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
+                            </svg>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setShowMobileActions(false)}
+                          className="imessage-control-btn text-gray-500 hover:text-gray-700"
+                          title="Cancel"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        </button>
+                      </div>
+                    )}
                     <button
                       className={`imessage-send-bubble follow-up-question max-w-md ${
                         isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                      }`}
+                      } ${isMobile ? 'touch-manipulation' : ''}`}
                       onClick={() => handleClick(prompt)}
+                      onTouchStart={(e) => handleTouchStart(e, index)}
+                      onTouchEnd={handleTouchEnd}
+                      onTouchMove={handleTouchMove}
+                      data-prompt-index={index}
+                      style={{
+                        WebkitTapHighlightColor: 'transparent',
+                        WebkitTouchCallout: 'none',
+                        WebkitUserSelect: 'none',
+                        userSelect: 'none'
+                      }}
                     >
                       {renderPromptWithLinks(prompt)}
                     </button>
@@ -500,22 +642,22 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
               </div>
             ) : (
               /* 새 프롬프트 추가 버튼 */
-              !isMobile && (
-                <div className="flex items-center justify-end gap-2 w-full">
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <button
-                      onClick={handleAddPromptStart}
-                      className="imessage-control-btn text-green-500 hover:text-green-700"
-                      title="Add new prompt"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="12" y1="5" x2="12" y2="19"/>
-                        <line x1="5" y1="12" x2="19" y2="12"/>
-                      </svg>
-                    </button>
-                  </div>
+              <div className="flex items-center justify-end gap-2 w-full">
+                <div className={`flex items-center gap-2 transition-opacity duration-300 ${
+                  isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                }`}>
+                  <button
+                    onClick={handleAddPromptStart}
+                    className="imessage-control-btn text-green-500 hover:text-green-700"
+                    title="Add new prompt"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"/>
+                      <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                  </button>
                 </div>
-              )
+              </div>
             )}
           </div>
         </>
