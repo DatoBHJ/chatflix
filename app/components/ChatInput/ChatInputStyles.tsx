@@ -43,7 +43,7 @@ export function useChatInputStyles() {
           font-weight: 400;
           overflow-y: auto;
           max-height: 100%;
-          line-height: 1.5;
+          line-height: 1.3;
           word-wrap: break-word;
           word-break: break-word;
           
@@ -93,11 +93,11 @@ export function useChatInputStyles() {
           top: 50%;
           left: 0;
           right: 0;
-          transform: translateY(-50%);
           padding: inherit;
           padding-left: 1.1rem;
           font-weight: 400;
           letter-spacing: 0.01em;
+          transform: translateY(-50%);
         }
         
         /* 활성화된 버튼 스타일 통합 */

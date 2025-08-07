@@ -1544,7 +1544,7 @@ export function ChatInput({
                 onInput={handleInputWithShortcuts}
                 onPaste={handlePaste}
                 onKeyDown={handleKeyDown}
-                className={`futuristic-input ${input.trim() === '' ? 'empty' : ''} w-full transition-colors duration-300 py-1 px-4 rounded-full outline-none text-sm sm:text-base bg-[var(--chat-input-bg)] text-[var(--chat-input-text)] overflow-y-auto min-h-[32px] flex items-center ${
+                className={`futuristic-input ${input.trim() === '' ? 'empty' : ''} w-full transition-colors duration-300 py-1.5 px-4 rounded-full outline-none text-sm sm:text-base bg-[var(--chat-input-bg)] text-[var(--chat-input-text)] overflow-y-auto min-h-[32px] ${
                   tokenCount > 0 ? 'has-token-counter' : ''
                 }`}
                 data-placeholder={placeholder}
