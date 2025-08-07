@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction, useState, useRef, useEffect } from 'react';
+import { Dispatch, SetStateAction, useState, useRef, useEffect, useCallback } from 'react';
 import { getEnabledModels, getActivatedModels, getModelById, isChatflixModel } from '@/lib/models/config';
 import Image from 'next/image';
 import type { ModelConfig } from '@/lib/models/config';
@@ -72,6 +72,14 @@ export function ModelSelector({
   const [showTopGradient, setShowTopGradient] = useState(false);
   const [showBottomGradient, setShowBottomGradient] = useState(false);
   
+  // Drag states for mobile header
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartY, setDragStartY] = useState(0);
+  const [currentTranslateY, setCurrentTranslateY] = useState(0);
+  const [modalHeight, setModalHeight] = useState(0);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  
   // Context window limit for non-subscribers (60K tokens)
   const CONTEXT_WINDOW_LIMIT_NON_SUBSCRIBER = 60000;
 
@@ -106,6 +114,58 @@ export function ModelSelector({
     
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Initialize modal height on mount
+  useEffect(() => {
+    if (isOpen && isMobile && modalRef.current) {
+      setModalHeight(window.innerHeight * 0.85);
+    }
+  }, [isOpen, isMobile]);
+
+  // Handle touch events for drag functionality
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isMobile) return;
+    setIsDragging(true);
+    setDragStartY(e.touches[0].clientY);
+    setCurrentTranslateY(0);
+  }, [isMobile]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isMobile || !isDragging) return;
+    e.preventDefault();
+    
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - dragStartY;
+    
+    // Only allow downward dragging
+    if (diff > 0) {
+      setCurrentTranslateY(diff);
+    }
+  }, [isMobile, isDragging, dragStartY]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!isMobile || !isDragging) return;
+    
+    setIsDragging(false);
+    
+    // If dragged down more than 100px, close the modal
+    if (currentTranslateY > 100) {
+      setIsOpen(false);
+      setSearchTerm('');
+      setKeyboardSelectedIndex(-1);
+    } else {
+      // Reset position
+      setCurrentTranslateY(0);
+    }
+  }, [isMobile, isDragging, currentTranslateY, setIsOpen]);
+
+  // Reset drag state when modal opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setIsDragging(false);
+      setCurrentTranslateY(0);
+    }
+  }, [isOpen]);
 
   // Add subscription check
   useEffect(() => {
@@ -607,6 +667,7 @@ export function ModelSelector({
                   />
                 )}
               <div 
+                ref={modalRef}
                 className={`
                   model-dropdown
                   ${isMobile 
@@ -615,6 +676,11 @@ export function ModelSelector({
                   }
                   z-50
                 `}
+                style={{
+                  transform: isMobile ? `translateY(${currentTranslateY}px)` : 'none',
+                  transition: isDragging ? 'none' : 'transform 0.3s ease-out',
+                  height: isMobile ? `${modalHeight}px` : '85vh'
+                }}
                 role="listbox"
               >
 
@@ -622,8 +688,22 @@ export function ModelSelector({
               {/* Mobile mode header */}
               {isMobile && (
                 <>
-                  <div className="text-center pt-4 pb-2 shrink-0">
-                    <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto" />
+                  {/* Draggable Header for Mobile */}
+                  <div 
+                    ref={headerRef}
+                    className="shrink-0"
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    style={{ touchAction: 'none' }}
+                  >
+                    <div className="text-center pt-4 pb-2">
+                      <div 
+                        className={`w-12 h-1.5 rounded-full mx-auto transition-colors duration-200 ${
+                          isDragging ? 'bg-gray-400 dark:bg-gray-600' : 'bg-gray-300 dark:bg-gray-700'
+                        }`} 
+                      />
+                    </div>
                   </div>
                   <div className="relative flex items-center justify-center py-4 border-b border-[var(--accent)] shrink-0">
                     <h2 className="text-lg font-semibold">Models</h2>
@@ -791,7 +871,13 @@ export function ModelSelector({
             
               
               {/* Model options list */}
-              <div className={`py-2 relative ${isMobile ? 'flex-1 min-h-0 overflow-y-auto px-4' : ''}`}>
+              <div 
+                className={`py-2 relative ${isMobile ? 'flex-1 min-h-0 overflow-y-auto px-4' : ''}`}
+                style={{ 
+                  touchAction: isDragging ? 'none' : 'pan-y',
+                  pointerEvents: isDragging ? 'none' : 'auto'
+                }}
+              >
                 {/* Bottom gradient overlay for smooth scrolling - desktop only */}
                 {!isMobile && showBottomGradient && (
                   <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white/98 dark:from-neutral-950/98 via-white/80 dark:via-neutral-950/80 to-transparent pointer-events-none transition-opacity duration-200"></div>
