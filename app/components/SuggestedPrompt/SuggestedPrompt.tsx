@@ -513,66 +513,74 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-end gap-2 w-full">
-                    {!isMobile && (
-                      <div className={`flex items-center gap-2 transition-opacity duration-300 ${
-                        hoveredPromptIndex === index ? 'opacity-100' : 'opacity-0'
-                      }`}>
-                        <button
-                          onClick={() => handleEditStart(index)}
-                          className="imessage-control-btn"
-                          title="Edit prompt"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                          </svg>
-                        </button>
-                        {suggestedPrompts.length > 1 && (
+                  <div className="flex flex-col items-end gap-2 w-full">
+                    <div className="flex items-center justify-end gap-2 w-full">
+                      {/* 데스크탑 호버 버튼들 - 좌측에 표시 */}
+                      {!isMobile && (
+                        <div className={`flex items-center gap-2 transition-opacity duration-300 ${
+                          hoveredPromptIndex === index ? 'opacity-100' : 'opacity-0'
+                        }`}>
                           <button
-                            onClick={() => handleDeletePrompt(index)}
-                            className="imessage-control-btn text-red-500 hover:text-red-700"
-                            title="Delete prompt"
+                            onClick={() => handleEditStart(index)}
+                            className="imessage-control-btn"
+                            title="Edit prompt"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="3,6 5,6 21,6"/>
-                              <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                             </svg>
                           </button>
-                        )}
-                      </div>
-                    )}
+                          {suggestedPrompts.length > 1 && (
+                            <button
+                              onClick={() => handleDeletePrompt(index)}
+                              className="imessage-control-btn text-red-500 hover:text-red-700"
+                              title="Delete prompt"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3,6 5,6 21,6"/>
+                                <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      
+                      <button
+                        className={`imessage-send-bubble follow-up-question max-w-md ${
+                          isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                        } ${isMobile ? 'touch-manipulation' : ''}`}
+                        onClick={() => {
+                          if (!isLongPressActive) {
+                            handleClick(prompt);
+                          }
+                        }}
+                        onTouchStart={(e) => handleTouchStart(e, index)}
+                        onTouchEnd={handleTouchEnd}
+                        onTouchMove={handleTouchMove}
+                        data-prompt-index={index}
+                        style={{
+                          WebkitTapHighlightColor: 'transparent',
+                          WebkitTouchCallout: 'none',
+                          WebkitUserSelect: 'none',
+                          userSelect: 'none'
+                        }}
+                      >
+                        {renderPromptWithLinks(prompt)}
+                      </button>
+                    </div>
+                    
+                    {/* 모바일 롱프레스 버튼들 - 각 메시지 바로 아래에 표시 */}
                     {isMobile && showMobileActions && longPressIndex === index && (
-                      <div className="flex items-center gap-2 opacity-100 transition-opacity duration-300">
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleMobileEdit(index);
-                          }}
-                          className="imessage-control-btn"
-                          title="Edit prompt"
-                          style={{
-                            WebkitTapHighlightColor: 'transparent',
-                            WebkitTouchCallout: 'none',
-                            WebkitUserSelect: 'none',
-                            userSelect: 'none'
-                          }}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                          </svg>
-                        </button>
-                        {suggestedPrompts.length > 1 && (
+                      <div className="flex items-center justify-end gap-2 w-full">
+                        <div className="flex items-center gap-2 opacity-100 transition-opacity duration-300">
                           <button
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              handleMobileDelete(index);
+                              handleMobileEdit(index);
                             }}
-                            className="imessage-control-btn text-red-500 hover:text-red-700"
-                            title="Delete prompt"
+                            className="imessage-control-btn"
+                            title="Edit prompt"
                             style={{
                               WebkitTapHighlightColor: 'transparent',
                               WebkitTouchCallout: 'none',
@@ -581,55 +589,55 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                             }}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="3,6 5,6 21,6"/>
-                              <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                             </svg>
                           </button>
-                        )}
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleMobileCancel();
-                          }}
-                          className="imessage-control-btn text-gray-500 hover:text-gray-700"
-                          title="Cancel"
-                          style={{
-                            WebkitTapHighlightColor: 'transparent',
-                            WebkitTouchCallout: 'none',
-                            WebkitUserSelect: 'none',
-                            userSelect: 'none'
-                          }}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="18" y1="6" x2="6" y2="18"/>
-                            <line x1="6" y1="6" x2="18" y2="18"/>
-                          </svg>
-                        </button>
+                          {suggestedPrompts.length > 1 && (
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleMobileDelete(index);
+                              }}
+                              className="imessage-control-btn text-red-500 hover:text-red-700"
+                              title="Delete prompt"
+                              style={{
+                                WebkitTapHighlightColor: 'transparent',
+                                WebkitTouchCallout: 'none',
+                                WebkitUserSelect: 'none',
+                                userSelect: 'none'
+                              }}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3,6 5,6 21,6"/>
+                                <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
+                              </svg>
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleMobileCancel();
+                            }}
+                            className="imessage-control-btn text-gray-500 hover:text-gray-700"
+                            title="Cancel"
+                            style={{
+                              WebkitTapHighlightColor: 'transparent',
+                              WebkitTouchCallout: 'none',
+                              WebkitUserSelect: 'none',
+                              userSelect: 'none'
+                            }}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="18" y1="6" x2="6" y2="18"/>
+                              <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                     )}
-                    <button
-                      className={`imessage-send-bubble follow-up-question max-w-md ${
-                        isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                      } ${isMobile ? 'touch-manipulation' : ''}`}
-                      onClick={() => {
-                        if (!isLongPressActive) {
-                          handleClick(prompt);
-                        }
-                      }}
-                      onTouchStart={(e) => handleTouchStart(e, index)}
-                      onTouchEnd={handleTouchEnd}
-                      onTouchMove={handleTouchMove}
-                      data-prompt-index={index}
-                      style={{
-                        WebkitTapHighlightColor: 'transparent',
-                        WebkitTouchCallout: 'none',
-                        WebkitUserSelect: 'none',
-                        userSelect: 'none'
-                      }}
-                    >
-                      {renderPromptWithLinks(prompt)}
-                    </button>
                   </div>
                 )}
               </div>
