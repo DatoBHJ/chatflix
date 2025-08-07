@@ -205,7 +205,7 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                   {/* Tooltip */}
                   {showBatteryTooltip && (
                     <div 
-                      className="absolute top-full mt-3 left-1/2 transform -translate-x-1/2 z-50 animate-in fade-in-0 zoom-in-95 duration-200"
+                      className="absolute top-full mt-3 left-1/2 transform -translate-x-3/4 z-50 animate-in fade-in-0 zoom-in-95 duration-200"
                       onMouseEnter={showTooltip}
                       onMouseLeave={hideTooltip}
                     >
