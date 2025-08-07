@@ -1321,21 +1321,39 @@ const MultiSearch: React.FC<{
               .flatMap(r => r.searches || [])
               .find(s => s.query === query);
             
-            // Topic 아이콘 결정
+            // Topic 아이콘과 토픽 정보 결정
             const topicIcon = searchResult?.topicIcon || loadingTopicInfo?.topicIcon || 'search';
+            const topic = searchResult?.topic || loadingTopicInfo?.topic || 'general';
+            
+            // 토픽 이름 매핑 (실제 사용되는 토픽들)
+            const getTopicName = (topic: string) => {
+              switch (topic) {
+                case 'general': return 'General Search';
+                case 'news': return 'News';
+                case 'financial report': return 'Financial Report';
+                case 'company': return 'Company';
+                case 'research paper': return 'Research Paper';
+                case 'pdf': return 'PDF Documents';
+                case 'github': return 'GitHub';
+                case 'personal site': return 'Personal Site';
+                case 'linkedin profile': return 'LinkedIn Profile';
+                default: return 'General Search';
+              }
+            };
             
             return (
               <button
                 key={i}
                 onClick={() => !isLoading && setActiveFilter(query === activeFilter ? null : query)}
                 disabled={isLoading}
-                className={`px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all break-keep text-sm font-medium
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all break-keep text-sm font-medium relative group
                           ${query === activeFilter 
                             ? "bg-[#007AFF] text-white" 
                             : isLoading
                               ? "bg-[var(--accent)] opacity-60 cursor-not-allowed" 
                               : "bg-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_90%,var(--foreground)_5%)]"
                           }`}
+
               >
                 {/* Topic 아이콘 표시 */}
                 {getTopicIconComponent(topicIcon)}
@@ -1350,6 +1368,15 @@ const MultiSearch: React.FC<{
                 {searchResult && searchResult.results.length > 0 && (
                   <span className="text-xs text-[var(--muted)]">({searchResult.results.length})</span>
                 )}
+                
+                {/* 호버 툴팁 */}
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-[var(--foreground)] text-[var(--background)] text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10 shadow-lg">
+                  <div className="flex items-center gap-1.5">
+                    {getTopicIconComponent(topicIcon)}
+                    <span>{getTopicName(topic)}</span>
+                  </div>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-[var(--foreground)]"></div>
+                </div>
               </button>
             );
           })}

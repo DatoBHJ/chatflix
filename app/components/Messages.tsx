@@ -226,7 +226,7 @@ export function Messages({
           return (
             <React.Fragment key={message.id}>
               {showTimestamp && (
-                <div className="message-timestamp" style={index === 0 ? { paddingTop: '0' } : {}}>
+                <div className="message-timestamp" style={{ paddingTop: '0', textTransform: 'none', color: '#737373' }}>
                   {formatMessageGroupTimestamp((message as any).createdAt || new Date())}
                 </div>
               )}
