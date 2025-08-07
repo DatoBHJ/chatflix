@@ -90,9 +90,10 @@ export function useChatInputStyles() {
           color: color-mix(in srgb, var(--muted) 80%, transparent);
           pointer-events: none;
           position: absolute;
-          top: 0;
+          top: 50%;
           left: 0;
           right: 0;
+          transform: translateY(-50%);
           padding: inherit;
           padding-left: 1.1rem;
           font-weight: 400;

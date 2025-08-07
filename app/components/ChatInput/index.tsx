@@ -1544,7 +1544,7 @@ export function ChatInput({
                 onInput={handleInputWithShortcuts}
                 onPaste={handlePaste}
                 onKeyDown={handleKeyDown}
-                className={`futuristic-input ${input.trim() === '' ? 'empty' : ''} w-full transition-colors duration-300 py-1 px-4 rounded-full outline-none text-sm sm:text-base bg-[var(--chat-input-bg)] text-[var(--chat-input-text)] overflow-y-auto min-h-[32px] ${
+                className={`futuristic-input ${input.trim() === '' ? 'empty' : ''} w-full transition-colors duration-300 py-1 px-4 rounded-full outline-none text-sm sm:text-base bg-[var(--chat-input-bg)] text-[var(--chat-input-text)] overflow-y-auto min-h-[32px] flex items-center ${
                   tokenCount > 0 ? 'has-token-counter' : ''
                 }`}
                 data-placeholder={placeholder}
@@ -1565,7 +1565,7 @@ export function ChatInput({
               {/* Token Counter and Tooltip Container */}
               {tokenCount > 0 && !modelId?.includes('chatflix') && (
                 <div 
-                  className="absolute bottom-2 right-2"
+                  className="absolute top-1/2 -translate-y-1/2 right-2"
                   onMouseEnter={() => {
                     setIsHoveringTokenCounter(true);
                     showTokenTooltipFunc();
