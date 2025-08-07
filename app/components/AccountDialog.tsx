@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import ReactDOM from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
@@ -201,6 +201,14 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
   const [editingId, setEditingId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   
+  // Drag states for mobile header
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStartY, setDragStartY] = useState(0)
+  const [currentTranslateY, setCurrentTranslateY] = useState(0)
+  const [modalHeight, setModalHeight] = useState(0)
+  const modalRef = useRef<HTMLDivElement>(null)
+  const headerRef = useRef<HTMLDivElement>(null)
+  
   const [translations, setTranslations] = useState({
     profile: 'Profile',
     appearance: 'Appearance',
@@ -362,6 +370,56 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Initialize modal height on mount
+  useEffect(() => {
+    if (isOpen && isMobile && modalRef.current) {
+      setModalHeight(window.innerHeight * 0.85);
+    }
+  }, [isOpen, isMobile]);
+
+  // Handle touch events for drag functionality
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isMobile) return;
+    setIsDragging(true);
+    setDragStartY(e.touches[0].clientY);
+    setCurrentTranslateY(0);
+  }, [isMobile]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isMobile || !isDragging) return;
+    e.preventDefault();
+    
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - dragStartY;
+    
+    // Only allow downward dragging
+    if (diff > 0) {
+      setCurrentTranslateY(diff);
+    }
+  }, [isMobile, isDragging, dragStartY]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!isMobile || !isDragging) return;
+    
+    setIsDragging(false);
+    
+    // If dragged down more than 100px, close the modal
+    if (currentTranslateY > 100) {
+      onClose();
+    } else {
+      // Reset position
+      setCurrentTranslateY(0);
+    }
+  }, [isMobile, isDragging, currentTranslateY, onClose]);
+
+  // Reset drag state when modal opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setIsDragging(false);
+      setCurrentTranslateY(0);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (user?.id && isOpen) {
@@ -1281,11 +1339,31 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
       }}
     >
       <div 
+        ref={modalRef}
         className="w-full bg-[var(--background)] flex flex-col shadow-xl overflow-hidden rounded-t-2xl sm:rounded-2xl sm:w-[800px] sm:h-[600px] h-[85vh] border border-[var(--accent)]"
         onClick={e => e.stopPropagation()}
+        style={{
+          transform: isMobile ? `translateY(${currentTranslateY}px)` : 'none',
+          transition: isDragging ? 'none' : 'transform 0.3s ease-out',
+          height: isMobile ? `${modalHeight}px` : '85vh'
+        }}
       >
-        <div className="sm:hidden text-center pt-4 pb-2 shrink-0">
-          <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto" />
+        {/* Draggable Header for Mobile */}
+        <div 
+          ref={headerRef}
+          className="sm:hidden shrink-0"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          style={{ touchAction: 'none' }}
+        >
+          <div className="text-center pt-4 pb-2">
+            <div 
+              className={`w-12 h-1.5 rounded-full mx-auto transition-colors duration-200 ${
+                isDragging ? 'bg-gray-400 dark:bg-gray-600' : 'bg-gray-300 dark:bg-gray-700'
+              }`} 
+            />
+          </div>
         </div>
         
         {/* Mobile Layout */}
@@ -1313,7 +1391,14 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
                   : translations.settings}
               </h2>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto" key={mobileView || 'main'}>
+            <div 
+              className="flex-1 min-h-0 overflow-y-auto" 
+              key={mobileView || 'main'}
+              style={{ 
+                touchAction: isDragging ? 'none' : 'pan-y',
+                pointerEvents: isDragging ? 'none' : 'auto'
+              }}
+            >
               {mobileView ? renderContentByTab(mobileView) : renderMobileList()}
             </div>
           </div>
