@@ -20,7 +20,6 @@ export interface SuggestedPromptProps {
 export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisible = true }: SuggestedPromptProps) {
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>(DEFAULT_PROMPTS);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const [isUserInfoLoading, setIsUserInfoLoading] = useState(true);
   const [hoveredPromptIndex, setHoveredPromptIndex] = useState<number>(-1);
   const [isEditing, setIsEditing] = useState(false);
   const [editingPromptIndex, setEditingPromptIndex] = useState<number>(-1);
@@ -30,7 +29,6 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   const [newPromptContent, setNewPromptContent] = useState<string>('');
   const [userName, setUserName] = useState<string>('You');
   const [isMobile, setIsMobile] = useState(false);
-  const [userCreatedAt, setUserCreatedAt] = useState<Date | null>(null);
   
   // 롱프레스 관련 상태
   const [longPressIndex, setLongPressIndex] = useState<number>(-1);
@@ -130,42 +128,26 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     }
   };
 
-  // 사용자 이름과 가입일 로드 함수
-  const loadUserInfo = async () => {
+  // 사용자 이름 로드 함수
+  const loadUserName = async () => {
     if (!userId) {
-      setIsUserInfoLoading(false);
       return;
     }
     
     try {
-      setIsUserInfoLoading(true);
-      
-      // 사용자 이름과 가입일을 병렬로 가져오기
-      const [nameResult, userResult] = await Promise.all([
-        fetchUserName(userId, supabase).catch(() => 'You'),
-        supabase.auth.getUser()
-      ]);
-      
+      const nameResult = await fetchUserName(userId, supabase).catch(() => 'You');
       setUserName(nameResult);
-      
-      if (!userResult.error && userResult.data.user && userResult.data.user.created_at) {
-        setUserCreatedAt(new Date(userResult.data.user.created_at));
-      }
     } catch (error) {
-      console.error('Error loading user info:', error);
+      console.error('Error loading user name:', error);
       setUserName('You');
-      setUserCreatedAt(null);
-    } finally {
-      setIsUserInfoLoading(false);
     }
   };
 
   // 사용자 ID 변경 시 프롬프트와 이름 불러오기
   useEffect(() => {
     setIsInitialLoading(true);
-    setIsUserInfoLoading(true);
     loadUserPrompts();
-    loadUserInfo();
+    loadUserName();
   }, [userId]);
 
   // 모바일 감지
@@ -413,7 +395,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   };
 
   // 초기 로딩 중이거나 사용자 정보 로딩 중에는 아무것도 보여주지 않음
-  if (isInitialLoading || isUserInfoLoading) {
+  if (isInitialLoading) {
     return <div className={`min-h-16 relative flex items-center justify-end ${className}`}></div>;
   }
 
@@ -437,7 +419,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                   <span>hey</span>
                 </div>
                 <div className="text-xs text-neutral-500 mt-1 pr-1">
-                  {userCreatedAt ? formatMessageTime(userCreatedAt) : ''}
+                  {formatMessageTime(new Date())}
                 </div>
               </div>
             </div>

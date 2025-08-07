@@ -661,7 +661,7 @@ export default function Home() {
                 
                 {/* Date display - centered at the top */}
                 <div className="message-timestamp" style={{ paddingTop: '0', textTransform: 'none', color: '#737373' }}>
-                  {formatMessageGroupTimestamp(new Date())}
+                  {user?.created_at ? formatMessageGroupTimestamp(new Date(user.created_at)) : formatMessageGroupTimestamp(new Date())}
                 </div>
                 
                 {/* Center section for suggested prompts */}
@@ -697,7 +697,7 @@ export default function Home() {
                   
                   {/* Date display - centered at the top */}
                   <div className="message-timestamp" style={{ paddingTop: '0', textTransform: 'none', color: '#737373' }}>
-                    {formatMessageGroupTimestamp(new Date())}
+                    {user?.created_at ? formatMessageGroupTimestamp(new Date(user.created_at)) : formatMessageGroupTimestamp(new Date())}
                   </div>
                   
                   {/* Center section for suggested prompts */}
