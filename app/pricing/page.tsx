@@ -237,7 +237,7 @@ export default function PricingPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-2 pt-10 sm:pt-20">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-2 py-4">
       <div className="w-full max-w-md mx-auto animate-fade-in">
         {/* 카드 */}
         <div className="bg-white/90 dark:bg-black/80 backdrop-blur-2xl border border-black/5 dark:border-white/10 rounded-2xl p-0 shadow-2xl shadow-black/10 dark:shadow-black/60"

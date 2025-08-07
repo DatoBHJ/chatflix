@@ -264,7 +264,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
           }}
         >
           {/* Header with toggle button */}
-          {user && (
+          {user && pathname !== '/pricing' && (
             <Header 
               isSidebarOpen={isSidebarOpen}
               toggleSidebar={toggleSidebar}
