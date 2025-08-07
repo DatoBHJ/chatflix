@@ -548,7 +548,11 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                       <button
                         className={`imessage-send-bubble follow-up-question max-w-md ${
                           isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                        } ${isMobile ? 'touch-manipulation' : ''}`}
+                        } ${isMobile ? 'touch-manipulation' : ''} ${
+                          isMobile && showMobileActions && longPressIndex === index 
+                            ? 'scale-105 shadow-lg transform transition-all duration-200 ease-out' 
+                            : 'transition-all duration-200 ease-out'
+                        }`}
                         onClick={() => {
                           if (!isLongPressActive) {
                             handleClick(prompt);
@@ -572,7 +576,11 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                     {/* 모바일 롱프레스 버튼들 - 각 메시지 바로 아래에 표시 */}
                     {isMobile && showMobileActions && longPressIndex === index && (
                       <div className="flex items-center justify-end gap-2 w-full">
-                        <div className="flex items-center gap-2 opacity-100 transition-opacity duration-300">
+                        <div className={`flex items-center gap-2 opacity-100 transition-all duration-200 ease-out ${
+                          isMobile && showMobileActions && longPressIndex === index 
+                            ? 'scale-105 transform' 
+                            : ''
+                        }`}>
                           <button
                             onClick={(e) => {
                               e.preventDefault();
