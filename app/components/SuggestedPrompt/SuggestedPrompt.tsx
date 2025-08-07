@@ -513,31 +513,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                     </button>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-end gap-2 w-full">
-                    <button
-                      className={`imessage-send-bubble follow-up-question max-w-md ${
-                        isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                      } ${isMobile ? 'touch-manipulation' : ''}`}
-                      onClick={() => {
-                        if (!isLongPressActive) {
-                          handleClick(prompt);
-                        }
-                      }}
-                      onTouchStart={(e) => handleTouchStart(e, index)}
-                      onTouchEnd={handleTouchEnd}
-                      onTouchMove={handleTouchMove}
-                      data-prompt-index={index}
-                      style={{
-                        WebkitTapHighlightColor: 'transparent',
-                        WebkitTouchCallout: 'none',
-                        WebkitUserSelect: 'none',
-                        userSelect: 'none'
-                      }}
-                    >
-                      {renderPromptWithLinks(prompt)}
-                    </button>
-                    
-                    {/* 데스크탑 호버 버튼들 */}
+                  <div className="flex items-center justify-end gap-2 w-full">
                     {!isMobile && (
                       <div className={`flex items-center gap-2 transition-opacity duration-300 ${
                         hoveredPromptIndex === index ? 'opacity-100' : 'opacity-0'
@@ -566,8 +542,6 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                         )}
                       </div>
                     )}
-                    
-                    {/* 모바일 롱프레스 버튼들 */}
                     {isMobile && showMobileActions && longPressIndex === index && (
                       <div className="flex items-center gap-2 opacity-100 transition-opacity duration-300">
                         <button
@@ -634,6 +608,28 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                         </button>
                       </div>
                     )}
+                    <button
+                      className={`imessage-send-bubble follow-up-question max-w-md ${
+                        isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                      } ${isMobile ? 'touch-manipulation' : ''}`}
+                      onClick={() => {
+                        if (!isLongPressActive) {
+                          handleClick(prompt);
+                        }
+                      }}
+                      onTouchStart={(e) => handleTouchStart(e, index)}
+                      onTouchEnd={handleTouchEnd}
+                      onTouchMove={handleTouchMove}
+                      data-prompt-index={index}
+                      style={{
+                        WebkitTapHighlightColor: 'transparent',
+                        WebkitTouchCallout: 'none',
+                        WebkitUserSelect: 'none',
+                        userSelect: 'none'
+                      }}
+                    >
+                      {renderPromptWithLinks(prompt)}
+                    </button>
                   </div>
                 )}
               </div>
