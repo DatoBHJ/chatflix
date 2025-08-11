@@ -18,7 +18,7 @@ export interface ModelConfig {
   isAgentEnabled?: boolean;
   isNew?: boolean; // Mark model as new
   isHot?: boolean; // Mark model as hot/trending
-  reasoning?: {
+  reasoningText?: {
     enabled: boolean;
     provider?: 'openai' | 'groq' | 'together' | 'anthropic' | 'deepseek' | 'google' | 'xai' ;  
     baseModelId?: string; 
@@ -286,7 +286,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   isEnabled: true,
   isActivated: true,
   isAgentEnabled: true,
-  reasoning: {
+  reasoningText: {
     enabled: true,
     provider: 'anthropic',
     baseModelId: 'claude-3-7-sonnet-20250219',
@@ -313,7 +313,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   isEnabled: true,
   isActivated: true,
   isAgentEnabled: true,
-  reasoning: {
+  reasoningText: {
     enabled: true,
     provider: 'anthropic',
     baseModelId: 'claude-3-7-sonnet-20250219',
@@ -359,7 +359,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level2',
     },
-    reasoning: {
+    reasoningText: {
       enabled: true,
       provider: 'xai',
     },
@@ -383,7 +383,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level2',
     },
-    reasoning: {
+    reasoningText: {
       enabled: true,
       provider: 'xai',
     },
@@ -461,7 +461,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isEnabled: true,
     isActivated: true,
     isAgentEnabled: true,
-    reasoning: {
+    reasoningText: {
       enabled: true,
       provider: 'anthropic',
       baseModelId: 'claude-sonnet-4-20250514',
@@ -496,6 +496,113 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     tps: 82,
     latency: 1.5,
     maxOutputTokens: 64000,
+  },
+  // GPT-5
+  {
+    id: 'gpt-5',
+    name: 'GPT-5',
+    cutoff: 'Oct 2024',
+    abbreviation: 'G5',
+    country: 'US',
+    provider: 'openai',
+    supportsVision: true,
+    rateLimit: {
+      level: 'level5',
+    },
+    reasoningText: {
+      enabled: true,
+      provider: 'openai',
+      baseModelId: 'gpt-5',
+    },
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: false,
+    isAgentEnabled: true,
+    contextWindow: 400000,
+    // tps: 119,
+    // intelligenceIndex: 53,
+    // latency: 0.4,
+    maxOutputTokens: 128000,
+  },
+  // GPT-5 Mini
+  {
+    id: 'gpt-5-mini',
+    name: 'GPT-5 Mini',
+    cutoff: 'Oct 2024',
+    abbreviation: 'G5M',
+    country: 'US',
+    provider: 'openai',
+    supportsVision: true,
+    rateLimit: {
+      level: 'level1',
+    },
+    reasoningText: {
+      enabled: true,
+      provider: 'openai',
+      baseModelId: 'gpt-5-mini',
+    },
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: false,
+    isAgentEnabled: true,
+    contextWindow: 400000,
+    // tps: 69,
+    // intelligenceIndex: 53,
+    // latency: 0.4,
+    maxOutputTokens: 128000,
+  },
+  {
+    id: 'gpt-5-nano',
+    name: 'GPT-5 Nano',
+    cutoff: 'Oct 2024',
+    abbreviation: 'G5N',
+    country: 'US',
+    provider: 'openai',
+    supportsVision: true,
+    rateLimit: {
+      level: 'level1',
+    },
+    reasoningText: {
+      enabled: true,
+      provider: 'openai',
+      baseModelId: 'gpt-5-nano',
+    },
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: false,
+    isAgentEnabled: true,
+    contextWindow: 400000,
+    // tps: 153,
+    // intelligenceIndex: 41,
+    // latency: 0.3,
+    maxOutputTokens: 128000,
+  },
+   // ChatGPT-5 (Aug '25)
+   {
+    id: 'gpt-5-chat-latest',
+    name: 'ChatGPT-5',
+    cutoff: 'Sep 2024',
+    abbreviation: 'CG5',
+    country: 'US',
+    provider: 'openai',
+    supportsVision: true,
+    rateLimit: {
+      level: 'level5',
+    },
+    reasoningText: {
+      enabled: true,
+      provider: 'openai',
+      baseModelId: 'gpt-5-chat-latest',
+    },
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: false,
+    isAgentEnabled: false,
+    contextWindow: 400000,
+    // tps: 174,
+    // intelligenceIndex: 40,
+    // latency: 0.5,
+    maxOutputTokens: 128000,
   },
   // GPT-4.1
   {
@@ -618,7 +725,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: "level4",
     },
-    reasoning: {
+    reasoningText: {
       enabled: true,
       provider: 'openai',
       baseModelId: 'o4-mini',
@@ -762,7 +869,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level3',
     },
-    reasoning: {
+    reasoningText: {
       enabled: true,
       provider: 'groq',
       baseModelId: 'openai/gpt-oss-120b',
@@ -789,7 +896,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level3',
     },
-    reasoning: {
+    reasoningText: {
       enabled: true,
       provider: 'groq',
       baseModelId: 'openai/gpt-oss-120b',
@@ -883,7 +990,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level3',
     },
-    reasoning: {
+    reasoningText: {
       enabled: true,
       provider: 'groq',
       baseModelId: 'qwen/qwen3-32b',
@@ -912,7 +1019,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level1',
     },
     supportsPDFs: false,
-    reasoning: {
+    reasoningText: {
       enabled: true,
       provider: 'deepseek',
       baseModelId: 'deepseek-reasoner',
@@ -960,7 +1067,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level3',
     },
     supportsPDFs: false,
-    reasoning: {
+    reasoningText: {
       enabled: true,
       provider: 'together',
       baseModelId: 'Qwen/Qwen3-235B-A22B-fp8-tput',
@@ -988,7 +1095,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level3',
     },
     supportsPDFs: false,
-    reasoning: {
+    reasoningText: {
       enabled: true,
       provider: 'together',
       baseModelId: 'deepseek-ai/DeepSeek-R1',
