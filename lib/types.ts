@@ -11,7 +11,7 @@ export interface TextMessagePart extends BaseMessagePart {
 
 export interface ReasoningMessagePart extends BaseMessagePart {
   type: 'reasoning';
-  reasoning: string;
+  reasoningText: string;
 }
 
 export type MessagePart = TextMessagePart | ReasoningMessagePart;
@@ -19,7 +19,7 @@ export type MessagePart = TextMessagePart | ReasoningMessagePart;
 export interface CompletionStep {
   stepType: string;
   text: string;
-  reasoning?: string;
+  reasoningText?: string;
   finishReason?: string;
 }
 
@@ -70,7 +70,7 @@ export interface Attachment {
 export interface DatabaseMessage {
   id: string;
   content: string;
-  reasoning?: string;
+  reasoningText?: string;
   role: 'user' | 'assistant';
   created_at: string;
   model: string;
@@ -96,5 +96,5 @@ export interface ModelConfig {
   baseURL: string
   apiKey: string
   temperature: number
-  maxTokens: number
+  maxOutputTokens: number
 } 

@@ -11,7 +11,6 @@ interface ChatInputAreaProps {
   currentModel: string
   nextModel: string
   setNextModel: React.Dispatch<React.SetStateAction<string>>
-  setCurrentModel: React.Dispatch<React.SetStateAction<string>>
   disabledLevels: string[]
   isAgentEnabled: boolean
   onAgentAvailabilityChange: (hasAgentModels: boolean) => void
@@ -32,6 +31,16 @@ interface ChatInputAreaProps {
   
   // Messages for token counting
   allMessages?: any[] // 전체 대화 메시지 (대화창에서만 사용)
+  
+  // Global drag and drop props
+  globalDragActive?: boolean
+  globalShowPDFError?: boolean
+  globalShowFolderError?: boolean
+  globalShowVideoError?: boolean
+  
+  // 도구 선택 관련 props
+  selectedTool?: string | null
+  setSelectedTool?: React.Dispatch<React.SetStateAction<string | null>>
 }
 
 export function ChatInputArea({
@@ -39,7 +48,6 @@ export function ChatInputArea({
   currentModel,
   nextModel,
   setNextModel,
-  setCurrentModel,
   disabledLevels,
   isAgentEnabled,
   onAgentAvailabilityChange,
@@ -59,7 +67,17 @@ export function ChatInputArea({
   disabled = false,
   
   // Messages
-  allMessages = []
+  allMessages = [],
+  
+  // Global drag and drop props
+  globalDragActive = false,
+  globalShowPDFError = false,
+  globalShowFolderError = false,
+  globalShowVideoError = false,
+  
+  // 도구 선택 관련 props
+  selectedTool,
+  setSelectedTool
 }: ChatInputAreaProps) {
   const { isSidebarOpen, isHovering, isMobile } = useSidebar()
   
@@ -73,7 +91,6 @@ export function ChatInputArea({
           currentModel={currentModel}
           nextModel={nextModel}
           setNextModel={setNextModel}
-          setCurrentModel={setCurrentModel}
           disabled={disabled}
           disabledLevels={disabledLevels}
           isAgentEnabled={isAgentEnabled}
@@ -92,6 +109,12 @@ export function ChatInputArea({
           isAgentEnabled={isAgentEnabled}
           setisAgentEnabled={setisAgentEnabled}
           allMessages={allMessages}
+          globalDragActive={globalDragActive}
+          globalShowPDFError={globalShowPDFError}
+          globalShowFolderError={globalShowFolderError}
+          globalShowVideoError={globalShowVideoError}
+          selectedTool={selectedTool}
+          setSelectedTool={setSelectedTool}
         />
       </div>
     )
@@ -102,14 +125,14 @@ export function ChatInputArea({
     <div className={`fixed bottom-0 z-10 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
       shouldShowSidebar ? 'left-0 right-0 md:left-80' : 'left-0 right-0'
     }`}>
-      <div className="bg-gradient-to-t from-[var(--background)] from-70% to-transparent md:from-20% md:via-[var(--background)]/90 md:via-30% md:to-[var(--background)]/40 md:to-70% pt-2 md:pt-20 pb-6 w-full">
+      <div className="bg-gradient-to-t from-[var(--background)] via-[var(--background)]/60 to-transparent pt-2 md:pt-8 pb-6 w-full">
+      {/* <div className="pt-3 md:pt-4 pb-6 w-full backdrop-blur-md bg-white/80 dark:bg-black/80"> */}
         <div className="max-w-3xl mx-auto w-full px-0 sm:px-8 relative flex flex-col items-center">
-                      <div className="w-full max-w-[calc(100vw-2rem)] space-y-1">
+          <div className="w-full max-w-[calc(100vw-2rem)] space-y-1">
             <ModelSelector
               currentModel={currentModel}
               nextModel={nextModel}
               setNextModel={setNextModel}
-              setCurrentModel={setCurrentModel}
               position="top"
               disabledLevels={disabledLevels}
               isAgentEnabled={isAgentEnabled}
@@ -127,6 +150,8 @@ export function ChatInputArea({
               isAgentEnabled={isAgentEnabled}
               setisAgentEnabled={setisAgentEnabled}
               allMessages={allMessages}
+              selectedTool={selectedTool}
+              setSelectedTool={setSelectedTool}
             />
           </div>
         </div>

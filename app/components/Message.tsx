@@ -1,4 +1,4 @@
-import type { Message as AIMessage } from 'ai'
+import type { UIMessage as AIMessage } from 'ai'
 import { MarkdownContent } from './MarkdownContent' 
 import { ExtendedMessage } from '../chat/[id]/types'
 import { Attachment } from '@/lib/types'
@@ -23,18 +23,19 @@ import { FollowUpQuestions } from './FollowUpQuestions'
 import { User } from '@supabase/supabase-js'
 import { getMessageComponentTranslations } from '@/app/lib/messageComponentTranslations';
 import { AlertTriangle } from 'lucide-react';
+import { TypingIndicator } from './TypingIndicator';
 
 
 interface MessageProps {
-  message: AIMessage & { experimental_attachments?: Attachment[] }
+  message: any & { experimental_attachments?: Attachment[] }
   currentModel: string
   isRegenerating: boolean
   editingMessageId: string | null
   editingContent: string
   copiedMessageId: string | null
   onRegenerate: (messageId: string) => (e: React.MouseEvent) => void
-  onCopy: (message: AIMessage) => void
-  onEditStart: (message: AIMessage) => void
+  onCopy: (message: any) => void
+  onEditStart: (message: any) => void
   onEditCancel: () => void
   onEditSave: (messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => void // 브라우저 File 타입 명시
   setEditingContent: (content: string) => void
@@ -49,18 +50,19 @@ interface MessageProps {
   mathCalculationData?: any
   linkReaderData?: any
   imageGeneratorData?: any
-  academicSearchData?: any
+
   xSearchData?: any
   youTubeSearchData?: any
   youTubeLinkAnalysisData?: any
   user?: User | null
   handleFollowUpQuestionClick?: (question: string) => Promise<void>
-  allMessages?: AIMessage[]
+  allMessages?: any[]
   isGlobalLoading?: boolean
   imageMap?: { [key: string]: string }
   isBookmarked?: boolean
   onBookmarkToggle?: (messageId: string, shouldBookmark: boolean) => Promise<void>
   isBookmarksLoading?: boolean
+  searchTerm?: string | null // 🚀 FEATURE: Search term for highlighting
 }
 
 function isReasoningComplete(message: any): boolean {
@@ -139,7 +141,7 @@ const Message = memo(function MessageComponent({
   mathCalculationData,
   linkReaderData,
   imageGeneratorData,
-  academicSearchData,
+
   xSearchData,
   youTubeSearchData,
   youTubeLinkAnalysisData,
@@ -151,6 +153,7 @@ const Message = memo(function MessageComponent({
   isBookmarked,
   onBookmarkToggle,
   isBookmarksLoading,
+  searchTerm, // 🚀 FEATURE: Search term for highlighting
 }: MessageProps) {
 
   // Pre-compiled regex for better performance
@@ -167,7 +170,7 @@ const Message = memo(function MessageComponent({
     }
     
     // Process placeholders only when necessary
-    return content.replace(IMAGE_ID_REGEX, (match, imageId) => {
+    return content.replace(IMAGE_ID_REGEX, (match: string, imageId: string) => {
       // Only show image if imageMap exists AND has the specific URL
       if (imageMap && Object.keys(imageMap).length > 0) {
         const imageUrl = imageMap[imageId];
@@ -185,7 +188,7 @@ const Message = memo(function MessageComponent({
   const processedParts = useMemo(() => {
     if (!message.parts) return null;
     
-    return message.parts.map(part => {
+    return message.parts.map((part: any) => {
       if (part.type === 'text' && part.text) {
         // Quick check for performance
         if (!part.text.includes('[IMAGE_ID:')) {
@@ -194,7 +197,7 @@ const Message = memo(function MessageComponent({
         
         return {
           ...part,
-          text: part.text.replace(IMAGE_ID_REGEX, (match, imageId) => {
+          text: part.text.replace(IMAGE_ID_REGEX, (match: string, imageId: string) => {
             if (imageMap && Object.keys(imageMap).length > 0) {
               const imageUrl = imageMap[imageId];
               if (imageUrl) {
@@ -281,34 +284,26 @@ const Message = memo(function MessageComponent({
   };
 
   // Reasoning part state management
-  const reasoningPart = message.parts?.find(part => part.type === 'reasoning');
+  const reasoningPart = message.parts?.find((part: any) => part.type === 'reasoning');
   const reasoningComplete = isReasoningComplete(message);
   const loadingReasoningKey = `${message.id}-reasoning-loading`;
   const completeReasoningKey = `${message.id}-reasoning-complete`;
   
   // Auto-expand/collapse logic for reasoning parts
   useEffect(() => {
-    if (reasoningPart) {
-      const loadingUserOverride = userOverrideReasoningPartRef.current[loadingReasoningKey];
-      const completeUserOverride = userOverrideReasoningPartRef.current[completeReasoningKey];
-      
-      // Handle loading state reasoning
-      if (loadingUserOverride === null || loadingUserOverride === undefined) {
-        setReasoningPartExpanded(prev => ({
-          ...prev,
-          [loadingReasoningKey]: !reasoningComplete
-        }));
+    if (!reasoningPart) return;
+    setReasoningPartExpanded(prev => {
+      const next = { ...prev } as Record<string, boolean>;
+      // Initialize keys only once to avoid update loops
+      if (next[loadingReasoningKey] === undefined) {
+        next[loadingReasoningKey] = !reasoningComplete;
       }
-      
-      // Handle complete state reasoning
-      if (completeUserOverride === null || completeUserOverride === undefined) {
-        setReasoningPartExpanded(prev => ({
-          ...prev,
-          [completeReasoningKey]: !reasoningComplete
-        }));
+      if (next[completeReasoningKey] === undefined) {
+        next[completeReasoningKey] = !reasoningComplete;
       }
-    }
-  }, [reasoningComplete, loadingReasoningKey, completeReasoningKey, reasoningPart]);
+      return next;
+    });
+  }, [reasoningPart, reasoningComplete, loadingReasoningKey, completeReasoningKey]);
   
   // 프리미엄 업그레이드 버튼 클릭 핸들러 (최상위 레벨에 배치)
   const router = useRouter(); // useRouter 사용
@@ -318,14 +313,43 @@ const Message = memo(function MessageComponent({
     router.push('/pricing'); // 주석 해제
   }, [router]); // router 의존성 추가
 
+  // AI SDK 5: parts 배열에서 첨부파일 추출하거나 기존 experimental_attachments 사용
+  const attachmentsFromParts = useMemo(() => {
+    if (message.parts && Array.isArray(message.parts)) {
+      return message.parts
+        .filter((part: any) => part.type === 'image' || part.type === 'file')
+        .map((part: any, index: number) => {
+          if (part.type === 'image') {
+            return {
+              name: `image-${index}`,
+              contentType: 'image/jpeg',
+              url: part.image,
+              fileType: 'image' as const
+            };
+          } else if (part.type === 'file') {
+            return {
+              name: part.filename || `file-${index}`,
+              contentType: part.mediaType || 'application/octet-stream',
+              url: part.url,
+              fileType: 'file' as const
+            };
+          }
+        })
+        .filter(Boolean);
+    }
+    return [];
+  }, [message.parts]);
+  
+  const allAttachments = message.experimental_attachments || attachmentsFromParts;
+
   // 편집 시작 시 기존 첨부파일들을 편집 상태로 복사
   useEffect(() => {
-    if (editingMessageId === message.id && message.experimental_attachments) {
-      const attachments = message.experimental_attachments;
+    if (editingMessageId === message.id && allAttachments && allAttachments.length > 0) {
+      const attachments = (allAttachments as any[]);
       const files: globalThis.File[] = [];
       const fileMap = new Map<string, { file: globalThis.File, url: string }>();
 
-      attachments.forEach((attachment, index) => {
+      attachments.forEach((attachment: any, index: number) => {
         // Create a File-like object from attachment
         const file = new globalThis.File(
           [new Blob()], // 실제 파일 내용은 필요없고 메타데이터만 유지
@@ -352,7 +376,7 @@ const Message = memo(function MessageComponent({
       setEditingFiles([]);
       setEditingFileMap(new Map());
     }
-  }, [editingMessageId, message.id, message.experimental_attachments]);
+  }, [editingMessageId, message.id, allAttachments]);
 
   // 파일 추가 핸들러
   const handleFileSelect = useCallback(async () => {
@@ -568,7 +592,7 @@ const Message = memo(function MessageComponent({
   const isCopied = copiedMessageId === message.id;
   const isAssistant = message.role === 'assistant';
   const isUser = message.role === 'user';
-  const hasAttachments = message.experimental_attachments && message.experimental_attachments.length > 0;
+  const hasAttachments = allAttachments && allAttachments.length > 0;
   const hasContent = message.content && message.content.trim().length > 0;
   
 
@@ -579,7 +603,6 @@ const Message = memo(function MessageComponent({
       mathCalculationData ||
       linkReaderData ||
       imageGeneratorData ||
-      academicSearchData ||
       xSearchData ||
       youTubeSearchData ||
       youTubeLinkAnalysisData
@@ -589,7 +612,6 @@ const Message = memo(function MessageComponent({
     mathCalculationData,
     linkReaderData,
     imageGeneratorData,
-    academicSearchData,
     xSearchData,
     youTubeSearchData,
     youTubeLinkAnalysisData
@@ -667,16 +689,17 @@ const Message = memo(function MessageComponent({
 
   const hasTextContent = useMemo(() => {
     if (message.content) return true;
-    if (message.parts?.some(p => p.type === 'text' && p.text)) return true;
+    if (message.parts?.some((p: any) => p.type === 'text' && p.text)) return true;
     return false;
   }, [message]);
 
   const hasAnyRenderableContent = useMemo(() => {
     if (message.content) return true;
-    if (message.parts?.some(p => p.type === 'text' && p.text)) return true;
+    if (message.parts?.some((p: any) => p.type === 'text' && p.text)) return true;
     if (structuredDescription) return true;
     if (hasAttachments) return true;
-    if (hasActualCanvasData) return true;
+    // 도구 데이터만 있고 실제 텍스트 컨텐츠가 없으면 false 반환
+    if (hasActualCanvasData && !message.content && !message.parts?.some((p: any) => p.type === 'text' && p.text)) return false;
     return false;
   }, [message, structuredDescription, hasAttachments, hasActualCanvasData]);
 
@@ -725,14 +748,13 @@ const Message = memo(function MessageComponent({
         mathCalculationData={mathCalculationData}
         linkReaderData={linkReaderData}
         imageGeneratorData={imageGeneratorData}
-        academicSearchData={academicSearchData}
+
         xSearchData={xSearchData}
         youTubeSearchData={youTubeSearchData}
         youTubeLinkAnalysisData={youTubeLinkAnalysisData}
         messageId={message.id}
         togglePanel={togglePanel}
       />
-      
       {/* Rate Limit Status Message */}
       {rateLimitAnnotation && (
         <div className="flex justify-start mb-4">
@@ -775,7 +797,6 @@ const Message = memo(function MessageComponent({
           </div>
         </div>
       )}
-
       <div className={`flex ${isUser ? `justify-end` : `justify-start`}`}>
         {isUser ? (
           <div className="w-full" style={{ minHeight: containerMinHeight }}>
@@ -855,7 +876,7 @@ const Message = memo(function MessageComponent({
             ) : (
               <div ref={viewRef}>
                 <div className="flex flex-col items-end gap-0">
-                  {hasAttachments && message.experimental_attachments!.map((attachment, index) => (
+                  {hasAttachments && (allAttachments as any[])!.map((attachment: any, index: number) => (
                     <AttachmentPreview 
                       key={`${message.id}-att-${index}`} 
                       attachment={attachment} 
@@ -864,19 +885,52 @@ const Message = memo(function MessageComponent({
                       togglePanel={togglePanel}
                     />
                   ))}
-                  {hasContent && (() => {
-                    const urlRegex = /(https?:\/\/[^\s]+)/g;
-                    const urls = message.content.match(urlRegex) || [];
-                    return urls.map((url, index) => (
+                  {(() => {
+                    // Prefer parts text when content is empty
+                    const sourceText = hasContent
+                      ? processedContent
+                      : (processedParts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n') || '');
+                    if (!sourceText) return null;
+                    
+                    // 더 정확한 URL 감지 - HTML 속성이나 코드 내의 URL은 제외
+                    const urlRegex = /(https?:\/\/[^\s"'<>]+)/g;
+                    const matches = sourceText.match(urlRegex) || [];
+                    
+                    // URL 유효성 검사 및 필터링
+                    const validUrls = matches.filter((url: string) => {
+                      try {
+                        const parsedUrl = new URL(url);
+                        // HTML 속성이나 코드 내의 URL 제외
+                        if (url.includes('xmlns=') || url.includes('href=') || url.includes('src=')) {
+                          return false;
+                        }
+                        // 네임스페이스 URL 제외
+                        if (parsedUrl.hostname === 'www.w3.org' && parsedUrl.pathname.includes('/2000/svg')) {
+                          return false;
+                        }
+                        // 일반적인 웹사이트 URL만 허용
+                        return ['http:', 'https:'].includes(parsedUrl.protocol);
+                      } catch {
+                        return false;
+                      }
+                    });
+                    
+                    return validUrls.map((url: string, index: number) => (
                       <LinkPreview key={`${message.id}-url-${index}`} url={url} />
                     ));
                   })()}
-                  {hasContent && (
+                  {(hasTextContent) && (
                     <div className="imessage-send-bubble" ref={bubbleRef}>
-                      <UserMessageContent content={message.content} />
+                      <UserMessageContent 
+                        content={
+                          hasContent 
+                            ? processedContent 
+                            : (processedParts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n') || '')
+                        } 
+                      />
                     </div>
                   )}
-                  <div className="text-xs text-neutral-500 mt-1 pr-1">
+                  <div className="text-[10px] text-neutral-500 mt-1 pr-1">
                     {formatMessageTime((message as any).createdAt || new Date())}
                   </div>
                 </div>
@@ -913,20 +967,20 @@ const Message = memo(function MessageComponent({
           </div>
         ) : (
           <>
-          {(hasAnyContent || structuredDescription) && (
+          {(hasAnyRenderableContent || structuredDescription) && (
             <div className="imessage-receive-bubble" ref={aiBubbleRef}>
-              <div className="imessage-content-wrapper">
+              <div className="imessage-content-wrapper space-y-4">
                 {/* 기존 컨텐츠 렌더링 로직 */}
-              {hasAttachments && message.experimental_attachments!.map((attachment, index) => (
+              {hasAttachments && (allAttachments as any[])!.map((attachment: any, index: number) => (
                 <AttachmentPreview key={`${message.id}-att-${index}`} attachment={attachment} />
               ))}
             
-            {message.parts ? (
-                    processedParts?.map((part, index) => (
-                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant && !isFileGenerationRelated} />
+              {message.parts ? (
+                    processedParts?.map((part: any, index: number) => (
+                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} />
                   ))
                         ) : (
-                      (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant && !isFileGenerationRelated} />
+                      (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} />
                   )}
                   
                   <FilesPreview
@@ -946,112 +1000,100 @@ const Message = memo(function MessageComponent({
         </>
       )}
     </div>
-    {isAssistant && !isStreaming && (
-      <div className="flex justify-start mt-2 gap-2 items-center opacity-100 transition-opacity duration-300">
-        <button 
-          onClick={onRegenerate(message.id)}
-          disabled={isRegenerating}
-          className={`imessage-control-btn ${isRegenerating ? 'loading' : ''}`}
-          title="Regenerate response"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isRegenerating ? 'animate-spin' : ''}>
-            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
-            <path d="M21 3v5h-5"/>
-            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
-            <path d="M3 21v-5h5"/>
-          </svg>
-        </button>
-        <button
-          onClick={() => onCopy(message)}
-          className={`imessage-control-btn ${isCopied ? 'copied' : ''}`}
-          title={isCopied ? "Copied!" : "Copy message"}
-        >
-          {isCopied ? (
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20,6 9,17 4,12"/>
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-            </svg>
-          )}
-        </button>
-        <button
-          onClick={toggleBookmark}
-          className={`imessage-control-btn ${isBookmarked ? 'bookmarked' : ''} ${isBookmarksLoading ? 'loading' : ''}`}
-          title={isBookmarked ? "Remove bookmark" : "Bookmark message"}
-          disabled={isBookmarksLoading}
-        >
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            width="14" 
-            height="14" 
-            viewBox="0 0 24 24" 
-            fill={isBookmarked ? "currentColor" : "none"}
-            stroke="currentColor" 
-            strokeWidth="2" 
-            strokeLinecap="round" 
-            strokeLinejoin="round"
-            className={isBookmarksLoading ? "animate-pulse" : ""}
+      {isAssistant && !isStreaming && (
+        <div className="flex justify-start mt-2 gap-2 items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
+          <button 
+            onClick={onRegenerate(message.id)}
+            disabled={isRegenerating}
+            className={`imessage-control-btn ${isRegenerating ? 'loading' : ''}`}
+            title="Regenerate response"
           >
-            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-          </svg>
-        </button>
-        
-        {/* 구분선 */}
-        <div className="w-px h-4 bg-[var(--subtle-divider)] mx-2"></div>
-        
-        {/* Model capability badges first */}
-        <ModelCapabilityBadges modelId={(message as ExtendedMessage).model || currentModel} />
-        
-        {/* Then model name with logo */}
-        <ModelNameWithLogo modelId={(message as ExtendedMessage).model || currentModel} />
-        
-        {/* Canvas 버튼 제거됨 */}
-      </div>
-    )}
-    {/* Add follow-up questions for the last assistant message */}
-    {isAssistant && isLastMessage && !isGlobalLoading && !isStreaming && user && handleFollowUpQuestionClick && allMessages && chatId && (
-      <div className="follow-up-questions-section">
-        <FollowUpQuestions 
-          chatId={chatId} 
-          userId={user.id} 
-          messages={allMessages} 
-          onQuestionClick={handleFollowUpQuestionClick} 
-        />
-      </div>
-    )}
-
-    {/* 최종 로딩 표시: 스트리밍 중인 마지막 메시지에만 표시 */}
-    {isAssistant && isStreaming && isLastMessage && (
-      <div className="flex justify-start mt-2">
-        {hasAnyRenderableContent ? (
-          // 컨텐츠가 있으면 버블 없는 로딩 dots
-          <div className="loading-dots text-sm inline-block ml-1">
-            <span>.</span>
-            <span>.</span>
-            <span>.</span>
-          </div>
-        ) : (
-          // 컨텐츠가 없으면 로딩 버블 (작은 크기)
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isRegenerating ? 'animate-spin' : ''}>
+              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+              <path d="M21 3v5h-5"/>
+              <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+              <path d="M3 21v-5h5"/>
+            </svg>
+          </button>
+          <button
+            onClick={() => onCopy(message)}
+            className={`imessage-control-btn ${isCopied ? 'copied' : ''}`}
+            title={isCopied ? "Copied!" : "Copy message"}
+          >
+            {isCopied ? (
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20,6 9,17 4,12"/>
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+            )}
+          </button>
+          <button
+            onClick={toggleBookmark}
+            className={`imessage-control-btn ${isBookmarked ? 'bookmarked' : ''} ${isBookmarksLoading ? 'loading' : ''}`}
+            title={isBookmarked ? "Remove bookmark" : "Bookmark message"}
+            disabled={isBookmarksLoading}
+          >
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="14" 
+              height="14" 
+              viewBox="0 0 24 24" 
+              fill={isBookmarked ? "currentColor" : "none"}
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+              className={isBookmarksLoading ? "animate-pulse" : ""}
+            >
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </button>
+          
+          {/* 구분선 */}
+          {/* <div className="w-px h-4 bg-[var(--subtle-divider)] mx-2"></div> */}
+          
+          {/* Model capability badges first */}
+          <ModelCapabilityBadges modelId={(message as ExtendedMessage).model || currentModel} />
+          
+          {/* Then model name with logo */}
+          <ModelNameWithLogo modelId={(message as ExtendedMessage).model || currentModel} />
+          
+          {/* Canvas 버튼 제거됨 */}
+        </div>
+      )}
+      {/* Add follow-up questions for the last assistant message */}
+      {isAssistant && isLastMessage && !isGlobalLoading && !isStreaming && handleFollowUpQuestionClick && allMessages && chatId && (
+        <div className="follow-up-questions-section">
+          <FollowUpQuestions 
+            chatId={chatId} 
+            userId={user?.id || 'anonymous'} 
+            messages={allMessages} 
+            onQuestionClick={handleFollowUpQuestionClick} 
+          />
+        </div>
+      )}
+      {/* 최종 로딩 표시: 스트리밍 중인 마지막 메시지에만 표시 */}
+      {isAssistant && isStreaming && isLastMessage && (
+        <div className="flex justify-start mt-2">
           <div className="imessage-receive-bubble" style={{ 
             width: 'fit-content', 
             minWidth: 'auto',
+            minHeight: 'auto',
             padding: '8px 12px',
-            minHeight: 'auto'
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
           }}>
-            <div className="loading-dots text-sm inline-block">
-              <span>.</span>
-              <span>.</span>
-              <span>.</span>
-            </div>
+            <TypingIndicator variant="compact" />
           </div>
-        )}
-      </div>
-    )}
-  </div>
-)
+        </div>
+      )}
+    </div>
+  );
 });
 
 

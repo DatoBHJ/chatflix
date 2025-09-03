@@ -1,16 +1,14 @@
 import { Polar } from "@polar-sh/sdk";
 import { clearRateLimitInfo } from "./utils";
+import { SubscriptionCache } from "./subscription-cache";
 
-// In-memory cache for subscription status and ongoing requests
-const subscriptionCache = new Map<string, { status: boolean; timestamp: number }>();
+// In-memory ongoing requests tracking (Redis는 Promise를 저장할 수 없으므로 메모리에 유지)
 const ongoingRequests = new Map<string, Promise<boolean>>();
-const CACHE_DURATION = 60000; // 1 minute cache
 
 // Environment configuration
 interface PolarConfig {
   accessToken: string;
   productId: string;
-  productPriceId: string;
   // discountId: string;
   // discountCode: string;
   baseUrl: string;
@@ -29,7 +27,6 @@ export function getPolarConfig(): PolarConfig {
     const config = {
       accessToken: process.env.POLAR_DEV_ACCESS_TOKEN || '',
       productId: process.env.POLAR_DEV_PRODUCT_ID || '',
-      productPriceId: process.env.POLAR_DEV_PRODUCT_PRICE_ID || '',
       // discountId: process.env.POLAR_DEV_DISCOUNT_ID || '',
       // discountCode: process.env.POLAR_DEV_DISCOUNT_CODE || '',
       baseUrl: process.env.POLAR_DEV_BASE_URL || 'https://sandbox-api.polar.sh',
@@ -40,13 +37,15 @@ export function getPolarConfig(): PolarConfig {
     if (!config.accessToken) {
       throw new Error('Missing POLAR_DEV_ACCESS_TOKEN environment variable');
     }
+    if (!config.productId) {
+      throw new Error('Missing POLAR_DEV_PRODUCT_ID environment variable');
+    }
     
     return config;
   } else {
     const config = {
       accessToken: process.env.POLAR_PROD_ACCESS_TOKEN || '',
       productId: process.env.POLAR_PROD_PRODUCT_ID || '',
-      productPriceId: process.env.POLAR_PROD_PRODUCT_PRICE_ID || '',
       // discountId: process.env.POLAR_PROD_DISCOUNT_ID || '',
       // discountCode: process.env.POLAR_PROD_DISCOUNT_CODE || '',
       baseUrl: process.env.POLAR_PROD_BASE_URL || 'https://api.polar.sh',
@@ -56,6 +55,9 @@ export function getPolarConfig(): PolarConfig {
     // Validate required configuration
     if (!config.accessToken) {
       throw new Error('Missing POLAR_PROD_ACCESS_TOKEN environment variable');
+    }
+    if (!config.productId) {
+      throw new Error('Missing POLAR_PROD_PRODUCT_ID environment variable');
     }
     
     return config;
@@ -75,16 +77,31 @@ export function createPolarClient() {
 // Check if a user has an active subscription
 export async function checkSubscription(externalId: string): Promise<boolean> {
   try {
-    // Check if there's an ongoing request for this user
+    // Check if there's an ongoing request for this user (메모리에서 확인)
     if (ongoingRequests.has(externalId)) {
       return await ongoingRequests.get(externalId)!;
     }
 
-    // Check in-memory cache first
-    const cached = subscriptionCache.get(externalId);
-    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-      return cached.status;
+    // Check if there's an ongoing request in Redis
+    const hasOngoingRequest = await SubscriptionCache.hasOngoingRequest(externalId);
+    if (hasOngoingRequest) {
+      // Wait a bit and try again
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const cachedResult = await SubscriptionCache.getStatus(externalId);
+      if (cachedResult !== null) {
+        return cachedResult;
+      }
     }
+
+    // Check Redis cache first
+    const cached = await SubscriptionCache.getStatus(externalId);
+    if (cached !== null) {
+      console.log('[polar.ts]: Using Redis cached status for user:', externalId);
+      return cached;
+    }
+
+    // Set ongoing request lock in Redis
+    await SubscriptionCache.setOngoingRequest(externalId);
 
     // Create promise for this request to prevent duplicate calls
     const requestPromise = performSubscriptionCheck(externalId);
@@ -93,19 +110,21 @@ export async function checkSubscription(externalId: string): Promise<boolean> {
     try {
       const result = await requestPromise;
       
-      // Cache the result
-      subscriptionCache.set(externalId, {
-        status: result,
-        timestamp: Date.now()
-      });
+      // Cache the result in Redis
+      await SubscriptionCache.setStatus(externalId, result);
+      
+      console.log('[polar.ts]: Cached subscription status in Redis for user:', externalId, 'status:', result);
 
       return result;
     } finally {
-      // Clean up ongoing request
+      // Clean up ongoing request (both memory and Redis)
       ongoingRequests.delete(externalId);
+      await SubscriptionCache.deleteOngoingRequest(externalId);
     }
   } catch (error) {
     console.error('[polar.ts]: Error checking subscription:', error);
+    // Clean up ongoing request on error
+    await SubscriptionCache.deleteOngoingRequest(externalId);
     return false;
   }
 }
@@ -130,30 +149,19 @@ async function performSubscriptionCheck(externalId: string): Promise<boolean> {
     // Check if user has any active subscriptions
     const isSubscribed = result.activeSubscriptions && result.activeSubscriptions.length > 0;
     
-    // Get previously cached subscription status if available
+    // Get previously cached subscription status from Redis
     let previousStatus = false;
-    if (typeof window !== 'undefined') {
-      try {
-        const cachedStatus = localStorage.getItem(`subscription_status_${externalId}`);
-        previousStatus = cachedStatus === 'true';
-      } catch (e) {
-        // Ignore errors when accessing localStorage
-      }
+    try {
+      const cachedStatus = await SubscriptionCache.getStatus(externalId);
+      previousStatus = cachedStatus === true;
+    } catch (e) {
+      // Ignore cache errors
     }
 
     // If subscription status changed from not subscribed to subscribed,
     // clear rate limit information from localStorage
     if (isSubscribed && !previousStatus) {
       clearRateLimitInfo();
-    }
-    
-    // Cache the current status in localStorage
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(`subscription_status_${externalId}`, String(isSubscribed));
-      } catch (e) {
-        // Ignore errors when accessing localStorage
-      }
     }
     
     return isSubscribed;
@@ -203,12 +211,9 @@ export async function createCheckoutSession(externalId: string, email: string, n
     
     // Create checkout session
     const result = await polar.checkouts.create({
-      productId: config.productId,
-      productPriceId: config.productPriceId,
-      // discountId: config.discountId,
-      // discountCode: config.discountCode,
+      products: [config.productId], // Use product ID instead of deprecated productPriceId
       successUrl: finalSuccessUrl,
-      customerExternalId: externalId,
+      externalCustomerId: externalId,
       customerEmail: email,
       customerName: name || email.split('@')[0],
       // allowDiscountCodes: true,
@@ -228,7 +233,7 @@ export async function getCustomerPortalUrl(externalId: string) {
     
     // Get customer by external ID
     const customer = await polar.customerSessions.create({
-      customerExternalId: externalId,
+      externalCustomerId: externalId,
     });
     
     return customer.customerPortalUrl;
@@ -255,14 +260,23 @@ export async function deleteCustomer(externalId: string) {
 }
 
 // Clear cache when user logs out or subscription changes
-export function clearSubscriptionCache() {
-  subscriptionCache.clear();
+export async function clearSubscriptionCache() {
+  // Clear Redis cache
+  await SubscriptionCache.clearAllCache();
+  
+  // Clear memory cache
   ongoingRequests.clear();
+  
+  console.log('🗑️ Cleared all subscription cache (Redis + Memory)');
 }
 
 // Clear cache for specific user (used by webhooks)
-export function clearSubscriptionCacheForUser(externalId: string) {
-  subscriptionCache.delete(externalId);
+export async function clearSubscriptionCacheForUser(externalId: string) {
+  // Clear Redis cache
+  await SubscriptionCache.clearUserCache(externalId);
+  
+  // Clear memory cache
   ongoingRequests.delete(externalId);
-  console.log('🗑️ Cleared subscription cache for user:', externalId);
+  
+  console.log('🗑️ Cleared subscription cache (Redis + Memory) for user:', externalId);
 } 

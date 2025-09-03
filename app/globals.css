@@ -1,8 +1,124 @@
+@import "tailwindcss";
+@import "./styles/typing-indicator.css";
+
 /* Code highlighting styles - using custom styling instead of highlight.js */
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind v4 theme variables (breakpoints) */
+@theme {
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+}
+
+/* Tailwind v4 custom variants */
+@custom-variant dark (&:where(.dark *), &:where([data-theme="dark"] *));
+@custom-variant sm (@media (min-width: 640px));
+@custom-variant md (@media (min-width: 768px));
+@custom-variant lg (@media (min-width: 1024px));
+@custom-variant xl (@media (min-width: 1280px));
+@custom-variant 2xl (@media (min-width: 1536px));
+
+/* Tailwind utility classes for CSS variables */
+.bg-background {
+  background-color: var(--background);
+}
+
+.bg-accent {
+  background-color: var(--accent);
+}
+
+.text-foreground {
+  color: var(--foreground);
+}
+
+.text-muted {
+  color: var(--muted);
+}
+
+.border-accent {
+  border-color: var(--accent);
+}
+
+/* Model selector dropdown theme-safe surface */
+.model-dropdown {
+  background-color: color-mix(in srgb, var(--background) 92%, transparent);
+  border-color: color-mix(in srgb, var(--foreground) 5%, transparent);
+  box-shadow: 0 8px 32px -8px color-mix(in srgb, var(--foreground) 15%, transparent);
+}
+
+/* Theme-aware gradient overlays for lists */
+.theme-gradient-top {
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--background) 98%, transparent),
+    color-mix(in srgb, var(--background) 80%, transparent),
+    transparent
+  );
+}
+
+.theme-gradient-bottom {
+  background-image: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--background) 98%, transparent),
+    color-mix(in srgb, var(--background) 80%, transparent),
+    transparent
+  );
+}
+
+/* Mobile sidebar backdrop overlay */
+.mobile-sidebar-backdrop {
+  background-color: var(--background-overlay);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+.mobile-sidebar-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+
+/* Chat input tooltip backdrop */
+.chat-input-tooltip-backdrop {
+  background-color: var(--background);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+  box-shadow: 0 8px 32px -8px color-mix(in srgb, var(--foreground) 15%, transparent);
+}
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Safari and Chrome */
+}
+
+/* Chat input tooltip arrow - seamless tail */
+.chat-input-tooltip-arrow {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  transform: rotate(45deg);
+  bottom: -6px;
+  background-color: var(--background);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-right: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+  box-shadow: none;
+  pointer-events: none;
+}
 
 /* 사이드바 토글 버튼 완벽한 테두리 제거 */
 .sidebar-toggle-btn,
@@ -306,6 +422,20 @@
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* 모바일에서 AI 메시지 최대 너비 제한 (iMessage 스타일) */
+@media (max-width: 640px) {
+  .imessage-receive-bubble {
+    max-width: 85vw;
+  }
+}
+
+/* 작은 모바일 화면에서 더 제한적인 너비 */
+@media (max-width: 480px) {
+  .imessage-receive-bubble {
+    max-width: 80vw;
+  }
+}
+
 .imessage-receive-bubble.multi-line {
   border-radius: 18px;
 }
@@ -320,7 +450,7 @@
 .imessage-receive-bubble::before {
   content: "";
   position: absolute;
-  left: -7px;
+  left: -8px;
   bottom: 0;
   width: 20px;
   height: 16px;
@@ -359,7 +489,10 @@
   /* Light theme variables */
   --background-light: #ffffff;
   --foreground-light: #111111;
-  --accent-light: #f5f5f5;
+  /* --accent-light: #f5f5f5; */
+  --accent-light: #E9E9EB; /* literal imessage light mode */
+  /* --sidebar-light: #E9E9EB; literal imessage light mode */
+  --sidebar-light: #f5f5f5; 
   --muted-light: #666666;
   --code-bg-light: #f8f9fa;
   --code-text-light: #374151;
@@ -368,16 +501,18 @@
   --overlay-light: rgba(0, 0, 0, 0.1);
   --subtle-divider-light: color-mix(in srgb, var(--foreground-light) 8%, transparent);
   --sidebar-divider-light: rgba(0, 0, 0, 0.15);
+  /* Backdrop overlay colors for reliable iOS Safari blur */
+  --background-overlay-light: rgba(255, 255, 255, 0.8);
+  --background-overlay-dark: rgba(0, 0, 0, 0.55);
 
   /* Dark theme variables */
-  /* --background-dark: #000000;
-  --foreground-dark: #e5e5e5;
-  --accent-dark: #262626; */
-
-  /* --background-dark: #0e0e0e; */
+  /* --background-dark: #1E1E1E; literal imessage dark mode */
   --background-dark: #000000;
   --foreground-dark: #e5e5e5;
-  --accent-dark: #131313;
+  --accent-dark: #262626;
+  /* --accent-dark: #3B3B3D; literal imessage dark mode */
+  /* --sidebar-dark: #242424; literal imessage dark mode */
+  --sidebar-dark: #131313;
 
   --muted-dark: #999999;
   --code-bg-dark: #1a1a1a;
@@ -434,6 +569,9 @@
   --font-sans: "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
   --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
+  /* Default backdrop overlay (light) */
+  --background-overlay: var(--background-overlay-light);
+
   /* Chat Input Styles */
   --chat-input-button-hover-bg-light: #dcdce0;
   --chat-input-button-hover-bg-dark: #4a4a4c;
@@ -465,6 +603,8 @@
     --overlay: var(--overlay-dark);
     --subtle-divider: var(--subtle-divider-dark);
     --sidebar-divider: var(--sidebar-divider-dark);
+    /* Backdrop overlay for system dark */
+    --background-overlay: var(--background-overlay-dark);
     
     /* Component colors for system dark theme */
     --reasoning-color: var(--reasoning-color-dark);
@@ -500,6 +640,8 @@
   --overlay: var(--overlay-dark);
   --subtle-divider: var(--subtle-divider-dark);
   --sidebar-divider: var(--sidebar-divider-dark);
+  /* Backdrop overlay for manual dark */
+  --background-overlay: var(--background-overlay-dark);
   
   /* Component colors for manual dark theme */
   --reasoning-color: var(--reasoning-color-dark);
@@ -534,6 +676,8 @@
   --overlay: var(--overlay-light);
   --subtle-divider: var(--subtle-divider-light);
   --sidebar-divider: var(--sidebar-divider-light);
+  /* Backdrop overlay for manual light */
+  --background-overlay: var(--background-overlay-light);
   
   /* Component colors for manual light theme */
   --reasoning-color: var(--reasoning-color-light);
@@ -650,7 +794,7 @@ body {
 /* Message Timestamp Separator */
 .message-timestamp {
   text-align: center;
-  font-size: 0.7rem; /* 12px */
+  font-size: 0.6rem; /* 10px - 더 작게 변경 */
   color: var(--muted);
   padding: 3px 0;
   text-transform: uppercase;
@@ -1039,8 +1183,12 @@ body {
 
 /* Link Styles */
 .message-content a {
-  @apply text-blue-400 hover:underline decoration-blue-400/50 transition-colors;
+  color: rgb(96 165 250); /* text-blue-400 */
+  text-decoration-color: rgba(96,165,250,0.5); /* decoration-blue-400/50 */
+  transition-property: color, text-decoration-color, background-color, border-color, outline-color, fill, stroke, opacity, box-shadow, transform, filter;
+  transition-duration: 150ms;
 }
+.message-content a:hover { text-decoration-line: underline; }
 
 /* Paragraph Spacing */
 .message-content p {
@@ -1580,6 +1728,7 @@ p:has(.katex) {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 1;
+  line-clamp: 1;
 }
 
 .line-clamp-2 {
@@ -1587,6 +1736,7 @@ p:has(.katex) {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 /* Mobile adjustments */
@@ -2080,6 +2230,181 @@ p:has(.katex) {
   .imessage-control-btn {
     width: 24px;
     height: 24px;
+  }
+}
+
+/* 알림 창 전역 스타일 */
+.notification-dropdown {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: color-mix(in srgb, var(--background) 95%, transparent);
+  border: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+  box-shadow: 0 8px 32px -8px color-mix(in srgb, var(--foreground) 15%, transparent);
+}
+
+.notification-header {
+  background: color-mix(in srgb, var(--background) 98%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.notification-card {
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.notification-card:hover {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.notification-badge {
+  background: #007AFF;
+}
+
+.notification-avatar {
+  background: #007AFF;
+}
+
+.notification-time {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.notification-stats {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 16px;
+  padding: 4px 8px;
+  transition: all 0.2s ease;
+}
+
+.notification-stats:hover {
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
+  transform: scale(1.05);
+}
+
+.notification-image {
+  border: 1px solid color-mix(in srgb, var(--foreground) 6%, transparent);
+  transition: all 0.2s ease;
+}
+
+.notification-image:hover {
+  transform: scale(1.02);
+}
+
+.notification-title {
+  color: var(--foreground);
+}
+
+.notification-description {
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.notification-see-all {
+  background: #007AFF;
+  color: white;
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: all 0.2s ease;
+}
+
+.notification-see-all:hover {
+  background: #0056CC;
+}
+
+.notification-empty {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--foreground) 15%, transparent);
+  border-radius: 16px;
+}
+
+/* 다크 모드 알림 창 스타일 */
+:root[data-theme="dark"] .notification-dropdown {
+  background: color-mix(in srgb, var(--background) 92%, transparent);
+  border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+  box-shadow: 0 8px 32px -8px color-mix(in srgb, var(--foreground) 25%, transparent);
+}
+
+:root[data-theme="dark"] .notification-header {
+  background: color-mix(in srgb, var(--background) 95%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+
+:root[data-theme="dark"] .notification-card:hover {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+:root[data-theme="dark"] .notification-time {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+:root[data-theme="dark"] .notification-stats {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+:root[data-theme="dark"] .notification-stats:hover {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+:root[data-theme="dark"] .notification-image {
+  border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+
+:root[data-theme="dark"] .notification-image:hover {
+  /* No additional shadow on hover */
+}
+
+:root[data-theme="dark"] .notification-empty {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--foreground) 20%, transparent);
+}
+
+/* 시스템 다크 모드 알림 창 스타일 */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .notification-dropdown {
+    background: color-mix(in srgb, var(--background) 92%, transparent);
+    border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+    box-shadow: 0 8px 32px -8px color-mix(in srgb, var(--foreground) 25%, transparent);
+  }
+
+  :root[data-theme="system"] .notification-header {
+    background: color-mix(in srgb, var(--background) 95%, transparent);
+    border-bottom-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+  }
+
+  :root[data-theme="system"] .notification-card:hover {
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+
+  :root[data-theme="system"] .notification-time {
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+
+  :root[data-theme="system"] .notification-stats {
+    background: color-mix(in srgb, var(--accent) 25%, transparent);
+  }
+
+  :root[data-theme="system"] .notification-stats:hover {
+    background: color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+
+  :root[data-theme="system"] .notification-image {
+    border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+  }
+
+  :root[data-theme="system"] .notification-image:hover {
+    /* No additional shadow on hover */
+  }
+
+  :root[data-theme="system"] .notification-empty {
+    background: color-mix(in srgb, var(--accent) 20%, transparent);
+    border-color: color-mix(in srgb, var(--foreground) 20%, transparent);
   }
 }
 

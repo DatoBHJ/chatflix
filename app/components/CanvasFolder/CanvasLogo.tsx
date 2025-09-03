@@ -1,34 +1,4 @@
 
-// Wolfram Alpha logo component
-export const WolframAlphaLogo = ({ size = 24, className = "", strokeWidth = 1.5 }: { size?: number, className?: string, strokeWidth?: number }) => {
-    return (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={strokeWidth}
-        className={className}
-      >
-        {/* Wolfram Alpha's red background square */}
-        <rect x="2" y="2" width="20" height="20" rx="2" fill="currentColor" opacity="0.9" />
-        
-        {/* Wolfram "W" stylized logo in white */}
-        <path 
-          d="M19.5 7L17.5 17H16L14.5 10L13 17H11.5L9.5 7H11L12.25 15L13.75 7H15.25L16.75 15L18 7H19.5Z" 
-          fill="white" 
-          stroke="none"
-        />
-        <path 
-          d="M8 7L6 17H4.5L6.5 7H8Z" 
-          fill="white" 
-          stroke="none"
-        />
-      </svg>
-    );
-  };
   
   // Custom X logo component based on the new design
   export const XLogo = ({ size = 24, className = "", strokeWidth = 1.5 }: { size?: number, className?: string, strokeWidth?: number }) => {

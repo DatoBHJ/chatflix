@@ -1,11 +1,11 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
-import { Message } from 'ai';
+import { UIMessage } from 'ai';
 
 type VirtuosoWrapperProps = {
-  messages: Message[];
+  messages: UIMessage[];
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
-  renderMessage: (message: Message, index: number) => React.ReactNode;
+  renderMessage: (message: UIMessage, index: number) => React.ReactNode;
   parentContainerRef?: React.RefObject<HTMLDivElement | null>;
   className?: string;
 };

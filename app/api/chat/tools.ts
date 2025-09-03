@@ -23,7 +23,7 @@ dotenv.config({
 const toolDefinitions = {
   webSearch: {
     description: 'Search the web using Exa for information with multiple queries. This tool automatically optimizes queries. Note: `include_domains` and `exclude_domains` are mutually exclusive. `include_domains` will be prioritized. CRITICAL: Always use diverse topic types (news, research papers, financial reports, company, pdf, github, personal site, linkedin profile) to get comprehensive results. Generate 3-5 different queries with varying approaches and topic types.',
-    parameters: {
+    inputSchema: {
       queries: 'Array of search queries to look up on the web. Exa\'s autoprompt feature will optimize these. Generate 3-5 specific queries with different keywords and angles.',
       maxResults: 'Array of maximum number of results to return per query. Use higher numbers (8-10) for broad topics. Default is 10.',
       topics: 'Array of topic types to search for. CRITICAL: Use diverse topic types for comprehensive results. Options: general, news, financial report, company, research paper, pdf, github, personal site, linkedin profile. Choose appropriate topics based on query content: news for current events, research papers for academic info, financial reports for business data, company for corporate info, pdf for official documents, github for code/tech, personal site for blogs, linkedin profile for professional info.',
@@ -33,25 +33,20 @@ const toolDefinitions = {
   },
   jina_link_reader: {
     description: 'Read and extract content from a specific URL using Jina.ai',
-    parameters: {
+    inputSchema: {
       url: 'The URL to read content from. The URL must be a valid web address starting with http:// or https://'
     }
   },
   calculator: {
     description: 'A tool for evaluating mathematical expressions. Example expressions: \'1.2 * (2 + 4.5)\', \'12.7 cm to inch\', \'sin(45 deg) ^ 2\'.',
-    parameters: {
+    inputSchema: {
       expression: 'The mathematical expression to evaluate.'
     }
   },
-  academicSearch: {
-    description: 'Search academic papers and research articles on a specific topic.',
-    parameters: {
-      query: 'The search query to find relevant academic papers and research articles.'
-    }
-  },
+
   imageGenerator: {
     description: 'Generate images using Pollinations AI based on text prompts. For editing, provide the seed of the original image.',
-    parameters: {
+    inputSchema: {
       prompts: 'Text description(s) of the image(s) to generate. Can be a single string or array of strings. Should be detailed and specific.',
       model: 'The model to use for generation (flux or turbo)',
       width: 'Image width in pixels',
@@ -61,7 +56,7 @@ const toolDefinitions = {
   },
   xSearch: {
     description: 'Search X (formerly Twitter) posts.',
-    parameters: {
+    inputSchema: {
       query: 'The search query, if a username is provided put in the query with @username',
       startDate: 'The start date for the search in YYYY-MM-DD format',
       endDate: 'The end date for the search in YYYY-MM-DD format'
@@ -69,20 +64,20 @@ const toolDefinitions = {
   },
   youtubeSearch: {
     description: 'Search YouTube videos using Exa AI and get detailed video information.',
-    parameters: {
+    inputSchema: {
       query: 'The search query for YouTube videos'
     }
   },
   youtubeAnalyzer: {
     description: 'Extract detailed information and transcripts from specific YouTube videos.',
-    parameters: {
+    inputSchema: {
       urls: 'Array of YouTube video URLs to analyze. Each URL should be a valid YouTube watch link.',
       lang: 'Optional language code for the transcript (e.g., "en", "es", "fr"). Default is "en".'
     }
   },
   wolframAlpha: {
     description: 'Advanced computational knowledge engine that can solve complex problems across various academic disciplines including mathematics, physics, chemistry, engineering, computer science, and more.',
-    parameters: {
+    inputSchema: {
       query: 'The query to send to Wolfram Alpha. Can be mathematical expressions, scientific questions, engineering problems, etc.',
       format: 'The desired format of the response (simple, detailed, step-by-step). Default is detailed.',
       includePods: 'Specific Wolfram Alpha pods to include in the response (optional array of strings).',
@@ -93,39 +88,92 @@ const toolDefinitions = {
   },
 };
 // Web Search 도구 생성 함수
-export function createWebSearchTool(dataStream: any) {
+export function createWebSearchTool(dataStream: any, forcedTopic?: string) {
   // 검색 결과를 저장할 배열
   const searchResults: any[] = [];
   
-  const webSearchTool = tool({
+  const AllowedTopic = z.enum([
+    'general',
+    'news',
+    'financial report',
+    'company',
+    'research paper',
+    'pdf',
+    'github',
+    'personal site',
+    'linkedin profile'
+  ]);
+
+  const webSearchInputSchema = z.object({
+    // Accept string or array; coerce to array
+    queries: z
+      .union([
+        z.array(z.string()),
+        z.string()
+      ])
+      .transform((v) => (Array.isArray(v) ? v : [v]))
+      .describe(toolDefinitions.webSearch.inputSchema.queries),
+    // Accept number or array of numbers; coerce to array
+    maxResults: z
+      .union([
+        z.array(z.number()),
+        z.number()
+      ])
+      .optional()
+      .transform((v) => (v === undefined ? undefined : Array.isArray(v) ? v : [v])),
+    // Accept single topic or array; coerce and default to ['general'] if missing
+    topics: z
+      .union([
+        z.array(AllowedTopic),
+        AllowedTopic
+      ])
+      .optional()
+      .transform((v) => (v === undefined ? ['general'] : Array.isArray(v) ? v : [v]))
+      .describe(toolDefinitions.webSearch.inputSchema.topics),
+    // Accept string or array; coerce to array
+    include_domains: z
+      .union([z.array(z.string()), z.string()])
+      .optional()
+      .transform((v) => (v === undefined ? undefined : Array.isArray(v) ? v : [v]))
+      .describe(toolDefinitions.webSearch.inputSchema.include_domains),
+    exclude_domains: z
+      .union([z.array(z.string()), z.string()])
+      .optional()
+      .transform((v) => (v === undefined ? undefined : Array.isArray(v) ? v : [v]))
+      .describe(toolDefinitions.webSearch.inputSchema.exclude_domains),
+  });
+
+  type WebSearchInput = {
+    queries: string[];
+    maxResults?: number[];
+    topics: ('general' | 'news' | 'financial report' | 'company' | 'research paper' | 'pdf' | 'github' | 'personal site' | 'linkedin profile')[];
+    include_domains?: string[];
+    exclude_domains?: string[];
+  };
+  type WebSearchOutput = {
+    searchId: string;
+    searches: Array<{
+      query: string;
+      topic: 'general' | 'news' | 'financial report' | 'company' | 'research paper' | 'pdf' | 'github' | 'personal site' | 'linkedin profile';
+      results: any[];
+      images: any[];
+    }>;
+    imageMap: Record<string, string>;
+  };
+
+  const webSearchTool = tool<WebSearchInput, WebSearchOutput>({
     description: toolDefinitions.webSearch.description,
-    parameters: z.object({
-      queries: z.array(z.string().describe(toolDefinitions.webSearch.parameters.queries)),
-      maxResults: z.array(
-        z.number().describe(toolDefinitions.webSearch.parameters.maxResults).default(10),
-      ),
-      topics: z.array(
-        z.enum(['general', 'news', 'financial report', 'company', 'research paper', 'pdf', 'github', 'personal site', 'linkedin profile']).describe(toolDefinitions.webSearch.parameters.topics)
-      ).default(['general']).transform(topics => topics.map(t => t || 'general')),
-      include_domains: z.array(z.string()).optional().describe(toolDefinitions.webSearch.parameters.include_domains),
-      exclude_domains: z
-        .array(z.string())
-        .describe(toolDefinitions.webSearch.parameters.exclude_domains)
-        .optional(),
-    }),
-    execute: async ({
-      queries,
-      maxResults,
-      topics,
-      include_domains,
-      exclude_domains,
-    }: {
-      queries: string[];
-      maxResults: number[];
-      topics: ('general' | 'news' | 'financial report' | 'company' | 'research paper' | 'pdf' | 'github' | 'personal site' | 'linkedin profile')[];
-      include_domains?: string[];
-      exclude_domains?: string[];
-    }) => {
+    inputSchema: webSearchInputSchema as unknown as z.ZodType<WebSearchInput>,
+    execute: async (input: WebSearchInput) => {
+      const { queries, maxResults, topics, include_domains, exclude_domains } = input;
+      
+      // maxResults가 없으면 기본값 설정
+      const finalMaxResults = maxResults || Array(queries.length).fill(10);
+      
+      // 강제로 지정된 토픽이 있으면 해당 토픽만 사용
+      const finalTopics = forcedTopic ? 
+        Array(queries.length).fill(forcedTopic as any) : 
+        topics;
       const apiKey = process.env.EXA_API_KEY;
       if (!apiKey) {
         throw new Error('EXA_API_KEY is not defined in environment variables');
@@ -141,45 +189,49 @@ export function createWebSearchTool(dataStream: any) {
       console.log('Search ID:', searchId);
       console.log('Generated search queries:', queries);
       console.log('Search parameters:', {
-        maxResults,
-        topics,
+        maxResults: finalMaxResults,
+        topics: finalTopics,
         include_domains,
-        exclude_domains
+        exclude_domains,
+        forcedTopic: forcedTopic || 'none'
       });
       
       // 쿼리 중복 상태 알림 방지를 위한 추적 세트
       const annotatedQueries = new Set<string>();
       
-      // Execute searches in parallel
-      const searchPromises = queries.map(async (query, index) => {
-        try {
-          // 중복 체크 - 이미 처리한 쿼리는 건너뜀
-          const queryKey = `${query}-${index}`;
-          const currentTopic = topics[index] || topics[0] || 'general';
+              // Execute searches in parallel
+        const searchPromises = queries.map(async (query, index) => {
+          // 토픽은 try/catch 외부에서 계산하여 양쪽에서 접근 가능하도록 함
+          const currentTopic = (finalTopics && finalTopics[index]) || finalTopics[0] || 'general';
+          try {
+            // 중복 체크 - 이미 처리한 쿼리는 건너뜀
+            const queryKey = `${query}-${index}`;
           
           // 토픽 활용 로깅
           console.log(`[SEARCH_DEBUG] Query ${index + 1}: "${query}" using topic: "${currentTopic}"`);
           
           if (!annotatedQueries.has(queryKey)) {
-            // 각 쿼리 검색 시작 시 in_progress 상태 알림
-            dataStream.writeMessageAnnotation({
-              type: 'query_completion',
-              data: {
-                searchId,
-                query,
-                index,
-                total: queries.length,
-                status: 'in_progress',
-                resultsCount: 0,
-                imagesCount: 0,
-                topic: currentTopic
-              }
-            });
-            
+            // 진행 상태 어노테이션 전송
+            if (dataStream?.write) {
+              dataStream.write({
+                type: 'data-query_completion',
+                id: `ann-${searchId}-${index}-start`,
+                data: {
+                  searchId,
+                  query,
+                  index,
+                  total: queries.length,
+                  status: 'in_progress',
+                  resultsCount: 0,
+                  imagesCount: 0,
+                  topic: currentTopic
+                }
+              });
+            }
             // 처리한 쿼리 추적에 추가
             annotatedQueries.add(queryKey);
           }
-          const currentMaxResults = maxResults[index] || maxResults[0] || 10;
+          const currentMaxResults = (finalMaxResults && finalMaxResults[index]) || finalMaxResults[0] || 10;
           
           const searchOptions: any = {
             numResults: currentMaxResults,
@@ -199,14 +251,14 @@ export function createWebSearchTool(dataStream: any) {
             const lastWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
             searchOptions.startPublishedDate = lastWeek.toISOString().split('T')[0];
             console.log(`[SEARCH_DEBUG] News search with date filter: ${searchOptions.startPublishedDate}`);
-          }
+                    }
           
           if (include_domains && include_domains.length > 0) {
             searchOptions.includeDomains = include_domains;
           } else if (exclude_domains && exclude_domains.length > 0) {
             searchOptions.excludeDomains = exclude_domains;
           }
-        
+          
           const data = await exa.searchAndContents(query, searchOptions);
           
           // Log total cost for this search
@@ -228,7 +280,7 @@ export function createWebSearchTool(dataStream: any) {
             .map((result: any) => ({
               url: result.url,
               title: result.title || '',
-              content: (result.text || '').substring(0, 4000),
+              content: (result.text.text || '').substring(0, 4000),
               publishedDate: result.publishedDate,
               author: result.author,
               score: result.score,
@@ -252,23 +304,25 @@ export function createWebSearchTool(dataStream: any) {
             };
           });
           
-          // Add annotation for query completion
+          // 완료 상태 어노테이션 전송
           const completedQueryKey = `${query}-${index}-completed`;
           if (!annotatedQueries.has(completedQueryKey)) {
-            dataStream.writeMessageAnnotation({
-              type: 'query_completion',
-              data: {
-                searchId,
-                query,
-                index,
-                total: queries.length,
-                status: 'completed',
-                resultsCount: deduplicatedResults.length,
-                imagesCount: deduplicatedImages.length,
-                topic: currentTopic
-              }
-            });
-            // 완료 상태 쿼리 추적에 추가
+            if (dataStream?.write) {
+              dataStream.write({
+                type: 'data-query_completion',
+                id: `ann-${searchId}-${index}-completed`,
+                data: {
+                  searchId,
+                  query,
+                  index,
+                  total: queries.length,
+                  status: 'completed',
+                  resultsCount: deduplicatedResults.length,
+                  imagesCount: deduplicatedImages.length,
+                  topic: currentTopic
+                }
+              });
+            }
             annotatedQueries.add(completedQueryKey);
           }
           
@@ -281,13 +335,11 @@ export function createWebSearchTool(dataStream: any) {
         } catch (error) {
           console.error(`Error searching with Exa for query "${query}":`, error);
           
-          // Add annotation for failed query
-          const errorQueryKey = `${query}-${index}-error`;
-          const currentTopicForError = topics[index] || topics[0] || 'general';
-          
-          if (!annotatedQueries.has(errorQueryKey)) {
-            dataStream.writeMessageAnnotation({
-              type: 'query_completion',
+          // 에러 상태 어노테이션 전송
+          if (dataStream?.write) {
+            dataStream.write({
+              type: 'data-query_completion',
+              id: `ann-${searchId}-${index}-error`,
               data: {
                 searchId,
                 query,
@@ -297,11 +349,9 @@ export function createWebSearchTool(dataStream: any) {
                 resultsCount: 0,
                 imagesCount: 0,
                 error: error instanceof Error ? error.message : 'Unknown error',
-                topic: currentTopicForError
+                topic: currentTopic
               }
             });
-            // 에러 상태 쿼리 추적에 추가
-            annotatedQueries.add(errorQueryKey);
           }
           
           // Return empty results for this query
@@ -369,7 +419,7 @@ export function createWebSearchTool(dataStream: any) {
         
         // 해당 쿼리의 topic 정보 찾기
         const queryIndex = queries.findIndex(q => q === search.query);
-        const topic = queryIndex >= 0 ? topics[queryIndex] || topics[0] || 'general' : 'general';
+        const topic = queryIndex >= 0 ? finalTopics[queryIndex] || finalTopics[0] || 'general' : 'general';
         
         return {
           ...search,
@@ -395,11 +445,14 @@ export function createWebSearchTool(dataStream: any) {
       // 배열에 결과 추가하고 UI를 위한 어노테이션도 전송
       searchResults.push(finalResult);
       
-      // 모든 검색 결과가 합쳐진 결과를 어노테이션으로 전송 (imageMap 포함)
-      dataStream.writeMessageAnnotation({
-        type: 'web_search_complete',
-        data: finalResult
-      });
+      // 전체 검색 완료 어노테이션 전송 (imageMap 포함)
+      if (dataStream?.write) {
+        dataStream.write({
+          type: 'data-web_search_complete',
+          id: `ann-${searchId}-complete`,
+          data: finalResult
+        });
+      }
       
       // 결과 반환
       return finalResult;
@@ -409,29 +462,24 @@ export function createWebSearchTool(dataStream: any) {
   // 기능은 웹 검색 도구지만 저장된 결과 배열도 함께 반환
   return Object.assign(webSearchTool, { searchResults });
 }
+
 // jina.ai 링크 리더 도구 생성 함수
 export function createJinaLinkReaderTool(dataStream?: any) {
-  // Define the tool type with linkAttempts property
-  interface JinaLinkReaderTool {
-    description: string;
-    parameters: z.ZodObject<any, any, any, any>;
-    execute: ({ url }: { url: string }, options?: any) => Promise<any>;
-    linkAttempts: Array<{
-      url: string;
-      timestamp: string;
-      status: 'in_progress' | 'success' | 'failed';
-      title?: string;
-      error?: string;
-    }>;
-  }
+  // Track attempts in closure and expose via returned object
+  const linkAttempts: Array<{
+    url: string;
+    timestamp: string;
+    status: 'in_progress' | 'success' | 'failed';
+    title?: string;
+    error?: string;
+  }> = [];
 
-  const tool: JinaLinkReaderTool = {
+  const linkReaderTool = tool({
     description: toolDefinitions.jina_link_reader.description,
-    parameters: z.object({
-      url: z.string().url().describe(toolDefinitions.jina_link_reader.parameters.url),
+    inputSchema: z.object({
+      url: z.string().url().describe(toolDefinitions.jina_link_reader.inputSchema.url),
     }),
-    linkAttempts: [],
-    execute: async ({ url }: { url: string }, options?: any) => {
+    execute: async ({ url }: { url: string }) => {
       try {
         if (!url) {
           throw new Error("URL parameter is required");
@@ -450,16 +498,17 @@ export function createJinaLinkReaderTool(dataStream?: any) {
           status: 'in_progress' as const,
         };
         
-        if (dataStream) {
-          // Store the attempt
-          tool.linkAttempts.push(attempt);
-          
-          // Send real-time update about attempt start
-          dataStream.writeMessageAnnotation({
-            type: 'link_reader_attempt',
-            data: attempt
-          });
-        }
+          if (dataStream) {
+            // Store the attempt
+            linkAttempts.push(attempt);
+            
+            // Send start annotation
+            dataStream.write({
+              type: 'data-link_reader_attempt',
+              id: `ann-link-start-${Date.now()}`,
+              data: attempt
+            });
+          }
         
         // 내용 가져오기
         const response = await fetch(jinaUrl, {
@@ -519,42 +568,43 @@ export function createJinaLinkReaderTool(dataStream?: any) {
         };
         
         // Handle success tracking if dataStream is available
-        if (dataStream) {
-          const lastIndex = tool.linkAttempts.length - 1;
-          const updatedAttempt = {
-            url: url,
-            title: result.title,
-            status: 'success' as const,
-            timestamp: new Date().toISOString()
-          };
-          
-          // Update stored attempt
-          Object.assign(tool.linkAttempts[lastIndex], updatedAttempt);
-          
-          // Send update
-          dataStream.writeMessageAnnotation({
-            type: 'link_reader_attempt_update',
-            data: updatedAttempt
-          });
-          
-          // Return complete content to the model (not just preview)
-          const contentPreview = result.content && result.content.length > 0 
-            ? `${result.content.substring(0, 150)}...` 
-            : "(No text content available)";
-          
-          console.log(`[DEBUG-JINA] Returning content to AI, total length: ${result.content.length} characters`);
-          
-          return {
-            success: true,
-            url: url,
-            title: result.title,
-            contentType: result.contentType,
-            contentLength: result.content ? result.content.length : 0,
-            contentPreview,
-            content: result.content, // Add full content to be accessible to the AI
-            message: `Successfully read content from ${url} (${result.content ? result.content.length : 0} characters)`
-          };
-        }
+          if (dataStream) {
+            const lastIndex = linkAttempts.length - 1;
+            const updatedAttempt = {
+              url: url,
+              title: result.title,
+              status: 'success' as const,
+              timestamp: new Date().toISOString()
+            };
+            
+            // Update stored attempt
+            Object.assign(linkAttempts[lastIndex], updatedAttempt);
+            
+            // Send update annotation
+            dataStream.write({
+              type: 'data-link_reader_attempt_update',
+              id: `ann-link-success-${Date.now()}`,
+              data: updatedAttempt
+            });
+            
+            // Return complete content to the model (not just preview)
+            const contentPreview = result.content && result.content.length > 0 
+              ? `${result.content.substring(0, 150)}...` 
+              : "(No text content available)";
+            
+            console.log(`[DEBUG-JINA] Returning content to AI, total length: ${result.content.length} characters`);
+            
+            return {
+              success: true,
+              url: url,
+              title: result.title,
+              contentType: result.contentType,
+              contentLength: result.content ? result.content.length : 0,
+              contentPreview,
+              content: result.content, // Add full content to be accessible to the AI
+              message: `Successfully read content from ${url} (${result.content ? result.content.length : 0} characters)`
+            };
+          }
         
         return result;
       } catch (error) {
@@ -563,33 +613,34 @@ export function createJinaLinkReaderTool(dataStream?: any) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
         
         // Handle error tracking if dataStream is available
-        if (dataStream) {
-          const lastIndex = tool.linkAttempts.length - 1;
-          
-          const updatedAttempt = {
-            url: url,
-            error: errorMessage,
-            status: 'failed' as const,
-            timestamp: new Date().toISOString()
-          };
-          
-          // Update stored attempt
-          Object.assign(tool.linkAttempts[lastIndex], updatedAttempt);
-          
-          // Send update
-          dataStream.writeMessageAnnotation({
-            type: 'link_reader_attempt_update',
-            data: updatedAttempt
-          });
-          
-          // Return simplified error result to model
-        return {
-            success: false,
-            url: url,
-            error: errorMessage,
-            message: `Failed to read content from ${url}: ${errorMessage}`
-          };
-        }
+          if (dataStream) {
+            const lastIndex = linkAttempts.length - 1;
+            
+            const updatedAttempt = {
+              url: url,
+              error: errorMessage,
+              status: 'failed' as const,
+              timestamp: new Date().toISOString()
+            };
+            
+            // Update stored attempt
+            Object.assign(linkAttempts[lastIndex], updatedAttempt);
+            
+            // Send error update annotation
+            dataStream.write({
+              type: 'data-link_reader_attempt_update',
+              id: `ann-link-error-${Date.now()}`,
+              data: updatedAttempt
+            });
+            
+            // Return simplified error result to model
+          return {
+              success: false,
+              url: url,
+              error: errorMessage,
+              message: `Failed to read content from ${url}: ${errorMessage}`
+            };
+          }
         
         return {
           error: errorMessage,
@@ -597,14 +648,9 @@ export function createJinaLinkReaderTool(dataStream?: any) {
         };
       }
     }
-  };
-  
-  // Initialize linkAttempts array if dataStream is provided
-  if (dataStream) {
-    tool.linkAttempts = [];
-  }
-  
-  return tool;
+  });
+
+  return Object.assign(linkReaderTool, { linkAttempts });
 }
 
 // 토큰 없이 이미지 생성 도구 생성 함수. (예전 버전) 
@@ -721,27 +767,24 @@ export function createImageGeneratorTool(dataStream?: any) {
     secure: boolean; // 토큰이 URL에 노출되지 않음을 표시
   }> = [];
 
-  const imageGeneratorTool = tool({
+  const imageGeneratorInputSchema = z.object({
+    prompts: z.union([
+      z.string(),
+      z.array(z.string())
+    ]).describe(toolDefinitions.imageGenerator.inputSchema.prompts),
+    model: z.enum(['flux', 'turbo'])
+      .describe(toolDefinitions.imageGenerator.inputSchema.model),
+    width: z.number().describe(toolDefinitions.imageGenerator.inputSchema.width),
+    height: z.number().describe(toolDefinitions.imageGenerator.inputSchema.height),
+    seed: z.number().optional().describe(toolDefinitions.imageGenerator.inputSchema.seed),
+  });
+
+  type ImageGeneratorInput = z.infer<typeof imageGeneratorInputSchema>;
+
+  const imageGeneratorTool = tool<ImageGeneratorInput, unknown>({
     description: toolDefinitions.imageGenerator.description,
-    parameters: z.object({
-      prompts: z.union([
-        z.string(),
-        z.array(z.string())
-      ]).describe(toolDefinitions.imageGenerator.parameters.prompts),
-      model: z.enum(['flux', 'turbo'])
-        .describe(toolDefinitions.imageGenerator.parameters.model)
-        .default('flux'),
-      width: z.number().describe(toolDefinitions.imageGenerator.parameters.width).default(1024),
-      height: z.number().describe(toolDefinitions.imageGenerator.parameters.height).default(1024),
-      seed: z.number().optional().describe(toolDefinitions.imageGenerator.parameters.seed), // .optional() 다시 추가
-    }),
-    execute: async ({ prompts, model, width, height, seed }: { // seed 타입에 ? 다시 추가
-      prompts: string | string[];
-      model: 'flux' | 'turbo';
-      width: number;
-      height: number;
-      seed?: number; // seed는 이제 optional
-    }) => {
+    inputSchema: imageGeneratorInputSchema,
+    execute: async ({ prompts, model, width, height, seed }: ImageGeneratorInput) => {
       // seed가 제공되지 않으면 랜덤 값을 생성 (새 이미지 생성 시), 제공되면 그 값을 사용 (이미지 편집 시)
       const currentSeed = seed === undefined ? Math.floor(Math.random() * Number.MAX_SAFE_INTEGER) : seed;
 
@@ -795,8 +838,9 @@ export function createImageGeneratorTool(dataStream?: any) {
 
           // 클라이언트에 이미지 생성 알림 전송 (토큰 없는 안전한 URL)
           if (dataStream) {
-            dataStream.writeMessageAnnotation({
-              type: 'generated_image',
+            dataStream.write({
+              type: 'data-generated_image',
+              id: `ann-image-${Date.now()}-${currentSeed}`,
               data: imageData
             });
           }
@@ -804,7 +848,7 @@ export function createImageGeneratorTool(dataStream?: any) {
           return {
             url: imageUrl,
             description: prompt,
-            parameters: { 
+            inputSchema: { 
               prompt, 
               model, 
               width, 
@@ -844,7 +888,7 @@ export function createCalculatorTool(dataStream: any) {
   
   const calculatorTool = tool({
     description: toolDefinitions.calculator.description,
-    parameters: z.object({ expression: z.string().describe(toolDefinitions.calculator.parameters.expression) }),
+    inputSchema: z.object({ expression: z.string().describe(toolDefinitions.calculator.inputSchema.expression) }),
     execute: async ({ expression }) => {
       stepCounter++;
       const result = mathjs.evaluate(expression);
@@ -855,14 +899,17 @@ export function createCalculatorTool(dataStream: any) {
         timestamp: new Date().toISOString()
       });
       
-      // UI에 실시간 계산 단계 표시
-      dataStream.writeMessageAnnotation({
-        type: 'math_calculation',
-        step: stepCounter,
-        expression,
-        result: result.toString(),
-        calculationSteps
-      });
+       // UI에 실시간 계산 단계 표시
+       dataStream.write({
+         type: 'data-math_calculation',
+         id: `ann-math-${Date.now()}-${stepCounter}`,
+         data: {
+           step: stepCounter,
+           expression,
+           result: result.toString(),
+           calculationSteps
+         }
+       });
       
       return result;
     },
@@ -872,208 +919,7 @@ export function createCalculatorTool(dataStream: any) {
   return Object.assign(calculatorTool, { calculationSteps });
 }
 
-// 학술 검색 도구 생성 함수
-export function createAcademicSearchTool(dataStream: any) {
-  // 검색 결과를 저장할 배열
-  const searchResults: any[] = [];
-  
-  const academicSearchTool = tool({
-    description: toolDefinitions.academicSearch.description,
-    parameters: z.object({
-      query: z.string().describe(toolDefinitions.academicSearch.parameters.query),
-    }),
-    execute: async ({ query }: { query: string }) => {
-      try {
-        const apiKey = process.env.EXA_API_KEY;
-        if (!apiKey) {
-          throw new Error('EXA_API_KEY is not defined in environment variables');
-        }
-        
-        console.log('[Academic Search] Searching for papers on:', query);
-        
-        const exa = new Exa(apiKey);
-        
-        // Search academic papers with content summary
-        const result = await exa.searchAndContents(query, {
-          type: 'auto',
-          numResults: 20,
-          category: 'research paper',
-          summary: {
-            query: 'Abstract of the Paper',
-          },
-        });
-        
-        // Process and clean results
-        const processedResults = result.results.reduce<typeof result.results>((acc: any[], paper: any) => {
-          // Skip if URL already exists or if no summary available
-          if (acc.some((p: any) => p.url === paper.url) || !paper.summary) return acc;
-          
-          // Clean up summary (remove "Summary:" prefix if exists)
-          const cleanSummary = paper.summary.replace(/^Summary:\s*/i, '');
-          
-          // Clean up title (remove [...] suffixes)
-          const cleanTitle = paper.title?.replace(/\s\[.*?\]$/, '');
-          
-          acc.push({
-            ...paper,
-            title: cleanTitle || '',
-            summary: cleanSummary,
-          });
-          
-          return acc;
-        }, []);
-        
-        // Take only the first 10 unique, valid results
-        const limitedResults = processedResults.slice(0, 10);
-        
-        // Track this search in our array
-        const searchData = {
-          query,
-          timestamp: new Date().toISOString(),
-          results: limitedResults
-        };
-        
-        searchResults.push(searchData);
-        
-        // Send annotation for visualization in the UI
-        dataStream.writeMessageAnnotation({
-          type: 'academic_search_complete',
-          data: searchData
-        });
-        
-        return {
-          results: limitedResults,
-        };
-      } catch (error) {
-        console.error('Academic search error:', error);
-        
-        // Send error annotation
-        dataStream.writeMessageAnnotation({
-          type: 'academic_search_error',
-          data: {
-            query,
-            timestamp: new Date().toISOString(),
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }
-        });
-        
-        return {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          results: []
-        };
-      }
-    },
-  });
-  
-  // 학술 검색 도구와 저장된 결과 배열을 함께 반환
-  return Object.assign(academicSearchTool, { searchResults });
-}
 
-// X (Twitter) 검색 도구 생성 함수
-// export function createXSearchTool(dataStream: any) {
-//   // 검색 결과를 저장할 배열
-//   const searchResults: any[] = [];
-  
-//   const xSearchTool = tool({
-//     description: toolDefinitions.xSearch.description,
-//     parameters: z.object({
-//       query: z.string().describe(toolDefinitions.xSearch.parameters.query),
-//       startDate: z.string().optional().describe(toolDefinitions.xSearch.parameters.startDate),
-//       endDate: z.string().optional().describe(toolDefinitions.xSearch.parameters.endDate),
-//     }),
-//     execute: async ({
-//       query,
-//       startDate,
-//       endDate,
-//     }: {
-//       query: string;
-//       startDate?: string;
-//       endDate?: string;
-//     }) => {
-//       try {
-//         const apiKey = process.env.EXA_API_KEY;
-//         if (!apiKey) {
-//           throw new Error('EXA_API_KEY is not defined in environment variables');
-//         }
-        
-//         console.log('[X Search] Searching for posts on:', query);
-        
-//         const exa = new Exa(apiKey);
-        
-//         // Search X (Twitter) posts
-//         const result = await exa.searchAndContents(query, {
-//           type: 'keyword',
-//           numResults: 20,
-//           text: true,
-//           highlights: true,
-//           includeDomains: ['twitter.com', 'x.com'],
-//           startPublishedDate: startDate,
-//           endPublishedDate: endDate,
-//         });
-        
-//         // Extract tweet ID from URL
-//         const extractTweetId = (url: string): string | null => {
-//           const match = url.match(/(?:twitter\.com|x\.com)\/\w+\/status\/(\d+)/);
-//           return match ? match[1] : null;
-//         };
-        
-//         // Process and filter results
-//         const processedResults = result.results.reduce<any[]>((acc, post) => {
-//           const tweetId = extractTweetId(post.url);
-//           if (tweetId) {
-//             acc.push({
-//               ...post,
-//               tweetId,
-//               title: post.title || '',
-//             });
-//           }
-//           return acc;
-//         }, []);
-        
-//         // Track this search in our array
-//         const searchData = {
-//           query,
-//           timestamp: new Date().toISOString(),
-//           results: processedResults
-//         };
-        
-//         searchResults.push(searchData);
-        
-//         // Send annotation for visualization in the UI
-//         dataStream.writeMessageAnnotation({
-//           type: 'x_search_complete',
-//           data: searchData
-//         });
-        
-//         return {
-//           results: processedResults,
-//         };
-//       } catch (error) {
-//         console.error('X search error:', error);
-        
-//         // Send error annotation
-//         dataStream.writeMessageAnnotation({
-//           type: 'x_search_error',
-//           data: {
-//             query,
-//             timestamp: new Date().toISOString(),
-//             error: error instanceof Error ? error.message : 'Unknown error'
-//           }
-//         });
-        
-//         return {
-//           error: error instanceof Error ? error.message : 'Unknown error',
-//           results: []
-//         };
-//       }
-//     },
-//   });
-  
-//   // X 검색 도구와 저장된 결과 배열을 함께 반환
-//   return Object.assign(xSearchTool, { searchResults });
-// }
-
-// YouTube 검색 도구 생성 함수
 export function createYouTubeSearchTool(dataStream: any) {
   // 검색 결과를 저장할 배열
   const searchResults: any[] = [];
@@ -1098,8 +944,8 @@ export function createYouTubeSearchTool(dataStream: any) {
   
   const youtubeSearchTool = tool({
     description: toolDefinitions.youtubeSearch.description,
-    parameters: z.object({
-      query: z.string().describe(toolDefinitions.youtubeSearch.parameters.query),
+    inputSchema: z.object({
+      query: z.string().describe(toolDefinitions.youtubeSearch.inputSchema.query),
     }),
     execute: async ({ query }: { query: string }) => {
       try {
@@ -1207,11 +1053,14 @@ export function createYouTubeSearchTool(dataStream: any) {
         
         searchResults.push(searchResult);
         
-        // Send annotation for visualization in the UI
-        dataStream.writeMessageAnnotation({
-          type: 'youtube_search_complete',
-          data: searchResult
-        });
+        // YouTube 검색 완료 어노테이션 전송
+        if (dataStream?.write) {
+          dataStream.write({
+            type: 'data-youtube_search_complete',
+            id: `ann-youtube-complete-${Date.now()}`,
+            data: searchResult
+          });
+        }
         
         return {
           results: validResults,
@@ -1219,15 +1068,18 @@ export function createYouTubeSearchTool(dataStream: any) {
       } catch (error) {
         console.error('YouTube search error:', error);
         
-        // Send error annotation
-        dataStream.writeMessageAnnotation({
-          type: 'youtube_search_error',
-          data: {
-            query,
-            timestamp: new Date().toISOString(),
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }
-        });
+        // YouTube 검색 에러 어노테이션 전송
+        if (dataStream?.write) {
+          dataStream.write({
+            type: 'data-youtube_search_error',
+            id: `ann-youtube-error-${Date.now()}`,
+            data: {
+              query,
+              timestamp: new Date().toISOString(),
+              error: error instanceof Error ? error.message : 'Unknown error'
+            }
+          });
+        }
         
         return {
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -1255,8 +1107,8 @@ export function createYouTubeLinkAnalyzerTool(dataStream: any) {
   
   const youtubeAnalyzerTool = tool({
     description: toolDefinitions.youtubeAnalyzer.description,
-    parameters: z.object({
-      urls: z.array(z.string().url()).describe(toolDefinitions.youtubeAnalyzer.parameters.urls),
+    inputSchema: z.object({
+      urls: z.array(z.string().url()).describe(toolDefinitions.youtubeAnalyzer.inputSchema.urls),
       lang: z.string().optional().describe('Optional preferred language code for transcript. If not specified or not available, the first available language will be used.')
     }),
     execute: async ({
@@ -1432,14 +1284,17 @@ export function createYouTubeLinkAnalyzerTool(dataStream: any) {
         // Add to our tracking array
         analysisResults.push(...results);
         
-        // Send annotation for UI
-        dataStream.writeMessageAnnotation({
-          type: 'youtube_analysis_complete',
-          data: {
-            timestamp: new Date().toISOString(),
-            results
-          }
-        });
+        // YouTube 링크 분석 완료 어노테이션 전송
+        if (dataStream?.write) {
+          dataStream.write({
+            type: 'data-youtube_analysis_complete',
+            id: `ann-yt-analysis-complete-${Date.now()}`,
+            data: {
+              timestamp: new Date().toISOString(),
+              results
+            }
+          });
+        }
         
         return {
           results
@@ -1447,15 +1302,18 @@ export function createYouTubeLinkAnalyzerTool(dataStream: any) {
       } catch (error) {
         console.error('[YouTube Link Analyzer] Error:', error);
         
-        // Send error annotation
-        dataStream.writeMessageAnnotation({
-          type: 'youtube_analysis_error',
-          data: {
-            timestamp: new Date().toISOString(),
-            error: error instanceof Error ? error.message : 'Unknown error',
-            urls
-          }
-        });
+        // YouTube 링크 분석 에러 어노테이션 전송
+        if (dataStream?.write) {
+          dataStream.write({
+            type: 'data-youtube_analysis_error',
+            id: `ann-yt-analysis-error-${Date.now()}`,
+            data: {
+              timestamp: new Date().toISOString(),
+              error: error instanceof Error ? error.message : 'Unknown error',
+              urls
+            }
+          });
+        }
         
         return {
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -1486,567 +1344,208 @@ export function createYouTubeLinkAnalyzerTool(dataStream: any) {
   return Object.assign(youtubeAnalyzerTool, { analysisResults });
 }
 
-// Wolfram Alpha Ultimate tool creation function -- NOT USED YET
-export function createWolframAlphaUltimateTool(dataStream: any) {
-  // Array to store query results
-  const queryResults: any[] = [];
-
-  const wolframAlphaUltimateTool = tool({
-    description: toolDefinitions.wolframAlpha.description,
-    parameters: z.object({
-      query: z.string().describe(toolDefinitions.wolframAlpha.parameters.query),
-      format: z.enum(['simple', 'detailed', 'step-by-step'])
-              .describe(toolDefinitions.wolframAlpha.parameters.format)
-              .default('detailed'),
-      includePods: z.array(z.string())
-                   .describe(toolDefinitions.wolframAlpha.parameters.includePods)
-                   .optional(),
-      timeout: z.number()
-               .describe(toolDefinitions.wolframAlpha.parameters.timeout)
-               .default(30),
-      units: z.enum(['metric', 'imperial'])
-             .describe(toolDefinitions.wolframAlpha.parameters.units)
-             .optional(),
-      domain: z.enum([
-        'math', 'physics', 'chemistry', 'engineering', 'electronics', 
-        'biology', 'medicine', 'economics', 'statistics', 'general'
-      ]).describe(toolDefinitions.wolframAlpha.parameters.domain).optional(),
+// 🆕 이전 도구 결과 참조 도구 생성 함수
+export function createPreviousToolResultsTool(dataStream: any, chatId?: string) {
+  // 이전 도구 결과를 저장할 배열
+  const previousToolResults: any[] = [];
+  
+  const previousToolResultsTool = tool({
+    description: 'Retrieve and provide access to previous tool results from the current conversation. This tool fetches the latest tool_results from the messages table to provide context for the AI.',
+    inputSchema: z.object({
+      chatId: z.string().optional().describe('The chat session ID to retrieve tool results from. If not provided, will use the current chat session.'),
+      limit: z.number().optional().describe('Maximum number of recent tool results to retrieve. Default is 5.')
     }),
-    execute: async ({ 
-      query, 
-      format, 
-      includePods, 
-      timeout, 
-      units, 
-      domain 
-    }: {
-      query: string;
-      format: 'simple' | 'detailed' | 'step-by-step';
-      includePods?: string[];
-      timeout: number;
-      units?: 'metric' | 'imperial';
-      domain?: 'math' | 'physics' | 'chemistry' | 'engineering' | 'electronics' | 
-               'biology' | 'medicine' | 'economics' | 'statistics' | 'general';
-    }) => {
-      try {
-        // Check API key
-        const apiKey = process.env.WOLFRAM_ALPHA_APPID;
-        if (!apiKey) {
-          throw new Error('WOLFRAM_ALPHA_APPID is not defined in environment variables');
-        }
+    execute: async ({ chatId: inputChatId, limit = 5 }: { chatId?: string; limit?: number }) => {
+        // Supabase 클라이언트 생성
+        const { createClient } = await import('@/utils/supabase/server');
+        const supabase = await createClient();
         
-        // Query start notification
-        dataStream.writeMessageAnnotation({
-          type: 'wolfram_alpha_query_start',
-          data: {
-            query,
-            timestamp: new Date().toISOString(),
-            status: 'processing'
-          }
-        });
-
-        // API parameters
-        const params = new URLSearchParams({
-          input: query,
-          appid: apiKey,
-          output: 'json',
-          format: 'image,plaintext',
-          scantimeout: timeout.toString(),
-          podtimeout: timeout.toString(),
-          formattimeout: timeout.toString(),
-          parsetimeout: timeout.toString(),
-          totaltimeout: (timeout * 2).toString(),
-          reinterpret: 'true',
-          translation: 'true',
-        });
-
-        // Set units if provided
-        if (units) {
-          params.append('units', units);
-        }
-
-        // Add format-specific parameters
-        if (format === 'step-by-step') {
-          params.append('podstate', 'Step-by-step solution');
-          params.append('podstate', 'Show work');
-        }
-
-        // Add pod inclusion parameters if specified
-        if (includePods && includePods.length > 0) {
-          params.append('includepodid', includePods.join(','));
-        }
-
-        // Add domain-specific assumptions
-        if (domain) {
-          params.append('assumption', `*C.${domain}-_*`);
-        }
-
-        // API request notification
-        dataStream.writeMessageAnnotation({
-          type: 'wolfram_alpha_query_progress',
-          data: {
-            query,
-            timestamp: new Date().toISOString(),
-            status: 'sending_request',
-            message: 'Sending request to Wolfram Alpha...'
-          }
-        });
-
-        // API call URL
-        const apiUrl = `https://api.wolframalpha.com/v2/query?${params.toString()}`;
+        // 우선순위: 1) 함수 파라미터로 전달된 chatId, 2) 입력으로 받은 chatId, 3) 데이터베이스에서 추출
+        let targetChatId = chatId || inputChatId;
         
-        // Execute API call with timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout * 1000);
-        
-        try {
-          const response = await fetch(apiUrl, {
-            signal: controller.signal,
-            headers: {
-              'User-Agent': 'ChatBot/1.0'
+        if (!targetChatId) {
+          // 현재 사용자의 최신 채팅 세션에서 chatId 추출 시도
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { data: latestChat } = await supabase
+              .from('messages')
+              .select('chat_session_id')
+              .eq('user_id', user.id)
+              .not('chat_session_id', 'is', null)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single();
+            
+            if (latestChat?.chat_session_id) {
+              targetChatId = latestChat.chat_session_id;
+              console.log('[Previous Tool Results] Extracted chatId from latest session:', targetChatId);
             }
-          });
-          
-          clearTimeout(timeoutId);
-          
-          if (!response.ok) {
-            throw new Error(`Wolfram Alpha API failed with status ${response.status}: ${response.statusText}`);
           }
-
-          const data = await response.json();
-          
-          // Response received notification
-          dataStream.writeMessageAnnotation({
-            type: 'wolfram_alpha_query_progress',
-            data: {
-              query,
-              timestamp: new Date().toISOString(),
-              status: 'processing_response',
-              message: 'Processing Wolfram Alpha response...'
-            }
-          });
-
-          // Process results
-          const result = processWolframAlphaResponse(data, format);
-          
-          // Save and send results
-          const timestamp = new Date().toISOString();
-          const searchData = {
-            query,
-            timestamp,
-            result
-          };
-          
-          queryResults.push(searchData);
-          
-          // Send result annotation
-          dataStream.writeMessageAnnotation({
-            type: 'wolfram_alpha_result',
-            data: searchData
-          });
-          
-          // Return markdown result for LLM
+        }
+        
+        // chatId가 여전히 없으면 에러 반환
+        if (!targetChatId) {
           return {
-            markdown: result.markdown,
-            query,
-            success: result.success
+            error: 'chatId is required to retrieve previous tool results',
+            results: []
           };
-        } catch (fetchError) {
-          clearTimeout(timeoutId);
-          
-          if (fetchError instanceof Error) {
-            throw new Error(`Wolfram Alpha API request failed: ${fetchError.message}`);
-          }
-          throw fetchError;
         }
-      } catch (error) {
-        console.error('[Wolfram Alpha] Error:', error);
         
-        // Send error annotation
-        dataStream.writeMessageAnnotation({
-          type: 'wolfram_alpha_error',
-          data: {
-            query,
-            timestamp: new Date().toISOString(),
-            error: error instanceof Error ? error.message : 'Unknown error'
+        console.log('[Previous Tool Results] Fetching tool results for chatId:', targetChatId);
+        
+        // 최신 tool_results가 있는 메시지들을 가져오기
+        const { data: messages, error } = await supabase
+          .from('messages')
+          .select('id, tool_results, created_at, role')
+          .eq('chat_session_id', targetChatId)
+          .not('tool_results', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(limit);
+        
+        if (error) {
+          console.error('[Previous Tool Results] Database error:', error);
+          return {
+            error: error.message,
+            results: []
+          };
+        }
+        
+        if (!messages || messages.length === 0) {
+          console.log('[Previous Tool Results] No tool results found for chatId:', targetChatId);
+          return {
+            message: 'No previous tool results found in this conversation',
+            results: []
+          };
+        }
+        
+        // tool_results 처리 및 정리
+        const processedResults = messages.map(msg => {
+          const toolResults = msg.tool_results as any;
+          
+          // 각 도구 결과 타입별로 정리
+          const result = {
+            messageId: msg.id,
+            createdAt: msg.created_at,
+            role: msg.role,
+            toolResults: {} as any
+          };
+          
+          // webSearchResults 처리
+          if (toolResults.webSearchResults) {
+            result.toolResults.webSearchResults = toolResults.webSearchResults.map((search: any) => ({
+              searchId: search.searchId,
+              searches: search.searches?.map((s: any) => ({
+                query: s.query,
+                topic: s.topic,
+                resultsCount: s.results?.length || 0,
+                imagesCount: s.images?.length || 0,
+                // 결과 요약 (첫 번째 결과만)
+                firstResult: s.results?.[0] ? {
+                  title: s.results[0].title,
+                  url: s.results[0].url,
+                  summary: s.results[0].summary
+                } : null
+              }))
+            }));
           }
+          
+          // linkReaderAttempts 처리
+          if (toolResults.linkReaderAttempts) {
+            result.toolResults.linkReaderAttempts = toolResults.linkReaderAttempts.map((attempt: any) => ({
+              url: attempt.url,
+              status: attempt.status,
+              title: attempt.title,
+              contentLength: attempt.contentLength || 0
+            }));
+          }
+          
+          // calculationSteps 처리
+          if (toolResults.calculationSteps) {
+            result.toolResults.calculationSteps = toolResults.calculationSteps.map((step: any) => ({
+              step: step.step,
+              expression: step.expression,
+              result: step.result
+            }));
+          }
+          
+          // generatedImages 처리
+          if (toolResults.generatedImages) {
+            result.toolResults.generatedImages = toolResults.generatedImages.map((image: any) => ({
+              prompt: image.prompt,
+              model: image.model,
+              seed: image.seed,
+              timestamp: image.timestamp
+            }));
+          }
+          
+
+          
+          // youtubeSearchResults 처리
+          if (toolResults.youtubeSearchResults) {
+            result.toolResults.youtubeSearchResults = toolResults.youtubeSearchResults.map((search: any) => ({
+              query: search.query,
+              resultsCount: search.results?.length || 0,
+              firstResult: search.results?.[0] ? {
+                title: search.results[0].title,
+                channelName: search.results[0].channelName,
+                duration: search.results[0].duration
+              } : null
+            }));
+          }
+          
+          // youtubeLinkAnalysisResults 처리
+          if (toolResults.youtubeLinkAnalysisResults) {
+            result.toolResults.youtubeLinkAnalysisResults = toolResults.youtubeLinkAnalysisResults.map((analysis: any) => ({
+              url: analysis.url,
+              videoId: analysis.videoId,
+              details: analysis.details ? {
+                title: analysis.details.title,
+                author: analysis.details.author,
+                views: analysis.details.views
+              } : null,
+              hasTranscript: !!analysis.transcript
+            }));
+          }
+          
+          // structuredResponse 처리 (followup_questions)
+          if (toolResults.structuredResponse) {
+            result.toolResults.structuredResponse = {
+              followupQuestions: toolResults.structuredResponse.response?.followup_questions || []
+            };
+          }
+          
+          return result;
         });
         
-        // Return error markdown
-        return {
-          markdown: `## Wolfram Alpha Error\n\n${error instanceof Error ? error.message : 'Unknown error'}\n\nQuery attempted: \`${query}\``,
-          query,
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
+        // 결과를 내부 배열에 저장
+        previousToolResults.push(...processedResults);
+        
+        console.log(`[Previous Tool Results] Retrieved ${processedResults.length} tool result sets`);
+        
+        // AI에게 반환할 요약 정보
+        const summary = {
+          totalMessages: processedResults.length,
+          availableToolTypes: Object.keys(processedResults.reduce((acc, msg) => {
+            Object.keys(msg.toolResults).forEach(key => acc[key] = true);
+            return acc;
+          }, {} as Record<string, boolean>)),
+          recentActivity: processedResults.slice(0, 3).map(msg => ({
+            role: msg.role,
+            createdAt: msg.createdAt,
+            toolTypes: Object.keys(msg.toolResults)
+          }))
         };
-      }
+        
+        return {
+          summary,
+          detailedResults: processedResults,
+          message: `Retrieved ${processedResults.length} previous tool result sets from this conversation`
+        };
     }
   });
-
-  // Response processing function
-  function processWolframAlphaResponse(data: any, format: string) {
-    // Check query success
-    if (!data.queryresult || data.queryresult.success === false) {
-      const errorResult: {
-        success: boolean;
-        error: string;
-        didyoumeans: any[];
-        tips: any[];
-        markdown: string;
-      } = {
-        success: false,
-        error: data.queryresult?.error?.msg || 'No results found',
-        didyoumeans: data.queryresult?.didyoumeans || [],
-        tips: data.queryresult?.tips || [],
-        markdown: formatFailedQueryForLLM({
-          error: data.queryresult?.error?.msg || 'No results found',
-          didyoumeans: data.queryresult?.didyoumeans || [],
-          tips: data.queryresult?.tips || []
-        })
-      };
-      return errorResult;
-    }
-    
-    // Process pods
-    const pods = data.queryresult.pods || [];
-    const processedPods = pods.map((pod: any) => {
-      const subpods = pod.subpods || [];
-      return {
-        title: pod.title,
-        id: pod.id,
-        scanner: pod.scanner,
-        position: pod.position,
-        subpods: subpods.map((subpod: any) => ({
-          title: subpod.title,
-          plaintext: subpod.plaintext,
-          img: subpod.img ? {
-            src: subpod.img.src,
-            alt: subpod.img.alt,
-            width: subpod.img.width,
-            height: subpod.img.height
-          } : null
-        }))
-      };
-    });
-    
-    // Extract main results
-    const inputInterpretation = getInputInterpretation(pods);
-    const mainResult = getMainResult(pods);
-    const steps = format === 'step-by-step' ? getStepByStepSolution(pods) : [];
-    
-    // Create result object
-    const result: {
-      success: boolean;
-      inputInterpretation: any;
-      mainResult: any;
-      steps: any[];
-      pods: any[];
-      assumptions: any;
-      warnings: any;
-      timing: any;
-      timedout: any;
-      dataTypes: any;
-      rawOutput?: any;
-      markdown?: string;
-    } = {
-      success: true,
-      inputInterpretation,
-      mainResult,
-      steps,
-      pods: processedPods,
-      assumptions: data.queryresult.assumptions || [],
-      warnings: data.queryresult.warnings || [],
-      timing: data.queryresult.timing || 0,
-      timedout: data.queryresult.timedout || '',
-      dataTypes: data.queryresult.datatypes || '',
-      rawOutput: format === 'detailed' ? data : undefined
-    };
-    
-    // Create markdown for LLM display
-    result.markdown = formatForLLM(result);
-    
-    return result;
-  }
-  
-  // Input interpretation extraction function
-  function getInputInterpretation(pods: any[]) {
-    const inputPod = pods.find((pod: any) => 
-      pod.id === 'Input' || pod.id === 'Input interpretation'
-    );
-    
-    if (inputPod && inputPod.subpods && inputPod.subpods.length > 0) {
-      return inputPod.subpods[0].plaintext;
-    }
-    
-    return null;
-  }
-
-  // Main result extraction function
-  function getMainResult(pods: any[]) {
-    // Result pod ID priority order
-    const resultPodIds = [
-      'Result', 
-      'Solution', 
-      'DecimalApproximation', 
-      'Value',
-      'Derivative',
-      'Integral',
-      'IndefiniteIntegral',
-      'DefiniteIntegral',
-      'Roots',
-      'Plot',
-      'NumberLine'
-    ];
-    
-    // Find result pod by priority
-    for (const podId of resultPodIds) {
-      const resultPod = pods.find((pod: any) => pod.id === podId);
-      if (resultPod && resultPod.subpods && resultPod.subpods.length > 0) {
-        return {
-          title: resultPod.title,
-          plaintext: resultPod.subpods[0].plaintext,
-          img: resultPod.subpods[0].img
-        };
-      }
-    }
-    
-    // Use first non-input pod if no priority pod found
-    const firstNonInputPod = pods.find((pod: any) => 
-      pod.id !== 'Input' && pod.id !== 'Input interpretation'
-    );
-    
-    if (firstNonInputPod && firstNonInputPod.subpods && firstNonInputPod.subpods.length > 0) {
-      return {
-        title: firstNonInputPod.title,
-        plaintext: firstNonInputPod.subpods[0].plaintext,
-        img: firstNonInputPod.subpods[0].img
-      };
-    }
-    
-    return null;
-  }
-
-  // Step-by-step solution extraction function
-  function getStepByStepSolution(pods: any[]) {
-    const stepPods = pods.filter((pod: any) => 
-      pod.id === 'Step-by-step solution' || 
-      pod.id === 'Steps' ||
-      pod.title.includes('step') ||
-      pod.title.includes('Step')
-    );
-    
-    if (stepPods.length === 0) {
-      return [];
-    }
-    
-    // Collect all steps
-    const steps: any[] = [];
-    
-    stepPods.forEach((pod: any) => {
-      if (pod.subpods && pod.subpods.length > 0) {
-        pod.subpods.forEach((subpod: any) => {
-          if (subpod.plaintext) {
-            steps.push({
-              title: subpod.title || pod.title,
-              plaintext: subpod.plaintext,
-              img: subpod.img
-            });
-          }
-        });
-      }
-    });
-    
-    return steps;
-  }
-
-  // Format math expressions using mathjs
-  function formatMathExpression(text: string) {
-    if (!text) return '';
-    
-    // Try to convert simple math expressions to LaTeX
-    try {
-      // Only process simple math expressions
-      if (/^[\d\s+\-*/^()=.<>!,]+$/.test(text) && !text.includes('\n')) {
-        try {
-          // Use mathjs to parse expression and convert to LaTeX
-          const node = mathjs.parse(text);
-          const latex = node.toTex();
-          return `$${latex}$`;
-        } catch {
-          // Fall back to code block on conversion failure
-          return `\`\`\`\n${text}\n\`\`\``;
-        }
-      }
-    } catch {
-      // Fall back to code block on any error
-    }
-    
-    // Default to code block
-    return `\`\`\`\n${text}\n\`\`\``;
-  }
-
-  // Format results for LLM display
-  function formatForLLM(result: any) {
-    if (!result.success) {
-      return formatFailedQueryForLLM(result);
-    }
-    
-    let markdown = `## Wolfram Alpha Results\n\n`;
-    
-    // Input interpretation
-    if (result.inputInterpretation) {
-      markdown += `**Input interpretation**: ${result.inputInterpretation}\n\n`;
-    }
-    
-    // Main result
-    if (result.mainResult) {
-      markdown += `### Result\n\n`;
-      
-      // Text result
-      if (result.mainResult.plaintext) {
-        // Format math expressions
-        markdown += formatMathExpression(result.mainResult.plaintext) + '\n\n';
-      }
-      
-      // Image result
-      if (result.mainResult.img && result.mainResult.img.src) {
-        // Make sure image URL is complete and encoded correctly
-        const imageUrl = ensureValidImageUrl(result.mainResult.img.src);
-        markdown += `![${result.mainResult.img.alt || 'Result image'}](${imageUrl})\n\n`;
-      }
-    }
-    
-    // Assumptions
-    if (result.assumptions && result.assumptions.length > 0) {
-      markdown += `### Assumptions\n\n`;
-      
-      result.assumptions.forEach((assumption: any) => {
-        if (assumption.values && assumption.values.length > 0) {
-          markdown += `- **${assumption.type || 'Assumption'}**: `;
-          markdown += assumption.values.map((value: any) => value.desc || value.name).join(', ');
-          markdown += '\n';
-        }
-      });
-      
-      markdown += '\n';
-    }
-    
-    // Step-by-step solution
-    if (result.steps && result.steps.length > 0) {
-      markdown += `### Step-by-step Solution\n\n`;
-      
-      result.steps.forEach((step: any, index: number) => {
-        markdown += `**Step ${index + 1}**: `;
-        
-        if (step.title && step.title !== 'Step-by-step solution') {
-          markdown += `${step.title}\n\n`;
-        }
-        
-        if (step.plaintext) {
-          markdown += formatMathExpression(step.plaintext) + '\n\n';
-        }
-        
-        if (step.img && step.img.src) {
-          // Make sure image URL is complete and encoded correctly
-          const imageUrl = ensureValidImageUrl(step.img.src);
-          markdown += `![${step.img.alt || 'Step image'}](${imageUrl})\n\n`;
-        }
-      });
-    }
-    
-    // Additional information (other pods)
-    const additionalPods = result.pods.filter((pod: any) => 
-      pod.id !== 'Input' && 
-      pod.id !== 'Input interpretation' &&
-      pod.id !== 'Result' &&
-      pod.id !== 'Solution' &&
-      pod.id !== 'Step-by-step solution' &&
-      pod.id !== 'Steps'
-    );
-    
-    if (additionalPods.length > 0) {
-      markdown += `### Additional Information\n\n`;
-      
-      additionalPods.forEach((pod: any) => {
-        markdown += `#### ${pod.title}\n\n`;
-        
-        pod.subpods.forEach((subpod: any) => {
-          if (subpod.plaintext) {
-            markdown += formatMathExpression(subpod.plaintext) + '\n\n';
-          }
-          
-          if (subpod.img && subpod.img.src) {
-            // Make sure image URL is complete and encoded correctly
-            const imageUrl = ensureValidImageUrl(subpod.img.src);
-            markdown += `![${subpod.img.alt || pod.title}](${imageUrl})\n\n`;
-          }
-        });
-      });
-    }
-    
-    return markdown;
-  }
-
-  // Ensure Wolfram Alpha image URLs are valid and complete
-  function ensureValidImageUrl(url: string): string {
-    // Return unmodified URL if it's already a complete URL
-    if (url.startsWith('https://') || url.startsWith('http://')) {
-      return url;
-    }
-
-    // Add https protocol if missing
-    if (url.startsWith('//')) {
-      return `https:${url}`;
-    }
-
-    // Assume it's a relative URL if it doesn't have a protocol, add Wolfram Alpha domain
-    if (!url.includes('://')) {
-      // If it starts with /, keep as is, otherwise add /
-      const urlPath = url.startsWith('/') ? url : `/${url}`;
-      return `https://www4b.wolframalpha.com${urlPath}`;
-    }
-
-    // Return original URL if none of the above conditions match
-    return url;
-  }
-
-  // Format failed query for LLM
-  function formatFailedQueryForLLM(result: any) {
-    let markdown = `## Wolfram Alpha Query Failed\n\n`;
-    
-    if (result.error) {
-      markdown += `**Error**: ${result.error}\n\n`;
-    }
-    
-    // Suggested alternative queries
-    if (result.didyoumeans && result.didyoumeans.length > 0) {
-      markdown += `**Did you mean?**\n\n`;
-      
-      // Process didyoumeans (can be array or object)
-      const suggestions = Array.isArray(result.didyoumeans) 
-        ? result.didyoumeans 
-        : [result.didyoumeans];
-      
-      suggestions.forEach((suggestion: any) => {
-        const suggestionText = suggestion.val || suggestion;
-        markdown += `- ${suggestionText}\n`;
-      });
-      
-      markdown += '\n';
-    }
-    
-    // Tips
-    if (result.tips && result.tips.length > 0) {
-      markdown += `**Tips**:\n\n`;
-      
-      result.tips.forEach((tip: any) => {
-        markdown += `- ${tip.text}\n`;
-      });
-    }
-    
-    return markdown;
-  }
-
-  // Return the tool with query results
-  return Object.assign(wolframAlphaUltimateTool, { queryResults });
+  // 도구와 저장된 결과 배열을 함께 반환
+  return Object.assign(previousToolResultsTool, { previousToolResults });
 }
+
+
+

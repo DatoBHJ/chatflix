@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { updateMemoryBank, getLastMemoryUpdate } from '@/utils/memory-bank';
-import { MultiModalMessage } from '../types';
+// import { MultiModalMessage } from '../types';
 import { callMemoryBankUpdate } from '@/app/api/chat/utils/callMemoryBankUpdate';
 
 // fetchUserName 함수 - 최적화된 버전 (중복 auth 호출 방지)
@@ -54,7 +54,7 @@ const MEMORY_UPDATE_TEMPERATURE = 0.3;
 
 // 🆕 Smart Trigger 관련 상수
 const MEMORY_ANALYSIS_MODEL = 'gpt-4.1-nano'; // OpenAI API 호환 모델 사용
-const MIN_MESSAGE_LENGTH = 20; // 최소 메시지 길이
+const MIN_MESSAGE_LENGTH = 20; // 최소 메시지 길이 
 const MAX_TIME_SINCE_LAST_UPDATE = 24 * 60 * 60 * 1000; // 최대 24시간
 
 /**
@@ -63,9 +63,10 @@ const MAX_TIME_SINCE_LAST_UPDATE = 24 * 60 * 60 * 1000; // 최대 24시간
 export async function shouldUpdateMemory(
   supabase: SupabaseClient,
   userId: string,
-  messages: MultiModalMessage[],
+  messages: any[],
   userMessage: string,
-  aiMessage: string
+  aiMessage: string,
+  memoryData?: string | null
 ): Promise<{
   shouldUpdate: boolean;
   reasons: string[];
@@ -78,8 +79,24 @@ export async function shouldUpdateMemory(
     const now = new Date();
     const timeSinceLastUpdate = lastUpdate ? (now.getTime() - lastUpdate.getTime()) : Infinity;
     
-    // 2. 강제 업데이트 조건들
-    if (!lastUpdate || timeSinceLastUpdate > MAX_TIME_SINCE_LAST_UPDATE) {
+    // 메모리 데이터가 기본값인지 확인 (먼저 선언)
+    const isDefaultMemory = memoryData && 
+      memoryData.includes('This section contains basic information about the user') &&
+      memoryData.includes('This section tracks user preferences such as UI style');
+    
+    // 2. 강제 업데이트 조건들 (더 엄격하게)
+    if (!lastUpdate) {
+      // 첫 업데이트인 경우에만 강제 업데이트
+      return {
+        shouldUpdate: true,
+        reasons: ['First memory update'],
+        categories: ['all'],
+        priority: 'high'
+      };
+    }
+    
+    // 24시간이 지났으면 업데이트 (기본 메모리 데이터가 있어도 시간 기반으로 업데이트)
+    if (timeSinceLastUpdate > MAX_TIME_SINCE_LAST_UPDATE) {
       return {
         shouldUpdate: true,
         reasons: ['Maximum time threshold reached'],
@@ -88,8 +105,8 @@ export async function shouldUpdateMemory(
       };
     }
     
-    // 3. 메시지 길이 확인
-    if (userMessage.length < MIN_MESSAGE_LENGTH && aiMessage.length < 100) {
+    // 3. 메시지 길이 확인 (더 엄격한 조건)
+    if (userMessage.length < MIN_MESSAGE_LENGTH) {
       return {
         shouldUpdate: false,
         reasons: ['Messages too short for meaningful analysis'],
@@ -108,6 +125,8 @@ export async function shouldUpdateMemory(
 USER MESSAGE: "${userMessage}"
 AI RESPONSE: "${aiMessage}"
 RECENT CONTEXT: "${recentConversation}"
+${memoryData ? `EXISTING MEMORY DATA: "${memoryData}"` : 'NO EXISTING MEMORY DATA'}
+${isDefaultMemory ? 'NOTE: User has default/initial memory data - prioritize updates' : ''}
 
 Determine:
 1. Should memory be updated? (yes/no)
@@ -123,11 +142,43 @@ Respond in JSON format:
   "reasons": ["reason1", "reason2"]
 }
 
-RULES:
-- HIGH priority: Personal info changes, strong preferences expressed, emotional responses
-- MEDIUM priority: New interests, learning patterns, significant technical discussions
-- LOW priority: Simple questions, greetings, basic clarifications
-- Skip update for: Very short exchanges, purely factual Q&A without personal context`;
+CRITICAL RULES FOR MEMORY UPDATES:
+- ALWAYS update when user EXPLICITLY requests to remember something (e.g., "remember this", "save this", "keep this in mind", "memorize this")
+- ALWAYS update when user asks to remember specific preferences, styles, or instructions
+- HIGH priority: 
+  * User explicitly requests memory updates ("remember this", "save this", "keep this in mind", etc.)
+  * Major personal info changes (name, occupation, location)
+  * Strong emotional responses or preferences that contradict existing data
+  * Completely new topics/interests not mentioned before
+  * New users with default memory (first few interactions)
+  * Specific writing style preferences or communication instructions
+- MEDIUM priority:
+  * New learning patterns or expertise level changes
+  * Significant technical discussions on new subjects
+  * Communication style preferences that differ from existing patterns
+  * Regular updates for users with established profiles (every 24h)
+- LOW priority:
+  * Minor clarifications or elaborations on existing topics
+  * Simple questions or greetings
+  * Information already present in memory
+- SKIP update for:
+  * Very short exchanges (< 50 characters total)
+  * Purely factual Q&A without personal context
+  * Information already well-documented in memory
+  * Routine conversations without new insights
+  * Repeated topics or preferences already recorded
+
+EXPLICIT MEMORY REQUESTS:
+- Look for phrases like: "remember this", "save this", "keep this in mind", "memorize this", "remember that", "save that"
+- When user asks to remember something specific, ALWAYS update memory regardless of other factors
+- This includes style preferences, writing instructions, communication preferences, etc.
+
+COMPARISON LOGIC:
+- Compare new information with existing memory data
+- Only update if the new information is substantially different or adds significant value
+- If the information is already well-covered in memory, skip the update
+- Focus on capturing truly unique or changing aspects of the user's profile
+- EXCEPTION: Always update when user explicitly requests it`;
 
     // AI 분석 호출 (경량 모델 사용)
     const analysisResult = await callMemoryBankUpdate(
@@ -153,12 +204,18 @@ RULES:
       }
     }
     
-    // 폴백: 기본 휴리스틱 분석
-    return analyzeWithHeuristics(userMessage, aiMessage, timeSinceLastUpdate);
+    // AI 분석 실패 시 업데이트 건너뛰기
+    console.log(`⏭️ [SMART TRIGGER] AI analysis failed, skipping memory update`);
+    return {
+      shouldUpdate: false,
+      reasons: ['AI analysis failed'],
+      categories: [],
+      priority: 'low'
+    };
     
   } catch (error) {
     console.error('❌ [SMART TRIGGER] Analysis failed:', error);
-    // 안전한 폴백
+    // AI 분석 실패 시 업데이트 건너뛰기
     return {
       shouldUpdate: false,
       reasons: ['Analysis failed'],
@@ -168,81 +225,11 @@ RULES:
   }
 }
 
-/**
- * 휴리스틱 기반 메모리 업데이트 필요성 분석 (AI 분석 실패 시 폴백)
- */
-function analyzeWithHeuristics(
-  userMessage: string, 
-  aiMessage: string, 
-  timeSinceLastUpdate: number
-): {
-  shouldUpdate: boolean;
-  reasons: string[];
-  categories: string[];
-  priority: 'high' | 'medium' | 'low';
-} {
-  const reasons: string[] = [];
-  const categories: string[] = [];
-  let priority: 'high' | 'medium' | 'low' = 'low';
-  
-  // 키워드 기반 분석
-  const personalInfoKeywords = ['my name', 'i am', 'i work', 'my job', 'my role', 'call me', '제 이름', '저는', '제가'];
-  const preferencesKeywords = ['i prefer', 'i like', 'i want', 'i need', 'prefer', '선호', '좋아해', '원해'];
-  const interestsKeywords = ['interested in', 'learning', 'studying', 'working on', '관심', '배우고', '공부'];
-  
-  const combinedText = (userMessage + ' ' + aiMessage).toLowerCase();
-  
-  // Personal info 체크
-  if (personalInfoKeywords.some(keyword => combinedText.includes(keyword))) {
-    categories.push('personal-info');
-    reasons.push('Personal information mentioned');
-    priority = 'high';
-  }
-  
-  // Preferences 체크
-  if (preferencesKeywords.some(keyword => combinedText.includes(keyword))) {
-    categories.push('preferences');
-    reasons.push('User preferences expressed');
-    if (priority !== 'high') priority = 'medium';
-  }
-  
-  // Interests 체크
-  if (interestsKeywords.some(keyword => combinedText.includes(keyword))) {
-    categories.push('interests');
-    reasons.push('New interests or learning topics mentioned');
-    if (priority === 'low') priority = 'medium';
-  }
-  
-  // 시간 기반 체크
-  const oneHour = 60 * 60 * 1000;
-  if (timeSinceLastUpdate > oneHour) {
-    categories.push('interaction-history');
-    reasons.push('Sufficient time since last update');
-    if (priority === 'low') priority = 'medium';
-  }
-  
-  // 긴 대화 체크
-  if (userMessage.length > 200 || aiMessage.length > 500) {
-    categories.push('relationship');
-    reasons.push('Substantial conversation for relationship analysis');
-    if (priority === 'low') priority = 'medium';
-  }
-  
-  return {
-    shouldUpdate: categories.length > 0,
-    reasons,
-    categories,
-    priority
-  };
-}
-
 // 최근 메시지 추출을 위한 상수
 // 가장 최근 메시지 5개만 고려 - 현재 대화의 직접적인 컨텍스트를 캡처하기 위함
 const RECENT_MESSAGES_COUNT = 5;
 // 조금 더 넓은 컨텍스트를 위해 7개의 메시지 사용 - 선호도, 관심사 등 패턴 파악에 유용
 const EXTENDED_MESSAGES_COUNT = 7;
-// DB에서 가져올 최대 메시지 수 - 비용 효율성을 위해 10개로 제한
-const MESSAGES_HISTORY_LIMIT = 10;
 
 // 메모리 뱅크 카테고리 상수
 const MEMORY_CATEGORIES = {
@@ -253,28 +240,17 @@ const MEMORY_CATEGORIES = {
   RELATIONSHIP: '04-relationship'
 };
 
-/**
- * 사용자 메모리 데이터 인터페이스
- */
-interface UserMemoryData {
-  personalInfo: string | null;
-  preferences: string | null;
-  interests: string | null;
-  interactionHistory: string | null;
-  relationship: string | null;
-  profileData: any;
-}
 
 /**
  * Utility function to convert messages to text
  */
-function convertMessagesToText(messages: MultiModalMessage[]): string {
+function convertMessagesToText(messages: any[]): string {
   return messages.map(msg => {
     const role = msg.role.charAt(0).toUpperCase() + msg.role.slice(1);
     const content = typeof msg.content === 'string' 
       ? msg.content 
       : Array.isArray(msg.content) 
-        ? msg.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
+        ? msg.content.filter((part: any) => part.type === 'text').map((part: any) => part.text).join('\n')
         : JSON.stringify(msg.content);
     return `${role}: ${content}`;
   }).join('\n\n');
@@ -283,7 +259,7 @@ function convertMessagesToText(messages: MultiModalMessage[]): string {
 /**
  * Extract recent messages from the conversation
  */
-function getRecentConversationText(messages: MultiModalMessage[], count: number = RECENT_MESSAGES_COUNT): string {
+function getRecentConversationText(messages: any[], count: number = RECENT_MESSAGES_COUNT): string {
   return convertMessagesToText(messages.slice(-count));
 }
 
@@ -333,108 +309,6 @@ async function getUserBasicInfo(supabase: SupabaseClient, userId: string): Promi
   }
 }
 
-/**
- * Retrieve user's recent messages for analysis
- */
-async function getUserRecentMessages(supabase: SupabaseClient, userId: string, limit: number = MESSAGES_HISTORY_LIMIT): Promise<any[]> {
-  try {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('content, role, model, created_at, chat_session_id')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    
-    if (error) {
-      return [];
-    }
-    
-    if (!data || data.length === 0) {
-      return [];
-    }
-    
-    return data;
-  } catch (error) {
-    return [];
-  }
-}
-
-/**
- * Retrieve user profile data from active_user_profiles
- */
-async function getUserProfileData(supabase: SupabaseClient, userId: string): Promise<any> {
-  try {
-    const { data, error } = await supabase
-      .from('active_user_profiles')
-      .select('profile_data, profile_summary, analyzed_message_count')
-      .eq('user_id', userId)
-      .single();
-    
-    if (error) {
-      return {};
-    }
-    
-    if (!data) {
-      return {};
-    }
-    
-    return data;
-  } catch (error) {
-    return {};
-  }
-}
-
-/**
- * 통합 메모리 조회 함수: 한 번의 호출로 필요한 모든 메모리 데이터 가져오기
- */
-async function getUserMemoryData(supabase: SupabaseClient, userId: string): Promise<UserMemoryData> {
-  try {
-    // 모든 메모리 뱅크 항목 가져오기
-    const { data: memoryEntries, error } = await supabase
-      .from('memory_bank')
-      .select('category, content')
-      .eq('user_id', userId);
-    
-    if (error || !memoryEntries) {
-      return {
-        personalInfo: null,
-        preferences: null,
-        interests: null,
-        interactionHistory: null,
-        relationship: null,
-        profileData: {}
-      };
-    }
-    
-    // 메모리 뱅크 항목을 카테고리별로 정리
-    const memoryMap: Record<string, string> = {};
-    memoryEntries.forEach(entry => {
-      memoryMap[entry.category] = entry.content;
-    });
-    
-    // 프로필 데이터 가져오기
-    const profileData = await getUserProfileData(supabase, userId);
-    
-    return {
-      personalInfo: memoryMap[MEMORY_CATEGORIES.PERSONAL_INFO] || null,
-      preferences: memoryMap[MEMORY_CATEGORIES.PREFERENCES] || null,
-      interests: memoryMap[MEMORY_CATEGORIES.INTERESTS] || null,
-      interactionHistory: memoryMap[MEMORY_CATEGORIES.INTERACTION_HISTORY] || null,
-      relationship: memoryMap[MEMORY_CATEGORIES.RELATIONSHIP] || null,
-      profileData
-    };
-  } catch (error) {
-    console.error("Error retrieving user memory data:", error);
-    return {
-      personalInfo: null,
-      preferences: null,
-      interests: null,
-      interactionHistory: null,
-      relationship: null,
-      profileData: {}
-    };
-  }
-}
 
 /**
  * 공통 메모리 뱅크 업데이트 함수
@@ -487,21 +361,15 @@ async function updateMemoryCategory(
 export async function updatePersonalInfo(
   supabase: SupabaseClient,
   userId: string,
-  messages: MultiModalMessage[]
+  messages: any[],
+  memoryData?: string | null
 ): Promise<string | null> {
   try {
     // Get basic user info from auth.users
     const basicInfo = await getUserBasicInfo(supabase, userId);
     
-    // Get all user memory data in one call
-    const memoryData = await getUserMemoryData(supabase, userId);
-    
     // Extract conversation text from recent messages
     const recentConversationText = getRecentConversationText(messages);
-    
-    // 프로필 데이터에서 유용한 추가 정보 추출
-    const profileInsights = memoryData.profileData?.profile_data ? 
-      `\n## Profile Analytics\n${memoryData.profileData.profile_summary || "No profile summary available."}\n` : '';
     
     // Create a context-rich prompt that includes the basic user info
     const personalInfoPrompt = `Based on the conversation and available user information, extract or update the user's personal information.
@@ -524,8 +392,7 @@ Create a comprehensive user profile in markdown format with the following sectio
 - Preferred models: [Which AI models they use most]
 
 Previous personal information:
-${memoryData.personalInfo || "No previous personal information recorded."}
-${profileInsights}
+${memoryData || "No previous personal information recorded."}
 
 Current conversation:
 ${recentConversationText}
@@ -558,27 +425,12 @@ IMPORTANT GUIDELINES:
 export async function updatePreferences(
   supabase: SupabaseClient,
   userId: string,
-  messages: MultiModalMessage[]
+  messages: any[],
+  memoryData?: string | null
 ): Promise<void> {
   try {
-    // Get all user memory data in one call
-    const memoryData = await getUserMemoryData(supabase, userId);
-    
     const recentMessages = messages.slice(-EXTENDED_MESSAGES_COUNT);
     const conversationText = convertMessagesToText(recentMessages);
-    
-    // 프로필 데이터에서 유용한 정보 추출
-    let profilePreferences = '';
-    if (memoryData.profileData?.profile_data) {
-      const profileData = memoryData.profileData.profile_data;
-      // 선호도와 관련된 데이터 추출 시도
-      const traits = profileData.traits ? `User traits: ${profileData.traits.join(', ')}` : '';
-      const patterns = profileData.patterns ? `\nObserved patterns: ${profileData.patterns.join('\n- ')}` : '';
-      
-      if (traits || patterns) {
-        profilePreferences = `\n## Profile Insights\n${traits}${patterns}\n`;
-      }
-    }
     
     const preferencesPrompt = `Based on the conversation and user profile data, identify and update the user's preferences.
 Create a comprehensive preference profile in markdown format with the following sections:
@@ -600,8 +452,7 @@ Create a comprehensive preference profile in markdown format with the following 
 - Follow-up style: [Do they engage with follow-up questions?]
 
 Previous preferences information:
-${memoryData.preferences || "No previous preferences recorded."}
-${profilePreferences}
+${memoryData || "No previous preferences recorded."}
 
 Current conversation:
 ${conversationText}
@@ -632,31 +483,12 @@ IMPORTANT GUIDELINES:
 export async function updateInterests(
   supabase: SupabaseClient,
   userId: string,
-  messages: MultiModalMessage[]
+  messages: any[],
+  memoryData?: string | null
 ): Promise<void> {
   try {
-    // Get all user memory data in one call
-    const memoryData = await getUserMemoryData(supabase, userId);
-    
-    // 대화 세션 수를 프로필 데이터에서 가져오기
-    const analyzedMessageCount = memoryData.profileData?.analyzed_message_count || 0;
-    
     const recentMessages = messages.slice(-EXTENDED_MESSAGES_COUNT);
     const conversationText = convertMessagesToText(recentMessages);
-    
-    // 프로필 데이터에서 관심사 정보 추출
-    let profileInterests = '';
-    if (memoryData.profileData?.profile_data) {
-      const profileData = memoryData.profileData.profile_data;
-      
-      // 관심사 관련 데이터 추출
-      const topics = profileData.topics ? `User topics: ${profileData.topics.join(', ')}` : '';
-      const keywords = profileData.keywords ? `\nKeywords: ${profileData.keywords.join(', ')}` : '';
-      
-      if (topics || keywords) {
-        profileInterests = `\n## Profile Interests\n${topics}${keywords}\n`;
-      }
-    }
     
     const interestsPrompt = `Based on the conversation and user profile data, identify and update the user's interests and topics they care about.
 Create a comprehensive interest profile in markdown format with the following sections:
@@ -674,11 +506,8 @@ Create a comprehensive interest profile in markdown format with the following se
 - Progress areas: Topics where the user shows increasing expertise
 - Challenging areas: Topics where the user seems to need more support
 
-User has approximately ${analyzedMessageCount} analyzed messages.
-${profileInterests}
-
 Previous interests information:
-${memoryData.interests || "No previous interests recorded."}
+${memoryData || "No previous interests recorded."}
 
 Current conversation:
 ${conversationText}
@@ -710,12 +539,10 @@ IMPORTANT GUIDELINES:
 export async function updateInteractionHistory(
   supabase: SupabaseClient,
   userId: string,
-  messages: MultiModalMessage[]
+  messages: any[],
+  memoryData?: string | null
 ): Promise<void> {
   try {
-    // Get all user memory data in one call
-    const memoryData = await getUserMemoryData(supabase, userId);
-    
     const recentMessages = messages.slice(-EXTENDED_MESSAGES_COUNT);
     const conversationText = convertMessagesToText(recentMessages);
     
@@ -738,7 +565,7 @@ Create a comprehensive interaction history in markdown format with the following
 - Include any tasks the user mentioned they wanted to complete
 
 Previous interaction history:
-${memoryData.interactionHistory || "No previous interaction history recorded."}
+${memoryData || "No previous interaction history recorded."}
 
 Current conversation:
 ${conversationText}
@@ -770,33 +597,14 @@ IMPORTANT GUIDELINES:
 export async function updateRelationship(
   supabase: SupabaseClient,
   userId: string,
-  messages: MultiModalMessage[],
+  messages: any[],
   userMessage: string,
-  aiMessage: string
+  aiMessage: string,
+  memoryData?: string | null
 ): Promise<void> {
   try {
-    // Get all user memory data in one call
-    const memoryData = await getUserMemoryData(supabase, userId);
-    
     // 최근 대화 분석을 통한 감정 상태와 소통 패턴 파악
     const recentConversation = getRecentConversationText(messages);
-    
-    // 프로필 데이터에서 유용한 정보 추출
-    const profileInsights = memoryData.profileData?.profile_data ? 
-      `\n## User Profile Insights\n${JSON.stringify(memoryData.profileData.profile_data, null, 2)}\n` : '';
-
-    const profileSummary = memoryData.profileData?.profile_summary ? 
-      `\n## User Profile Summary\n${memoryData.profileData.profile_summary}\n` : '';
-      
-    // 분석된 메시지 수 정보 추가
-    const messageAnalytics = `Analyzed message count: ${memoryData.profileData?.analyzed_message_count || 0}`;
-    
-    // 이전 메모리 뱅크 정보를 활용한 통합 분석
-    const personalContext = memoryData.personalInfo ? 
-      `\n## Personal Context\n${memoryData.personalInfo}\n` : '';
-    
-    const preferencesContext = memoryData.preferences ? 
-      `\n## Preferences Context\n${memoryData.preferences}\n` : '';
     
     const relationshipPrompt = `Based on this conversation and comprehensive user profile data, update the AI-user relationship profile.
 Create a comprehensive relationship profile in markdown format with the following sections:
@@ -817,14 +625,7 @@ Create a comprehensive relationship profile in markdown format with the followin
 - Relationship goals: How to improve the interaction quality over time
 
 Previous relationship information:
-${memoryData.relationship || "No previous relationship data recorded."}
-
-User insights:
-${profileInsights}
-${profileSummary}
-${messageAnalytics}
-${personalContext}
-${preferencesContext}
+${memoryData || "No previous relationship data recorded."}
 
 Recent conversation context:
 ${recentConversation}
@@ -862,11 +663,12 @@ export async function updateSelectiveMemoryBanks(
   supabase: SupabaseClient,
   userId: string,
   chatId: string,
-  messages: MultiModalMessage[],
+  messages: any[],
   userMessage: string,
   aiMessage: string,
   categories: string[],
-  priority: 'high' | 'medium' | 'low'
+  priority: 'high' | 'medium' | 'low',
+  memoryData?: string | null
 ): Promise<void> {
   try {
     const startTime = Date.now();
@@ -876,17 +678,17 @@ export async function updateSelectiveMemoryBanks(
     
     // 카테고리별 업데이트 함수 매핑
     const updateFunctions = {
-      'personal-info': () => updatePersonalInfo(supabase, userId, messages),
-      'preferences': () => updatePreferences(supabase, userId, messages),
-      'interests': () => updateInterests(supabase, userId, messages),
-      'interaction-history': () => updateInteractionHistory(supabase, userId, messages),
-      'relationship': () => updateRelationship(supabase, userId, messages, userMessage, aiMessage),
+      'personal-info': () => updatePersonalInfo(supabase, userId, messages, memoryData),
+      'preferences': () => updatePreferences(supabase, userId, messages, memoryData),
+      'interests': () => updateInterests(supabase, userId, messages, memoryData),
+      'interaction-history': () => updateInteractionHistory(supabase, userId, messages, memoryData),
+      'relationship': () => updateRelationship(supabase, userId, messages, userMessage, aiMessage, memoryData),
       'all': () => Promise.all([
-        updatePersonalInfo(supabase, userId, messages),
-        updatePreferences(supabase, userId, messages),
-        updateInterests(supabase, userId, messages),
-        updateInteractionHistory(supabase, userId, messages),
-        updateRelationship(supabase, userId, messages, userMessage, aiMessage)
+        updatePersonalInfo(supabase, userId, messages, memoryData),
+        updatePreferences(supabase, userId, messages, memoryData),
+        updateInterests(supabase, userId, messages, memoryData),
+        updateInteractionHistory(supabase, userId, messages, memoryData),
+        updateRelationship(supabase, userId, messages, userMessage, aiMessage, memoryData)
       ])
     };
     
@@ -934,13 +736,14 @@ export async function smartUpdateMemoryBanks(
   supabase: SupabaseClient,
   userId: string,
   chatId: string,
-  messages: MultiModalMessage[],
+  messages: any[],
   userMessage: string,
-  aiMessage: string
+  aiMessage: string,
+  memoryData?: string | null
 ): Promise<void> {
   try {
     // 1. 메모리 업데이트 필요성 분석
-    const analysis = await shouldUpdateMemory(supabase, userId, messages, userMessage, aiMessage);
+    const analysis = await shouldUpdateMemory(supabase, userId, messages, userMessage, aiMessage, memoryData);
     
     console.log(`🧠 [SMART UPDATE] Analysis complete:`, {
       shouldUpdate: analysis.shouldUpdate,
@@ -961,7 +764,7 @@ export async function smartUpdateMemoryBanks(
       console.log(`🔥 [SMART UPDATE] High priority - immediate update`);
       await updateSelectiveMemoryBanks(
         supabase, userId, chatId, messages, userMessage, aiMessage, 
-        analysis.categories, analysis.priority
+        analysis.categories, analysis.priority, memoryData
       );
     } else if (analysis.priority === 'medium') {
       // 중간 우선순위: 3초 딜레이 후 업데이트
@@ -969,7 +772,7 @@ export async function smartUpdateMemoryBanks(
       setTimeout(async () => {
         await updateSelectiveMemoryBanks(
           supabase, userId, chatId, messages, userMessage, aiMessage, 
-          analysis.categories, analysis.priority
+          analysis.categories, analysis.priority, memoryData
         );
       }, 3000);
     } else {
@@ -978,7 +781,7 @@ export async function smartUpdateMemoryBanks(
       setTimeout(async () => {
         await updateSelectiveMemoryBanks(
           supabase, userId, chatId, messages, userMessage, aiMessage, 
-          analysis.categories, analysis.priority
+          analysis.categories, analysis.priority, memoryData
         );
       }, 30000);
     }

@@ -15,6 +15,7 @@ export function AttachmentTextViewer({ attachment }: AttachmentTextViewerProps) 
   const [content, setContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isBinary, setIsBinary] = useState(false);
 
   // 파일 확장자에 따른 언어 결정
   const getLanguageFromExtension = (fileName?: string): string => {
@@ -63,45 +64,68 @@ export function AttachmentTextViewer({ attachment }: AttachmentTextViewerProps) 
       try {
         setLoading(true);
         setError(null);
+        setIsBinary(false);
         
-        // 캐시에서 먼저 확인
-        const cachedContent = fileContentCache.get(attachment.url);
+        const cacheKey = attachment.url;
+        const cachedContent = fileContentCache.get(cacheKey);
         if (cachedContent) {
           setContent(cachedContent);
           setLoading(false);
           return;
         }
         
-        // 캐시에 없으면 네트워크에서 가져오기
         const response = await fetch(attachment.url);
         if (!response.ok) {
           throw new Error(`Failed to fetch file: ${response.statusText}`);
         }
-        
+ 
+        const ct = response.headers.get('content-type') || attachment.contentType || '';
+        const looksText = ct.startsWith('text/') || ct.includes('json') || ct.includes('xml') || ct.includes('javascript') || ct.includes('typescript') || ct.includes('html') || ct.includes('css') || (!!attachment.name && /(\.txt|\.md|\.js|\.jsx|\.ts|\.tsx|\.html|\.css|\.json|\.xml|\.py|\.java|\.c|\.cpp|\.cs|\.go|\.rb|\.php|\.swift|\.kt|\.rs|\.sql|\.sh|\.yml|\.yaml|\.toml|\.ini|\.cfg|\.conf|\.log)$/i.test(attachment.name));
+ 
+        if (!looksText) {
+          // 바이너리 파일로 간주 (PDF 등)
+          setIsBinary(true);
+          setLoading(false);
+          return;
+        }
+ 
         const text = await response.text();
-        
+ 
         // 캐시에 저장 (최대 50개 파일만 캐시)
         if (fileContentCache.size >= 50) {
-          // 가장 오래된 캐시 항목 제거
           const firstKey = fileContentCache.keys().next().value;
           if (firstKey) {
             fileContentCache.delete(firstKey);
           }
         }
-        fileContentCache.set(attachment.url, text);
-        
+        fileContentCache.set(cacheKey, text);
         setContent(text);
       } catch (err) {
-        console.error('Error fetching file content:', err);
         setError(err instanceof Error ? err.message : 'Failed to load file content');
       } finally {
         setLoading(false);
       }
     };
-
+ 
     fetchFileContent();
-  }, [attachment.url]);
-
+  }, [attachment.url, attachment.name, attachment.contentType]);
+ 
+  const language = getLanguageFromExtension(attachment.name);
+ 
+  // PDF 등 바이너리 파일에 대한 iframe 프리뷰 제공
+  if (attachment.contentType === 'application/pdf' || attachment.name?.toLowerCase().endsWith('.pdf')) {
+    return (
+      <div className="w-full h-full">
+        <iframe
+          src={`${attachment.url}#toolbar=1&navpanes=1&scrollbar=1`}
+          className="w-full border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] rounded-lg"
+          style={{ height: '80vh', minHeight: '600px' }}
+          title={attachment.name || 'PDF Document'}
+        />
+      </div>
+    );
+  }
+ 
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -116,7 +140,7 @@ export function AttachmentTextViewer({ attachment }: AttachmentTextViewerProps) 
       </div>
     );
   }
-
+ 
   if (error) {
     return (
       <div className="p-4 border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20 rounded-lg">
@@ -125,15 +149,21 @@ export function AttachmentTextViewer({ attachment }: AttachmentTextViewerProps) 
       </div>
     );
   }
-
-  const language = getLanguageFromExtension(attachment.name);
-
+ 
+  if (isBinary) {
+    return (
+      <div className="text-center text-[var(--muted)] p-6">
+        <p>Preview not available for this file type. Use the download button to view.</p>
+      </div>
+    );
+  }
+ 
   // 마크다운의 경우 직접 렌더링, 다른 파일의 경우 코드 블록으로 감싸기
   const isMarkdown = language === 'markdown';
   const markdownContent = isMarkdown 
     ? content 
     : `\`\`\`${language}\n${content}\n\`\`\``;
-
+ 
   return (
     <div
       className="max-w-full w-full overflow-x-auto"

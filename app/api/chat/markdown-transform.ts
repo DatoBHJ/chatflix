@@ -86,12 +86,22 @@ export const markdownJoinerTransform = <TOOLS extends ToolSet>() => () => {
   return new TransformStream<TextStreamPart<TOOLS>, TextStreamPart<TOOLS>>({
     transform(chunk, controller) {
       if (chunk.type === 'text-delta') {
-        const processedText = joiner.processText(chunk.textDelta);
-        if (processedText) {
-          controller.enqueue({
-            ...chunk,
-            textDelta: processedText,
-          });
+        try {
+          // AI SDK v5 sometimes uses textDelta; fall back to text if present
+          const incoming = (chunk as any).textDelta ?? (chunk as any).text ?? '';
+          const processedText = joiner.processText(incoming);
+          if (processedText) {
+            controller.enqueue({
+              ...chunk,
+              // Preserve both fields for compatibility
+              text: processedText,
+              textDelta: processedText,
+            } as any);
+          }
+        } catch (error) {
+          console.error('Error in markdown transform:', error);
+          // Fallback: pass through original chunk
+          controller.enqueue(chunk);
         }
       } else {
         controller.enqueue(chunk);
@@ -102,6 +112,8 @@ export const markdownJoinerTransform = <TOOLS extends ToolSet>() => () => {
       if (remaining) {
         controller.enqueue({
           type: 'text-delta',
+          id: crypto.randomUUID(),
+          text: remaining,
           textDelta: remaining,
         } as TextStreamPart<TOOLS>);
       }

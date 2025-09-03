@@ -212,7 +212,7 @@ const DomainGroup = ({
   const domainUrl = `https://${domain}`;
   
   return (
-    <div className="relative group bg-[var(--accent)]/40 rounded-xl p-0">
+    <div className="relative group p-0">
       <div className="absolute left-5 top-12 bottom-4 w-px bg-[var(--subtle-divider)]" />
       <div className="relative z-10 flex items-center justify-between mb-2">
         <div className="flex items-center gap-1 min-w-0 flex-1">
@@ -1296,7 +1296,7 @@ const MultiSearch: React.FC<{
     <div className="w-full space-y-4 my-4">
       <div className="px-0 sm:px-4">
         {/* 통합된 쿼리 필터 (완료된 쿼리 + 로딩 중인 쿼리) */}
-        <div className="flex flex-wrap gap-2 mb-4">
+        <div className="flex flex-wrap gap-2 mb-4 overflow-hidden">
           <button
             onClick={() => setActiveFilter(null)}
             className={`px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all text-sm font-medium
@@ -1346,7 +1346,7 @@ const MultiSearch: React.FC<{
                 key={i}
                 onClick={() => !isLoading && setActiveFilter(query === activeFilter ? null : query)}
                 disabled={isLoading}
-                className={`px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all break-keep text-sm font-medium relative group
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all text-sm font-medium relative group min-w-0 max-w-full
                           ${query === activeFilter 
                             ? "bg-[#007AFF] text-white" 
                             : isLoading
@@ -1355,24 +1355,30 @@ const MultiSearch: React.FC<{
                           }`}
 
               >
-                {/* Topic 아이콘 표시 */}
-                {getTopicIconComponent(topicIcon)}
-                <span>{query}</span>
+                {/* Topic 아이콘을 고정 크기 컨테이너로 래핑 */}
+                <div className="w-[14px] h-[14px] flex items-center justify-center flex-shrink-0">
+                  {getTopicIconComponent(topicIcon)}
+                </div>
+                
+                {/* 쿼리 텍스트를 별도 컨테이너로 관리하여 텍스트 길이와 무관하게 아이콘 크기 유지 */}
+                <span className="truncate min-w-0 flex-1">{query}</span>
                 
                 {/* 로딩 중인 경우 스피너 표시 */}
                 {isLoading && (
-                  <div className="ml-0.5 h-3 w-3 rounded-full border-t-transparent border-[1.5px] border-current animate-spin opacity-70" />
+                  <div className="ml-0.5 h-3 w-3 rounded-full border-t-transparent border-[1.5px] border-current animate-spin opacity-70 flex-shrink-0" />
                 )}
                 
                 {/* 검색 결과가 있는 경우 결과 수 표시 */}
                 {searchResult && searchResult.results.length > 0 && (
-                  <span className="text-xs text-[var(--muted)]">({searchResult.results.length})</span>
+                  <span className="text-xs text-[var(--muted)] flex-shrink-0">({searchResult.results.length})</span>
                 )}
                 
                 {/* 호버 툴팁 */}
                 <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-[var(--foreground)] text-[var(--background)] text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10 shadow-lg">
                   <div className="flex items-center gap-1.5">
-                    {getTopicIconComponent(topicIcon)}
+                    <div className="w-[14px] h-[14px] flex items-center justify-center flex-shrink-0">
+                      {getTopicIconComponent(topicIcon)}
+                    </div>
                     <span>{getTopicName(topic)}</span>
                   </div>
                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-[var(--foreground)]"></div>

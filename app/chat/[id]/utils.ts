@@ -499,27 +499,54 @@ export const convertMessage = (msg: DatabaseMessage): ExtendedMessage => {
     annotations: msg.annotations || []
   };
 
-  // Add experimental_attachments if they exist
-  if (msg.experimental_attachments && msg.experimental_attachments.length > 0) {
-    baseMessage.experimental_attachments = msg.experimental_attachments;
-  }
-
-
-
   // Handle reasoning parts if present
-  if (msg.role === 'assistant' && msg.reasoning) {
+  const dbReasoning = (msg as any).reasoning || (msg as any).reasoningText;
+  if (msg.role === 'assistant' && dbReasoning && dbReasoning.trim()) {
     return {
       ...baseMessage,
       parts: [
         {
           type: 'reasoning' as const,
-          reasoning: msg.reasoning,
-          details: [{ type: 'text', text: msg.reasoning }]
+          reasoningText: dbReasoning,
+          details: [{ type: 'text', text: dbReasoning }]
         },
         { type: 'text' as const, text: msg.content }
       ]
     };
   }
+
+  // AI SDK 5: 모든 메시지는 parts 배열을 가져야 함
+  const parts: any[] = [];
+  
+  // 텍스트 부분 추가
+  if (msg.content && msg.content.trim()) {
+    parts.push({ type: 'text', text: msg.content });
+  }
+  
+  // Add experimental_attachments if they exist
+  if (msg.experimental_attachments && msg.experimental_attachments.length > 0) {
+    baseMessage.experimental_attachments = msg.experimental_attachments;
+    
+    // 첨부파일을 parts로 변환
+    msg.experimental_attachments.forEach((attachment: any) => {
+      if (attachment.fileType === 'image' || attachment.contentType?.startsWith('image/')) {
+        parts.push({
+          type: 'image',
+          image: attachment.url
+        });
+      } else {
+        parts.push({
+          type: 'file',
+          url: attachment.url,
+          mediaType: attachment.contentType || 'application/octet-stream',
+          filename: attachment.name
+        });
+      }
+    });
+  }
+  
+  // 모든 메시지에 parts 배열 추가 (AI SDK 5 요구사항)
+  baseMessage.parts = parts;
 
   return baseMessage;
 };

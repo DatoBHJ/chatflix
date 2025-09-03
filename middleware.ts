@@ -236,6 +236,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // 🚀 익명 사용자 지원: 로그인하지 않은 사용자도 메인 페이지 접근 허용
   // Default: update session for all other requests
   return await updateSession(request)
 }

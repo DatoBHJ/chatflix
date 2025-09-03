@@ -2,6 +2,7 @@ import { Redis } from '@upstash/redis'
 import { Ratelimit } from '@upstash/ratelimit'
 import { getModelById, RATE_LIMITS } from './models/config'
 import { checkSubscription } from './polar'
+import { SubscriptionCache } from './subscription-cache'
 
 if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
   throw new Error('UPSTASH_REDIS_* environment variables are not set')
@@ -101,103 +102,39 @@ const dailyRateLimiters = {
   }),
 };
 
-// Create level-based rate limiters for subscriber hourly limits
-// const subscriberHourlyRateLimiters = {
-//   level1: new Ratelimit({
-//     redis,
-//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level1.hourly.requests, parseWindow(RATE_LIMITS.subscriber_limits.level1.hourly.window)),
-//     analytics: true,
-//     prefix: 'ratelimit:subscriber:hourly',
-//   }),
-//   level2: new Ratelimit({
-//     redis,
-//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level2.hourly.requests, parseWindow(RATE_LIMITS.subscriber_limits.level2.hourly.window)),
-//     analytics: true,
-//     prefix: 'ratelimit:subscriber:hourly',
-//   }),
-//   level3: new Ratelimit({
-//     redis,
-//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level3.hourly.requests, parseWindow(RATE_LIMITS.subscriber_limits.level3.hourly.window)),
-//     analytics: true,
-//     prefix: 'ratelimit:subscriber:hourly',
-//   }),
-//   level4: new Ratelimit({
-//     redis,
-//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level4.hourly.requests, parseWindow(RATE_LIMITS.subscriber_limits.level4.hourly.window)),
-//     analytics: true,
-//     prefix: 'ratelimit:subscriber:hourly',
-//   }),
-//   level5: new Ratelimit({
-//     redis,
-//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level5.hourly.requests, parseWindow(RATE_LIMITS.subscriber_limits.level5.hourly.window)),
-//     analytics: true,
-//     prefix: 'ratelimit:subscriber:hourly',
-//   }),
-// };
 
-// // Create level-based rate limiters for subscriber daily limits
-// const subscriberDailyRateLimiters = {
-//   level1: new Ratelimit({
-//     redis,
-//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level1.daily.requests, parseWindow(RATE_LIMITS.subscriber_limits.level1.daily.window)),
-//     analytics: true,
-//     prefix: 'ratelimit:subscriber:daily',
-//   }),
-//   level2: new Ratelimit({
-//     redis,
-//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level2.daily.requests, parseWindow(RATE_LIMITS.subscriber_limits.level2.daily.window)),
-//     analytics: true,
-//     prefix: 'ratelimit:subscriber:daily',
-//   }),
-//   level3: new Ratelimit({
-//     redis,
-//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level3.daily.requests, parseWindow(RATE_LIMITS.subscriber_limits.level3.daily.window)),
-//     analytics: true,
-//     prefix: 'ratelimit:subscriber:daily',
-//   }),
-//   level4: new Ratelimit({
-//     redis,
-//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level4.daily.requests, parseWindow(RATE_LIMITS.subscriber_limits.level4.daily.window)),
-//     analytics: true,
-//     prefix: 'ratelimit:subscriber:daily',
-//   }),
-//   level5: new Ratelimit({
-//     redis,
-//     limiter: Ratelimit.slidingWindow(RATE_LIMITS.subscriber_limits.level5.daily.requests, parseWindow(RATE_LIMITS.subscriber_limits.level5.daily.window)),
-//     analytics: true,
-//     prefix: 'ratelimit:subscriber:daily',
-//   }),
-// };
 
-// Function to check if a user has an active subscription (cached for 5 minutes)
-const subscriptionCache = new Map<string, { isSubscribed: boolean, timestamp: number }>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
-
+// Function to check if a user has an active subscription (using Redis cache)
 async function isUserSubscribed(userId: string): Promise<boolean> {
   // If no userId is provided, return false (not subscribed)
   if (!userId) return false;
   
-  const now = Date.now();
-  const cached = subscriptionCache.get(userId);
-  
-  // Return cached result if it's still valid
-  if (cached && (now - cached.timestamp) < CACHE_TTL) {
-    return cached.isSubscribed;
-  }
-  
-  // Check subscription status
   try {
+    // Check Redis cache first
+    const cached = await SubscriptionCache.getStatus(userId);
+    if (cached !== null) {
+      console.log('[ratelimit.ts]: Using Redis cached subscription status for user:', userId);
+      return cached;
+    }
+
+    // If not in cache, check subscription status using checkSubscription which handles caching
     const isSubscribed = await checkSubscription(userId);
-    subscriptionCache.set(userId, { isSubscribed, timestamp: now });
+    
+    console.log('[ratelimit.ts]: Got subscription status for user:', userId, 'status:', isSubscribed);
+    
     return isSubscribed;
   } catch (error) {
-    console.error('Error checking subscription status:', error);
-    // In case of error, don't update the cache and:
-    // 1. If we have a cached value, keep using it even if expired
-    if (cached) {
-      return cached.isSubscribed;
+    console.error('Error checking subscription status in rate limiter:', error);
+    // Try to get from cache as fallback
+    try {
+      const cached = await SubscriptionCache.getStatus(userId);
+      if (cached !== null) {
+        console.log('[ratelimit.ts]: Using cached subscription status as fallback for user:', userId);
+        return cached;
+      }
+    } catch (cacheError) {
+      console.error('Error accessing subscription cache as fallback:', cacheError);
     }
-    // 2. Otherwise, default to false but don't cache this result
     return false;
   }
 }
@@ -223,20 +160,10 @@ export async function getRateLimiter(model: string, userId?: string): Promise<{h
         analytics: true,
         prefix: 'ratelimit',
       });
-      // Use subscriber rate limiters instead of unlimited
-      // const level = modelConfig.rateLimit.level;
-      // const subscriberHourlyRateLimiter = subscriberHourlyRateLimiters[level];
-      // const subscriberDailyRateLimiter = subscriberDailyRateLimiters[level];
-      
-      // if (!subscriberHourlyRateLimiter || !subscriberDailyRateLimiter) {
-      //   throw new Error(`Subscriber rate limiter not initialized for level ${level}`);
-      // }
-      
+      // Subscribers get unlimited access
       return {
         hourly: unlimitedLimiter,
         daily: unlimitedLimiter
-        // hourly: subscriberHourlyRateLimiter,
-        // daily: subscriberDailyRateLimiter
       };
     }
   }

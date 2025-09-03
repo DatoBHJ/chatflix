@@ -1,95 +1,72 @@
-import { customProvider, wrapLanguageModel, extractReasoningMiddleware, LanguageModelV1 } from 'ai';
-import { createDeepSeek } from '@ai-sdk/deepseek';
-import { createTogetherAI } from '@ai-sdk/togetherai';
-import { createGroq } from '@ai-sdk/groq';
-import { createAnthropic } from '@ai-sdk/anthropic';
-import { createOpenAI } from '@ai-sdk/openai';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createXai } from '@ai-sdk/xai';
-import { MODEL_CONFIGS, ModelConfig, isChatflixModel } from './models/config';
+import { customProvider, wrapLanguageModel, extractReasoningMiddleware } from 'ai';
+import { deepseek } from '@ai-sdk/deepseek';
+import { togetherai } from '@ai-sdk/togetherai';
+import { groq } from '@ai-sdk/groq';
+import { anthropic } from '@ai-sdk/anthropic';
+import { openai } from '@ai-sdk/openai';
+import { google } from '@ai-sdk/google';
+import { xai } from '@ai-sdk/xai';
+import { MODEL_CONFIGS } from './models/config';
 
-// Create provider instances
-const deepseek = createDeepSeek({
-  apiKey: process.env.DEEPSEEK_API_KEY || '',
+// Single reasoning middleware instance (scira style)
+const middleware = extractReasoningMiddleware({
+  tagName: 'think',
 });
 
-const together = createTogetherAI({
-  apiKey: process.env.TOGETHER_API_KEY || '',
-});
+// Create language models configuration with direct mapping (scira style)
+const languageModels: Record<string, any> = {};
 
-const groq = createGroq({
-  apiKey: process.env.GROQ_API_KEY || '',
-});
-
-const anthropic = createAnthropic({
-  apiKey: process.env.CLAUDE_API_KEY || '',
-});
-
-const openai = createOpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
-});
-
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY || '',
-});
-
-const xai = createXai({
-  apiKey: process.env.XAI_API_KEY || '',
-});
-
-// Create provider mapping with proper types
-type ProviderFunction = (modelId: string) => LanguageModelV1;
-const providerMap: Record<ModelConfig['provider'], ProviderFunction> = {
-  openai,
-  anthropic,
-  google,
-  deepseek,
-  together,
-  groq,
-  xai,
-};
-
-// Helper function to create a model with reasoning middleware
-function createReasoningModel(config: ModelConfig): LanguageModelV1 {
-  if (!config.reasoning?.enabled) {
-    throw new Error(`Model ${config.id} is not configured for reasoning`);
-  }
-
-  const provider = providerMap[config.reasoning.provider || config.provider];
-  if (!provider) {
-    throw new Error(`Provider not found for model ${config.id}`);
-  }
-  // For other providers (DeepSeek, etc.)
-  return wrapLanguageModel({
-    model: provider(config.reasoning.baseModelId || config.id),
-    middleware: extractReasoningMiddleware({ 
-      tagName: 'think'
-    })
-  });
-}
-
-// Create language models configuration from MODEL_CONFIGS
-const languageModels = MODEL_CONFIGS.reduce<Record<string, LanguageModelV1>>((acc, model) => {
-  // 모든 모델을 providers에 포함 (챗플릭스 모델의 내부 라우팅을 위해)
-  // 실제 사용 시 제약은 modelSelector.ts에서 처리
-
+// Build models from config with simplified logic (scira style)
+MODEL_CONFIGS.forEach(model => {
   try {
-    // If model has reasoning enabled, create a reasoning model
-    if (model.reasoning?.enabled) {
-      acc[model.id] = createReasoningModel(model);
+    let languageModel: any;
+    
+    // For reasoning models, use the base model ID (without -thinking suffix)
+    const baseModelId = model.reasoning && model.id.endsWith('-thinking') 
+      ? model.id.replace('-thinking', '') 
+      : model.id;
+    
+    // Create base model instance
+    switch (model.provider) {
+      case 'openai':
+        languageModel = openai.responses(baseModelId);
+        break;
+      case 'anthropic':
+        languageModel = anthropic(baseModelId);
+        break;
+      case 'google':
+        languageModel = google(baseModelId);
+        break;
+      case 'deepseek':
+        languageModel = deepseek(baseModelId);
+        break;
+      case 'together':
+        languageModel = togetherai(baseModelId);
+        break;
+      case 'groq':
+        languageModel = groq(baseModelId);
+        break;
+      case 'xai':
+        languageModel = xai(baseModelId);
+        break;
+      default:
+        console.warn(`Unknown provider: ${model.provider} for model: ${model.id}`);
+        return;
+    }
+    
+    // Wrap with reasoning middleware if enabled (scira style)
+    if (model.reasoning) {
+      languageModels[model.id] = wrapLanguageModel({
+        model: languageModel,
+        middleware,
+      });
     } else {
-      // Use standard provider
-      const provider = providerMap[model.provider];
-      if (provider) {
-        acc[model.id] = provider(model.id);
-      }
+      languageModels[model.id] = languageModel;
     }
   } catch (error) {
     console.error(`Failed to initialize model ${model.id}:`, error);
   }
-  
-  return acc;
-}, {});
+});
 
 // Export providers
 export const providers = customProvider({

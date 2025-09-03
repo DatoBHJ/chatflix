@@ -4,7 +4,6 @@ import RootLayoutClient from './RootLayoutClient'
 import { PWAInstallPrompt } from './components/PWAInstallPrompt'
 import { Analytics } from '@vercel/analytics/react'
 import { Inter } from 'next/font/google'
-import Script from 'next/script'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -95,11 +94,28 @@ function ThemeInitScript() {
           (function() {
             function getInitialTheme() {
               const savedTheme = localStorage.getItem('theme');
-              if (savedTheme) return savedTheme;
-                            return 'system';
+              if (savedTheme && savedTheme !== 'system') return savedTheme;
+              
+              // 시스템 테마 감지
+              if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                return 'dark';
+              }
+              return 'light';
             }
-                        const theme = getInitialTheme();
+            
+            const theme = getInitialTheme();
             document.documentElement.setAttribute('data-theme', theme);
+            
+            // 시스템 테마 변경 감지
+            if (window.matchMedia) {
+              window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+                const savedTheme = localStorage.getItem('theme');
+                if (!savedTheme || savedTheme === 'system') {
+                  const newTheme = e.matches ? 'dark' : 'light';
+                  document.documentElement.setAttribute('data-theme', newTheme);
+                }
+              });
+            }
           })();
         `,
       }}
@@ -125,17 +141,6 @@ export default function RootLayout({
           <PWAInstallPrompt />
           <Analytics />
         </RootLayoutClient>
-        
-        {/* Warmup script */}
-        <Script id="model-warmup">{`
-          // 앱 로드 시 웜업 API 호출 (딜레이 추가하여 초기 렌더링 방해 최소화)
-          setTimeout(() => {
-            fetch('/api/warmup')
-              .then(res => res.json())
-              .then(data => console.log('Model warmup:', data.message))
-              .catch(err => console.warn('Warmup failed:', err));
-          }, 3000);
-        `}</Script>
       </body>
     </html>
   )

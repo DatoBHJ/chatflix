@@ -1,11 +1,14 @@
 ## Chatflix Ultimate vs Chatflix Ultimate Pro 모델 선택 로직
 
-### 🎯 **1단계: 쿼리 분석**
+### 🎯 **1단계: 쿼리 분석 (AI SDK v5 지원)**
 ```
 Gemini 2.0 Flash로 분석:
 - Category: coding, technical, math, other
 - Complexity: simple, medium, complex
 - 멀티모달 요소: 이미지, PDF, 코드 첨부파일 감지
+- 입력 메시지 형식 지원: 
+  - v5: messages.parts (type: 'text' | 'image' | 'file')
+  - 레거시: messages.content (parts-like array) 및 experimental_attachments
 - 코드 첨부파일 감지 시 자동으로 coding 카테고리로 강제 설정
 ```
 
@@ -66,7 +69,7 @@ isAttachmentsHeavy = hasPDF || hasCodeAttachment ||
 safetyMargin = isAttachmentsHeavy ? 0.7 : 0.85  // 70% 또는 85%만 사용
 필요_컨텍스트 = Math.ceil(총_토큰_수 / safetyMargin)
 
-// 🆕 멀티모달 콘텐츠별 정확한 토큰 추정
+// 🆕 멀티모달 콘텐츠별 정확한 토큰 추정 (v5 parts 우선)
 - 이미지: 1000 토큰
 - PDF: 5000 토큰
 - 코드 파일: 3000 토큰
@@ -112,27 +115,13 @@ try {
 3. **업그레이드 로직 실행 중 문제가 발생한 경우**
 4. **네트워크 또는 API 오류로 모델 정보를 가져올 수 없는 경우**
 5. **Agent 활성화된 모델이 없는 경우**
+6. **입력 포맷 혼합(v5 parts, legacy content, experimental_attachments)으로도 감지 불가 시 기본 안전 모델 사용**
 
 **폴백 우선순위:**
 1. **1순위**: `gemini-2.5-pro` (안정성과 범용성이 검증된 모델)
 2. **2순위**: 첫 번째 사용 가능한 `isAgentEnabled: true` 모델 (최후의 수단)
 
-### 🆕 **특별 라우팅 규칙 (2025-08-07 추가)**
 
-1.  **`moonshotai/kimi-k2-instruct` 컨텍스트 부족 시 폴백:**
-    -   **조건:** 1차 선택 모델이 `moonshotai/kimi-k2-instruct`이지만, 계산된 `필요_컨텍스트`를 충족하지 못할 경우.
-    -   **로직:** 일반적인 업그레이드 로직(효율성 점수 계산)을 실행하기 전에, `gpt-4.1` 모델이 컨텍스트 요구사항을 충족하는지 먼저 확인합니다.
-    -   **결과:** `gpt-4.1`이 사용 가능하면 즉시 `gpt-4.1`로 업그레이드합니다. 그렇지 않으면 기존 업그레이드 및 폴백 로직을 따릅니다.
-
-2.  **파일 생성(`streamObject`) 시 `moonshotai/kimi-k2-instruct` 대체:**
-    -   **조건:** 최종 선택된 모델이 `moonshotai/kimi-k2-instruct`이고, 해당 요청이 파일 생성과 같이 `streamObject`를 사용하는 작업일 경우.
-    -   **로직:** `moonshotai/kimi-k2-instruct` 대신 `gpt-4.1` 모델을 사용하도록 강제 전환합니다. (단, `gpt-4.1`이 컨텍스트 요구사항을 충족해야 함)
-    -   **목적:** `streamObject` 기능과의 안정적인 호환성을 위해 `gpt-4.1`을 우선 사용합니다.
-
-3.  **툴 호출(`tool-calling`) 시 `moonshotai/kimi-k2-instruct` 대체:**
-    -   **조건:** 최종 선택된 모델이 `moonshotai/kimi-k2-instruct` (groq provider)이고, 해당 요청이 툴 사용이 필요한 작업일 경우 (`TEXT_RESPONSE` 또는 `FILE_RESPONSE` 라우트에서 `tools` 배열이 비어있지 않음).
-    -   **로직:** `moonshotai/kimi-k2-instruct` (groq) 대신 `moonshotai/Kimi-K2-Instruct` (togetherai) 모델을 사용하도록 강제 전환합니다.
-    -   **목적:** groq provider의 tool-calling 안정성 문제를 해결하기 위해 togetherai provider를 우선 사용합니다.
 
 ### 🆕 **상세 컨텍스트 분석 정보**
 
@@ -229,10 +218,3 @@ upgradeReason: "Error occurred during model selection, using fallback: gemini-2.
 문제: isAgentEnabled: true 모델이 하나도 없음
 결과: gemini-2.5-pro 폴백 (하드코딩된 안전장치)
 upgradeReason: "No agent-enabled models available, using fallback"
-
-🔧 예시 7: 툴 사용 시나리오
-1차 선택: moonshotai/kimi-k2-instruct (groq) - Math 카테고리, 단순 복잡도
-라우팅 분석: TEXT_RESPONSE, tools: ['web_search', 'calculator']
-모델 대체: groq provider tool-calling 문제로 인해 moonshotai/Kimi-K2-Instruct (togetherai)로 자동 대체
-결과: moonshotai/Kimi-K2-Instruct (togetherai) 사용
-로그: "Tool calling detected: Switched from moonshotai/kimi-k2-instruct (groq) to moonshotai/Kimi-K2-Instruct (togetherai)"

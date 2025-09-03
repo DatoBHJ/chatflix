@@ -212,6 +212,7 @@ interface MarkdownContentProps {
   content: string;
   enableSegmentation?: boolean;
   variant?: 'default' | 'clean'; // 'clean'은 배경색 없는 버전
+  searchTerm?: string | null; // 🚀 FEATURE: Search term for highlighting
 }
 
 // 더 적극적으로 마크다운 구조를 분할하는 함수
@@ -219,8 +220,28 @@ const segmentContent = (content: string): string[] => {
   if (!content || !content.trim()) return [];
 
   const trimmedContent = content.trim();
+  
 
-  // 1. 모든 코드 블록을 임시 플레이스홀더로 교체 (차트 블록 포함)
+
+  // 1. 이미지 ID와 마크다운 이미지 문법을 별도 세그먼트로 분리
+  const imageIdRegex = /\[IMAGE_ID:([^\]]+)\]/g;
+  const markdownImageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+  const imageSegments: string[] = [];
+  let imageIndex = 0;
+  
+  // 이미지 ID를 임시 마커로 교체
+  let contentWithoutImages = trimmedContent.replace(imageIdRegex, (match, imageId) => {
+    imageSegments.push(match);
+    return `\n\n<IMAGE_SEGMENT_${imageIndex++}>\n\n`;
+  });
+  
+  // 마크다운 이미지 문법을 임시 마커로 교체
+  contentWithoutImages = contentWithoutImages.replace(markdownImageRegex, (match, alt, url) => {
+    imageSegments.push(match);
+    return `\n\n<IMAGE_SEGMENT_${imageIndex++}>\n\n`;
+  });
+
+  // 2. 모든 코드 블록을 임시 플레이스홀더로 교체 (차트 블록 포함)
   // 개선된 코드 블록 매칭 로직으로 중첩된 백틱 처리
   const codeBlocks: string[] = [];
   
@@ -284,37 +305,70 @@ const segmentContent = (content: string): string[] => {
     return processedLines.join('\n');
   };
   
-  const placeholderContent = extractCodeBlocks(trimmedContent);
+  const placeholderContent = extractCodeBlocks(contentWithoutImages);
 
-  // 2. 주요 구분자(---, H1, H2, H3)를 기준으로 분할
-  // 파일 생성 진행 메시지 구분자(\n\n---\n\n)와 마크다운 구분자 모두 지원
+  // 3. 더 세밀한 분할 로직 추가
+  const segments: string[] = [];
+  
+  // 주요 구분자(---, H1, H2, H3)를 기준으로 분할
   const separator = /(?:\n\n---\n\n)|(?:\n\s*---+\s*\n)|(?=\n#{1,3}\s)/;
   const mainSegments = placeholderContent.split(separator);
   
-  const finalSegments: string[] = [];
-
-  // 3. 코드 블록 플레이스홀더 복원
   for (const segment of mainSegments) {
     if (!segment || !segment.trim()) continue;
     
+    // 각 세그먼트를 더 세밀하게 분할
+    const subSegments = splitSegmentByComplexity(segment);
+    segments.push(...subSegments);
+  }
+  
+  // 4. 코드 블록과 이미지 세그먼트 복원
+  const finalSegments: string[] = [];
+  for (const segment of segments) {
+    if (!segment || !segment.trim()) continue;
+    
+    // 이미지 세그먼트 먼저 복원
+    let processedSegment = segment;
+    const imageSegmentRegex = /<IMAGE_SEGMENT_(\d+)>/g;
+    let imageMatch;
+    
+    while ((imageMatch = imageSegmentRegex.exec(processedSegment)) !== null) {
+      const imageIndex = parseInt(imageMatch[1], 10);
+      const imageSegment = imageSegments[imageIndex];
+      if (imageSegment) {
+        // 이미지 세그먼트를 별도 세그먼트로 추가
+        finalSegments.push(imageSegment);
+      }
+    }
+    
+    // 이미지 세그먼트 마커 제거
+    processedSegment = processedSegment.replace(imageSegmentRegex, '');
+    
+    // 코드 블록 플레이스홀더 복원
     const codePlaceholderRegex = /<CODE_PLACEHOLDER_(\d+)>/g;
     let lastIndex = 0;
     let match;
 
-    while ((match = codePlaceholderRegex.exec(segment)) !== null) {
+    while ((match = codePlaceholderRegex.exec(processedSegment)) !== null) {
       if (match.index > lastIndex) {
-        finalSegments.push(segment.slice(lastIndex, match.index).trim());
+        const textSegment = processedSegment.slice(lastIndex, match.index).trim();
+        if (textSegment) {
+          finalSegments.push(textSegment);
+        }
       }
       finalSegments.push(codeBlocks[parseInt(match[1], 10)]);
       lastIndex = match.index + match[0].length;
     }
 
-    if (lastIndex < segment.length) {
-      finalSegments.push(segment.slice(lastIndex).trim());
+    if (lastIndex < processedSegment.length) {
+      const remainingText = processedSegment.slice(lastIndex).trim();
+      if (remainingText) {
+        finalSegments.push(remainingText);
+      }
     }
   }
   
-  // 4. 최종적으로 빈 세그먼트 제거 후 반환
+  // 5. 최종적으로 빈 세그먼트 제거 후 반환
   const result = finalSegments.filter(s => s.trim().length > 0);
   
   // 분할 결과가 없으면 원본 반환
@@ -323,6 +377,109 @@ const segmentContent = (content: string): string[] => {
   }
   
   return result;
+};
+
+// 복잡한 세그먼트를 더 세밀하게 분할하는 함수
+const splitSegmentByComplexity = (segment: string): string[] => {
+  const lines = segment.split('\n');
+  const segments: string[] = [];
+  let currentSegment: string[] = [];
+  let nestedListDepth = 0;
+  let lineCount = 0;
+  let consecutiveListItems = 0;
+  const MAX_LINES_PER_SEGMENT = 20; // 세그먼트당 최대 라인 수를 늘림
+  const MAX_CONSECUTIVE_LIST_ITEMS = 8; // 연속된 리스트 아이템 최대 개수
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmedLine = line.trim();
+    
+    // 이미지 세그먼트 마커가 있는지 확인
+    const hasImageSegment = line.includes('<IMAGE_SEGMENT_') || 
+                           line.includes('![') || 
+                           line.includes('[IMAGE_ID:');
+    
+    // 리스트 아이템인지 확인
+    const isListItem = trimmedLine.match(/^[*-]/) || trimmedLine.match(/^\d+\./);
+    const isNestedListItem = trimmedLine.match(/^\s+[*-]/) || trimmedLine.match(/^\s+\d+\./);
+    
+    // 중첩된 리스트 깊이 계산
+    if (trimmedLine.match(/^\d+\./)) {
+      // 번호 리스트 시작
+      nestedListDepth = Math.max(nestedListDepth, 1);
+      consecutiveListItems++;
+    } else if (trimmedLine.match(/^[*-]/)) {
+      // bullet point 리스트 시작
+      nestedListDepth = Math.max(nestedListDepth, 1);
+      consecutiveListItems++;
+    } else if (isNestedListItem) {
+      // 중첩된 리스트
+      nestedListDepth = Math.max(nestedListDepth, 2);
+      consecutiveListItems++;
+    } else {
+      // 리스트 아이템이 아니면 카운터 리셋
+      consecutiveListItems = 0;
+    }
+    
+    // 헤딩인지 확인
+    const isHeading = trimmedLine.match(/^#{1,3}\s/);
+    
+    // 다음 라인들을 미리 확인해서 맥락 유지 여부 판단
+    const nextLines = lines.slice(i + 1, i + 4);
+    const hasRelatedContent = nextLines.some(nextLine => {
+      const nextTrimmed = nextLine.trim();
+      return nextTrimmed.match(/^[*-]/) || nextTrimmed.match(/^\d+\./) || nextTrimmed.match(/^\s+[*-]/) || nextTrimmed.match(/^\s+\d+\./);
+    });
+    
+    // 분할 조건 개선
+    const shouldSplit = (
+      // 이미지 세그먼트가 있으면 무조건 분할
+      hasImageSegment ||
+      // 너무 많은 연속된 리스트 아이템이 있거나
+      consecutiveListItems >= MAX_CONSECUTIVE_LIST_ITEMS ||
+      // 라인 수가 너무 많거나
+      lineCount >= MAX_LINES_PER_SEGMENT ||
+      // 새로운 헤딩이 있고 이미 충분한 내용이 있거나
+      (isHeading && lineCount > 8) ||
+      // 중첩 깊이가 너무 깊거나
+      nestedListDepth >= 3 ||
+      // 빈 줄이 있고 다음에 관련 없는 내용이 오는 경우
+      (trimmedLine === '' && !hasRelatedContent && lineCount > 10)
+    );
+    
+    // 분할하지 말아야 할 조건들
+    const shouldNotSplit = (
+      // 이미지 세그먼트가 있으면 무조건 분할하므로 이 조건은 무시
+      hasImageSegment ? false : (
+        // 현재 라인이 리스트 아이템이고 다음에 관련 내용이 있거나
+        (isListItem && hasRelatedContent) ||
+        // 중첩된 리스트의 중간이거나
+        (isNestedListItem && hasRelatedContent) ||
+        // 빈 줄이지만 다음에 관련 내용이 있거나
+        (trimmedLine === '' && hasRelatedContent) ||
+        // 문장이 끝나지 않은 경우 (마침표가 없고 다음 라인이 있음)
+        (trimmedLine && !trimmedLine.endsWith('.') && !trimmedLine.endsWith('!') && !trimmedLine.endsWith('?') && lines[i + 1] && lines[i + 1].trim())
+      )
+    );
+    
+    if (shouldSplit && !shouldNotSplit && currentSegment.length > 0) {
+      segments.push(currentSegment.join('\n'));
+      currentSegment = [];
+      lineCount = 0;
+      nestedListDepth = 0;
+      consecutiveListItems = 0;
+    }
+    
+    currentSegment.push(line);
+    lineCount++;
+  }
+  
+  // 마지막 세그먼트 추가
+  if (currentSegment.length > 0) {
+    segments.push(currentSegment.join('\n'));
+  }
+  
+  return segments;
 };
 
 // Image component with loading state and modal support
@@ -335,30 +492,9 @@ const ImageWithLoading = memo(function ImageWithLoadingComponent({
 }: React.ImgHTMLAttributes<HTMLImageElement> & { onImageClick?: () => void }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  
-  // 로딩 애니메이션 효과를 위한 상태
-  const [loadingTime, setLoadingTime] = useState(0);
   
   // pollination 이미지인지 확인
   const isPollinationImage = src && typeof src === 'string' && src.includes('image.pollinations.ai');
-  
-  // 로딩이 시작되면 진행 상태를 시뮬레이션
-  useEffect(() => {
-    if (!isLoaded && !error) {
-      const timer = setInterval(() => {
-        setLoadingTime(prev => {
-          const newTime = prev + 1;
-          // 진행률 계산 (0-95% 범위, 실제 로딩 완료 시 100%로 점프)
-          const progress = Math.min(95, Math.floor(newTime * 1.5));
-          setLoadingProgress(progress);
-          return newTime;
-        });
-      }, 100);
-      
-      return () => clearInterval(timer);
-    }
-  }, [isLoaded, error]);
   
   // URL이 유효한지 확인 (간단한 체크)
   const isValidUrl = src && typeof src === 'string' && (
@@ -384,55 +520,12 @@ const ImageWithLoading = memo(function ImageWithLoadingComponent({
   }
   
   return (
-    <div className="relative w-full">
-      {!isLoaded && !error && (
-        <div className="bg-[var(--accent)] animate-pulse rounded-lg overflow-hidden" style={{ aspectRatio: "16/9" }}>
-          {/* 스켈레톤 로딩 효과 */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-            {/* 이미지 로딩 아이콘 */}
-            <svg 
-              className="w-12 h-12 text-[var(--muted)] mb-2 animate-spin" 
-              fill="none" 
-              strokeWidth="1.5" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor"
-              style={{ animationDuration: '2s' }}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-            </svg>
-            
-            {/* 로딩 텍스트 - div로 변경하여 nested <p> 방지 */}
-            <div className="text-[var(--muted)] text-sm font-medium">
-              Loading image... {loadingProgress}%
-            </div>
-            
-            {/* 로딩 진행 표시기 */}
-            <div className="w-3/4 h-1.5 bg-[var(--muted)] bg-opacity-20 rounded-full mt-3 overflow-hidden">
-              <div 
-                className="h-full bg-[var(--muted)] rounded-full transition-all duration-300 ease-out"
-                style={{ width: `${loadingProgress}%` }}
-              ></div>
-            </div>
-            
-            {/* 이미지 설명 표시 (있는 경우) */}
-            {alt && (
-              <div className="mt-3 text-xs text-[var(--muted)] italic opacity-70">
-                {alt}
-              </div>
-            )}
-          </div>
-          
-          {/* 배경 패턴 */}
-          <div className="absolute inset-0 opacity-5">
-            <div className="h-full w-full" 
-              style={{ 
-                backgroundImage: 'radial-gradient(var(--muted) 1px, transparent 1px)', 
-                backgroundSize: '20px 20px' 
-              }}>
-            </div>
-          </div>
-        </div>
-      )}
+         <div className="relative w-full">
+       {!isLoaded && !error && (
+         <div className="text-[var(--muted)] text-sm py-2">
+           ...
+         </div>
+       )}
       
       {error && isPollinationImage && (
         <div className="bg-[var(--accent)] rounded-lg p-6 text-center text-[var(--muted)]">
@@ -454,24 +547,32 @@ const ImageWithLoading = memo(function ImageWithLoadingComponent({
         </div>
       )}
       
-      <img
-        src={src}
-        alt={alt || ""}
-        className={`${className} ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 rounded-lg ${onImageClick ? 'cursor-pointer' : ''}`}
-        onClick={onImageClick}
-        onLoad={() => {
-          setLoadingProgress(100);
-          setTimeout(() => setIsLoaded(true), 200); // 약간의 지연으로 부드러운 전환 효과
-        }}
-        onError={() => {
-          console.log('Image load error:', src);
-          setError(true);
-          setIsLoaded(true);
-        }}
-        loading="lazy"
-        referrerPolicy="no-referrer"
-        {...props}
-      />
+      <div className="relative">
+        <img
+          src={src}
+          alt={alt || ""}
+          className={`${className} ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 rounded-lg ${onImageClick ? 'cursor-pointer' : ''}`}
+          onClick={onImageClick}
+          onLoad={() => {
+            setIsLoaded(true);
+          }}
+          onError={() => {
+            console.log('Image load error:', src);
+            setError(true);
+            setIsLoaded(true);
+          }}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          {...props}
+        />
+        
+        {/* Generated image tag */}
+        {isPollinationImage && isLoaded && !error && (
+          <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full font-medium">
+            AI Generated
+          </div>
+        )}
+      </div>
     </div>
   );
 });
@@ -640,11 +741,39 @@ const InlineMath = ({ content }: { content: string }) => {
   );
 };
 
+// 🚀 FEATURE: Search term highlighting function
+const highlightSearchTerm = (text: string, term: string | null) => {
+  if (!term || !text) return text;
+  
+  const search = term.toLowerCase();
+  const textLower = text.toLowerCase();
+  
+  if (!textLower.includes(search)) return text;
+  
+  const regex = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  const parts = text.split(regex);
+  
+  return parts.map((part, index) => {
+    if (regex.test(part)) {
+      return (
+        <span 
+          key={index} 
+          className="px-0.5 rounded bg-[#007AFF]/20 text-[#007AFF] font-medium"
+        >
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
+};
+
 // Memoize the MarkdownContent component to prevent unnecessary re-renders
 export const MarkdownContent = memo(function MarkdownContentComponent({ 
   content, 
   enableSegmentation = false,
-  variant = 'default'
+  variant = 'default',
+  searchTerm = null
 }: MarkdownContentProps) {
 
   // Image modal state
@@ -698,53 +827,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     return segmentContent(processedContent);
   }, [processedContent, enableSegmentation]);
 
-  // Memoize the styleMentions function to avoid recreating it on every render
-  const styleMentions = useCallback((text: string) => {
-    if (!text.includes('@')) return text; // Quick check to avoid unnecessary regex processing
-    
-    const jsonMentionRegex = /\{"displayName":"([^"]+)","promptContent":"[^"]+"}/g;
-    const legacyMentionRegex = /@([\w?!.,_\-+=@#$%^&*()<>{}\[\]|/\\~`]+)/g;
-    
-    const parts = [];
-    let lastIndex = 0;
-    let match;
 
-    while ((match = jsonMentionRegex.exec(text)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(text.slice(lastIndex, match.index));
-      }
-      
-      parts.push(
-        <span key={match.index} className="mention-tag">
-          @{match[1]}
-        </span>
-      );
-      
-      lastIndex = match.index + match[0].length;
-    }
-
-    if (lastIndex === 0) {
-      while ((match = legacyMentionRegex.exec(text)) !== null) {
-        if (match.index > lastIndex) {
-          parts.push(text.slice(lastIndex, match.index));
-        }
-        
-        parts.push(
-          <span key={match.index} className="mention-tag">
-            {match[0]}
-          </span>
-        );
-        
-        lastIndex = match.index + match[0].length;
-      }
-    }
-    
-    if (lastIndex < text.length) {
-      parts.push(text.slice(lastIndex));
-    }
-    
-    return parts.length > 0 ? parts : text;
-  }, []);
 
   // Function to detect image URLs (from original code)
   const styleImageUrls = useCallback((text: string) => {
@@ -870,6 +953,9 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       
       // Process text content to detect image generation links
       if (typeof children === 'string') {
+        // 🚀 FEATURE: Apply search term highlighting first
+        const highlightedContent = highlightSearchTerm(children, searchTerm);
+        
         // Handle image markdown pattern
         const pollinationsRegex = /!\[([^\]]*)\]\((https:\/\/image\.pollinations\.ai\/[^)]+)\)/g;
         const match = pollinationsRegex.exec(children);
@@ -885,7 +971,8 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                 <ImageWithLoading 
                   src={urlWithNoLogo} 
                   alt={altText || "Generated image"} 
-                  className="rounded-lg max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md" 
+                  className="w-auto max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md " 
+                  style={{ borderRadius: '32px' }}
                   onImageClick={() => openImageModal(urlWithNoLogo, altText || "Generated image")}
                 />
               </div>
@@ -928,7 +1015,11 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
         if (Array.isArray(processedContent)) {
           const elements = processedContent.map((part, index) => {
             if (typeof part === 'string') {
-              return <span key={index}>{styleMentions(part)}</span>;
+              // 🚀 FEATURE: Apply search term highlighting to text parts
+              const highlightedPart = highlightSearchTerm(part, searchTerm);
+              return <span key={index}>
+                {Array.isArray(highlightedPart) ? highlightedPart : highlightedPart}
+              </span>;
             } else if (part && typeof part === 'object' && 'type' in part) {
               if (part.type === 'image_link' && 'display' in part) {
                 return (
@@ -937,7 +1028,8 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                       <ImageWithLoading 
                         src={part.url} 
                         alt="Generated image" 
-                        className="rounded-lg max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md" 
+                        className="w-auto max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md " 
+                        style={{ borderRadius: '32px' }}
                         onImageClick={() => openImageModal(part.url, "Generated image")}
                       />
                       <div className="text-xs text-[var(--muted)] mt-2 text-center break-all">
@@ -963,8 +1055,10 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           return <>{elements}</>;
         }
         
-        // For regular text, just render with styleMentions
-        return <p className="my-3 leading-relaxed break-words" {...props}>{styleMentions(children)}</p>;
+        // For regular text, just render
+        return <p className="my-3 leading-relaxed break-words" {...props}>
+          {Array.isArray(highlightedContent) ? highlightedContent : highlightedContent}
+        </p>;
       }
       
       // If children is not a string, render as-is
@@ -980,7 +1074,8 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                           <ImageWithLoading 
                 src={urlWithNoLogo} 
                 alt={alt || "Generated image"} 
-                className="rounded-lg max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md" 
+                className="w-auto max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md " 
+                style={{ borderRadius: '18px' }}
                 onImageClick={() => openImageModal(urlWithNoLogo, alt || "Generated image")}
                 {...props}
               />
@@ -991,11 +1086,12 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       
       // Regular image rendering with loading state and modal
       return src ? (
-        <div className="my-4 cursor-pointer">
+        <div className="my-1 cursor-pointer">
           <ImageWithLoading 
             src={src} 
             alt={alt || "Image"} 
-            className="rounded-lg max-w-full hover:opacity-90 transition-opacity" 
+            className="w-auto max-w-full hover:opacity-90 transition-opacity" 
+            style={{ borderRadius: '18px' }}
             onImageClick={() => typeof src === 'string' && openImageModal(src, alt || "Image")}            {...props} 
           />
           {alt && <div className="text-sm text-[var(--muted)] mt-2 italic text-center">{alt}</div>}
@@ -1032,7 +1128,8 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                               <ImageWithLoading 
                   src={urlWithNoLogo} 
                   alt={linkText || "Generated image"} 
-                  className="rounded-lg max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md" 
+                  className="w-auto max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md " 
+                  style={{ borderRadius: '18px' }}
                   onImageClick={() => openImageModal(urlWithNoLogo, linkText || "Generated image")}
                 />
             </div>
@@ -1416,18 +1513,70 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
         {children}
       </blockquote>
     ),
-    ul: ({ children, ...props }) => (
-      <ul className="my-4 list-disc list-inside pl-5" {...props}>
-        {children}
-      </ul>
-    ),
-    ol: ({ children, ...props }) => (
-      <ol className="my-4 list-decimal list-inside pl-5" {...props}>
-        {children}
-      </ol>
-    ),
+    ul: ({ children, ...props }) => {
+      const ulRef = useRef<HTMLUListElement>(null);
+      const [isNested, setIsNested] = useState(false);
+      
+      useEffect(() => {
+        if (ulRef.current) {
+          // Check if this ul is inside a li element
+          const parentLi = ulRef.current.closest('li');
+          setIsNested(!!parentLi);
+        }
+      }, []);
+      
+      return (
+        <ul 
+          ref={ulRef}
+          className="my-4 list-disc" 
+          style={{ 
+            paddingLeft: isNested ? '0.5rem' : '1.25rem',
+            listStylePosition: 'outside'
+          }} 
+          {...props}
+        >
+          {children}
+        </ul>
+      );
+    },
+    ol: ({ children, ...props }) => {
+      const olRef = useRef<HTMLOListElement>(null);
+      const [isNested, setIsNested] = useState(false);
+      
+      useEffect(() => {
+        if (olRef.current) {
+          // Check if this ol is inside a li element
+          const parentLi = olRef.current.closest('li');
+          setIsNested(!!parentLi);
+        }
+      }, []);
+      
+      return (
+        <ol 
+          ref={olRef}
+          className="my-4 list-decimal" 
+          style={{ 
+            paddingLeft: isNested ? '0.5rem' : '1.25rem',
+            listStylePosition: 'outside'
+          }} 
+          {...props}
+        >
+          {children}
+        </ol>
+      );
+    },
     li: ({ children, ...props }) => (
-      <li className="my-2 break-words" style={{ display: 'list-item' }} {...props}>{children}</li>
+      <li className="my-2 break-words leading-relaxed" style={{ 
+        listStylePosition: 'outside',
+        paddingLeft: '0.25rem'
+      }} {...props}>
+        {children}
+        <style jsx>{`
+          li ul, li ol {
+            padding-left: 0.5rem !important;
+          }
+        `}</style>
+      </li>
     ),
     h1: ({ children, ...props }) => (
       <h1 className="text-2xl font-bold mt-8 mb-4 break-words" {...props}>{children}</h1>
@@ -1459,7 +1608,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       // For inline math, use the simpler inline wrapper
       return <InlineMath content={value} />;
     },
-  }), [styleMentions, styleImageUrls, extractText, handleCopy, openImageModal]);
+  }), [styleImageUrls, extractText, handleCopy, openImageModal, searchTerm]);
 
   // Memoize the remarkPlugins and rehypePlugins
   const remarkPlugins = useMemo(() => [remarkGfm, remarkMath], []);
@@ -1476,20 +1625,95 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   return (
     <>
       <div className={variant === 'clean' ? 'markdown-segments' : 'message-segments'}>
-        {segments.map((segment, index) => (
-          <div key={index} className={`${variant === 'clean' ? 'markdown-segment' : 'message-segment'}`}>
-            <div className="max-w-full overflow-x-auto">
-              <ReactMarkdown
-                className="message-content break-words"
-                remarkPlugins={remarkPlugins}
-                rehypePlugins={rehypePlugins}
-                components={components}
-              >
-                {segment}
-              </ReactMarkdown>
+        {segments.map((segment, index) => {
+          // 이미지 세그먼트인지 확인
+          const isImageSegment = /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segment);
+          
+          // 이전 세그먼트가 이미지 세그먼트인지 확인
+          const prevIsImage = index > 0 && /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segments[index - 1]);
+          
+          // 다음 세그먼트가 이미지 세그먼트인지 확인
+          const nextIsImage = index < segments.length - 1 && /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segments[index + 1]);
+          
+          // 연속된 이미지 세그먼트인지 확인
+          const isConsecutiveImage = isImageSegment && (prevIsImage || nextIsImage);
+          
+          // 연속된 이미지가 있는지 확인 (현재 이미지가 연속된 이미지인 경우만)
+          const hasConsecutiveImages = isConsecutiveImage;
+          
+          // 텍스트와 겹치지 않도록 확인
+          const hasTextBefore = index > 0 && !/\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segments[index - 1]);
+          const hasTextAfter = index < segments.length - 1 && !/\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segments[index + 1]);
+          
+          // iMessage 스타일의 랜덤 위치와 회전 계산
+          const getImageStyle = (): React.CSSProperties => {
+            if (!isConsecutiveImage) return {};
+            
+            // 이미지 인덱스에 따른 일관된 랜덤 값 생성
+            const seed = index * 12345; // 일관된 랜덤을 위한 시드
+            const randomX = (seed % 60) - 30; // -30px ~ +30px (더 큰 범위)
+            const randomRotate = (seed % 16) - 8; // -8도 ~ +8도 (더 큰 회전)
+            
+            // 텍스트가 있으면 낮은 z-index로 설정하여 텍스트 아래로 들어가도록 함
+            const zIndexValue = (hasTextBefore || hasTextAfter) ? -1 : segments.length - index;
+            
+            // margin 속성을 개별 속성으로 분리하여 충돌 방지
+            const marginTop = prevIsImage ? '-80px' : '0';
+            const marginBottom = nextIsImage ? '-80px' : '0';
+            const marginLeft = `${randomX}px`;
+            const marginRight = '0';
+            
+            return {
+              marginTop,
+              marginBottom,
+              marginLeft,
+              marginRight,
+              transform: `rotate(${randomRotate}deg)`,
+              zIndex: zIndexValue,
+              position: 'relative' as const,
+              transition: 'all 0.3s ease-in-out',
+              boxShadow: '0 6px 20px rgba(0, 0, 0, 0.2)', // 더 강한 그림자
+              cursor: 'pointer'
+            };
+          };
+          
+          return (
+            <div 
+              key={index} 
+              className={`${isImageSegment ? (hasConsecutiveImages ? 'max-w-[80%] md:max-w-[40%]' : 'max-w-[100%] md:max-w-[70%]') : ''} ${isImageSegment ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}`}`}
+              style={{
+                ...getImageStyle(),
+                ...(isImageSegment && {
+                  background: 'transparent !important',
+                  padding: '0',
+                  border: 'none',
+                  boxShadow: 'none'
+                  // margin 속성 제거 - getImageStyle()에서 개별 margin 속성으로 처리
+                })
+              }}
+            >
+              {isImageSegment ? (
+                <ReactMarkdown
+                  remarkPlugins={remarkPlugins}
+                  rehypePlugins={rehypePlugins}
+                  components={components}
+                >
+                  {segment}
+                </ReactMarkdown>
+              ) : (
+                <div className="max-w-full overflow-x-auto message-content break-words">
+                  <ReactMarkdown
+                    remarkPlugins={remarkPlugins}
+                    rehypePlugins={rehypePlugins}
+                    components={components}
+                  >
+                    {segment}
+                  </ReactMarkdown>
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Image Modal */}

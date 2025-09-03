@@ -1,38 +1,40 @@
 'use client'
 
-import { Message as AIMessage } from 'ai'
+import { UIMessage as AIMessage } from 'ai'
 import { User } from '@supabase/supabase-js'
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, memo } from 'react'
 import { Message as MessageComponent } from '@/app/components/Message'
-import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getAcademicSearchData } from '@/app/hooks/toolFunction';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData } from '@/app/hooks/toolFunction';
 import { formatMessageGroupTimestamp } from '@/app/lib/messageGroupTimeUtils';
 import { createClient } from '@/utils/supabase/client';
 
 interface MessagesProps {
-  messages: AIMessage[]
+  messages: any[]
   currentModel: string
   isRegenerating: boolean
   editingMessageId: string | null
   editingContent: string
   copiedMessageId: string | null
   onRegenerate: (messageId: string) => (e: React.MouseEvent) => void
-  onCopy: (message: AIMessage) => void
-  onEditStart: (message: AIMessage) => void
+  onCopy: (message: any) => void
+  onEditStart: (message: any) => void
   onEditCancel: () => void
   onEditSave: (messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => void
   setEditingContent: (content: string) => void
   chatId?: string
   isLoading?: boolean
-  isWaitingForToolResults: (message: AIMessage) => boolean
-  hasCanvasData: (message: AIMessage) => boolean
+  isWaitingForToolResults: (message: any) => boolean
+  hasCanvasData: (message: any) => boolean
   activePanelMessageId: string | null
   togglePanel: (messageId: string, type: 'canvas' | 'structuredResponse' | 'attachment', fileIndex?: number, toolType?: string, fileName?: string) => void
   user: User | null
   handleFollowUpQuestionClick: (question: string) => Promise<void>
   messagesEndRef: React.RefObject<HTMLDivElement | null>
+  searchTerm?: string | null // 🚀 FEATURE: Search term for highlighting
 }
 
-export function Messages({
+// ✅ P1 FIX: React.memo로 렌더링 최적화 - 빠른 스트리밍 시 불필요한 리렌더링 방지
+export const Messages = memo(function Messages({
   messages,
   currentModel,
   isRegenerating,
@@ -53,14 +55,15 @@ export function Messages({
   togglePanel,
   user,
   handleFollowUpQuestionClick,
-  messagesEndRef
+  messagesEndRef,
+  searchTerm // 🚀 FEATURE: Search term for highlighting
 }: MessagesProps) {
   // Bookmark state management
   const [bookmarkedMessageIds, setBookmarkedMessageIds] = useState<Set<string>>(new Set());
   const [isBookmarksLoading, setIsBookmarksLoading] = useState(false);
 
-  // Fetch bookmarks for current chat session (하이브리드 방식)
-  const fetchBookmarks = useCallback(async () => {
+  // Fetch bookmarks for current chat session
+  const fetchBookmarks = useCallback(async (currentMessages: any[]) => {
     if (!user || !chatId) return;
     
     setIsBookmarksLoading(true);
@@ -68,7 +71,7 @@ export function Messages({
       const supabase = createClient();
       const { data, error } = await supabase
         .from('message_bookmarks')
-        .select('message_id, content')
+        .select('message_id')
         .eq('user_id', user.id)
         .eq('chat_session_id', chatId);
         
@@ -78,26 +81,8 @@ export function Messages({
       }
       
       if (data && data.length > 0) {
-        const matchedMessageIds = new Set<string>();
-        
-        // 각 북마크에 대해 매칭 시도
-        for (const bookmark of data) {
-          if (bookmark.message_id.startsWith('msg-')) {
-            // 임시 ID인 경우 content로 매칭
-            const matchingMessage = messages.find(m => 
-              m.content === bookmark.content && 
-              m.role === 'assistant'
-            );
-            if (matchingMessage) {
-              matchedMessageIds.add(matchingMessage.id);
-            }
-          } else {
-            // 실제 DB ID인 경우 그대로 사용
-            matchedMessageIds.add(bookmark.message_id);
-          }
-        }
-        
-        setBookmarkedMessageIds(matchedMessageIds);
+        const bookmarkedIds = new Set<string>(data.map(bookmark => bookmark.message_id));
+        setBookmarkedMessageIds(bookmarkedIds);
       } else {
         setBookmarkedMessageIds(new Set());
       }
@@ -106,12 +91,12 @@ export function Messages({
     } finally {
       setIsBookmarksLoading(false);
     }
-  }, [user, chatId, messages]);
+  }, [user, chatId]);
 
   // Fetch bookmarks when user or chatId changes
   useEffect(() => {
-    fetchBookmarks();
-  }, [fetchBookmarks]);
+    fetchBookmarks(messages);
+  }, [user, chatId, messages.length, fetchBookmarks]);
 
   // Handle bookmark toggle
   const handleBookmarkToggle = useCallback(async (messageId: string, shouldBookmark: boolean) => {
@@ -123,28 +108,11 @@ export function Messages({
       if (!message) return;
       
       if (shouldBookmark) {
-        // 북마크 시점에서 실제 DB ID 조회
-        const { data: dbMessage, error: findError } = await supabase
-          .from('messages')
-          .select('id')
-          .eq('content', message.content)
-          .eq('role', message.role)
-          .eq('chat_session_id', chatId)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
-          
-        if (findError) {
-          console.error('Error finding message in DB:', findError);
-          return;
-        }
-        
-        // 실제 DB ID로 북마크 저장
+        // Add bookmark
         const { error } = await supabase
           .from('message_bookmarks')
           .insert({
-            message_id: dbMessage.id, // 실제 DB ID 사용
+            message_id: messageId,
             user_id: user.id,
             chat_session_id: chatId,
             content: message.content,
@@ -166,14 +134,14 @@ export function Messages({
       }
       
       // Refresh bookmarks after toggle
-      fetchBookmarks();
+      fetchBookmarks(messages);
     } catch (error) {
       console.error('Error toggling bookmark:', error);
     }
   }, [user, chatId, messages, currentModel, fetchBookmarks]);
 
   // Function to determine if a separator should be shown
-  const shouldShowTimestamp = (currentMessage: AIMessage, previousMessage?: AIMessage): boolean => {
+  const shouldShowTimestamp = (currentMessage: undefined, previousMessage?: undefined): boolean => {
     if (!previousMessage) return true; // Always show for the first message
 
     const currentTimestamp = new Date((currentMessage as any).createdAt || new Date()).getTime();
@@ -215,11 +183,22 @@ export function Messages({
           }
           
           const webSearchData = getWebSearchResults(message);
-          const imageMap = webSearchData?.imageMap || {};
+          const imageGeneratorData = getImageGeneratorData(message);
+          
+          // Combine web search images and generated images into imageMap
+          const imageMap = {
+            ...(webSearchData?.imageMap || {}),
+            ...(imageGeneratorData?.generatedImages?.reduce((acc: any, image: any, index: number) => {
+              // Create a unique key for generated images
+              const imageKey = `generated_image_${image.seed || index}`;
+              acc[imageKey] = image.imageUrl;
+              return acc;
+            }, {}) || {})
+          };
+          
           const mathCalculationData = getMathCalculationData(message);
           const linkReaderData = getLinkReaderData(message);
-          const imageGeneratorData = getImageGeneratorData(message);
-          const academicSearchData = getAcademicSearchData(message);
+
           const youTubeSearchData = getYouTubeSearchData(message);
           const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(message);
 
@@ -256,7 +235,7 @@ export function Messages({
                     mathCalculationData={mathCalculationData}
                     linkReaderData={linkReaderData}
                     imageGeneratorData={imageGeneratorData}
-                    academicSearchData={academicSearchData}
+
                     youTubeSearchData={youTubeSearchData}
                     youTubeLinkAnalysisData={youTubeLinkAnalysisData}
                     user={user}
@@ -267,16 +246,38 @@ export function Messages({
                     isBookmarked={bookmarkedMessageIds.has(message.id)}
                     onBookmarkToggle={handleBookmarkToggle}
                     isBookmarksLoading={isBookmarksLoading}
+                    searchTerm={searchTerm}
                   />
                 </div>
               </div>
             </React.Fragment>
           );
         })}
+        
+        {/* Show typing indicator when waiting for AI response after user message */}
+        {isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
+          <div className="flex justify-start mb-4">
+            <div className="imessage-receive-bubble" style={{ 
+              width: 'fit-content', 
+              minWidth: 'auto',
+              minHeight: 'auto',
+              padding: '8px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <div className="typing-indicator-compact">
+                <div className="typing-dot-compact"></div>
+                <div className="typing-dot-compact"></div>
+                <div className="typing-dot-compact"></div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       
       {/* Spacer at the bottom */}
       <div ref={messagesEndRef} />
     </div>
   )
-} 
+}); // memo 종료 

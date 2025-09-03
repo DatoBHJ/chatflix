@@ -36,7 +36,7 @@ export default function ModelStatsSummary() {
     vision: activeModels.filter(m => m.supportsVision).length,
     pdf: activeModels.filter(m => m.supportsPDFs).length,
     Agent: activeModels.filter(m => m.isAgentEnabled).length,
-    reasoning: activeModels.filter(m => m.reasoning?.enabled).length
+    reasoningText: activeModels.filter(m => m.reasoningText?.enabled).length
   };
 
   const statCardStyle = {
@@ -83,7 +83,6 @@ export default function ModelStatsSummary() {
           </div>
         </div>
       </div>
-      
       {/* Models by Provider */}
       <div 
         className="p-5 shadow-sm hover:shadow-md cursor-pointer"
@@ -113,7 +112,6 @@ export default function ModelStatsSummary() {
           )}
         </div>
       </div>
-      
       {/* Models by Rate Limit */}
       <div 
         className="p-5 shadow-sm hover:shadow-md cursor-pointer"
@@ -152,7 +150,6 @@ export default function ModelStatsSummary() {
             ))}
         </div>
       </div>
-      
       {/* Features Support */}
       <div className="p-5 shadow-sm hover:shadow-md" style={statCardStyle}>
         <h3 className="text-lg font-bold mb-3">Features Support</h3>
@@ -171,7 +168,7 @@ export default function ModelStatsSummary() {
           </div>
           <div className="flex justify-between items-center">
             <span>Reasoning</span>
-            <span className="font-semibold text-lg">{featureStats.reasoning}</span>
+            <span className="font-semibold text-lg">{featureStats.reasoningText}</span>
           </div>
         </div>
       </div>

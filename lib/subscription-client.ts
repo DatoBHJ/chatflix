@@ -1,53 +1,53 @@
 // Client-side subscription checking utility
-// This replaces direct Polar API calls from the client
+// This uses the database-based subscription check for faster responses
 
-// In-memory cache for client-side subscription checks
-const clientSubscriptionCache = new Map<string, { status: boolean; timestamp: number }>();
-const ongoingClientRequests = new Map<string, Promise<boolean>>();
-const CLIENT_CACHE_DURATION = 60000; // 1 minute cache
-
-export async function checkSubscriptionClient(): Promise<boolean> {
-  const cacheKey = 'current_user'; // We don't need user ID on client since API handles auth
-  
+export async function checkSubscriptionClient(forceRefresh = false): Promise<boolean> {
   try {
-    // Check if there's an ongoing request
-    if (ongoingClientRequests.has(cacheKey)) {
-      return await ongoingClientRequests.get(cacheKey)!;
+    // Use the database-based subscription check API
+    const response = await fetch('/api/subscription/check', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      // Add cache busting parameter if force refresh is requested
+      ...(forceRefresh && {
+        cache: 'no-cache'
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    // Check client-side cache first
-    const cached = clientSubscriptionCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CLIENT_CACHE_DURATION) {
-      return cached.status;
-    }
-
-    // Create promise for this request to prevent duplicate calls
-    const requestPromise = performClientSubscriptionCheck();
-    ongoingClientRequests.set(cacheKey, requestPromise);
-
-    try {
-      const result = await requestPromise;
-      
-      // Cache the result
-      clientSubscriptionCache.set(cacheKey, {
-        status: result,
-        timestamp: Date.now()
-      });
-
-      return result;
-    } finally {
-      // Clean up ongoing request
-      ongoingClientRequests.delete(cacheKey);
-    }
+    const data = await response.json();
+    return data.isSubscribed || false;
   } catch (error) {
-    console.error('Error checking subscription on client:', error);
+    console.error('Error in checkSubscriptionClient:', error);
     return false;
   }
 }
 
-async function performClientSubscriptionCheck(): Promise<boolean> {
+// Clear client-side cache (useful for logout or manual refresh)
+export function clearClientSubscriptionCache() {
+  // Clear subscription-related localStorage cache
   try {
-    const response = await fetch('/api/subscription/check', {
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith('subscription_status_')) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch (e) {
+    // localStorage access failed, ignore
+  }
+  
+  console.log('🗑️ Cleared client subscription cache');
+}
+
+// Get subscription details from client
+export async function getSubscriptionDetailsClient() {
+  try {
+    const response = await fetch('/api/subscription/details', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -55,23 +55,14 @@ async function performClientSubscriptionCheck(): Promise<boolean> {
     });
 
     if (!response.ok) {
-      if (response.status === 401) {
-        // User not authenticated
-        return false;
-      }
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const data = await response.json();
-    return data.isSubscribed || false;
+    return data;
   } catch (error) {
-    console.error('Error calling subscription check API:', error);
-    return false;
+    console.error('Error getting subscription details on client:', error);
+    return null;
   }
-}
-
-// Clear cache when user logs out or subscription changes
-export function clearSubscriptionCache() {
-  clientSubscriptionCache.clear();
-  ongoingClientRequests.clear();
 } 
+

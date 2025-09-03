@@ -416,7 +416,7 @@ export function FilePreview({ files, fileMap, removeFile }: FilePreviewProps) {
   return (
     <div 
       ref={previewRef}
-      className={`file-preview-wrapper -mx-2 px-4 pt-4 pb-1 mt-3 mb-3 relative transition-all duration-300 ${fadeEffect ? 'opacity-95' : 'opacity-100'}`}
+      className={`file-preview-wrapper -mx-2 px-4 pb-1 mt-3 mb-3 relative transition-all duration-300 ${fadeEffect ? 'opacity-95' : 'opacity-100'}`}
     >
       <div 
         className={`file-preview-container grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 gap-y-3

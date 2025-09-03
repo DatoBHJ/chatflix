@@ -2,21 +2,7 @@ import { generateObject } from 'ai';
 import { providers } from '@/lib/providers';
 import { z } from 'zod';
 import { MODEL_CONFIGS, ModelConfig, isChatflixModel } from '@/lib/models/config';
-import { estimateTokenCount } from '@/utils/context-manager';
-
-interface Message {
-  content: string | Array<any>;
-  experimental_attachments?: Array<{
-    fileType?: string;
-    contentType?: string;
-    name?: string;
-    url: string;
-    path?: string;
-    metadata?: {
-      estimatedTokens: number;
-    };
-  }>;
-}
+import { estimateTokenCount, estimateMultiModalTokens, Message } from '@/utils/context-manager';
 
 interface ModelSelectionResult {
   selectedModel: string;
@@ -49,78 +35,7 @@ interface ModelSelectionResult {
   };
 }
 
-// 🆕 개선된 멀티모달 토큰 추정 함수 (실제 토큰 사용량 우선 사용)
-export function estimateMultiModalTokens(msg: Message): number {
-  // 🆕 새로운 token_usage 칼럼에서 실제 토큰 사용량 우선 확인
-  if ((msg as any).token_usage?.totalTokens) {
-    const actualTokens = (msg as any).token_usage.totalTokens;
-    return actualTokens;
-  }
 
-  // 🆕 백워드 호환성: 기존 tool_results에서도 확인 (마이그레이션 전 데이터)
-  if ((msg as any).tool_results?.token_usage?.totalTokens) {
-    const actualTokens = (msg as any).tool_results.token_usage.totalTokens;
-    return actualTokens;
-  }
-  
-  let total = 0;
-  
-  // 텍스트 콘텐츠
-  if (typeof msg.content === 'string') {
-    total += estimateTokenCount(msg.content);
-  } else if (Array.isArray(msg.content)) {
-    // 멀티모달 콘텐츠 (이미지, 파일 등)
-    for (const part of msg.content) {
-      if (part.type === 'text') {
-        total += estimateTokenCount(part.text || '');
-      } else if (part.type === 'image') {
-        total += 1000; // 이미지는 약 1000 토큰으로 추정 (기본값)
-      } else if (part.type === 'file') {
-        // 파일 타입별로 정확한 토큰 추정 (experimental_attachments와 동일한 로직)
-        const filename = part.file?.name?.toLowerCase() || '';
-        const contentType = part.file?.contentType || '';
-        
-        if (filename.endsWith('.pdf') || contentType === 'application/pdf') {
-          total += 5000; // PDF
-        } else if (filename.match(/\.(js|ts|jsx|tsx|py|java|c|cpp|cs|go|rb|php|html|css|sql|scala|swift|kt|rs|dart|json|xml|yaml|yml)$/i)) {
-          total += 3000; // 코드 파일
-        } else if (contentType?.startsWith('image/') || filename.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i)) {
-          total += 1000; // 이미지
-        } else {
-          total += 2000; // 기타 파일
-        }
-      }
-    }
-  } else {
-    // 기타 형식
-    total += estimateTokenCount(JSON.stringify(msg.content));
-  }
-  
-  // experimental_attachments 처리 (메타데이터 기반 정확한 추정)
-  if (Array.isArray(msg.experimental_attachments)) {
-    for (const attachment of msg.experimental_attachments) {
-      // 메타데이터가 있으면 정확한 토큰 수 사용
-      if (attachment.metadata && attachment.metadata.estimatedTokens) {
-        total += attachment.metadata.estimatedTokens;
-      } else {
-        // 메타데이터가 없으면 기존 방식 사용
-        if (attachment.fileType === 'image' || 
-            (attachment.contentType && attachment.contentType.startsWith('image/'))) {
-          total += 1000;
-        } else if (attachment.fileType === 'pdf' || 
-                   attachment.contentType === 'application/pdf') {
-          total += 5000;
-        } else if (attachment.fileType === 'code') {
-          total += 3000;
-        } else {
-          total += 2000; // 기타 파일
-        }
-      }
-    }
-  }
-  
-  return total;
-}
 
 // 🆕 첨부파일 무거움 판단 함수
 export function isAttachmentsHeavy(
@@ -325,7 +240,6 @@ function calculateContextRequirements(
   
   const isHeavyAttachments = isAttachmentsHeavy(messages, hasImage, hasPDF, hasCodeAttachment);
   
-  // 2. 안전 마진 동적 계산 (selectMessagesWithinTokenLimit과 동일)
   const safetyMargin = isHeavyAttachments ? 0.7 : 0.85; // 70% 또는 85%만 사용
   
   // 3. 현재 입력 토큰 수 정확한 추정
@@ -573,7 +487,17 @@ function detectImages(message: Message): boolean {
     );
   }
   
-  // 기존 방식 (content 배열) 확인도 유지
+  // v5 parts 확인
+  if (Array.isArray(message.parts)) {
+    return message.parts.some((part: any) => part.type === 'image') ||
+      message.parts.some((part: any) => 
+        part.type === 'file' && 
+        (part.mediaType?.startsWith('image/') || 
+        (part.filename || '').match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i))
+      );
+  }
+
+  // 레거시 content 배열 확인
   if (Array.isArray(message.content)) {
     return message.content.some((part: { type: string }) => part.type === 'image') ||
       message.content.some((part: any) => 
@@ -596,7 +520,15 @@ function detectPDFs(message: Message): boolean {
     );
   }
   
-  // 기존 방식 (content 배열) 확인도 유지
+  // v5 parts 확인
+  if (Array.isArray(message.parts)) {
+    return message.parts.some((part: any) => 
+      (part.type === 'file' && (part.filename || '').toLowerCase().endsWith('.pdf')) ||
+      (part.type === 'file' && part.mediaType === 'application/pdf')
+    );
+  }
+
+  // 레거시 content 배열 확인도 유지
   if (Array.isArray(message.content)) {
     return message.content.some((part: any) => 
       (part.type === 'file' && part.file?.name?.toLowerCase().endsWith('.pdf')) ||
@@ -608,11 +540,30 @@ function detectPDFs(message: Message): boolean {
 }
 
 function detectCodeAttachments(message: Message): boolean {
-  return Array.isArray(message.experimental_attachments) && 
-    message.experimental_attachments.some((attachment) => 
+  if (Array.isArray(message.experimental_attachments)) {
+    if (message.experimental_attachments.some((attachment) => 
       attachment.fileType === 'code' || 
       (attachment.name && attachment.name.match(/\.(js|ts|jsx|tsx|py|java|c|cpp|cs|go|rb|php|html|css|sql|scala|swift|kt|rs|dart|json|xml|yaml|yml)$/i))
-    );
+    )) return true;
+  }
+
+  // v5 parts에서 코드 파일 감지 (filename 기반)
+  if (Array.isArray(message.parts)) {
+    if (message.parts.some((part: any) => 
+      part.type === 'file' &&
+      ((part.filename || '').match(/\.(js|ts|jsx|tsx|py|java|c|cpp|cs|go|rb|php|html|css|sql|scala|swift|kt|rs|dart|json|xml|yaml|yml)$/i))
+    )) return true;
+  }
+
+  // 레거시 content 배열에서도 확인
+  if (Array.isArray(message.content)) {
+    if (message.content.some((part: any) => 
+      part.type === 'file' &&
+      ((part.file?.name || '').match(/\.(js|ts|jsx|tsx|py|java|c|cpp|cs|go|rb|php|html|css|sql|scala|swift|kt|rs|dart|json|xml|yaml|yml)$/i))
+    )) return true;
+  }
+
+  return false;
 }
 
 function selectModelBasedOnAnalysis(

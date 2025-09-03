@@ -1,18 +1,34 @@
-import { Message } from 'ai'
+import { UIMessage } from 'ai'
 
  // Find web search tool results to display
-export const getWebSearchResults = (message: Message) => {
+export const getWebSearchResults = (message: UIMessage) => {
     if (!message) return null;
     
-    // Get query completion annotations
-    const queryCompletions = message.annotations 
-      ? (message.annotations as any[]).filter(a => a?.type === 'query_completion')
-      : [];
+    // Get query completion annotations - check both annotations and parts for AI SDK 5 compatibility
+    let queryCompletions: any[] = [];
+    let webSearchCompletions: any[] = [];
     
-    // Get web search complete annotations
-    const webSearchCompletions = message.annotations 
-      ? (message.annotations as any[]).filter(a => a?.type === 'web_search_complete')
-      : [];
+    // Check annotations array (legacy format)
+    if ((message as any).annotations) {
+      queryCompletions = ((message as any).annotations as any[]).filter(a => a?.type === 'query_completion');
+      webSearchCompletions = ((message as any).annotations as any[]).filter(a => a?.type === 'web_search_complete');
+    }
+    
+    // Check parts array for streaming annotations (AI SDK 5 format)
+    if ((message as any).parts && Array.isArray((message as any).parts)) {
+      const queryParts = ((message as any).parts as any[]).filter(p => p?.type === 'data-query_completion');
+      const webSearchParts = ((message as any).parts as any[]).filter(p => p?.type === 'data-web_search_complete');
+      
+      // Convert parts format to annotations format for consistency
+      queryCompletions = [
+        ...queryCompletions,
+        ...queryParts.map(p => ({ type: 'query_completion', data: p.data }))
+      ];
+      webSearchCompletions = [
+        ...webSearchCompletions,
+        ...webSearchParts.map(p => ({ type: 'web_search_complete', data: p.data }))
+      ];
+    }
 
     // Extract imageMap from annotations
     let imageMap: { [key: string]: string } = {};
@@ -394,13 +410,17 @@ export const getWebSearchResults = (message: Message) => {
     const allArgs: any[] = [];
     const processedSearchIds = new Set<string>();
     
-    for (const part of message.parts) {
-      if (part?.type === 'tool-invocation' && part.toolInvocation?.toolName === 'web_search') {
+    for (const part of message.parts || []) {
+      // v5 UI tool parts are typed as `tool-<name>`; handle both dynamic and static
+      if (part && typeof (part as any).type === 'string' && (part as any).type.startsWith('tool-')) {
         try {
-          const invocation = part.toolInvocation as any;
-          if (invocation.args) allArgs.push(JSON.parse(JSON.stringify(invocation.args)));
-          if (invocation.result) {
-            const result = JSON.parse(JSON.stringify(invocation.result));
+          const toolName = (part as any).type.slice('tool-'.length);
+          if (toolName !== 'web_search') continue;
+          const input = (part as any).input;
+          const output = (part as any).output;
+          if (input) allArgs.push(JSON.parse(JSON.stringify(input)));
+          if (output) {
+            const result = JSON.parse(JSON.stringify(output));
             
             // Extract imageMap from invocation result
             if (result.imageMap) {
@@ -430,8 +450,8 @@ export const getWebSearchResults = (message: Message) => {
     }
     
     // Check web_search_complete annotations if we didn't find results in invocations
-    if (message.annotations && allInvocationResults.length === 0) {
-      const webSearchAnnotations = (message.annotations as any[])
+    if ((message as any).annotations && allInvocationResults.length === 0) {
+      const webSearchAnnotations = ((message as any).annotations as any[])
         .filter(a => a?.type === 'web_search_complete');
       
       if (webSearchAnnotations.length > 0) {
@@ -516,7 +536,7 @@ export const getWebSearchResults = (message: Message) => {
   };
 
 // Extract math calculation annotations
-export const getMathCalculationData = (message: Message) => {
+export const getMathCalculationData = (message: UIMessage) => {
   // 1. 데이터베이스에서 저장된 tool_results가 있는지 확인
   if ((message as any).tool_results) {
     const toolResults = (message as any).tool_results;
@@ -545,11 +565,26 @@ export const getMathCalculationData = (message: Message) => {
   }
   
   // 2. 실시간 주석에서 계산 단계 추출
-  if (!message.annotations) return null;
+  let mathAnnotations: any[] = [];
   
-  const mathAnnotations = (message.annotations as any[])
-    .filter(a => a && typeof a === 'object' && a.type && 
-      ['math_calculation', 'math_calculation_complete'].includes(a.type));
+  // Check annotations array (legacy format)
+  if ((message as any).annotations) {
+    mathAnnotations = (((message as any).annotations) as any[])
+      .filter(a => a && typeof a === 'object' && a.type && 
+        ['math_calculation', 'math_calculation_complete'].includes(a.type));
+  }
+  
+  // Check parts array for streaming annotations (AI SDK 5 format)
+  if ((message as any).parts && Array.isArray((message as any).parts)) {
+    const mathParts = ((message as any).parts as any[])
+      .filter(p => p?.type === 'data-math_calculation');
+    
+    // Convert parts format to annotations format for consistency
+    mathAnnotations = [
+      ...mathAnnotations,
+      ...mathParts.map(p => ({ type: 'math_calculation', ...p.data }))
+    ];
+  }
   
   if (mathAnnotations.length === 0) return null;
   
@@ -566,7 +601,7 @@ export const getMathCalculationData = (message: Message) => {
 };
 
 // Extract link reader attempts from message annotations and tool_results
-export const getLinkReaderData = (message: Message) => {
+export const getLinkReaderData = (message: UIMessage) => {
   // Check if there are stored link reader attempts in tool_results
   if ((message as any).tool_results?.linkReaderAttempts) {
     const linkAttempts = (message as any).tool_results.linkReaderAttempts;
@@ -576,13 +611,37 @@ export const getLinkReaderData = (message: Message) => {
   }
   
   // Check for link reader annotations
-  if (!message.annotations) return null;
+  let linkReaderAnnotations: any[] = [];
+  let linkReaderUpdates: any[] = [];
   
-  // Get initial attempts
-  const linkReaderAnnotations = (message.annotations as any[])
-    .filter(a => a && typeof a === 'object' && a.type === 'link_reader_attempt')
-    .map(a => a.data)
-    .filter(Boolean);
+  // Check annotations array (legacy format)
+  if ((message as any).annotations) {
+    linkReaderAnnotations = (((message as any).annotations) as any[])
+      .filter(a => a && typeof a === 'object' && a.type === 'link_reader_attempt')
+      .map(a => a.data)
+      .filter(Boolean);
+      
+    linkReaderUpdates = (((message as any).annotations) as any[])
+      .filter(a => a && typeof a === 'object' && a.type === 'link_reader_attempt_update');
+  }
+  
+  // Check parts array for streaming annotations (AI SDK 5 format)
+  if ((message as any).parts && Array.isArray((message as any).parts)) {
+    const linkAttemptParts = ((message as any).parts as any[])
+      .filter(p => p?.type === 'data-link_reader_attempt');
+    const linkUpdateParts = ((message as any).parts as any[])
+      .filter(p => p?.type === 'data-link_reader_attempt_update');
+    
+    linkReaderAnnotations = [
+      ...linkReaderAnnotations,
+      ...linkAttemptParts.map(p => p.data).filter(Boolean)
+    ];
+    
+    linkReaderUpdates = [
+      ...linkReaderUpdates,
+      ...linkUpdateParts.map(p => ({ type: 'link_reader_attempt_update', data: p.data }))
+    ];
+  }
   
   if (linkReaderAnnotations.length === 0) return null;
   
@@ -592,21 +651,19 @@ export const getLinkReaderData = (message: Message) => {
   );
   
   // Apply updates from annotations
-  (message.annotations as any[])
-    .filter(a => a && typeof a === 'object' && a.type === 'link_reader_attempt_update')
-    .forEach(update => {
-      const data = update.data;
-      if (data?.url && attemptsMap.has(data.url)) {
-        // Update the attempt with latest data
-        Object.assign(attemptsMap.get(data.url), data);
-      }
-    });
+  linkReaderUpdates.forEach(update => {
+    const data = update.data;
+    if (data?.url && attemptsMap.has(data.url)) {
+      // Update the attempt with latest data
+      Object.assign(attemptsMap.get(data.url), data);
+    }
+  });
   
   return { linkAttempts: Array.from(attemptsMap.values()) };
 };
 
 // Extract image generator data from message annotations and tool_results
-export const getImageGeneratorData = (message: Message) => {
+export const getImageGeneratorData = (message: UIMessage) => {
     // Check if there are stored generated images in tool_results
     if ((message as any).tool_results?.generatedImages) {
       const generatedImages = (message as any).tool_results.generatedImages;
@@ -616,13 +673,26 @@ export const getImageGeneratorData = (message: Message) => {
     }
     
     // Check for image generator annotations
-    if (!message.annotations) return null;
+    let imageAnnotations: any[] = [];
     
-    // Get image generation annotations
-    const imageAnnotations = (message.annotations as any[])
-      .filter(a => a && typeof a === 'object' && a.type === 'generated_image')
-      .map(a => a.data)
-      .filter(Boolean);
+    // Check annotations array (legacy format)
+    if ((message as any).annotations) {
+      imageAnnotations = (((message as any).annotations) as any[])
+        .filter(a => a && typeof a === 'object' && a.type === 'generated_image')
+        .map(a => a.data)
+        .filter(Boolean);
+    }
+    
+    // Check parts array for streaming annotations (AI SDK 5 format)
+    if ((message as any).parts && Array.isArray((message as any).parts)) {
+      const imageParts = ((message as any).parts as any[])
+        .filter(p => p?.type === 'data-generated_image');
+      
+      imageAnnotations = [
+        ...imageAnnotations,
+        ...imageParts.map(p => p.data).filter(Boolean)
+      ];
+    }
     
     if (imageAnnotations.length === 0) return null;
     
@@ -631,33 +701,11 @@ export const getImageGeneratorData = (message: Message) => {
 
   
 
-  // Extract academic search data from message annotations and tool_results
-  export const getAcademicSearchData = (message: Message) => {
-    // Check if there are stored academic search results in tool_results
-    if ((message as any).tool_results?.academicSearchResults) {
-      const academicResults = (message as any).tool_results.academicSearchResults;
-      if (Array.isArray(academicResults) && academicResults.length > 0) {
-        return { academicResults };
-      }
-    }
-    
-    // Check for academic search annotations
-    if (!message.annotations) return null;
-    
-    // Get academic search annotations
-    const academicAnnotations = (message.annotations as any[])
-      .filter(a => a && typeof a === 'object' && a.type === 'academic_search_complete')
-      .map(a => a.data)
-      .filter(Boolean);
-    
-    if (academicAnnotations.length === 0) return null;
-    
-    return { academicResults: academicAnnotations };
-  };
+
 
 
   // Extract X search data from message annotations and tool_results
-  export const getXSearchData = (message: Message) => {
+  export const getXSearchData = (message: UIMessage) => {
     // Check if there are stored X search results in tool_results
     if ((message as any).tool_results?.xSearchResults) {
       const xResults = (message as any).tool_results.xSearchResults;
@@ -667,10 +715,10 @@ export const getImageGeneratorData = (message: Message) => {
     }
     
     // Check for X search annotations
-    if (!message.annotations) return null;
+    if (!(message as any).annotations) return null;
     
     // Get X search annotations
-    const xSearchAnnotations = (message.annotations as any[])
+    const xSearchAnnotations = (((message as any).annotations) as any[])
       .filter(a => a && typeof a === 'object' && a.type === 'x_search_complete')
       .map(a => a.data)
       .filter(Boolean);
@@ -682,7 +730,7 @@ export const getImageGeneratorData = (message: Message) => {
   
 
   // Extract YouTube search data from message annotations and tool_results
-  export const getYouTubeSearchData = (message: Message) => {
+  export const getYouTubeSearchData = (message: UIMessage) => {
     // Check if there are stored YouTube search results in tool_results
     if ((message as any).tool_results?.youtubeSearchResults) {
       const youtubeResults = (message as any).tool_results.youtubeSearchResults;
@@ -692,13 +740,26 @@ export const getImageGeneratorData = (message: Message) => {
     }
     
     // Check for YouTube search annotations
-    if (!message.annotations) return null;
+    let youtubeSearchAnnotations: any[] = [];
     
-    // Get YouTube search annotations
-    const youtubeSearchAnnotations = (message.annotations as any[])
-      .filter(a => a && typeof a === 'object' && a.type === 'youtube_search_complete')
-      .map(a => a.data)
-      .filter(Boolean);
+    // Check annotations array (legacy format)
+    if ((message as any).annotations) {
+      youtubeSearchAnnotations = (((message as any).annotations) as any[])
+        .filter(a => a && typeof a === 'object' && a.type === 'youtube_search_complete')
+        .map(a => a.data)
+        .filter(Boolean);
+    }
+    
+    // Check parts array for streaming annotations (AI SDK 5 format)
+    if ((message as any).parts && Array.isArray((message as any).parts)) {
+      const youtubeParts = ((message as any).parts as any[])
+        .filter(p => p?.type === 'data-youtube_search_complete');
+      
+      youtubeSearchAnnotations = [
+        ...youtubeSearchAnnotations,
+        ...youtubeParts.map(p => p.data).filter(Boolean)
+      ];
+    }
     
     if (youtubeSearchAnnotations.length === 0) return null;
     
@@ -708,7 +769,7 @@ export const getImageGeneratorData = (message: Message) => {
   
 
   // Extract YouTube link analysis data from message annotations and tool_results
-  export const getYouTubeLinkAnalysisData = (message: Message) => {
+  export const getYouTubeLinkAnalysisData = (message: UIMessage) => {
     // Check tool_results first
     if ((message as any).tool_results?.youtubeLinkAnalysisResults) {
       const analysisResults = (message as any).tool_results.youtubeLinkAnalysisResults;
@@ -718,14 +779,33 @@ export const getImageGeneratorData = (message: Message) => {
     }
     
     // Check annotations if no tool_results found
-    if (!message.annotations) return null;
+    let youtubeAnalysisAnnotations: any[] = [];
     
-    const youtubeAnalysisAnnotations = (message.annotations as any[])
-      .filter(a => a && typeof a === 'object' && 
-        (a.type === 'youtube_analysis_complete' || a.type === 'youtube_link_analysis_complete'))
-      .map(a => a.data?.results || a.data)
-      .filter(Boolean)
-      .flat();
+    // Check annotations array (legacy format)
+    if ((message as any).annotations) {
+      youtubeAnalysisAnnotations = (((message as any).annotations) as any[])
+        .filter(a => a && typeof a === 'object' && 
+          (a.type === 'youtube_analysis_complete' || a.type === 'youtube_link_analysis_complete'))
+        .map(a => a.data?.results || a.data)
+        .filter(Boolean)
+        .flat();
+    }
+    
+    // Check parts array for streaming annotations (AI SDK 5 format)
+    if ((message as any).parts && Array.isArray((message as any).parts)) {
+      const youtubeParts = ((message as any).parts as any[])
+        .filter(p => p?.type === 'data-youtube_analysis_complete');
+      
+      const partsResults = youtubeParts
+        .map(p => p.data?.results || p.data)
+        .filter(Boolean)
+        .flat();
+        
+      youtubeAnalysisAnnotations = [
+        ...youtubeAnalysisAnnotations,
+        ...partsResults
+      ];
+    }
     
     return youtubeAnalysisAnnotations.length > 0 ? { analysisResults: youtubeAnalysisAnnotations } : null;
   };

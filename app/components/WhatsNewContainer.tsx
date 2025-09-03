@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import WhatsNew, { FeatureUpdate } from './WhatsNew';
 import { useLastSeenUpdate } from '../hooks/useLastSeenUpdate';
 import { createClient } from '@/utils/supabase/client';
@@ -82,29 +82,17 @@ const WhatsNewContainer: React.FC = () => {
           return;
         }
 
-        // Transform database records to FeatureUpdate objects
+        // Transform database records to FeatureUpdate objects with optimized queries
         const formattedUpdates: ExtendedFeatureUpdate[] = await Promise.all(data.map(async (update) => {
-          // Get like count
-          const { data: likeCountData, error: likeCountError } = await supabase
-            .rpc('get_like_count', { update_id_param: update.id });
-          
-          // Get bookmark count
-          const { data: bookmarkCountData, error: bookmarkCountError } = await supabase
-            .from('update_bookmarks')
-            .select('id', { count: 'exact' })
-            .eq('update_id', update.id);
-          
-          // 현재 사용자가 북마크했는지 확인
-          let isBookmarked = false;
-          if (user?.id) {
-            const { data: bookmarkData, error: bookmarkError } = await supabase
-              .from('update_bookmarks')
-              .select('id')
-              .eq('update_id', update.id)
-              .eq('user_id', user.id);
-            
-            isBookmarked = bookmarkData !== null && bookmarkData.length > 0;
-          }
+          // Batch queries for better performance
+          const [likeCountResult, bookmarkCountResult, userBookmarkResult] = await Promise.all([
+            // Get like count
+            supabase.rpc('get_like_count', { update_id_param: update.id }),
+            // Get bookmark count
+            supabase.from('update_bookmarks').select('id', { count: 'exact' }).eq('update_id', update.id),
+            // Check if current user bookmarked (only if user exists)
+            user?.id ? supabase.from('update_bookmarks').select('id').eq('update_id', update.id).eq('user_id', user.id) : Promise.resolve({ data: null, error: null })
+          ]);
           
           return {
             id: update.id,
@@ -117,9 +105,9 @@ const WhatsNewContainer: React.FC = () => {
             }),
             timestamp: new Date(update.created_at).getTime(),
             images: update.images || [],
-            like_count: likeCountError ? 0 : (likeCountData || 0),
-            bookmark_count: bookmarkCountError ? 0 : (bookmarkCountData?.length || 0),
-            is_bookmarked: isBookmarked
+            like_count: likeCountResult.error ? 0 : (likeCountResult.data || 0),
+            bookmark_count: bookmarkCountResult.error ? 0 : (bookmarkCountResult.data?.length || 0),
+            is_bookmarked: userBookmarkResult.data !== null && userBookmarkResult.data.length > 0
           };
         }));
         
@@ -211,9 +199,10 @@ const WhatsNewContainer: React.FC = () => {
   const [mobileView, setMobileView] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
 
-  useEffect(() => {
+  // Pre-calculate position and update on window changes
+  useLayoutEffect(() => {
     const updatePosition = () => {
-      if (isOpen && buttonRef.current) {
+      if (buttonRef.current) {
         const rect = buttonRef.current.getBoundingClientRect();
         const mobile = window.innerWidth < 768;
         
@@ -221,30 +210,35 @@ const WhatsNewContainer: React.FC = () => {
         
         if (mobile) {
           // For mobile: position dropdown at the top of screen
+          const headerHeight = 48; // Header height is h-12 (48px)
           setDropdownPosition({
-            top: window.scrollY + 60, // Position below header
+            top: window.scrollY + headerHeight + 12, // Position below header with 12px gap
             right: 0
           });
         } else {
-          // For desktop: position relative to button
+          // For desktop: position relative to button with proper header offset
+          const buttonBottom = rect.bottom + window.scrollY;
+          const dropdownTop = buttonBottom + 8; // 8px gap from button
+          
           setDropdownPosition({
-            top: rect.bottom + window.scrollY + 10,
+            top: dropdownTop,
             right: window.innerWidth - rect.right - window.scrollX
           });
         }
       }
     };
     
+    // Calculate position immediately
     updatePosition();
     
-    // Update position when window is resized
+    // Update position when window is resized or scrolled
     window.addEventListener('resize', updatePosition);
     window.addEventListener('scroll', updatePosition);
     return () => {
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition);
     };
-  }, [isOpen]);
+  }, []); // Pre-calculate position on mount
   
   const handleOpen = () => {
     setIsOpen(prev => !prev);
@@ -258,6 +252,32 @@ const WhatsNewContainer: React.FC = () => {
       setNewUpdatesCount(0);
     }
   };
+
+  // Update position when dropdown opens
+  useLayoutEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const mobile = window.innerWidth < 768;
+      
+      setMobileView(mobile);
+      
+      if (mobile) {
+        const headerHeight = 48;
+        setDropdownPosition({
+          top: window.scrollY + headerHeight + 12,
+          right: 0
+        });
+      } else {
+        const buttonBottom = rect.bottom + window.scrollY;
+        const dropdownTop = buttonBottom + 8;
+        
+        setDropdownPosition({
+          top: dropdownTop,
+          right: window.innerWidth - rect.right - window.scrollX
+        });
+      }
+    }
+  }, [isOpen]);
 
   const handleClickUpdate = (updateId: string) => {
     router.push(`/whats-new/${updateId}`);
@@ -425,7 +445,29 @@ const WhatsNewContainer: React.FC = () => {
   };
   
   if (isLoading) {
-    return null; // or a loading spinner
+    return (
+      <div className="inline-flex items-center">
+        <button
+          className="relative flex items-center justify-center text-[var(--foreground)] transition-all duration-200 cursor-pointer p-2.5 md:p-2 rounded-lg"
+          aria-label="What's New"
+          disabled
+        >
+                  <svg 
+          xmlns="http://www.w3.org/2000/svg" 
+          className="w-4 h-4 md:w-4 md:h-4 animate-pulse"
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+        >
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+        </button>
+      </div>
+    );
   }
   
   return (
@@ -441,14 +483,13 @@ const WhatsNewContainer: React.FC = () => {
       `}</style>
       <button
         onClick={handleOpen}
-        className="relative flex items-center justify-center text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+        className="relative flex items-center justify-center text-[var(--foreground)] transition-all duration-200 cursor-pointer p-2.5 md:p-2 rounded-lg"
         aria-label="What's New"
         ref={buttonRef}
       >
         <svg 
           xmlns="http://www.w3.org/2000/svg" 
-          width="18" 
-          height="18" 
+          className="w-4 h-4 md:w-4 md:h-4"
           viewBox="0 0 24 24" 
           fill="none" 
           stroke="currentColor" 
@@ -460,7 +501,11 @@ const WhatsNewContainer: React.FC = () => {
           <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
         </svg>
         {hasNewUpdates && (
-          <span className="absolute -top-2 -right-2 flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[10px] font-semibold bg-[var(--foreground)] text-[var(--background)] rounded-full">
+          <span className={`absolute top-0.5 right-1 flex items-center justify-center px-0.5 text-[8px] font-bold notification-badge text-white rounded-full ${
+            newUpdatesCount >= 10 
+              ? 'min-w-[12px] h-[12px]' 
+              : 'min-w-[14px] h-[14px]'
+          }`}>
             {newUpdatesCount >= 10 ? '10+' : newUpdatesCount}
           </span>
         )}
@@ -470,29 +515,34 @@ const WhatsNewContainer: React.FC = () => {
         {isOpen && (
           <motion.div 
             ref={dropdownRef}
-            className={`fixed max-h-[80vh] overflow-y-auto bg-[var(--background)] rounded-xl shadow-lg border border-[var(--subtle-divider)] z-50 ${mobileView ? 'mobile-dropdown' : 'mt-1'} hide-scrollbar`}
+            className={`fixed max-h-[80vh] overflow-y-auto notification-dropdown rounded-2xl z-50 ${mobileView ? 'mobile-dropdown' : 'mt-2'} hide-scrollbar`}
             style={{ 
-              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
               top: dropdownPosition.top,
               right: dropdownPosition.right,
               ...(mobileView 
                 ? { left: '10px', width: 'calc(100vw - 20px)', maxWidth: 'calc(100vw - 20px)' }
-                : { width: '380px', maxWidth: '380px' })
+                : { width: '320px', maxWidth: '320px' })
             }}
-            // framer-motion 애니메이션 속성 추가
-            initial={{ opacity: 0, y: -10, scale: 0.98 }}
+            initial={{ opacity: 0, y: -5, scale: 0.99 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+            exit={{ opacity: 0, y: -5, scale: 0.99 }}
             transition={{ 
-              duration: 0.2, 
-              ease: "easeOut"
+              duration: 0.15, 
+              ease: [0.25, 0.46, 0.45, 0.94]
             }}
           >
-            <div className="flex items-center justify-between p-4 border-b border-[var(--subtle-divider)]">
-              <h3 className="font-bold text-lg">{translations.notifications}</h3>
+            <div className="notification-header flex items-center justify-between p-4">
+              <div className="flex items-center space-x-3">
+                <h3 className="font-semibold text-base notification-title">{translations.notifications}</h3>
+                {hasNewUpdates && (
+                  <span className="notification-badge text-white text-xs px-2 py-1 rounded-full font-semibold">
+                    {newUpdatesCount} new
+                  </span>
+                )}
+              </div>
               <Link 
                 href="/whats-new" 
-                className="text-sm text-blue-500 hover:underline"
+                className="notification-see-all"
                 onClick={() => setIsOpen(false)}
               >
                 {translations.seeAll}
@@ -500,123 +550,171 @@ const WhatsNewContainer: React.FC = () => {
             </div>
             
             {updates.length === 0 ? (
-              <div className="p-6 text-center text-[var(--muted)]">
-                No new updates to show
+              <div className="p-6 text-center notification-empty">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[var(--accent)] flex items-center justify-center">
+                                      <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      width="20" 
+                      height="20" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      strokeWidth="2" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"
+                      className="text-[var(--muted)]"
+                    >
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                  </svg>
+                </div>
+                <p className="text-[var(--muted)] font-medium text-sm">No new updates to show</p>
+                <p className="text-xs text-[var(--muted)] mt-1 opacity-70">Check back later for new features</p>
               </div>
             ) : (
-              <div>
-                {updates.map((update) => (
-                  <div 
+              <div className="p-1.5">
+                {updates.map((update, index) => (
+                  <motion.div 
                     key={update.id}
-                    className="p-4 border-b border-[var(--subtle-divider)] hover:bg-[var(--accent)] cursor-pointer transition-colors"
-                    onClick={() => handleClickUpdate(update.id)}
+                    className="border-b border-black/5 dark:border-white/5 last:border-b-0"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ 
+                      duration: 0.15, 
+                      delay: index * 0.02,
+                      ease: [0.25, 0.46, 0.45, 0.94]
+                    }}
                   >
-                    <div className="flex">
-                      <div className="flex-shrink-0 mr-3">
-                        <div className="w-10 h-10 rounded-full overflow-hidden cursor-pointer" onClick={(e) => {
-                          e.stopPropagation();
-                          router.push('/whats-new');
-                          setIsOpen(false);
-                        }}>
-                          <Image 
-                            src="/android-chrome-512x512.png" 
-                            alt="Profile" 
-                            width={48} 
-                            height={48}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold">Chatflix</span>
-                          <span className="text-xs text-[var(--muted)]">{getTimeAgo(update.timestamp)}</span>
-                        </div>
-                        <h4 className="font-medium text-sm">{update.title}</h4>
-                        <div className="text-sm text-[var(--muted)] mt-1">
-                          {formatPreviewDescription(update.description, 100)}
-                        </div>
-                        
-                        {update.images && update.images.length > 0 && (
-                          <div className="mt-2">
-                            {update.images.length === 1 ? (
-                              <div className="rounded-xl overflow-hidden border border-[var(--subtle-divider)]">
-                                <Image 
-                                  src={update.images[0]}
-                                  alt={update.title}
-                                  width={300}
-                                  height={150}
-                                  className="w-full h-auto object-cover"
-                                />
-                              </div>
-                            ) : (
-                              <div className="grid grid-cols-2 gap-1">
-                                {update.images.slice(0, 4).map((img, i) => (
-                                  <div 
-                                    key={i} 
-                                    className={`${i >= 2 ? 'mt-1' : ''} rounded-xl overflow-hidden border border-[var(--subtle-divider)]`}
-                                  >
-                                    <Image 
-                                      src={img}
-                                      alt={`${update.title} image ${i+1}`}
-                                      width={150}
-                                      height={150}
-                                      className="w-full h-auto object-cover"
-                                      style={{ aspectRatio: '1/1' }}
-                                    />
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                    <motion.div 
+                      className="group relative transition-all p-2.5 rounded-lg cursor-pointer hover:bg-black/5 dark:hover:bg-white/5"
+                      onClick={() => handleClickUpdate(update.id)}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                    >
+                                              <div className="flex items-start gap-2.5 w-full">
+                          {/* Avatar - ModelSelector 스타일 적용 */}
+                          <div className="flex-shrink-0">
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[var(--accent)] transition-colors group-hover:bg-[var(--accent)]/80 cursor-pointer" onClick={(e) => {
+                              e.stopPropagation();
+                              router.push('/whats-new');
+                              setIsOpen(false);
+                            }}>
+                                                          <Image 
+                                src="/android-chrome-512x512.png" 
+                                alt="Profile" 
+                                width={16}
+                                height={16}
+                                className="w-full h-full object-cover rounded-full"
+                              />
                           </div>
-                        )}
+                        </div>
                         
-                        {/* Add social stats to each update card */}
-                        <div className="flex items-center text-xs text-[var(--muted)] mt-2">
-                          {/* Likes count */}
-                          <div className="flex items-center mr-4">
-                            <svg 
-                              xmlns="http://www.w3.org/2000/svg" 
-                              width="14" 
-                              height="14" 
-                              viewBox="0 0 24 24" 
-                              fill="none" 
-                              stroke="currentColor" 
-                              strokeWidth="1.5" 
-                              strokeLinecap="round" 
-                              strokeLinejoin="round"
-                              className="mr-1"
-                            >
-                              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                            </svg>
-                            {update.like_count || 0}
+                                                  {/* Content */}
+                          <div className="flex-1 min-w-0 flex flex-col gap-1">
+                          {/* Top line: Author + Time */}
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm text-[var(--foreground)]">Chatflix</span>
+                              <span className="text-xs text-[var(--muted)] bg-[var(--accent)] px-2 py-0.5 rounded-full">
+                                {getTimeAgo(update.timestamp)}
+                              </span>
+                            </div>
                           </div>
                           
-                          {/* Bookmarks count */}
-                          <div 
-                            className="flex items-center cursor-pointer"
-                            onClick={(e) => toggleBookmark(update.id, e)}
-                          >
-                            <svg 
-                              xmlns="http://www.w3.org/2000/svg" 
-                              width="14" 
-                              height="14" 
-                              viewBox="0 0 24 24" 
-                              fill={update.is_bookmarked ? "currentColor" : "none"}
-                              stroke="currentColor" 
-                              strokeWidth="1.5" 
-                              strokeLinecap="round" 
-                              strokeLinejoin="round"
-                              className={`mr-1 ${update.is_bookmarked ? 'text-blue-500' : ''}`}
+                          {/* Title */}
+                          <h4 className="font-semibold text-xs text-[var(--foreground)] leading-tight">
+                            {update.title}
+                          </h4>
+                          
+                          {/* Description */}
+                          <div className="text-xs text-[var(--muted)] leading-relaxed">
+                            {formatPreviewDescription(update.description, 100)}
+                          </div>
+                          
+                          {/* Images */}
+                          {update.images && update.images.length > 0 && (
+                            <div className="mt-1.5">
+                              {update.images.length === 1 ? (
+                                <div className="rounded-lg overflow-hidden border border-[var(--accent)] transition-all">
+                                  <Image 
+                                    src={update.images[0]}
+                                    alt={update.title}
+                                    width={300}
+                                    height={150}
+                                    className="w-full h-auto object-cover"
+                                  />
+                                </div>
+                              ) : (
+                                                                  <div className="grid grid-cols-2 gap-1.5">
+                                  {update.images.slice(0, 4).map((img, i) => (
+                                                                      <div 
+                                    key={i} 
+                                    className="rounded-lg overflow-hidden border border-[var(--accent)] transition-all"
+                                  >
+                                      <Image 
+                                        src={img}
+                                        alt={`${update.title} image ${i+1}`}
+                                        width={150}
+                                        height={150}
+                                        className="w-full h-auto object-cover"
+                                        style={{ aspectRatio: '1/1' }}
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          
+                          {/* Stats - ModelSelector 스타일 적용 */}
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            <div className="flex items-center gap-1 bg-[var(--accent)]/40 rounded-full px-1.5 py-0.5 transition-all hover:bg-[var(--accent)]/60 hover:scale-105">
+                                                              <svg 
+                                  xmlns="http://www.w3.org/2000/svg" 
+                                  width="10" 
+                                  height="10" 
+                                  viewBox="0 0 24 24" 
+                                  fill="none" 
+                                  stroke="currentColor" 
+                                  strokeWidth="1.5" 
+                                  strokeLinecap="round" 
+                                  strokeLinejoin="round"
+                                  className="text-[var(--muted)]"
+                                >
+                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                              </svg>
+                              <span className="text-[10px] font-medium text-[var(--muted)]">{update.like_count || 0}</span>
+                            </div>
+                            
+                            <div 
+                              className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 transition-all hover:scale-105 cursor-pointer ${
+                                update.is_bookmarked 
+                                  ? 'bg-[#007AFF]/20 text-[#007AFF]' 
+                                  : 'bg-[var(--accent)]/40 text-[var(--muted)] hover:bg-[var(--accent)]/60'
+                              }`}
+                              onClick={(e) => toggleBookmark(update.id, e)}
                             >
-                              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-                            </svg>
-                            {update.bookmark_count || 0}
+                              <svg 
+                                xmlns="http://www.w3.org/2000/svg" 
+                                width="10" 
+                                height="10" 
+                                viewBox="0 0 24 24" 
+                                fill={update.is_bookmarked ? "currentColor" : "none"}
+                                stroke="currentColor" 
+                                strokeWidth="1.5" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round"
+                              >
+                                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                              </svg>
+                              <span className="text-[10px] font-medium">{update.bookmark_count || 0}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
+                    </motion.div>
+                  </motion.div>
                 ))}
               </div>
             )}

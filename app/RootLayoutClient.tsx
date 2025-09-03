@@ -4,16 +4,17 @@ import { useState, useEffect, useRef } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter, usePathname } from 'next/navigation'
-import { PromptShortcutsDialog } from './components/PromptShortcutsDialog'
+
 import { Header } from './components/Header'
 import Announcement from './components/Announcement'
 import useAnnouncement from './hooks/useAnnouncement'
 import { fetchUserName } from '@/app/components/AccountDialog'
 import { Toaster } from 'sonner'
 import { SidebarContext } from './lib/SidebarContext'
-import { SquarePencil } from 'react-ios-icons'
+
 import { Pin } from 'lucide-react'
-import Link from 'next/link'
+import { SquarePencil } from 'react-ios-icons'
+
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
@@ -66,11 +67,22 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         if (user) {
           const name = await fetchUserName(user.id, supabase);
           setUserName(name);
+
+          // 🚀 로그인된 상태로 초기 진입한 경우 웜업 트리거 (fire-and-forget)
+          try {
+            fetch('/api/chat/warmup', {
+              method: 'POST',
+              credentials: 'include',
+              cache: 'no-store',
+              keepalive: true
+            }).catch(() => {})
+          } catch {}
         }
         
-        if (!user && pathname !== '/login') {
-          router.push('/login')
-        }
+        // 🚀 익명 사용자 지원: 로그인하지 않은 사용자도 메인 페이지 접근 허용
+        // if (!user && pathname !== '/login') {
+        //   router.push('/login')
+        // }
       } catch (error) {
         console.error('Error loading user information:', error)
         setIsLoading(false)
@@ -81,11 +93,22 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
       if (event === 'SIGNED_OUT') {
         setUser(null)
         setUserName('You')
-        router.push('/login')
+        // 🚀 익명 사용자 지원: 로그아웃 시에도 메인 페이지에 머무름
+        // router.push('/login')
       } else if (event === 'SIGNED_IN') {
         setUser(session?.user || null)
         if (session?.user) {
           fetchUserName(session.user.id, supabase).then(name => setUserName(name));
+
+          // 🚀 로그인 직후 웜업 트리거 (fire-and-forget)
+          try {
+            fetch('/api/chat/warmup', {
+              method: 'POST',
+              credentials: 'include',
+              cache: 'no-store',
+              keepalive: true
+            }).catch(() => {})
+          } catch {}
         }
       }
     })
@@ -132,7 +155,19 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
   }
 
-  if (!user && pathname !== '/login') {
+  // 🚀 익명 사용자 지원: 익명 사용자도 전체 UI 표시
+  // 익명 사용자용 가상 사용자 객체 생성
+  const displayUser = user || (pathname !== '/login' ? {
+    id: 'anonymous',
+    email: 'guest@chatflix.app',
+    user_metadata: {
+      full_name: 'Guest User',
+      name: 'Guest'
+    },
+    isAnonymous: true
+  } : null);
+
+  if (!displayUser && pathname !== '/login') {
     return (
       <div className="w-full h-screen">
         {children}
@@ -145,7 +180,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarContext.Provider value={{ isSidebarOpen, toggleSidebar, isAccountOpen, setIsAccountOpen, isHovering, isMobile }}>
-    <div className="flex h-screen bg-background dark:bg-transparent text-[var(--foreground)] overflow-x-hidden">
+            <div className="flex h-screen bg-background dark:bg-transparent text-foreground overflow-x-hidden">
 
       <Toaster position="top-right" richColors />
       <Announcement
@@ -154,7 +189,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
       />
         
         {/* Sidebar with hover functionality */}
-      {user && (
+      {displayUser && (
           <>
 
 
@@ -178,18 +213,19 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
               onMouseEnter={() => handleSidebarHover(true)}
               onMouseLeave={() => handleSidebarHover(false)}
             >
-              <Sidebar user={user} toggleSidebar={toggleSidebar} />
+              <Sidebar user={displayUser} toggleSidebar={toggleSidebar} />
             </div>
             
             {/* Delayed background overlay for closing */}
             {isMobile && (
               <div 
-                className={`fixed inset-0 bg-white/80 dark:bg-black/80 z-40 md:hidden backdrop-blur-md transition-opacity duration-300 ease-out ${
+                className={`fixed inset-0 mobile-sidebar-backdrop bg-[var(--background-overlay)] backdrop-blur-md z-40 md:hidden transition-opacity duration-300 ease-out ${
                   isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
                 }`}
                 style={{
                   willChange: 'opacity, backdrop-filter',
-                  transitionDelay: isSidebarOpen ? '0ms' : '150ms'
+                  transitionDelay: isSidebarOpen ? '0ms' : '150ms',
+                  WebkitBackdropFilter: 'blur(12px)'
                 }}
                 onClick={toggleSidebar}
               />
@@ -199,7 +235,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
             {!isAccountOpen && (
               <button
                 onClick={toggleSidebar}
-                className="sidebar-toggle-btn fixed top-2 left-3 z-[60] p-[5px] text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--muted)]/10 rounded-lg transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] flex items-center justify-center group"
+                className="sidebar-toggle-btn fixed top-1 left-1 z-[60] p-[6px] md:p-[4px] text-[var(--foreground)] rounded-lg transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] flex items-center justify-center group cursor-pointer md:top-0.5"
                 title="Toggle sidebar"
                 aria-label="Toggle sidebar"
                 onMouseEnter={() => !isMobile && handleSidebarHover(true)}
@@ -218,34 +254,53 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                 }}
               >
                {!isMobile && isSidebarOpen ? (
-                 <Pin className="w-5 h-5 transition-all duration-300 transform -rotate-45" />
+                 <Pin className="w-5 h-5 md:w-5 md:h-5 transition-all duration-300 transform -rotate-45" style={{ strokeWidth: '1.2' }} />
                 ) : (
-                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-all duration-300">
-                   <line x1="3" y1="6" x2="21" y2="6"></line>
-                   <line x1="3" y1="12" x2="21" y2="12"></line>
-                   <line x1="3" y1="18" x2="21" y2="18"></line>
+                 <svg className="w-5 h-5 md:w-5 md:h-5 transition-all duration-300" width="18" height="18" viewBox="0 0 18 18">
+                   <polyline id="globalnav-menutrigger-bread-bottom" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" points="2 12, 16 12" className="globalnav-menutrigger-bread globalnav-menutrigger-bread-bottom">
+                     <animate id="globalnav-anim-menutrigger-bread-bottom-open" attributeName="points" keyTimes="0;0.5;1" dur="0.24s" begin="indefinite" fill="freeze" calcMode="spline" keySplines="0.42, 0, 1, 1;0, 0, 0.58, 1" values=" 2 12, 16 12; 2 9, 16 9; 3.5 15, 15 3.5"></animate>
+                     <animate id="globalnav-anim-menutrigger-bread-bottom-close" attributeName="points" keyTimes="0;0.5;1" dur="0.24s" begin="indefinite" fill="freeze" calcMode="spline" keySplines="0.42, 0, 1, 1;0, 0, 0.58, 1" values=" 3.5 15, 15 3.5; 2 9, 16 9; 2 12, 16 12"></animate>
+                   </polyline>
+                   <polyline id="globalnav-menutrigger-bread-top" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" points="2 5, 16 5" className="globalnav-menutrigger-bread globalnav-menutrigger-bread-top">
+                     <animate id="globalnav-anim-menutrigger-bread-top-open" attributeName="points" keyTimes="0;0.5;1" dur="0.24s" begin="indefinite" fill="freeze" calcMode="spline" keySplines="0.42, 0, 1, 1;0, 0, 0.58, 1" values=" 2 5, 16 5; 2 9, 16 9; 3.5 3.5, 15 15"></animate>
+                     <animate id="globalnav-anim-menutrigger-bread-top-close" attributeName="points" keyTimes="0;0.5;1" dur="0.24s" begin="indefinite" fill="freeze" calcMode="spline" keySplines="0.42, 0, 1, 1;0, 0, 0.58, 1" values=" 3.5 3.5, 15 15; 2 9, 16 9; 2 5, 16 5"></animate>
+                   </polyline>
                  </svg>
                )}
               </button>
             )}
 
             {/* New Chat Button - positioned in header area */}
-            {!isAccountOpen && pathname !== '/' && (
-              <Link 
-                href="/" 
-                className={`fixed top-2 z-[60] p-[5px] text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--muted)]/10 rounded-lg transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] flex items-center justify-center ${
-                  (isHovering || isSidebarOpen) ? 'left-[275px]' : 'left-12'
+            {!isAccountOpen && (
+                              <button
+                  onClick={() => {
+                    // 🔧 FIX: 모든 경우에 새 채팅 이벤트 발생 + 필요시 라우팅
+                    console.log('🚀 [NEW_CHAT_BUTTON] Clicked from:', pathname);
+                    
+                    if (pathname === '/') {
+                      // 🚀 홈에서는 즉시 새 채팅 이벤트 발생
+                      window.dispatchEvent(new CustomEvent('requestNewChat'));
+                    } else {
+                      // 🚀 채팅창에서는 홈으로 이동 후 새 채팅 이벤트 발생
+                      router.push('/');
+                      // 라우팅 후 새 채팅 이벤트 발생 (약간의 지연)
+                      setTimeout(() => {
+                        window.dispatchEvent(new CustomEvent('requestNewChat'));
+                      }, 50); // 라우팅 완료 후 이벤트 발생
+                    }
+                  }}
+                className={`fixed top-0.5 z-[60] p-[6px] md:p-[4px] text-[var(--foreground)] rounded-lg transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] flex items-center justify-center cursor-pointer md:top-0 ${
+                  (isHovering || isSidebarOpen) ? 'left-[285px]' : 'left-9'
                 }`}
                 title="New Chat"
                 onMouseEnter={() => !isMobile && (isSidebarOpen || isHovering) && handleSidebarHover(true)}
                 onMouseLeave={() => !isMobile && (isSidebarOpen || isHovering) && handleSidebarHover(false)}
                 style={{
-                  top: '6px',
                   willChange: 'left'
                 }}
               >
-                <SquarePencil className="w-[26px] h-[26px]" />
-              </Link>
+                <SquarePencil className="w-[25px] h-[25px] md:w-[25px] md:h-[25px] scale-90" />
+              </button>
             )}
       
 
@@ -257,25 +312,25 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         {/* Main Content with conditional offset */}
         <div 
           className={`flex-1 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-            user && shouldShowSidebar ? 'ml-0 md:ml-80' : 'ml-0'
+            displayUser && shouldShowSidebar ? 'ml-0 md:ml-80' : 'ml-0'
           }`}
           style={{
             willChange: 'margin-left'
           }}
         >
           {/* Header with toggle button */}
-          {user && pathname !== '/pricing' && (
+          {displayUser && pathname !== '/pricing' && (
             <Header 
               isSidebarOpen={isSidebarOpen}
               toggleSidebar={toggleSidebar}
-              user={user} 
+              user={displayUser} 
               isHovering={isHovering}
             />
           )}
         {children}
       </div>
 
-      {user && <PromptShortcutsDialog user={user} />}
+      
       <div id="portal-root"></div>
     </div>
     </SidebarContext.Provider>

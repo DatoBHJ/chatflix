@@ -98,6 +98,44 @@ export function useChatInputStyles() {
           font-weight: 400;
           letter-spacing: 0.01em;
           transform: translateY(-50%);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          z-index: 1;
+        }
+        
+        /* placeholder가 있을 때만 표시되도록 보장 */
+        .futuristic-input:not(.empty):before {
+          display: none;
+        }
+        
+        /* Apple-style minimal tool selector - 별도 클래스로 분리 */
+        .tool-selector {
+          animation: toolSelectorFadeIn 0.2s ease-out;
+        }
+        
+        @keyframes toolSelectorFadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(4px) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        
+        /* Tool button hover effects */
+        .tool-button {
+          transition: all 0.15s ease-out;
+        }
+        
+        .tool-button:hover {
+          transform: translateY(-1px);
+        }
+        
+        .tool-button:active {
+          transform: translateY(0);
         }
         
         /* 활성화된 버튼 스타일 통합 */

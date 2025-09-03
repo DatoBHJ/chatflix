@@ -1,5 +1,5 @@
 import { Attachment } from "@/lib/types";
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import { Download } from 'lucide-react';
 import { getIcon } from 'material-file-icons';
 import { fileHelpers } from './ChatInput/FileUpload';
@@ -19,6 +19,22 @@ export const AttachmentPreview = memo(function AttachmentPreviewComponent({
   togglePanel 
 }: AttachmentPreviewProps) {
   const isImage = attachment.contentType?.startsWith('image/') || false;
+
+  // Derive file size if missing using HEAD request
+  const [derivedSize, setDerivedSize] = useState<number | null>(null);
+  useEffect(() => {
+    let aborted = false;
+    if (!attachment.metadata?.fileSize && attachment.url) {
+      (async () => {
+        try {
+          const res = await fetch(attachment.url, { method: 'HEAD' });
+          const len = res.headers.get('content-length');
+          if (!aborted && len) setDerivedSize(parseInt(len, 10));
+        } catch {}
+      })();
+    }
+    return () => { aborted = true; };
+  }, [attachment.metadata?.fileSize, attachment.url]);
 
   // 클릭 핸들러 - 모든 파일을 사이드 패널에서 열기
   const handleClick = (e: React.MouseEvent) => {
@@ -68,8 +84,8 @@ export const AttachmentPreview = memo(function AttachmentPreviewComponent({
   const icon = getIcon(fileName);
   
   // 파일 크기 계산 - metadata에서 가져오거나 기본값 사용
-  const fileSize = attachment.metadata?.fileSize 
-    ? fileHelpers.formatFileSize(attachment.metadata.fileSize)
+  const fileSize = (attachment.metadata?.fileSize ?? derivedSize) != null
+    ? fileHelpers.formatFileSize((attachment.metadata?.fileSize ?? derivedSize) as number)
     : 'Unknown size';
 
   // Fallback for generic files, styled like the screenshot

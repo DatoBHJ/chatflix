@@ -5,7 +5,7 @@ import { ThemeToggle } from './ThemeToggle'
 import WhatsNewContainer from './WhatsNewContainer'
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link'
-import { checkSubscriptionClient } from '@/lib/subscription-client'
+import { checkSubscriptionClient, clearClientSubscriptionCache } from '@/lib/subscription-client'
 import { clearAllSubscriptionCache } from '@/lib/utils'
 import { Battery, SquarePencil } from 'react-ios-icons'
 
@@ -24,21 +24,59 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
   // 홈 화면이 아닌지 확인
   const isNotHomePage = pathname !== '/'
 
+  // 🚀 익명 사용자 지원: 익명 사용자 식별
+  const isAnonymousUser = user?.isAnonymous || user?.id === 'anonymous';
+
   const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
   const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(true);
   const [showBatteryTooltip, setShowBatteryTooltip] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState<'left' | 'center' | 'right'>('center');
   const tooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const batteryRef = useRef<HTMLDivElement>(null);
+  const batteryRef2 = useRef<HTMLDivElement>(null);
   
   // 최적화를 위한 캐시 관련 상태
   const lastCheckTimeRef = useRef<number>(0);
   const lastCheckedUserIdRef = useRef<string | null>(null);
-  const CACHE_DURATION = 2 * 60 * 1000; // 2분 캐시
+  const CACHE_DURATION = 5 * 60 * 1000; // 5분 캐시 (공백 현상을 방지를 위해 단축)
+  
+  // 인증 사용자에서는 과거 익명 ID를 정리
+  useEffect(() => {
+    if (!isAnonymousUser) {
+      try { localStorage.removeItem('anonymousId'); } catch {}
+    }
+  }, [isAnonymousUser]);
+
+  // 툴팁 위치 계산 함수
+  const calculateTooltipPosition = () => {
+    // 현재 활성화된 배터리 요소 찾기
+    const activeBattery = batteryRef.current || batteryRef2.current;
+    if (!activeBattery) return 'center';
+    
+    const rect = activeBattery.getBoundingClientRect();
+    const tooltipWidth = 200; // 툴팁의 예상 너비 (여백 포함)
+    const screenWidth = window.innerWidth;
+    const margin = 20; // 화면 경계에서의 여백
+    
+    // 툴팁이 화면 우측 끝에서 잘릴 경우
+    if (rect.left + (tooltipWidth / 2) > screenWidth - margin) {
+      return 'right';
+    }
+    // 툴팁이 화면 좌측 끝에서 잘릴 경우
+    if (rect.left - (tooltipWidth / 2) < margin) {
+      return 'left';
+    }
+    // 중앙 정렬이 가능한 경우
+    return 'center';
+  };
   
   // 툴팁 표시/숨김 함수
   const showTooltip = () => {
     if (tooltipTimeoutRef.current) {
       clearTimeout(tooltipTimeoutRef.current);
     }
+    const position = calculateTooltipPosition();
+    setTooltipPosition(position);
     setShowBatteryTooltip(true);
   };
 
@@ -48,25 +86,20 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
     }, 150); // 150ms 지연으로 자연스러운 이동 가능
   };
   
-  // 구독 상태 확인 함수 최적화
+  // 🔧 FIX: 구독 상태 확인 함수 최적화 - 단순화
   const checkSubscriptionStatus = useCallback(async (forceCheck = false) => {
-    if (!user?.id) {
+    // 🚀 익명 사용자 지원: 익명 사용자는 Free Plan으로 처리 (캐싱 불필요)
+    if (!user?.id || isAnonymousUser) {
       setIsSubscribed(false);
       setIsSubscriptionLoading(false);
       lastCheckedUserIdRef.current = null;
+      // 익명 전환 시 남아있을 수 있는 클라이언트 캐시 제거
+      try { clearClientSubscriptionCache(); } catch {}
       return;
     }
 
-    // 캐시 확인
     const now = Date.now();
-    const isCacheValid = now - lastCheckTimeRef.current < CACHE_DURATION;
     const isSameUser = lastCheckedUserIdRef.current === user.id;
-    
-    if (!forceCheck && isCacheValid && isSameUser && isSubscribed !== null) {
-      console.log('[Header] Using cached subscription status');
-      setIsSubscriptionLoading(false);
-      return;
-    }
 
     // 새로운 사용자이거나 첫 로드인 경우에만 로딩 상태 표시
     if (!isSameUser || isSubscribed === null) {
@@ -74,7 +107,8 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
     }
     
     try {
-      const has = await checkSubscriptionClient();
+      // 서버 캐시(Upstash) 의존. 필요 시 강제 새로고침만 사용
+      const has = await checkSubscriptionClient(forceCheck);
       setIsSubscribed(has);
       lastCheckTimeRef.current = now;
       lastCheckedUserIdRef.current = user.id;
@@ -84,68 +118,118 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
     } finally {
       setIsSubscriptionLoading(false);
     }
-  }, [user?.id, isSubscribed]);
+  }, [user?.id, isSubscribed, isAnonymousUser]);
   
   useEffect(() => {
-    checkSubscriptionStatus();
-  }, [checkSubscriptionStatus]);
+    // 🚀 익명 사용자 지원: 익명 사용자는 구독 상태 확인 건너뛰기
+    if (isAnonymousUser) {
+      setIsSubscribed(false);
+      setIsSubscriptionLoading(false);
+      try { clearClientSubscriptionCache(); } catch {}
+      return;
+    }
+    
+    // 첫 로드 시에만 구독 상태 확인
+    if (isSubscribed === null) {
+      checkSubscriptionStatus();
+    }
+  }, [checkSubscriptionStatus, isAnonymousUser]); // ✅ P0 FIX: isSubscribed 의존성 제거
 
   // 백그라운드 새로고침 함수 (로딩 상태 표시 안 함)
   const refreshSubscriptionStatusInBackground = useCallback(async () => {
-    if (!user?.id) return;
+    // 🚀 익명 사용자 지원: 익명 사용자는 구독 상태 확인 건너뛰기
+    if (!user?.id || isAnonymousUser) return;
     
     // 캐시 확인 - 최근에 확인했다면 재확인하지 않음
     const now = Date.now();
     const isCacheValid = now - lastCheckTimeRef.current < CACHE_DURATION;
     const isSameUser = lastCheckedUserIdRef.current === user.id;
     
-    if (isCacheValid && isSameUser && isSubscribed !== null) {
-      console.log('Header: Using cached subscription status, skipping refresh');
+    // ✅ P0 FIX: isSubscribed 상태 의존성 제거로 무한 루프 방지
+    if (isCacheValid && isSameUser) {
       return;
     }
     
-    // Clear cache and check subscription status
-    clearAllSubscriptionCache();
-    
-    // Small delay to ensure cache is cleared
-    setTimeout(async () => {
-      try {
-        // 백그라운드에서 확인 (로딩 상태 표시 안 함)
-        const has = await checkSubscriptionClient();
-        setIsSubscribed(has);
-        lastCheckTimeRef.current = now;
-        lastCheckedUserIdRef.current = user.id;
-        console.log('Header: Subscription status refreshed:', has);
-      } catch (error) {
-        console.error('Header: Error refreshing subscription status:', error);
-        setIsSubscribed(false);
-      }
-    }, 300); // Slightly shorter delay for header
-  }, [user?.id, isSubscribed]);
+    try {
+      // 서버측 캐시만 신뢰, 강제 새로고침으로 최신화
+      const has = await checkSubscriptionClient(true);
+      setIsSubscribed(has);
+      lastCheckTimeRef.current = now;
+      lastCheckedUserIdRef.current = user.id;
+    } catch (error) {
+      console.error('Header: Error refreshing subscription status:', error);
+      setIsSubscribed(false);
+    }
+  }, [user?.id, isAnonymousUser]); // ✅ P0 FIX: isSubscribed 의존성 제거
 
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden && user?.id) {
-        console.log('Header: Page became visible, checking subscription status...');
+      // 🚀 익명 사용자 지원: 익명 사용자는 구독 상태 확인 건너뛰기
+      if (!document.hidden && user?.id && !isAnonymousUser) {
+        // 캐시가 유효한 경우 재확인하지 않음
+        const now = Date.now();
+        const isCacheValid = now - lastCheckTimeRef.current < CACHE_DURATION;
+        const isSameUser = lastCheckedUserIdRef.current === user.id;
+        
+        // ✅ P0 FIX: isSubscribed 상태 체크 제거로 안정성 증대
+        if (isCacheValid && isSameUser) {
+          return;
+        }
+        
         refreshSubscriptionStatusInBackground();
       }
     };
 
+    // 🔧 FIX: 구독 성공 이벤트 리스너 - 강제 새로고침만 수행
+    const handleSubscriptionSuccess = () => {
+      if (isAnonymousUser) return;
+      checkSubscriptionStatus(true); // 강제 재확인
+    };
+
+    // 🔧 FIX: 주기적 구독 상태 확인 (웹훅 지연 대응)
+    const periodicCheck = () => {
+      if (user?.id && !isAnonymousUser && !document.hidden) {
+        const now = Date.now();
+        const isCacheValid = now - lastCheckTimeRef.current < CACHE_DURATION;
+        const isSameUser = lastCheckedUserIdRef.current === user.id;
+        
+        if (!isCacheValid || !isSameUser) {
+          refreshSubscriptionStatusInBackground();
+        }
+      }
+    };
+
+    // 5분마다 구독 상태 확인
+    const intervalId = setInterval(periodicCheck, 5 * 60 * 1000);
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('subscriptionSuccess', handleSubscriptionSuccess);
     
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('subscriptionSuccess', handleSubscriptionSuccess);
+      clearInterval(intervalId);
     };
-  }, [user?.id, refreshSubscriptionStatusInBackground]);
+  }, [user?.id, refreshSubscriptionStatusInBackground, checkSubscriptionStatus, isAnonymousUser]); // ✅ P0 FIX: isSubscribed 의존성 제거로 무한 루프 방지
 
-  // 컴포넌트 언마운트 시 타이머 정리
+  // 화면 크기 변경 시 툴팁 위치 재계산
   useEffect(() => {
+    const handleResize = () => {
+      if (showBatteryTooltip) {
+        const position = calculateTooltipPosition();
+        setTooltipPosition(position);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    
     return () => {
+      window.removeEventListener('resize', handleResize);
       if (tooltipTimeoutRef.current) {
         clearTimeout(tooltipTimeoutRef.current);
       }
     };
-  }, []);
+  }, [showBatteryTooltip]);
 
   return (
     <header 
@@ -155,15 +239,15 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
           : 'bg-[var(--accent)] dark:bg-transparent'
       }`}
     >
-      <div className="flex justify-between items-center py-2 sm:py-2 pl-10 sm:pl-4 pr-4 h-12">
-        <div className="flex items-center gap-3 relative">
+      <div className="flex justify-between items-center py-1.5 sm:py-1 md:py-0.5 pl-10 sm:pl-4 pr-5 h-10 md:h-8">
+        <div className="flex items-center gap-2 md:gap-1.5 relative">
           {showBackButton && (
             <button
               onClick={() => router.back()}
-              className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+              className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
               title="Go back"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <svg className="w-4 h-4 md:w-3.5 md:h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <path d="M19 12H5" />
                 <path d="M12 19l-7-7 7-7" />
               </svg>
@@ -180,78 +264,188 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
           </div>
         </div>
 
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-1.5 md:gap-[0.6rem]">
+          {/* Sign In Button for Anonymous Users */}
+          {isAnonymousUser && (
+            <Link 
+              href="/login"
+              className="inline-flex items-center justify-center p-[6px] md:px-[2px] text-[var(--foreground)] text-sm md:text-xs transition-all duration-200 cursor-pointer"
+            >
+                                             <svg className="w-6.5 h-6.5 md:w-5.5 md:h-5.5 mr-1.5 md:mr-1" viewBox="0 0 16 25" fill="none">
+                 <g id="person.crop.circle_compact">
+                   <rect id="box_" width="16" height="25" fill="none"></rect>
+                   <path id="art_" d="M15.09,12.5a7.1,7.1,0,1,1-7.1-7.1A7.1077,7.1077,0,0,1,15.09,12.5ZM7.99,6.6a5.89,5.89,0,0,0-4.4609,9.7471c.6069-.9658,2.48-1.6787,4.4609-1.6787s3.8545.7129,4.4615,1.6787A5.89,5.89,0,0,0,7.99,6.6ZM7.99,8.4A2.5425,2.5425,0,0,0,5.5151,11,2.5425,2.5425,0,0,0,7.99,13.6,2.5424,2.5424,0,0,0,10.4653,11,2.5424,2.5424,0,0,0,7.99,8.4Z" fill="currentColor"></path>
+                 </g>
+               </svg>
+               Sign in
+            </Link>
+          )}
+          
           {/* Pro/Free Status - moved next to notification */}
-          <div className="flex items-center justify-center relative ml-1">
+          <div className="flex items-center justify-center">
             {isSubscriptionLoading && isSubscribed === null ? (
               <span className="text-xs px-2 py-0.5 rounded-full bg-gray-400/15 text-[var(--muted)] font-medium">Loading...</span>
             ) : (
               <div className="flex items-center justify-center relative">
-                {/* iPhone Battery Icon from react-ios-icons */}
-                <div 
-                  className="relative flex items-center justify-center cursor-pointer group"
-                  onMouseEnter={showTooltip}
-                  onMouseLeave={hideTooltip}
-                >
-                  <Battery 
-                    progression={isSubscribed ? 100 : 30}
-                    className={`transition-all duration-300 scale-100 transform translate-x-1 group-hover:scale-110 ${
-                      isSubscribed 
-                        ? 'text-green-500' 
-                        : 'text-red-500'
-                    }`}
-                  />
-                  
-                  {/* Tooltip */}
-                  {showBatteryTooltip && (
+                {isAnonymousUser ? (
+                  <>
+                    {/* Decorative Battery for Anonymous Users */}
                     <div 
-                      className="absolute top-full mt-3 left-1/2 transform -translate-x-3/4 z-50 animate-in fade-in-0 zoom-in-95 duration-200"
+                      ref={batteryRef}
+                      className="flex items-center justify-center relative group cursor-pointer"
                       onMouseEnter={showTooltip}
                       onMouseLeave={hideTooltip}
                     >
-                      <div className="bg-[var(--background)]/95 backdrop-blur-xl border border-[var(--accent)] rounded-2xl shadow-2xl px-5 py-3 whitespace-nowrap min-w-[140px]">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="text-sm font-medium text-[var(--foreground)]">
-                            {isSubscribed ? 'Pro Plan' : 'Free Plan'}
-                          </div>
-                          <div className={`w-2 h-2 rounded-full ${
-                            isSubscribed ? 'bg-green-500' : 'bg-red-500'
-                          }`}></div>
-                        </div>
-                        <div className="text-xs text-[var(--muted)] mb-3">
-                          {isSubscribed 
-                            ? 'You have access to all features' 
-                            : 'Upgrade to unlock all features'
-                          }
-                        </div>
-                        <Link 
-                          href="/pricing" 
-                          className="inline-flex items-center justify-center w-full px-3 py-2 text-xs font-medium text-white bg-[var(--chat-input-primary)] hover:bg-[var(--chat-input-primary)]/90 rounded-xl transition-all duration-200 hover:shadow-lg hover:scale-105"
+                      <svg 
+                        className="w-8 h-9 text-[var(--foreground)] transition-all duration-300 scale-100" 
+                        viewBox="0 0 35 30" 
+                        fill="none" 
+                      >
+                        {/* Battery Body */}
+                        <rect 
+                          x="9" 
+                          y="9" 
+                          width="22" 
+                          height="11" 
+                          rx="1.5" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          strokeWidth="1.2"
+                        />
+                        {/* Battery Terminal */}
+                        <polygon 
+                          points="33,12.5 33.3,15 33,17.5" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          strokeWidth="1.2"
+                        />
+                        <rect 
+                          x="10" 
+                          y="10" 
+                          rx="0.8" 
+                          height="9" 
+                          width="3" 
+                          fill="#ef4444"
+                        />
+                      </svg>
+                      
+                      {/* Tooltip for Anonymous Users */}
+                      {showBatteryTooltip && (
+                        <div 
+                          className={`absolute top-full mt-2 z-50 animate-in fade-in-0 zoom-in-95 duration-200 ${
+                            tooltipPosition === 'left' ? 'left-0' :
+                            tooltipPosition === 'right' ? 'right-0' :
+                            'left-1/2 transform -translate-x-1/2'
+                          }`}
+                          onMouseEnter={showTooltip}
+                          onMouseLeave={hideTooltip}
                         >
-                          {isSubscribed ? 'Manage Plan' : 'View Plans'}
-                          <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </Link>
-                      </div>
-                      {/* Arrow */}
-                      <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1">
-                        <div className="w-3 h-3 bg-[var(--background)]/95 backdrop-blur-xl border-l border-t border-[var(--accent)] transform rotate-45"></div>
-                      </div>
+                          <div className="bg-[var(--background)]/95 backdrop-blur-xl border border-[var(--accent)] rounded-2xl shadow-2xl px-5 py-3 whitespace-nowrap min-w-[160px] max-w-[200px]">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-sm font-medium text-[var(--foreground)]">
+                                Guest Mode
+                              </div>
+                              <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                            </div>
+                            {/* <div className="text-xs text-[var(--muted)] mb-3">
+                              Create an account to save conversations
+                            </div> */}
+                            <Link 
+                              href="/pricing"
+                              className="inline-flex items-center justify-center w-full px-3 py-2 text-xs font-medium text-white bg-[var(--chat-input-primary)] hover:bg-[var(--chat-input-primary)]/90 rounded-xl transition-all duration-200 hover:shadow-lg hover:scale-105"
+                            >
+                              View Plans
+                            </Link>
+                          </div>
+                          {/* Arrow removed */}
+                        </div>
+                      )}
                     </div>
-                  )}
-                  
-                  {/* Text overlay */}
-                  {/* <div className="absolute inset-0 flex items-center justify-center">
-                    <span className={`text-[5px] font-bold leading-none ${
-                      isSubscribed 
-                        ? 'text-white' 
-                        : 'text-gray-800'
-                    }`}>
-                      {isSubscribed ? 'PRO' : 'FREE'}
-                    </span>
-                  </div> */}
-                </div>
+                  </>
+                ) : (
+                  <>
+                    {/* iPhone Battery Icon from react-ios-icons */}
+                    <div 
+                      ref={batteryRef2}
+                      className="relative flex items-center justify-center cursor-pointer group"
+                      onMouseEnter={showTooltip}
+                      onMouseLeave={hideTooltip}
+                    >
+                      <svg 
+                        className={`w-8 h-9 text-[var(--foreground)] transition-all duration-300 scale-100 cursor-pointer`}
+                        viewBox="0 0 35 30" 
+                        fill="none" 
+                      >
+                        {/* Battery Body */}
+                        <rect 
+                          x="9" 
+                          y="9" 
+                          width="22" 
+                          height="11" 
+                          rx="1.5" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          strokeWidth="1.2"
+                        />
+                        {/* Battery Terminal */}
+                        <polygon 
+                          points="33,12.5 33.3,15 33,17.5" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          strokeWidth="1.2"
+                        />
+                        <rect 
+                          x="10" 
+                          y="10" 
+                          rx="0.8" 
+                          height="9" 
+                          width={isSubscribed ? "20" : "8"} 
+                          fill={isSubscribed ? "#22c55e" : "#eab308"}
+                        />
+                      </svg>
+                      
+                      {/* Tooltip */}
+                      {showBatteryTooltip && (
+                        <div 
+                          className={`absolute top-full mt-2 z-50 animate-in fade-in-0 zoom-in-95 duration-200 ${
+                            tooltipPosition === 'left' ? 'left-0' :
+                            tooltipPosition === 'right' ? 'right-0' :
+                            'left-1/2 transform -translate-x-1/2'
+                          }`}
+                          onMouseEnter={showTooltip}
+                          onMouseLeave={hideTooltip}
+                        >
+                          <div className="bg-[var(--background)]/95 backdrop-blur-xl border border-[var(--accent)] rounded-2xl shadow-2xl px-5 py-3 whitespace-nowrap min-w-[160px] max-w-[200px]">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-sm font-medium text-[var(--foreground)]">
+                                {isSubscribed ? 'Pro Plan' : 'Free Plan'}
+                              </div>
+                              <div className={`w-2 h-2 rounded-full ${
+                                isSubscribed ? 'bg-green-500' : 'bg-yellow-500'
+                              }`}></div>
+                            </div>
+                            <div className="text-xs text-[var(--muted)] mb-3">
+                              {isSubscribed 
+                                ? 'You have access to all features' 
+                                : 'Upgrade to unlock all features'
+                              }
+                            </div>
+                            <Link 
+                              href="/pricing"
+                              className="inline-flex items-center justify-center w-full px-3 py-2 text-xs font-medium text-white bg-[var(--chat-input-primary)] hover:bg-[var(--chat-input-primary)]/90 rounded-xl transition-all duration-200 hover:shadow-lg hover:scale-105"
+                            >
+                              {isSubscribed ? 'Manage Plan' : 'View Plans'}
+                              <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </Link>
+                          </div>
+                          {/* Arrow removed */}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>

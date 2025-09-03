@@ -3,6 +3,8 @@ import { createClient } from '@/utils/supabase/client';
 import { fetchUserName } from '../AccountDialog';
 import { formatMessageTime } from '@/app/lib/messageTimeUtils';
 
+
+
 // 기본 프롬프트 배열 (3개)
 export const DEFAULT_PROMPTS = [
   "tell me the latest news.",
@@ -41,6 +43,8 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const newPromptTextareaRef = useRef<HTMLTextAreaElement>(null);
   const supabase = createClient();
+
+
 
   // URL 정규식 (http, https, www)
   const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
@@ -131,6 +135,12 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   // 사용자 이름 로드 함수
   const loadUserName = async () => {
     if (!userId) {
+      return;
+    }
+    
+    // 🚀 익명 사용자 지원: 익명 사용자는 "Guest"로 설정
+    if (userId === 'anonymous') {
+      setUserName('Guest');
       return;
     }
     
@@ -265,6 +275,12 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
 
   // 편집 시작
   const handleEditStart = (promptIndex: number) => {
+    // 🚀 익명 사용자 지원: 익명 사용자는 편집 불가
+    if (userId === 'anonymous') {
+      alert('Please sign in to edit prompts');
+      return;
+    }
+    
     setIsEditing(true);
     setEditingPromptIndex(promptIndex);
     setEditingContent(suggestedPrompts[promptIndex]);
@@ -311,6 +327,12 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
 
   // 프롬프트 삭제
   const handleDeletePrompt = async (promptIndex: number) => {
+    // 🚀 익명 사용자 지원: 익명 사용자는 삭제 불가
+    if (userId === 'anonymous') {
+      alert('Please sign in to delete prompts');
+      return;
+    }
+    
     if (suggestedPrompts.length <= 1) {
       // 최소 1개는 유지
       return;
@@ -325,6 +347,12 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
 
   // 새 프롬프트 추가 시작
   const handleAddPromptStart = () => {
+    // 🚀 익명 사용자 지원: 익명 사용자는 추가 불가
+    if (userId === 'anonymous') {
+      alert('Please sign in to add prompts');
+      return;
+    }
+    
     setIsAdding(true);
     setNewPromptContent('');
     
@@ -379,7 +407,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
 
   // 마우스 이벤트 핸들러
   const handleMouseEnter = (promptIndex: number) => {
-    if (isVisible && !isMobile) {
+    if (!isMobile) {
       setHoveredPromptIndex(promptIndex);
     }
   };
@@ -389,7 +417,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   };
 
   const handleClick = (prompt: string) => {
-    if (prompt && isVisible && !isEditing && !isAdding && !isInitialLoading) {
+    if (prompt && !isEditing && !isAdding && !isInitialLoading) {
       onPromptClick(prompt);
     }
   };
@@ -403,29 +431,118 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     <div className={`min-h-16 relative flex flex-col items-end ${className} group `}>
       {suggestedPrompts.length > 0 && (
         <>
-          {/* AI 메시지 */}
-          <div className="flex justify-start w-full group">
-            <div className="max-w-[85%] md:max-w-[75%]">
-              <div className="imessage-receive-bubble">
-                <span>{userName === 'You' ? '' : `yo ${userName}`}</span>
-              </div>
-            </div>
-          </div>
-          {/* 사용자 메시지 */}
-          <div className="flex justify-end w-full group mb-4">
-            <div className="max-w-[85%] md:max-w-[75%]">
-              <div className="flex flex-col items-end gap-0">
-                <div className="imessage-send-bubble">
-                  <span>hey</span>
-                </div>
-                <div className="text-xs text-neutral-500 mt-1 pr-1">
-                  {formatMessageTime(new Date())}
+          {userId === 'anonymous' ? (
+            // 익명 사용자용 미니멀한 대화 흐름
+            <>
+              {/* AI 메시지 - Chatflix 인사 */}
+              <div className="flex justify-start w-full group mb-4">
+                <div className="max-w-[85%] md:max-w-[75%]">
+                  <div className="imessage-receive-bubble">
+                    <span>Hey there</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* 모든 프롬프트를 개별적으로 표시 */}
+              {/* 사용자 메시지 - hey */}
+              <div className="flex justify-end w-full group mb-4">
+                <div className="max-w-[85%] md:max-w-[75%]">
+                  <div className="flex flex-col items-end gap-0">
+                    <div className="imessage-send-bubble">
+                      <span>Hey</span>
+                    </div>
+                    <div className="text-[10px] text-neutral-500 mt-1 pr-1">
+                      {formatMessageTime(new Date())}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 익명 사용자용 예약 메시지들 */}
+              <div className="flex flex-col items-end gap-2 w-full mb-4">
+                {/* <button
+                  onClick={() => handleClick("what makes chatflix better than chatgpt?")}
+                  className={`imessage-send-bubble follow-up-question max-w-md ${
+                    isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                  } transition-all duration-200 ease-out hover:scale-105 cursor-pointer`}
+                >
+                  <span>⚡ what makes chatflix better than chatgpt?</span>
+                </button> */}
+                {/* <button
+                  onClick={() => handleClick("how is chatflix different from other ai?")}
+                  className={`imessage-send-bubble follow-up-question max-w-md ${
+                    isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                  } transition-all duration-200 ease-out hover:scale-105 cursor-pointer`}
+                >
+                  <span>🚀 how is chatflix different from other platforms?</span>
+                </button> */}
+                <button
+                  onClick={() => handleClick("tell me the latest news.")}
+                  className="imessage-send-bubble follow-up-question max-w-md opacity-100 transition-all duration-200 ease-out hover:scale-105 cursor-pointer"
+                >
+                  <span>📰 tell me the latest news.</span>
+                </button>
+                <button
+                  onClick={() => handleClick("send me funny cat gifs")}
+                  className="imessage-send-bubble follow-up-question max-w-md opacity-100 transition-all duration-200 ease-out hover:scale-105 cursor-pointer"
+                >
+                  <span>🐱 send me funny cat gifs</span>
+                </button>
+                <button
+                  onClick={() => handleClick("what do u know about me")}
+                  className="imessage-send-bubble follow-up-question max-w-md opacity-100 transition-all duration-200 ease-out hover:scale-105 cursor-pointer"
+                >
+                  <span>👤 what do u know about me</span>
+                </button>
+              </div>
+
+              {/* AI 메시지 - 로그인 유도 */}
+              <div className="flex justify-start w-full group">
+                <div className="max-w-[85%] md:max-w-[75%]">
+                  <div className="imessage-receive-bubble">
+                    <span><a href="/login" className="text-blue-500 underline hover:text-blue-700">Sign in</a> to save conversations and unlock more features!</span>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            // 가입한 사용자용 간단한 인사 후 바로 예약 메시지 유도
+            <>
+              {/* AI 메시지 - 간단한 인사 */}
+              <div className="flex justify-start w-full group mb-4">
+                <div className="max-w-[85%] md:max-w-[75%]">
+                  <div className="imessage-receive-bubble">
+                    <span>Hey {userName}!</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 사용자 메시지 - hey */}
+              <div className="flex justify-end w-full group mb-4">
+                <div className="max-w-[85%] md:max-w-[75%]">
+                  <div className="flex flex-col items-end gap-0">
+                    <div className="imessage-send-bubble">
+                      <span>Hey</span>
+                    </div>
+                    <div className="text-[10px] text-neutral-500 mt-1 pr-1">
+                      {formatMessageTime(new Date())}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* AI 메시지 - 질문 */}
+              {/* <div className="flex justify-start w-full group mb-4">
+                <div className="max-w-[85%] md:max-w-[75%]">
+                  <div className="imessage-receive-bubble">
+                    <span>What's on your mind today?</span>
+                  </div>
+                </div>
+              </div> */}
+            </>
+          )}
+
+          {/* 모든 프롬프트를 개별적으로 표시 - 로그인 사용자만 */}
+          {userId !== 'anonymous' && (
           <div className="flex flex-col items-end gap-2 w-full">
             {suggestedPrompts.map((prompt, index) => (
               <div 
@@ -528,12 +645,10 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                       )}
                       
                       <button
-                        className={`imessage-send-bubble follow-up-question max-w-md ${
-                          isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                        } ${isMobile ? 'touch-manipulation' : ''} ${
+                        className={`imessage-send-bubble follow-up-question max-w-md opacity-100 ${isMobile ? 'touch-manipulation' : ''} ${
                           isMobile && showMobileActions && longPressIndex === index 
                             ? 'scale-105 shadow-lg transform transition-all duration-200 ease-out' 
-                            : 'transition-all duration-200 ease-out'
+                            : 'transition-all duration-200 ease-out hover:scale-105 cursor-pointer'
                         }`}
                         onClick={() => {
                           if (!isLongPressActive) {
@@ -695,7 +810,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                 }`}>
                   <button
                     onClick={handleAddPromptStart}
-                    className="imessage-control-btn text-green-500 hover:text-green-700"
+                    className="imessage-control-btn text-green-500 hover:text-green-700 transition-all duration-200 ease-out hover:scale-110"
                     title="Add new prompt"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -707,6 +822,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
               </div>
             )}
           </div>
+          )}
         </>
       )}
     </div>

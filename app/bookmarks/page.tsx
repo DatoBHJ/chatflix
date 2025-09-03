@@ -208,9 +208,21 @@ export default function BookmarksPage() {
           return;
         }
         
-        // 북마크 데이터 처리 (채팅 세션 제목 포함)
+        // Process bookmark data
         const formattedBookmarks = await Promise.all(
           bookmarkData.map(async (bookmark) => {
+            // Get actual message content by message ID
+            const { data: messageData, error: messageError } = await supabase
+              .from('messages')
+              .select('content, model, created_at')
+              .eq('id', bookmark.message_id)
+              .single();
+            
+            if (messageError) {
+              console.error('Error fetching message:', messageError);
+              return null;
+            }
+            
             // 채팅 세션 제목 가져오기
             const { data: chatSession } = await supabase
               .from('chat_sessions')
@@ -243,16 +255,19 @@ export default function BookmarksPage() {
               id: bookmark.id,
               message_id: bookmark.message_id,
               chat_session_id: bookmark.chat_session_id,
-              content: bookmark.content,
-              model: bookmark.model,
-              created_at: bookmark.created_at,
-              timestamp: new Date(bookmark.created_at).getTime(),
+              content: messageData.content,
+              model: messageData.model,
+              created_at: messageData.created_at,
+              timestamp: new Date(messageData.created_at).getTime(),
               chat_title: chatTitle
             };
           })
         );
         
-        setMessageBookmarks(formattedBookmarks);
+        // Filter out null values
+        const validBookmarks = formattedBookmarks.filter(bookmark => bookmark !== null) as BookmarkedMessage[];
+        
+        setMessageBookmarks(validBookmarks);
         
         // 캐시 상태 업데이트
         setIsDataLoaded(true);

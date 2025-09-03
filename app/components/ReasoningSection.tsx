@@ -112,7 +112,7 @@ function ReasoningSectionComponent({
         onClick={handleToggle}
       >
         {/* 메인 생각 버블 */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-full backdrop-blur-xl border border-[var(--subtle-divider)] hover:shadow-md hover:scale-[1.02] transition-all duration-200 ease-out" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 80%, transparent)' }}>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-full backdrop-blur-xl border border-[var(--subtle-divider)] hover:scale-[1.02] transition-all duration-200 ease-out" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 80%, transparent)' }}>
           <Brain className="h-3.5 w-3.5" style={{ color: 'var(--reasoning-color)' }} strokeWidth={2} />
           
           {/* 버블 상태: 기존의 ... 애니메이션으로 복원 */}
@@ -137,7 +137,9 @@ function ReasoningSectionComponent({
 
         {/* 상세 정보 툴팁 */}
 
-        <div className={`absolute bottom-full left-0 mb-3 w-80 sm:w-96 bg-[var(--background)] backdrop-blur-xl rounded-2xl border border-[var(--subtle-divider)] shadow-lg p-4 z-50 transition-all duration-200 ease-out ${isExpanded ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-1 pointer-events-none'}`} style={{ boxShadow: '0 10px 25px -5px var(--overlay), 0 4px 6px -2px var(--overlay)' }}>         
+        <div className={`absolute bottom-full left-0 mb-3 w-80 sm:w-96 bg-[var(--background)] backdrop-blur-xl rounded-2xl border border-[var(--subtle-divider)] p-4 z-50 transition-all duration-200 ease-out ${isExpanded ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-1 pointer-events-none'}`} 
+        // style={{ boxShadow: '0 10px 25px -5px var(--overlay), 0 4px 6px -2px var(--overlay)' }}
+        >         
          {/* 툴팁 화살표 */}
         <div className="absolute -bottom-1.5 left-6 w-3 h-3 bg-[var(--background)] border-r border-b border-[var(--subtle-divider)] rotate-45"></div>          
           {/* 툴팁 상태: 아이콘과 함께 상세 시간 표시 */}

@@ -20,44 +20,8 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useHomeStarryNight } from '@/app/hooks/useHomeStarryNight'
+import { useDarkMode } from '@/app/hooks/useDarkMode'
 import { getSidebarTranslations } from '../lib/sidebarTranslations'
-import { defaultPromptShortcuts } from '../lib/defaultPromptShortcuts'
-
-// 다크모드 감지 훅
-function useDarkMode() {
-  const [isDark, setIsDark] = useState(false)
-
-  useEffect(() => {
-    const updateTheme = () => {
-      const root = document.documentElement
-      const theme = root.getAttribute('data-theme')
-      
-      setIsDark(
-        theme === 'dark' || 
-        (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches) ||
-        (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)
-      )
-    }
-
-    updateTheme()
-
-    const observer = new MutationObserver(updateTheme)
-    observer.observe(document.documentElement, { 
-      attributes: true, 
-      attributeFilter: ['data-theme'] 
-    })
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    mediaQuery.addEventListener('change', updateTheme)
-
-    return () => {
-      observer.disconnect()
-      mediaQuery.removeEventListener('change', updateTheme)
-    }
-  }, [])
-
-  return isDark
-}
 
 // Export these functions to be used elsewhere
 export const fetchUserName = async (userId: string, supabase: any) => {
@@ -194,11 +158,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
   const isDarkMode = useDarkMode()
   const { isEnabled: isStarryNightEnabled, toggle: toggleStarryNight } = useHomeStarryNight()
   
-  // Shortcuts related states
-  const [shortcuts, setShortcuts] = useState<any[]>([])
-  const [newName, setNewName] = useState('')
-  const [newContent, setNewContent] = useState('')
-  const [editingId, setEditingId] = useState<string | null>(null)
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   
   // Drag states for mobile header
@@ -213,7 +173,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     profile: 'Profile',
     appearance: 'Appearance',
     dataControls: 'Data Controls',
-    shortcuts: 'Shortcuts',
+
     settings: 'Settings',
     light: 'Light',
     dark: 'Dark',
@@ -235,132 +195,14 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     manageSubscription: 'Manage Subscription',
     billing: 'Billing',
     subscriptionPortalError: 'Unable to open subscription management page. Please try again later.',
-    editShortcut: 'Edit Shortcut',
-    addShortcut: 'Add New Shortcut',
-    shortcutNamePlaceholder: 'Shortcut name (without @)',
-    promptContentPlaceholder: 'Prompt content',
-    updateButton: 'Update',
-    saveShortcutButton: 'Save Shortcut',
-    cancelButton: 'Cancel',
-    addNewShortcutButton: 'ADD NEW SHORTCUT',
-    createCustomPromptTemplates: 'Create custom prompt templates',
-    noShortcutsYet: 'No shortcuts yet. Create one to get started!'
+
   });
 
   useEffect(() => {
     setTranslations(getSidebarTranslations());
   }, []);
 
-  // Functions related to prompt shortcuts
-  const loadShortcuts = async () => {
-    if (!user) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from('prompt_shortcuts')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
 
-      if (error) throw error
-      
-      // If user has no shortcuts, add default ones
-      if (!data || data.length === 0) {
-        const defaultShortcutsWithIds = defaultPromptShortcuts.map((shortcut) => ({
-          id: `ps-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-          name: shortcut.name,
-          content: shortcut.content,
-          user_id: user.id
-        }))
-
-        const { error: insertError } = await supabase
-          .from('prompt_shortcuts')
-          .insert(defaultShortcutsWithIds)
-
-        if (insertError) throw insertError
-        setShortcuts(defaultShortcutsWithIds)
-      } else {
-        setShortcuts(data)
-      }
-    } catch (error) {
-      console.error('Error loading shortcuts:', error)
-    }
-  };
-
-  const handleAddShortcut = async () => {
-    if (!newName.trim() || !newContent.trim()) return
-
-    try {
-      const formattedName = newName.trim().replace(/\s+/g, '_')
-
-      if (editingId && editingId !== 'new') {
-        // Update existing shortcut
-        const { error } = await supabase
-          .from('prompt_shortcuts')
-          .update({
-            name: formattedName,
-            content: newContent.trim(),
-          })
-          .eq('id', editingId)
-          .eq('user_id', user.id)
-
-        if (error) throw error
-      } else {
-        // Add new shortcut
-        const { error } = await supabase
-          .from('prompt_shortcuts')
-          .insert({
-            id: `ps-${Date.now()}`,
-            name: formattedName,
-            content: newContent.trim(),
-            user_id: user.id
-          })
-
-        if (error) throw error
-      }
-      
-      setNewName('')
-      setNewContent('')
-      setEditingId(null)
-      loadShortcuts()
-    } catch (error) {
-      console.error('Error saving shortcut:', error)
-    }
-  };
-
-  const handleEditShortcut = (shortcut: any) => {
-    setEditingId(shortcut.id)
-    setNewName(shortcut.name)
-    setNewContent(shortcut.content)
-  };
-
-  const handleCancelShortcut = () => {
-    setEditingId(null)
-    setNewName('')
-    setNewContent('')
-  };
-
-  const handleDeleteShortcut = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from('prompt_shortcuts')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id)
-
-      if (error) throw error
-      loadShortcuts()
-    } catch (error) {
-      console.error('Error deleting shortcut:', error)
-    }
-  };
-
-  // Load shortcuts when user changes or shortcuts tab is active
-  useEffect(() => {
-    if (user && (activeTab === 'shortcuts' || mobileView === 'shortcuts')) {
-      loadShortcuts();
-    }
-  }, [user, activeTab, mobileView]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -821,7 +663,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
         <div className="space-y-1">
           <button
             onClick={() => setMobileView('account')}
-            className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors"
+            className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors cursor-pointer"
           >
             <div className="flex items-center gap-3">
               <User size={20} />
@@ -834,7 +676,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
 
           <button
             onClick={() => setMobileView('appearance')}
-            className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors"
+            className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors cursor-pointer"
           >
             <div className="flex items-center gap-3">
               <PaintBucket size={20} />
@@ -847,25 +689,11 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
 
 
 
-          <button
-            onClick={() => setMobileView('shortcuts')}
-            className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="4" />
-                <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" />
-              </svg>
-              <span className="text-base">{translations.shortcuts}</span>
-            </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 18l6-6-6-6" />
-            </svg>
-          </button>
+
 
           <button
             onClick={() => setMobileView('data-controls')}
-            className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors"
+            className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors cursor-pointer"
           >
             <div className="flex items-center gap-3">
               <Database size={20} />
@@ -880,7 +708,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
             <button
               onClick={handleManageSubscription}
               disabled={isLoadingPortal}
-              className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors disabled:opacity-50"
+              className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <CreditCard size={20} />
@@ -899,7 +727,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
 
           <button
             onClick={handleSignOut}
-            className="w-full flex items-center justify-between p-4 hover:bg-red-500/10 rounded-lg transition-colors text-red-500"
+            className="w-full flex items-center justify-between p-4 hover:bg-red-500/10 rounded-lg transition-colors text-red-500 cursor-pointer"
           >
             <div className="flex items-center gap-3">
               <LogOut size={20} />
@@ -1055,156 +883,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
           </div>
         )
 
-      case 'shortcuts':
-        return (
-          <div className="p-6 sm:py-20 h-full flex flex-col">
-            <div className="space-y-6">
-              {editingId ? (
-                // Edit/Create Form
-                <div className="bg-[var(--accent)]/5 rounded-lg p-4 space-y-3">
-                  
-                  <input
-                    type="text"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    className="w-full p-2.5 bg-[var(--accent)] text-sm focus:outline-none rounded-lg"
-                    placeholder={translations.shortcutNamePlaceholder}
-                  />
-                  <textarea
-                    ref={textareaRef}
-                    value={newContent}
-                    onChange={(e) => setNewContent(e.target.value)}
-                    className="w-full min-h-[120px] p-2.5 bg-[var(--accent)] text-sm resize-none focus:outline-none rounded-lg"
-                    placeholder={translations.promptContentPlaceholder}
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleAddShortcut}
-                      disabled={!newName.trim() || !newContent.trim()}
-                      className="flex-1 py-2.5 text-xs uppercase tracking-wider bg-[var(--foreground)] text-[var(--background)] hover:opacity-90 transition-opacity disabled:opacity-50 rounded-lg font-medium"
-                      type="button"
-                    >
-                      {editingId !== 'new' ? translations.updateButton : translations.saveShortcutButton}
-                    </button>
-                    <button
-                      onClick={handleCancelShortcut}
-                      className="w-24 py-2.5 text-xs uppercase tracking-wider bg-[var(--accent)] hover:opacity-90 transition-opacity rounded-lg font-medium"
-                      type="button"
-                    >
-                      {translations.cancelButton}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                // Add New Button
-                <button
-                  onClick={() => {
-                    setEditingId('new');
-                    setNewName('');
-                    setNewContent('');
-                  }}
-                  className="w-full px-4 py-4 text-left transition-all duration-200 group relative overflow-hidden hover:bg-[var(--accent)]/5 rounded-xl"
-                  type="button"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-[var(--accent)]/15 flex items-center justify-center transition-all duration-200 group-hover:bg-[var(--accent)]/25 group-hover:scale-105">
-                      <svg 
-                        width="16" 
-                        height="16" 
-                        viewBox="0 0 24 24" 
-                        fill="none" 
-                        stroke="currentColor" 
-                        strokeWidth="2" 
-                        strokeLinecap="round" 
-                        className="text-[var(--foreground)] transition-colors"
-                      >
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                      </svg>
-                    </div>
-                    <div className="flex flex-col items-start gap-1">
-                      <span className="text-sm font-medium text-[var(--foreground)] transition-colors">
-                        {translations.addNewShortcutButton}
-                      </span>
-                      <span className="text-xs text-[var(--muted)] transition-colors">
-                        {translations.createCustomPromptTemplates}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              )}
-              
-              {/* Shortcuts List */}
-              <div className="space-y-0">
-                {shortcuts.length > 0 ? (
-                  shortcuts.map((shortcut, index) => (
-                    <div 
-                      key={shortcut.id} 
-                      className={`shortcut-item group bg-[var(--accent)]/5 hover:bg-[var(--accent)]/20 p-3 relative transition-all duration-200 ${index !== shortcuts.length - 1 ? 'border-b border-[var(--accent)]' : ''}`}
-                    >
-                      <div className="flex pr-16">
-                        <div className="flex-1 flex flex-col gap-1 text-left">
-                          <span className="text-sm font-medium tracking-wide">
-                            @{shortcut.name}
-                          </span>
-                          <span className="text-xs line-clamp-2 text-[var(--muted)]">
-                            {shortcut.content.substring(0, 80)}{shortcut.content.length > 80 ? '...' : ''}
-                          </span>
-                        </div>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1 items-center justify-center transition-opacity opacity-0 group-hover:opacity-100">
-                          <button 
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleEditShortcut(shortcut); }}
-                            className="p-1.5 rounded-md bg-[var(--accent)]/20 hover:bg-[var(--accent)]/40 transition-colors"
-                            type="button"
-                            aria-label="Edit shortcut"
-                          >
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                            </svg>
-                          </button>
-                          <button 
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteShortcut(shortcut.id); }}
-                            className="p-1.5 rounded-md bg-[var(--accent)]/20 hover:bg-red-500/20 transition-colors"
-                            type="button"
-                            aria-label="Delete shortcut"
-                          >
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <polyline points="3 6 5 6 21 6"></polyline>
-                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="px-4 py-3 text-sm text-[var(--muted)] text-center bg-[var(--accent)]/5 rounded-lg">
-                    {translations.noShortcutsYet}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )
+
 
       case 'data-controls':
         return (
@@ -1386,7 +1065,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
                 {mobileView ? 
                   (mobileView === 'account' ? translations.profile :
                    mobileView === 'appearance' ? translations.appearance :
-                   mobileView === 'shortcuts' ? translations.shortcuts :
+           
                    mobileView === 'data-controls' ? translations.dataControls : translations.settings)
                   : translations.settings}
               </h2>
@@ -1409,22 +1088,16 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
             <div className="w-full sm:w-56 sm:bg-[var(--accent)] p-4 flex flex-col border-b sm:border-b-0 sm:border-r border-[var(--accent)]">
               <h2 className="text-lg font-semibold mb-6 px-2 hidden sm:block">{translations.settings}</h2>
               <nav className="flex sm:flex-col gap-1 overflow-x-auto pb-2 sm:pb-0 -mx-4 px-4">
-                <button onClick={() => setActiveTab('account')} className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm shrink-0 ${activeTab === 'account' ? 'bg-[var(--accent)]' : 'hover:bg-[var(--accent)]'}`}>
+                <button onClick={() => setActiveTab('account')} className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm shrink-0 cursor-pointer ${activeTab === 'account' ? 'bg-[var(--accent)]' : 'hover:bg-[var(--accent)]'}`}>
                   <User size={16} /> <span className="hidden sm:inline">{translations.profile}</span>
                 </button>
-                <button onClick={() => setActiveTab('appearance')} className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm shrink-0 ${activeTab === 'appearance' ? 'bg-[var(--accent)]' : 'hover:bg-[var(--accent)]'}`}>
+                <button onClick={() => setActiveTab('appearance')} className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm shrink-0 cursor-pointer ${activeTab === 'appearance' ? 'bg-[var(--accent)]' : 'hover:bg-[var(--accent)]'}`}>
                   <PaintBucket size={16} /> <span className="hidden sm:inline">{translations.appearance}</span>
                 </button>
 
-                <button onClick={() => setActiveTab('shortcuts')} className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm shrink-0 ${activeTab === 'shortcuts' ? 'bg-[var(--accent)]' : 'hover:bg-[var(--accent)]'}`}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="4" />
-                    <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" />
-                  </svg>
-                  <span className="hidden sm:inline">{translations.shortcuts}</span>
-                </button>
 
-                <button onClick={() => setActiveTab('data-controls')} className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm shrink-0 ${activeTab === 'data-controls' ? 'bg-[var(--accent)]' : 'hover:bg-[var(--accent)]'}`}>
+
+                <button onClick={() => setActiveTab('data-controls')} className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm shrink-0 cursor-pointer ${activeTab === 'data-controls' ? 'bg-[var(--accent)]' : 'hover:bg-[var(--accent)]'}`}>
                   <Database size={16} /> <span className="hidden sm:inline">{translations.dataControls}</span>
                 </button>
               </nav>
@@ -1433,7 +1106,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
                   <button 
                     onClick={handleManageSubscription} 
                     disabled={isLoadingPortal}
-                    className="flex items-center gap-3 px-2 py-2 rounded-md text-sm w-full text-left hover:bg-[var(--accent)] disabled:opacity-50"
+                    className="flex items-center gap-3 px-2 py-2 rounded-md text-sm w-full text-left hover:bg-[var(--accent)] disabled:opacity-50 cursor-pointer"
                   >
                     <CreditCard size={16} /> 
                     <span>{translations.manageSubscription}</span>
@@ -1442,7 +1115,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
                     )}
                   </button>
                 )}
-                <button onClick={handleSignOut} className="flex items-center gap-3 px-2 py-2 rounded-md text-sm w-full text-left text-red-500 hover:bg-red-500/10">
+                <button onClick={handleSignOut} className="flex items-center gap-3 px-2 py-2 rounded-md text-sm w-full text-left text-red-500 hover:bg-red-500/10 cursor-pointer">
                   <LogOut size={16} /> {translations.logOut}
                 </button>
               </div>
@@ -1453,7 +1126,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
               {/* Close Button - Top right */}
               <button 
                 onClick={onClose} 
-                className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full flex items-center justify-center"
+                className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
                 title={translations.close}
               >
                 <svg 

@@ -48,7 +48,7 @@ export function clearAllSubscriptionCache() {
     
     // Clear client-side cache (importing here to avoid circular dependency)
     import('@/lib/subscription-client').then(module => {
-      module.clearSubscriptionCache();
+      module.clearClientSubscriptionCache(); // 올바른 함수명 사용
     });
     
     console.log('All subscription caches cleared');

@@ -191,7 +191,7 @@ export default function PricingPage() {
     setPendingDowngrade(true)
     try {
       const response = await fetch('/api/subscription/portal', {
-        method: 'GET',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -274,8 +274,6 @@ export default function PricingPage() {
               <ul className="text-center text-sm text-[var(--foreground)] space-y-1 mb-8">
                 <li>Access to all models</li>
                 <li>Unlimited requests</li>
-                <li>Full context window access</li>
-                <li>Fastest response</li>
               </ul>
               
               {/* Subscription-dependent buttons */}
@@ -310,8 +308,6 @@ export default function PricingPage() {
             <ul className="text-xs text-[var(--muted)] space-y-1 mt-2 mb-4">
               <li>Limited model access</li>
               <li>Rate limited requests</li>
-              <li>60K token context limit</li>
-              <li>Slower response</li>
             </ul>
             
             {renderSubscriptionContent(true, (

@@ -5,10 +5,9 @@ export interface ModelConfig {
   pro?: boolean;
   country: string;
   description?: string;
-  provider: 'anthropic' | 'openai' | 'google' | 'deepseek' | 'together' | 'groq' | 'xai' ;
+  provider: 'anthropic' | 'openai' | 'google' | 'deepseek' | 'together' | 'groq' | 'xai';
   supportsVision: boolean;
   supportsPDFs: boolean;
-  // censored?: boolean;
   abbreviation?: string; // Short name to display on mobile devices
   rateLimit: {
     level: 'level0' | 'level1' | 'level2' | 'level3' | 'level4' | 'level5';
@@ -18,18 +17,20 @@ export interface ModelConfig {
   isAgentEnabled?: boolean;
   isNew?: boolean; // Mark model as new
   isHot?: boolean; // Mark model as hot/trending
-  reasoningText?: {
-    enabled: boolean;
-    provider?: 'openai' | 'groq' | 'together' | 'anthropic' | 'deepseek' | 'google' | 'xai' ;  
-    baseModelId?: string; 
-    budgetTokens?: number;
-  };
+  isUpdated?: boolean; // Mark model as recently updated
+  updateDescription?: string; // Description for the update tooltip
+  
+  // Simple reasoning flag (scira style)
+  reasoning?: boolean;
+  
+  // Performance metrics (optional)
   contextWindow?: number;
-  tps?: number; // Tokens per second received while the model is generating tokens (ie. after first chunk has been received from the API for models which support streaming).
-  intelligenceIndex?: number; // Artificial Analysis Intelligence Index: Combination metric covering multiple dimensions of intelligence - the simplest way to compare how smart models are. Version 2 was released in Feb '25 and includes: MMLU_Pro-Pro, GPQA Diamond, HLE's Last Exam, LiveCodeBench, SciCode, AIME, MATH-500. See Intelligence Index methodology for further details, including a breakdown of each evaluation and how we run them.
-  multilingual?: number
-  latency?: number; // Seconds to First Answer Token Received; Accounts for Reasoning Model 'Thinking' time
-  maxOutputTokens?: number; // Max output tokens for the model
+  tps?: number; // Tokens per second
+  intelligenceIndex?: number; // AI Intelligence Index
+  multilingual?: number;
+  latency?: number; // Response latency
+  maxOutputTokens?: number;
+  IFBench?: number; // Instruction Following benchmark
 }
 
 // Default model configuration
@@ -78,21 +79,21 @@ export const RATE_LIMITS = {
   },
   level4: {
     hourly: {
-      requests: 10,    
-      window: '4 h'
+      requests: 2,    
+      window: '1 h'
     },
     daily: {
-      requests: 20,
+      requests: 10,
       window: '24 h'
     }
   },
   level5: {
     hourly: {
-      requests: 10,    
-      window: '4 h'
+      requests: 2,    
+      window: '1 h'
     },
     daily: {
-      requests: 20,
+      requests: 10,
       window: '24 h'
     }
   },
@@ -166,100 +167,7 @@ export function getSystemDefaultModelId(): string {
   }
 }
 
-// Function to get user's default model from Supabase
-export async function getUserDefaultModel(userId: string): Promise<string> {
-  try {
-    // Import supabase client dynamically to avoid circular dependencies
-    const { supabase } = await import('../supabase');
-    
-    // Call the Supabase function to get or create user model preference
-    const { data, error } = await supabase.rpc('get_or_create_user_model', {
-      p_user_id: userId
-    });
-    
-    if (error) {
-      console.error('Error fetching user model preference:', error);
-      return getSystemDefaultModelId();
-    }
-    
-    // Verify the returned model exists, is enabled, and is activated
-    const modelExists = MODEL_CONFIGS.some(model => model.id === data && model.isEnabled && model.isActivated);
-    
-    if (modelExists) {
-      return data;
-    } else {
-      // If the model is not enabled or not activated, get the first activated model
-      const firstActivatedModel = getActivatedModels()[0];
-      return firstActivatedModel ? firstActivatedModel.id : getSystemDefaultModelId();
-    }
-  } catch (error) {
-    console.error('Error in getUserDefaultModel:', error);
-    return getSystemDefaultModelId();
-  }
-}
 
-// Function to update user's default model
-export async function updateUserDefaultModel(userId: string, modelId: string): Promise<boolean> {
-  try {
-    // Verify the model exists, is enabled, and is activated
-    const modelExists = MODEL_CONFIGS.some(model => model.id === modelId && model.isEnabled && model.isActivated);
-    if (!modelExists) {
-      console.error('Attempted to set invalid, disabled, or deactivated model as default:', modelId);
-      return false;
-    }
-    
-    // Import supabase client dynamically
-    const { supabase } = await import('../supabase');
-    
-    // Call the Supabase function to update user model preference
-    const { data, error } = await supabase.rpc('update_user_model', {
-      p_user_id: userId,
-      p_model_id: modelId
-    });
-    
-    if (error) {
-      console.error('Error updating user model preference:', error);
-      return false;
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Error in updateUserDefaultModel:', error);
-    return false;
-  }
-}
-
-// Function to reset user's model to system default
-export async function resetUserDefaultModel(userId: string): Promise<boolean> {
-  try {
-    // Import supabase client dynamically
-    const { supabase } = await import('../supabase');
-    
-    // Call the Supabase function to reset user model preference
-    const { data, error } = await supabase.rpc('reset_user_model', {
-      p_user_id: userId
-    });
-    
-    if (error) {
-      console.error('Error resetting user model preference:', error);
-      return false;
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Error in resetUserDefaultModel:', error);
-    return false;
-  }
-}
-
-// Function to get the default model ID (user's preference or system default)
-export async function getDefaultModelId(userId?: string): Promise<string> {
-  if (!userId) {
-    return getSystemDefaultModelId();
-  }
-  
-  return await getUserDefaultModel(userId);
-}
 
 // 챗플릭스 모델인지 확인하는 함수
 export function isChatflixModel(modelId: string): boolean {
@@ -276,7 +184,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   abbreviation: 'CHFX-PRO',
   country: 'GLOBAL',
   description: 'Selects top models for complex or technical tasks.',
-  // description: 'Designed for detailed technical or complex tasks. Automatically selects the optimal model based on your input. Prioritizes high-performance models like Claude Sonnet 4 and Gemini 2.5 Pro for superior reasoning. Responses may be slightly slower due to the inherent speed and latency of these heavier models. For lighter or everyday tasks, the standard Chatflix model is recommended for faster replies.',
   provider: 'anthropic',
   supportsVision: true,
   supportsPDFs: true,
@@ -286,12 +193,9 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   isEnabled: true,
   isActivated: true,
   isAgentEnabled: true,
-  reasoningText: {
-    enabled: true,
-    provider: 'anthropic',
-    baseModelId: 'claude-3-7-sonnet-20250219',
-    budgetTokens: 12000
-  },
+  // isUpdated: true, // Recently updated
+  // updateDescription: 'Enhanced model selection algorithm with improved reasoning capabilities and better performance for complex tasks.',
+  reasoning: true,
 },
 
 // Chatflix Ultimate
@@ -313,63 +217,33 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   isEnabled: true,
   isActivated: true,
   isAgentEnabled: true,
-  reasoningText: {
-    enabled: true,
-    provider: 'anthropic',
-    baseModelId: 'claude-3-7-sonnet-20250219',
-    budgetTokens: 12000
-  },
+
+  reasoning: true,
 },
-    // Grok 4 
-    {
-      id: 'grok-4-0709',
-      name: 'Grok 4 07-09',
-      // cutoff: 'Jul 2025',
-      // pro: true,
-      abbreviation: 'G4-0709',
-      country: 'US',
-      provider: 'xai',
-      supportsVision: true,
-      // censored: false,
-      rateLimit: {
-        level: 'level2',
-      },
-      supportsPDFs: false,
-      isEnabled: true,
-      isActivated: true,
-      isAgentEnabled: false,
-      contextWindow: 256000,
-      tps: 75,
-      intelligenceIndex: 73,
-      latency: 6.4,
-      maxOutputTokens: 16000,
-    },
-   // Grok 3 Mini (Thinking)
+  // Grok 4 
   {
-    id: 'grok-3-mini-fast',
-    name: 'Grok 3 Mini High Fast (Thinking)',
-    cutoff: 'Feb 2025',
-    pro: true,
-    abbreviation: 'G3M-H-F',
+    id: 'grok-4-0709',
+    name: 'Grok 4',
+    // cutoff: 'Jul 2025',
+    // pro: true,
+    abbreviation: 'G4-0709',
     country: 'US',
-    // description: 'High-speed version of Grok 3 Mini High (Thinking)',
     provider: 'xai',
-    supportsVision: false,
+    supportsVision: true,
     // censored: false,
     rateLimit: {
-      level: 'level2',
-    },
-    reasoningText: {
-      enabled: true,
-      provider: 'xai',
+      level: 'level3',
     },
     supportsPDFs: false,
-    isEnabled: false,
+    isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
-    contextWindow: 131072,
-    intelligenceIndex: 67,
+    isAgentEnabled: true,
+    contextWindow: 256000,
+    tps: 75,
+    intelligenceIndex: 68,
+    latency: 6.4,
     maxOutputTokens: 16000,
+    IFBench:54
   },
   {
     id: 'grok-3-mini',
@@ -381,44 +255,19 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: false,
     // censored: false,
     rateLimit: {
-      level: 'level2',
+      level: 'level1',
     },
-    reasoningText: {
-      enabled: true,
-      provider: 'xai',
-    },
+    reasoning: true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
-    contextWindow: 131072,
-    tps: 212,
-    intelligenceIndex: 67,
-    latency: 9.9,
-    maxOutputTokens: 16000,
-  },
-    // Grok 3 
-    {
-    id: 'grok-3-fast',
-    name: 'Grok 3 Fast',
-    cutoff: 'Feb 2025',
-    pro: true,
-    abbreviation: 'G3F',
-    country: 'US',
-    // description: 'High-speed version of Grok 3',
-    provider: 'xai',
-    supportsVision: false,
-    // censored: false,
-    rateLimit: {
-      level: 'level2',
-    },
-    supportsPDFs: false,
-    isEnabled: false,
-    isActivated: true,
     isAgentEnabled: true,
     contextWindow: 131072,
-    intelligenceIndex: 51,
+    tps: 212,
+    intelligenceIndex: 58,
+    latency: 9.9,
     maxOutputTokens: 16000,
+    IFBench:46
   },
     // Grok 3 
     {
@@ -431,15 +280,15 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsVision: false,
     // censored: false,
     rateLimit: {
-      level: 'level2',
+      level: 'level1',
     },
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 131072,
     tps: 79,
-    intelligenceIndex: 51,
+    intelligenceIndex: 40,
     latency: 0.6,
     maxOutputTokens: 16000,
   },
@@ -454,24 +303,20 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'anthropic',
     supportsVision: true,
     rateLimit: {
-      level: 'level4',
+      level: 'level3',
     },
     supportsPDFs: true,
     // censored: true,
     isEnabled: true,
     isActivated: true,
     isAgentEnabled: true,
-    reasoningText: {
-      enabled: true,
-      provider: 'anthropic',
-      baseModelId: 'claude-sonnet-4-20250514',
-      budgetTokens: 12000
-    },
+    reasoning: true,
     contextWindow: 200000,
-    intelligenceIndex: 61,
+    intelligenceIndex: 59,
     tps: 82,
     latency: 25.5,
     maxOutputTokens: 64000,
+    IFBench:55
   },
   // Claude 4 Sonnet 
   {
@@ -486,48 +331,47 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsPDFs: true,
     // censored: true,
     rateLimit: {
-      level: 'level4',
+      level: 'level3',
     },
     isAgentEnabled: true,
     isEnabled: true,
     isActivated: true,
     contextWindow: 200000,
-    intelligenceIndex: 53,
+    intelligenceIndex: 46,
     tps: 82,
     latency: 1.5,
     maxOutputTokens: 64000,
+    IFBench:45
   },
   // GPT-5
   {
     id: 'gpt-5',
-    name: 'GPT-5',
+    name: 'GPT-5 (Thinking)',
     cutoff: 'Oct 2024',
     abbreviation: 'G5',
     country: 'US',
     provider: 'openai',
     supportsVision: true,
     rateLimit: {
-      level: 'level5',
+      level: 'level3',
     },
-    reasoningText: {
-      enabled: true,
-      provider: 'openai',
-      baseModelId: 'gpt-5',
-    },
+    reasoning: true,
     supportsPDFs: false,
     isEnabled: true,
-    isActivated: false,
+    isActivated: true,
     isAgentEnabled: true,
     contextWindow: 400000,
-    // tps: 119,
-    // intelligenceIndex: 53,
-    // latency: 0.4,
+    tps: 157,
+    intelligenceIndex: 68,
+    latency: 33.2,
     maxOutputTokens: 128000,
+    isNew: true,
+    IFBench:71
   },
   // GPT-5 Mini
   {
     id: 'gpt-5-mini',
-    name: 'GPT-5 Mini',
+    name: 'GPT-5 Mini (Thinking)',
     cutoff: 'Oct 2024',
     abbreviation: 'G5M',
     country: 'US',
@@ -536,24 +380,22 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level1',
     },
-    reasoningText: {
-      enabled: true,
-      provider: 'openai',
-      baseModelId: 'gpt-5-mini',
-    },
+    reasoning: true,
     supportsPDFs: false,
     isEnabled: true,
-    isActivated: false,
+    isActivated: true,
     isAgentEnabled: true,
     contextWindow: 400000,
-    // tps: 69,
-    // intelligenceIndex: 53,
-    // latency: 0.4,
+    tps: 140,
+    intelligenceIndex: 64,
+    latency: 17.7,
     maxOutputTokens: 128000,
+    isNew: true,
+    IFBench:71
   },
   {
     id: 'gpt-5-nano',
-    name: 'GPT-5 Nano',
+    name: 'GPT-5 Nano (Thinking)',
     cutoff: 'Oct 2024',
     abbreviation: 'G5N',
     country: 'US',
@@ -562,20 +404,18 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level1',
     },
-    reasoningText: {
-      enabled: true,
-      provider: 'openai',
-      baseModelId: 'gpt-5-nano',
-    },
+    reasoning: true,
     supportsPDFs: false,
     isEnabled: true,
-    isActivated: false,
+    isActivated: true,
     isAgentEnabled: true,
     contextWindow: 400000,
-    // tps: 153,
-    // intelligenceIndex: 41,
-    // latency: 0.3,
+    tps: 294,
+    intelligenceIndex: 54,
+    latency: 23.9,
     maxOutputTokens: 128000,
+    isNew: true,
+    IFBench:66
   },
    // ChatGPT-5 (Aug '25)
    {
@@ -585,24 +425,21 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     abbreviation: 'CG5',
     country: 'US',
     provider: 'openai',
+    description: "GPT-5 model used in ChatGPT",
     supportsVision: true,
     rateLimit: {
-      level: 'level5',
-    },
-    reasoningText: {
-      enabled: true,
-      provider: 'openai',
-      baseModelId: 'gpt-5-chat-latest',
+      level: 'level3',
     },
     supportsPDFs: false,
     isEnabled: true,
-    isActivated: false,
+    isActivated: true,
     isAgentEnabled: false,
     contextWindow: 400000,
     // tps: 174,
     // intelligenceIndex: 40,
     // latency: 0.5,
     maxOutputTokens: 128000,
+    isNew: true,
   },
   // GPT-4.1
   {
@@ -614,7 +451,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'openai',
     supportsVision: true,
     rateLimit: {
-      level: 'level5',
+      level: 'level3',
     },
     supportsPDFs: false,
     isEnabled: true,
@@ -622,9 +459,10 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isAgentEnabled: true,
     contextWindow: 1047576,
     tps: 119,
-    intelligenceIndex: 53,
+    intelligenceIndex: 47,
     latency: 0.4,
     maxOutputTokens: 32768,
+    IFBench:43
   },
   // GPT-4.1 Mini
   {
@@ -641,12 +479,13 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 1047576,
     tps: 69,
-    intelligenceIndex: 53,
+    intelligenceIndex: 42,
     latency: 0.4,
     maxOutputTokens: 32000,
+    IFBench:38
   },
   {
     id: 'gpt-4.1-nano',
@@ -662,24 +501,26 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 1047576,
     tps: 153,
-    intelligenceIndex: 41,
+    intelligenceIndex: 30,
     latency: 0.3,
     maxOutputTokens: 32000,
+    IFBench:32
   },
-   // ChatGPT-4o (Nov '24)
-   {
+    // ChatGPT-4o (Nov '24)
+    {
     id: 'chatgpt-4o-latest',
     name: 'ChatGPT-4o',
     cutoff: 'Oct 2023',
     abbreviation: 'CG4o',
+    description: "GPT-4o model used in ChatGPT",
     country: 'US',
     provider: 'openai',
     supportsVision: true,
     rateLimit: {
-      level: 'level5',
+      level: 'level3',
     },
     supportsPDFs: false,
     isEnabled: true,
@@ -701,17 +542,18 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'openai',
     supportsVision: true,
     rateLimit: {
-      level: 'level5',
+      level: 'level3',
     },
-    supportsPDFs: false,
+    supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 128000,
     tps: 183,
-    intelligenceIndex: 41,
+    intelligenceIndex: 30,
     latency: 0.4,
     maxOutputTokens: 65536,
+    IFBench:34
   },
   // o4-Mini 
   {
@@ -723,48 +565,44 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: "openai",
     supportsVision: true,
     rateLimit: {
-      level: "level4",
+      level: "level3",
     },
-    reasoningText: {
-      enabled: true,
-      provider: 'openai',
-      baseModelId: 'o4-mini',
-    },
-    supportsPDFs: false,
+    reasoning: true,
+    supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 200000,
     tps: 119,
-    intelligenceIndex: 70,
+    intelligenceIndex: 65,
     latency: 36.8,
-    maxOutputTokens: 24576,
+    maxOutputTokens: 100000,
+    IFBench:69
   },
-  // o3 (Thinking)
-  // {
-  //   id: "o1",
-  //   name: "o1 (Thinking)",
-  //   cutoff: 'Oct 2023',
-  //   abbreviation: "o1-T",
-  //   country: 'US',
-  //   // description: "OpenAI's most powerful reasoning model",
-  //   provider: "openai",
-  //   supportsVision: true,
-  //   rateLimit: {
-  //     level: "level5",
-  //   },
-  //   reasoning: {
-  //     enabled: true,
-  //     provider: 'openai',
-  //   },
-  //   supportsPDFs: false,
-  //   isEnabled: true,
-  //   isActivated: true,
-  //   isAgentEnabled: false,
-  //   contextWindow: 200000,
-  //   // tps: 188,
-  //   intelligenceIndex: 67,
-  // },
+  // o3 (Reasoning)
+  {
+    id: 'o3',
+    name: 'o3',
+    cutoff: 'Jun 2024',
+    abbreviation: 'o3',
+    country: 'US',
+    provider: 'openai',
+    supportsVision: false,
+    rateLimit: {
+      level: 'level3',
+    },
+    reasoning: true,
+    supportsPDFs: true,
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: true,
+    contextWindow: 200000,
+    tps: 196,
+    intelligenceIndex: 67,
+    latency: 14.5,
+    maxOutputTokens: 100000,
+    IFBench:71
+  },
   // Gemini 2.5 Pro 
   {
     id: 'gemini-2.5-pro',
@@ -777,17 +615,18 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'google',
     supportsVision: true,
     rateLimit: {
-      level: 'level4',
+      level: 'level3',
     },
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
     contextWindow: 1048576,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     tps: 143,
-    intelligenceIndex: 70,
+    intelligenceIndex: 65,
     latency: 36.5,
     maxOutputTokens: 65536,
+    IFBench:49
   },
   // Gemini 2.5 Pro 
   {
@@ -801,17 +640,18 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'google',
     supportsVision: true,
     rateLimit: {
-      level: 'level4',
+      level: 'level3',
     },
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
     contextWindow: 1048576,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     // tps: 143,
     // intelligenceIndex: 70,
     // latency: 36.5,
     maxOutputTokens: 65536,
+    IFBench:49
   },
   // Gemini 2.5 Flash 
   {
@@ -823,17 +663,18 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'google',
     supportsVision: true,
     rateLimit: {
-      level: 'level4',
+      level: 'level3',
     },
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 1048576,
     tps: 284,
-    intelligenceIndex: 53,
+    intelligenceIndex: 47,
     latency: 13,
     maxOutputTokens: 65536,
+    IFBench:39
   },
   // Gemini 2.0 Flash
   {
@@ -850,66 +691,57 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsPDFs: true,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 1048576,
     tps: 258,
-    intelligenceIndex: 48,
+    intelligenceIndex: 38,
     latency: 0.4,
     maxOutputTokens: 8192,
+    IFBench:40
   },
   // openai/gpt-oss-120b
   {
     id: 'openai/gpt-oss-120b',
-    name: 'GPT-OSS-120B',
+    name: 'GPT-OSS-120B (Thinking)',
     abbreviation: 'G120B',
     country: 'US',
     description: 'Developed by OpenAI, powered by Groq',
     provider: 'groq',
     supportsVision: false,
     rateLimit: {
-      level: 'level3',
+      level: 'level2',
     },
-    reasoningText: {
-      enabled: true,
-      provider: 'groq',
-      baseModelId: 'openai/gpt-oss-120b',
-    },
+    reasoning: true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 131072,
     latency: 3.8,
     tps: 574,
-    // intelligenceIndex: 58,
-    isNew: true,
+    // intelligenceIndex: 61,
   },
   // openai/gpt-oss-20b
   {
     id: 'openai/gpt-oss-20b',
-    name: 'GPT-OSS-20B',
+    name: 'GPT-OSS-20B (Thinking)',
     abbreviation: 'G20B',
     country: 'US',
     description: 'Developed by OpenAI, powered by Groq',
     provider: 'groq',
     supportsVision: false,
     rateLimit: {
-      level: 'level3',
+      level: 'level2',
     },
-    reasoningText: {
-      enabled: true,
-      provider: 'groq',
-      baseModelId: 'openai/gpt-oss-120b',
-    },
+    reasoning: true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 131072,
     latency: 2,
     tps: 1152,
-    // intelligenceIndex: 51,
-    isNew: true,
+    // intelligenceIndex: 49,
   },
   // Kimi K2
   {
@@ -922,7 +754,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'groq',
     supportsVision: false,
     rateLimit: {
-      level: 'level3',
+      level: 'level2',
     },
     supportsPDFs: false,
     isEnabled: true,
@@ -931,7 +763,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 131072,
     latency: 0.2,
     tps: 425,
-    intelligenceIndex: 58,
+    intelligenceIndex: 49,
+    IFBench:42
   },    
   // Kimi K2 
   {
@@ -944,7 +777,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'together',
     supportsVision: false,
     rateLimit: {
-      level: 'level3',
+      level: 'level2',
     },
     supportsPDFs: false,
     isEnabled: true,
@@ -952,10 +785,11 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isAgentEnabled: true,
     contextWindow: 131072,
     tps: 32,
-    intelligenceIndex: 58,
+    intelligenceIndex: 49,
     latency: 0.6,
+    IFBench:42
   },
-  // Llama 4 Scout
+  // Llama 4 Scout --disabled due to unstable agent performance
   {
     id: 'meta-llama/llama-4-scout-17b-16e-instruct',
     name: 'Llama 4 Scout',
@@ -969,13 +803,14 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level1',
     },
     supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
+    isEnabled: false,
+    isActivated: false,
     isAgentEnabled: false,
     contextWindow: 131072,
     latency: 0.2,
     tps: 511,
-    intelligenceIndex: 43,
+    intelligenceIndex: 33,
+    IFBench:40
   },
    // QwQ-32B (Thinking)
    {
@@ -988,13 +823,9 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'groq',
     supportsVision: false,
     rateLimit: {
-      level: 'level3',
+      level: 'level2',
     },
-    reasoningText: {
-      enabled: true,
-      provider: 'groq',
-      baseModelId: 'qwen/qwen3-32b',
-    },
+    reasoning: true,
     isEnabled: true,
     isActivated: true,
     isAgentEnabled: true,
@@ -1002,7 +833,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     contextWindow: 131072,
     tps: 580,
     latency: 3.6,
-    intelligenceIndex: 44,
+    intelligenceIndex: 30,
     // maxOutputTokens: 32768,
   },
 
@@ -1019,19 +850,16 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level1',
     },
     supportsPDFs: false,
-    reasoningText: {
-      enabled: true,
-      provider: 'deepseek',
-      baseModelId: 'deepseek-reasoner',
-    },
+    reasoning: true,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 128000,
     tps: 27,
-    intelligenceIndex: 68,
+    intelligenceIndex: 59,
     latency: 74.2,
     maxOutputTokens: 32000,
+    IFBench:40
   },
   // DeepSeek V3
   {
@@ -1048,10 +876,10 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 128000,
     tps: 28,
-    intelligenceIndex: 53,
+    intelligenceIndex: 44,
     latency: 3.1,
   },
   {
@@ -1064,22 +892,19 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'together',
     supportsVision: false,
     rateLimit: {
-      level: 'level3',
+      level: 'level2',
     },
     supportsPDFs: false,
-    reasoningText: {
-      enabled: true,
-      provider: 'together',
-      baseModelId: 'Qwen/Qwen3-235B-A22B-fp8-tput',
-    },
+    reasoning: true,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 128000,
     tps: 30,
-    intelligenceIndex: 62,
+    intelligenceIndex: 64,
     latency: 52.5,
     maxOutputTokens: 32000,
+    IFBench:51
   },
   // DeepSeek R1 (Thinking)
   {
@@ -1092,23 +917,20 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'together',
     supportsVision: false,
     rateLimit: {
-      level: 'level3',
+      level: 'level2',
     },
     supportsPDFs: false,
-    reasoningText: {
-      enabled: true,
-      provider: 'together',
-      baseModelId: 'deepseek-ai/DeepSeek-R1',
-    },
+    reasoning: true,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 128000,
     // tps: 96,
-    intelligenceIndex: 68,
+    intelligenceIndex: 59,
     // multilingual:86,
     latency: 24.2,
     maxOutputTokens: 32000,
+    IFBench:40
   },
   // DeepSeek V3 (Mar' 25)
   {
@@ -1121,15 +943,15 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     provider: 'together',
     supportsVision: false,
     rateLimit: {
-      level: 'level3',
+      level: 'level2',
     },
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
-    isAgentEnabled: false,
+    isAgentEnabled: true,
     contextWindow: 128000,
     tps: 101,
-    intelligenceIndex: 53,
+    intelligenceIndex: 44,
     latency: 0.6,
   },
 ];

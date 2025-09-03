@@ -34,17 +34,7 @@ type CanvasProps = {
       timestamp?: string;
     }[];
   } | null;
-  academicSearchData?: {
-    academicResults: {
-      query: string;
-      timestamp?: string;
-      results: {
-        title: string;
-        url: string;
-        summary?: string;
-      }[];
-    }[];
-  } | null;
+
   xSearchData?: {
     xResults: {
       query: string;
@@ -130,7 +120,7 @@ export default function Canvas({
   mathCalculationData, 
   linkReaderData, 
   imageGeneratorData, 
-  academicSearchData, 
+ 
   xSearchData, 
   youTubeSearchData, 
   youTubeLinkAnalysisData,
@@ -138,7 +128,7 @@ export default function Canvas({
   selectedTool,
 }: CanvasProps) {
   // Don't render if there's no data to display
-  if (!webSearchData && !mathCalculationData && !linkReaderData && !imageGeneratorData && !academicSearchData && !xSearchData && !youTubeSearchData && !youTubeLinkAnalysisData) return null;
+  if (!webSearchData && !mathCalculationData && !linkReaderData && !imageGeneratorData && !xSearchData && !youTubeSearchData && !youTubeLinkAnalysisData) return null;
 
   // Simplified state management - all sections are initially open
   // Only track if data is in "generation complete" state
@@ -146,7 +136,7 @@ export default function Canvas({
   const [mathCalcExpanded, setMathCalcExpanded] = useState(true);
   const [linkReaderExpanded, setLinkReaderExpanded] = useState(true);
   const [imageGenExpanded, setImageGenExpanded] = useState(true);
-  const [academicSearchExpanded, setAcademicSearchExpanded] = useState(true);
+
   const [xSearchExpanded, setXSearchExpanded] = useState(true);
   const [youTubeSearchExpanded, setYouTubeSearchExpanded] = useState(true);
   const [youTubeLinkAnalysisExpanded, setYouTubeLinkAnalysisExpanded] = useState(true);
@@ -156,7 +146,7 @@ export default function Canvas({
   const mathCalcContentRef = useRef<HTMLDivElement>(null);
   const linkReaderContentRef = useRef<HTMLDivElement>(null);
   const imageGenContentRef = useRef<HTMLDivElement>(null);
-  const academicSearchContentRef = useRef<HTMLDivElement>(null);
+
   const xSearchContentRef = useRef<HTMLDivElement>(null);
   const youTubeSearchContentRef = useRef<HTMLDivElement>(null);
   const youTubeLinkAnalysisContentRef = useRef<HTMLDivElement>(null);
@@ -175,7 +165,7 @@ export default function Canvas({
   const toggleMathCalc = () => setMathCalcExpanded(!mathCalcExpanded);
   const toggleLinkReader = () => setLinkReaderExpanded(!linkReaderExpanded);
   const toggleImageGen = () => setImageGenExpanded(!imageGenExpanded);
-  const toggleAcademicSearch = () => setAcademicSearchExpanded(!academicSearchExpanded);
+
   const toggleXSearch = () => setXSearchExpanded(!xSearchExpanded);
   const toggleYouTubeSearch = () => setYouTubeSearchExpanded(!youTubeSearchExpanded);
   const toggleYouTubeLinkAnalysis = () => setYouTubeLinkAnalysisExpanded(!youTubeLinkAnalysisExpanded);
@@ -469,83 +459,7 @@ export default function Canvas({
         </div>
       )}
       
-      {/* Academic Search Results */}
-      {(!selectedTool || selectedTool === 'academic-search') && academicSearchData && academicSearchData.academicResults.length > 0 && (
-        <div className="">
-          {!selectedTool && (
-          <div 
-            className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
-            onClick={toggleAcademicSearch}
-          >
-            <div className="flex items-center gap-2.5">
-              <BookOpen className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-              <h2 className="font-medium text-left tracking-tight">Academic Search</h2>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="rounded-full p-1 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors">
-                {academicSearchExpanded ? 
-                  <ChevronUp size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" /> : 
-                  <ChevronDown size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" />
-                }
-              </div>
-            </div>
-          </div>
-          )}
-          <div 
-            className={selectedTool ? '' : 'overflow-hidden transition-all duration-200 ease-in-out'}
-            style={selectedTool ? {} : { 
-              maxHeight: academicSearchExpanded ? maxContentHeight : '0px',
-            }}
-          >
-            <div
-              ref={academicSearchContentRef}
-              className={selectedTool ? 'px-1' : 'transition-opacity duration-200 ease-in-out px-1'}
-              style={selectedTool ? {} : {
-                opacity: academicSearchExpanded ? 1 : 0,
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none'
-              }}
-            >
-              <style jsx>{`
-                div::-webkit-scrollbar {
-                  display: none;
-                }
-              `}</style>
-              {academicSearchData.academicResults.map((searchResult, index) => (
-                <div key={index} className="mb-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Search className="h-3 w-3" strokeWidth={1.5} />
-                    <h4 className="text-sm font-medium">"{searchResult.query}"</h4>
-                  </div>
-                  <ul className="space-y-3">
-                    {searchResult.results.map((paper, paperIndex) => (
-                      <li key={paperIndex} className="p-3 border border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] rounded-lg bg-[color-mix(in_srgb,var(--foreground)_1%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)] transition-colors">
-                        <h5 className="text-sm font-medium mb-1">{paper.title}</h5>
-                        {paper.summary && (
-                          <p className="text-sm whitespace-pre-wrap text-[color-mix(in_srgb,var(--foreground)_75%,transparent)] my-1">
-                            {paper.summary}
-                          </p>
-                        )}
-                        {paper.url && (
-                          <a 
-                            href={paper.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-500 hover:underline mt-2 inline-flex items-center gap-1"
-                          >
-                            <span>Read paper</span>
-                            <ExternalLink size={12} />
-                          </a>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+
       
       {/* YouTube Search Results */}
       {(!selectedTool || selectedTool === 'youtube-search') && youTubeSearchData && (

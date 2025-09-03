@@ -1,13 +1,12 @@
 // app/components/chat/ChatInput/index.tsx
-import { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { getModelById } from '@/lib/models/config';
-import { ChatInputProps, PromptShortcut } from './types';
+import { ChatInputProps } from './types';
 import { useChatInputStyles } from './ChatInputStyles';
 import { FileUploadButton, FilePreview, fileHelpers } from './FileUpload';
-import { PromptShortcuts } from './PromptShortcuts';
 import { DragDropOverlay, ErrorToast } from './DragDropOverlay';
-import { Brain, Gauge, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Brain, Gauge, AlertTriangle, CheckCircle, Search, Calculator, Link, Image, Video, FileText, Plus, Newspaper, BarChart3, Building, BookOpen, Github, User, Briefcase, FileVideo, Paperclip, Youtube } from 'lucide-react';
 import { Brain as BrainIOS, LightBulb, Apple, Folder, Send } from 'react-ios-icons'; 
 import { FileMetadata } from '@/lib/types';
 import { 
@@ -18,117 +17,49 @@ import {
 } from '@/app/chat/[id]/utils';
 import { getChatInputTranslations } from '@/app/lib/chatInputTranslations';
 import { checkSubscriptionClient } from '@/lib/subscription-client';
+import { estimateTokenCount, estimateMultiModalTokens, estimateFileTokens, estimateAttachmentTokens } from '@/utils/context-manager';
 
 // 상수 정의
 const MENTION_CONTEXT_RANGE = 200; // 커서 주변 검색 범위 (앞뒤로)
 const DEBOUNCE_TIME = 200; // 디바운스 시간 (ms)
-const CONTEXT_WINDOW_LIMIT_NON_SUBSCRIBER = 60000; // 비구독자 컨텍스트 윈도우 제한 (60K tokens)
+// 비구독자 컨텍스트 윈도우 제한 제거됨
 
-// 토큰 추정 함수
-function estimateTokenCount(text: string): number {
-  // 대략적인 토큰 수 계산 (영어 기준 4자당 1토큰, 한글은 1-2자당 1토큰)
-  const isMainlyKorean = /[\uAC00-\uD7AF]/.test(text) && 
-                         (text.match(/[\uAC00-\uD7AF]/g)?.length || 0) / text.length > 0.3;
-  
-  if (isMainlyKorean) {
-    return Math.ceil(text.length / 1.5); // 한글은 더 많은 토큰 사용
-  }
-  return Math.ceil(text.length / 4); // 영어 기준
-}
+// 도구 정의 - 웹서치 토픽별로 세분화
+const TOOLS = [
+  { id: 'web_search:general', icon: <Search strokeWidth={1.8} />, name: 'Web Search', description: 'Search the web for information' },
+  { id: 'web_search:news', icon: <Newspaper strokeWidth={1.8} />, name: 'News Search', description: 'Find latest news and articles' },
+  { id: 'youtube_search', icon: <Youtube strokeWidth={1.8} />, name: 'YouTube Search', description: 'Search YouTube videos' },
+  { id: 'youtube_link_analyzer', icon: <Youtube strokeWidth={1.8} />, name: 'YouTube Analyzer', description: 'Analyze YouTube videos' },
+  { id: 'image_generator', icon: <Image strokeWidth={1.8} />, name: 'Image Generator', description: 'Generate images from text' },
+  { id: 'web_search:github', icon: <Github strokeWidth={1.8} />, name: 'GitHub Search', description: 'Search GitHub repositories' },
+  { id: 'web_search:personal site', icon: <User strokeWidth={1.8} />, name: 'Personal Sites', description: 'Find personal websites and blogs' },
+  { id: 'web_search:linkedin profile', icon: <Briefcase strokeWidth={1.8} />, name: 'LinkedIn Profiles', description: 'Search LinkedIn profiles' },
+  { id: 'web_search:company', icon: <Building strokeWidth={1.8} />, name: 'Company Search', description: 'Find company information' },
+  { id: 'web_search:financial report', icon: <BarChart3 strokeWidth={1.8} />, name: 'Financial Reports', description: 'Search financial data and reports' },
+  { id: 'web_search:research paper', icon: <BookOpen strokeWidth={1.8} />, name: 'Academic Papers', description: 'Find academic research papers' },
+  { id: 'web_search:pdf', icon: <FileText strokeWidth={1.8} />, name: 'PDF Search', description: 'Search PDF documents' },
+  { id: 'calculator', icon: <Calculator strokeWidth={1.8} />, name: 'Calculator', description: 'Mathematical calculations' },
+  { id: 'link_reader', icon: <Link strokeWidth={1.8} />, name: 'Link Reader', description: 'Read web page content' },
+];
 
-// 백엔드와 동일한 멀티모달 토큰 추정 함수
-function estimateMultiModalTokens(msg: any): number {
-  // 실제 토큰 사용량을 우선적으로 사용
-  if (msg.token_usage?.totalTokens) {
-    return msg.token_usage.totalTokens;
-  }
 
-  if (msg.tool_results?.token_usage?.totalTokens) {
-    return msg.tool_results.token_usage.totalTokens;
-  }
-  
-  let total = 0;
-  
-  // 텍스트 콘텐츠
-  if (typeof msg.content === 'string') {
-    total += estimateTokenCount(msg.content);
-  } else if (Array.isArray(msg.content)) {
-    // 멀티모달 콘텐츠 (이미지, 파일 등)
-    for (const part of msg.content) {
-      if (part.type === 'text') {
-        total += estimateTokenCount(part.text || '');
-      } else if (part.type === 'image') {
-        total += 1000; // 이미지는 약 1000 토큰으로 추정
-      } else if (part.type === 'file') {
-        total += estimateFileTokens(part.file);
-      }
-    }
-  } else if (msg.content) { // msg.content가 null이 아닌 객체일 경우
-    total += estimateTokenCount(JSON.stringify(msg.content));
-  }
 
-  // tool_results 콘텐츠 토큰 추정 (token_usage가 없을 경우)
-  if (msg.tool_results && !msg.tool_results.token_usage) {
-    total += estimateTokenCount(JSON.stringify(msg.tool_results));
-  }
-  
-  // experimental_attachments 처리 (메타데이터 기반 정확한 추정)
-  if (Array.isArray(msg.experimental_attachments)) {
-    for (const attachment of msg.experimental_attachments) {
-      // 메타데이터가 있으면 정확한 토큰 수 사용
-      if (attachment.metadata && attachment.metadata.estimatedTokens) {
-        total += attachment.metadata.estimatedTokens;
-      } else {
-        total += estimateAttachmentTokens(attachment);
-      }
-    }
-  }
-  
-  return total;
-}
 
-// 파일 토큰 추정 함수
-function estimateFileTokens(file: any): number {
-  if (!file) return 0;
-  
-  const filename = file.name?.toLowerCase() || '';
-  const contentType = file.contentType || file.type || '';
-  
-  if (filename.endsWith('.pdf') || contentType === 'application/pdf') {
-    return 5000; // PDF
-  } else if (filename.match(/\.(js|ts|jsx|tsx|py|java|c|cpp|cs|go|rb|php|html|css|sql|scala|swift|kt|rs|dart|json|xml|yaml|yml)$/i)) {
-    return 3000; // 코드 파일
-  } else if (contentType?.startsWith('image/') || filename.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i)) {
-    return 1000; // 이미지
-  } else {
-    return 2000; // 기타 파일
-  }
-}
 
-// 첨부파일 토큰 추정 함수
-function estimateAttachmentTokens(attachment: any): number {
-  if (attachment.fileType === 'image' || 
-      (attachment.contentType && attachment.contentType.startsWith('image/'))) {
-    return 1000;
-  } else if (attachment.fileType === 'pdf' || 
-             attachment.contentType === 'application/pdf') {
-    return 5000;
-  } else if (attachment.fileType === 'code') {
-    return 3000;
-  } else {
-    return 2000; // 기타 파일
-  }
-}
 
-// 개선된 토큰 계산 함수
+
+// 개선된 토큰 계산 함수 - 보수적 계수 적용
 function calculateTokens(
   text: string,
   allMessages: any[],
   attachments: any[],
   isHomePage: boolean = false
 ): { conversation: number; input: number; files: number; total: number } {
+  // 보수적 계수 (1.3배로 증가)
+  const CONSERVATIVE_FACTOR = 1.3;
+  
   // 현재 입력 토큰 수 계산
-  const input = estimateTokenCount(text);
+  const input = Math.ceil(estimateTokenCount(text) * CONSERVATIVE_FACTOR);
   
   // 파일 토큰 수 계산
   let files = 0;
@@ -136,11 +67,15 @@ function calculateTokens(
   // 새로 업로드된 파일들의 토큰 수 계산
   for (const attachment of attachments) {
     if (attachment.file) {
-      files += estimateFileTokens(attachment.file);
+      files += Math.ceil(estimateFileTokens({
+      name: attachment.file.name,
+      type: attachment.file.type,
+      metadata: attachment.file.metadata
+    }) * CONSERVATIVE_FACTOR);
     } else if (attachment.metadata?.estimatedTokens) {
-      files += attachment.metadata.estimatedTokens;
+      files += Math.ceil(attachment.metadata.estimatedTokens * CONSERVATIVE_FACTOR);
     } else {
-      files += estimateAttachmentTokens(attachment);
+      files += Math.ceil(estimateAttachmentTokens(attachment) * CONSERVATIVE_FACTOR);
     }
   }
   
@@ -148,7 +83,7 @@ function calculateTokens(
   let conversation = 0;
   if (!isHomePage && allMessages && allMessages.length > 0) {
     conversation = allMessages.reduce((total, message) => {
-      return total + estimateMultiModalTokens(message);
+      return total + Math.ceil(estimateMultiModalTokens(message) * CONSERVATIVE_FACTOR);
     }, 0);
   }
   
@@ -168,8 +103,8 @@ function getTokenThresholds(contextWindow?: number, isSubscribed?: boolean): { w
     };
   }
   
-  // 비구독자인 경우 60K로 제한
-  const effectiveContextWindow = isSubscribed ? contextWindow : Math.min(contextWindow, CONTEXT_WINDOW_LIMIT_NON_SUBSCRIBER);
+  // 컨텍스트 윈도우 제한 제거됨 - 모든 사용자가 전체 컨텍스트 윈도우 사용 가능
+  const effectiveContextWindow = contextWindow;
   
   return {
     warning: Math.floor(effectiveContextWindow * 0.50),  // 50%
@@ -191,13 +126,18 @@ export function ChatInput({
   popupPosition = 'top',
   isAgentEnabled,
   setisAgentEnabled,
-  allMessages = []
+  allMessages = [],
+  globalDragActive = false,
+  globalShowPDFError = false,
+  globalShowFolderError = false,
+  globalShowVideoError = false,
+  selectedTool,
+  setSelectedTool
 }: ChatInputProps) {
   // 기본 상태 및 참조
   const inputRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const shortcutsListRef = useRef<HTMLDivElement>(null);
   const isSubmittingRef = useRef(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const inputContainerRef = useRef<HTMLDivElement>(null);
@@ -205,15 +145,9 @@ export function ChatInput({
   const agentDropdownRef = useRef<HTMLDivElement>(null);
   
   // 상태 관리
-  const [showShortcuts, setShowShortcuts] = useState(false);
-  const [shortcuts, setShortcuts] = useState<PromptShortcut[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [mentionStartPosition, setMentionStartPosition] = useState<number | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [fileMap, setFileMap] = useState<Map<string, { file: File, url: string }>>(new Map());
   const [dragActive, setDragActive] = useState(false);
-  const [mentionQueryActive, setMentionQueryActive] = useState(false);
   const [showPDFError, setShowPDFError] = useState(false);
   const [showFolderError, setShowFolderError] = useState(false);
   const [showVideoError, setShowVideoError] = useState(false);
@@ -228,9 +162,12 @@ export function ChatInput({
   const tokenTooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
   const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(true);
+  const [showAgentError, setShowAgentError] = useState(false);
   const [isHoveringUpgrade, setIsHoveringUpgrade] = useState(false);
+  const [showToolSelector, setShowToolSelector] = useState(false);
+  const [isHoveringToolSelector, setIsHoveringToolSelector] = useState(false);
   const [translations, setTranslations] = useState({
-    usesTools: 'Uses tools for better answers',
+    usesTools: 'Intelligently selects and uses tools for better answers',
     talkToModel: 'Talk to the model directly',
     placeholder: 'Chat is this real?',
     processing: 'Processing...',
@@ -240,7 +177,9 @@ export function ChatInput({
     contextUsage: 'Context Usage',
     upgradeToPro: 'Upgrade to Pro',
     getFullContext: 'Get full {contextWindow} context window',
-    upgrade: 'Upgrade'
+    upgrade: 'Upgrade',
+    selectTool: 'Select a tool',
+    uploadFile: 'Upload file'
   });
   
   // Supabase 클라이언트
@@ -254,8 +193,7 @@ export function ChatInput({
   // 모델별 토큰 임계값 계산
   const tokenThresholds = getTokenThresholds(modelConfig?.contextWindow, isSubscribed ?? false);
 
-  // 멘션 감지를 위한 정규식
-  const mentionRegex = /@(\w*)$/;
+
 
   // 스타일 적용
   useChatInputStyles();
@@ -305,7 +243,65 @@ export function ChatInput({
     setTokenCount(tokenCounts.total);
   }, [tokenCounts]);
 
-  const placeholder = propPlaceholder ?? translations.placeholder;
+  // Device detection hook
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkDevice = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkDevice();
+    window.addEventListener('resize', checkDevice);
+    return () => window.removeEventListener('resize', checkDevice);
+  }, []);
+
+  const placeholder = propPlaceholder ?? (selectedTool 
+    ? (() => {        
+        // Mobile placeholders (concise)
+        const mobilePlaceholders: { [key: string]: string } = {
+          'web_search:general': 'Search the web',
+          'web_search:news': 'Search the news',
+          'web_search:financial report': 'Search financial reports',
+          'web_search:company': 'Search companies',
+          'web_search:research paper': 'Search research papers',
+          'web_search:pdf': 'Search PDF documents',
+          'web_search:github': 'Search GitHub repositories',
+          'web_search:personal site': 'Search personal websites',
+          'web_search:linkedin profile': 'Search LinkedIn profiles',
+
+          'calculator': 'Enter a calculation',
+          'link_reader': 'Paste a URL to read',
+          'image_generator': 'Describe an image to generate',
+          'youtube_search': 'Search YouTube videos',
+          'youtube_link_analyzer': 'Paste YouTube URL to analyze'
+        };
+
+        // Desktop placeholders (detailed examples)
+        const desktopPlaceholders: { [key: string]: string } = {
+          'web_search:general': 'Search the web',
+          'web_search:news': 'Find breaking news about AI war',
+          'web_search:financial report': 'Search Apple\'s revenue growth reports',
+          'web_search:company': 'Find company making space travel cheaper',
+          'web_search:research paper': 'Find papers about embeddings',
+          'web_search:pdf': 'Search government UFO documents',
+          'web_search:github': 'Find OpenAPI to Rust converter repo',
+          'web_search:personal site': 'Find life coach for work stress',
+          'web_search:linkedin profile': 'Find best computer scientist at Berkeley',
+
+          'calculator': 'Calculate mortgage payment 500k 30yr 4.5%',
+          'link_reader': 'https://www.showstudio.com/projects/in_camera/kanye_west',
+          'image_generator': 'Draw a futuristic city skyline at sunset',
+          'youtube_search': 'Search cooking tutorials for beginners',
+          'youtube_link_analyzer': 'https://www.youtube.com/watch?v=60RFIF9y8fY'
+        };
+        
+        return isMobile ? mobilePlaceholders[selectedTool] : desktopPlaceholders[selectedTool];
+      })()
+    : isAgentEnabled 
+      ? 'One ring to rule them all...' 
+      : "Chatflix.app"
+  );
 
   // 초기 렌더링 시 자동 포커스
   useEffect(() => {
@@ -314,34 +310,7 @@ export function ChatInput({
     }
   }, []);
 
-  // 최적화된 멘션 검색 함수
-  const findMention = useCallback((text: string, cursorPosition: number): { match: RegExpMatchArray | null, startPos: number | null } => {
-    // 커서 위치 주변 컨텍스트 검색 (앞뒤로 MENTION_CONTEXT_RANGE만큼)
-    const startIndex = Math.max(0, cursorPosition - MENTION_CONTEXT_RANGE);
-    
-    // 커서 앞부분의 텍스트만 검색 (@ 기호부터 커서까지)
-    const searchText = text.substring(startIndex, cursorPosition);
-    
-    // @로 시작하는 마지막 단어 찾기
-    const lastAtSymbolPos = searchText.lastIndexOf('@');
-    
-    if (lastAtSymbolPos === -1) {
-      return { match: null, startPos: null };
-    }
-    
-    // @ 기호 이후의 텍스트 추출
-    const mentionText = searchText.substring(lastAtSymbolPos);
-    const match = mentionText.match(mentionRegex);
-    
-    if (!match) {
-      return { match: null, startPos: null };
-    }
-    
-    // 실제 전체 텍스트에서의 시작 위치 계산
-    const globalStartPos = startIndex + lastAtSymbolPos;
-    
-    return { match, startPos: globalStartPos };
-  }, []);
+
 
   // 디바운스된 입력 처리 함수
   const debouncedInputHandler = useCallback(() => {
@@ -353,6 +322,13 @@ export function ChatInput({
     // 이전 텍스트와 동일하면 처리 스킵 (불필요한 처리 방지)
     if (content === lastTextContentRef.current) return;
     lastTextContentRef.current = content;
+    
+    // empty 클래스 동적 관리
+    if (content.trim() === '') {
+      inputRef.current.classList.add('empty');
+    } else {
+      inputRef.current.classList.remove('empty');
+    }
     
     // 동적 border-radius 조절
     const inputHeight = inputRef.current.scrollHeight;
@@ -538,239 +514,37 @@ export function ChatInput({
     debouncedInputHandler();
     });
     
-    // 멘션 검색은 디바운스 적용 (비용이 많이 드는 작업)
-    debounceTimerRef.current = setTimeout(() => {
-      if (!inputRef.current) return;
-      
-      const content = inputRef.current.innerText || '';
-      const cursorPosition = getCursorPosition(inputRef.current);
-      
-      // 최적화된 멘션 검색 - 커서 위치 주변 컨텍스트 활용
-      const { match: mentionMatch, startPos: mentionStartPos } = findMention(content, cursorPosition);
-      
-      if (mentionMatch) {
-        // 멘션 쿼리 상태 활성화
-        setMentionQueryActive(true);
-        
-        // 멘션 시작 위치 저장
-        setMentionStartPosition(mentionStartPos);
-        
-        // 검색어 추출 (@ 다음 텍스트)
-        const query = mentionMatch[1] || '';
-        setSearchTerm(query);
-        
-        // 숏컷 검색 API 호출
-        supabase.rpc('search_prompt_shortcuts', {
-          p_user_id: user.id,
-          p_search_term: query
-        }).then(({ data, error }) => {
-          if (error) {
-            console.error('Error searching shortcuts:', error);
-            return;
-          }
-          
-          // 검색 결과 업데이트 및 표시
-          setShortcuts(data || []);
-          setShowShortcuts(true);
-          setSelectedIndex(0); // 첫 번째 항목 선택
-        });
-      } else {
-        // 멘션 패턴이 없으면 팝업 닫기
-        closeShortcutsPopup();
-      }
-    }, DEBOUNCE_TIME);
+
   };
 
-  // 멘션 팝업 닫기 함수
-  const closeShortcutsPopup = () => {
-    setShowShortcuts(false);
-    setMentionStartPosition(null);
-    setMentionQueryActive(false);
-    
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-  };
 
-  // 숏컷 선택 처리
-  const handleShortcutSelect = (shortcut: PromptShortcut) => {
-    if (!inputRef.current || mentionStartPosition === null) return;
-    
-    try {
-      // 현재 선택 상태 가져오기
-      const selection = window.getSelection();
-      if (!selection?.rangeCount) return;
-      const range = selection.getRangeAt(0);
-      
-      // 멘션 삽입을 위한 범위 계산
-      const cursorPos = getCursorPosition(inputRef.current);
-      
-      // @ 부분부터 현재 커서까지의 콘텐츠 삭제
-      if (mentionQueryActive) {
-        // 전체 DOM 구조를 고려한 안전한 범위 설정 방법 사용
-        // textNode 찾기 및 범위 설정을 위한 새로운 접근법
-        
-        // 텍스트 노드 위치 찾기 및 범위 설정을 위한 새로운 접근법
-        const nodeStack: Node[] = [inputRef.current];
-        let currentTextPosition = 0;
-        let startNode: Node | null = null;
-        let startOffset = 0;
-        let endNode: Node | null = null;
-        let endOffset = 0;
-        
-        // 모든 텍스트 노드를 순회하며 시작 및 끝 위치 찾기
-        while (nodeStack.length > 0) {
-          const currentNode = nodeStack.pop()!;
-          
-          if (currentNode.nodeType === Node.TEXT_NODE) {
-            const textLength = currentNode.textContent?.length || 0;
-            
-            // 시작 노드 설정
-            if (startNode === null && currentTextPosition + textLength > mentionStartPosition) {
-              startNode = currentNode;
-              startOffset = mentionStartPosition - currentTextPosition;
-            }
-            
-            // 끝 노드 설정
-            if (endNode === null && currentTextPosition + textLength >= cursorPos) {
-              endNode = currentNode;
-              endOffset = cursorPos - currentTextPosition;
-              // 시작과 끝 노드를 모두 찾았으면 중단
-              break;
-            }
-            
-            currentTextPosition += textLength;
-          } else {
-            // 자식 노드를 역순으로 스택에 추가 (깊이 우선 탐색)
-            const children = Array.from(currentNode.childNodes);
-            for (let i = children.length - 1; i >= 0; i--) {
-              nodeStack.push(children[i]);
-            }
-          }
-        }
-        
-        // 노드를 찾지 못한 경우의 안전장치
-        if (!startNode || !endNode) {
-          console.log('범위를 설정할 적절한 텍스트 노드를 찾지 못했습니다.');
-          
-          // 안전하게 현재 커서 위치에 삽입
-          range.collapse(true);
-        } else {
-          // 범위 설정
-          range.setStart(startNode, startOffset);
-          range.setEnd(endNode, endOffset);
-          
-          // @와 이후 쿼리 텍스트 삭제
-          range.deleteContents();
-        }
-      }
-      
-      // 멘션 태그 생성
-      const mentionTag = document.createElement('span');
-      mentionTag.className = 'mention-tag-wrapper';
-      
-      // 멘션 데이터 저장
-      const mentionData = {
-        id: shortcut.id,
-        name: shortcut.name,
-        content: shortcut.content
-      };
-      
-      // 멘션 내부 구조 생성
-      const mentionInner = document.createElement('span');
-      mentionInner.className = 'mention-tag';
-      mentionInner.dataset.shortcutId = shortcut.id;
-      mentionInner.dataset.mentionData = JSON.stringify(mentionData);
-      mentionInner.textContent = `@${shortcut.name}`;
-      
-      // contentEditable 제거 - CSS로만 스타일링
-      // mentionInner.contentEditable = 'false'; <- 이 속성 제거
-      
-      // 멘션 태그에 추가
-      mentionTag.appendChild(mentionInner);
-      
-      // 멘션 삽입
-      range.insertNode(mentionTag);
-      
-      // 멘션 뒤에 공백 추가
-      const spaceNode = document.createTextNode(' ');
-      range.setStartAfter(mentionTag);
-      range.insertNode(spaceNode);
-      
-      // 커서 위치 조정 (공백 뒤로)
-      range.setStartAfter(spaceNode);
-      range.collapse(true);
-      
-      // 새 선택 영역 적용
-      selection.removeAllRanges();
-      selection.addRange(range);
-      
-      // 입력 필드에 포커스 유지
-      inputRef.current.focus();
-      
-      // 부모 상태 업데이트
-      const updatedText = inputRef.current.innerText || '';
-      lastTextContentRef.current = updatedText; // 참조 업데이트
-      
-      handleInputChange({
-        target: { value: updatedText }
-      } as React.ChangeEvent<HTMLTextAreaElement>);
-    } catch (error) {
-      console.error('Error inserting shortcut:', error);
-      
-      // 오류 발생 시 대체 방법: 마지막 카트 위치에 간단히 삽입
-      try {
-        if (inputRef.current) {
-          const selection = window.getSelection();
-          if (selection && selection.rangeCount > 0) {
-            const range = selection.getRangeAt(0);
-            range.collapse(true);
-            
-            // 단순히 내용 추가
-            const mentionText = document.createTextNode(`@${shortcut.name} `);
-            range.insertNode(mentionText);
-            
-            // 커서 위치 조정
-            range.setStartAfter(mentionText);
-            range.collapse(true);
-            selection.removeAllRanges();
-            selection.addRange(range);
-            
-            // 입력 필드 업데이트
-            const updatedText = inputRef.current.innerText || '';
-            lastTextContentRef.current = updatedText;
-            handleInputChange({
-              target: { value: updatedText }
-            } as React.ChangeEvent<HTMLTextAreaElement>);
-          }
-        }
-      } catch (fallbackError) {
-        console.error('Fallback method also failed:', fallbackError);
-      }
-    }
-    
-    // 팝업 닫기
-    closeShortcutsPopup();
-  };
 
-  // 입력 필드 클리어
+  // 입력 필드 클리어 - 완전한 클리어 함수
   const clearInput = () => {
     if (inputRef.current) {
       // 모든 콘텐츠 및 빈 노드 제거
       inputRef.current.innerHTML = '';
       lastTextContentRef.current = ''; // 참조 업데이트
       
-      // 빈 상태 클래스 추가
+      // 빈 상태 클래스 추가 (강제로)
       inputRef.current.classList.add('empty');
       
-      // 부모 상태 업데이트
-      const event = {
+      // placeholder 속성 재설정
+      inputRef.current.setAttribute('data-placeholder', placeholder);
+      
+      // 부모 상태 업데이트 (즉시)
+      handleInputChange({
         target: { value: '' }
-      } as React.ChangeEvent<HTMLTextAreaElement>;
-      handleInputChange(event);
+      } as React.ChangeEvent<HTMLTextAreaElement>);
       
       // 입력 필드에 포커스
       inputRef.current.focus();
+      
+      // 디바운스 타이머 정리
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
     }
   };
 
@@ -778,9 +552,10 @@ export function ChatInput({
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.classList.add('empty');
+      inputRef.current.setAttribute('data-placeholder', placeholder);
       inputRef.current.focus({ preventScroll: true });
     }
-  }, []);
+  }, [placeholder]);
 
   // 고유 ID 생성 함수 추가
   const generateUniqueId = () => {
@@ -790,184 +565,141 @@ export function ChatInput({
   // 단순화된 메시지 제출 함수
   const submitMessage = useCallback(async () => {
     if (isSubmittingRef.current || isLoading || !inputRef.current) return;
-    
-    const content = inputRef.current?.innerText || '';
-    if (!content.trim() && files.length === 0) return;
+
+    isSubmittingRef.current = true;
     
     try {
-      isSubmittingRef.current = true;
-      
-      // 텍스트 내용 저장 후 입력 클리어
-      const messageContent = content;
-      clearInput();
-      
-      // UI 반응성을 위한 부모 상태 즉시 업데이트
-      handleInputChange({
-        target: { value: '' }
-      } as React.ChangeEvent<HTMLTextAreaElement>);
-      
-      // 메시지 처리
-      setTimeout(async () => {
-        try {
-          // 제출 이벤트 생성
-          const submitEvent = {
-            preventDefault: () => {},
-            target: { value: messageContent }
-          } as unknown as FormEvent<HTMLFormElement>;
-          
-          // 파일 처리
-          const dataTransfer = new DataTransfer();
-          files.forEach(file => {
-            if (file && file.size >= 0 && file.name) {
-              dataTransfer.items.add(file);
-            }
-          });
-          
-          // 파일 첨부 정보 생성
-          const attachments = files.map(file => {
-            // 파일 타입 결정
-            let fileType: 'image' | 'code' | 'pdf' | 'file' = 'file';
-            if (file.type.startsWith('image/')) {
-              fileType = 'image';
-            } else if (file.type.includes('text') || 
-                      /\.(js|jsx|ts|tsx|html|css|json|md|py|java|c|cpp|cs|go|rb|php|swift|kt|rs)$/i.test(file.name)) {
-              fileType = 'code';
-            } else if (fileHelpers.isPDFFile(file)) {
-              fileType = 'pdf';
-            }
-            
-            const fileId = (file as any).id;
-            const fileData = fileMap.get(fileId);
-            
-            return {
-              name: file.name,
-              contentType: file.type,
-              url: fileData?.url || '',
-              fileType: fileType,
-              id: fileId
-            };
-          });
-          
-          // 파일 정보 추가
-          (submitEvent as any).experimental_attachments = attachments;
-          
-          // 메시지 제출
-          await handleSubmit(submitEvent, dataTransfer.files);
-          
-          // 파일 상태 정리
-          const urls = Array.from(fileMap.values()).map(({ url }) => url).filter(url => url.startsWith('blob:'));
-          
-          setFiles([]);
-          setFileMap(new Map());
-          
-          if (fileInputRef.current) {
-            fileInputRef.current.value = '';
+      const messageContent = inputRef.current.innerText || '';
+      // 제출 이벤트 생성 (메시지 내용을 target.value로 전달)
+      const submitEvent = {
+        preventDefault: () => {},
+        target: { value: messageContent }
+      } as unknown as FormEvent<HTMLFormElement>;
+
+      // 올바른 FileList 생성 (현재 files 스냅샷 고정)
+      const snapshotFiles = [...files];
+      const fileList = {
+        length: snapshotFiles.length,
+        item: (index: number) => snapshotFiles[index],
+        [Symbol.iterator]: function* () {
+          for (let i = 0; i < snapshotFiles.length; i++) {
+            yield snapshotFiles[i];
           }
-          
-          // URL 리소스 해제
-          setTimeout(() => {
-            urls.forEach(url => {
-              try {
-                URL.revokeObjectURL(url);
-              } catch (error) {
-                // 에러 무시 - 이미 해제된 URL일 수 있음
-              }
-            });
-          }, 100);
-          
-        } catch (submitError) {
-          console.error('Error during message submission:', submitError);
-        } finally {
-          isSubmittingRef.current = false;
         }
-      }, 0);
-      
+      } as FileList;
+
+      // 입력 및 UI를 즉시 클리어하여 즉각적 UX 제공
+      inputRef.current.innerText = '';
+      inputRef.current.classList.add('empty');
+      handleInputChange({ target: { value: '' } } as React.ChangeEvent<HTMLTextAreaElement>);
+
+      // 파일 상태는 제출 직후 정리 (미리 스냅샷으로 전달했으므로 안전)
+      const urls = Array.from(fileMap.values()).map(({ url }) => url).filter(url => url.startsWith('blob:'));
+      setFiles([]);
+      setFileMap(new Map());
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      urls.forEach(url => {
+        try { URL.revokeObjectURL(url); } catch {}
+      });
+
+      // 메시지 제출 (선택된 도구 정보 포함)
+      const submitEventWithTool = { ...submitEvent, selectedTool: selectedTool || null } as any;
+      await handleSubmit(submitEventWithTool, fileList);
     } catch (error) {
       console.error('Error during message submission setup:', error);
+    } finally {
       isSubmittingRef.current = false;
     }
-  }, [handleInputChange, handleSubmit, files, fileMap, isLoading]);
+  }, [handleInputChange, handleSubmit, files, fileMap, isLoading, selectedTool]);
 
   // 메시지 제출 핸들러 (폼 제출 이벤트)
   const handleMessageSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    submitMessage();
-  };
-
-  // 스크롤 함수 - 부드러운 스크롤 지원
-  const scrollToItem = (index: number) => {
-    if (!shortcutsListRef.current) return;
     
-    const listElement = shortcutsListRef.current;
-    const items = listElement.getElementsByTagName('button');
-    if (!items[index]) return;
+    if (isLoading || (!input.trim() && files.length === 0)) return;
 
-    const item = items[index];
-    const itemRect = item.getBoundingClientRect();
-    const listRect = listElement.getBoundingClientRect();
-
-    // 스크롤 필요 여부 계산
-    if (itemRect.bottom > listRect.bottom) {
-      // 아래로 스크롤 필요
-      const scrollDistance = itemRect.bottom - listRect.bottom;
-      listElement.scrollBy({ 
-        top: scrollDistance + 8,
-        behavior: 'smooth'
-      });
-    } else if (itemRect.top < listRect.top) {
-      // 위로 스크롤 필요
-      const scrollDistance = listRect.top - itemRect.top;
-      listElement.scrollBy({ 
-        top: -scrollDistance - 8,
-        behavior: 'smooth'
-      });
+    // AI SDK 5 형식: parts 배열 구조 사용
+    const uiParts: any[] = [];
+    
+    // 텍스트 부분 추가
+    if (input.trim()) {
+      uiParts.push({ type: 'text', text: input.trim() });
     }
+    
+    // 첨부파일을 file parts로 변환
+    files.forEach(file => {
+      const fileInfo = fileMap.get(file.name);
+      if (fileInfo) {
+        if (file.type.startsWith('image/')) {
+          uiParts.push({
+            type: 'image',
+            image: fileInfo.url
+          });
+        } else {
+          uiParts.push({
+            type: 'file',
+            url: fileInfo.url,
+            mediaType: file.type,
+            filename: file.name
+          });
+        }
+      }
+    });
+
+    // 기존 experimental_attachments 제거 (v5에서는 사용하지 않음)
+    // (submitEvent as any).experimental_attachments = attachments;
+
+    // FileList로 변환하여 전달
+    const fileList = {
+      length: files.length,
+      item: (index: number) => files[index],
+      [Symbol.iterator]: function* () {
+        for (let i = 0; i < files.length; i++) {
+          yield files[i];
+        }
+      }
+    } as FileList;
+
+    // 선택된 도구 정보를 이벤트에 추가 (preventDefault 메서드 보존)
+    const eventWithTool = {
+      ...e,
+      preventDefault: e.preventDefault.bind(e),
+      selectedTool: selectedTool || null
+    } as any;
+    
+    // 파일 상태 정리 (완전한 클리어) - handleSubmit 호출 전에 실행
+    const urls = Array.from(fileMap.values()).map(({ url }) => url).filter(url => url.startsWith('blob:'));
+    
+    // 즉시 상태 클리어
+    setFiles([]);
+    setFileMap(new Map());
+    
+    // 파일 입력 필드 클리어
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    
+    // URL 리소스 즉시 해제 (지연 없이)
+    urls.forEach(url => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        // 에러 무시 - 이미 해제된 URL일 수 있음
+      }
+    });
+    
+    // 메시지 제출 및 입력 클리어
+    handleSubmit(eventWithTool, fileList);
+    handleInputChange({ target: { value: '' } } as React.ChangeEvent<HTMLTextAreaElement>);
   };
+
+
 
   // 개선된 키보드 이벤트 핸들러
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    // 숏컷 목록이 열려있고 항목이 있는 경우
-    if (showShortcuts && shortcuts.length > 0) {
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault();
-          setSelectedIndex((prev) => {
-            const newIndex = (prev + 1) % shortcuts.length;
-            scrollToItem(newIndex);
-            return newIndex;
-          });
-          break;
-          
-        case 'ArrowUp':
-          e.preventDefault();
-          setSelectedIndex((prev) => {
-            const newIndex = (prev - 1 + shortcuts.length) % shortcuts.length;
-            scrollToItem(newIndex);
-            return newIndex;
-          });
-          break;
-          
-        case 'Enter':
-          // 시프트 키와 함께 누르지 않은 경우에만 숏컷 선택
-          if (!e.shiftKey) {
-            e.preventDefault();
-            handleShortcutSelect(shortcuts[selectedIndex]);
-          }
-          break;
-          
-        case 'Escape':
-          // ESC로 팝업 닫기
-          e.preventDefault();
-          closeShortcutsPopup();
-          break;
-          
-        case 'Tab':
-          // 탭으로 선택 후 닫기
-          e.preventDefault();
-          handleShortcutSelect(shortcuts[selectedIndex]);
-          break;
-      }
-    } else if (e.key === 'Enter') {
+    if (e.key === 'Enter') {
       if (e.shiftKey) {
         // Shift+Enter: 줄바꿈 적용
         e.preventDefault();
@@ -1115,10 +847,7 @@ export function ChatInput({
     }
   };
 
-  // 선택된 인덱스 리셋 (숏컷 변경 시)
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [shortcuts]);
+
 
   // 언마운트 시 URL 정리
   useEffect(() => {
@@ -1193,14 +922,21 @@ export function ChatInput({
     const items = e.dataTransfer.items;
     if (!items) return;
 
-    // 폴더 확인
+    // 폴더 확인 - 실제 폴더가 있는지 확인
+    let hasFolder = false;
     for (let i = 0; i < items.length; i++) {
       const entry = items[i].webkitGetAsEntry();
       if (entry?.isDirectory) {
-        setShowFolderError(true);
-        setTimeout(() => setShowFolderError(false), 3000);
-        return; // 폴더가 감지되면 처리 중단
+        hasFolder = true;
+        break;
       }
+    }
+
+    // 폴더가 있으면 에러 표시하고 처리 중단
+    if (hasFolder) {
+      setShowFolderError(true);
+      setTimeout(() => setShowFolderError(false), 3000);
+      return;
     }
 
     // 폴더가 없으면 파일 처리
@@ -1296,6 +1032,13 @@ export function ChatInput({
           writable: false,
           enumerable: true
         });
+
+        // 🚀 URL 정보를 파일 객체에 추가 (중복 업로드 방지)
+        Object.defineProperty(file, 'url', {
+          value: url,
+          writable: false,
+          enumerable: true
+        });
         
         return {
           file,
@@ -1359,6 +1102,41 @@ export function ChatInput({
     }
   }, [isHoveringButton, isHoveringTooltip]);
 
+  // 도구 선택 툴팁 호버 상태 관리
+  useEffect(() => {
+    if (!isHoveringToolSelector) {
+      const hideTimer = setTimeout(() => {
+        setShowToolSelector(false);
+      }, 200);
+
+      return () => clearTimeout(hideTimer);
+    }
+  }, [isHoveringToolSelector]);
+
+  // 도구 선택 핸들러
+  const handleToolSelect = (toolId: string) => {
+    if (setSelectedTool) {
+      setSelectedTool(toolId);
+    }
+    if (setisAgentEnabled) {
+      setisAgentEnabled(true);
+    }
+    setShowToolSelector(false);
+  };
+
+  // 도구 선택 해제 핸들러
+  const handleToolDeselect = () => {
+    if (setSelectedTool) {
+      setSelectedTool(null);
+    }
+    if (setisAgentEnabled) {
+      setisAgentEnabled(false);
+    }
+  };
+
+  // 선택된 도구 정보 가져오기
+  const selectedToolInfo = selectedTool ? TOOLS.find(tool => tool.id === selectedTool) : null;
+
   // Token 툴팁 호버 상태 관리
   const showTokenTooltipFunc = () => {
     if (tokenTooltipTimeoutRef.current) {
@@ -1407,15 +1185,15 @@ export function ChatInput({
         
         <FilePreview files={files} fileMap={fileMap} removeFile={removeFile} />
   
-        <ErrorToast show={showPDFError} message={
+        <ErrorToast show={showPDFError || globalShowPDFError} message={
           supportsPDFs 
             ? "This file type is not supported" 
             : (supportsVision 
               ? "This model does not support PDF files" 
               : "This model does not support PDF and image files")
         } />
-        <ErrorToast show={showFolderError} message="Folders cannot be uploaded" />
-        <ErrorToast show={showVideoError} message="Video files are not supported" />
+        <ErrorToast show={showFolderError || globalShowFolderError} message="Folders cannot be uploaded" />
+        <ErrorToast show={showVideoError || globalShowVideoError} message="Video files are not supported" />
   
         <div 
           className={`relative transition-transform duration-300 ${dragActive ? 'scale-[1.01]' : ''}`}
@@ -1437,15 +1215,37 @@ export function ChatInput({
             multiple
           />
           
-          <div ref={inputContainerRef} className="flex gap-1 sm:gap-3 items-center py-0">
+          <div ref={inputContainerRef} className="flex gap-2 sm:gap-3 items-center py-0">
             {/* Agent(뇌) 버튼 */}
             {setisAgentEnabled && (
               <div className="relative" ref={agentDropdownRef}>
                 <button
                   type="button"
                   onClick={() => {
-                    if (user?.hasAgentModels !== false || isAgentEnabled) {
-                      setisAgentEnabled(!isAgentEnabled);
+                    // 현재 모델이 에이전트를 지원하는지 확인
+                    const currentModel = getModelById(modelId);
+                    const isCurrentModelAgentEnabled = currentModel?.isAgentEnabled === true;
+                    
+                    if (selectedTool) {
+                      // 도구가 선택된 상태에서 뇌 버튼을 누르면 기본 상태로 복귀
+                      setSelectedTool?.(null);
+                      setisAgentEnabled?.(false);
+                      setShowToolSelector(false);
+                    } else if (isAgentEnabled) {
+                      // 에이전트 모드에서 뇌 버튼을 누르면 기본 상태로 복귀
+                      setisAgentEnabled?.(false);
+                      setShowToolSelector(false);
+                    } else {
+                      // 일반 모드에서 뇌 버튼을 누를 때
+                      if (!isCurrentModelAgentEnabled) {
+                        // 현재 모델이 에이전트를 지원하지 않으면 에러 표시
+                        setShowAgentError(true);
+                        setTimeout(() => setShowAgentError(false), 3000); // 3초 후 에러 숨김
+                        return;
+                      }
+                      // 에이전트 모드 활성화 + 도구 선택창 표시
+                      setisAgentEnabled?.(true);
+                      setShowToolSelector(true);
                     }
                   }}
                   onMouseEnter={() => {
@@ -1455,12 +1255,14 @@ export function ChatInput({
                   onMouseLeave={() => {
                     setIsHoveringButton(false);
                   }}
-                  className={`input-btn transition-all duration-300 flex items-center justify-center relative rounded-full w-8 h-8 ${
-                    isAgentEnabled ?
-                      'bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)]' :
-                      user?.hasAgentModels === false && !isAgentEnabled ?
-                        'opacity-40 cursor-not-allowed bg-[var(--chat-input-button-bg)]' :
-                        'bg-[var(--chat-input-button-bg)] hover:bg-[var(--chat-input-button-hover-bg)] text-[var(--muted)]'
+                  className={`input-btn transition-all duration-300 flex items-center justify-center relative rounded-full w-8 h-8 cursor-pointer ${
+                    selectedTool ?
+                      'bg-[var(--chat-input-button-bg)] hover:bg-[var(--chat-input-button-hover-bg)] text-[var(--muted)]' :
+                      isAgentEnabled ?
+                        'bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)]' :
+                        user?.hasAgentModels === false && !isAgentEnabled ?
+                          'opacity-40 cursor-not-allowed bg-[var(--chat-input-button-bg)]' :
+                          'bg-[var(--chat-input-button-bg)] hover:bg-[var(--chat-input-button-hover-bg)] text-[var(--muted)]'
                   }`}
                   disabled={user?.hasAgentModels === false && !isAgentEnabled}
                   title={
@@ -1469,75 +1271,122 @@ export function ChatInput({
                       : ""
                   }
                 >
-                  <BrainIOS className="h-5 w-5 transition-transform duration-300" />
+                  {selectedTool && selectedToolInfo?.icon ? (
+                    React.cloneElement(selectedToolInfo.icon, { 
+                      className: "h-4 w-4 text-[var(--muted)] transition-transform duration-300",
+                      strokeWidth: 2
+                    })
+                  ) : (
+                    <BrainIOS className="h-5 w-5 transition-transform duration-300" />
+                  )}
                   {/* <Brain className="h-5 w-5 transition-transform duration-300" strokeWidth={1.2} /> */}
-                  {isAgentEnabled && (
+                  {isAgentEnabled && !selectedTool && (
                     <span className="absolute top-1 right-1 bg-white rounded-full w-1.5 h-1.5"></span>
                   )}
+                  {selectedTool && (
+                    <span className="absolute top-1 right-1 bg-[var(--chat-input-primary)] rounded-full w-1.5 h-1.5"></span>
+                  )}
                 </button>
-  
-                {/* Agent Tooltip */}
-                                  {showAgentTooltip && (
-                    <div 
-                      className="absolute bottom-full mb-4 -left-2 w-80 bg-white/90 dark:bg-black/80 backdrop-blur-2xl border border-black/5 dark:border-white/10 rounded-2xl z-50 p-4 shadow-2xl shadow-black/20 dark:shadow-black/60 animate-in fade-in duration-200 slide-in-from-bottom-2"
-                      onMouseEnter={() => setIsHoveringTooltip(true)}
-                      onMouseLeave={() => setIsHoveringTooltip(false)}
-                      style={{
-                        transform: 'translateY(-4px)',
-                        WebkitBackdropFilter: 'blur(24px)',
-                        backdropFilter: 'blur(24px)'
-                      }}
-                    >
-                    {/* Apple-style arrow */}
-                    <div className="absolute -bottom-1.5 left-6 w-3 h-3 bg-white/90 dark:bg-black/80 border-r border-b border-black/5 dark:border-white/10 rotate-45 backdrop-blur-2xl -z-10"></div>
-                    <div className="flex items-center justify-center gap-3 mb-3">
-                      <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--accent)]/30">
-                        <div className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${isAgentEnabled ? 'bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)]' : 'bg-[var(--chat-input-button-bg)] text-[var(--muted)]'}`}>
-                          <BrainIOS className="h-5 w-5" />
-                          {/* <Brain className="h-5 w-5" strokeWidth={1.2} /> */}
-                          {isAgentEnabled && <span className="absolute top-1 right-1 bg-white rounded-full w-1.5 h-1.5"></span>}
-                        </div>
-                        <span className="text-xs font-medium text-gray-900 dark:text-white">{isAgentEnabled ? 'Agent' : 'Direct Chat'}</span>
+
+                {/* Tool selector */}
+                {showToolSelector && (
+                  <div 
+                    className="absolute top-0 -translate-y-full -mt-2 -left-1 w-56 chat-input-tooltip-backdrop rounded-2xl z-50 overflow-hidden tool-selector"
+                    onMouseEnter={() => setIsHoveringToolSelector(true)}
+                    onMouseLeave={() => setIsHoveringToolSelector(false)}
+                  >
+                                  {/* Apple-style arrow removed */}
+                    
+
+
+                    {/* Agent mode tools section */}
+                    <div className="p-2">
+                      <div className="flex items-center gap-2 text-xs font-medium text-[var(--muted)] px-2 py-1 mb-1">
+                        <span>Tools</span>
+                        {/* <a href="/agent-mode" target="_blank" rel="noopener noreferrer" className="w-4 h-4 rounded-full bg-[#007AFF]/10 hover:bg-[#007AFF]/20 flex items-center justify-center transition-colors group flex-shrink-0" title="Learn more about Agent Mode">
+                          <svg className="w-2.5 h-2.5 text-[#007AFF] group-hover:text-[#007AFF]/80" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                          </svg>
+                        </a> */}
                       </div>
-                      <svg className="h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                      <div className="flex items-center gap-2 p-2 rounded-lg">
-                        <div className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${!isAgentEnabled ? 'bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)]' : 'bg-[var(--chat-input-button-bg)] text-[var(--muted)]'}`}>
-                          <BrainIOS className="h-5 w-5" />
-                          {/* <Brain className="h-5 w-5" strokeWidth={1.2} /> */}
-                          {!isAgentEnabled && <span className="absolute top-1 right-1 bg-white rounded-full w-1.5 h-1.5"></span>}
-                        </div>
-                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{isAgentEnabled ? 'Direct Chat' : 'Agent'}</span>
+                      <div className="max-h-50 overflow-y-auto scrollbar-minimal">
+                        {TOOLS.map((tool) => (
+                          <button
+                            key={tool.id}
+                            type="button"
+                            onClick={() => handleToolSelect(tool.id)}
+                            className={`flex items-center gap-2 w-full p-2 transition-colors text-left tool-button rounded-lg ${
+                              selectedTool === tool.id
+                                ? 'bg-[#007AFF] text-white'
+                                : 'hover:bg-[var(--accent)]'
+                            }`}
+                          >
+                            <div className={`flex items-center justify-center w-7 h-7 flex-shrink-0 ${
+                              selectedTool === tool.id
+                                ? 'text-white'
+                                : 'text-[var(--muted)]'
+                            }`}>
+                              {React.cloneElement(tool.icon, { 
+                                className: "h-3.5 w-3.5",
+                                strokeWidth: 2
+                              })}
+                            </div>
+                            <span className={`text-sm font-medium ${
+                              selectedTool === tool.id
+                                ? 'text-white'
+                                : 'text-[var(--foreground)]'
+                            }`}>
+                              {tool.name}
+                            </span>
+                          </button>
+                        ))}
                       </div>
                     </div>
-                    <div className="flex items-center justify-center gap-2">
-                      <p className="text-xs text-gray-700 dark:text-gray-300 font-medium leading-relaxed">{isAgentEnabled ? translations.talkToModel : translations.usesTools}</p>
-                      <a href="/agent-mode" target="_blank" rel="noopener noreferrer" className="w-4 h-4 rounded-full bg-[#007AFF]/10 hover:bg-[#007AFF]/20 flex items-center justify-center transition-colors group flex-shrink-0" title="Learn more about Agent Mode">
-                        <svg className="w-2.5 h-2.5 text-[#007AFF] group-hover:text-[#007AFF]/80" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
-                      </a>
-                    </div>
-                    {user?.hasAgentModels === false && !isAgentEnabled && (
-                                              <div className="mt-2 p-2 bg-orange-500/10 rounded-lg border border-orange-500/20">
-                        <div className="flex items-center gap-2">
-                          <svg className="h-3 w-3 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.864-.833-2.634 0L3.16 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
-                          <p className="text-xs text-gray-700 dark:text-gray-300 font-medium">Agent mode requires non-rate-limited models</p>
+
+                    {/* Clear selection */}
+                    {selectedTool && (
+                      <>
+                        <div className="h-px bg-[var(--subtle-divider)] mx-3"></div>
+                        <div className="p-2">
+                          <button
+                            type="button"
+                            onClick={handleToolDeselect}
+                            className="flex items-center gap-2 w-full p-2 hover:bg-[var(--accent)] transition-colors text-left tool-button rounded-lg"
+                          >
+                            <div className="flex items-center justify-center w-7 h-7 flex-shrink-0">
+                              <svg className="h-3.5 w-3.5 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </div>
+                            <span className="text-sm font-medium text-[var(--muted)]">
+                              Cancel Selection
+                            </span>
+                          </button>
                         </div>
-                      </div>
+                      </>
                     )}
                   </div>
                 )}
+
               </div>
             )}
   
             {/* File upload button */}
-            <button
+            <div className="relative">
+              <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center justify-center w-8 h-8 rounded-full bg-[var(--chat-input-button-bg)] hover:bg-[var(--chat-input-button-hover-bg)] transition-colors flex-shrink-0 text-[var(--muted)]"
+                className="flex items-center justify-center w-8 h-8 rounded-full bg-[var(--chat-input-button-bg)] hover:bg-[var(--chat-input-button-hover-bg)] transition-colors flex-shrink-0 text-[var(--muted)] cursor-pointer"
+                title={translations.uploadFile}
               >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            </button>
+                <Plus className="h-4 w-4" strokeWidth={2} />
+              </button>
+            </div>
   
             <div className="flex-1 relative">
+              {/* Agent Error Message */}
+              <ErrorToast show={showAgentError} message="This model doesn't support Agent mode. Please select an Agent-enabled model." />
+              
               <div
                 ref={inputRef}
                 contentEditable
@@ -1607,7 +1456,7 @@ export function ChatInput({
 
                     return (
                       <div 
-                        className="absolute bottom-full mb-3 -right-2 w-64 bg-white/90 dark:bg-black/80 backdrop-blur-2xl border border-black/5 dark:border-white/10 rounded-2xl z-50 p-4 shadow-2xl shadow-black/20 dark:shadow-black/60 animate-in fade-in duration-200 slide-in-from-bottom-2"
+                        className="absolute bottom-full mb-2 -right-2 w-64 chat-input-tooltip-backdrop rounded-2xl z-50 p-4 shadow-2xl shadow-black/20 dark:shadow-black/60 animate-in fade-in duration-200 slide-in-from-bottom-2"
                         onMouseEnter={() => {
                           setIsHoveringTokenTooltip(true);
                           showTokenTooltipFunc();
@@ -1617,13 +1466,10 @@ export function ChatInput({
                           hideTokenTooltipFunc();
                         }}
                         style={{
-                          transform: 'translateY(-4px)',
-                          WebkitBackdropFilter: 'blur(24px)',
-                          backdropFilter: 'blur(24px)'
+                          transform: 'translateY(-2px)'
                         }}
                       >
-                        {/* Apple-style arrow */}
-                        <div className="absolute -bottom-1.5 right-6 w-3 h-3 bg-white/90 dark:bg-black/80 border-r border-b border-black/5 dark:border-white/10 rotate-45 backdrop-blur-2xl -z-10"></div>
+                                      {/* Apple-style arrow removed */}
                         
                         <div className="flex flex-col gap-3">
                           {/* Header with icon */}
@@ -1631,24 +1477,24 @@ export function ChatInput({
                             <div className="w-5 h-5 rounded-full bg-blue-500/15 flex items-center justify-center">
                               <Gauge className="w-3 h-3 text-blue-600 dark:text-blue-400" strokeWidth={2} />
                             </div>
-                            <span className="text-sm font-semibold text-gray-900 dark:text-white tracking-tight">
+                            <span className="text-sm font-semibold text-[var(--foreground)] tracking-tight">
                               {translations.contextUsage}
                             </span>
                           </div>
 
                           {/* Usage stats with better typography */}
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                            <span className="text-xs font-medium text-[var(--muted)]">
                               Usage
                             </span>
                             <div className="flex items-baseline gap-1">
                               <span className={`text-sm font-bold tabular-nums ${currentUsageColor}`}>
                                 {tokenCount > 1000 ? `${(tokenCount/1000).toFixed(1)}k` : tokenCount}
                               </span>
-                              <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                              <span className="text-xs text-[var(--muted)] font-medium">
                                 {' of '}
                               </span>
-                              <span className={`text-sm font-bold tabular-nums ${isPreviewingUpgrade ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                              <span className={`text-sm font-bold tabular-nums ${isPreviewingUpgrade ? 'text-blue-600 dark:text-blue-400' : 'text-[var(--foreground)]'}`}>
                                 {(displayThresholds.limit / 1000).toFixed(0)}K
                               </span>
                             </div>
@@ -1664,7 +1510,7 @@ export function ChatInput({
                             </div>
                             {/* Progress percentage */}
                             <div className="flex justify-end mt-1">
-                              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 tabular-nums">
+                              <span className="text-xs font-medium text-[var(--muted)] tabular-nums">
                                 {Math.round(progressPercentage)}%
                               </span>
                             </div>
@@ -1679,13 +1525,13 @@ export function ChatInput({
                             ) : (
                               <CheckCircle className="w-3.5 h-3.5 text-green-500 mt-0.5 flex-shrink-0" strokeWidth={2} />
                             )}
-                            <p className="text-xs leading-relaxed text-gray-700 dark:text-gray-300 font-medium">
+                            <p className="text-xs leading-relaxed text-[var(--foreground)] font-medium">
                               {statusMessage}
                             </p>
                           </div>
                           
-                          {/* Pro upgrade with Apple-style button */}
-                          {!isSubscribed && modelConfig?.contextWindow && modelConfig.contextWindow > CONTEXT_WINDOW_LIMIT_NON_SUBSCRIBER && (
+                          {/* Pro upgrade with Apple-style button - 컨텍스트 윈도우 제한 제거됨 */}
+                          {false && (
                             <div className="pt-2 border-t border-gray-200/50 dark:border-gray-700/50">
                               <a 
                                 href="/pricing" 
@@ -1716,11 +1562,11 @@ export function ChatInput({
   
             {/* Submit Button */}
             {isLoading ? (
-              <button onClick={(e) => { e.preventDefault(); stop(); }} type="button" className="flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300 bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)] flex-shrink-0" aria-label="Stop generation">
+              <button onClick={(e) => { e.preventDefault(); stop(); }} type="button" className="flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300 bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)] flex-shrink-0 cursor-pointer" aria-label="Stop generation">
                 <div className="w-2.5 h-2.5 bg-current rounded-sm"></div>
               </button>
             ) : (
-              <button type="submit" className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 flex-shrink-0 ${disabled || !input.trim() ? 'bg-[var(--chat-input-button-bg)] text-[var(--muted)] cursor-not-allowed' : 'bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)]'}`} disabled={disabled || !input.trim()} aria-label="Send message">
+              <button type="submit" className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 flex-shrink-0 cursor-pointer ${disabled || (!input.trim() && files.length === 0) ? 'bg-[var(--chat-input-button-bg)] text-[var(--muted)] cursor-not-allowed' : 'bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)]'}`} disabled={disabled || (!input.trim() && files.length === 0)} aria-label="Send message">
                 <svg width="16" height="16" viewBox="0 0 24 24" className="transition-transform duration-300"><path d="M12 2L12 22M5 9L12 2L19 9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"></path></svg>
               </button>
             )}
@@ -1729,16 +1575,7 @@ export function ChatInput({
   
         <DragDropOverlay dragActive={dragActive} supportsPDFs={supportsPDFs} />
   
-        <PromptShortcuts
-          showShortcuts={showShortcuts}
-          shortcuts={shortcuts}
-          selectedIndex={selectedIndex}
-          searchTerm={searchTerm}
-          handleShortcutSelect={handleShortcutSelect}
-          closeShortcutsPopup={closeShortcutsPopup}
-          popupPosition={popupPosition}
-          shortcutsListRef={shortcutsListRef}
-        />
+
       </form>
     </div>
   );

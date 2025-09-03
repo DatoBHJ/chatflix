@@ -8,7 +8,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
   mathCalculationData,
   linkReaderData,
   imageGeneratorData,
-  academicSearchData,
+
   xSearchData,
   youTubeSearchData,
   youTubeLinkAnalysisData,
@@ -37,10 +37,25 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
       const queries = (webSearchData.args?.queries || []) as string[];
       let displayText = '';
       
-      if (queries.length > 0) {
-        displayText = queries.slice(0, 2).map((q: string) => `"${q}"`).join(', ');
-        if (queries.length > 2) {
-          displayText += ` +${queries.length - 2} more`;
+      // Handle case where queries might be a JSON string
+      let processedQueries: string[] = [];
+      if (Array.isArray(queries)) {
+        processedQueries = queries;
+      } else if (typeof queries === 'string') {
+        try {
+          const parsed = JSON.parse(queries);
+          processedQueries = Array.isArray(parsed) ? parsed : [queries];
+        } catch {
+          processedQueries = [queries];
+        }
+      } else {
+        processedQueries = [];
+      }
+      
+      if (processedQueries.length > 0) {
+        displayText = processedQueries.slice(0, 2).map((q: string) => `"${q}"`).join(', ');
+        if (processedQueries.length > 2) {
+          displayText += ` +${processedQueries.length - 2} more`;
         }
       } else {
         const fallbackQueries = webSearchData.results?.flatMap((r: any) => 
@@ -66,7 +81,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         }
       } else if (webSearchData.status) {
         actualStatus = webSearchData.status;
-      } else if (queries.length > 0 && (!webSearchData.results || webSearchData.results.length === 0)) {
+      } else if (processedQueries.length > 0 && (!webSearchData.results || webSearchData.results.length === 0)) {
         actualStatus = 'processing';
       }
       
@@ -201,39 +216,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
       });
     }
     
-    if (academicSearchData) {
-      const results = academicSearchData.academicResults || [];
-      let displayText = '';
-      
-      if (results.length > 0) {
-        const queries = results.map((r: any) => r.query).filter(Boolean);
-        
-        if (queries.length > 0) {
-          displayText = queries.length === 1 
-            ? `"${queries[0]}"` 
-            : `"${queries[0]}" +${queries.length - 1} more topics`;
-        } else {
-          displayText = `${results.length} academic search${results.length > 1 ? 'es' : ''}`;
-        }
-      } else {
-        displayText = 'Academic research';
-      }
-      
-      let actualStatus = 'completed';
-      if (academicSearchData.status) {
-        actualStatus = academicSearchData.status;
-      } else if (results.length === 0) {
-        actualStatus = 'processing';
-      }
-      
-      activeTools.push({
-        id: 'academic-search',
-        name: 'Academic Search',
-        icon: <BookOpen size={14} />,
-        status: actualStatus,
-        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
-      });
-    }
+
     
     if (xSearchData) {
       const results = xSearchData.xResults || [];
@@ -356,7 +339,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
     }
     
     return activeTools;
-  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, academicSearchData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData]);
+  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData]);
   
   const handleToggle = useCallback(() => {
     setIsExpanded(!isExpanded);
@@ -438,7 +421,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         onClick={handleToggle}
       >
         {/* 메인 캔버스 버블 */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-full backdrop-blur-xl border border-[var(--subtle-divider)] hover:shadow-md hover:scale-[1.02] transition-all duration-200 ease-out" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 80%, transparent)' }}>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-full backdrop-blur-xl border border-[var(--subtle-divider)] hover:scale-[1.02] transition-all duration-200 ease-out" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 80%, transparent)' }}>
           {/* <Wrench className="h-3.5 w-3.5" style={{ color: 'var(--tools-color)' }} strokeWidth={2} /> */}
           
           {/* 도구 아이콘들 미리보기 */}
@@ -475,8 +458,10 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         </div> */}
 
         {/* 확장된 상세 정보 툴팁 */}
-        <div className={`absolute bottom-full left-0 mb-3 w-80 sm:w-96 bg-[var(--background)] backdrop-blur-xl rounded-2xl border border-[var(--subtle-divider)] shadow-lg p-4 z-50 transition-all duration-200 ease-out ${ 
-        isExpanded ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-1 pointer-events-none'        }`} style={{ boxShadow: '0 10px 25px -5px var(--overlay), 0 4px 6px -2px var(--overlay)' }}>
+        <div className={`absolute bottom-full left-0 mb-3 w-80 sm:w-96 bg-[var(--background)] backdrop-blur-xl rounded-2xl border border-[var(--subtle-divider)] p-4 z-50 transition-all duration-200 ease-out ${ 
+        isExpanded ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-1 pointer-events-none'        }`} 
+        // style={{ boxShadow: '0 10px 25px -5px var(--overlay), 0 4px 6px -2px var(--overlay)' }}
+        >
           {/* 툴팁 화살표 */}
           <div className="absolute -bottom-1.5 left-6 w-3 h-3 bg-[var(--background)] border-r border-b border-[var(--subtle-divider)] rotate-45"></div>          
           {/* 헤더 */}

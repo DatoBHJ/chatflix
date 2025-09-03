@@ -58,6 +58,35 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Validate URL format
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(url);
+    } catch (error) {
+      return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
+    }
+
+    // Skip non-HTTP/HTTPS URLs (like data:, file:, etc.)
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      return NextResponse.json({ error: 'Only HTTP/HTTPS URLs are supported' }, { status: 400 });
+    }
+
+    // Skip malformed URLs with quotes or invalid characters
+    if (url.includes("'") || url.includes('"') || url.includes('\\')) {
+      return NextResponse.json({ error: 'URL contains invalid characters' }, { status: 400 });
+    }
+
+    // Skip SVG namespace URLs and other non-webpage URLs
+    if (parsedUrl.hostname === 'www.w3.org' && parsedUrl.pathname.includes('/2000/svg')) {
+      return NextResponse.json({ error: 'SVG namespace URLs are not supported' }, { status: 400 });
+    }
+
+    // Skip URLs that are clearly not actual web pages (like namespace URLs)
+    const invalidHostnames = ['www.w3.org', 'xmlns.com', 'schema.org'];
+    if (invalidHostnames.some(host => parsedUrl.hostname.includes(host))) {
+      return NextResponse.json({ error: 'Namespace URLs are not supported' }, { status: 400 });
+    }
+
     // Check if it's a YouTube URL
     const videoId = extractYouTubeVideoId(url);
     if (videoId) {

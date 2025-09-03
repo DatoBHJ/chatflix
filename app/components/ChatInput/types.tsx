@@ -1,15 +1,6 @@
 // app/components/chat/ChatInput/types.ts
 import { FormEvent, ReactNode } from 'react';
 
-export interface PromptShortcut {
-  id: string;
-  name: string;
-  content: string;
-  created_at: string;
-  match_type?: string;
-  highlight_ranges?: Array<{start: number, end: number}>;
-}
-
 export interface ChatInputProps {
   input: string;
   handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
@@ -24,6 +15,16 @@ export interface ChatInputProps {
   isAgentEnabled?: boolean;
   setisAgentEnabled?: React.Dispatch<React.SetStateAction<boolean>>;
   allMessages?: any[]; // 전체 대화 메시지 (대화창에서만 사용)
+  
+  // Global drag and drop props
+  globalDragActive?: boolean;
+  globalShowPDFError?: boolean;
+  globalShowFolderError?: boolean;
+  globalShowVideoError?: boolean;
+  
+  // 도구 선택 관련 props
+  selectedTool?: string | null;
+  setSelectedTool?: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 export interface FilePreviewProps {
@@ -37,16 +38,7 @@ export interface DragDropOverlayProps {
   supportsPDFs?: boolean;
 }
 
-export interface PromptShortcutsProps {
-  showShortcuts: boolean;
-  shortcuts: PromptShortcut[];
-  selectedIndex: number;
-  searchTerm: string;
-  handleShortcutSelect: (shortcut: PromptShortcut) => void;
-  closeShortcutsPopup: () => void;
-  popupPosition: 'top' | 'bottom';
-  shortcutsListRef: React.RefObject<HTMLDivElement | null>;
-}
+
 
 export interface FileUploadButtonProps {
   filesCount: number;

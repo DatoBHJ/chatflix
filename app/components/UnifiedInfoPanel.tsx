@@ -22,7 +22,7 @@ interface UnifiedInfoPanelProps {
   mathCalculationData?: any;
   linkReaderData?: any;
   imageGeneratorData?: any;
-  academicSearchData?: any;
+
   xSearchData?: any;
   youTubeSearchData?: any;
   youTubeLinkAnalysisData?: any;
@@ -47,7 +47,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
   mathCalculationData,
   linkReaderData,
   imageGeneratorData,
-  academicSearchData,
+
   xSearchData,
   youTubeSearchData,
   youTubeLinkAnalysisData,
@@ -73,7 +73,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
   const hasBoth = hasReasoning && hasCanvas;
 
   const hasProcessingTool = useMemo(() => {
-    const toolData = [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, academicSearchData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData];
+    const toolData = [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData];
     return toolData.some(data => {
       if (!data) return false;
       if (data.results && Array.isArray(data.results)) {
@@ -84,14 +84,14 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
       }
       return false;
     });
-  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, academicSearchData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData]);
+  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData]);
 
   useEffect(() => {
     if (activeTab === 'thinking' && isExpanded && thinkingScrollRef.current && reasoningPart) {
       const scrollContainer = thinkingScrollRef.current;
       scrollContainer.scrollTop = scrollContainer.scrollHeight;
     }
-  }, [reasoningPart?.reasoning, activeTab, isExpanded]);
+  }, [reasoningPart?.reasoningText, reasoningPart?.text, activeTab, isExpanded]);
 
   useEffect(() => {
     if (!reasoningComplete && activeTab === 'thinking' && isExpanded && thinkingScrollRef.current) {
@@ -103,7 +103,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
       const timeoutId = setTimeout(scrollToBottom, 100);
       return () => clearTimeout(timeoutId);
     }
-  }, [reasoningPart?.reasoning, reasoningComplete, activeTab, isExpanded]);
+  }, [reasoningPart?.reasoningText, reasoningPart?.text, reasoningComplete, activeTab, isExpanded]);
 
   useEffect(() => {
     if (hasProcessingTool && hasBoth) {
@@ -117,7 +117,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
     if (isFullScreen && activeTab === 'thinking' && fullScreenScrollRef.current && reasoningPart) {
       fullScreenScrollRef.current.scrollTop = fullScreenScrollRef.current.scrollHeight;
     }
-  }, [reasoningPart?.reasoning, isFullScreen, activeTab]);
+  }, [reasoningPart?.reasoningText, reasoningPart?.text, isFullScreen, activeTab]);
 
   const handleTabChange = useCallback((tab: 'thinking' | 'tools') => {
     setActiveTab(tab);
@@ -266,7 +266,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
                 ref={fullScreenScrollRef}
                 className="text-[var(--foreground)] leading-relaxed scroll-smooth"
               >
-                <MarkdownContent content={reasoningPart.reasoning} variant="clean" />
+                <MarkdownContent content={reasoningPart.reasoningText || reasoningPart.text} variant="clean" />
               </div>
             ) : (
               <CanvasToolsPreview
@@ -274,7 +274,6 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
                 mathCalculationData={mathCalculationData}
                 linkReaderData={linkReaderData}
                 imageGeneratorData={imageGeneratorData}
-                academicSearchData={academicSearchData}
                 xSearchData={xSearchData}
                 youTubeSearchData={youTubeSearchData}
                 youTubeLinkAnalysisData={youTubeLinkAnalysisData}
@@ -307,7 +306,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
 
               return (
                 <ReasoningSection 
-                  content={reasoningPart.reasoning} 
+                  content={reasoningPart.reasoningText || reasoningPart.text} 
                   isComplete={reasoningComplete}
                   isExpanded={isReasoningExpanded}
                   setIsExpanded={handleToggle}
@@ -325,7 +324,6 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
               mathCalculationData={mathCalculationData}
               linkReaderData={linkReaderData}
               imageGeneratorData={imageGeneratorData}
-              academicSearchData={academicSearchData}
               xSearchData={xSearchData}
               youTubeSearchData={youTubeSearchData}
               youTubeLinkAnalysisData={youTubeLinkAnalysisData}
@@ -341,7 +339,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
   return (
     <div className="flex justify-start pl-0 mb-2">
       <div className="group relative cursor-pointer" onClick={handleBubbleClick}>
-        <div className="flex items-center gap-2 px-3 py-2 rounded-full backdrop-blur-xl border border-[var(--subtle-divider)] hover:shadow-md hover:scale-[1.02] transition-all duration-200 ease-out" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 80%, transparent)' }}>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-full backdrop-blur-xl border border-[var(--subtle-divider)] hover:scale-[1.02] transition-all duration-200 ease-out" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 80%, transparent)' }}>
           {activeTab === 'thinking' ? (
             <Brain className="h-3.5 w-3.5" style={{ color: 'var(--reasoning-color)' }} strokeWidth={2} />
           ) : (
@@ -393,7 +391,9 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
           <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 40%, transparent)' }}></div>
         </div> */}
 
-        <div className={`absolute bottom-full left-0 mb-3 w-80 sm:w-96 bg-[var(--background)] backdrop-blur-xl rounded-2xl border border-[var(--subtle-divider)] shadow-lg p-4 z-50 transition-all duration-200 ease-out ${isExpanded ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-1 pointer-events-none'}`} style={{ boxShadow: '0 10px 25px -5px var(--overlay), 0 4px 6px -2px var(--overlay)' }}>
+        <div className={`absolute bottom-full left-0 mb-3 w-80 sm:w-96 bg-[var(--background)] backdrop-blur-xl rounded-2xl border border-[var(--subtle-divider)] p-4 z-50 transition-all duration-200 ease-out ${isExpanded ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-1 pointer-events-none'}`} 
+        // style={{ boxShadow: '0 10px 25px -5px var(--overlay), 0 4px 6px -2px var(--overlay)' }}
+        >
           <div className="absolute -bottom-1.5 left-6 w-3 h-3 bg-[var(--background)] border-r border-b border-[var(--subtle-divider)] rotate-45"></div>
           
           <div className="flex items-center justify-between mb-3">
@@ -447,7 +447,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
                 ref={thinkingScrollRef}
                 className="text-sm text-[var(--foreground)] leading-relaxed scroll-smooth"
               >
-                <MarkdownContent content={reasoningPart.reasoning} variant="clean" />
+                <MarkdownContent content={reasoningPart.reasoningText || reasoningPart.text} variant="clean" />
               </div>
             ) : (
                <CanvasToolsPreview
@@ -455,7 +455,6 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
                  mathCalculationData={mathCalculationData}
                  linkReaderData={linkReaderData}
                  imageGeneratorData={imageGeneratorData}
-                 academicSearchData={academicSearchData}
                  xSearchData={xSearchData}
                  youTubeSearchData={youTubeSearchData}
                  youTubeLinkAnalysisData={youTubeLinkAnalysisData}

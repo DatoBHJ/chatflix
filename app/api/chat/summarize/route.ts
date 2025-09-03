@@ -41,6 +41,9 @@ Title:`;
     if (!summary) {
       return NextResponse.json({ error: 'No summary generated' }, { status: 500 });
     }
+
+    console.log('summary', summary);
+    
     return NextResponse.json({ summary });
   } catch (error) {
     console.error('Error summarizing message:', error);

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-import { estimateTokenCount } from '@/utils/context-manager';
-import { estimateMultiModalTokens } from '../services/modelSelector';
+import { estimateTokenCount, estimateMultiModalTokens, estimateFileTokens } from '@/utils/context-manager';
 
 interface TokenEstimationRequest {
   messages?: any[];
@@ -35,32 +34,7 @@ interface TokenEstimationResponse {
   };
 }
 
-// 파일 타입별 토큰 추정 함수
-function estimateFileTokens(file: {
-  name: string;
-  type: string;
-  size: number;
-  metadata?: { estimatedTokens?: number };
-}): number {
-  // 메타데이터에 정확한 토큰 수가 있으면 사용
-  if (file.metadata?.estimatedTokens) {
-    return file.metadata.estimatedTokens;
-  }
 
-  const filename = file.name.toLowerCase();
-  const contentType = file.type;
-
-  // 파일 타입별 토큰 추정 (백엔드 로직과 동일)
-  if (filename.endsWith('.pdf') || contentType === 'application/pdf') {
-    return 5000; // PDF
-  } else if (filename.match(/\.(js|ts|jsx|tsx|py|java|c|cpp|cs|go|rb|php|html|css|sql|scala|swift|kt|rs|dart|json|xml|yaml|yml)$/i)) {
-    return 3000; // 코드 파일
-  } else if (contentType?.startsWith('image/') || filename.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i)) {
-    return 1000; // 이미지
-  } else {
-    return 2000; // 기타 파일
-  }
-}
 
 export async function POST(request: Request) {
   try {

@@ -1,4 +1,4 @@
-import { Message } from 'ai';
+import { UIMessage } from 'ai';
 
 export interface PageProps {
   params: Promise<{
@@ -6,7 +6,8 @@ export interface PageProps {
   }>;
 }
 
-export interface ExtendedMessage extends Message {
+export interface ExtendedMessage extends UIMessage {
+  content: any;
   model?: string;
   isEditing?: boolean;
   sequence_number?: number;

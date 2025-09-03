@@ -30,7 +30,7 @@ export default function SubscriptionSuccess() {
             clearAllSubscriptionCache();
           }
           
-          const isSubscribed = await checkSubscriptionClient();
+          const isSubscribed = await checkSubscriptionClient(attempt === 0); // 첫 번째 시도 시 강제 재확인
           
           if (isSubscribed) {
             console.log('Subscription verified successfully!');
@@ -38,6 +38,10 @@ export default function SubscriptionSuccess() {
             
             // Now clear rate limits since subscription is confirmed
             clearRateLimitInfo('subscription');
+            
+            // 🔧 FIX: 구독 성공 이벤트 발생하여 다른 컴포넌트들이 즉시 업데이트되도록
+            window.dispatchEvent(new CustomEvent('subscriptionSuccess'));
+            
             return true;
           }
           

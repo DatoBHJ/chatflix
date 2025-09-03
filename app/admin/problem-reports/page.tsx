@@ -68,7 +68,7 @@ export default function ProblemReportsPage() {
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-6">Problem Reports</h1>
-      <div className="bg-background rounded-lg border border-[var(--accent)]">
+              <div className="bg-background rounded-lg border border-accent">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-[var(--accent)]">
             <thead className="bg-[var(--accent)]/30">

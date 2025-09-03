@@ -1,45 +1,45 @@
 export const chatInputTranslations: Record<string, Record<string, string>> = {
   usesTools: {
-    'en': 'Uses tools for better answers',
-    'ko': '더 나은 답변을 위해 도구를 사용합니다',
-    'ja': 'より良い回答のためにツールを使用します',
-    'zh': '使用工具以获得更好的答案',
-    'es': 'Usa herramientas para obtener mejores respuestas',
-    'fr': 'Utilise des outils pour de meilleures réponses',
-    'de': 'Verwendet Tools für bessere Antworten',
-    'it': 'Utilizza strumenti per risposte migliori',
-    'pt': 'Usa ferramentas para obter melhores respostas',
-    'ru': 'Использует инструменты для лучших ответов',
-    'ar': 'يستخدم الأدوات للحصول على إجابات أفضل',
-    'hi': 'बेहतर उत्तरों के लिए उपकरणों का उपयोग करता है',
-    'th': 'ใช้เครื่องมือเพื่อคำตอบที่ดีขึ้น',
-    'vi': 'Sử dụng các công cụ để có câu trả lời tốt hơn',
-    'nl': 'Gebruikt tools voor betere antwoorden',
-    'sv': 'Använder verktyg för bättre svar',
-    'da': 'Bruger værktøjer til bedre svar',
-    'no': 'Bruker verktøy for bedre svar',
-    'fi': 'Käyttää työkaluja parempien vastausten saamiseksi',
-    'pl': 'Używa narzędzi do uzyskiwania lepszych odpowiedzi',
-    'tr': 'Daha iyi cevaplar için araçları kullanır',
-    'he': 'משתמש בכלים לתשובות טובות יותר',
-    'uk': 'Використовує інструменти для кращих відповідей',
-    'cs': 'Používá nástroje pro lepší odpovědi',
-    'hu': 'Eszközöket használ a jobb válaszok érdekében',
-    'ro': 'Folosește instrumente pentru răspunsuri mai bune',
-    'bg': 'Използва инструменти за по-добри отговори',
-    'hr': 'Koristi alate za bolje odgovore',
-    'sk': 'Používa nástroje na lepšie odpovede',
-    'sl': 'Uporablja orodja za boljše odgovore',
-    'et': 'Kasutab paremate vastuste saamiseks tööriistu',
-    'lv': 'Izmanto rīkus labākām atbildēm',
-    'lt': 'Geresniems atsakymams naudoja įrankius',
-    'mt': 'Juża għodod għal tweġibiet aħjar',
-    'is': 'Notar verkfæri fyrir betri svör',
-    'ga': 'Úsáideann uirlisí le haghaidh freagraí níos fearr',
-    'cy': 'Yn defnyddio offer ar gyfer atebion gwell',
-    'eu': 'Tresnak erabiltzen ditu erantzun hobeak lortzeko',
-    'ca': 'Utilitza eines per a respostes millors',
-    'gl': 'Usa ferramentas para obter mellores respostas'
+    'en': 'Intelligently selects and uses tools',
+    'ko': '지능적으로 도구를 선택하고 사용합니다',
+    'ja': 'インテリジェントにツールを選択して使用します',
+    'zh': '智能地选择和使用工具',
+    'es': 'Selecciona y usa herramientas de forma inteligente',
+    'fr': 'Sélectionne et utilise les outils intelligemment',
+    'de': 'Wählt Tools intelligent aus und verwendet sie',
+    'it': 'Seleziona e utilizza gli strumenti in modo intelligente',
+    'pt': 'Seleciona e usa ferramentas de forma inteligente',
+    'ru': 'Разумно выбирает и использует инструменты',
+    'ar': 'يختار الأدوات ويستخدمها بذكاء',
+    'hi': 'समझदारी से उपकरणों का चयन और उपयोग करता है',
+    'th': 'เลือกและใช้เครื่องมืออย่างชาญฉลาด',
+    'vi': 'Lựa chọn và sử dụng công cụ một cách thông minh',
+    'nl': 'Selecteert en gebruikt tools op intelligente wijze',
+    'sv': 'Väljer och använder verktyg på ett intelligent sätt',
+    'da': 'Vælger og bruger værktøjer intelligent',
+    'no': 'Velger og bruker verktøy på en intelligent måte',
+    'fi': 'Valitsee ja käyttää työkaluja älykkäästi',
+    'pl': 'Inteligentnie wybiera i używa narzędzi',
+    'tr': 'Araçları akıllıca seçer ve kullanır',
+    'he': 'בוחר ומשתמש בכלים באופן מושכל',
+    'uk': 'Розумно обирає та використовує інструменти',
+    'cs': 'Inteligentně vybírá a používá nástroje',
+    'hu': 'Intelligensen választja ki és használja az eszközöket',
+    'ro': 'Selectează și utilizează instrumentele în mod inteligent',
+    'bg': 'Интелигентно избира и използва инструменти',
+    'hr': 'Inteligentno odabire i koristi alate',
+    'sk': 'Inteligentne vyberá a používa nástroje',
+    'sl': 'Inteligentno izbira in uporablja orodja',
+    'et': 'Valib ja kasutab tööriistu arukalt',
+    'lv': 'Inteliģenti atlasa un izmanto rīkus',
+    'lt': 'Pažangiai pasirenka ir naudoja įrankius',
+    'mt': 'Jagħżel u juża l-għodod b\'mod intelliġenti',
+    'is': 'Velur og notar verkfæri á skynsamlegan hátt',
+    'ga': 'Roghnaíonn agus úsáideann uirlisí go cliste',
+    'cy': 'Yn dewis ac yn defnyddio offer yn ddeallus',
+    'eu': 'Tresnak modu adimentsuan hautatu eta erabiltzen ditu',
+    'ca': 'Selecciona i utilitza eines de manera intel·ligent',
+    'gl': 'Selecciona e usa as ferramentas de forma intelixente'
   },
   talkToModel: {
     'en': 'Talk to the model directly',
@@ -304,10 +304,16 @@ export const chatInputTranslations: Record<string, Record<string, string>> = {
   },
   upgrade: {
     'en': 'Upgrade', 'ko': '업그레이드', 'ja': 'アップグレード', 'zh': '升级', 'es': 'Actualizar', 'fr': 'Mettre à niveau', 'de': 'Upgrade', 'it': 'Aggiorna', 'pt': 'Atualizar', 'ru': 'Обновить', 'ar': 'ترقية', 'hi': 'अपग्रेड', 'th': 'อัปเกรด', 'vi': 'Nâng cấp', 'nl': 'Upgrade', 'sv': 'Uppgradera', 'da': 'Opgrader', 'no': 'Oppgrader', 'fi': 'Päivitä', 'pl': 'Uaktualnij', 'tr': 'Yükselt', 'he': 'שדרג', 'uk': 'Оновити', 'cs': 'Upgrade', 'hu': 'Frissítés', 'ro': 'Upgrade', 'bg': 'Надстройка', 'hr': 'Nadogradnja', 'sk': 'Inovovať', 'sl': 'Nadgradi', 'et': 'Uuenda', 'lv': 'Jaunināt', 'lt': 'Atnaujinti', 'mt': 'Aġġorna', 'is': 'Uppfæra', 'ga': 'Uasghrádú', 'cy': 'Uwchraddio', 'eu': 'Bertsio-berritu', 'ca': 'Actualitza', 'gl': 'Actualizar'
+  },
+  selectTool: {
+    'en': 'Select a tool', 'ko': '도구 선택', 'ja': 'ツールを選択', 'zh': '选择工具', 'es': 'Seleccionar herramienta', 'fr': 'Sélectionner un outil', 'de': 'Werkzeug auswählen', 'it': 'Seleziona strumento', 'pt': 'Selecionar ferramenta', 'ru': 'Выбрать инструмент', 'ar': 'اختر أداة', 'hi': 'उपकरण चुनें', 'th': 'เลือกเครื่องมือ', 'vi': 'Chọn công cụ', 'nl': 'Selecteer gereedschap', 'sv': 'Välj verktyg', 'da': 'Vælg værktøj', 'no': 'Velg verktøy', 'fi': 'Valitse työkalu', 'pl': 'Wybierz narzędzie', 'tr': 'Araç seç', 'he': 'בחר כלי', 'uk': 'Вибрати інструмент', 'cs': 'Vybrat nástroj', 'hu': 'Eszköz kiválasztása', 'ro': 'Selectează instrumentul', 'bg': 'Избери инструмент', 'hr': 'Odaberi alat', 'sk': 'Vybrať nástroj', 'sl': 'Izberi orodje', 'et': 'Vali tööriist', 'lv': 'Izvēlēties rīku', 'lt': 'Pasirinkite įrankį', 'mt': 'Agħżel għodda', 'is': 'Veldu verkfæri', 'ga': 'Roghnaigh uirlis', 'cy': 'Dewiswch offeryn', 'eu': 'Hautatu tresna', 'ca': 'Seleccionar eina', 'gl': 'Seleccionar ferramenta'
+  },
+  uploadFile: {
+    'en': 'Upload file', 'ko': '파일 업로드', 'ja': 'ファイルをアップロード', 'zh': '上传文件', 'es': 'Subir archivo', 'fr': 'Télécharger un fichier', 'de': 'Datei hochladen', 'it': 'Carica file', 'pt': 'Enviar arquivo', 'ru': 'Загрузить файл', 'ar': 'رفع ملف', 'hi': 'फ़ाइल अपलोड करें', 'th': 'อัปโหลดไฟล์', 'vi': 'Tải lên tệp', 'nl': 'Bestand uploaden', 'sv': 'Ladda upp fil', 'da': 'Upload fil', 'no': 'Last opp fil', 'fi': 'Lataa tiedosto', 'pl': 'Prześlij plik', 'tr': 'Dosya yükle', 'he': 'העלה קובץ', 'uk': 'Завантажити файл', 'cs': 'Nahrát soubor', 'hu': 'Fájl feltöltése', 'ro': 'Încarcă fișier', 'bg': 'Качи файл', 'hr': 'Učitaj datoteku', 'sk': 'Nahrať súbor', 'sl': 'Naloži datoteko', 'et': 'Laadi fail üles', 'lv': 'Augšupielādēt failu', 'lt': 'Įkelti failą', 'mt': 'Ittella fajl', 'is': 'Hlaða upp skrá', 'ga': 'Uaslódáil comhad', 'cy': 'Llwytho ffeil i fyny', 'eu': 'Igo fitxategia', 'ca': 'Pujar fitxer', 'gl': 'Subir ficheiro'
   }
 };
 
-type ChatInputTranslationKeys = 'usesTools' | 'talkToModel' | 'placeholder' | 'processing' | 'tokenDanger' | 'tokenWarning' | 'tokenSafe' | 'contextUsage' | 'upgradeToPro' | 'getFullContext' | 'upgrade';
+type ChatInputTranslationKeys = 'usesTools' | 'talkToModel' | 'placeholder' | 'processing' | 'tokenDanger' | 'tokenWarning' | 'tokenSafe' | 'contextUsage' | 'upgradeToPro' | 'getFullContext' | 'upgrade' | 'selectTool' | 'uploadFile';
 
 export function getChatInputTranslations(): Record<ChatInputTranslationKeys, string> {
   const defaultTranslations: Record<ChatInputTranslationKeys, string> = {
@@ -322,6 +328,8 @@ export function getChatInputTranslations(): Record<ChatInputTranslationKeys, str
     upgradeToPro: chatInputTranslations.upgradeToPro['en'],
     getFullContext: chatInputTranslations.getFullContext['en'],
     upgrade: chatInputTranslations.upgrade['en'],
+    selectTool: chatInputTranslations.selectTool['en'],
+    uploadFile: chatInputTranslations.uploadFile['en'],
   };
 
   if (typeof navigator === 'undefined') {
@@ -343,6 +351,8 @@ export function getChatInputTranslations(): Record<ChatInputTranslationKeys, str
     upgradeToPro: chatInputTranslations.upgradeToPro[langCode] || defaultTranslations.upgradeToPro,
     getFullContext: chatInputTranslations.getFullContext[langCode] || defaultTranslations.getFullContext,
     upgrade: chatInputTranslations.upgrade[langCode] || defaultTranslations.upgrade,
+    selectTool: chatInputTranslations.selectTool[langCode] || defaultTranslations.selectTool,
+    uploadFile: chatInputTranslations.uploadFile[langCode] || defaultTranslations.uploadFile,
   };
 
   return translations;

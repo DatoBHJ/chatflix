@@ -1,15 +1,15 @@
 'use client'
 
-import { Message } from 'ai'
+import { UIMessage } from 'ai'
 import Canvas from '@/app/components/Canvas';
 import { StructuredResponse } from '@/app/components/StructuredResponse';
-import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getAcademicSearchData } from '@/app/hooks/toolFunction';
-import React, { useState } from 'react';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData } from '@/app/hooks/toolFunction';
+import React, { useState, useEffect } from 'react';
 import { AttachmentTextViewer } from './AttachmentTextViewer';
 
 interface SidePanelProps {
   activePanel: { messageId: string; type: 'canvas' | 'structuredResponse' | 'attachment'; fileIndex?: number; toolType?: string; fileName?: string } | null;
-  messages: Message[];
+  messages: UIMessage[];
   togglePanel: (messageId: string, type: 'canvas' | 'structuredResponse' | 'attachment', fileIndex?: number, toolType?: string, fileName?: string) => void;
   canvasContainerRef: React.RefObject<HTMLDivElement | null>;
 }
@@ -21,6 +21,18 @@ export function SidePanel({
   canvasContainerRef
 }: SidePanelProps) {
   const [copiedFileIndex, setCopiedFileIndex] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // 모바일 화면 여부 확인
+  useEffect(() => {
+    const checkIfMobile = () => {
+      setIsMobile(window.innerWidth < 640); // sm breakpoint
+    };
+    
+    checkIfMobile();
+    window.addEventListener('resize', checkIfMobile);
+    return () => window.removeEventListener('resize', checkIfMobile);
+  }, []);
 
   if (!activePanel?.messageId) {
     return (
@@ -48,7 +60,7 @@ export function SidePanel({
   const mathCalculationData = getMathCalculationData(activeMessage);
   const linkReaderData = getLinkReaderData(activeMessage);
   const imageGeneratorData = getImageGeneratorData(activeMessage);
-  const academicSearchData = getAcademicSearchData(activeMessage);
+
   const youTubeSearchData = getYouTubeSearchData(activeMessage);
   const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(activeMessage);
 
@@ -75,7 +87,6 @@ export function SidePanel({
         mathCalculationData,
         linkReaderData,
         imageGeneratorData,
-        academicSearchData,
         youTubeSearchData,
         youTubeLinkAnalysisData
       ].filter(Boolean).length;
@@ -85,7 +96,7 @@ export function SidePanel({
         if (mathCalculationData) return 'Calculator';
         if (linkReaderData) return 'Link Reader';
         if (imageGeneratorData) return 'Image Generator';
-        if (academicSearchData) return 'Academic Search';
+
         if (youTubeSearchData) return 'YouTube Search';
         if (youTubeLinkAnalysisData) return 'YouTube Analysis';
       }
@@ -105,7 +116,7 @@ export function SidePanel({
       if (mathCalculationData) canvasDataSummary.push('Calculator');
       if (linkReaderData) canvasDataSummary.push('Link Reader');
       if (imageGeneratorData) canvasDataSummary.push('Image Gen');
-      if (academicSearchData) canvasDataSummary.push('Academic Search');
+
       if (youTubeSearchData) canvasDataSummary.push('YouTube Search');
       if (youTubeLinkAnalysisData) canvasDataSummary.push('YouTube Analysis');
 
@@ -234,7 +245,32 @@ export function SidePanel({
 
     // Attachment 파일 액션
     if (activePanel.type === 'attachment' && typeof activePanel.fileIndex === 'number') {
-      const attachments = (activeMessage as any).experimental_attachments;
+      const attachmentsFromParts = (() => {
+        const parts = (activeMessage as any)?.parts;
+        if (!Array.isArray(parts)) return [] as any[];
+        return parts
+          .filter((part: any) => part.type === 'image' || part.type === 'file')
+          .map((part: any, index: number) => {
+            if (part.type === 'image') {
+              return {
+                name: `image-${index}`,
+                contentType: 'image/jpeg',
+                url: part.image,
+                fileType: 'image' as const
+              };
+            } else {
+              return {
+                name: part.filename || `file-${index}`,
+                contentType: part.mediaType || 'application/octet-stream',
+                url: part.url,
+                fileType: 'file' as const
+              };
+            }
+          })
+          .filter(Boolean);
+      })();
+
+      const attachments = (activeMessage as any).experimental_attachments || attachmentsFromParts;
       if (!attachments || activePanel.fileIndex < 0 || activePanel.fileIndex >= attachments.length) {
         return null;
       }
@@ -272,7 +308,33 @@ export function SidePanel({
       return null;
     }
 
-    const attachments = (activeMessage as any).experimental_attachments;
+    // Prefer DB attachments, but fall back to parts-derived attachments for v5-only messages
+    const attachmentsFromParts = (() => {
+      const parts = (activeMessage as any)?.parts;
+      if (!Array.isArray(parts)) return [] as any[];
+      return parts
+        .filter((part: any) => part.type === 'image' || part.type === 'file')
+        .map((part: any, index: number) => {
+          if (part.type === 'image') {
+            return {
+              name: `image-${index}`,
+              contentType: 'image/jpeg',
+              url: part.image,
+              fileType: 'image' as const
+            };
+          } else {
+            return {
+              name: part.filename || `file-${index}`,
+              contentType: part.mediaType || 'application/octet-stream',
+              url: part.url,
+              fileType: 'file' as const
+            };
+          }
+        })
+        .filter(Boolean);
+    })();
+
+    const attachments = (activeMessage as any).experimental_attachments || attachmentsFromParts;
     if (!attachments || activePanel.fileIndex < 0 || activePanel.fileIndex >= attachments.length) {
       return <div className="text-center text-[var(--muted)]">Attachment not found</div>;
     }
@@ -287,7 +349,7 @@ export function SidePanel({
                    attachment.contentType?.includes('typescript') ||
                    attachment.contentType?.includes('html') ||
                    attachment.contentType?.includes('css') ||
-                   (attachment.name && /\.(txt|md|js|jsx|ts|tsx|html|css|json|xml|py|java|c|cpp|cs|go|rb|php|swift|kt|rs|sql|sh|yml|yaml|toml|ini|cfg|conf|log)$/i.test(attachment.name));
+                   (attachment.name && /(\.txt|\.md|\.js|\.jsx|\.ts|\.tsx|\.html|\.css|\.json|\.xml|\.py|\.java|\.c|\.cpp|\.cs|\.go|\.rb|\.php|\.swift|\.kt|\.rs|\.sql|\.sh|\.yml|\.yaml|\.toml|\.ini|\.cfg|\.conf|\.log)$/i.test(attachment.name));
 
     if (isImage) {
       return (
@@ -341,138 +403,142 @@ export function SidePanel({
   };
 
   return (
-        <div 
-      className="side-panel fixed sm:relative sm:top-1.5 right-0 bottom-0 
-        w-full sm:w-full sm:h-full bg-[var(--background)] sm:border-l 
-        border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] 
-        overflow-y-auto z-[60] 
-        transition-all duration-300 ease-in-out transform 
-        translate-x-0 opacity-100 sm:flex-shrink-0 
-        scrollbar-minimal"
-      style={{ 
-        // height: 'calc(100vh - 60px)',
-        maxHeight: '100%',
-        minWidth: 0 // Prevent flex item from overflowing
-      }}
-      ref={canvasContainerRef}
-    >
-      {/* 사파리 스타일 헤더 */}
-      <div className="sticky top-0 z-20 bg-[var(--background)] flex items-center justify-between px-2 sm:px-4 py-1.5 border-b border-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
-        <div className="flex items-center gap-1">
-          {/* 모바일: 닫기 버튼만, 데스크톱: 사파리 스타일 버튼들 */}
-          <div className="sm:safari-window-buttons">
-            {/* 모바일 닫기 버튼 */}
+    <div 
+  className="side-panel fixed sm:relative sm:top-1.5 right-0 bottom-0 
+    w-full sm:w-full sm:h-full bg-[var(--background)] sm:border-l 
+    border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] 
+    overflow-y-auto z-[60] 
+    transition-all duration-300 ease-in-out transform 
+    translate-x-0 opacity-100 sm:flex-shrink-0 
+    scrollbar-minimal"
+  style={{ 
+    height: isMobile ? '100vh' : '100%',
+    maxHeight: isMobile ? '100vh' : '100%',
+    minWidth: 0 // Prevent flex item from overflowing
+  }}
+  ref={canvasContainerRef}
+>
+  {/* 사파리 스타일 헤더 */}
+  <div className="sticky top-0 z-20 bg-[var(--background)] flex items-center justify-between px-2 sm:px-4 py-1.5 border-b border-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
+    <div className="flex items-center gap-1">
+      {/* 모바일: 닫기 버튼만, 데스크톱: 사파리 스타일 버튼들 */}
+      <div>
+        {/* 모바일에서만 표시되는 닫기 버튼 */}
+        {isMobile && (
+          <button 
+            onClick={() => togglePanel(activePanel.messageId, activePanel.type, activePanel.fileIndex, activePanel.toolType)}
+            className="imessage-control-btn"
+            title="Close panel"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        )}
+        
+        {/* 데스크톱에서만 표시되는 사파리 스타일 버튼들 */}
+        {!isMobile && (
+          <div className="flex items-center gap-2">
+            {/* 빨간색 닫기 버튼 */}
             <button 
               onClick={() => togglePanel(activePanel.messageId, activePanel.type, activePanel.fileIndex, activePanel.toolType)}
-              className="imessage-control-btn sm:hidden"
+              className="safari-window-button close"
               title="Close panel"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
+              <div className="icon">
+                <svg viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M1 1L7 7M7 1L1 7" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+                </svg>
+              </div>
             </button>
             
-            {/* 데스크톱 사파리 스타일 버튼들 */}
-            <div className="hidden sm:flex items-center gap-2">
-              {/* 빨간색 닫기 버튼 */}
-              <button 
-                onClick={() => togglePanel(activePanel.messageId, activePanel.type, activePanel.fileIndex, activePanel.toolType)}
-                className="safari-window-button close"
-                title="Close panel"
-              >
-                <div className="icon">
-                  <svg viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M1 1L7 7M7 1L1 7" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
-                  </svg>
-                </div>
-              </button>
-              
-              {/* 회색 최소화 버튼 (비활성) */}
-              <button 
-                className="safari-window-button minimize"
-                title="Minimize (not available)"
-                disabled
-              />
-              
-              {/* 초록색 최대화 버튼 */}
-              <button 
-                onClick={() => {
-                  // 창 최대화/복원 효과
-                  const panel = canvasContainerRef.current;
-                  if (panel) {
-                    if (panel.classList.contains('maximized')) {
-                      // 최대화 상태에서 원래 크기로 복원
-                      panel.classList.remove('maximized');
-                      panel.style.position = '';
-                      panel.style.top = '';
-                      panel.style.right = '';
-                      panel.style.bottom = '';
-                      panel.style.left = '';
-                      panel.style.width = '';
-                      panel.style.height = '';
-                      panel.style.zIndex = '';
-                      panel.style.transform = '';
-                      panel.style.borderRadius = '';
-                    } else {
-                      // 기본 상태에서 전체 화면으로 최대화
-                      panel.classList.add('maximized');
-                      panel.style.position = 'fixed';
-                      panel.style.top = '0';
-                      panel.style.right = '0';
-                      panel.style.bottom = '0';
-                      panel.style.left = '0';
-                      panel.style.width = '100vw';
-                      panel.style.height = '100vh';
-                      panel.style.zIndex = '9999';
-                      panel.style.transform = 'scale(1)';
-                      panel.style.borderRadius = '0';
-                    }
-                  }
-                }}
-                className="safari-window-button maximize"
-                title="Toggle maximize"
-              >
-                <div className="icon">
-                  <svg viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="2" y="2" width="4" height="4" stroke="currentColor" strokeWidth="1" fill="none"/>
-                  </svg>
-                </div>
-              </button>
-            </div>
-          </div>
-          
-
-        </div>
-        
-        {/* 우측 액션 버튼들 */}
-        <div className="flex items-center gap-1">
-          {renderFileActions()}
-        </div>
-      </div>
-
-      {/* 패널 내용 */}
-      <div className="px-3 sm:px-4 pt-0 sm:pt-4 pb-28 min-w-0 flex-1 overflow-hidden">
-        <div key={`panel-content-${activeMessage.id}`} className="h-full overflow-y-auto">
-          {activePanel.type === 'canvas' && (
-            <Canvas
-              webSearchData={webSearchData}
-              mathCalculationData={mathCalculationData}
-              linkReaderData={linkReaderData}
-              imageGeneratorData={imageGeneratorData}
-              academicSearchData={academicSearchData}
-              youTubeSearchData={youTubeSearchData}
-              youTubeLinkAnalysisData={youTubeLinkAnalysisData}
-              isCompact={false} // 패널에서는 항상 전체 보기
-              selectedTool={activePanel.toolType} // 선택된 도구 전달
+            {/* 회색 최소화 버튼 (비활성) */}
+            <button 
+              className="safari-window-button minimize"
+              title="Minimize (not available)"
+              disabled
             />
-          )}
-          {activePanel.type === 'structuredResponse' && (
-            <StructuredResponse message={activeMessage} fileIndex={activePanel.fileIndex} />
-          )}
-          {activePanel.type === 'attachment' && renderAttachmentContent()}
-        </div>
+            
+            {/* 초록색 최대화 버튼 */}
+            <button 
+              onClick={() => {
+                // 창 최대화/복원 효과
+                const panel = canvasContainerRef.current;
+                if (panel) {
+                  if (panel.classList.contains('maximized')) {
+                    // 최대화 상태에서 원래 크기로 복원
+                    panel.classList.remove('maximized');
+                    panel.style.position = '';
+                    panel.style.top = '';
+                    panel.style.right = '';
+                    panel.style.bottom = '';
+                    panel.style.left = '';
+                    panel.style.width = '';
+                    panel.style.height = '';
+                    panel.style.zIndex = '';
+                    panel.style.transform = '';
+                    panel.style.borderRadius = '';
+                  } else {
+                    // 기본 상태에서 전체 화면으로 최대화
+                    panel.classList.add('maximized');
+                    panel.style.position = 'fixed';
+                    panel.style.top = '0';
+                    panel.style.right = '0';
+                    panel.style.bottom = '0';
+                    panel.style.left = '0';
+                    panel.style.width = '100vw';
+                    panel.style.height = '100vh';
+                    panel.style.zIndex = '9999';
+                    panel.style.transform = 'scale(1)';
+                    panel.style.borderRadius = '0';
+                  }
+                }
+              }}
+              className="safari-window-button maximize"
+              title="Toggle maximize"
+            >
+              <div className="icon">
+                <svg viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="2" y="2" width="4" height="4" stroke="currentColor" strokeWidth="1" fill="none"/>
+                </svg>
+              </div>
+            </button>
+          </div>
+        )}
       </div>
+      
+
     </div>
-  );
+    
+    {/* 우측 액션 버튼들 */}
+    <div className="flex items-center gap-1">
+      {renderFileActions()}
+    </div>
+  </div>
+
+  {/* 패널 내용 */}
+  <div className="px-3 sm:px-4 pt-0 sm:pt-4 pb-28 min-w-0 flex-1 overflow-hidden">
+    <div key={`panel-content-${activeMessage.id}`} className="h-full overflow-y-auto">
+      {activePanel.type === 'canvas' && (
+        <Canvas
+          webSearchData={webSearchData}
+          mathCalculationData={mathCalculationData}
+          linkReaderData={linkReaderData}
+          imageGeneratorData={imageGeneratorData}
+
+          youTubeSearchData={youTubeSearchData}
+          youTubeLinkAnalysisData={youTubeLinkAnalysisData}
+          isCompact={false} // 패널에서는 항상 전체 보기
+          selectedTool={activePanel.toolType} // 선택된 도구 전달
+        />
+      )}
+      {activePanel.type === 'structuredResponse' && (
+        <StructuredResponse message={activeMessage} fileIndex={activePanel.fileIndex} />
+      )}
+      {activePanel.type === 'attachment' && renderAttachmentContent()}
+    </div>
+  </div>
+</div>
+);
 } 

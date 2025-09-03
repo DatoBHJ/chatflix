@@ -1,5 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
-import { checkSubscription } from '@/lib/polar'
+import { checkSubscriptionFromDatabase } from '@/lib/subscription-db'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
@@ -8,13 +8,15 @@ export async function GET() {
 
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
+    
+    // 🚀 익명 사용자 지원: 익명 사용자는 Free Plan으로 처리
     if (userError || !user) {
-      console.error('User error:', userError)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      console.log('Anonymous user or auth error - treating as Free Plan');
+      return NextResponse.json({ isSubscribed: false })
     }
 
-    // Check subscription status
-    const isSubscribed = await checkSubscription(user.id)
+    // Check subscription status from database first, with fallback to Polar API
+    const isSubscribed = await checkSubscriptionFromDatabase(user.id)
     
     return NextResponse.json({ isSubscribed })
   } catch (error) {

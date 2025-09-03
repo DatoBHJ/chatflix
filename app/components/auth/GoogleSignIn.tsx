@@ -1,0 +1,101 @@
+'use client'
+
+import { useState } from 'react'
+import { createClient } from '@/utils/supabase/client'
+import { useRouter } from 'next/navigation'
+
+interface GoogleSignInProps {
+  isSignIn?: boolean
+}
+
+export function GoogleSignIn({ isSignIn = false }: GoogleSignInProps) {
+  const router = useRouter()
+  const supabase = createClient()
+  const [loading, setLoading] = useState(false)
+
+  async function handleSignInWithGoogle() {
+    try {
+      setLoading(true)
+      
+      // 현재 도메인을 동적으로 감지
+      const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
+      
+      // 환경에 따른 리다이렉트 URL 설정
+      const redirectUrl = process.env.NODE_ENV === 'development' 
+        ? 'http://localhost:3000/auth/callback'
+        : `${currentOrigin}/auth/callback`
+      
+      console.log('Google OAuth attempt:', {
+        environment: process.env.NODE_ENV,
+        currentOrigin,
+        redirectUrl,
+        timestamp: new Date().toISOString()
+      })
+      
+      // Supabase OAuth 사용 (브랜딩은 Supabase 설정에 의존)
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: {
+            prompt: 'select_account',
+            access_type: 'online',
+            include_granted_scopes: 'true',
+          }
+        }
+      })
+
+      if (error) {
+        console.error('Google OAuth initiation error:', error)
+        throw error
+      }
+      
+      console.log('Google OAuth initiated successfully:', data)
+      
+      // OAuth flow will redirect automatically
+      // No need to manually redirect here
+    } catch (error) {
+      console.error('Error signing in with Google:', error)
+      
+      // 사용자에게 친화적인 에러 메시지 표시
+      let errorMessage = 'Failed to start Google sign-in'
+      if (error instanceof Error) {
+        if (error.message.includes('popup')) {
+          errorMessage = 'Please allow popups for this site and try again'
+        } else if (error.message.includes('network')) {
+          errorMessage = 'Network error. Please check your connection and try again'
+        } else {
+          errorMessage = error.message
+        }
+      }
+      
+      alert(errorMessage)
+      setLoading(false)
+    }
+  }
+
+  return (
+    <button 
+      onClick={handleSignInWithGoogle}
+      disabled={loading}
+      className="w-full py-3 border rounded-lg transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+      style={{
+        backgroundColor: 'var(--background)',
+        borderColor: 'color-mix(in srgb, var(--foreground) 20%, transparent)',
+        color: 'var(--foreground)'
+      }}
+    >
+      {loading ? (
+        <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--foreground)' }}></div>
+      ) : (
+        <svg className="w-5 h-5" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg>
+      )}
+      {isSignIn ? 'Sign in with Google' : 'Sign up with Google'}
+    </button>
+  )
+} 

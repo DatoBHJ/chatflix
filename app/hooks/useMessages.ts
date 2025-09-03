@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Message } from 'ai'
+import { UIMessage } from 'ai'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 import { MODEL_CONFIGS } from '@/lib/models/config'
@@ -43,19 +43,25 @@ export function useMessages(chatId: string, userId: string) {
     return false;
   }
 
-  const handleCopyMessage = async (message: Message) => {
+  // Helper to get displayable text from a UIMessage (v5 parts-first with legacy fallback)
+  const getMessageText = (message: UIMessage): string => {
+    if (message && Array.isArray(message.parts) && message.parts.length > 0) {
+      return message.parts
+        .filter(part => (part as any)?.type === 'text')
+        .map(part => ((part as any)?.text as string) || '')
+        .join('\n')
+        .trim();
+    }
+    return (message as any).content || '';
+  };
+
+  const handleCopyMessage = async (message: UIMessage) => {
     try {
-      // Get regular message content - in our new approach, the main response is already in the content
-      let textToCopy = message.parts
-        ? message.parts
-            .filter(part => part.type === 'text')
-            .map(part => (part as { text: string }).text || '')
-            .join('\n')
-            .trim()
-        : message.content
+      // Aggregate message text from parts with legacy fallback
+      let textToCopy = getMessageText(message);
 
       // If the message has a structured response with description, include it
-      const annotations = (message.annotations || []) as any[];
+      const annotations = ((message as any).annotations || []) as any[];
       const structuredResponseAnnotation = annotations.find(
         annotation => annotation.type === 'structured_response'
       );
@@ -93,9 +99,9 @@ export function useMessages(chatId: string, userId: string) {
 
   const generateMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
-  const handleEditStart = (message: Message) => {
+  const handleEditStart = (message: UIMessage) => {
     setEditingMessageId(message.id)
-    setEditingContent(message.content)
+    setEditingContent(getMessageText(message))
   }
 
   const handleEditCancel = () => {
@@ -103,7 +109,13 @@ export function useMessages(chatId: string, userId: string) {
     setEditingContent('')
   }
 
-  const handleEditSave = async (messageId: string, currentModel: string, messages: Message[], setMessages: (messages: Message[]) => void, reload: any, files?: globalThis.File[], remainingAttachments?: any[]) => {
+  const handleEditSave = async (messageId: string, currentModel: string, messages: UIMessage[], setMessages: (messages: UIMessage[]) => void, reload: any, isAgentEnabled?: boolean, files?: globalThis.File[], remainingAttachments?: any[], selectedTool?: string | null) => {
+    // 🚀 익명 사용자 지원: 익명 사용자는 편집 저장 불가
+    if (userId === 'anonymous' || userId.startsWith('anonymous_')) {
+      alert('Please sign in to edit messages');
+      return;
+    }
+    
     // console.log('Starting edit save operation:', { 
     //   currentModel,
     //   messageId, 
@@ -176,21 +188,43 @@ export function useMessages(chatId: string, userId: string) {
       const localSequenceNumber = messageIndex + 1;
 
       // 1. 먼저 UI 상태 업데이트 (레퍼런스 코드 패턴)
-      const updatedMessages = messages.slice(0, messageIndex + 1).map(msg =>
-        msg.id === messageId
-          ? {
-              ...msg,
-              content: currentEditingContent,
-              experimental_attachments: allAttachments,
-              parts: msg.parts ? msg.parts.map(part => 
-                part.type === 'text' ? { ...part, text: currentEditingContent } : part
-              ) : undefined
-            }
-          : msg
-      );
+      const updatedMessages = messages.slice(0, messageIndex + 1).map(msg => {
+        if (msg.id !== messageId) return msg;
+        
+        // 텍스트 부분만 유지하고 기존 파일들은 제거
+        const newParts = Array.isArray(msg.parts)
+          ? msg.parts
+              .filter(part => (part as any).type === 'text') // 🚀 텍스트만 유지, 기존 파일들 제거
+              .map(part => ({ ...(part as any), text: currentEditingContent }))
+          : [{ type: 'text', text: currentEditingContent } as any];
+        
+        // 🚀 새로 업로드된 첨부파일들을 parts에 추가
+        newAttachments.forEach((attachment) => {
+          if (attachment.contentType?.startsWith('image/')) {
+            newParts.push({
+              type: 'image',
+              image: attachment.url
+            });
+          } else {
+            newParts.push({
+              type: 'file',
+              url: attachment.url,
+              mediaType: attachment.contentType || 'application/octet-stream',
+              filename: attachment.name || 'file'
+            });
+          }
+        });
+        
+        return {
+          ...(msg as any),
+          content: currentEditingContent, // legacy UI paths still read .content
+          experimental_attachments: newAttachments.length > 0 ? newAttachments : null, // 🚀 새 파일만 포함
+          parts: newParts,
+        } as any;
+      });
       
       // 즉시 메시지 상태 업데이트하여 UI에 반영
-      setMessages(updatedMessages);
+      setMessages(updatedMessages as unknown as UIMessage[]);
       
       // 2. 편집 모드 종료 (레퍼런스 코드 패턴)
       setEditingMessageId(null);
@@ -223,9 +257,8 @@ export function useMessages(chatId: string, userId: string) {
             sequence_number: localSequenceNumber,
             is_edited: true,
             edited_at: new Date().toISOString(),
-            model: currentModel,
             host: localMessage.role === 'assistant' ? 'assistant' : 'user',
-            experimental_attachments: allAttachments.length > 0 ? allAttachments : null
+            experimental_attachments: newAttachments.length > 0 ? newAttachments : null // 🚀 새 파일만 저장
           }])
           .select()
           .single();
@@ -240,7 +273,7 @@ export function useMessages(chatId: string, userId: string) {
             content: currentEditingContent,
             is_edited: true,
             edited_at: new Date().toISOString(),
-            experimental_attachments: allAttachments.length > 0 ? allAttachments : null
+            experimental_attachments: newAttachments.length > 0 ? newAttachments : null // 🚀 새 파일만 저장
           })
           .eq('id', messageId)
           .eq('user_id', userId)
@@ -283,23 +316,7 @@ export function useMessages(chatId: string, userId: string) {
       //   console.log('Subsequent messages deleted successfully');
       // }
 
-      const assistantMessageId = generateMessageId();
-
-      const { error: insertError } = await supabase
-        .from('messages')
-        .insert([{
-          id: assistantMessageId,
-          role: 'assistant',
-          content: '',
-          created_at: new Date().toISOString(),
-          model: currentModel,
-          host: 'assistant',
-          chat_session_id: chatId,
-          user_id: userId,
-          sequence_number: existingMessage.sequence_number + 1
-        }]);
-
-      if (insertError) throw insertError;
+      // v5: 빈 어시스턴트 메시지 미리 생성하지 않음 - 스트림 완료 시 저장
 
       // Check if current model is rate limited
       let modelToUse = currentModel;
@@ -336,8 +353,10 @@ export function useMessages(chatId: string, userId: string) {
             messages: messagesWithMetadata,
             model: modelToUse, // Use original model - rate limits will be handled by error handlers
             chatId,
-            isRegeneration: true,
-            existingMessageId: assistantMessageId
+            isRegeneration: false, // 편집 후 전송은 새로운 대화이므로 재생성이 아님
+            isAgentEnabled: !!isAgentEnabled,
+            selectedTool: selectedTool || null, // 현재 선택된 도구 사용
+            experimental_attachments: newAttachments // 🚀 새로 업로드된 파일들 전달
           }
         });
       } catch (error: any) {
@@ -367,7 +386,13 @@ export function useMessages(chatId: string, userId: string) {
     }
   }
 
-  const handleRegenerate = useCallback((messageId: string, messages: Message[], setMessages: (messages: Message[]) => void, currentModel: string, reload: any) => async (e: React.MouseEvent) => {
+  const handleRegenerate = useCallback((messageId: string, messages: UIMessage[], setMessages: (messages: UIMessage[]) => void, currentModel: string, reload: any, isAgentEnabled?: boolean, selectedTool?: string | null) => async (e: React.MouseEvent) => {
+    // 🚀 익명 사용자 지원: 익명 사용자는 재생성 불가
+    if (userId === 'anonymous' || userId.startsWith('anonymous_')) {
+      alert('Please sign in to regenerate messages');
+      return;
+    }
+    
     // console.log('Starting regenerate operation:', { 
     //   currentModel,
     //   messageId, 
@@ -435,38 +460,20 @@ export function useMessages(chatId: string, userId: string) {
         sequenceNumber = messageData.sequence_number
       }
 
-      // 이후 메시지들 삭제
+      // 재생성하려는 메시지 이후의 메시지들만 삭제 (재생성 메시지는 유지)
       const { error: deleteError } = await supabase
         .from('messages')
         .delete()
         .eq('chat_session_id', chatId)
         .eq('user_id', userId)
-        .gte('sequence_number', sequenceNumber)
+        .gt('sequence_number', sequenceNumber)
 
       if (deleteError) {
         // console.error('Error deleting subsequent messages:', deleteError)
         return
       }
 
-      // 새로운 assistant 메시지 삽입
-      const { error: insertError } = await supabase
-        .from('messages')
-        .insert([{
-          id: assistantMessageId,
-          role: 'assistant',
-          content: '',
-          created_at: new Date().toISOString(),
-          model: currentModel,
-          host: 'assistant',
-          chat_session_id: chatId,
-          user_id: userId,
-          sequence_number: sequenceNumber
-        }])
-
-      if (insertError) {
-        // console.error('Error inserting new assistant message:', insertError)
-        return
-      }
+      // v5: 빈 어시스턴트 메시지 미리 생성하지 않음 - 스트림 완료 시 저장
 
       // Check if current model is rate limited
       let modelToUse = currentModel;
@@ -474,7 +481,7 @@ export function useMessages(chatId: string, userId: string) {
 
       try {
         // 🆕 재생성할 메시지의 첨부파일 메타데이터 추출
-        let enrichedTargetMessage = { ...targetUserMessage };
+        let enrichedTargetMessage: any = { ...(targetUserMessage as any) };
         
         if ((targetUserMessage as any).experimental_attachments && (targetUserMessage as any).experimental_attachments.length > 0) {
           // console.log('📎 [DEBUG] Processing attachments for regeneration message:', targetUserMessage.id);
@@ -491,18 +498,26 @@ export function useMessages(chatId: string, userId: string) {
         
         await reload({
           body: {
-            messages: [...updatedMessages, {
-              id: enrichedTargetMessage.id,
-              content: enrichedTargetMessage.content,
-              role: enrichedTargetMessage.role,
-              createdAt: enrichedTargetMessage.createdAt,
-              experimental_attachments: (enrichedTargetMessage as any).experimental_attachments
-            }],
+            messages: [
+              ...updatedMessages,
+              {
+                id: enrichedTargetMessage.id,
+                role: enrichedTargetMessage.role,
+                parts: Array.isArray(enrichedTargetMessage.parts)
+                  ? enrichedTargetMessage.parts
+                  : [{ type: 'text', text: getMessageText(enrichedTargetMessage) }],
+                content: enrichedTargetMessage.content, // legacy
+                createdAt: enrichedTargetMessage.createdAt,
+                experimental_attachments: (enrichedTargetMessage as any).experimental_attachments,
+              } as any,
+            ],
             model: modelToUse, // Use original model - rate limits will be handled by error handlers
             chatId,
             isRegeneration: true,
             existingMessageId: assistantMessageId,
-            saveToDb: false
+            saveToDb: false,
+            isAgentEnabled: !!isAgentEnabled,
+            selectedTool: selectedTool || null // 현재 선택된 도구 사용
           }
         });
       } catch (error: any) {
