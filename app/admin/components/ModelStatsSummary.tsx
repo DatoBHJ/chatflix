@@ -36,7 +36,7 @@ export default function ModelStatsSummary() {
     vision: activeModels.filter(m => m.supportsVision).length,
     pdf: activeModels.filter(m => m.supportsPDFs).length,
     Agent: activeModels.filter(m => m.isAgentEnabled).length,
-    reasoningText: activeModels.filter(m => m.reasoningText?.enabled).length
+    reasoning: activeModels.filter(m => m.reasoning).length
   };
 
   const statCardStyle = {
@@ -168,7 +168,7 @@ export default function ModelStatsSummary() {
           </div>
           <div className="flex justify-between items-center">
             <span>Reasoning</span>
-            <span className="font-semibold text-lg">{featureStats.reasoningText}</span>
+            <span className="font-semibold text-lg">{featureStats.reasoning}</span>
           </div>
         </div>
       </div>
