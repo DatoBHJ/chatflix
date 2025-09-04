@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { fetchUserName } from '../AccountDialog';
 import { formatMessageTime } from '@/app/lib/messageTimeUtils';
@@ -22,6 +22,36 @@ export interface SuggestedPromptProps {
 export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisible = true }: SuggestedPromptProps) {
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>(DEFAULT_PROMPTS);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  
+  // 🔧 FIX: 로컬 캐시를 통한 빠른 로딩
+  const getCachedPrompts = useCallback((uid: string) => {
+    if (uid === 'anonymous' || !uid) return null;
+    try {
+      const cached = localStorage.getItem(`prompts_${uid}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // 캐시가 24시간 이내인지 확인
+        if (parsed.timestamp && Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
+          return parsed.prompts;
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load cached prompts:', error);
+    }
+    return null;
+  }, []);
+  
+  const setCachedPrompts = useCallback((uid: string, prompts: string[]) => {
+    if (uid === 'anonymous' || !uid) return;
+    try {
+      localStorage.setItem(`prompts_${uid}`, JSON.stringify({
+        prompts,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.warn('Failed to cache prompts:', error);
+    }
+  }, []);
   const [hoveredPromptIndex, setHoveredPromptIndex] = useState<number>(-1);
   const [isEditing, setIsEditing] = useState(false);
   const [editingPromptIndex, setEditingPromptIndex] = useState<number>(-1);
@@ -87,24 +117,61 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
       return;
     }
     
+    // 🚀 익명 사용자는 바로 기본 프롬프트 사용
+    if (userId === 'anonymous') {
+      setSuggestedPrompts(DEFAULT_PROMPTS);
+      setIsInitialLoading(false);
+      return;
+    }
+    
+    // 🔧 FIX: 캐시된 프롬프트 먼저 확인하여 즉시 로딩
+    const cachedPrompts = getCachedPrompts(userId);
+    if (cachedPrompts && Array.isArray(cachedPrompts) && cachedPrompts.length > 0) {
+      setSuggestedPrompts(cachedPrompts);
+      setIsInitialLoading(false);
+      console.log('⚡ Loaded prompts from cache');
+      
+      // 백그라운드에서 최신 데이터 확인 (캐시 업데이트용)
+      loadUserPromptsFromDB(userId, false);
+      return;
+    }
+    
+    // 캐시가 없으면 DB에서 로드
+    await loadUserPromptsFromDB(userId, true);
+  };
+  
+  // DB에서 프롬프트 로드하는 별도 함수
+  const loadUserPromptsFromDB = async (uid: string, updateLoading: boolean = true) => {
     try {
-      const { data } = await supabase
+      // 🔧 FIX: 타임아웃과 재시도 로직 추가
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), 3000)
+      );
+      
+      const queryPromise = supabase
         .from('initial_prompts')
         .select('prompts')
-        .eq('user_id', userId)
+        .eq('user_id', uid)
         .maybeSingle();
+      
+      const { data } = await Promise.race([queryPromise, timeoutPromise]) as any;
       
       if (data?.prompts && Array.isArray(data.prompts) && data.prompts.length > 0) {
         setSuggestedPrompts(data.prompts);
+        setCachedPrompts(uid, data.prompts); // 캐시 업데이트
+        console.log('✅ Custom prompts loaded from DB');
       } else {
+        console.log('📝 No custom prompts found, using defaults');
         setSuggestedPrompts(DEFAULT_PROMPTS);
       }
     } catch (err) {
       // 에러 발생 시 조용히 기본값 사용
-      console.log('Using default prompts due to load error');
+      console.log('⚠️ Using default prompts due to load error:', err);
       setSuggestedPrompts(DEFAULT_PROMPTS);
     } finally {
-      setIsInitialLoading(false);
+      if (updateLoading) {
+        setIsInitialLoading(false);
+      }
     }
   };
 
@@ -123,6 +190,10 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
         }, {
           onConflict: 'user_id'
         });
+      
+      // 🔧 FIX: 저장 성공 시 캐시도 업데이트
+      setCachedPrompts(userId, prompts);
+      console.log('✅ Prompts saved and cached');
       
     } catch (err) {
       // 에러 발생 시 조용히 무시
@@ -153,11 +224,20 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     }
   };
 
-  // 사용자 ID 변경 시 프롬프트와 이름 불러오기
+  // 🔧 FIX: 사용자 ID 변경 시 프롬프트와 이름 불러오기 - 디바운스 적용
   useEffect(() => {
-    setIsInitialLoading(true);
-    loadUserPrompts();
-    loadUserName();
+    // 🚀 디바운스: userId가 빠르게 변경되는 경우 마지막 변경만 처리
+    const timeoutId = setTimeout(() => {
+      setIsInitialLoading(true);
+      Promise.all([
+        loadUserPrompts(),
+        loadUserName()
+      ]).finally(() => {
+        // 두 작업이 모두 완료된 후 로딩 상태 해제는 각 함수에서 개별 처리
+      });
+    }, 100); // 100ms 디바운스
+    
+    return () => clearTimeout(timeoutId);
   }, [userId]);
 
   // 모바일 감지

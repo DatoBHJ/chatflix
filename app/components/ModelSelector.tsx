@@ -827,8 +827,8 @@ export function ModelSelector({
                 style={{
                       transform: showElements.modal ? `translateY(${currentTranslateY}px)` : 'translateY(calc(100vh - 60px))',
                       transition: isDragging ? 'none' : showElements.modal ? 'transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.3s ease-out' : 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-out',
-                      height: 'calc(100vh - 60px)',
-                      maxHeight: 'calc(100vh - 60px)',
+                      height: 'calc(100vh - 120px)',
+                      maxHeight: 'calc(100vh - 120px)',
                       backgroundColor: 'var(--background)',
                       backdropFilter: 'blur(0px)',
                       willChange: 'transform, opacity',
