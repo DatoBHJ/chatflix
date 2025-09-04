@@ -827,7 +827,8 @@ export function ModelSelector({
                 style={{
                       transform: showElements.modal ? `translateY(${currentTranslateY}px)` : 'translateY(calc(100vh - 60px))',
                       transition: isDragging ? 'none' : showElements.modal ? 'transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.3s ease-out' : 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-out',
-                      height: 'calc(100vh - 20px)',
+                      height: 'calc(100vh - 60px)',
+                      maxHeight: 'calc(100vh - 60px)',
                       backgroundColor: 'var(--background)',
                       backdropFilter: 'blur(0px)',
                       willChange: 'transform, opacity',
@@ -843,7 +844,7 @@ export function ModelSelector({
 
                   <div 
                     ref={headerRef}
-                     className={`relative flex items-center justify-between py-6 px-6 border-b border-[var(--accent)] shrink-0 transition-all duration-250 ease-out ${
+                     className={`relative flex items-center justify-center py-6 px-6 border-b border-[var(--accent)] shrink-0 transition-all duration-250 ease-out ${
                        showElements.title ? 'translate-y-0 opacity-100' : (isClosing ? 'translate-y-6 opacity-0' : 'translate-y-6 opacity-0')
                      }`}
                      style={{ willChange: 'transform, opacity' }}
@@ -851,29 +852,7 @@ export function ModelSelector({
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}
                    >
-                    <div className="w-8"></div> {/* Spacer for centering */}
                     <h2 className="text-xl font-semibold">Models</h2>
-                    <button
-                      onClick={handleClose}
-                      className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center transition-all duration-200 hover:bg-black/10 dark:hover:bg-white/20 active:scale-95"
-                      aria-label="Close"
-                    >
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 14 14"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="text-gray-600 dark:text-gray-400"
-                      >
-                        <path
-                          d="M1 1L13 13M1 13L13 1"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    </button>
                   </div>
                 </>
               )}
