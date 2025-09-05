@@ -547,17 +547,14 @@ export function ChatInput({
     }
   };
 
-  // 컴포넌트가 마운트될 때 및 placeholder 변경 시 입력 필드 초기화
+  // 컴포넌트가 마운트될 때 빈 입력 필드 초기화
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.classList.add('empty');
       inputRef.current.setAttribute('data-placeholder', placeholder);
-      // 모바일에서 도구 선택창이 열릴 때는 포커스하지 않아 키보드가 열리지 않도록 함
-      if (!(isMobile && showToolSelector)) {
-        inputRef.current.focus({ preventScroll: true });
-      }
+      inputRef.current.focus({ preventScroll: true });
     }
-  }, [placeholder, isMobile, showToolSelector]);
+  }, [placeholder]);
 
   // 고유 ID 생성 함수 추가
   const generateUniqueId = () => {
@@ -1236,11 +1233,6 @@ export function ChatInput({
                 <button
                   type="button"
                   onClick={() => {
-                    // 모바일에서 도구 선택창을 열 때는 키보드가 올라오지 않도록 블러 처리
-                    if (isMobile) {
-                      inputRef.current?.blur();
-                      (document.activeElement as HTMLElement | null)?.blur?.();
-                    }
                     // 현재 모델이 에이전트를 지원하는지 확인
                     const currentModel = getModelById(modelId);
                     const isCurrentModelAgentEnabled = currentModel?.isAgentEnabled === true;
