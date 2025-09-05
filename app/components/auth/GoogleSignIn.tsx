@@ -17,17 +17,12 @@ export function GoogleSignIn({ isSignIn = false }: GoogleSignInProps) {
     try {
       setLoading(true)
       
-      // 현재 도메인을 동적으로 감지
-      const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
-      
-      // 환경에 따른 리다이렉트 URL 설정
-      const redirectUrl = process.env.NODE_ENV === 'development' 
-        ? 'http://localhost:3000/auth/callback'
-        : `${currentOrigin}/auth/callback`
+      // 로그인 성공 후, 우리 앱의 '/auth/callback' 페이지로 돌아오도록 설정
+      // window.location.origin은 현재 사이트의 주소(로컬에서는 http://localhost:3000, 배포 후에는 https://chatflix.app)를 동적으로 가져옵니다.
+      const redirectUrl = `${window.location.origin}/auth/callback`
       
       console.log('Google OAuth attempt:', {
         environment: process.env.NODE_ENV,
-        currentOrigin,
         redirectUrl,
         timestamp: new Date().toISOString()
       })
