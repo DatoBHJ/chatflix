@@ -579,7 +579,7 @@ function selectModelBasedOnAnalysis(
       } else {
         // 비멀티모달 + 코딩
         if (analysis.complexity === 'simple') {
-          return 'gemini-2.5-flash';
+          return 'grok-code-fast-1'; // grok code fast for simple coding
         } else if (analysis.complexity === 'medium') {
           return 'claude-sonnet-4-20250514'; // sonnet 4
         } else { // complex
@@ -596,8 +596,12 @@ function selectModelBasedOnAnalysis(
           return 'gpt-4.1'; // gpt-4.1
         }
       } else {
-        // 비멀티모달 + 코딩: 복잡도 무상관 gemini-2.5-flash
-        return 'gemini-2.5-flash';
+        // 비멀티모달 + 코딩: 복잡도에 따라 모델 선택
+        if (analysis.complexity === 'simple') {
+          return 'grok-code-fast-1'; // grok code fast for simple coding tasks
+        } else {
+          return 'gemini-2.5-flash'; // gemini 2.5 flash for medium/complex
+        }
       }
     }
   }

@@ -220,6 +220,31 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
 
   reasoning: true,
 },
+  // Grok Code Fast 1
+  {
+    id: 'grok-code-fast-1',
+    name: 'Grok Code Fast 1',
+    cutoff: 'Aug 2025',
+    abbreviation: 'GCF1',
+    country: 'US',
+    provider: 'xai',
+    supportsVision: false,
+    rateLimit: {
+      level: 'level2',
+    },
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: true,
+    reasoning: true,
+    contextWindow: 256000,
+    tps: 310, 
+    intelligenceIndex: 49, 
+    latency: 6.8,
+    maxOutputTokens: 16000,
+    isNew: true,
+    description: 'Reasoning model that excels at agentic coding',
+  },
   // Grok 4 
   {
     id: 'grok-4-0709',

@@ -106,6 +106,13 @@ export function getProviderOptions(
         reasoningEffort: 'high', // Reasoning effort: 'low' or 'high' for grok-3-mini
       } as XaiProviderOptions;
     }
+    // Grok Code Fast 1 is a reasoning model that excels at coding
+    else if (model === 'grok-code-fast-1') {
+      providerOptions.xai = {
+        // No special parameters needed for grok-code-fast-1 according to xAI docs
+        // It supports reasoning, function calling, and structured outputs by default
+      } as XaiProviderOptions;
+    }
     // Other Grok models don't support reasoningEffort parameter
   }
 
