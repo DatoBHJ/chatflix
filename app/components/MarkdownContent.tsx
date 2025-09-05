@@ -778,11 +778,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
 
   // Image modal state
   const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string } | null>(null);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [allImages, setAllImages] = useState<{ src: string; alt: string }[]>([]);
   const [isMounted, setIsMounted] = useState(false);
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
   // Check if we're in browser environment for portal rendering
   useEffect(() => {
@@ -797,10 +793,6 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         closeImageModal();
-      } else if (e.key === 'ArrowLeft') {
-        goToPreviousImage();
-      } else if (e.key === 'ArrowRight') {
-        goToNextImage();
       }
     };
     
@@ -811,7 +803,18 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       window.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
-  }, [selectedImage, currentImageIndex, allImages]);
+  }, [selectedImage]);
+
+  // Image modal functions
+  const openImageModal = useCallback((src: string | undefined, alt: string) => {
+    if (src && typeof src === 'string') {
+      setSelectedImage({ src, alt });
+    }
+  }, []);
+
+  const closeImageModal = useCallback(() => {
+    setSelectedImage(null);
+  }, []);
 
   // Pre-process the content to handle LaTeX and escape currency dollar signs
   const processedContent = useMemo(() => {
@@ -824,92 +827,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     return segmentContent(processedContent);
   }, [processedContent, enableSegmentation]);
 
-  // Image modal functions
-  const openImageModal = useCallback((src: string | undefined, alt: string) => {
-    if (src && typeof src === 'string') {
-      // 모든 이미지를 수집
-      const images: { src: string; alt: string }[] = [];
-      
-      // 세그먼트에서 모든 이미지 찾기
-      segments.forEach(segment => {
-        // 마크다운 이미지 문법 찾기
-        const markdownImageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
-        let match;
-        while ((match = markdownImageRegex.exec(segment)) !== null) {
-          const [, altText, imageUrl] = match;
-          images.push({ src: imageUrl, alt: altText || "Generated image" });
-        }
-        
-        // 이미지 ID 찾기
-        const imageIdRegex = /\[IMAGE_ID:([^\]]+)\]/g;
-        while ((match = imageIdRegex.exec(segment)) !== null) {
-          const [, imageId] = match;
-          images.push({ src: imageId, alt: "Generated image" });
-        }
-        
-        // raw 이미지 URL 찾기
-        const rawImageRegex = /(https:\/\/image\.pollinations\.ai\/[^\s)]+)/g;
-        while ((match = rawImageRegex.exec(segment)) !== null) {
-          const [, imageUrl] = match;
-          images.push({ src: imageUrl, alt: "Generated image" });
-        }
-      });
-      
-      setAllImages(images);
-      
-      // 현재 클릭한 이미지의 인덱스 찾기
-      const currentIndex = images.findIndex(img => img.src === src);
-      setCurrentImageIndex(currentIndex >= 0 ? currentIndex : 0);
-      setSelectedImage({ src, alt });
-    }
-  }, [segments]);
 
-  const closeImageModal = useCallback(() => {
-    setSelectedImage(null);
-    setCurrentImageIndex(0);
-    setAllImages([]);
-  }, []);
-
-  const goToPreviousImage = useCallback(() => {
-    if (allImages.length > 0) {
-      const newIndex = currentImageIndex > 0 ? currentImageIndex - 1 : allImages.length - 1;
-      setCurrentImageIndex(newIndex);
-      setSelectedImage(allImages[newIndex]);
-    }
-  }, [currentImageIndex, allImages]);
-
-  const goToNextImage = useCallback(() => {
-    if (allImages.length > 0) {
-      const newIndex = currentImageIndex < allImages.length - 1 ? currentImageIndex + 1 : 0;
-      setCurrentImageIndex(newIndex);
-      setSelectedImage(allImages[newIndex]);
-    }
-  }, [currentImageIndex, allImages]);
-
-  // Touch/swipe handlers
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    setTouchEnd(e.targetTouches[0].clientX);
-  }, []);
-
-  const handleTouchEnd = useCallback(() => {
-    if (!touchStart || !touchEnd) return;
-    
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > 50;
-    const isRightSwipe = distance < -50;
-
-    if (isLeftSwipe && allImages.length > 1) {
-      goToNextImage();
-    }
-    if (isRightSwipe && allImages.length > 1) {
-      goToPreviousImage();
-    }
-  }, [touchStart, touchEnd, allImages.length, goToNextImage, goToPreviousImage]);
 
   // Function to detect image URLs (from original code)
   const styleImageUrls = useCallback((text: string) => {
@@ -1806,7 +1724,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
         >
           {/* Close button */}
           <button 
-            className="absolute top-4 right-4 bg-black/40 hover:bg-black/60 p-2 rounded-full text-white transition-colors z-10"
+            className="absolute top-4 right-4 bg-black/40 hover:bg-black/60 p-2 rounded-full text-white transition-colors"
             onClick={closeImageModal}
             aria-label="Close image viewer"
           >
@@ -1818,55 +1736,17 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
             href={selectedImage.src}
             target="_blank"
             rel="noopener noreferrer"
-            className="absolute top-4 left-4 bg-black/40 hover:bg-black/60 p-2 rounded-lg text-white transition-colors flex items-center gap-2 z-10"
+            className="absolute top-4 left-4 bg-black/40 hover:bg-black/60 p-2 rounded-lg text-white transition-colors flex items-center gap-2"
             onClick={(e) => e.stopPropagation()}
           >
             <ExternalLink size={16} />
             <span className="hidden sm:inline">View Original</span>
           </a>
-
-          {/* Image counter */}
-          {allImages.length > 1 && (
-            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black/40 hover:bg-black/60 px-3 py-1 rounded-full text-white text-sm z-10">
-              {currentImageIndex + 1} / {allImages.length}
-            </div>
-          )}
-
-          {/* Previous button */}
-          {allImages.length > 1 && (
-            <button
-              className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/40 hover:bg-black/60 p-3 rounded-full text-white transition-colors z-10"
-              onClick={(e) => {
-                e.stopPropagation();
-                goToPreviousImage();
-              }}
-              aria-label="Previous image"
-            >
-              <ChevronLeft size={24} />
-            </button>
-          )}
-
-          {/* Next button */}
-          {allImages.length > 1 && (
-            <button
-              className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/40 hover:bg-black/60 p-3 rounded-full text-white transition-colors z-10"
-              onClick={(e) => {
-                e.stopPropagation();
-                goToNextImage();
-              }}
-              aria-label="Next image"
-            >
-              <ChevronRight size={24} />
-            </button>
-          )}
           
           {/* Main image container */}
           <div 
             className="relative flex items-center justify-center bg-transparent rounded-lg overflow-hidden"
             onClick={(e) => e.stopPropagation()}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
             style={{ width: '90vw', height: '90vh' }}
           >
             <div className="relative group cursor-pointer flex flex-col items-center">
