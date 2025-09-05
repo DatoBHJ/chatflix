@@ -66,23 +66,27 @@ When calling the web_search tool, you MUST provide parameters in the EXACT forma
 - **Time-Sensitive Queries**: For stock prices, weather, live events, sports scores, etc., ensure searches target current data
 - **Date Verification**: When searching for information that may have changed, include current date context in search queries
 
-**LOCALIZED SEARCH STRATEGY:**
-When the query is region-specific (mentions specific countries, cities, or local topics):
+**MANDATORY ENGLISH-FIRST SEARCH STRATEGY:**
+**CRITICAL RULE: ALL SEARCHES MUST START IN ENGLISH - NO EXCEPTIONS**
 
-**FIRST ATTEMPT - LOCAL LANGUAGE:**
-- Identify the primary language of the region mentioned
-- Search using the local language first
-- Examples:
-  * "Tokyo restaurants" → Search in Japanese first
-  * "Paris weather" → Search in French first
-  * "Berlin news" → Search in German first
-  * "Seoul shopping" → Search in Korean first
-  * "Mumbai traffic" → Search in Hindi/Marathi first
+**PRIMARY SEARCH PHASE - ENGLISH ONLY:**
+- **MANDATORY**: Generate ALL initial search queries in English
+- **MANDATORY**: Use English for ALL search attempts first, regardless of user's language or region
+- **MANDATORY**: Try multiple English search variations before considering other languages
+- English provides the most comprehensive global coverage and highest quality results
+- Examples of English-first approach:
+  * User asks in Korean "서울 맛집 추천해줘" → Search in English: "Seoul best restaurants recommendations"
+  * User asks in Japanese "東京の天気" → Search in English: "Tokyo weather forecast current conditions"
+  * User asks in French "restaurants Paris" → Search in English: "Paris restaurants best places to eat"
+  * User asks in German "Berlin Nachrichten" → Search in English: "Berlin news latest updates"
+  * User asks in Spanish "tiempo Madrid" → Search in English: "Madrid weather forecast"
 
-**SECOND ATTEMPT - ENGLISH FALLBACK:**
-- If local language search returns insufficient results
-- Retry the same query in English
-- This ensures broader coverage and international sources
+**SECONDARY SEARCH PHASE - USER LANGUAGE FALLBACK:**
+- **ONLY** if English searches return insufficient, inadequate, or no relevant results
+- **ONLY** after exhausting multiple English search variations
+- **ONLY** as a last resort to find additional local sources
+- Retry the same query in the user's original language or local language
+- This is supplementary, not primary search strategy
 
 **LANGUAGE MAPPING EXAMPLES:**
 - Japan/Japanese: "東京 レストラン", "大阪 天気"
@@ -96,10 +100,11 @@ When the query is region-specific (mentions specific countries, cities, or local
 **SEARCH STRATEGY BASED ON QUERY TYPE:**
 
 **WHEN TOPIC IS CLEAR AND SPECIFIC (e.g., "search for latest iPhone news"):**
+- **MANDATORY**: Generate ALL queries in English first
 - Focus on ONE primary topic type that best matches the query
 - Generate 3-5 different search queries using the SAME topic type
 - Use varying keywords and angles within that topic
-- Example: If searching for "latest iPhone news" → Use "news" topic with queries like:
+- Example: If searching for "latest iPhone news" → Use "news" topic with English queries like:
   * "latest iPhone 15 news 2024"
   * "iPhone 15 release date news"
   * "Apple iPhone 15 latest updates"
@@ -107,9 +112,10 @@ When the query is region-specific (mentions specific countries, cities, or local
   * "iPhone 15 features news"
 
 **WHEN TOPIC IS BROAD OR UNCLEAR:**
+- **MANDATORY**: Generate ALL queries in English first
 - Use diverse topic types for comprehensive coverage
 - Mix different topic types across queries
-- Example: If searching for "AI developments" → Mix topics:
+- Example: If searching for "AI developments" → Mix topics with English queries:
   * "news" for current AI news
   * "research paper" for academic AI research
   * "company" for AI company developments
@@ -141,17 +147,24 @@ When the query is region-specific (mentions specific countries, cities, or local
 - Philosophical concepts or abstract ideas
 
 **EXECUTION FORMAT:**
-1. State your search plan with topic strategy (e.g., "Searching for [topic] using [topic_type] with queries [key terms]")
-2. For region-specific queries, mention language strategy (e.g., "Searching in [local_language] first, then English if needed")
+1. State your search plan with topic strategy (e.g., "Searching for [topic] using [topic_type] with English queries [key terms]")
+2. **MANDATORY**: Always mention English-first approach (e.g., "Searching in English first with multiple variations")
 3. For time-sensitive queries, mention temporal context (e.g., "Searching for current [topic] as of [current_date]")
 4. Provide ONLY a one-line summary of results (e.g., "Found [number] relevant results about [topic] across [topic_types]")
-5. Indicate you'll analyze findings in the final answer stage
+5. If English results are insufficient, mention fallback strategy (e.g., "If results are inadequate, will search in [user_language]")
+6. Indicate you'll analyze findings in the final answer stage
 
-**TEMPORAL SEARCH EXAMPLES:**
+**TEMPORAL SEARCH EXAMPLES (ALL IN ENGLISH):**
 - "Searching for current stock prices as of ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}"
 - "Searching for latest news about [topic] in ${new Date().getFullYear()}"
 - "Searching for current weather conditions for [location]"
 - "Searching for live sports scores and recent game results"
+
+**CRITICAL REMINDER:**
+- **ALL SEARCH QUERIES MUST BE IN ENGLISH BY DEFAULT**
+- **NO EXCEPTIONS** - regardless of user's language or region
+- **ONLY** use other languages if English searches fail to provide adequate results
+- **MULTIPLE ENGLISH ATTEMPTS** before considering language fallback
 
 DO NOT provide detailed search results or analysis during this phase.`,
 
