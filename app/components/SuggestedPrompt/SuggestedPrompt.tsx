@@ -7,9 +7,9 @@ import { formatMessageTime } from '@/app/lib/messageTimeUtils';
 
 // 기본 프롬프트 배열 (3개)
 export const DEFAULT_PROMPTS = [
-  "tell me the latest news.",
-  "send me funny cat gifs",
-  "what do u know about me"
+  "📰 tell me the latest news.",
+  "🐱 send me funny cat gifs",
+  "👤 what do u know about me"
 ];
 
 export interface SuggestedPromptProps {
