@@ -547,12 +547,11 @@ export function ChatInput({
     }
   };
 
-  // 컴포넌트가 마운트될 때 빈 입력 필드 초기화
+  // placeholder 변경 시 입력 필드 초기화 (자동 포커스는 하지 않음)
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.classList.add('empty');
       inputRef.current.setAttribute('data-placeholder', placeholder);
-      inputRef.current.focus({ preventScroll: true });
     }
   }, [placeholder]);
 
@@ -1233,6 +1232,10 @@ export function ChatInput({
                 <button
                   type="button"
                   onClick={() => {
+                    // 모바일에서 입력창이 이미 포커스된 경우에만 블러하여 키보드 숨김
+                    if (isMobile && inputRef.current && document.activeElement === inputRef.current) {
+                      inputRef.current.blur();
+                    }
                     // 현재 모델이 에이전트를 지원하는지 확인
                     const currentModel = getModelById(modelId);
                     const isCurrentModelAgentEnabled = currentModel?.isAgentEnabled === true;
