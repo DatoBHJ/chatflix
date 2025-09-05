@@ -337,7 +337,20 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
             .from('profile-pics')
             .getPublicUrl(`${userId}/${profileData[0].name}`);
           
-          setProfileImage(data.publicUrl);
+          // 커스텀 도메인 사용 시 Storage URL을 수동으로 수정
+          let finalUrl = data.publicUrl;
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+          
+          if (supabaseUrl && supabaseUrl !== 'https://jgkrhazygwcvbzkwkhnj.supabase.co') {
+            // 기본 Supabase 도메인을 커스텀 도메인으로 교체
+            finalUrl = data.publicUrl.replace(
+              'https://jgkrhazygwcvbzkwkhnj.supabase.co',
+              supabaseUrl
+            );
+            console.log('AccountDialog Storage URL updated for custom domain:', finalUrl);
+          }
+          
+          setProfileImage(finalUrl);
         } catch (error) {
           console.error('Error getting public URL for profile image:', error);
         }

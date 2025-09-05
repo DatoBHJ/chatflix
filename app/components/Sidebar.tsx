@@ -205,7 +205,20 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
       }
       
       if (urlInfo && urlInfo.publicUrl && urlInfo.publicUrl.startsWith('http')) {
-        setProfileImage(urlInfo.publicUrl);
+        // 커스텀 도메인 사용 시 Storage URL을 수동으로 수정
+        let finalUrl = urlInfo.publicUrl;
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        
+        if (supabaseUrl && supabaseUrl !== 'https://jgkrhazygwcvbzkwkhnj.supabase.co') {
+          // 기본 Supabase 도메인을 커스텀 도메인으로 교체
+          finalUrl = urlInfo.publicUrl.replace(
+            'https://jgkrhazygwcvbzkwkhnj.supabase.co',
+            supabaseUrl
+          );
+          console.log('Storage URL updated for custom domain:', finalUrl);
+        }
+        
+        setProfileImage(finalUrl);
       } else {
         console.log('No valid public URL returned or URL is not properly formatted for profile image.');
       }
