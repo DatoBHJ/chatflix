@@ -180,7 +180,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarContext.Provider value={{ isSidebarOpen, toggleSidebar, isAccountOpen, setIsAccountOpen, isHovering, isMobile }}>
-            <div className="flex h-screen bg-background dark:bg-transparent text-foreground overflow-x-hidden">
+            <div className="flex h-screen bg-background text-foreground overflow-x-hidden">
 
       <Toaster position="top-right" richColors />
       <Announcement

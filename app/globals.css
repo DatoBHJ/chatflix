@@ -708,6 +708,35 @@ body {
   overflow-x: hidden;
 }
 
+/* PWA 배경 문제 해결을 위한 추가 설정 */
+html {
+  background: var(--background);
+  min-height: 100vh;
+}
+
+/* PWA 환경에서 스크롤 시 배경이 보이지 않는 문제 해결 */
+html, body {
+  background-color: var(--background) !important;
+  background: var(--background) !important;
+}
+
+/* PWA 스플래시 스크린과 스크롤 영역 배경 처리 */
+#__next, #root, [data-reactroot] {
+  background-color: var(--background) !important;
+  background: var(--background) !important;
+  min-height: 100vh;
+}
+
+/* iOS Safari PWA 배경 처리 */
+@supports (-webkit-touch-callout: none) {
+  html, body {
+    background-color: var(--background) !important;
+    background: var(--background) !important;
+    -webkit-background-size: cover;
+    background-size: cover;
+  }
+}
+
 /* 미래지향적 스크롤바 스타일 */
 .scrollbar-thin::-webkit-scrollbar {
   width: 4px;
