@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Sidebar } from './components/Sidebar'
-import { createClient } from '@/utils/supabase/client'
 import { useRouter, usePathname } from 'next/navigation'
 
 import { Header } from './components/Header'
@@ -11,14 +10,15 @@ import useAnnouncement from './hooks/useAnnouncement'
 import { fetchUserName } from '@/app/components/AccountDialog'
 import { Toaster } from 'sonner'
 import { SidebarContext } from './lib/SidebarContext'
+import { AuthProvider, useAuth } from './lib/AuthContext'
+import { createClient as createSupabaseClient } from '@/utils/supabase/client'
 
 import { Pin } from 'lucide-react'
 import { SquarePencil } from 'react-ios-icons'
 
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
-  const [isLoading, setIsLoading] = useState(true)
-  const [user, setUser] = useState<any>(null)
+  const { user, isLoading: authLoading, isAuthenticated, isAnonymous } = useAuth()
   const [userName, setUserName] = useState('You')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isAccountOpen, setIsAccountOpen] = useState(false)
@@ -26,7 +26,6 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const [isMobile, setIsMobile] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
-  const supabase = createClient()
   const { announcements, showAnnouncement, hideAnnouncement } = useAnnouncement()
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -57,68 +56,25 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  // 사용자 이름 업데이트
   useEffect(() => {
-    const getUser = async () => {
+    if (user) {
+      const supabase = createSupabaseClient();
+      fetchUserName(user.id, supabase).then(name => setUserName(name));
+      
+      // 🚀 로그인된 상태로 초기 진입한 경우 웜업 트리거 (fire-and-forget)
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        setUser(user)
-        setIsLoading(false)
-        
-        if (user) {
-          const name = await fetchUserName(user.id, supabase);
-          setUserName(name);
-
-          // 🚀 로그인된 상태로 초기 진입한 경우 웜업 트리거 (fire-and-forget)
-          try {
-            fetch('/api/chat/warmup', {
-              method: 'POST',
-              credentials: 'include',
-              cache: 'no-store',
-              keepalive: true
-            }).catch(() => {})
-          } catch {}
-        }
-        
-        // 🚀 익명 사용자 지원: 로그인하지 않은 사용자도 메인 페이지 접근 허용
-        // if (!user && pathname !== '/login') {
-        //   router.push('/login')
-        // }
-      } catch (error) {
-        console.error('Error loading user information:', error)
-        setIsLoading(false)
-      }
+        fetch('/api/chat/warmup', {
+          method: 'POST',
+          credentials: 'include',
+          cache: 'no-store',
+          keepalive: true
+        }).catch(() => {})
+      } catch {}
+    } else {
+      setUserName('You')
     }
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
-        setUser(null)
-        setUserName('You')
-        // 🚀 익명 사용자 지원: 로그아웃 시에도 메인 페이지에 머무름
-        // router.push('/login')
-      } else if (event === 'SIGNED_IN') {
-        setUser(session?.user || null)
-        if (session?.user) {
-          fetchUserName(session.user.id, supabase).then(name => setUserName(name));
-
-          // 🚀 로그인 직후 웜업 트리거 (fire-and-forget)
-          try {
-            fetch('/api/chat/warmup', {
-              method: 'POST',
-              credentials: 'include',
-              cache: 'no-store',
-              keepalive: true
-            }).catch(() => {})
-          } catch {}
-        }
-      }
-    })
-
-    getUser()
-
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [supabase, router, pathname])
+  }, [user])
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen)
@@ -151,7 +107,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  if (isLoading) {
+  if (authLoading) {
     return <div className="flex h-screen items-center justify-center">Chatflix.app</div>
   }
 
@@ -343,5 +299,9 @@ export default function RootLayoutClient({
 }: {
   children: React.ReactNode
 }) {
-  return <LayoutContent>{children}</LayoutContent>
+  return (
+    <AuthProvider>
+      <LayoutContent>{children}</LayoutContent>
+    </AuthProvider>
+  )
 } 

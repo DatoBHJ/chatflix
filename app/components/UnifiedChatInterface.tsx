@@ -5,7 +5,7 @@ import { DefaultChatTransport } from 'ai';
 import { UIMessage } from 'ai';
 import { useState, useEffect, useRef, useCallback, useMemo, startTransition } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { createClient } from '@/utils/supabase/client';
+import { useAuth } from '@/app/lib/AuthContext';
 import { convertMessage, uploadFile } from '@/app/chat/[id]/utils';
 import { Attachment } from '@/lib/types';
 import { useMessages } from '@/app/hooks/useMessages';
@@ -368,7 +368,7 @@ function ChatInterface({
   const pathname = usePathname();
   const scrollToMessageId = searchParams.get('scrollToMessage');
   const searchTerm = searchParams.get('search'); // 🚀 FEATURE: Get search term from URL
-  const supabase = createClient();
+  const { user, isLoading: authLoading, isAuthenticated, isAnonymous } = useAuth();
   const isDarkMode = useDarkMode();
   const { isEnabled: isStarryNightEnabled } = useHomeStarryNight();
 
@@ -403,7 +403,6 @@ function ChatInterface({
   
   const [currentModel, setCurrentModel] = useState('');
   const [nextModel, setNextModel] = useState('');
-  const [user, setUser] = useState<any>(null);
   const [input, setInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isModelLoading, setIsModelLoading] = useState(true);
@@ -761,13 +760,11 @@ function ChatInterface({
     setEditingContent
   } = useMessages(initialChatId || chatId, user?.id || 'anonymous');
 
-  // User 초기화
+  // 모델 초기화 - 인증 상태에 따라
   useEffect(() => {
-    const getUser = async () => {
+    const initializeModel = async () => {
       try {
         setIsModelLoading(true);
-        
-        const { data: { user } } = await supabase.auth.getUser();
         
         // 🚀 익명 사용자 지원: 로그인하지 않은 사용자도 채팅 사용 가능
         if (!user) {
@@ -784,7 +781,6 @@ function ChatInterface({
           const modelToUse = storedSelected || systemDefault;
           setCurrentModel(modelToUse);
           setNextModel(modelToUse);
-          setUser(null); // 명시적으로 null로 설정
           
           // 🚀 익명 사용자도 에이전트 모델 사용 가능하도록 설정
           setHasAgentModels(true);
@@ -793,9 +789,10 @@ function ChatInterface({
           return;
         }
         
-        setUser(user);
-        
         // 🔧 단순화: 홈에서는 최신 사용 모델을 가져옴
+        const { createClient } = await import('@/utils/supabase/client');
+        const supabase = createClient();
+        
         const { data: latestSession } = await supabase
           .from('chat_sessions')
           .select('current_model')
@@ -819,8 +816,11 @@ function ChatInterface({
         setIsModelLoading(false);
       }
     };
-    getUser();
-  }, [supabase.auth, router]);
+    
+    if (!authLoading) {
+      initializeModel();
+    }
+  }, [user, authLoading, initialChatId, router]);
 
   // ✅ P1 FIX: 초기 메시지 하이드레이션 1회 보장으로 무한 렌더링 방지
   const hydratedRef = useRef(false);
@@ -1009,7 +1009,10 @@ function ChatInterface({
 
       const lastMessage = messages[messages.length - 1];
       
-      if (lastMessage?.role === 'assistant' && initialChatId) {
+      if (lastMessage?.role === 'assistant' && initialChatId && user) {
+        const { createClient } = await import('@/utils/supabase/client');
+        const supabase = createClient();
+        
         const { data: messageData, error: selectError } = await supabase
           .from('messages')
           .select('id')
@@ -1049,7 +1052,7 @@ function ChatInterface({
             .from('messages')
             .update(updateData)
             .eq('id', messageData.id)
-            .eq('user_id', user.id);
+            .eq('user_id', user!.id);
 
           if (updateError) {
             console.error('🛑 [STOP] Error updating message:', updateError);
@@ -1074,7 +1077,7 @@ function ChatInterface({
     } catch (error) {
       console.error('🛑 [STOP] Error in handleStop:', error);
     }
-  }, [stop, messages, currentModel, initialChatId, user?.id, supabase]);
+  }, [stop, messages, currentModel, initialChatId, user?.id]);
 
   // Agent 토글 처리
   const handleAgentToggle = (newState: boolean) => {
