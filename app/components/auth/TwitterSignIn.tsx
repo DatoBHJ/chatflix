@@ -17,10 +17,13 @@ export function TwitterSignIn({ isSignIn = false }: TwitterSignInProps) {
     try {
       setLoading(true)
       
+      // 커스텀 도메인 또는 기본 Supabase 도메인 사용
+      const supabaseDomain = process.env.NEXT_PUBLIC_SUPABASE_CUSTOM_DOMAIN || process.env.NEXT_PUBLIC_SUPABASE_URL
+      
       // 환경에 따른 리다이렉트 URL 설정
       const redirectUrl = process.env.NODE_ENV === 'development' 
         ? 'http://localhost:3000/auth/callback'
-        : 'https://chatflix.app/auth/callback'
+        : `${supabaseDomain}/auth/v1/callback`
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'twitter',

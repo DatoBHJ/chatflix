@@ -28,8 +28,9 @@ export async function POST() {
     console.log('Starting data deletion process for user:', user.id)
 
     // Create a service client with admin rights
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_CUSTOM_DOMAIN || process.env.NEXT_PUBLIC_SUPABASE_URL!
     const serviceClient = createServiceClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      supabaseUrl,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     )
 
