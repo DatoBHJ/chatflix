@@ -18,6 +18,7 @@ const nextConfig = {
   images: {
     domains: [
       'jgkrhazygwcvbzkwkhnj.supabase.co',
+      'auth.chatflix.app', // 커스텀 도메인 추가
       'lh3.googleusercontent.com'
     ],
   }
