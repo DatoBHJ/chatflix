@@ -702,8 +702,6 @@
 html {
   background: var(--background);
   min-height: 100%;
-  /* PWA에서 pull-to-refresh 방지 */
-  overscroll-behavior: contain;
 }
 
 body {
@@ -714,10 +712,6 @@ body {
   letter-spacing: -0.015em;
   overflow-x: hidden;
   min-height: 100vh;
-  /* PWA에서 과도한 스크롤 동작 방지 */
-  overscroll-behavior: contain;
-  /* 모바일에서 터치 스크롤 개선 */
-  -webkit-overflow-scrolling: touch;
 }
 
 /* 미래지향적 스크롤바 스타일 */
@@ -1567,39 +1561,6 @@ p:has(.katex) {
     width: calc(100% - 20px) !important;
     max-width: none !important;
   }
-}
-
-/* 모델 선택창 PWA 최적화 스타일 */
-.model-selector-modal {
-  /* PWA 환경에서 pull-to-refresh 방지 */
-  overscroll-behavior: contain;
-  /* 터치 스크롤 개선 */
-  -webkit-overflow-scrolling: touch;
-  /* 불필요한 선택 방지 */
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-}
-
-.model-selector-header {
-  /* 헤더 터치 최적화 */
-  touch-action: pan-y;
-  /* PWA에서 드래그 시에만 스크롤 차단 */
-  overscroll-behavior: auto;
-}
-
-.model-selector-header.dragging {
-  /* 드래그 중일 때만 터치 동작 제한 */
-  touch-action: none;
-  overscroll-behavior: contain;
-}
-
-.model-selector-content {
-  /* 컨텐츠 영역은 자유로운 스크롤 허용 */
-  touch-action: pan-y;
-  overscroll-behavior: auto;
-  -webkit-overflow-scrolling: touch;
 }
 
 /* Adjacent posts in Twitter-style feed */
