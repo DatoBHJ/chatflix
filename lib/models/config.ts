@@ -243,7 +243,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     latency: 6.8,
     maxOutputTokens: 16000,
     isNew: true,
-    description: 'Reasoning model that excels at agentic coding',
+    description: 'A speedy reasoning model that excels at agentic coding.',
   },
   // Grok 4 
   {
