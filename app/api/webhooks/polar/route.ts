@@ -2,33 +2,27 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 
-// Polar webhook event types - Enhanced with more detailed subscription data
+// Polar webhook event types - Fixed to match actual webhook data structure
 interface PolarWebhookEvent {
   type: string
   data: {
     object: string
     id: string
     external_customer_id?: string
+    status?: string
+    current_period_start?: string
+    current_period_end?: string
+    canceled_at?: string
+    cancel_at_period_end?: boolean
     customer?: {
       external_id?: string
       id?: string
     }
-    subscription?: {
-      id?: string
-      status: string
-      customer: {
-        external_id?: string
-        id?: string
-      }
-      product?: {
-        id?: string
-      }
-      current_period_start?: string
-      current_period_end?: string
-    }
+    customer_id?: string
     product?: {
       id?: string
     }
+    product_id?: string
   }
 }
 
@@ -104,8 +98,6 @@ export async function POST(request: NextRequest) {
       customerExternalId = event.data.external_customer_id
     } else if (event.data.customer?.external_id) {
       customerExternalId = event.data.customer.external_id
-    } else if (event.data.subscription?.customer?.external_id) {
-      customerExternalId = event.data.subscription.customer.external_id
     }
 
     if (!customerExternalId) {
@@ -246,9 +238,9 @@ async function handleCustomerUpdated(
     await storeWebhookEvent(supabase, customerExternalId, event)
     
     // If this customer update includes subscription info, update it
-    if (event.data.subscription) {
+    if (event.data.status && event.data.id) {
       const subscriptionData = extractSubscriptionData(event)
-      const isActive = event.data.subscription.status === 'active'
+      const isActive = event.data.status === 'active'
       
       await updateSubscriptionInDatabase(supabase, customerExternalId, {
         isActive,
@@ -267,16 +259,18 @@ async function handleCustomerUpdated(
 
 // Helper function to extract subscription data from webhook event
 function extractSubscriptionData(event: PolarWebhookEvent) {
-  const subscription = event.data.subscription
-  const customer = event.data.customer
+  // Polar webhook data is directly in event.data, not event.data.subscription
+  const data = event.data
   
   return {
-    subscriptionId: subscription?.id || event.data.id,
-    customerId: customer?.id || subscription?.customer?.id,
-    productId: subscription?.product?.id || event.data.product?.id,
-    status: subscription?.status,
-    currentPeriodStart: subscription?.current_period_start ? new Date(subscription.current_period_start).toISOString() : undefined,
-    currentPeriodEnd: subscription?.current_period_end ? new Date(subscription.current_period_end).toISOString() : undefined
+    subscriptionId: data.id,
+    customerId: data.customer?.id || data.customer_id,
+    productId: data.product?.id || data.product_id,
+    status: data.status,
+    currentPeriodStart: data.current_period_start ? new Date(data.current_period_start).toISOString() : undefined,
+    currentPeriodEnd: data.current_period_end ? new Date(data.current_period_end).toISOString() : undefined,
+    canceledAt: data.canceled_at ? new Date(data.canceled_at).toISOString() : undefined,
+    cancelAtPeriodEnd: data.cancel_at_period_end || false
   }
 }
 
@@ -292,6 +286,8 @@ async function updateSubscriptionInDatabase(
     status?: string
     currentPeriodStart?: string
     currentPeriodEnd?: string
+    canceledAt?: string
+    cancelAtPeriodEnd?: boolean
     eventType: string
   }
 ) {
@@ -306,6 +302,8 @@ async function updateSubscriptionInDatabase(
       p_status: data.status,
       p_current_period_start: data.currentPeriodStart,
       p_current_period_end: data.currentPeriodEnd,
+      p_canceled_at: data.canceledAt,
+      p_cancel_at_period_end: data.cancelAtPeriodEnd,
       p_event_type: data.eventType
     })
     
