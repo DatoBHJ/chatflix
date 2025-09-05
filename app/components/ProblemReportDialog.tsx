@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import ReactDOM from 'react-dom'
 import { LifeBuoy, FileText, ShieldAlert, X } from 'lucide-react'
@@ -20,6 +20,23 @@ export function ProblemReportDialog({ isOpen, onClose, user }: ProblemReportDial
   const [success, setSuccess] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const pathname = usePathname()
+  
+  // Drag states for mobile header
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStartY, setDragStartY] = useState(0)
+  const [currentTranslateY, setCurrentTranslateY] = useState(0)
+  const [modalHeight, setModalHeight] = useState(0)
+  const modalRef = useRef<HTMLDivElement>(null)
+  const headerRef = useRef<HTMLDivElement>(null)
+  
+  // Apple-style animation states
+  const [isAnimating, setIsAnimating] = useState(false)
+  const [isClosing, setIsClosing] = useState(false)
+  const [showElements, setShowElements] = useState({
+    modal: false,
+    title: false,
+    content: false
+  })
 
   const resetForm = useCallback(() => {
     setReportType('general_feedback');
@@ -45,6 +62,117 @@ export function ProblemReportDialog({ isOpen, onClose, user }: ProblemReportDial
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Initialize modal height on mount
+  useEffect(() => {
+    if (isOpen && isMobile && modalRef.current) {
+      setModalHeight(window.innerHeight * 0.85);
+    }
+  }, [isOpen, isMobile]);
+
+  // Handle touch events for drag functionality
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isMobile) return;
+    setIsDragging(true);
+    setDragStartY(e.touches[0].clientY);
+    setCurrentTranslateY(0);
+  }, [isMobile]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isMobile || !isDragging) return;
+    e.preventDefault();
+    
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - dragStartY;
+    
+    // Only allow downward dragging
+    if (diff > 0) {
+      setCurrentTranslateY(diff);
+    }
+  }, [isMobile, isDragging, dragStartY]);
+
+  // Apple-style closing animation - exact reverse of opening
+  const handleClose = useCallback(() => {
+    if (isMobile) {
+      setIsClosing(true);
+      
+      // Reverse animation sequence - balanced timing
+      // Opening: modal(20ms) → title(250ms) → content(350ms)
+      // Closing: content(0ms) → title(100ms) → modal(300ms)
+      setTimeout(() => setShowElements(prev => ({ ...prev, content: false })), 0);
+      setTimeout(() => setShowElements(prev => ({ ...prev, title: false })), 100);
+      setTimeout(() => setShowElements(prev => ({ ...prev, modal: false })), 300);
+      setTimeout(() => {
+        onClose();
+        setIsClosing(false);
+      }, 400);
+    } else {
+      // Desktop: immediate close
+      onClose();
+    }
+  }, [isMobile, onClose]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!isMobile || !isDragging) return;
+    
+    setIsDragging(false);
+    
+    // If dragged down more than 100px, close the modal
+    if (currentTranslateY > 100) {
+      handleClose();
+    } else {
+      // Reset position
+      setCurrentTranslateY(0);
+    }
+  }, [isMobile, isDragging, currentTranslateY, handleClose]);
+
+  // Reset drag state when modal opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setIsDragging(false);
+      setCurrentTranslateY(0);
+      setIsAnimating(false);
+      setIsClosing(false);
+      setShowElements({
+        modal: false,
+        title: false,
+        content: false
+      });
+    }
+  }, [isOpen]);
+
+  // Apple-style staggered animation when opening
+  useEffect(() => {
+    if (isOpen && isMobile) {
+      // Only start animation if not already animating
+      if (!isAnimating) {
+        setIsAnimating(true);
+        
+        // Start with all elements hidden
+        setShowElements({
+          modal: false,
+          title: false,
+          content: false
+        });
+        
+        // Staggered sequence - background first, then elements
+        const timeouts = [
+          setTimeout(() => setShowElements(prev => ({ ...prev, modal: true })), 20),
+          setTimeout(() => setShowElements(prev => ({ ...prev, title: true })), 250),
+          setTimeout(() => setShowElements(prev => ({ ...prev, content: true })), 350),
+          setTimeout(() => setIsAnimating(false), 450)
+        ];
+        
+        // Cleanup function to clear timeouts
+        return () => {
+          timeouts.forEach(timeout => clearTimeout(timeout));
+        };
+      }
+    } else if (!isOpen) {
+      // Reset immediately when closing
+      setIsAnimating(false);
+    }
+  }, [isOpen, isMobile]); // isAnimating 의존성 제거
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -131,33 +259,85 @@ export function ProblemReportDialog({ isOpen, onClose, user }: ProblemReportDial
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 overflow-hidden backdrop-blur-sm"
+      className={`fixed inset-0 flex items-end sm:items-center justify-center z-50 overflow-hidden transition-all duration-500 ease-out ${
+        isMobile ? `bg-black/10 dark:bg-black/30 backdrop-blur-sm ${
+          showElements.modal ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }` : 'bg-black/50 backdrop-blur-sm'
+      }`}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+        if (e.target === e.currentTarget) {
+          if (isMobile) {
+            handleClose();
+          } else {
+            onClose();
+          }
+        }
       }}
     >
       <div 
+        ref={modalRef}
         className="w-full bg-[var(--background)] flex flex-col shadow-xl overflow-hidden rounded-t-2xl sm:rounded-2xl sm:w-[800px] sm:h-[600px] h-[85vh] border border-[var(--accent)]"
         onClick={e => e.stopPropagation()}
+        style={{
+          transform: isMobile ? 
+            showElements.modal ? `translateY(${currentTranslateY}px)` : 'translateY(calc(100vh - 60px))'
+            : 'none',
+          transition: isDragging ? 'none' : 
+            isMobile ? 
+              showElements.modal ? 'transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.3s ease-out' : 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-out'
+              : 'none',
+          height: isMobile ? `${modalHeight}px` : '85vh',
+          willChange: isMobile ? 'transform, opacity' : 'auto',
+          opacity: isMobile ? (showElements.modal ? 1 : 0) : 1,
+          backgroundColor: 'var(--background)',
+          backdropFilter: 'blur(0px)'
+        }}
       >
-        <div className="sm:hidden text-center pt-4 pb-2 shrink-0">
-          <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto" />
+        {/* Draggable Header for Mobile */}
+        <div 
+          ref={headerRef}
+          className={`sm:hidden text-center pt-4 pb-2 shrink-0 ${
+            isMobile ? `transition-all duration-250 ease-out ${
+              showElements.title ? 'translate-y-0 opacity-100' : (isClosing ? 'translate-y-6 opacity-0' : 'translate-y-6 opacity-0')
+            }` : ''
+          }`}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          style={{ 
+            touchAction: 'none',
+            willChange: isMobile ? 'transform, opacity' : 'auto'
+          }}
+        >
+          <div 
+            className={`w-12 h-1.5 rounded-full mx-auto transition-colors duration-200 ${
+              isDragging ? 'bg-gray-400 dark:bg-gray-600' : 'bg-gray-300 dark:bg-gray-700'
+            }`} 
+          />
         </div>
         
         {/* Mobile Layout */}
         {isMobile ? (
           <div className="flex flex-col flex-1 min-h-0">
-            <div className="relative flex items-center justify-center py-4 border-b border-[var(--accent)] shrink-0">
+            <div className={`relative flex items-center justify-center py-4 border-b border-[var(--accent)] shrink-0 transition-all duration-300 ease-out ${
+              showElements.title ? 'translate-y-0 opacity-100' : (isClosing ? 'translate-y-8 opacity-0' : 'translate-y-8 opacity-0')
+            }`}
+            style={{ willChange: 'transform, opacity' }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}>
               <h2 className="text-lg font-semibold">Report Issue</h2>
-              <button 
-                onClick={onClose}
-                className="absolute right-4 p-2 hover:bg-[var(--accent)] rounded-lg transition-colors"
-                aria-label="Close"
-              >
-                <X size={20} />
-              </button>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto p-6">
+            <div 
+              className={`flex-1 min-h-0 overflow-y-auto p-6 transition-all duration-350 ease-out ${
+                showElements.content ? 'translate-y-0 opacity-100' : (isClosing ? 'translate-y-10 opacity-0' : 'translate-y-10 opacity-0')
+              }`}
+              style={{ 
+                touchAction: isDragging ? 'none' : 'pan-y',
+                pointerEvents: isDragging ? 'none' : 'auto',
+                willChange: 'transform, opacity'
+              }}
+            >
               {success ? (
                 <div className="text-center py-10">
                   <div className="mx-auto w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mb-4">
@@ -230,7 +410,7 @@ export function ProblemReportDialog({ isOpen, onClose, user }: ProblemReportDial
                   <div className="flex gap-3 pt-2">
                     <button
                       type="button"
-                      onClick={onClose}
+                      onClick={handleClose}
                       className="flex-1 py-3 text-sm font-medium bg-[var(--accent)] hover:opacity-90 transition-opacity rounded-lg"
                     >
                       Cancel
@@ -269,15 +449,6 @@ export function ProblemReportDialog({ isOpen, onClose, user }: ProblemReportDial
             
             {/* Content */}
             <div className="flex-1 flex flex-col overflow-y-auto relative">
-              {/* Close button - top right */}
-              <button 
-                onClick={onClose} 
-                className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--accent)] transition-colors"
-                title="Close"
-              >
-                <X size={16} className="text-[var(--muted)]" />
-              </button>
-              
               <div className="flex-1 p-6">
                 <div className="max-w-md">
                   <h3 className="text-xl font-semibold mb-2">Report an Issue</h3>
@@ -355,7 +526,7 @@ export function ProblemReportDialog({ isOpen, onClose, user }: ProblemReportDial
                       <div className="flex gap-3 pt-2">
                         <button
                           type="button"
-                          onClick={onClose}
+                          onClick={handleClose}
                           className="px-6 py-2.5 text-sm font-medium bg-[var(--accent)] hover:opacity-90 transition-opacity rounded-lg"
                         >
                           Cancel

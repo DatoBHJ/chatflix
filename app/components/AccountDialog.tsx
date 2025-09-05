@@ -169,6 +169,16 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
   const modalRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
   
+  // Apple-style animation states
+  const [isAnimating, setIsAnimating] = useState(false)
+  const [isClosing, setIsClosing] = useState(false)
+  const [showElements, setShowElements] = useState({
+    modal: false,
+    title: false,
+    navigation: false,
+    content: false
+  })
+  
   const [translations, setTranslations] = useState({
     profile: 'Profile',
     appearance: 'Appearance',
@@ -241,6 +251,28 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     }
   }, [isMobile, isDragging, dragStartY]);
 
+  // Apple-style closing animation - exact reverse of opening
+  const handleClose = useCallback(() => {
+    if (isMobile) {
+      setIsClosing(true);
+      
+      // Reverse animation sequence - balanced timing
+      // Opening: modal(20ms) → title(250ms) → navigation(350ms) → content(450ms)
+      // Closing: content(0ms) → navigation(100ms) → title(200ms) → modal(400ms)
+      setTimeout(() => setShowElements(prev => ({ ...prev, content: false })), 0);
+      setTimeout(() => setShowElements(prev => ({ ...prev, navigation: false })), 100);
+      setTimeout(() => setShowElements(prev => ({ ...prev, title: false })), 200);
+      setTimeout(() => setShowElements(prev => ({ ...prev, modal: false })), 400);
+      setTimeout(() => {
+        onClose();
+        setIsClosing(false);
+      }, 500);
+    } else {
+      // Desktop: immediate close
+      onClose();
+    }
+  }, [isMobile, onClose]);
+
   const handleTouchEnd = useCallback(() => {
     if (!isMobile || !isDragging) return;
     
@@ -248,18 +280,26 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     
     // If dragged down more than 100px, close the modal
     if (currentTranslateY > 100) {
-      onClose();
+      handleClose();
     } else {
       // Reset position
       setCurrentTranslateY(0);
     }
-  }, [isMobile, isDragging, currentTranslateY, onClose]);
+  }, [isMobile, isDragging, currentTranslateY, handleClose]);
 
   // Reset drag state when modal opens/closes
   useEffect(() => {
     if (!isOpen) {
       setIsDragging(false);
       setCurrentTranslateY(0);
+      setIsAnimating(false);
+      setIsClosing(false);
+      setShowElements({
+        modal: false,
+        title: false,
+        navigation: false,
+        content: false
+      });
     }
   }, [isOpen]);
 
@@ -303,6 +343,41 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
       setMobileView(null);
     }
   }, [isOpen]);
+
+  // Apple-style staggered animation when opening
+  useEffect(() => {
+    if (isOpen && isMobile) {
+      // Only start animation if not already animating
+      if (!isAnimating) {
+        setIsAnimating(true);
+        
+        // Start with all elements hidden
+        setShowElements({
+          modal: false,
+          title: false,
+          navigation: false,
+          content: false
+        });
+        
+        // Staggered sequence - background first, then elements
+        const timeouts = [
+          setTimeout(() => setShowElements(prev => ({ ...prev, modal: true })), 20),
+          setTimeout(() => setShowElements(prev => ({ ...prev, title: true })), 250),
+          setTimeout(() => setShowElements(prev => ({ ...prev, navigation: true })), 350),
+          setTimeout(() => setShowElements(prev => ({ ...prev, content: true })), 450),
+          setTimeout(() => setIsAnimating(false), 550)
+        ];
+        
+        // Cleanup function to clear timeouts
+        return () => {
+          timeouts.forEach(timeout => clearTimeout(timeout));
+        };
+      }
+    } else if (!isOpen) {
+      // Reset immediately when closing
+      setIsAnimating(false);
+    }
+  }, [isOpen, isMobile]); // isAnimating 의존성 제거
 
   const loadUserName = async (userId: string) => {
     const name = await fetchUserName(userId, supabase);
@@ -1025,9 +1100,19 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
 
   const modalContent = (
     <div
-      className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 overflow-hidden backdrop-blur-sm"
+      className={`fixed inset-0 flex items-end sm:items-center justify-center z-50 overflow-hidden transition-all duration-500 ease-out ${
+        isMobile ? `bg-black/10 dark:bg-black/30 backdrop-blur-sm ${
+          showElements.modal ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }` : 'bg-black/50 backdrop-blur-sm'
+      }`}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+        if (e.target === e.currentTarget) {
+          if (isMobile) {
+            handleClose();
+          } else {
+            onClose();
+          }
+        }
       }}
     >
       <div 
@@ -1035,19 +1120,35 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
         className="w-full bg-[var(--background)] flex flex-col shadow-xl overflow-hidden rounded-t-2xl sm:rounded-2xl sm:w-[800px] sm:h-[600px] h-[85vh] border border-[var(--accent)]"
         onClick={e => e.stopPropagation()}
         style={{
-          transform: isMobile ? `translateY(${currentTranslateY}px)` : 'none',
-          transition: isDragging ? 'none' : 'transform 0.3s ease-out',
-          height: isMobile ? `${modalHeight}px` : '85vh'
+          transform: isMobile ? 
+            showElements.modal ? `translateY(${currentTranslateY}px)` : 'translateY(calc(100vh - 60px))'
+            : 'none',
+          transition: isDragging ? 'none' : 
+            isMobile ? 
+              showElements.modal ? 'transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.3s ease-out' : 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-out'
+              : 'transform 0.3s ease-out',
+          height: isMobile ? `${modalHeight}px` : '85vh',
+          willChange: isMobile ? 'transform, opacity' : 'auto',
+          opacity: isMobile ? (showElements.modal ? 1 : 0) : 1,
+          backgroundColor: 'var(--background)',
+          backdropFilter: 'blur(0px)'
         }}
       >
         {/* Draggable Header for Mobile */}
         <div 
           ref={headerRef}
-          className="sm:hidden shrink-0"
+          className={`sm:hidden shrink-0 ${
+            isMobile ? `transition-all duration-250 ease-out ${
+              showElements.title ? 'translate-y-0 opacity-100' : (isClosing ? 'translate-y-6 opacity-0' : 'translate-y-6 opacity-0')
+            }` : ''
+          }`}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          style={{ touchAction: 'none' }}
+          style={{ 
+            touchAction: 'none',
+            willChange: isMobile ? 'transform, opacity' : 'auto'
+          }}
         >
           <div className="text-center pt-4 pb-2">
             <div 
@@ -1061,7 +1162,13 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
         {/* Mobile Layout */}
         {isMobile ? (
           <div className="flex flex-col flex-1 min-h-0">
-            <div className="relative flex items-center justify-center py-4 border-b border-[var(--accent)] shrink-0">
+            <div className={`relative flex items-center justify-center py-4 border-b border-[var(--accent)] shrink-0 transition-all duration-300 ease-out ${
+              showElements.navigation ? 'translate-y-0 opacity-100' : (isClosing ? 'translate-y-8 opacity-0' : 'translate-y-8 opacity-0')
+            }`}
+            style={{ willChange: 'transform, opacity' }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}>
               {mobileView && (
                 <button 
                   onClick={() => setMobileView(null)}
@@ -1084,11 +1191,14 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
               </h2>
             </div>
             <div 
-              className="flex-1 min-h-0 overflow-y-auto" 
+              className={`flex-1 min-h-0 overflow-y-auto transition-all duration-350 ease-out ${
+                showElements.content ? 'translate-y-0 opacity-100' : (isClosing ? 'translate-y-10 opacity-0' : 'translate-y-10 opacity-0')
+              }`}
               key={mobileView || 'main'}
               style={{ 
                 touchAction: isDragging ? 'none' : 'pan-y',
-                pointerEvents: isDragging ? 'none' : 'auto'
+                pointerEvents: isDragging ? 'none' : 'auto',
+                willChange: 'transform, opacity'
               }}
             >
               {mobileView ? renderContentByTab(mobileView) : renderMobileList()}
@@ -1138,7 +1248,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
             <div className="flex-1 flex flex-col overflow-y-auto relative">
               {/* Close Button - Top right */}
               <button 
-                onClick={onClose} 
+                onClick={handleClose} 
                 className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
                 title={translations.close}
               >

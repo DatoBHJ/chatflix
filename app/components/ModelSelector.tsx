@@ -828,19 +828,43 @@ export function ModelSelector({
               >
 
               
+              {/* Draggable Header for Mobile */}
+              <div 
+                ref={headerRef}
+                className={`sm:hidden shrink-0 ${
+                  isMobile ? `transition-all duration-250 ease-out ${
+                    showElements.title ? 'translate-y-0 opacity-100' : (isClosing ? 'translate-y-6 opacity-0' : 'translate-y-6 opacity-0')
+                  }` : ''
+                }`}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                style={{ 
+                  touchAction: 'none',
+                  willChange: isMobile ? 'transform, opacity' : 'auto'
+                }}
+              >
+                <div className="text-center pt-4 pb-2">
+                  <div 
+                    className={`w-12 h-1.5 rounded-full mx-auto transition-colors duration-200 ${
+                      isDragging ? 'bg-gray-400 dark:bg-gray-600' : 'bg-gray-300 dark:bg-gray-700'
+                    }`} 
+                  />
+                </div>
+              </div>
+
               {/* Mobile mode header */}
               {isMobile && (
                 <>
 
                   <div 
-                    ref={headerRef}
                      className={`relative flex items-center justify-center py-6 px-6 border-b border-[var(--accent)] shrink-0 transition-all duration-250 ease-out ${
                        showElements.title ? 'translate-y-0 opacity-100' : (isClosing ? 'translate-y-6 opacity-0' : 'translate-y-6 opacity-0')
                      }`}
                      style={{ willChange: 'transform, opacity' }}
-                    onTouchStart={handleTouchStart}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
+                     onTouchStart={handleTouchStart}
+                     onTouchMove={handleTouchMove}
+                     onTouchEnd={handleTouchEnd}
                    >
                     <h2 className="text-xl font-semibold">Models</h2>
                   </div>
