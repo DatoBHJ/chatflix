@@ -1323,7 +1323,18 @@ export function ChatInput({
                           <button
                             key={tool.id}
                             type="button"
-                            onClick={() => handleToolSelect(tool.id)}
+                            onClick={(e) => {
+                              // 모바일에서 자판이 올라오지 않도록 방지
+                              e.preventDefault();
+                              e.stopPropagation();
+                              
+                              // 현재 활성 요소에서 포커스 제거 (모바일 키보드 방지)
+                              if (document.activeElement && document.activeElement !== document.body) {
+                                (document.activeElement as HTMLElement).blur();
+                              }
+                              
+                              handleToolSelect(tool.id);
+                            }}
                             className={`flex items-center gap-2 w-full p-2 transition-colors text-left tool-button rounded-lg ${
                               selectedTool === tool.id
                                 ? 'bg-[#007AFF] text-white'
@@ -1359,7 +1370,18 @@ export function ChatInput({
                         <div className="p-2">
                           <button
                             type="button"
-                            onClick={handleToolDeselect}
+                            onClick={(e) => {
+                              // 모바일에서 자판이 올라오지 않도록 방지
+                              e.preventDefault();
+                              e.stopPropagation();
+                              
+                              // 현재 활성 요소에서 포커스 제거 (모바일 키보드 방지)
+                              if (document.activeElement && document.activeElement !== document.body) {
+                                (document.activeElement as HTMLElement).blur();
+                              }
+                              
+                              handleToolDeselect();
+                            }}
                             className="flex items-center gap-2 w-full p-2 hover:bg-[var(--accent)] transition-colors text-left tool-button rounded-lg"
                           >
                             <div className="flex items-center justify-center w-7 h-7 flex-shrink-0">
@@ -1384,7 +1406,18 @@ export function ChatInput({
             <div className="relative">
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={(e) => {
+                  // 모바일에서 자판이 올라오지 않도록 방지
+                  e.preventDefault();
+                  e.stopPropagation();
+                  
+                  // 현재 활성 요소에서 포커스 제거 (모바일 키보드 방지)
+                  if (document.activeElement && document.activeElement !== document.body) {
+                    (document.activeElement as HTMLElement).blur();
+                  }
+                  
+                  fileInputRef.current?.click();
+                }}
                 className="flex items-center justify-center w-8 h-8 rounded-full bg-[var(--chat-input-button-bg)] hover:bg-[var(--chat-input-button-hover-bg)] transition-colors flex-shrink-0 text-[var(--muted)] cursor-pointer"
                 title={translations.uploadFile}
               >
