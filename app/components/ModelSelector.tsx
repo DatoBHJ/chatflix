@@ -195,7 +195,6 @@ export function ModelSelector({
         setTimeout(() => setShowElements(prev => ({ ...prev, models: false })), 0);
         setTimeout(() => setShowElements(prev => ({ ...prev, sortControls: false })), 100);
         setTimeout(() => setShowElements(prev => ({ ...prev, title: false })), 200);
-        setTimeout(() => setShowElements(prev => ({ ...prev, handle: false })), 300);
         setTimeout(() => setShowElements(prev => ({ ...prev, modal: false })), 500);
         setTimeout(() => {
       setIsOpen(false);
@@ -214,33 +213,25 @@ export function ModelSelector({
 
   // Apple-style closing animation - exact reverse of opening
   const handleClose = useCallback(() => {
-    if (isMobile && !isClosing) {
+    if (isMobile) {
       setIsClosing(true);
       
       // Reverse animation sequence - balanced timing
-      // Opening: modal(0) → handle(200) → title(300) → sortControls(400) → models(500)
-      // Closing: models(0) → sortControls(100) → title(200) → handle(300) → modal(500)
-      const timeouts = [
-        setTimeout(() => setShowElements(prev => ({ ...prev, models: false })), 0),
-        setTimeout(() => setShowElements(prev => ({ ...prev, sortControls: false })), 100),
-        setTimeout(() => setShowElements(prev => ({ ...prev, title: false })), 200),
-
-        setTimeout(() => setShowElements(prev => ({ ...prev, modal: false })), 500),
-        setTimeout(() => {
-          setIsOpen(false);
-          setIsClosing(false);
-        }, 600)
-      ];
-      
-      // Store timeouts for cleanup
-      return () => {
-        timeouts.forEach(timeout => clearTimeout(timeout));
-      };
+      // Opening: modal(0) → title(250) → sortControls(350) → models(450)
+      // Closing: models(0) → sortControls(100) → title(200) → modal(400)
+      setTimeout(() => setShowElements(prev => ({ ...prev, models: false })), 0);
+      setTimeout(() => setShowElements(prev => ({ ...prev, sortControls: false })), 100);
+      setTimeout(() => setShowElements(prev => ({ ...prev, title: false })), 200);
+      setTimeout(() => setShowElements(prev => ({ ...prev, modal: false })), 400);
+      setTimeout(() => {
+        setIsOpen(false);
+        setIsClosing(false);
+      }, 500);
     } else {
       // Desktop: immediate close
       setIsOpen(false);
     }
-  }, [isMobile, isClosing, setIsOpen]);
+  }, [isMobile]);
 
   // Reset drag state when modal opens/closes
   useEffect(() => {
@@ -251,7 +242,6 @@ export function ModelSelector({
       setIsClosing(false);
       setShowElements({
         modal: false,
-
         title: false,
         sortControls: false,
         models: false
