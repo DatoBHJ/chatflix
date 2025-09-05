@@ -12,9 +12,8 @@ export async function GET(req: NextRequest) {
   }
   
   // Use service role client to bypass RLS for admin queries
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_CUSTOM_DOMAIN || process.env.NEXT_PUBLIC_SUPABASE_URL!
   const serviceSupabase = createServiceClient(
-    supabaseUrl,
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 

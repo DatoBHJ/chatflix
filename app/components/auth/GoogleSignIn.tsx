@@ -17,17 +17,17 @@ export function GoogleSignIn({ isSignIn = false }: GoogleSignInProps) {
     try {
       setLoading(true)
       
-      // 커스텀 도메인 또는 기본 Supabase 도메인 사용
-      const supabaseDomain = process.env.NEXT_PUBLIC_SUPABASE_CUSTOM_DOMAIN || process.env.NEXT_PUBLIC_SUPABASE_URL
+      // 현재 도메인을 동적으로 감지
+      const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
       
       // 환경에 따른 리다이렉트 URL 설정
       const redirectUrl = process.env.NODE_ENV === 'development' 
         ? 'http://localhost:3000/auth/callback'
-        : `${supabaseDomain}/auth/v1/callback`
+        : `${currentOrigin}/auth/callback`
       
       console.log('Google OAuth attempt:', {
         environment: process.env.NODE_ENV,
-        supabaseDomain,
+        currentOrigin,
         redirectUrl,
         timestamp: new Date().toISOString()
       })

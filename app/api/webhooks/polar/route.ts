@@ -108,9 +108,8 @@ export async function POST(request: NextRequest) {
     console.log('👤 Processing webhook for customer:', customerExternalId)
 
     // Initialize Supabase client with service role for webhook processing
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_CUSTOM_DOMAIN || process.env.NEXT_PUBLIC_SUPABASE_URL!
     const supabase = createClient(
-      supabaseUrl,
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 

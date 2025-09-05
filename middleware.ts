@@ -120,9 +120,8 @@ export async function middleware(request: NextRequest) {
       // Create a Supabase client for the middleware
       const { createServerClient } = await import('@supabase/ssr')
       
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_CUSTOM_DOMAIN || process.env.NEXT_PUBLIC_SUPABASE_URL!
       const supabase = createServerClient(
-        supabaseUrl,
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
           cookies: {

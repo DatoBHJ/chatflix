@@ -19,9 +19,8 @@ export async function isAdmin(): Promise<boolean> {
   try {
     const cookieStore = await cookies()
     
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_CUSTOM_DOMAIN || process.env.NEXT_PUBLIC_SUPABASE_URL!
     const supabase = createServerClient(
-      supabaseUrl,
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
