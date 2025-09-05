@@ -305,12 +305,9 @@ export function ChatInput({
   // 초기 렌더링 시 자동 포커스
   useEffect(() => {
     if (inputRef.current) {
-      // 🚀 FIX: 모바일에서 도구가 선택된 상태에서는 focus 방지
-      if (!isMobile || !selectedTool) {
-        inputRef.current.focus({ preventScroll: true });
-      }
+      inputRef.current.focus({ preventScroll: true });
     }
-  }, []); // 초기 렌더링 시에만 실행
+  }, []);
 
 
 
@@ -427,10 +424,8 @@ export function ChatInput({
             // 모든 처리가 끝난 후 입력 핸들러 호출
             debouncedInputHandler();
             
-            // 포커스 유지 - 모바일에서 도구 선택 시 focus 방지
-            if (!isMobile || !selectedTool) {
-              inputRef.current?.focus();
-            }
+            // 포커스 유지
+            inputRef.current?.focus();
           }
         };
         
@@ -473,10 +468,8 @@ export function ChatInput({
     // 입력 핸들러 호출
     debouncedInputHandler();
     
-    // 포커스 유지 - 모바일에서 도구 선택 시 focus 방지
-    if (!isMobile || !selectedTool) {
-      inputRef.current.focus();
-    }
+    // 포커스 유지
+    inputRef.current.focus();
   };
 
   // requestIdleCallback 폴리필 (일부 브라우저 호환성을 위해)
@@ -543,10 +536,8 @@ export function ChatInput({
         target: { value: '' }
       } as React.ChangeEvent<HTMLTextAreaElement>);
       
-      // 입력 필드에 포커스 - 모바일에서 도구 선택 시 focus 방지
-      if (!isMobile || !selectedTool) {
-        inputRef.current.focus();
-      }
+      // 입력 필드에 포커스
+      inputRef.current.focus();
       
       // 디바운스 타이머 정리
       if (debounceTimerRef.current) {
@@ -561,13 +552,9 @@ export function ChatInput({
     if (inputRef.current) {
       inputRef.current.classList.add('empty');
       inputRef.current.setAttribute('data-placeholder', placeholder);
-      // 🚀 FIX: 모바일에서 도구 선택 시 키보드가 올라오지 않도록 조건부 focus
-      // 초기 렌더링이거나 데스크톱에서만 focus 실행
-      if (!isMobile || !selectedTool) {
-        inputRef.current.focus({ preventScroll: true });
-      }
+      inputRef.current.focus({ preventScroll: true });
     }
-  }, [placeholder, isMobile, selectedTool]);
+  }, [placeholder]);
 
   // 고유 ID 생성 함수 추가
   const generateUniqueId = () => {
@@ -844,10 +831,8 @@ export function ChatInput({
           } as React.ChangeEvent<HTMLTextAreaElement>;
           handleInputChange(event);
           
-          // 포커스 유지 - 모바일에서 도구 선택 시 focus 방지
-          if (!isMobile || !selectedTool) {
-            inputRef.current.focus();
-          }
+          // 포커스 유지
+          inputRef.current.focus();
         });
       }).catch(err => {
         console.error('클립보드 작업 실패:', err);
