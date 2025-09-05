@@ -552,9 +552,13 @@ export function ChatInput({
     if (inputRef.current) {
       inputRef.current.classList.add('empty');
       inputRef.current.setAttribute('data-placeholder', placeholder);
-      inputRef.current.focus({ preventScroll: true });
+      // 🚀 FIX: 모바일에서 도구 선택 시 키보드가 올라오지 않도록 조건부 focus
+      // 초기 렌더링이거나 데스크톱에서만 focus 실행
+      if (!isMobile || !selectedTool) {
+        inputRef.current.focus({ preventScroll: true });
+      }
     }
-  }, [placeholder]);
+  }, [placeholder, isMobile, selectedTool]);
 
   // 고유 ID 생성 함수 추가
   const generateUniqueId = () => {
