@@ -21,7 +21,7 @@ Gemini 2.0 Flash로 분석:
 | **멀티모달 + 단순** | `gpt-4.1` | `claude-sonnet-4` |
 | **멀티모달 + 중간** | `gpt-4.1` | `gemini-2.5-pro` |
 | **멀티모달 + 복잡** | `gemini-2.5-pro` | `gemini-2.5-pro` |
-| **비멀티모달 + 모든 복잡도** | `moonshotai/kimi-k2-instruct` | `moonshotai/kimi-k2-instruct` (단순), `claude-sonnet-4` (중간), `claude-sonnet-4-thinking` (복잡) |
+| **비멀티모달 + 모든 복잡도** | `gemini-2.5-flash` | `gemini-2.5-flash` (단순), `claude-sonnet-4` (중간), `claude-sonnet-4-thinking` (복잡) |
 
 #### **🖼️ 이미지 포함**
 
@@ -47,11 +47,11 @@ Gemini 2.0 Flash로 분석:
 | **Math** | 단순 | `grok-4-0709` | `grok-4-0709` |
 | **Math** | 중간 | `grok-4-0709` | `grok-4-0709` |
 | **Math** | 복잡 | `grok-4-0709` | `grok-4-0709` |
-| **Technical** | 단순 | `moonshotai/kimi-k2-instruct` | `moonshotai/kimi-k2-instruct` |
-| **Technical** | 중간/복잡 | `moonshotai/kimi-k2-instruct` | `claude-sonnet-4` |
-| **Other** | 단순 | `moonshotai/kimi-k2-instruct` | `claude-sonnet-4` |
-| **Other** | 중간 | `moonshotai/kimi-k2-instruct` | `claude-sonnet-4` |
-| **Other** | 복잡 | `moonshotai/kimi-k2-instruct` | `claude-sonnet-4` |
+| **Technical** | 단순 | `gemini-2.5-flash` | `gemini-2.5-flash` |
+| **Technical** | 중간/복잡 | `gemini-2.5-flash` | `claude-sonnet-4` |
+| **Other** | 단순 | `gemini-2.5-flash` | `claude-sonnet-4` |
+| **Other** | 중간 | `gemini-2.5-flash` | `claude-sonnet-4` |
+| **Other** | 복잡 | `gemini-2.5-flash` | `claude-sonnet-4` |
 
 ### 🎯 **3단계: 개선된 컨텍스트 길이 검증 및 업그레이드**
 
@@ -76,11 +76,20 @@ safetyMargin = isAttachmentsHeavy ? 0.7 : 0.85  // 70% 또는 85%만 사용
 - 기타 파일: 2000 토큰
 - 텍스트: estimateTokenCount() 사용
 
-// 1차 선택 모델의 컨텍스트 용량 확인
-if (선택된_모델_컨텍스트 >= 필요_컨텍스트) {
-  ✅ 1차 선택 모델 사용
+// 🆕 gemini-2.5-flash 특별 처리 (1M 컨텍스트)
+if (선택된_모델 === 'gemini-2.5-flash') {
+  if (필요_컨텍스트 <= 800000) { // 1M 중 800K 이하면 충분
+    ✅ gemini-2.5-flash 사용 (간소화된 검증)
+  } else {
+    🔄 업그레이드 필요
+  }
 } else {
-  🔄 업그레이드 필요
+  // 다른 모델들은 기존 로직
+  if (선택된_모델_컨텍스트 >= 필요_컨텍스트) {
+    ✅ 1차 선택 모델 사용
+  } else {
+    🔄 업그레이드 필요
+  }
 }
 ```
 
@@ -153,13 +162,13 @@ contextInfo: {
 
 | 구분 | Chatflix Ultimate | Chatflix Ultimate Pro |
 |------|-------------------|----------------------|
-| **코딩 (비멀티모달)** | 모든 복잡도 `moonshotai/kimi-k2-instruct` | 단순 `moonshotai/kimi-k2-instruct`, 중간 `claude-sonnet-4`, 복잡 `claude-sonnet-4-thinking` |
-| **기타 (비멀티모달)** | 모든 복잡도 `moonshotai/kimi-k2-instruct` | 모든 복잡도 `claude-sonnet-4` |
+| **코딩 (비멀티모달)** | 모든 복잡도 `gemini-2.5-flash` | 단순 `gemini-2.5-flash`, 중간 `claude-sonnet-4`, 복잡 `claude-sonnet-4-thinking` |
+| **기타 (비멀티모달)** | 모든 복잡도 `gemini-2.5-flash` | 모든 복잡도 `claude-sonnet-4` |
 | **Math (비멀티모달)** | 모든 복잡도 `grok-4-0709` | 모든 복잡도 `grok-4-0709` |
-| **Technical (비멀티모달)** | 모든 복잡도 `moonshotai/kimi-k2-instruct` | 단순 `moonshotai/kimi-k2-instruct`, 중간/복잡 `claude-sonnet-4` |
+| **Technical (비멀티모달)** | 모든 복잡도 `gemini-2.5-flash` | 단순 `gemini-2.5-flash`, 중간/복잡 `claude-sonnet-4` |
 | **멀티모달 처리** | 더 보수적 (Gemini 중심) | 더 적극적 (Claude Sonnet 4 활용) |
-| **컨텍스트 계산** | 정교한 멀티모달 토큰 추정 + 동적 안전 마진 |
-| **폴백 메커니즘** | 강화된 에러 처리 + `kimi` 모델 특별 규칙 추가 |
+| **컨텍스트 계산** | 정교한 멀티모달 토큰 추정 + 동적 안전 마진 + gemini-2.5-flash 간소화된 검증 |
+| **폴백 메커니즘** | 강화된 에러 처리 + 안전한 폴백 모델 사용 + 1M 컨텍스트 활용 |
 
 ## 📊 **개선된 컨텍스트 업그레이드 + 폴백 예시**
 
@@ -176,14 +185,14 @@ contextInfo: {
 결과: 그대로 사용 (1M+ >= 83K, 충분한 컨텍스트)
 
 예시 2: 수학 문제 풀이 (중간 복잡도)
-1차 선택: moonshotai/kimi-k2-instruct (256K 컨텍스트) - Math 카테고리, 비멀티모달
+1차 선택: grok-4-0709 (1M+ 컨텍스트) - Math 카테고리, 비멀티모달
 컨텍스트 계산:
   - 입력: 1K 토큰
   - 히스토리: 20K 토큰
   - 예상 출력: 2K 토큰 (수학 문제 풀이)
   - 안전 마진: 0.85 (첨부파일 없음)
   - 필요 컨텍스트: (1K + 20K + 2K) / 0.85 ≈ 27K
-결과: 그대로 사용 (256K >= 27K, 충분한 컨텍스트)
+결과: 그대로 사용 (1M+ >= 27K, 충분한 컨텍스트)
 
 예시 3: 대용량 PDF 분석
 1차 선택: gemini-2.0-flash (1M 컨텍스트)
@@ -197,23 +206,33 @@ contextInfo: {
 결과: 그대로 사용 (1M >= 40K, 충분한 컨텍스트)
 
 예시 4: 극대용량 대화 히스토리
-1차 선택: moonshotai/kimi-k2-instruct (256K 컨텍스트)
+1차 선택: gemini-2.5-flash (1M 컨텍스트)
 컨텍스트 계산:
   - 입력: 5K 토큰
   - 히스토리: 300K 토큰 (매우 긴 대화)
   - 예상 출력: 5K 토큰
   - 안전 마진: 0.85 (첨부파일 없음)
   - 필요 컨텍스트: (5K + 300K + 5K) / 0.85 ≈ 365K
-업그레이드 시도: moonshotai/kimi-k2-instruct 컨텍스트 부족(256K < 365K). gpt-4.1(1M+)이 사용 가능하므로 gpt-4.1로 업그레이드.
-결과: gpt-4.1 사용
+결과: 그대로 사용 (365K <= 800K 임계값, 간소화된 검증 통과)
 
-🚨 예시 5: 에러 발생 시나리오
+예시 5: 초대용량 컨텍스트 요구사항
+1차 선택: gemini-2.5-flash (1M 컨텍스트)
+컨텍스트 계산:
+  - 입력: 10K 토큰
+  - 히스토리: 900K 토큰 (극도로 긴 대화)
+  - 예상 출력: 10K 토큰
+  - 안전 마진: 0.85 (첨부파일 없음)
+  - 필요 컨텍스트: (10K + 900K + 10K) / 0.85 ≈ 1,082K
+업그레이드: 1,082K > 800K 임계값 초과, gpt-4.1로 업그레이드
+결과: gpt-4.1 사용 (1M+ 컨텍스트)
+
+🚨 예시 6: 에러 발생 시나리오
 1차 선택: claude-sonnet-4
 에러 상황: 모델 정보 로딩 실패 (네트워크 오류)
 결과: gemini-2.5-pro 즉시 폴백
 upgradeReason: "Error occurred during model selection, using fallback: gemini-2.5-pro"
 
-🚨 예시 6: Agent 모델 없음 시나리오
+🚨 예시 7: Agent 모델 없음 시나리오
 1차 선택: 시도 중...
 문제: isAgentEnabled: true 모델이 하나도 없음
 결과: gemini-2.5-pro 폴백 (하드코딩된 안전장치)

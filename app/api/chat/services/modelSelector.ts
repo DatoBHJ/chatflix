@@ -317,35 +317,28 @@ function selectModelWithContextAwareness(
     const primaryModelConfig = getAgentEnabledModels(modelType).find(m => m.id === primaryModel);
     
     // 2단계: 컨텍스트 용량 확인
-    if (primaryModelConfig && primaryModelConfig.contextWindow && 
-        primaryModelConfig.contextWindow >= contextInfo.requiredContext) {
-      // 컨텍스트 충분 - 1차 선택 모델 사용
-      return {
-        selectedModel: primaryModel,
-        contextInfo: {
-          ...contextInfo,
-          selectedModelContext: primaryModelConfig.contextWindow,
-          wasUpgraded: false
-        }
-      };
-    }
-    
-    // 🆕 3단계: 특별 라우팅 규칙 - moonshotai/kimi-k2-instruct 컨텍스트 부족 시 gpt-4.1 폴백
-    if (primaryModel === 'moonshotai/kimi-k2-instruct') {
-      const gpt41ModelConfig = getAgentEnabledModels(modelType).find(m => m.id === 'gpt-4.1');
-      if (gpt41ModelConfig && gpt41ModelConfig.contextWindow && 
-          gpt41ModelConfig.contextWindow >= contextInfo.requiredContext) {
+    // gemini-2.5-flash는 1M 컨텍스트로 대부분의 경우 충분하므로 간소화된 검증
+    if (primaryModelConfig && primaryModelConfig.contextWindow) {
+      const isGeminiFlash = primaryModel === 'gemini-2.5-flash';
+      const contextSufficient = isGeminiFlash ? 
+        contextInfo.requiredContext <= 800000 : // 1M 중 800K 이하면 충분
+        primaryModelConfig.contextWindow >= contextInfo.requiredContext;
+      
+      if (contextSufficient) {
+        // 컨텍스트 충분 - 1차 선택 모델 사용
         return {
-          selectedModel: 'gpt-4.1',
+          selectedModel: primaryModel,
           contextInfo: {
             ...contextInfo,
-            selectedModelContext: gpt41ModelConfig.contextWindow,
-            wasUpgraded: true,
-            upgradeReason: 'Upgraded from moonshotai/kimi-k2-instruct to gpt-4.1 due to insufficient context'
+            selectedModelContext: primaryModelConfig.contextWindow,
+            wasUpgraded: false
           }
         };
       }
     }
+    
+    // 🆕 3단계: gemini-2.5-flash는 1M 컨텍스트로 대부분의 경우 충분하므로 특별 처리 생략
+    // (1M 컨텍스트면 거의 모든 일반적인 사용 사례에서 충분함)
     
     // 4단계: 컨텍스트 부족 - 일반적인 업그레이드 필요
     const agentModels = getAgentEnabledModels(modelType);
@@ -586,7 +579,7 @@ function selectModelBasedOnAnalysis(
       } else {
         // 비멀티모달 + 코딩
         if (analysis.complexity === 'simple') {
-          return 'moonshotai/kimi-k2-instruct';
+          return 'gemini-2.5-flash';
         } else if (analysis.complexity === 'medium') {
           return 'claude-sonnet-4-20250514'; // sonnet 4
         } else { // complex
@@ -603,8 +596,8 @@ function selectModelBasedOnAnalysis(
           return 'gpt-4.1'; // gpt-4.1
         }
       } else {
-        // 비멀티모달 + 코딩: 복잡도 무상관 moonshotai/kimi-k2-instruct
-        return 'moonshotai/kimi-k2-instruct';
+        // 비멀티모달 + 코딩: 복잡도 무상관 gemini-2.5-flash
+        return 'gemini-2.5-flash';
       }
     }
   }
@@ -665,15 +658,15 @@ function selectModelBasedOnAnalysis(
     else if (analysis.category === 'technical') {
       // 기술 카테고리
       if (modelType === 'chatflix-ultimate-pro') {
-        // Pro 버전: 단순 moonshotai/kimi-k2-instruct, 중간/복잡 claude-sonnet-4
+        // Pro 버전: 단순 gemini-2.5-flash, 중간/복잡 claude-sonnet-4
         if (analysis.complexity === 'simple') {
-          return 'moonshotai/kimi-k2-instruct';
+          return 'gemini-2.5-flash';
         } else { // medium/complex
           return 'claude-sonnet-4-20250514';
         }
       } else {
-        // 일반 버전: 모든 복잡도 moonshotai/kimi-k2-instruct
-        return 'moonshotai/kimi-k2-instruct';
+        // 일반 버전: 모든 복잡도 gemini-2.5-flash
+        return 'gemini-2.5-flash';
       }
     }
     else {
@@ -682,8 +675,8 @@ function selectModelBasedOnAnalysis(
         // Pro 버전: 모든 복잡도 claude-sonnet-4
         return 'claude-sonnet-4-20250514';
       } else {
-        // 일반 버전: 모든 복잡도 moonshotai/kimi-k2-instruct
-        return 'moonshotai/kimi-k2-instruct';
+        // 일반 버전: 모든 복잡도 gemini-2.5-flash
+        return 'gemini-2.5-flash';
       }
     }
   }
