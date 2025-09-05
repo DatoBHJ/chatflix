@@ -1211,9 +1211,9 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
                           {/* Content */}
                           <div className="flex-1 min-w-0">
                             {/* Top line: Title + Date */}
-                            <div className="flex justify-between items-baseline">
-                              <p className="text-sm font-semibold truncate pr-2 text-[var(--muted)]">
-                                {i === 1 ? 'How to build a React app' : i === 2 ? 'Python data analysis tips' : 'JavaScript best practices'}
+                            <div className="flex justify-between items-baseline gap-1">
+                              <p className="text-sm font-semibold truncate text-[var(--muted)]" style={{ maxWidth: 'calc(100% - 0px)' }}>
+                                {i === 1 ? 'Where do socks go after laundry?' : i === 2 ? 'How do I find Nemo?' : 'Why is my WiFi so slow?'}
                               </p>
                               <span className="text-xs flex-shrink-0 text-[var(--muted)]/60">
                                 {i === 1 ? '2h' : i === 2 ? '1d' : '3d'}
@@ -1221,7 +1221,7 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
                             </div>
                             {/* Bottom line: Preview */}
                             <p className="text-xs truncate pr-2 text-[var(--muted)]/60 mt-1">
-                              {i === 1 ? 'Can you help me create a React application from scratch?' : i === 2 ? 'What are the best libraries for data analysis in Python?' : 'What are the modern JavaScript best practices?'}
+                              {i === 1 ? 'Lost 7 socks this week. Is there a portal in my washer?' : i === 2 ? 'I\'ve been looking for Nemo for 3 hours, where is he?' : 'My internet is slower than a snail, help me!'}
                             </p>
                           </div>
                           
