@@ -1221,7 +1221,16 @@ export function ChatInput({
               <div className="relative" ref={agentDropdownRef}>
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={(e) => {
+                    // 모바일에서 자판이 올라오지 않도록 방지
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // 현재 활성 요소에서 포커스 제거 (모바일 키보드 방지)
+                    if (document.activeElement && document.activeElement !== document.body) {
+                      (document.activeElement as HTMLElement).blur();
+                    }
+                    
                     // 현재 모델이 에이전트를 지원하는지 확인
                     const currentModel = getModelById(modelId);
                     const isCurrentModelAgentEnabled = currentModel?.isAgentEnabled === true;

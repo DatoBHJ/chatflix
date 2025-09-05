@@ -171,14 +171,17 @@ export function ModelSelector({
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (!isMobile || !isDragging) return;
-    e.preventDefault();
     
     const currentY = e.touches[0].clientY;
     const diff = currentY - dragStartY;
     
-    // Only allow downward dragging
+    // Only allow downward dragging and only prevent default when actually dragging
     if (diff > 0) {
       setCurrentTranslateY(diff);
+      // Only prevent default when there's actual movement to prevent interfering with browser scroll
+      if (diff > 10) {
+        e.preventDefault();
+      }
     }
   }, [isMobile, isDragging, dragStartY]);
 
@@ -823,7 +826,7 @@ export function ModelSelector({
                   
               <div 
                 ref={modalRef}
-                    className="fixed inset-x-0 bottom-0 w-full bg-background flex flex-col overflow-hidden rounded-t-3xl z-[9999999]"
+                    className="fixed inset-x-0 bottom-0 w-full bg-background flex flex-col overflow-hidden rounded-t-3xl z-[9999999] model-selector-modal"
                 style={{
                       transform: showElements.modal ? `translateY(${currentTranslateY}px)` : 'translateY(calc(100vh - 60px))',
                       transition: isDragging ? 'none' : showElements.modal ? 'transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.3s ease-out' : 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-out',
@@ -844,7 +847,7 @@ export function ModelSelector({
 
                   <div 
                     ref={headerRef}
-                     className={`relative flex items-center justify-center py-6 px-6 border-b border-[var(--accent)] shrink-0 transition-all duration-250 ease-out ${
+                     className={`relative flex items-center justify-center py-6 px-6 border-b border-[var(--accent)] shrink-0 transition-all duration-250 ease-out model-selector-header ${isDragging ? 'dragging' : ''} ${
                        showElements.title ? 'translate-y-0 opacity-100' : (isClosing ? 'translate-y-6 opacity-0' : 'translate-y-6 opacity-0')
                      }`}
                      style={{ willChange: 'transform, opacity' }}
@@ -1032,13 +1035,12 @@ export function ModelSelector({
               
               {/* Model options list */}
               <div 
-                className={`py-2 relative ${isMobile ? 'flex-1 min-h-0 overflow-y-auto px-4' : 'overflow-y-auto'} ${
+                className={`py-2 relative model-selector-content ${isMobile ? 'flex-1 min-h-0 overflow-y-auto px-4' : 'overflow-y-auto'} ${
                   isMobile ? `transition-all duration-350 ease-out ${
                     showElements.models ? 'translate-y-0 opacity-100' : (isClosing ? 'translate-y-10 opacity-0' : 'translate-y-10 opacity-0')
                   }` : ''
                 }`}
                 style={{ 
-                  touchAction: isDragging ? 'none' : 'pan-y',
                   pointerEvents: isDragging ? 'none' : 'auto',
                   maxHeight: isMobile ? undefined : `${Math.max(0, maxModalHeight - 180)}px`, // 180px for header and padding
                   willChange: isMobile ? 'transform, opacity' : 'auto'
@@ -1508,9 +1510,8 @@ export function ModelSelector({
               
               {/* Model options list */}
               <div 
-                className={`py-2 relative ${isMobile ? 'flex-1 min-h-0 overflow-y-auto px-4' : 'overflow-y-auto'}`}
+                className={`py-2 relative model-selector-content ${isMobile ? 'flex-1 min-h-0 overflow-y-auto px-4' : 'overflow-y-auto'}`}
                 style={{ 
-                  touchAction: isDragging ? 'none' : 'pan-y',
                   pointerEvents: isDragging ? 'none' : 'auto',
                   maxHeight: isMobile ? undefined : `${Math.max(0, maxModalHeight - 180)}px` // 180px for header and padding
                 }}
