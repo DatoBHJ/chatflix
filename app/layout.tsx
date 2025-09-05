@@ -11,7 +11,7 @@ export const viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  themeColor: '#000000',
+  themeColor: '#ffffff',
 }
 
 export const metadata = {
@@ -92,6 +92,18 @@ function ThemeInitScript() {
       dangerouslySetInnerHTML={{
         __html: `
           (function() {
+            function updateThemeColor(theme) {
+              // PWA에서 오버스크롤 시 보이는 배경색을 테마에 맞게 설정
+              const themeColor = theme === 'dark' ? '#000000' : '#ffffff';
+              let themeColorMeta = document.querySelector('meta[name="theme-color"]');
+              if (!themeColorMeta) {
+                themeColorMeta = document.createElement('meta');
+                themeColorMeta.setAttribute('name', 'theme-color');
+                document.head.appendChild(themeColorMeta);
+              }
+              themeColorMeta.setAttribute('content', themeColor);
+            }
+
             function getInitialTheme() {
               const savedTheme = localStorage.getItem('theme');
               if (savedTheme && savedTheme !== 'system') return savedTheme;
@@ -105,6 +117,7 @@ function ThemeInitScript() {
             
             const theme = getInitialTheme();
             document.documentElement.setAttribute('data-theme', theme);
+            updateThemeColor(theme);
             
             // 시스템 테마 변경 감지
             if (window.matchMedia) {
@@ -113,9 +126,27 @@ function ThemeInitScript() {
                 if (!savedTheme || savedTheme === 'system') {
                   const newTheme = e.matches ? 'dark' : 'light';
                   document.documentElement.setAttribute('data-theme', newTheme);
+                  updateThemeColor(newTheme);
                 }
               });
             }
+
+            // 테마 변경 이벤트 감지 (테마 토글 시)
+            document.addEventListener('DOMContentLoaded', function() {
+              const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                  if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
+                    const currentTheme = document.documentElement.getAttribute('data-theme');
+                    updateThemeColor(currentTheme);
+                  }
+                });
+              });
+              
+              observer.observe(document.documentElement, {
+                attributes: true,
+                attributeFilter: ['data-theme']
+              });
+            });
           })();
         `,
       }}
