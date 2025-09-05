@@ -165,7 +165,6 @@ export function ChatInput({
   const [showAgentError, setShowAgentError] = useState(false);
   const [isHoveringUpgrade, setIsHoveringUpgrade] = useState(false);
   const [showToolSelector, setShowToolSelector] = useState(false);
-  const [isHoveringToolSelector, setIsHoveringToolSelector] = useState(false);
   const [translations, setTranslations] = useState({
     usesTools: 'Intelligently selects and uses tools for better answers',
     talkToModel: 'Talk to the model directly',
@@ -1102,16 +1101,28 @@ export function ChatInput({
     }
   }, [isHoveringButton, isHoveringTooltip]);
 
-  // 도구 선택 툴팁 호버 상태 관리
-  useEffect(() => {
-    if (!isHoveringToolSelector) {
-      const hideTimer = setTimeout(() => {
-        setShowToolSelector(false);
-      }, 200);
 
-      return () => clearTimeout(hideTimer);
+  // 외부 클릭/터치 시 도구 선택창 닫기
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (showToolSelector && agentDropdownRef.current) {
+        const target = event.target as Node;
+        if (!agentDropdownRef.current.contains(target)) {
+          setShowToolSelector(false);
+        }
+      }
+    };
+
+    if (showToolSelector) {
+      // 마우스와 터치 이벤트 모두 처리
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('touchstart', handleClickOutside);
+      };
     }
-  }, [isHoveringToolSelector]);
+  }, [showToolSelector]);
 
   // 도구 선택 핸들러
   const handleToolSelect = (toolId: string) => {
@@ -1292,8 +1303,6 @@ export function ChatInput({
                 {showToolSelector && (
                   <div 
                     className="absolute top-0 -translate-y-full -mt-2 -left-1 w-56 chat-input-tooltip-backdrop rounded-2xl z-50 overflow-hidden tool-selector"
-                    onMouseEnter={() => setIsHoveringToolSelector(true)}
-                    onMouseLeave={() => setIsHoveringToolSelector(false)}
                   >
                                   {/* Apple-style arrow removed */}
                     
