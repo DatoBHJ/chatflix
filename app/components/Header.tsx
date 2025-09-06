@@ -424,12 +424,6 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                                 isSubscribed ? 'bg-green-500' : 'bg-yellow-500'
                               }`}></div>
                             </div>
-                            <div className="text-xs text-[var(--muted)] mb-3">
-                              {isSubscribed 
-                                ? 'You have access to all features' 
-                                : 'Upgrade to unlock all features'
-                              }
-                            </div>
                             <Link 
                               href="/pricing"
                               className="inline-flex items-center justify-center w-full px-3 py-2 text-xs font-medium text-white bg-[var(--chat-input-primary)] hover:bg-[var(--chat-input-primary)]/90 rounded-xl transition-all duration-200 hover:shadow-lg hover:scale-105"
