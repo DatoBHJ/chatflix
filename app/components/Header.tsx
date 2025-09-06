@@ -307,7 +307,7 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                           y="9" 
                           width="22" 
                           height="11" 
-                          rx="1.5" 
+                          rx="2.2" 
                           fill="none" 
                           stroke="currentColor" 
                           strokeWidth="1.2"
@@ -320,12 +320,13 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                           strokeWidth="1.2"
                         />
                         <rect 
-                          x="10" 
-                          y="10" 
-                          rx="0.8" 
-                          height="9" 
-                          width="3" 
+                          x="10.5" 
+                          y="10.5" 
+                          rx="1.2" 
+                          height="8" 
+                          width="2.5" 
                           fill="#ef4444"
+                          // fill="currentColor" // 통일된 foreground 색상
                         />
                       </svg>
                       
@@ -345,7 +346,7 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                               <div className="text-sm font-medium text-[var(--foreground)]">
                                 Guest Mode
                               </div>
-                              <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                              {/* <div className="w-2 h-2 rounded-full bg-red-500"></div> */}
                             </div>
                             {/* <div className="text-xs text-[var(--muted)] mb-3">
                               Create an account to save conversations
@@ -382,7 +383,7 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                           y="9" 
                           width="22" 
                           height="11" 
-                          rx="1.5" 
+                          rx="2.2" 
                           fill="none" 
                           stroke="currentColor" 
                           strokeWidth="1.2"
@@ -395,12 +396,13 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                           strokeWidth="1.2"
                         />
                         <rect 
-                          x="10" 
-                          y="10" 
-                          rx="0.8" 
-                          height="9" 
-                          width={isSubscribed ? "20" : "8"} 
+                          x="10.5" 
+                          y="10.5" 
+                          rx="1.2" 
+                          height="8" 
+                          width={isSubscribed ? "19" : "7"} 
                           fill={isSubscribed ? "#22c55e" : "#eab308"}
+                          // fill="currentColor" // 통일된 foreground 색상
                         />
                       </svg>
                       
@@ -420,9 +422,9 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                               <div className="text-sm font-medium text-[var(--foreground)]">
                                 {isSubscribed ? 'Pro Plan' : 'Free Plan'}
                               </div>
-                              <div className={`w-2 h-2 rounded-full ${
+                              {/* <div className={`w-2 h-2 rounded-full ${
                                 isSubscribed ? 'bg-green-500' : 'bg-yellow-500'
-                              }`}></div>
+                              }`}></div> */}
                             </div>
                             <Link 
                               href="/pricing"

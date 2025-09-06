@@ -7,9 +7,9 @@ import { formatMessageTime } from '@/app/lib/messageTimeUtils';
 
 // 기본 프롬프트 배열 (3개)
 export const DEFAULT_PROMPTS = [
-  "📰 tell me the latest news.",
-  "🐱 send me funny cat gifs",
-  "👤 what do u know about me"
+  "tell me the latest news.",
+  "send me funny cat gifs",
+  "what do u know about me"
 ];
 
 export interface SuggestedPromptProps {
@@ -559,19 +559,19 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                   onClick={() => handleClick("tell me the latest news.")}
                   className="imessage-send-bubble follow-up-question max-w-md opacity-100 transition-all duration-200 ease-out hover:scale-105 cursor-pointer"
                 >
-                  <span>📰 tell me the latest news.</span>
+                  <span>tell me the latest news.</span>
                 </button>
                 <button
                   onClick={() => handleClick("send me funny cat gifs")}
                   className="imessage-send-bubble follow-up-question max-w-md opacity-100 transition-all duration-200 ease-out hover:scale-105 cursor-pointer"
                 >
-                  <span>🐱 send me funny cat gifs</span>
+                  <span>send me funny cat gifs</span>
                 </button>
                 <button
                   onClick={() => handleClick("what do u know about me")}
                   className="imessage-send-bubble follow-up-question max-w-md opacity-100 transition-all duration-200 ease-out hover:scale-105 cursor-pointer"
                 >
-                  <span>👤 what do u know about me</span>
+                  <span>what do u know about me</span>
                 </button>
               </div>
 
