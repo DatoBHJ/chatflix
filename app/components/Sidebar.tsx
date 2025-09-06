@@ -17,6 +17,7 @@ import { useSidebar } from '@/app/lib/SidebarContext'
 import { Settings, LifeBuoy, Zap, LogOut, CreditCard } from 'lucide-react'
 import { SquarePencil } from 'react-ios-icons'
 import { ProblemReportDialog } from './ProblemReportDialog'
+import { SubscriptionDialog } from './SubscriptionDialog'
 
 interface SidebarProps {
   user: any;  // You might want to define a proper User type
@@ -34,6 +35,7 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
   const { isAccountOpen, setIsAccountOpen } = useSidebar()
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
   const [isProblemReportOpen, setIsProblemReportOpen] = useState(false)
+  const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(false)
   const [profileImage, setProfileImage] = useState<string | null>(null)
   const [userName, setUserName] = useState('You')
   const [isExpanded, setIsExpanded] = useState(true) // Always expanded - no toggle needed
@@ -1660,9 +1662,9 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
               <button onClick={() => { setIsProblemReportOpen(true); setIsAccountMenuOpen(false); }} className="flex items-center gap-3 text-left p-2 hover:bg-[var(--accent)] rounded-md text-sm cursor-pointer">
                 <LifeBuoy size={16} /> {translations.reportIssue}
               </button>
-              <Link href="/pricing" className="flex items-center gap-3 text-left p-2 hover:bg-[var(--accent)] rounded-md text-sm">
+              <button onClick={() => { setIsSubscriptionOpen(true); setIsAccountMenuOpen(false); }} className="flex items-center gap-3 text-left p-2 hover:bg-[var(--accent)] rounded-md text-sm cursor-pointer">
                 <CreditCard size={16} /> {translations.subscription}
-              </Link>
+              </button>
             </div>
             <div className="my-2 h-[1px] bg-[var(--accent)]" />
             <button onClick={handleSignOut} className="flex items-center gap-3 w-full text-left p-2 hover:bg-[var(--accent)] rounded-md text-sm text-[var(--foreground)] cursor-pointer">
@@ -1694,6 +1696,11 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
       <ProblemReportDialog
         isOpen={isProblemReportOpen}
         onClose={() => setIsProblemReportOpen(false)}
+        user={user}
+      />
+      <SubscriptionDialog
+        isOpen={isSubscriptionOpen}
+        onClose={() => setIsSubscriptionOpen(false)}
         user={user}
       />
     </div>

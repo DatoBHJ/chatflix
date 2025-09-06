@@ -259,7 +259,7 @@ export function ProblemReportDialog({ isOpen, onClose, user }: ProblemReportDial
 
   const modalContent = (
     <div
-      className={`fixed inset-0 flex items-end sm:items-center justify-center z-50 overflow-hidden transition-all duration-500 ease-out ${
+      className={`fixed inset-0 flex items-end sm:items-center justify-center z-[70] overflow-hidden transition-all duration-500 ease-out ${
         isMobile ? `bg-black/10 dark:bg-black/30 backdrop-blur-sm ${
           showElements.modal ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }` : 'bg-black/50 backdrop-blur-sm'
