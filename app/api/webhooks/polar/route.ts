@@ -14,6 +14,8 @@ interface PolarWebhookEvent {
     current_period_end?: string
     canceled_at?: string
     cancel_at_period_end?: boolean
+    amount?: number
+    currency?: string
     customer?: {
       external_id?: string
       id?: string
@@ -23,6 +25,12 @@ interface PolarWebhookEvent {
       id?: string
     }
     product_id?: string
+    price?: {
+      id?: string
+      price_amount?: number
+      price_currency?: string
+    }
+    price_id?: string
   }
 }
 
@@ -270,7 +278,10 @@ function extractSubscriptionData(event: PolarWebhookEvent) {
     currentPeriodStart: data.current_period_start ? new Date(data.current_period_start).toISOString() : undefined,
     currentPeriodEnd: data.current_period_end ? new Date(data.current_period_end).toISOString() : undefined,
     canceledAt: data.canceled_at ? new Date(data.canceled_at).toISOString() : undefined,
-    cancelAtPeriodEnd: data.cancel_at_period_end || false
+    cancelAtPeriodEnd: data.cancel_at_period_end || false,
+    currentPriceAmount: data.amount || data.price?.price_amount,
+    currentPriceCurrency: data.currency || data.price?.price_currency || 'usd',
+    priceId: data.price_id || data.price?.id
   }
 }
 
@@ -288,6 +299,9 @@ async function updateSubscriptionInDatabase(
     currentPeriodEnd?: string
     canceledAt?: string
     cancelAtPeriodEnd?: boolean
+    currentPriceAmount?: number
+    currentPriceCurrency?: string
+    priceId?: string
     eventType: string
   }
 ) {
@@ -304,6 +318,8 @@ async function updateSubscriptionInDatabase(
       p_current_period_end: data.currentPeriodEnd,
       p_canceled_at: data.canceledAt,
       p_cancel_at_period_end: data.cancelAtPeriodEnd,
+      p_current_price_amount: data.currentPriceAmount,
+      p_current_price_currency: data.currentPriceCurrency,
       p_event_type: data.eventType
     })
     
