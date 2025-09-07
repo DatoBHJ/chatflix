@@ -944,9 +944,14 @@ function ChatInterface({
       setIsSubmitting(true);
       
       try {
-        // 🚀 에이전트 모드 강제 활성화
-        const shouldEnableAgent = true;
-        setisAgentEnabled(shouldEnableAgent);
+        // 🚀 도구가 선택된 상태라면 해당 도구 유지, 그렇지 않으면 에이전트 모드 활성화
+        const shouldEnableAgent = selectedTool ? true : true; // 항상 에이전트 모드 활성화
+        const toolToUse = selectedTool || null; // 현재 선택된 도구 유지
+        
+        // 도구가 선택된 상태가 아니라면 에이전트 모드만 활성화 (도구 선택은 하지 않음)
+        if (!selectedTool) {
+          setisAgentEnabled(shouldEnableAgent);
+        }
         
         // 🚀 1. UI 즉시 업데이트 (최우선) - 첫 메시지에서만
         if (!initialChatId && chatId && messages.length === 0) {
@@ -972,7 +977,7 @@ function ChatInterface({
         // 🚀 2. 메시지 parts 구성 (텍스트만)
         const messageParts: any[] = [{ type: 'text', text: prompt.trim() }];
         
-        // 🚀 3. 즉시 메시지 전송 (에이전트 모드 활성화)
+        // 🚀 3. 즉시 메시지 전송 (선택된 도구 유지)
         await sendMessage({
           role: 'user',
           parts: messageParts
@@ -981,8 +986,8 @@ function ChatInterface({
             model: nextModel,
             chatId: chatId,
             saveToDb: true,
-            isAgentEnabled: shouldEnableAgent, // 🚀 에이전트 모드 강제 활성화
-            selectedTool: selectedTool || null,
+            isAgentEnabled: shouldEnableAgent,
+            selectedTool: toolToUse, // 🚀 현재 선택된 도구 유지
           },
         });
 
