@@ -1199,7 +1199,7 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
                     type="text"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder={`${translations.searchConversations} (⌘K) - 다국어 지원`}
+                    placeholder={`${translations.searchConversations} (⌘K)`}
                     className={`w-full pl-10 pr-4 py-2.5 bg-transparent text-sm rounded-lg placeholder-[var(--muted)] focus:outline-none focus:bg-transparent border-0 outline-none ring-0 focus:ring-0 focus:border-0 shadow-none focus:shadow-none transition-all ${
                       isAnonymousUser ? 'opacity-60 cursor-not-allowed' : ''
                     }`}
