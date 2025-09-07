@@ -468,7 +468,7 @@ export async function POST(req: Request): Promise<Response> {
 
               // 🆕 STEP 2: Prepare optimized messages for final execution
               // 🔧 AI SDK v5: 공통 메시지 처리 함수 사용 (도구 유무와 관계없이 동일)
-              const finalMessagesForExecution = await processMessagesForAI(messagesWithTokens);
+              const finalMessagesForExecution = await processMessagesForAI(messagesWithTokens, model);
               
               // 시스템 프롬프트 설정 (캐시된 메모리 사용)
               const systemPrompt = buildSystemPrompt(
@@ -593,7 +593,7 @@ export async function POST(req: Request): Promise<Response> {
           //  이미 계산된 시스템 토큰 재사용
 
           // 🔧 AI SDK v5: 공통 메시지 처리 함수 사용
-          const messages: ModelMessage[] = await processMessagesForAI(messagesWithTokens);
+          const messages: ModelMessage[] = await processMessagesForAI(messagesWithTokens, model);
           
           // Get provider options for regular (non-agent) mode
           const regularProviderOptions = getProviderOptionsWithTools(

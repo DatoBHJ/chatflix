@@ -585,7 +585,10 @@ Context: ${contextInfo}${personalizationContext}
 /**
  * 공통 메시지 처리 함수 - 에이전트 모드와 일반 모드에서 공통으로 사용
  */
-export async function processMessagesForAI(messagesWithTokens: any[]): Promise<ModelMessage[]> {
+export async function processMessagesForAI(messagesWithTokens: any[], model?: string): Promise<ModelMessage[]> {
+  
+  // GPT-5 모델인지 확인
+  const isGPT5 = model && model.startsWith('gpt-5') && model !== 'gpt-5-chat-latest';
   
   // 코드파일/텍스트파일을 텍스트로 변환 (UI는 파일로 유지)
   const processedMessages = await Promise.all(messagesWithTokens.map(async (msg: any) => {
@@ -594,12 +597,16 @@ export async function processMessagesForAI(messagesWithTokens: any[]): Promise<M
     }
     
     const processedParts = await Promise.all(msg.parts.map(async (part: any) => {
-      // reasoning 타입은 text로 변환 (AI SDK v5에서 지원하지 않음)
+      // GPT-5의 경우 reasoning 데이터는 그대로 유지
       if (part.type === 'reasoning') {
-        return {
-          type: 'text',
-          text: part.reasoningText || part.text || ''
-        };
+        if (isGPT5) {
+          return part; // GPT-5에서는 reasoning 데이터 유지
+        } else {
+          return {
+            type: 'text',
+            text: part.reasoningText || part.text || ''
+          };
+        }
       }
       
       // AI SDK v4 형식 이미지를 v5 형식으로 변환
@@ -664,8 +671,6 @@ export async function processMessagesForAI(messagesWithTokens: any[]): Promise<M
   }));
   
   const result = convertToModelMessages(processedMessages);
-  // console.log('🔍 [DEBUG] convertToModelMessages 결과:', JSON.stringify(result, null, 2));
-  
   return result;
 }
 
