@@ -139,8 +139,8 @@ const WhatsNewContainer: React.FC<WhatsNewContainerProps> = ({ openPanel }) => {
           <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
         </svg>
         {hasNewUpdates && (
-          <span className={`absolute top-0.5 right-0.5 h-[12px] bg-blue-500 rounded-full flex items-center justify-center ${
-            newUpdatesCount > 10 ? 'min-w-[18px] px-1' : 'min-w-[12px]'
+          <span className={`absolute top-0.5 h-[12px] bg-blue-500 rounded-full flex items-center justify-center ${
+            newUpdatesCount > 10 ? 'right-0.5 min-w-[18px] px-1' : 'right-1 min-w-[12px]'
           }`}>
             <span className="text-white text-[8px] font-bold leading-none">
               {newUpdatesCount > 10 ? '10+' : newUpdatesCount}
