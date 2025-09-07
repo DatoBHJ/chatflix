@@ -931,11 +931,51 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
                       : firstUserMsg.content)
                   : 'Untitled Chat'));
         
-        // Determine last message and time
-        const lastMessage = latestMsg ? latestMsg.content : (session.initial_message || '');
-        const lastMessageTime = latestMsg 
-          ? new Date(latestMsg.created_at).getTime()
-          : new Date(session.created_at).getTime();
+        // 🚀 FIX: Create a snippet around the search term for accurate preview
+        const searchTermLower = search.toLowerCase();
+        let lastMessage = '';
+        let lastMessageTime = new Date(session.created_at).getTime();
+
+        const createSnippet = (text: string, term: string, contextLength = 20) => {
+          const textLower = text.toLowerCase();
+          const searchWords = term.toLowerCase().trim().split(/\s+/).filter(word => word.length > 0);
+          
+          let firstMatchIndex = -1;
+          for (const word of searchWords) {
+            const index = textLower.indexOf(word);
+            if (index !== -1) {
+              firstMatchIndex = index;
+              break;
+            }
+          }
+
+          if (firstMatchIndex === -1) {
+            return text.length > 100 ? text.substring(0, 100) + '...' : text;
+          }
+
+          const start = Math.max(0, firstMatchIndex - contextLength);
+          const end = Math.min(text.length, firstMatchIndex + searchWords[0].length + contextLength);
+          
+          let snippet = text.substring(start, end);
+          if (start > 0) snippet = '...' + snippet;
+          if (end < text.length) snippet = snippet + '...';
+          return snippet;
+        };
+        
+        // sessionMessages are already sorted DESC, so the first element is the latest match
+        const latestMatchingMessage = sessionMessages.length > 0 ? sessionMessages[0] : null;
+
+        if (latestMatchingMessage) {
+          lastMessage = createSnippet(latestMatchingMessage.content, search);
+          lastMessageTime = new Date(latestMatchingMessage.created_at).getTime();
+        } else if (session.initial_message && session.initial_message.toLowerCase().includes(searchTermLower)) {
+          lastMessage = createSnippet(session.initial_message, search);
+        } else {
+          // Fallback for title-only matches
+          const fallbackPreview = latestMsg ? latestMsg.content : (session.initial_message || '');
+          lastMessage = fallbackPreview.length > 100 ? fallbackPreview.substring(0, 100) + '...' : fallbackPreview;
+          lastMessageTime = latestMsg ? new Date(latestMsg.created_at).getTime() : new Date(session.created_at).getTime();
+        }
 
         // Determine current model
         const currentModel = session.current_model || (latestMsg ? latestMsg.model : null);
@@ -1076,15 +1116,18 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
   const highlightSearchTerm = (text: string, term: string, isSelected: boolean = false) => {
     if (!term.trim()) return text;
     
-    // 🚀 OPTIMIZATION: Enhanced multilingual highlighting with better regex handling
-    const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    
-    // Support for Korean, Japanese, Chinese characters and other Unicode
-    const regex = new RegExp(`(${escapedTerm})`, 'giu');
+    // 🚀 IMPROVEMENT: Handle multiple words and phrases for highlighting
+    const searchWords = term.trim().split(/\s+/).filter(word => word.length > 0);
+    const escapedWords = searchWords.map(word => 
+      word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    );
+    const regex = new RegExp(`(${escapedWords.join('|')})`, 'giu');
     const parts = text.split(regex);
     
     return parts.map((part, index) => {
-      if (regex.test(part)) {
+      const isMatch = escapedWords.some(word => new RegExp(`^${word}$`, 'i').test(part));
+      
+      if (isMatch) {
         return (
           <span 
             key={index} 

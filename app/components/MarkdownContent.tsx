@@ -865,21 +865,25 @@ const InlineMath = ({ content }: { content: string }) => {
 
 // 🚀 FEATURE: Search term highlighting function
 const highlightSearchTerm = (text: string, term: string | null) => {
-  if (!term || !text) return text;
+  if (!term || !term.trim() || !text) return text;
+
+  // Split search term into words and escape for regex
+  const searchWords = term.trim().toLowerCase().split(/\s+/).filter(word => word.length > 0);
+  const escapedWords = searchWords.map(word =>
+    word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  );
   
-  const search = term.toLowerCase();
-  const textLower = text.toLowerCase();
-  
-  if (!textLower.includes(search)) return text;
-  
-  const regex = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  if (escapedWords.length === 0) return text;
+
+  const regex = new RegExp(`(${escapedWords.join('|')})`, 'giu');
   const parts = text.split(regex);
-  
+
   return parts.map((part, index) => {
-    if (regex.test(part)) {
+    // Check if the part is one of the search words (case-insensitive)
+    if (searchWords.includes(part.toLowerCase())) {
       return (
-        <span 
-          key={index} 
+        <span
+          key={index}
           className="px-0.5 rounded bg-[#007AFF]/20 text-[#007AFF] font-medium"
         >
           {part}
