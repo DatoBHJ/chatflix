@@ -1080,7 +1080,7 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
         setSearchResults([]);
         setIsSearching(false);
       }
-    }, 100); // 🚀 OPTIMIZATION: Further reduced to 100ms for even faster response
+    }, 300); // 🚀 OPTIMIZATION: Balanced debounce time for better UX
 
     return () => clearTimeout(timeoutId);
   }, [searchTerm, searchCache]); // Added searchCache dependency for partial matching
