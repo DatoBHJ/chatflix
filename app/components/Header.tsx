@@ -848,11 +848,11 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                     )}
                   </div>
                   
-                  <div className="border-t border-[var(--accent)]/20">
+                  <div className="border-t border-[var(--subtle-divider)]">
                     {updates.map((update, index) => {
                       const isExpanded = expandedUpdates.has(update.id);
                       return (
-                        <div key={update.id} className="border-b border-[var(--accent)]/20 last:border-b-0">
+                        <div key={update.id} className="border-b border-[var(--subtle-divider)] last:border-b-0">
                           <button
                             onClick={() => toggleUpdate(update.id)}
                             className="w-full text-left py-4 group cursor-pointer"
