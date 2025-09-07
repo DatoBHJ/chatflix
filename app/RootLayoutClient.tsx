@@ -253,7 +253,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                     }
                   }}
                 className={`fixed top-0.5 z-[60] p-[6px] md:p-[4px] text-[var(--foreground)] rounded-lg transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] flex items-center justify-center cursor-pointer md:top-0 ${
-                  (isHovering || isSidebarOpen) ? 'left-[285px]' : 'left-9'
+                  (isHovering || isSidebarOpen) ? 'left-[285px] md:left-[290px]' : 'left-9'
                 }`}
                 title="New Chat"
                 onMouseEnter={() => !isMobile && (isSidebarOpen || isHovering) && handleSidebarHover(true)}
