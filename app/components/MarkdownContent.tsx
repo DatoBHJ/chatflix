@@ -879,8 +879,10 @@ const highlightSearchTerm = (text: string, term: string | null) => {
   const parts = text.split(regex);
 
   return parts.map((part, index) => {
-    // Check if the part is one of the search words (case-insensitive)
-    if (searchWords.includes(part.toLowerCase())) {
+    // Check if the part matches any of the search words (case-insensitive)
+    const isMatch = escapedWords.some(word => new RegExp(`^${word}$`, 'i').test(part));
+    
+    if (isMatch) {
       return (
         <span
           key={index}
