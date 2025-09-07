@@ -11,7 +11,7 @@ import Image from 'next/image'
 import { checkSubscriptionClient, clearClientSubscriptionCache } from '@/lib/subscription-client'
 import { clearAllSubscriptionCache } from '@/lib/utils'
 import { Battery, SquarePencil, Bookmark, Gear } from 'react-ios-icons'
-import { FeatureUpdate } from './WhatsNew'; // Import FeatureUpdate type
+import { FeatureUpdate } from '../types/FeatureUpdate'; // Import FeatureUpdate type
 // Remove MarkdownContent import - not needed for simple text display
 import { createClient } from '@/utils/supabase/client';
 

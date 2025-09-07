@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLastSeenUpdate } from '../hooks/useLastSeenUpdate';
 import { createClient } from '@/utils/supabase/client';
-import { FeatureUpdate } from './WhatsNew';
+import { FeatureUpdate } from '../types/FeatureUpdate';
 
 interface WhatsNewContainerProps {
   openPanel: () => void;

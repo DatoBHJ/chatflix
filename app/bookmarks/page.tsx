@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { getModelById } from '@/lib/models/config';
 import { getProviderLogo, hasLogo } from '@/lib/models/logoUtils';
-import { FeatureUpdate } from '@/app/components/WhatsNew';
+import { FeatureUpdate } from '@/app/types/FeatureUpdate';
 import { User } from '@supabase/supabase-js';
 import { getSidebarTranslations } from '../lib/sidebarTranslations';
 

@@ -246,12 +246,6 @@ export function createWebSearchTool(dataStream: any, forcedTopic?: string) {
             console.log(`[SEARCH_DEBUG] Using category: "${currentTopic}" for query: "${query}"`);
           }
           
-          if (currentTopic === 'news') {
-            const today = new Date();
-            const lastWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
-            searchOptions.startPublishedDate = lastWeek.toISOString().split('T')[0];
-            console.log(`[SEARCH_DEBUG] News search with date filter: ${searchOptions.startPublishedDate}`);
-                    }
           
           if (include_domains && include_domains.length > 0) {
             searchOptions.includeDomains = include_domains;
@@ -280,7 +274,7 @@ export function createWebSearchTool(dataStream: any, forcedTopic?: string) {
             .map((result: any) => ({
               url: result.url,
               title: result.title || '',
-              content: (result.text.text || '').substring(0, 4000),
+              content: result.text.text || '',
               publishedDate: result.publishedDate,
               author: result.author,
               score: result.score,
@@ -551,10 +545,6 @@ export function createJinaLinkReaderTool(dataStream?: any) {
           title = targetUrl.split('/').pop() || targetUrl;
         }
           
-          // 내용이 너무 길면 잘라내기
-          if (content.length > 8000) {
-            content = content.substring(0, 8000) + '... (content truncated)';
-        }
         
         console.log(`[DEBUG-JINA] Successfully fetched content, length: ${content.length} characters`);
         // 디버깅을 위해 내용 일부 출력
