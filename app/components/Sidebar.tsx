@@ -799,7 +799,7 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
 
 
 
-  // Search chats in the database
+  // Search chats in the database with optimized FTS queries
   const searchChats = useCallback(async (term: string) => {
     if (!user || !term.trim()) {
       setIsSearching(false);
@@ -816,50 +816,82 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
     }
     
     setIsSearching(true);
+    const searchStartTime = performance.now();
     try {
-      // 🚀 OPTIMIZATION: Use separate queries for better compatibility
-      // First, search by title
-      const { data: titleResults, error: titleError } = await supabase
-        .from('chat_sessions')
-        .select('id, created_at, title, current_model')
-        .eq('user_id', user.id)
-        .ilike('title', `%${search}%`)
-        .order('created_at', { ascending: false })
-        .limit(20);
+      // 🚀 OPTIMIZATION: Use PGroonga for multilingual full-text search
+      // First, search by title using PGroonga via RPC function
+      let { data: titleResults, error: titleError } = await supabase
+        .rpc('search_chat_sessions_pgroonga', {
+          search_term: search,
+          user_id_param: user.id,
+          limit_param: 30
+        });
 
       if (titleError) {
-        console.error('Title search error:', titleError);
-        setSearchResults([]);
-        return;
+        console.error('Title search error (PGroonga may not be enabled):', titleError);
+        // Fallback to ILIKE if PGroonga is not available
+        const { data: fallbackTitleResults, error: fallbackTitleError } = await supabase
+          .from('chat_sessions')
+          .select('id, created_at, title, current_model, initial_message')
+          .eq('user_id', user.id)
+          .or(`title.ilike.%${search}%,initial_message.ilike.%${search}%`)
+          .order('created_at', { ascending: false })
+          .limit(30);
+        
+        if (fallbackTitleError) {
+          console.error('Fallback title search error:', fallbackTitleError);
+          setSearchResults([]);
+          return;
+        }
+        
+        // Use fallback results
+        titleResults = fallbackTitleResults;
       }
 
-      // Then, search by message content
-      const { data: messageResults, error: messageError } = await supabase
-        .from('messages')
-        .select('chat_session_id, content, created_at, role, model')
-        .eq('user_id', user.id)
-        .ilike('content', `%${search}%`)
-        .order('created_at', { ascending: false })
-        .limit(50);
+      // Then, search by message content using PGroonga for multilingual support (all roles)
+      let { data: messageResults, error: messageError } = await supabase
+        .rpc('search_messages_pgroonga', {
+          search_term: search,
+          user_id_param: user.id,
+          limit_param: 100
+        });
 
       if (messageError) {
-        console.error('Message search error:', messageError);
-        setSearchResults([]);
-        return;
+        console.error('Message search error (PGroonga may not be enabled):', messageError);
+        // Fallback to ILIKE if PGroonga is not available
+        const { data: fallbackMessageResults, error: fallbackMessageError } = await supabase
+          .from('messages')
+          .select('chat_session_id, content, created_at, role, model')
+          .eq('user_id', user.id)
+          .ilike('content', `%${search}%`)
+          .order('created_at', { ascending: false })
+          .limit(100);
+        
+        if (fallbackMessageError) {
+          console.error('Fallback message search error:', fallbackMessageError);
+          setSearchResults([]);
+          return;
+        }
+        
+        // Use fallback results
+        messageResults = fallbackMessageResults;
       }
 
       // Get unique session IDs from message search
       const messageSessionIds = messageResults 
-        ? [...new Set(messageResults.map(msg => msg.chat_session_id))]
+        ? [...new Set(messageResults.map((msg: any) => msg.chat_session_id))]
         : [];
 
-      // Fetch session details for message search results
-      const { data: messageSessionResults, error: sessionError } = messageSessionIds.length > 0 
+      // Fetch session details for message search results (only if not already in title results)
+      const existingSessionIds = new Set((titleResults || []).map((s: any) => s.id));
+      const newSessionIds = messageSessionIds.filter(id => !existingSessionIds.has(id));
+      
+      const { data: messageSessionResults, error: sessionError } = newSessionIds.length > 0 
         ? await supabase
             .from('chat_sessions')
-            .select('id, created_at, title, current_model')
+            .select('id, created_at, title, current_model, initial_message')
             .eq('user_id', user.id)
-            .in('id', messageSessionIds)
+            .in('id', newSessionIds)
         : { data: [], error: null };
 
       if (sessionError) {
@@ -870,33 +902,37 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
 
       // Merge and deduplicate results
       const allSessions = [...(titleResults || []), ...(messageSessionResults || [])];
-      const uniqueSessions = allSessions.filter((session, index, self) => 
-        index === self.findIndex(s => s.id === session.id)
+      const uniqueSessions = allSessions.filter((session: any, index: number, self: any[]) => 
+        index === self.findIndex((s: any) => s.id === session.id)
       );
 
       // Process results efficiently
       const processedChats = uniqueSessions.map((session) => {
         // Find messages for this session
-        const sessionMessages = messageResults?.filter(msg => msg.chat_session_id === session.id) || [];
+        const sessionMessages = messageResults?.filter((msg: any) => msg.chat_session_id === session.id) || [];
         
         const firstUserMsg = sessionMessages
-          .filter(msg => msg.role === 'user')
-          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
+          .filter((msg: any) => msg.role === 'user')
+          .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
         
         const latestMsg = sessionMessages
-          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+          .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 
-        // Determine title
+        // Determine title with better fallback logic
         const title = session.title && session.title.trim().length > 0
           ? session.title
-          : (firstUserMsg
-              ? (firstUserMsg.content.length > 40 
-                  ? firstUserMsg.content.substring(0, 40) + '...' 
-                  : firstUserMsg.content)
-              : 'Untitled Chat');
+          : (session.initial_message && session.initial_message.trim().length > 0
+              ? (session.initial_message.length > 40 
+                  ? session.initial_message.substring(0, 40) + '...' 
+                  : session.initial_message)
+              : (firstUserMsg
+                  ? (firstUserMsg.content.length > 40 
+                      ? firstUserMsg.content.substring(0, 40) + '...' 
+                      : firstUserMsg.content)
+                  : 'Untitled Chat'));
         
         // Determine last message and time
-        const lastMessage = latestMsg ? latestMsg.content : '';
+        const lastMessage = latestMsg ? latestMsg.content : (session.initial_message || '');
         const lastMessageTime = latestMsg 
           ? new Date(latestMsg.created_at).getTime()
           : new Date(session.created_at).getTime();
@@ -915,8 +951,16 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
         } as Chat;
       });
 
-      // Sort efficiently
+      // Sort efficiently by relevance and time
       processedChats.sort((a, b) => {
+        // Prioritize title matches over message matches
+        const aTitleMatch = a.title.toLowerCase().includes(search);
+        const bTitleMatch = b.title.toLowerCase().includes(search);
+        
+        if (aTitleMatch && !bTitleMatch) return -1;
+        if (!aTitleMatch && bTitleMatch) return 1;
+        
+        // Then sort by time
         const timeA = a.lastMessageTime ?? 0;
         const timeB = b.lastMessageTime ?? 0;
         return timeB - timeA;
@@ -925,6 +969,13 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
       // Cache the results
       setSearchCache(prev => new Map(prev).set(search, processedChats));
       setSearchResults(processedChats);
+      
+      // 🚀 PERFORMANCE MONITORING: Log search performance with PGroonga status
+      const searchEndTime = performance.now();
+      const searchDuration = searchEndTime - searchStartTime;
+      const usedPGroonga = !titleError && !messageError;
+      console.log(`🔍 ${usedPGroonga ? 'PGroonga' : 'ILIKE'} search completed in ${searchDuration.toFixed(2)}ms for term: "${search}" (${processedChats.length} results)`);
+      
     } catch (error) {
       console.error('Error searching chats:', error);
       setSearchResults([]);
@@ -951,19 +1002,48 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
     });
   }, []);
 
-  // Execute search on term change (debounced)
+  // Execute search on term change (debounced with smart caching)
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (searchTerm.trim()) {
+        // 🚀 OPTIMIZATION: Check for partial matches in cache for instant results
+        const trimmedTerm = searchTerm.trim().toLowerCase();
+        
+        // Check if we have a cached result for this exact term
+        if (searchCache.has(trimmedTerm)) {
+          setSearchResults(searchCache.get(trimmedTerm) || []);
+          setIsSearching(false);
+          return;
+        }
+        
+        // Check for partial matches in cache (for instant feedback)
+        const partialMatches = Array.from(searchCache.keys()).filter(key => 
+          key.includes(trimmedTerm) || trimmedTerm.includes(key)
+        );
+        
+        if (partialMatches.length > 0) {
+          // Use the most relevant cached result as instant feedback
+          const bestMatch = partialMatches.reduce((best, current) => 
+            current.length < best.length ? current : best
+          );
+          const cachedResults = searchCache.get(bestMatch) || [];
+          const filteredResults = cachedResults.filter(chat => 
+            chat.title.toLowerCase().includes(trimmedTerm) ||
+            (chat.lastMessage && chat.lastMessage.toLowerCase().includes(trimmedTerm))
+          );
+          setSearchResults(filteredResults);
+        }
+        
+        // Then perform the actual search
         searchChats(searchTerm);
       } else {
         setSearchResults([]);
         setIsSearching(false);
       }
-    }, 150); // 🚀 OPTIMIZATION: Reduced from 300ms to 150ms for faster response
+    }, 100); // 🚀 OPTIMIZATION: Further reduced to 100ms for even faster response
 
     return () => clearTimeout(timeoutId);
-  }, [searchTerm]); // Removed searchChats dependency to prevent unnecessary re-executions
+  }, [searchTerm, searchCache]); // Added searchCache dependency for partial matching
 
   // Determine the list of chats to display
   const displayChats = useMemo(() => {
@@ -992,11 +1072,15 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
     setHasAutoSelected(false);
   }, [searchTerm]);
 
-  // Search term highlighting function
+  // Enhanced search term highlighting function with multilingual support
   const highlightSearchTerm = (text: string, term: string, isSelected: boolean = false) => {
     if (!term.trim()) return text;
     
-    const regex = new RegExp(`(${term})`, 'gi');
+    // 🚀 OPTIMIZATION: Enhanced multilingual highlighting with better regex handling
+    const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // Support for Korean, Japanese, Chinese characters and other Unicode
+    const regex = new RegExp(`(${escapedTerm})`, 'giu');
     const parts = text.split(regex);
     
     return parts.map((part, index) => {
@@ -1004,7 +1088,7 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
         return (
           <span 
             key={index} 
-            className={`px-0.5 rounded text-xs ${ 
+            className={`px-0.5 rounded text-xs transition-colors ${ 
               isSelected 
                 ? 'bg-white/30 text-white font-medium' 
                 : 'bg-[#007AFF]/20 text-[#007AFF] font-medium'
@@ -1115,7 +1199,7 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
                     type="text"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder={`${translations.searchConversations} (⌘K)`}
+                    placeholder={`${translations.searchConversations} (⌘K) - 다국어 지원`}
                     className={`w-full pl-10 pr-4 py-2.5 bg-transparent text-sm rounded-lg placeholder-[var(--muted)] focus:outline-none focus:bg-transparent border-0 outline-none ring-0 focus:ring-0 focus:border-0 shadow-none focus:shadow-none transition-all ${
                       isAnonymousUser ? 'opacity-60 cursor-not-allowed' : ''
                     }`}
