@@ -11,7 +11,8 @@ interface ShootingStar {
 
 
 // 상수 정의 - 성능 최적화된 값들
-const STAR_COUNT = 5000; // 스타워즈 느낌을 위해 대폭 증가
+const STAR_COUNT_DESKTOP = 5000; // 스타워즈 느낌을 위해 대폭 증가
+const STAR_COUNT_MOBILE = 800; // 모바일에서는 대폭 감소
 
 const SHOOTING_STAR_MAX_LIFE = 1.5; // 초
 const ROTATION_SPEED = 0.05; // 더 천천히 회전
@@ -58,6 +59,10 @@ export const StarryNightBackground = () => {
   useEffect(() => {
     if (!width || !height) return;
     
+    // 모바일 감지 (768px 이하)
+    const isMobile = width <= 768;
+    const starCount = isMobile ? STAR_COUNT_MOBILE : STAR_COUNT_DESKTOP;
+    
     // 우측 하단에서 가장 먼 점(좌상단)까지의 거리 계산
     const maxDistance = Math.sqrt(width * width + height * height);
     // 어떤 화면에서도 확실히 커버하도록 2배 + 추가 마진
@@ -65,7 +70,7 @@ export const StarryNightBackground = () => {
     const starFieldRadius = maxDistance * 2 + safetyMargin;
     
     const tempStars: Star[] = [];
-    for (let i = 0; i < STAR_COUNT; i++) {
+    for (let i = 0; i < starCount; i++) {
       const random = Math.random();
       let opacity, radius, type: 'small' | 'medium' | 'large' | 'bright';
       
