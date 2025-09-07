@@ -27,6 +27,9 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
   const [isMobile, setIsMobile] = useState(false)
   const [mounted, setMounted] = useState(false)
   
+  // 🚀 익명 사용자 지원: 익명 사용자 식별
+  const isAnonymousUser = user?.is_anonymous || user?.id === 'anonymous' || !user
+  
   // Refs for optimization
   const subscriptionCheckRef = useRef<boolean>(false)
   const lastCheckTimeRef = useRef<number>(0)
@@ -176,7 +179,10 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
   useEffect(() => {
     const initializeData = async () => {
       try {
-        if (user?.id) {
+        if (isAnonymousUser) {
+          // 게스트 모드: 구독 상태 체크하지 않음
+          setIsSubscribed(null)
+        } else if (user?.id) {
           await checkSubscriptionStatus(user.id)
         } else {
           setIsSubscribed(false)
@@ -192,7 +198,7 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
     if (isOpen) {
       initializeData()
     }
-  }, [isOpen, user?.id, checkSubscriptionStatus])
+  }, [isOpen, user?.id, checkSubscriptionStatus, isAnonymousUser])
 
   // Animation effects
   useEffect(() => {
@@ -386,7 +392,7 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}>
-              <h2 className="text-lg font-semibold">{translations.subscription}</h2>
+              <h2 className="text-lg font-semibold">{isAnonymousUser ? 'Pricing' : translations.subscription}</h2>
             </div>
             <div 
               className={`flex-1 min-h-0 overflow-y-auto transition-all duration-350 ease-out ${
@@ -405,80 +411,103 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
               ) : (
                 <div className="p-6">
                   <div className="w-full max-w-md mx-auto">
-                    {/* Pro 플랜 */}
-                    <div className="p-0">
-                      {/* 플랜 정보 */}
-                      <div className="px-0 pb-6 flex flex-col items-center">
-                        <span className="text-lg font-bold text-blue-500 mb-2">Pro</span>
+                    {/* 게스트 모드: Pro vs Free 비교 */}
+                    {isAnonymousUser ? (
+                      <div className="space-y-6">
+                        {/* Pro 플랜 */}
+                        <div className="p-4 rounded-xl border border-[var(--accent)] bg-[var(--background)]">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-lg font-semibold text-[var(--foreground)]">Pro</span>
+                            <span className="text-2xl font-bold text-[var(--foreground)]">&#36;4<span className="text-sm text-[var(--muted)]">/mo</span></span>
+                          </div>
+                          <ul className="text-sm text-[var(--foreground)] space-y-1">
+                            <li>✓ Access to all models</li>
+                            <li>✓ Unlimited requests</li>
+                            <li>✓ Priority support</li>
+                          </ul>
+                        </div>
                         
-                        {/* Show price only if not subscribed */}
-                        {renderSubscriptionContent(false, (
-                          <>
-                            <span className="text-4xl font-extrabold mb-2 tracking-tight">&#36;4</span>
-                            <span className="text-xs text-[var(--muted)] mb-6">/ month</span>
-                          </>
-                        ))}
+                        {/* Free 플랜 */}
+                        <div className="p-4 rounded-xl border border-[var(--accent)] bg-[var(--background)]">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-lg font-semibold text-[var(--foreground)]">Free</span>
+                            <span className="text-2xl font-bold text-[var(--foreground)]">&#36;0<span className="text-sm text-[var(--muted)]">/mo</span></span>
+                          </div>
+                          <ul className="text-sm text-[var(--foreground)] space-y-1">
+                            <li>• Limited model access</li>
+                            <li>• Rate limited requests</li>
+                            <li>• Basic support</li>
+                          </ul>
+                        </div>
                         
-                        <ul className="text-center text-sm text-[var(--foreground)] space-y-1 mb-8">
-                          <li>Access to all models</li>
-                          <li>Unlimited requests</li>
-                        </ul>
-                        
-                        {/* Subscription-dependent buttons */}
-                        {renderSubscriptionContent(false, (
-                            <button
-                              onClick={handleSubscribe}
-                            disabled={isLoading}
-                            className="w-full py-3 bg-blue-500 text-white font-bold rounded-xl transition-all hover:bg-blue-500/90 cursor-pointer disabled:opacity-50 shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98]"
-                              style={{ letterSpacing: '0.05em' }}
-                            >
-                            {isLoading ? translations.processing : translations.upgrade}
-                            </button>
-                        ))}
-                        
-                        {renderSubscriptionContent(true, (
-                          <span className="inline-block mt-2 px-4 py-2 rounded-full bg-blue-500/10 text-blue-500 text-sm font-medium border border-blue-500/20">Active</span>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {/* Free 플랜 */}
-                    <div className="px-0 pb-6 pt-4 opacity-75">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-base font-semibold text-[var(--muted)]">Free</span>
-                        
-                        {renderSubscriptionContent(false, (
-                          <span className="bg-[var(--muted)]/15 px-3 py-1 rounded-full text-[var(--muted)] text-xs font-medium border border-[var(--muted)]/20">Active</span>
-                        ))}
-                      </div>
-                      <span className="text-2xl font-bold">&#36;0</span>
-                      <span className="text-xs text-[var(--muted)] ml-2">/ month</span>
-                      <ul className="text-xs text-[var(--muted)] space-y-1 mt-2 mb-4">
-                        <li>Limited model access</li>
-                        <li>Rate limited requests</li>
-                      </ul>
-                      
-                      {renderSubscriptionContent(true, (
-                        <>
-                          <div className="h-px w-full bg-[var(--subtle-divider)] my-4 opacity-50" />
-                          <button
-                            onClick={handleDowngrade}
-                            className="w-full py-2 bg-[var(--muted)]/10 text-[var(--muted)] font-medium rounded-xl hover:bg-[var(--muted)]/20 transition-all text-xs hover:scale-[1.01] active:scale-[0.99]"
-                          >
-                            {translations.downgradeToFree}
-                          </button>
-                        </>
-                      ))}
-                      
-                      {renderSubscriptionContent(false, (
+                        {/* Sign In 버튼 */}
                         <button
-                          onClick={handleContinueWithFree}
-                          className="w-full py-2 bg-[var(--muted)]/10 text-[var(--muted)] font-medium rounded-xl hover:bg-[var(--muted)]/20 transition-all text-xs hover:scale-[1.01] active:scale-[0.99]"
+                          onClick={() => router.push('/login')}
+                          className="w-full py-3 bg-blue-500 text-white font-bold rounded-xl transition-all hover:bg-blue-500/90 cursor-pointer shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98]"
+                          style={{ letterSpacing: '0.05em' }}
                         >
-                          {translations.continueWithFree}
+                          Sign In For Free
                         </button>
-                      ))}
-                    </div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Pro 플랜 */}
+                        <div className="p-0">
+                          {/* 플랜 정보 */}
+                          <div className="px-0 pb-6 flex flex-col items-center">
+                            <span className="text-lg font-semibold text-[var(--foreground)] mb-2">Pro</span>
+                            
+                            {/* Show price only if not subscribed */}
+                            {renderSubscriptionContent(false, (
+                              <>
+                                <span className="text-4xl font-extrabold mb-2 tracking-tight">&#36;4</span>
+                                <span className="text-xs text-[var(--muted)] mb-6">/ month</span>
+                              </>
+                            ))}
+                            
+                            <ul className="text-center text-sm text-[var(--foreground)] space-y-1 mb-8">
+                              <li>Access to all models</li>
+                              <li>Unlimited requests</li>
+                            </ul>
+                            
+                            {/* Subscription-dependent buttons */}
+                            {renderSubscriptionContent(false, (
+                                <button
+                                  onClick={handleSubscribe}
+                                disabled={isLoading}
+                                className="w-full py-3 bg-blue-500 text-white font-bold rounded-xl transition-all hover:bg-blue-500/90 cursor-pointer disabled:opacity-50 shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98]"
+                                  style={{ letterSpacing: '0.05em' }}
+                                >
+                                {isLoading ? translations.processing : translations.upgrade}
+                                </button>
+                            ))}
+                            
+                            {renderSubscriptionContent(true, (
+                              <>
+                                <span className="inline-block mt-2 px-4 py-2 rounded-full bg-blue-500/10 text-blue-500 text-sm font-medium border border-blue-500/20">Active</span>
+                              </>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        {/* Free 플랜: 비구독자에게만 간략히 표시 (업그레이드 유도) */}
+                        {renderSubscriptionContent(false, (
+                          <div className="px-0 pb-6 pt-4 opacity-75">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-base font-semibold text-[var(--muted)]">Free</span>
+                              <span className="bg-[var(--muted)]/15 px-3 py-1 rounded-full text-[var(--muted)] text-xs font-medium border border-[var(--muted)]/20">Current</span>
+                            </div>
+                            <span className="text-2xl font-bold">&#36;0</span>
+                            <span className="text-xs text-[var(--muted)] ml-2">/ month</span>
+                            <ul className="text-xs text-[var(--muted)] space-y-1 mt-2 mb-2">
+                              <li>Limited model access</li>
+                              <li>Rate limited requests</li>
+                            </ul>
+                            {/* 계속 무료 사용 버튼 제거로 업그레이드 유도 */}
+                          </div>
+                        ))}
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -491,7 +520,7 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
               showElements.title ? 'translate-y-0 opacity-100' : (isClosing ? 'translate-y-8 opacity-0' : 'translate-y-8 opacity-0')
             }`}
             style={{ willChange: 'transform, opacity' }}>
-              <h2 className="text-lg font-semibold">{translations.subscription}</h2>
+              <h2 className="text-lg font-semibold">{isAnonymousUser ? 'Pricing' : translations.subscription}</h2>
             </div>
             <div 
               className={`flex-1 min-h-0 overflow-y-auto transition-all duration-350 ease-out ${
@@ -508,93 +537,127 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
               ) : (
                 <div className="p-6">
                   <div className="w-full max-w-md mx-auto">
-                    {/* 드레이크 밈 - 데스크탑에서만 표시 */}
-                    <div className="hidden sm:flex flex-col items-center justify-center py-8">
-                      <div className="relative w-full aspect-square max-w-[340px] rounded-xl overflow-hidden bg-white">
-                        <Image
-                          src="/previous/drake-meme.png"
-                          alt="Drake meme"
-                          fill
-                          className="object-cover"
-                          priority
-                        />
-                      </div>
-                    </div>
-                    
-                    {/* Pro 플랜 */}
-                    <div className="p-0">
-                      {/* 플랜 정보 */}
-                      <div className="px-0 pb-6 flex flex-col items-center">
-                        <span className="text-lg font-bold text-blue-500 mb-2">Pro</span>
+                    {/* 게스트 모드: Pro vs Free 비교 */}
+                    {isAnonymousUser ? (
+                      <div className="space-y-6">
+                        {/* 드레이크 밈 - 데스크탑에서만 표시 */}
+                        <div className="hidden sm:flex flex-col items-center justify-center py-8">
+                          <div className="relative w-full aspect-square max-w-[340px] rounded-xl overflow-hidden bg-white">
+                            <Image
+                              src="/previous/drake-meme.png"
+                              alt="Drake meme"
+                              fill
+                              className="object-cover"
+                              priority
+                            />
+                          </div>
+                        </div>
                         
-                        {/* Show price only if not subscribed */}
-                        {renderSubscriptionContent(false, (
-                          <>
-                            <span className="text-4xl font-extrabold mb-2 tracking-tight">&#36;4</span>
-                            <span className="text-xs text-[var(--muted)] mb-6">/ month</span>
-                          </>
-                        ))}
+                        {/* Pro 플랜 */}
+                        <div className="p-4 rounded-xl border border-[var(--accent)] bg-[var(--background)]">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-lg font-semibold text-[var(--foreground)]">Pro</span>
+                            <span className="text-2xl font-bold text-[var(--foreground)]">&#36;4<span className="text-sm text-[var(--muted)]">/mo</span></span>
+                          </div>
+                          <ul className="text-sm text-[var(--foreground)] space-y-1">
+                            <li>✓ Access to all models</li>
+                            <li>✓ Unlimited requests</li>
+                            <li>✓ Priority support</li>
+                          </ul>
+                        </div>
                         
-                        <ul className="text-center text-sm text-[var(--foreground)] space-y-1 mb-8">
-                          <li>Access to all models</li>
-                          <li>Unlimited requests</li>
-                        </ul>
+                        {/* Free 플랜 */}
+                        <div className="p-4 rounded-xl border border-[var(--accent)] bg-[var(--background)]">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-lg font-semibold text-[var(--foreground)]">Free</span>
+                            <span className="text-2xl font-bold text-[var(--foreground)]">&#36;0<span className="text-sm text-[var(--muted)]">/mo</span></span>
+                          </div>
+                          <ul className="text-sm text-[var(--foreground)] space-y-1">
+                            <li>• Limited model access</li>
+                            <li>• Rate limited requests</li>
+                            <li>• Basic support</li>
+                          </ul>
+                        </div>
                         
-                        {/* Subscription-dependent buttons */}
-                        {renderSubscriptionContent(false, (
-                            <button
-                              onClick={handleSubscribe}
-                            disabled={isLoading}
-                            className="w-full py-3 bg-blue-500 text-white font-bold rounded-xl transition-all hover:bg-blue-500/90 cursor-pointer disabled:opacity-50 shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98]"
-                              style={{ letterSpacing: '0.05em' }}
-                            >
-                            {isLoading ? translations.processing : translations.upgrade}
-                            </button>
-                        ))}
-                        
-                        {renderSubscriptionContent(true, (
-                          <span className="inline-block mt-2 px-4 py-2 rounded-full bg-blue-500/10 text-blue-500 text-sm font-medium border border-blue-500/20">Active</span>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {/* Free 플랜 */}
-                    <div className="px-0 pb-6 pt-4 opacity-75">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-base font-semibold text-[var(--muted)]">Free</span>
-                        
-                        {renderSubscriptionContent(false, (
-                          <span className="bg-[var(--muted)]/15 px-3 py-1 rounded-full text-[var(--muted)] text-xs font-medium border border-[var(--muted)]/20">Active</span>
-                        ))}
-                      </div>
-                      <span className="text-2xl font-bold">&#36;0</span>
-                      <span className="text-xs text-[var(--muted)] ml-2">/ month</span>
-                      <ul className="text-xs text-[var(--muted)] space-y-1 mt-2 mb-4">
-                        <li>Limited model access</li>
-                        <li>Rate limited requests</li>
-                      </ul>
-                      
-                      {renderSubscriptionContent(true, (
-                        <>
-                          <div className="h-px w-full bg-[var(--subtle-divider)] my-4 opacity-50" />
-                          <button
-                            onClick={handleDowngrade}
-                            className="w-full py-2 bg-[var(--muted)]/10 text-[var(--muted)] font-medium rounded-xl hover:bg-[var(--muted)]/20 transition-all text-xs hover:scale-[1.01] active:scale-[0.99]"
-                          >
-                            {translations.downgradeToFree}
-                          </button>
-                        </>
-                      ))}
-                      
-                      {renderSubscriptionContent(false, (
+                        {/* Sign In 버튼 */}
                         <button
-                          onClick={handleContinueWithFree}
-                          className="w-full py-2 bg-[var(--muted)]/10 text-[var(--muted)] font-medium rounded-xl hover:bg-[var(--muted)]/20 transition-all text-xs hover:scale-[1.01] active:scale-[0.99]"
+                          onClick={() => router.push('/login')}
+                          className="w-full py-3 bg-blue-500 text-white font-bold rounded-xl transition-all hover:bg-blue-500/90 cursor-pointer shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98]"
+                          style={{ letterSpacing: '0.05em' }}
                         >
-                          {translations.continueWithFree}
+                          Sign in for free
                         </button>
-                      ))}
-                    </div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* 드레이크 밈 - 데스크탑에서만 표시 */}
+                        <div className="hidden sm:flex flex-col items-center justify-center py-8">
+                          <div className="relative w-full aspect-square max-w-[340px] rounded-xl overflow-hidden bg-white">
+                            <Image
+                              src="/previous/drake-meme.png"
+                              alt="Drake meme"
+                              fill
+                              className="object-cover"
+                              priority
+                            />
+                          </div>
+                        </div>
+                        
+                        {/* Pro 플랜 */}
+                        <div className="p-0">
+                          {/* 플랜 정보 */}
+                          <div className="px-0 pb-6 flex flex-col items-center">
+                            <span className="text-lg font-semibold text-[var(--foreground)] mb-2">Pro</span>
+                            
+                            {/* Show price only if not subscribed */}
+                            {renderSubscriptionContent(false, (
+                              <>
+                                <span className="text-4xl font-extrabold mb-2 tracking-tight">&#36;4</span>
+                                <span className="text-xs text-[var(--muted)] mb-6">/ month</span>
+                              </>
+                            ))}
+                            
+                            <ul className="text-center text-sm text-[var(--foreground)] space-y-1 mb-8">
+                              <li>Access to all models</li>
+                              <li>Unlimited requests</li>
+                            </ul>
+                            
+                            {/* Subscription-dependent buttons */}
+                            {renderSubscriptionContent(false, (
+                                <button
+                                  onClick={handleSubscribe}
+                                disabled={isLoading}
+                                className="w-full py-3 bg-blue-500 text-white font-bold rounded-xl transition-all hover:bg-blue-500/90 cursor-pointer disabled:opacity-50 shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98]"
+                                  style={{ letterSpacing: '0.05em' }}
+                                >
+                                {isLoading ? translations.processing : translations.upgrade}
+                                </button>
+                            ))}
+                            
+                            {renderSubscriptionContent(true, (
+                              <span className="inline-block mt-2 px-4 py-2 rounded-full bg-blue-500/10 text-blue-500 text-sm font-medium border border-blue-500/20">Active</span>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        {/* Free 플랜: 비구독자에게만 간략히 표시 (업그레이드 유도) */}
+                        {renderSubscriptionContent(false, (
+                          <div className="px-0 pb-6 pt-4 opacity-75">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-base font-semibold text-[var(--muted)]">Free</span>
+                              <span className="bg-[var(--muted)]/15 px-3 py-1 rounded-full text-[var(--muted)] text-xs font-medium border border-[var(--muted)]/20">Current</span>
+                            </div>
+                            <span className="text-2xl font-bold">&#36;0</span>
+                            <span className="text-xs text-[var(--muted)] ml-2">/ month</span>
+                            <ul className="text-xs text-[var(--muted)] space-y-1 mt-2 mb-2">
+                              <li>Limited model access</li>
+                              <li>Rate limited requests</li>
+                            </ul>
+                            {/* 계속 무료 사용 버튼 제거로 업그레이드 유도 */}
+                          </div>
+                        ))}
+                      </>
+                    )}
                   </div>
                 </div>
               )}

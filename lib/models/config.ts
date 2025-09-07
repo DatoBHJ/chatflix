@@ -653,31 +653,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     maxOutputTokens: 65536,
     IFBench:49
   },
-  // Gemini 2.5 Pro 
-  {
-    id: 'gemini-2.5-pro-preview-06-05',
-    name: 'Gemini 2.5 Pro Preview 06-05',
-    // pro: true,
-    cutoff: 'Jan 2025',
-    abbreviation: 'Gem2.5P-06-05',
-    country: 'US',
-    // description: 'Note: Fast response times with occasional latency due to hidden reasoning tokens that may make responses appear slower.',
-    provider: 'google',
-    supportsVision: true,
-    rateLimit: {
-      level: 'level3',
-    },
-    supportsPDFs: true,
-    isEnabled: true,
-    isActivated: true,
-    contextWindow: 1048576,
-    isAgentEnabled: true,
-    // tps: 143,
-    // intelligenceIndex: 70,
-    // latency: 36.5,
-    maxOutputTokens: 65536,
-    IFBench:49
-  },
   // Gemini 2.5 Flash 
   {
     id: 'gemini-2.5-flash',

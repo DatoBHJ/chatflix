@@ -219,35 +219,59 @@ export default function BookmarksPage() {
               .single();
             
             if (messageError) {
+              // 메시지가 존재하지 않는 경우 (삭제된 메시지)
+              if (messageError.code === 'PGRST116') {
+                console.log(`Message ${bookmark.message_id} not found, cleaning up orphaned bookmark`);
+                // 삭제된 메시지에 대한 북마크를 자동으로 정리
+                try {
+                  await supabase
+                    .from('message_bookmarks')
+                    .delete()
+                    .eq('id', bookmark.id);
+                } catch (cleanupError) {
+                  console.error('Error cleaning up orphaned bookmark:', cleanupError);
+                }
+                return null;
+              }
               console.error('Error fetching message:', messageError);
               return null;
             }
             
             // 채팅 세션 제목 가져오기
-            const { data: chatSession } = await supabase
+            const { data: chatSession, error: chatSessionError } = await supabase
               .from('chat_sessions')
               .select('title')
               .eq('id', bookmark.chat_session_id)
               .single();
             
+            // 채팅 세션이 존재하지 않는 경우 처리
+            if (chatSessionError && chatSessionError.code === 'PGRST116') {
+              console.log(`Chat session ${bookmark.chat_session_id} not found, using fallback title`);
+            }
+            
             // 채팅 세션에 제목이 없으면 첫 번째 사용자 메시지로 제목 생성
             let chatTitle = chatSession?.title;
             if (!chatTitle || chatTitle.trim() === '') {
-              const { data: firstUserMsg } = await supabase
-                .from('messages')
-                .select('content')
-                .eq('chat_session_id', bookmark.chat_session_id)
-                .eq('role', 'user')
-                .order('created_at', { ascending: true })
-                .limit(1)
-                .single();
-              
-              if (firstUserMsg?.content) {
-                chatTitle = firstUserMsg.content.length > 40 
-                  ? firstUserMsg.content.substring(0, 40) + '...'
-                  : firstUserMsg.content;
+              // 채팅 세션이 존재하지 않는 경우 fallback 제목 사용
+              if (chatSessionError && chatSessionError.code === 'PGRST116') {
+                chatTitle = 'Deleted Chat';
               } else {
-                chatTitle = 'Untitled Chat';
+                const { data: firstUserMsg } = await supabase
+                  .from('messages')
+                  .select('content')
+                  .eq('chat_session_id', bookmark.chat_session_id)
+                  .eq('role', 'user')
+                  .order('created_at', { ascending: true })
+                  .limit(1)
+                  .single();
+                
+                if (firstUserMsg?.content) {
+                  chatTitle = firstUserMsg.content.length > 40 
+                    ? firstUserMsg.content.substring(0, 40) + '...'
+                    : firstUserMsg.content;
+                } else {
+                  chatTitle = 'Untitled Chat';
+                }
               }
             }
             
@@ -445,10 +469,13 @@ export default function BookmarksPage() {
     return `${Math.floor(seconds)}s`;
   }, []);
 
-  // 콘텐츠 길이 제한 함수
-  const truncateContent = useCallback((content: string, maxLength: number = 250) => {
-    if (content.length <= maxLength) return content;
-    return content.substring(0, maxLength) + '...';
+  // 콘텐츠 길이 제한 함수 (반응형)
+  const truncateContent = useCallback((content: string, mobileMaxLength: number = 80, desktopMaxLength: number = 150) => {
+    // CSS 기반 반응형 처리를 위해 두 가지 버전 모두 반환
+    return {
+      mobile: content.length <= mobileMaxLength ? content : content.substring(0, mobileMaxLength) + '...',
+      desktop: content.length <= desktopMaxLength ? content : content.substring(0, desktopMaxLength) + '...'
+    };
   }, []);
   
   // 현재 북마크 타입에 따라 표시할 데이터 결정
@@ -474,26 +501,26 @@ export default function BookmarksPage() {
         
         {/* 북마크 타입 선택 탭 */}
         <div className="flex border-b border-[var(--accent)] mb-6">
-          <button
-            className={`py-2 px-4 font-medium text-sm transition-colors ${
-              bookmarkType === BookmarkType.Messages
-                ? 'text-[var(--foreground)] border-b-2 border-[#007AFF]'
-                : 'text-[var(--muted)] hover:text-[var(--foreground)]'
-            }`}
-            onClick={useCallback(() => setBookmarkType(BookmarkType.Messages), [])}
-          >
-            {translations.messages}
-          </button>
-          <button
-            className={`py-2 px-4 font-medium text-sm transition-colors ${
-              bookmarkType === BookmarkType.Updates
-                ? 'text-[var(--foreground)] border-b-2 border-[#007AFF]'
-                : 'text-[var(--muted)] hover:text-[var(--foreground)]'
-            }`}
-            onClick={useCallback(() => setBookmarkType(BookmarkType.Updates), [])}
-          >
-            {translations.updates}
-          </button>
+           <button
+             className={`py-2 px-4 font-medium text-sm transition-colors cursor-pointer ${
+               bookmarkType === BookmarkType.Messages
+                 ? 'text-[var(--foreground)] border-b-2 border-[#007AFF]'
+                 : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+             }`}
+             onClick={useCallback(() => setBookmarkType(BookmarkType.Messages), [])}
+           >
+             {translations.messages}
+           </button>
+           <button
+             className={`py-2 px-4 font-medium text-sm transition-colors cursor-pointer ${
+               bookmarkType === BookmarkType.Updates
+                 ? 'text-[var(--foreground)] border-b-2 border-[#007AFF]'
+                 : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+             }`}
+             onClick={useCallback(() => setBookmarkType(BookmarkType.Updates), [])}
+           >
+             {translations.updates}
+           </button>
         </div>
         
         {isLoading ? (
@@ -578,7 +605,7 @@ export default function BookmarksPage() {
                           <p className="text-xs truncate pr-2 text-[var(--muted)]">
                             {update.description}
                           </p>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex gap-1 opacity-100 transition-opacity">
                             <div className="flex items-center text-xs text-[var(--muted)] bg-[var(--accent)] px-2 py-1 rounded-full">
                               <svg 
                                 xmlns="http://www.w3.org/2000/svg" 
@@ -633,7 +660,7 @@ export default function BookmarksPage() {
                   className="border-b border-[var(--accent)] last:border-b-0"
                 >
                   <div
-                    className="group cursor-pointer p-3 rounded-lg hover:bg-[var(--accent)] transition-all"
+                    className="group cursor-pointer p-3 sm:p-4 rounded-lg hover:bg-[var(--accent)] transition-all"
                     onClick={() => navigateToMessage(bookmark.chat_session_id, bookmark.message_id)}
                   >
                     <div className="flex items-center gap-3 w-full">
@@ -665,22 +692,27 @@ export default function BookmarksPage() {
                       
                                              {/* Content */}
                        <div className="flex-1 min-w-0">
-                         {/* Top line: Chat Title + Date */}
-                         <div className="flex justify-between items-baseline">
-                           <p className="text-sm font-semibold truncate pr-2 text-[var(--foreground)]">
-                             {bookmark.chat_title || 'Untitled Chat'}
-                           </p>
-                           <span className="text-xs flex-shrink-0 text-[var(--muted)]">
-                             {getRelativeTime(bookmark.timestamp)}
-                           </span>
-                         </div>
+                        {/* Top line: Chat Title + Date */}
+                        <div className="flex justify-between items-baseline">
+                          <p className="text-sm sm:text-base font-semibold truncate pr-2 text-[var(--foreground)]">
+                            {bookmark.chat_title || 'Untitled Chat'}
+                          </p>
+                          <span className="text-xs flex-shrink-0 text-[var(--muted)]">
+                            {getRelativeTime(bookmark.timestamp)}
+                          </span>
+                        </div>
                         
                         {/* Bottom line: Content + Buttons */}
-                        <div className="flex justify-between items-end">
-                          <p className="text-xs truncate pr-2 text-[var(--muted)]">
-                            {truncateContent(bookmark.content, 100)}
-                          </p>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex justify-between items-start gap-2 mt-1">
+                           <div className="flex-1 min-w-0">
+                             <p className="text-xs sm:text-sm text-[var(--muted)] leading-relaxed break-words sm:hidden">
+                               {truncateContent(bookmark.content, 80, 150).mobile}
+                             </p>
+                             <p className="text-xs sm:text-sm text-[var(--muted)] leading-relaxed break-words hidden sm:block">
+                               {truncateContent(bookmark.content, 80, 150).desktop}
+                             </p>
+                           </div>
+                          <div className="flex gap-1 opacity-100 transition-opacity flex-shrink-0 mt-0.5">
                             <button 
                               onClick={(e) => removeMessageBookmark(bookmark.id, e)}
                               className="p-1 rounded-full bg-[var(--accent)] hover:bg-[var(--subtle-divider)] transition-colors"

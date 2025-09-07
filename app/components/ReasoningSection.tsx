@@ -1,5 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { MarkdownContent } from './MarkdownContent';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize from 'rehype-sanitize';
+import rehypeHighlight from 'rehype-highlight';
 import { Brain, CheckCircle2, Maximize2, X } from 'lucide-react';
 import ReactDOM from 'react-dom';
 
@@ -98,7 +103,12 @@ function ReasoningSectionComponent({
             ref={fullScreenScrollRef}
             className="flex-1 overflow-y-auto p-6 text-[var(--foreground)] leading-relaxed scroll-smooth"
           >
-            <MarkdownContent content={content} variant="clean" />
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeRaw, rehypeHighlight]}
+            >
+              {content}
+            </ReactMarkdown>
           </div>
         </div>
       </div>,
@@ -175,7 +185,12 @@ function ReasoningSectionComponent({
             ref={scrollContainerRef}
             className="text-sm text-[var(--foreground)] max-h-24 overflow-y-auto scrollbar-thin leading-relaxed scroll-smooth"
           >
-            <MarkdownContent content={content} variant="clean" />
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeRaw, rehypeHighlight]}
+            >
+              {content}
+            </ReactMarkdown>
           </div>
                     {/* 전체 화면으로 보기 힌트 */}
                     {/* <div className="mt-2 pt-2 border-t border-black/5 dark:border-white/10">

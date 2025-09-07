@@ -23,7 +23,8 @@ const fetchUserName = async (userId: string, supabase: SupabaseClient) => {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         
         if (authError || !user) {
-          console.warn(`👤 [USER NAME] Auth lookup also failed, using default 'You'`);
+          // 게스트 모드에서는 auth 에러가 정상이므로 warn 레벨로만 로깅
+          console.log(`👤 [USER NAME] Auth lookup failed (guest mode), using default 'You'`);
           return 'You';
         }
         
@@ -31,7 +32,8 @@ const fetchUserName = async (userId: string, supabase: SupabaseClient) => {
         console.log(`👤 [USER NAME] Using auth metadata name: ${authName}`);
         return authName;
       } catch (authErr) {
-        console.error(`❌ [USER NAME] Auth error:`, authErr);
+        // 게스트 모드에서는 auth 에러가 정상이므로 error 레벨 로깅 제거
+        console.log(`👤 [USER NAME] Auth lookup failed (guest mode), using default 'You'`);
         return 'You';
       }
     } else if (data?.name) {

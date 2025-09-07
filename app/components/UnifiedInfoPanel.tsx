@@ -1,9 +1,14 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize from 'rehype-sanitize';
+import rehypeHighlight from 'rehype-highlight';
 import { Brain, Wrench, Maximize2, X, CheckCircle2 } from 'lucide-react';
 import { ReasoningSection } from './ReasoningSection';
 import { CanvasToolsPreview } from './Canvas/CanvasToolsPreview';
-import { MarkdownContent } from './MarkdownContent';
 
 interface UnifiedInfoPanelProps {
   reasoningPart?: any;
@@ -266,7 +271,12 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
                 ref={fullScreenScrollRef}
                 className="text-[var(--foreground)] leading-relaxed scroll-smooth"
               >
-                <MarkdownContent content={reasoningPart.reasoningText || reasoningPart.text} variant="clean" />
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeRaw, rehypeHighlight]}
+                >
+                  {reasoningPart.reasoningText || reasoningPart.text}
+                </ReactMarkdown>
               </div>
             ) : (
               <CanvasToolsPreview
@@ -447,7 +457,12 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
                 ref={thinkingScrollRef}
                 className="text-sm text-[var(--foreground)] leading-relaxed scroll-smooth"
               >
-                <MarkdownContent content={reasoningPart.reasoningText || reasoningPart.text} variant="clean" />
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeRaw, rehypeHighlight]}
+                >
+                  {reasoningPart.reasoningText || reasoningPart.text}
+                </ReactMarkdown>
               </div>
             ) : (
                <CanvasToolsPreview

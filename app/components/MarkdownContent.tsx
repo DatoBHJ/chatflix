@@ -215,8 +215,8 @@ interface MarkdownContentProps {
   searchTerm?: string | null; // 🚀 FEATURE: Search term for highlighting
 }
 
-// 더 적극적으로 마크다운 구조를 분할하는 함수
-const segmentContent = (content: string): string[] => {
+// 더 적극적으로 마크다운 구조를 분할하는 함수 - 구분선(---)을 기준으로 메시지 그룹 분할
+const segmentContent = (content: string): string[][] => {
   if (!content || !content.trim()) return [];
 
   const trimmedContent = content.trim();
@@ -307,76 +307,198 @@ const segmentContent = (content: string): string[] => {
   
   const placeholderContent = extractCodeBlocks(contentWithoutImages);
 
-  // 3. 더 세밀한 분할 로직 추가
-  const segments: string[] = [];
-  
-  // 주요 구분자(---, H1, H2, H3)를 기준으로 분할
-  const separator = /(?:\n\n---\n\n)|(?:\n\s*---+\s*\n)|(?=\n#{1,3}\s)/;
-  const mainSegments = placeholderContent.split(separator);
-  
-  for (const segment of mainSegments) {
-    if (!segment || !segment.trim()) continue;
-    
+  // 3. 구분선(---)을 기준으로 먼저 메시지 그룹을 분할
+  const messageGroups: string[][] = [];
+  let currentGroup: string[] = [];
+
+  const separatorSegments = placeholderContent.split(/\n\s*---\s*\n/);
+
+  for (let i = 0; i < separatorSegments.length; i++) {
+    const segment = separatorSegments[i];
+    if (!segment || !segment.trim()) {
+      // 비어있는 그룹은 건너뜀 (연속된 구분선 등)
+      if (currentGroup.length > 0) {
+        messageGroups.push([...currentGroup]);
+        currentGroup = [];
+      }
+      continue;
+    }
+
     // 각 세그먼트를 더 세밀하게 분할
-    const subSegments = splitSegmentByComplexity(segment);
-    segments.push(...subSegments);
-  }
-  
-  // 4. 코드 블록과 이미지 세그먼트 복원
-  const finalSegments: string[] = [];
-  for (const segment of segments) {
-    if (!segment || !segment.trim()) continue;
-    
-    // 이미지 세그먼트 먼저 복원
-    let processedSegment = segment;
-    const imageSegmentRegex = /<IMAGE_SEGMENT_(\d+)>/g;
-    let imageMatch;
-    
-    while ((imageMatch = imageSegmentRegex.exec(processedSegment)) !== null) {
-      const imageIndex = parseInt(imageMatch[1], 10);
-      const imageSegment = imageSegments[imageIndex];
-      if (imageSegment) {
-        // 이미지 세그먼트를 별도 세그먼트로 추가
-        finalSegments.push(imageSegment);
+    const subSegments = splitSegmentByLineBreaks(segment);
+    currentGroup.push(...subSegments);
+
+    // 구분선 뒤이거나 마지막이면 그룹 종료
+    if (i < separatorSegments.length - 1 || i === separatorSegments.length - 1) {
+      if (currentGroup.length > 0) {
+        messageGroups.push([...currentGroup]);
+        currentGroup = [];
       }
     }
-    
-    // 이미지 세그먼트 마커 제거
-    processedSegment = processedSegment.replace(imageSegmentRegex, '');
-    
-    // 코드 블록 플레이스홀더 복원
-    const codePlaceholderRegex = /<CODE_PLACEHOLDER_(\d+)>/g;
-    let lastIndex = 0;
-    let match;
+  }
 
-    while ((match = codePlaceholderRegex.exec(processedSegment)) !== null) {
-      if (match.index > lastIndex) {
-        const textSegment = processedSegment.slice(lastIndex, match.index).trim();
-        if (textSegment) {
-          finalSegments.push(textSegment);
+  // 4. 코드 블록과 이미지 세그먼트 복원 (그룹 단위 유지)
+  const finalMessageGroups: string[][] = [];
+
+  for (const group of messageGroups) {
+    const processedGroup: string[] = [];
+
+    for (const segment of group) {
+      if (!segment || !segment.trim()) continue;
+
+      // 이미지 세그먼트 먼저 복원
+      let processedSegment = segment;
+      const imageSegmentRegex = /<IMAGE_SEGMENT_(\d+)>/g;
+      let imageMatch;
+
+      while ((imageMatch = imageSegmentRegex.exec(processedSegment)) !== null) {
+        const imageIndex = parseInt(imageMatch[1], 10);
+        const imageSegment = imageSegments[imageIndex];
+        if (imageSegment) {
+          processedGroup.push(imageSegment);
         }
       }
-      finalSegments.push(codeBlocks[parseInt(match[1], 10)]);
-      lastIndex = match.index + match[0].length;
-    }
 
-    if (lastIndex < processedSegment.length) {
-      const remainingText = processedSegment.slice(lastIndex).trim();
-      if (remainingText) {
-        finalSegments.push(remainingText);
+      // 이미지 세그먼트 마커 제거
+      processedSegment = processedSegment.replace(imageSegmentRegex, '');
+
+      // 코드 블록 플레이스홀더 복원
+      const codePlaceholderRegex = /<CODE_PLACEHOLDER_(\d+)>/g;
+      let lastIndex = 0;
+      let match;
+
+      while ((match = codePlaceholderRegex.exec(processedSegment)) !== null) {
+        if (match.index > lastIndex) {
+          const textSegment = processedSegment.slice(lastIndex, match.index).trim();
+          if (textSegment) {
+            processedGroup.push(textSegment);
+          }
+        }
+        processedGroup.push(codeBlocks[parseInt(match[1], 10)]);
+        lastIndex = match.index + match[0].length;
+      }
+
+      if (lastIndex < processedSegment.length) {
+        const remainingText = processedSegment.slice(lastIndex).trim();
+        if (remainingText) {
+          processedGroup.push(remainingText);
+        }
       }
     }
+
+    if (processedGroup.length > 0) {
+      finalMessageGroups.push(processedGroup.filter(s => s.trim().length > 0));
+    }
   }
-  
-  // 5. 최종적으로 빈 세그먼트 제거 후 반환
-  const result = finalSegments.filter(s => s.trim().length > 0);
-  
-  // 분할 결과가 없으면 원본 반환
-  if (result.length <= 1) {
-      return [trimmedContent];
+
+  // 5. 최종적으로 비어있지 않은 그룹만 반환
+  const result = finalMessageGroups.filter(group => group.length > 0);
+
+  if (result.length === 0) {
+    return [[trimmedContent]];
   }
-  
+
   return result;
+};
+
+// 과감하게 세그먼트를 분할하는 함수 - 마크다운 구조를 고려하되 텍스트, 리스트, 테이블은 적절히 유지
+const splitSegmentByLineBreaks = (segment: string): string[] => {
+  if (!segment || !segment.trim()) return [];
+
+  // 단일 줄이면 그대로 반환
+  if (!segment.includes('\n')) {
+    return [segment.trim()];
+  }
+
+  const lines = segment.split('\n');
+  const segments: string[] = [];
+  let currentSegment: string[] = [];
+  let inListBlock = false;
+  let inTableBlock = false; // 테이블 블록 상태 추가
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmedLine = line.trim();
+
+    // Block detectors
+    const isListItem = /^([-*+]\s(?:\[[ xX]\]\s)?|\d+\.\s)/.test(trimmedLine);
+    const isTableLine = /^\s*\|.*\|\s*$/.test(trimmedLine); // 테이블 행 감지
+
+    // 분할 조건들 - 블록 외부에서만 적용
+    const shouldSplit =
+      (trimmedLine === '' && !inListBlock && !inTableBlock) || // 블록 안에선 빈 줄로 분할 안 함
+      /^#{1,3}\s/.test(trimmedLine) ||
+      /^```/.test(trimmedLine) ||
+      /^---+$/.test(trimmedLine) ||
+      /^>\s/.test(trimmedLine) ||
+      /^[^:\n]+:\s/.test(trimmedLine) ||
+      /^[*_-]{3,}$/.test(trimmedLine);
+
+    // 리스트 블록 종료 조건
+    if (inListBlock && (!isListItem || shouldSplit) && currentSegment.length > 0) {
+      segments.push(currentSegment.join('\n').trim());
+      currentSegment = [];
+      inListBlock = false;
+    }
+
+    // 테이블 블록 종료 조건
+    if (inTableBlock && (!isTableLine || shouldSplit) && currentSegment.length > 0) {
+      segments.push(currentSegment.join('\n').trim());
+      currentSegment = [];
+      inTableBlock = false;
+    }
+
+    // 블록 외부에서의 분할
+    if (!inListBlock && !inTableBlock && shouldSplit && currentSegment.length > 0) {
+      segments.push(currentSegment.join('\n').trim());
+      currentSegment = [];
+    }
+
+    const isSeparator = /^---+$/.test(trimmedLine) || /^[*_-]{3,}$/.test(trimmedLine);
+
+    // 블록 상태 시작
+    if (isListItem) {
+      inListBlock = true;
+    }
+    if (isTableLine) {
+      inTableBlock = true;
+    }
+
+    // 현재 세그먼트에 내용 추가
+    if (trimmedLine !== '' && !isSeparator) {
+      currentSegment.push(line);
+    }
+  }
+
+  // 마지막 세그먼트 추가
+  if (currentSegment.length > 0) {
+    segments.push(currentSegment.join('\n').trim());
+  }
+
+  return segments.filter(s => s.length > 0);
+};
+
+// 리스트의 연속인지 확인하는 헬퍼 함수
+const isContinuationOfList = (lines: string[], currentIndex: number): boolean => {
+  // 이전 줄들을 확인해서 리스트가 계속되는지 판단
+  for (let i = currentIndex - 1; i >= 0; i--) {
+    const prevLine = lines[i].trim();
+    
+    // 빈 줄이면 리스트가 끝난 것으로 간주
+    if (prevLine === '') {
+      return false;
+    }
+    
+    // 이전 줄이 리스트 아이템이면 연속으로 간주
+    if (/^[-*+]\s/.test(prevLine) || /^\d+\.\s/.test(prevLine)) {
+      return true;
+    }
+    
+    // 이전 줄이 리스트가 아니면 연속이 아님
+    return false;
+  }
+  
+  return false;
 };
 
 // 복잡한 세그먼트를 더 세밀하게 분할하는 함수
@@ -821,9 +943,9 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     return preprocessLaTeX(content);
   }, [content]);
 
-  // Segment the content if segmentation is enabled
+  // Build message groups (arrays of segments). When segmentation is disabled, treat as a single group.
   const segments = useMemo(() => {
-    if (!enableSegmentation) return [processedContent];
+    if (!enableSegmentation) return [[processedContent]];
     return segmentContent(processedContent);
   }, [processedContent, enableSegmentation]);
 
@@ -1621,100 +1743,104 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     ] as any;
   }, []);
 
-  // If segmentation is enabled, render multiple segments
+  // Render grouped segments into separate bubbles
   return (
     <>
-      <div className={variant === 'clean' ? 'markdown-segments' : 'message-segments'}>
-        {segments.map((segment, index) => {
-          // 이미지 세그먼트인지 확인
-          const isImageSegment = /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segment);
-          
-          // 이전 세그먼트가 이미지 세그먼트인지 확인
-          const prevIsImage = index > 0 && /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segments[index - 1]);
-          
-          // 다음 세그먼트가 이미지 세그먼트인지 확인
-          const nextIsImage = index < segments.length - 1 && /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segments[index + 1]);
-          
-          // 연속된 이미지 세그먼트인지 확인
-          const isConsecutiveImage = isImageSegment && (prevIsImage || nextIsImage);
-          
-          // 연속된 이미지가 있는지 확인 (현재 이미지가 연속된 이미지인 경우만)
-          const hasConsecutiveImages = isConsecutiveImage;
-          
-          // 텍스트와 겹치지 않도록 확인
-          const hasTextBefore = index > 0 && !/\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segments[index - 1]);
-          const hasTextAfter = index < segments.length - 1 && !/\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segments[index + 1]);
-          
-          // iMessage 스타일의 랜덤 위치와 회전 계산
-          const getImageStyle = (): React.CSSProperties => {
-            if (!isConsecutiveImage) return {};
-            
-            // 이미지 인덱스에 따른 일관된 랜덤 값 생성
-            const seed = index * 12345; // 일관된 랜덤을 위한 시드
-            const randomX = (seed % 60) - 30; // -30px ~ +30px (더 큰 범위)
-            const randomRotate = (seed % 16) - 8; // -8도 ~ +8도 (더 큰 회전)
-            
-            // 텍스트가 있으면 낮은 z-index로 설정하여 텍스트 아래로 들어가도록 함
-            const zIndexValue = (hasTextBefore || hasTextAfter) ? -1 : segments.length - index;
-            
-            // margin 속성을 개별 속성으로 분리하여 충돌 방지
-            const marginTop = prevIsImage ? '-80px' : '0';
-            const marginBottom = nextIsImage ? '-80px' : '0';
-            const marginLeft = `${randomX}px`;
-            const marginRight = '0';
-            
-            return {
-              marginTop,
-              marginBottom,
-              marginLeft,
-              marginRight,
-              transform: `rotate(${randomRotate}deg)`,
-              zIndex: zIndexValue,
-              position: 'relative' as const,
-              transition: 'all 0.3s ease-in-out',
-              boxShadow: '0 6px 20px rgba(0, 0, 0, 0.2)', // 더 강한 그림자
-              cursor: 'pointer'
-            };
-          };
-          
-          return (
-            <div 
-              key={index} 
-              className={`${isImageSegment ? (hasConsecutiveImages ? 'max-w-[80%] md:max-w-[40%]' : 'max-w-[100%] md:max-w-[70%]') : ''} ${isImageSegment ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}`}`}
-              style={{
-                ...getImageStyle(),
-                ...(isImageSegment && {
-                  background: 'transparent !important',
-                  padding: '0',
-                  border: 'none',
-                  boxShadow: 'none'
-                  // margin 속성 제거 - getImageStyle()에서 개별 margin 속성으로 처리
-                })
-              }}
-            >
-              {isImageSegment ? (
-                <ReactMarkdown
-                  remarkPlugins={remarkPlugins}
-                  rehypePlugins={rehypePlugins}
-                  components={components}
+      {segments.map((segmentGroup, groupIndex) => (
+        <div key={groupIndex} className="imessage-receive-bubble">
+          <div className={variant === 'clean' ? 'markdown-segments' : 'message-segments'}>
+            {segmentGroup.map((segment, index) => {
+              // 이미지 세그먼트인지 확인
+              const isImageSegment = /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segment);
+              
+              // 이전 세그먼트가 이미지 세그먼트인지 확인
+              const prevIsImage = index > 0 && /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segmentGroup[index - 1]);
+              
+              // 다음 세그먼트가 이미지 세그먼트인지 확인
+              const nextIsImage = index < segmentGroup.length - 1 && /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segmentGroup[index + 1]);
+              
+              // 연속된 이미지 세그먼트인지 확인
+              const isConsecutiveImage = isImageSegment && (prevIsImage || nextIsImage);
+              
+              // 연속된 이미지가 있는지 확인 (현재 이미지가 연속된 이미지인 경우만)
+              const hasConsecutiveImages = isConsecutiveImage;
+              
+              // 텍스트와 겹치지 않도록 확인
+              const hasTextBefore = index > 0 && !/\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segmentGroup[index - 1]);
+              const hasTextAfter = index < segmentGroup.length - 1 && !/\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segmentGroup[index + 1]);
+              
+              // iMessage 스타일의 랜덤 위치와 회전 계산
+              const getImageStyle = (): React.CSSProperties => {
+                if (!isConsecutiveImage) return {};
+                
+                // 이미지 인덱스에 따른 일관된 랜덤 값 생성
+                const seed = index * 12345; // 일관된 랜덤을 위한 시드
+                const randomX = (seed % 60) - 30; // -30px ~ +30px (더 큰 범위)
+                const randomRotate = (seed % 16) - 8; // -8도 ~ +8도 (더 큰 회전)
+                
+                // 텍스트가 있으면 낮은 z-index로 설정하여 텍스트 아래로 들어가도록 함
+                const zIndexValue = (hasTextBefore || hasTextAfter) ? -1 : segmentGroup.length - index;
+                
+                // margin 속성을 개별 속성으로 분리하여 충돌 방지
+                const marginTop = prevIsImage ? '-80px' : '0';
+                const marginBottom = nextIsImage ? '-80px' : '0';
+                const marginLeft = `${randomX}px`;
+                const marginRight = '0';
+                
+                return {
+                  marginTop,
+                  marginBottom,
+                  marginLeft,
+                  marginRight,
+                  transform: `rotate(${randomRotate}deg)`,
+                  zIndex: zIndexValue,
+                  position: 'relative' as const,
+                  transition: 'all 0.3s ease-in-out',
+                  boxShadow: '0 6px 20px rgba(0, 0, 0, 0.2)', // 더 강한 그림자
+                  cursor: 'pointer'
+                };
+              };
+              
+              return (
+                <div 
+                  key={index} 
+                  className={`${isImageSegment ? (hasConsecutiveImages ? 'max-w-[80%] md:max-w-[40%]' : 'max-w-[100%] md:max-w-[70%]') : ''} ${isImageSegment ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}`}`}
+                  style={{
+                    ...getImageStyle(),
+                    ...(isImageSegment && {
+                      background: 'transparent !important',
+                      padding: '0',
+                      border: 'none',
+                      boxShadow: 'none'
+                      // margin 속성 제거 - getImageStyle()에서 개별 margin 속성으로 처리
+                    })
+                  }}
                 >
-                  {segment}
-                </ReactMarkdown>
-              ) : (
-                <div className="max-w-full overflow-x-auto message-content break-words">
-                  <ReactMarkdown
-                    remarkPlugins={remarkPlugins}
-                    rehypePlugins={rehypePlugins}
-                    components={components}
-                  >
-                    {segment}
-                  </ReactMarkdown>
+                  {isImageSegment ? (
+                    <ReactMarkdown
+                      remarkPlugins={remarkPlugins}
+                      rehypePlugins={rehypePlugins}
+                      components={components}
+                    >
+                      {segment}
+                    </ReactMarkdown>
+                  ) : (
+                    <div className="max-w-full overflow-x-auto message-content break-words">
+                      <ReactMarkdown
+                        remarkPlugins={remarkPlugins}
+                        rehypePlugins={rehypePlugins}
+                        components={components}
+                      >
+                        {segment}
+                      </ReactMarkdown>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
 
       {/* Image Modal */}
       {isMounted && selectedImage && createPortal(

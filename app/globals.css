@@ -29,6 +29,19 @@
   background-color: var(--accent);
 }
 
+/* Panel background overrides for dark mode */
+:root[data-theme="dark"] .panel-background,
+:root[data-theme="dark"] [style*="background-color: var(--accent)"] {
+  background-color: var(--background) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .panel-background,
+  :root[data-theme="system"] [style*="background-color: var(--accent)"] {
+    background-color: var(--background) !important;
+  }
+}
+
 .text-foreground {
   color: var(--foreground);
 }
@@ -507,7 +520,8 @@
 
   /* Dark theme variables */
   /* --background-dark: #1E1E1E; literal imessage dark mode */
-  --background-dark: #000000;
+  --background-dark: #161617;
+  /* --background-dark: #000000; */
   --foreground-dark: #e5e5e5;
   --accent-dark: #262626;
   /* --accent-dark: #3B3B3D; literal imessage dark mode */

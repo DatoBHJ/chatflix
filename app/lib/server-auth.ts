@@ -24,7 +24,12 @@ export async function getServerUser(): Promise<User | null> {
     const { data: { user }, error } = await supabase.auth.getUser()
     
     if (error) {
-      console.error('Server auth error:', error)
+      // 게스트 모드에서는 auth 에러가 정상이므로 로깅하지 않음
+      const errorMessage = error?.message;
+      if (!errorMessage?.includes('Auth session missing') && 
+          !errorMessage?.includes('session not found')) {
+        console.error('Server auth error:', error)
+      }
       return null
     }
     

@@ -1021,7 +1021,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     const confirmationText = `delete ${user.email}`;
     return ReactDOM.createPortal(
       <div 
-        className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-hidden backdrop-blur-sm"
+        className="fixed inset-0 bg-black/50 flex items-center justify-center z-[90] overflow-hidden backdrop-blur-sm"
         onClick={() => setShowDeleteConfirmation(false)}
       >
         <div 
@@ -1100,7 +1100,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
 
   const modalContent = (
     <div
-      className={`fixed inset-0 flex items-end sm:items-center justify-center z-50 overflow-hidden transition-all duration-500 ease-out ${
+      className={`fixed inset-0 flex items-end sm:items-center justify-center z-[90] overflow-hidden transition-all duration-500 ease-out ${
         isMobile ? `bg-black/10 dark:bg-black/30 backdrop-blur-sm ${
           showElements.modal ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }` : 'bg-black/50 backdrop-blur-sm'

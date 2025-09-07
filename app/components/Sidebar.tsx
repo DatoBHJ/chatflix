@@ -14,6 +14,7 @@ import { getProviderLogo, hasLogo } from '@/lib/models/logoUtils'
 import { getSidebarTranslations } from '../lib/sidebarTranslations'
 import { clearAllSubscriptionCache } from '@/lib/utils'
 import { useSidebar } from '@/app/lib/SidebarContext'
+import { handleDeleteAllChats as deleteAllChats } from '@/app/lib/chatUtils'
 import { Settings, LifeBuoy, Zap, LogOut, CreditCard } from 'lucide-react'
 import { SquarePencil } from 'react-ios-icons'
 import { ProblemReportDialog } from './ProblemReportDialog'
@@ -722,41 +723,10 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
   }, [pathname, router, isAnonymousUser])
 
   const handleDeleteAllChats = useCallback(async () => {
-    // 🚀 익명 사용자 지원: 익명 사용자는 채팅 삭제 불가
-    if (isAnonymousUser) return;
-    
-    // First confirmation - warn about data loss including AI Recap data
-    if (!confirm('Warning: Deleting all chats will also remove your personalized AI Recap analytics data. This action cannot be undone.')) return
-
-    // Second confirmation - extra step to make deletion harder
-    if (!confirm('Are you absolutely sure? Type "DELETE" in the next prompt to confirm permanent deletion of all chat data and analytics.')) return
-    
-    const confirmationInput = window.prompt('Please type "DELETE" to confirm:')
-    if (confirmationInput !== 'DELETE') {
-      alert('Deletion cancelled. Your chats and analytics data have been preserved.')
-      return
-    }
-
-    try {
-      // Get all chat sessions
-      const { data: sessions } = await supabase
-        .from('chat_sessions')
-        .select('id')
-        .eq('user_id', user.id);
-
-      if (sessions) {
-        // Delete each chat session and its associated files
-        await Promise.all(sessions.map(session => deleteChat(session.id)));
-      }
-
-      router.push('/')
-      // Reset local state after deleting chats
-      setChats([])
-    } catch (error) {
-      console.error('Failed to delete all chats:', error)
-      alert('Failed to delete chats.')
-    }
-  }, [user, supabase, router, isAnonymousUser]) // Removed loadChats dependency
+    await deleteAllChats({ user, router, supabase })
+    // Reset local state after deleting chats
+    setChats([])
+  }, [user, router, supabase])
 
 
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { useRouter, usePathname } from 'next/navigation'
 
@@ -12,6 +12,7 @@ import { Toaster } from 'sonner'
 import { SidebarContext } from './lib/SidebarContext'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import { createClient as createSupabaseClient } from '@/utils/supabase/client'
+import { handleDeleteAllChats as deleteAllChats } from './lib/chatUtils'
 
 import { Pin } from 'lucide-react'
 import { SquarePencil } from 'react-ios-icons'
@@ -28,6 +29,12 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { announcements, showAnnouncement, hideAnnouncement } = useAnnouncement()
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const supabase = createSupabaseClient()
+
+  // Delete all chats function using common utility
+  const handleDeleteAllChats = useCallback(async () => {
+    await deleteAllChats({ user, router, supabase })
+  }, [user, router, supabase])
 
   // 화면 크기에 따른 사이드바 초기 상태 설정
   useEffect(() => {
@@ -281,6 +288,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
               toggleSidebar={toggleSidebar}
               user={displayUser} 
               isHovering={isHovering}
+              handleDeleteAllChats={handleDeleteAllChats}
             />
           )}
         {children}

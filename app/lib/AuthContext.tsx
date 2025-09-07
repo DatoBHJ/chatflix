@@ -32,7 +32,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (mounted) {
           if (error) {
-            console.error('Auth error:', error)
+            // 게스트 모드에서는 auth 에러가 정상이므로 로깅하지 않음
+            const errorMessage = error?.message;
+            if (!errorMessage?.includes('Auth session missing') && 
+                !errorMessage?.includes('session not found')) {
+              console.error('Auth error:', error)
+            }
             setUser(null)
           } else {
             setUser(user)

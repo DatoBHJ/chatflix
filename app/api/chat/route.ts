@@ -97,7 +97,12 @@ export async function POST(req: Request): Promise<Response> {
   if (userError) {
     // AuthSessionMissingError(400)은 익명 시 정상 동작이므로 로깅하지 않음
     const status = (userError as any)?.status;
-    if (status && status !== 400) {
+    const errorMessage = (userError as any)?.message;
+    
+    // 게스트 모드에서 발생하는 일반적인 auth 에러들은 로깅하지 않음
+    if (status && status !== 400 && 
+        !errorMessage?.includes('Auth session missing') &&
+        !errorMessage?.includes('session not found')) {
       console.error('Auth error:', userError);
     }
     // 익명 사용자로 처리 계속 진행
