@@ -643,11 +643,15 @@ const ImageWithLoading = memo(function ImageWithLoadingComponent({
   
   return (
          <div className="relative w-full">
-       {!isLoaded && !error && (
-         <div className="text-[var(--muted)] text-sm py-2">
-           ...
-         </div>
-       )}
+      {!isLoaded && !error && (
+        <div className="text-[var(--muted)] text-sm py-2">
+          <div className="typing-indicator-compact">
+            <div className="typing-dot-compact"></div>
+            <div className="typing-dot-compact"></div>
+            <div className="typing-dot-compact"></div>
+          </div>
+        </div>
+      )}
       
       {error && isPollinationImage && (
         <div className="bg-[var(--accent)] rounded-lg p-6 text-center text-[var(--muted)]">
