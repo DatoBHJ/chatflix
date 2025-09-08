@@ -424,6 +424,7 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
                             <li>✓ Access to all models</li>
                             <li>✓ Unlimited requests</li>
                             <li>✓ Priority support</li>
+                            <li>✓ Chat history storage & search</li>
                           </ul>
                         </div>
                         
@@ -437,6 +438,7 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
                             <li>• Limited model access</li>
                             <li>• Rate limited requests</li>
                             <li>• Basic support</li>
+                            <li>• Chat history storage & search</li>
                           </ul>
                         </div>
                         
@@ -563,6 +565,7 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
                             <li>✓ Access to all models</li>
                             <li>✓ Unlimited requests</li>
                             <li>✓ Priority support</li>
+                            <li>✓ Chat history storage & search</li>
                           </ul>
                         </div>
                         
@@ -576,6 +579,7 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
                             <li>• Limited model access</li>
                             <li>• Rate limited requests</li>
                             <li>• Basic support</li>
+                            <li>• Chat history storage & search</li>
                           </ul>
                         </div>
                         
@@ -627,7 +631,7 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
                                 <button
                                   onClick={handleSubscribe}
                                 disabled={isLoading}
-                                className="w-full py-3 bg-blue-500 text-white font-bold rounded-xl transition-all hover:bg-blue-500/90 cursor-pointer disabled:opacity-50 shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98]"
+                                className="w-full sm:w-48 py-3 bg-blue-500 text-white font-bold rounded-xl transition-all hover:bg-blue-500/90 cursor-pointer disabled:opacity-50 shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98]"
                                   style={{ letterSpacing: '0.05em' }}
                                 >
                                 {isLoading ? translations.processing : translations.upgrade}
