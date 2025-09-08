@@ -5,166 +5,132 @@
 
 export const toolPrompts = {
   webSearch: `
-For web search tool execution:
-- Generate 3-5 specific search queries with different keywords and angles
-- Use diverse topic types for comprehensive results:
-  * "news" for current events and recent developments
-  * "research paper" for academic and scientific information
-  * "financial report" for business and economic data
-  * "company" for corporate information
-  * "pdf" for official documents and reports
-  * "github" for code and technical projects
-  * "personal site" for individual blogs and websites
-  * "linkedin profile" for professional information
-  * "general" for broad overview searches
-- Adjust maxResults parameter (8-10 for broad topics)
+For web search tool execution (Exa):
+- Note: The tool always uses neural search with autoprompt, and includes text and summary by default; you don't need to request these.
+- QUERY LIMIT: Use 2-4 queries maximum per tool call (never exceed 4)
+- Scale maxResults inversely: fewer queries = more results per query
+- Choose an appropriate topic per query to steer Exa's category index
+- If results are insufficient, reuse the tool with different query angles rather than adding more queries
 
-**CRITICAL PARAMETER FORMAT REQUIREMENTS:**
-When calling the web_search tool, you MUST provide parameters in the EXACT format specified:
-
-**CORRECT FORMAT (REQUIRED):**
-{
-  "queries": ["query 1", "query 2", "query 3"],
-  "topics": ["news", "research paper", "company"],
-  "maxResults": [10, 10, 10]
-}
-
-**INCORRECT FORMAT (AVOID):**
-{
-  "queries": "[\"query 1\", \"query 2\", \"query 3\"]",
-  "topics": "[\"news\", \"research paper\", \"company\"]"
-}
-
-**PARAMETER RULES:**
-1. **queries**: Must be an array of strings, NOT a JSON string
-2. **topics**: Must be an array of topic types, NOT a JSON string
-3. **maxResults**: Must be an array of numbers (optional, defaults to 10 each)
-4. **include_domains**: Must be an array of strings (optional)
-5. **exclude_domains**: Must be an array of strings (optional)
-
-**VALID TOPIC TYPES:**
+VALID TOPICS:
 - "general", "news", "financial report", "company", "research paper", "pdf", "github", "personal site", "linkedin profile"
 
-**EXAMPLE CORRECT TOOL CALL:**
+PARAMETERS AND FORMAT (STRICT):
+1) queries: array of strings
+2) topics: array of topic strings (same length as queries when possible)
+3) maxResults: array of numbers (optional; defaults to 10 each)
+4) include_domains: array of strings (optional)
+5) exclude_domains: array of strings (optional)
+- IMPORTANT: include_domains and exclude_domains are mutually exclusive. Set only one.
+
+CORRECT CALL EXAMPLE:
 {
-  "queries": ["latest iPhone 15 news 2024", "iPhone 15 release date", "Apple iPhone 15 features"],
-  "topics": ["news", "news", "news"],
-  "maxResults": [10, 10, 10]
+  "queries": ["vector database benchmarks 2024", "best vector index for RAG latency", "HNSW vs IVF flat tradeoffs"],
+  "topics": ["research paper", "general", "github"],
+  "maxResults": [12, 10, 10]
 }
 
-**CURRENT DATE:** ${new Date().toLocaleDateString('en-US', { 
-  year: 'numeric', 
-  month: 'long', 
-  day: 'numeric',
-  weekday: 'long'
-})}
+ENGLISH-FIRST POLICY:
+- Always generate all initial queries in English, regardless of user language
+- Try multiple English variations before any fallback
+- Only if results are inadequate, retry in the user's language as a secondary pass
 
-**TEMPORAL RELEVANCE GUIDELINES:**
-- **Current Date Context**: Always consider the current date when searching for time-sensitive information
-- **Recent Events**: For news, events, or developments, prioritize the most recent information
-- **Historical vs Current**: Distinguish between historical facts and current status/developments
-- **Time-Sensitive Queries**: For stock prices, weather, live events, sports scores, etc., ensure searches target current data
-- **Date Verification**: When searching for information that may have changed, include current date context in search queries
+QUERY COUNT AND RESULTS SCALING:
+- 1 query: Use 30-50 maxResults (deep focus)
+- 2 queries: Use 20-40 maxResults each (balanced coverage)
+- 3 queries: Use 10-30 maxResults each (broad coverage)
+- 4 queries: Use 8-20 maxResults each (maximum breadth)
 
-**MANDATORY ENGLISH-FIRST SEARCH STRATEGY:**
-**CRITICAL RULE: ALL SEARCHES MUST START IN ENGLISH - NO EXCEPTIONS**
+SEARCH STRATEGY:
+- Deep search: 1-2 tightly focused queries with high maxResults
+- Broad search: 3-4 queries with different phrasings and topics, moderate maxResults
+- Keep include_domains if you need authoritative sources only; otherwise leave undefined
+- Consider exclude_domains for noisy sources; otherwise leave undefined
 
-**PRIMARY SEARCH PHASE - ENGLISH ONLY:**
-- **MANDATORY**: Generate ALL initial search queries in English
-- **MANDATORY**: Use English for ALL search attempts first, regardless of user's language or region
-- **MANDATORY**: Try multiple English search variations before considering other languages
-- English provides the most comprehensive global coverage and highest quality results
-- Examples of English-first approach:
-  * User asks in Korean "서울 맛집 추천해줘" → Search in English: "Seoul best restaurants recommendations"
-  * User asks in Japanese "東京の天気" → Search in English: "Tokyo weather forecast current conditions"
-  * User asks in French "restaurants Paris" → Search in English: "Paris restaurants best places to eat"
-  * User asks in German "Berlin Nachrichten" → Search in English: "Berlin news latest updates"
-  * User asks in Spanish "tiempo Madrid" → Search in English: "Madrid weather forecast"
+SCENARIO-BASED TOPIC AND QUERY TIPS (optimized for Exa's coverage):
+- News/time-sensitive → topic: "news" (Very High coverage)
+  - Use terms like "latest", "update", current year/month, organization names
+  - Example queries: "latest NVIDIA AI news 2025", "OpenAI partnership updates 2025"
+- Academic/technical research → topics: "research paper", "pdf" (Very High coverage)
+  - Add keywords: "paper", "survey", "arXiv", "benchmark", "state of the art"
+  - Example queries: "retrieval augmented generation survey 2024 pdf", "agentic workflows benchmark paper"
+- Code and implementations → topic: "github" (High coverage)
+  - Add "README", "example", "reference implementation", language/framework names
+  - Example queries: "HNSW JS implementation README", "OpenAI function calling example TypeScript"
+- Company/product intel → topic: "company" (Very High coverage)
+  - Add "pricing", "docs", "press release", "careers", "roadmap"
+  - Example queries: "Anthropic pricing 2025", "LlamaIndex roadmap docs"
+- Professional profiles → topic: "linkedin profile" (Very High US+EU coverage)
+  - Add title + org + region when relevant
+  - Example: "ML engineer at Meta recommendation systems"
+- Personal sites/blogs → topic: "personal site" (Very High coverage)
+  - Add "blog", "post", "case study", "portfolio"
+  - Example: "LLM evaluation framework blog post 2025"
+- Financial filings/data → topic: "financial report" (Very High coverage)
+  - Add "10-K", "10-Q", "investor relations", "annual report"
+  - Example: "Apple 10-K revenue growth investor relations"
+- Wikipedia knowledge → topic: "general" (Very High coverage)
+  - Include "Wikipedia" in query for better targeting
+  - Example: "machine learning Wikipedia", "artificial intelligence history Wikipedia"
 
-**SECONDARY SEARCH PHASE - USER LANGUAGE FALLBACK:**
-- **ONLY** if English searches return insufficient, inadequate, or no relevant results
-- **ONLY** after exhausting multiple English search variations
-- **ONLY** as a last resort to find additional local sources
-- Retry the same query in the user's original language or local language
-- This is supplementary, not primary search strategy
+EXA'S STRONGEST CATEGORIES (leverage these for best results):
+- **Research papers**: "Very High" coverage - use for academic content, surveys, benchmarks
+- **Personal pages**: "Very High" coverage - excellent for finding individual blogs, portfolios
+- **Wikipedia**: "Very High" coverage - comprehensive knowledge base via semantic search
+- **News**: "Very High" coverage - robust index of web news sources
+- **LinkedIn profiles**: "Very High (US+EU)" - extensive professional profile coverage
+- **Company homepages**: "Very High" coverage - wide index of companies
+- **Financial reports**: "Very High" coverage - SEC 10k, Yahoo Finance, etc.
+- **GitHub repos**: "High" coverage - open source code indexing
+- **Blogs**: "High" coverage - quality reading material for niche topics
+- **Places and things**: "High" coverage - restaurants, hospitals, schools, electronics
+- **Legal/policy sources**: "High" coverage - CPUC, Justia, Findlaw, etc.
+- **Government sources**: "High" coverage - IMF, CDC, WHO, etc.
 
-**LANGUAGE MAPPING EXAMPLES:**
-- Japan/Japanese: "東京 レストラン", "大阪 天気"
-- France/French: "restaurants Paris", "météo Lyon"
-- Germany/German: "Restaurants Berlin", "Wetter München"
-- Korea/Korean: "서울 맛집", "부산 날씨"
-- China/Chinese: "北京 餐厅", "上海 天气"
-- Spain/Spanish: "restaurantes Madrid", "tiempo Barcelona"
-- Italy/Italian: "ristoranti Roma", "meteo Milano"
+DOMAIN-SPECIFIC LEVERAGING:
+- Legal: include_domains: ["law.justia.com", "findlaw.com"]
+- Government: include_domains: ["who.int", "cdc.gov", "nasa.gov", "sec.gov", "imf.org"]
+- Academic: include_domains: ["arxiv.org", "scholar.google.com", "ieee.org"]
+- News: include_domains: ["reuters.com", "bloomberg.com", "techcrunch.com"]
+ 
+EXAMPLE QUERY PATTERNS BY SCENARIO (optimized for Exa's strengths):
+- Academic Research (3 queries, leveraging "research paper" strength):
+  queries: ["embeddings for document retrieval survey", "attention mechanism transformer architecture", "neural network optimization techniques"]
+  topics: ["research paper", "research paper", "research paper"], maxResults: [15, 15, 15]
+- Company Intelligence (2 queries, leveraging "company" + "financial report"):
+  queries: ["SpaceX company valuation revenue growth", "Tesla financial performance 2024"]
+  topics: ["company", "financial report"], maxResults: [35, 35]
+- Personal/Professional Profiles (3 queries, leveraging "linkedin profile" strength):
+  queries: ["machine learning engineer at Google", "AI researcher at Stanford University", "data scientist at Microsoft"]
+  topics: ["linkedin profile", "linkedin profile", "linkedin profile"], maxResults: [20, 20, 20]
+- Code & Implementation (4 queries, leveraging "github" strength):
+  queries: ["vector database implementation HNSW", "OpenAI API integration example", "React hooks tutorial", "machine learning model deployment"]
+  topics: ["github", "github", "github", "github"], maxResults: [12, 12, 12, 12]
+- Wikipedia Knowledge (2 queries, leveraging "general" for Wikipedia):
+  queries: ["artificial intelligence Wikipedia", "machine learning history Wikipedia"]
+  topics: ["general", "general"], maxResults: [30, 30]
 
-**SEARCH STRATEGY BASED ON QUERY TYPE:**
+ITERATIVE REFINEMENT (TOOL REUSE STRATEGY):
+- If results are insufficient or sparse after deduplication:
+  - **REUSE THE TOOL** with different query angles rather than adding more queries
+  - Mutate queries: use synonyms, invert perspective ("pros/cons", "limitations"), add constraints ("production", "privacy", "latency")
+  - Adjust topics to widen or narrow the index (e.g., switch between "general" and "research paper")
+  - Apply include_domains for authoritative sources OR exclude_domains for noisy ones (never both)
+  - Each tool call should stay within 2-4 queries maximum
 
-**WHEN TOPIC IS CLEAR AND SPECIFIC (e.g., "search for latest iPhone news"):**
-- **MANDATORY**: Generate ALL queries in English first
-- Focus on ONE primary topic type that best matches the query
-- Generate 3-5 different search queries using the SAME topic type
-- Use varying keywords and angles within that topic
-- Example: If searching for "latest iPhone news" → Use "news" topic with English queries like:
-  * "latest iPhone 15 news 2024"
-  * "iPhone 15 release date news"
-  * "Apple iPhone 15 latest updates"
-  * "iPhone 15 price news"
-  * "iPhone 15 features news"
+EXECUTION FORMAT:
+1. State your plan and topic strategy (e.g., "Searching in English with diversified queries across [topics]")
+2. Always mention English-first (e.g., "English-first with multiple variations")
+3. If time-sensitive, mention temporal context (e.g., "as of ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}")
+4. Provide only a one-line summary of findings (count + high-level coverage)
+5. If results are inadequate, mention fallback to the user's language
+6. Indicate you will analyze findings in the final answer stage
 
-**WHEN TOPIC IS BROAD OR UNCLEAR:**
-- **MANDATORY**: Generate ALL queries in English first
-- Use diverse topic types for comprehensive coverage
-- Mix different topic types across queries
-- Example: If searching for "AI developments" → Mix topics with English queries:
-  * "news" for current AI news
-  * "research paper" for academic AI research
-  * "company" for AI company developments
-  * "general" for broad AI overview
-
-**MANDATORY SEARCH FOR:**
-- Current events, news, recent updates, time-sensitive data
-- Real-time data: stock prices, weather, live scores, trending topics
-- Specific facts, statistics, detailed information
-- Visual content: images, photos, memes, visual references
-- Product/service information: reviews, prices, features, availability
-- Location-based information: places, restaurants, businesses
-- Technical/professional information: industry trends, technical specs
-- Entertainment/media: movies, TV shows, music, celebrities
-- Health/medical information: symptoms, treatments, medications
-- Financial/economic data: market info, economic indicators
-- Educational content: tutorials, how-to guides, learning resources
-- Social media/trending: viral content, social trends
-- When user explicitly asks for search: "Search for...", "Find me...", "Look up..."
-
-**ONLY ANSWER WITHOUT SEARCHING FOR:**
-- Historical events (unless user asks for current relevance)
-- General knowledge that doesn't change (basic facts, definitions)
-- Mathematical calculations or formulas
-- Programming concepts or coding syntax
-- Literary works, classic books, historical figures
-- Basic scientific principles or theories
-- Language grammar rules or vocabulary
-- Philosophical concepts or abstract ideas
-
-**EXECUTION FORMAT:**
-1. State your search plan with topic strategy (e.g., "Searching for [topic] using [topic_type] with English queries [key terms]")
-2. **MANDATORY**: Always mention English-first approach (e.g., "Searching in English first with multiple variations")
-3. For time-sensitive queries, mention temporal context (e.g., "Searching for current [topic] as of [current_date]")
-4. Provide ONLY a one-line summary of results (e.g., "Found [number] relevant results about [topic] across [topic_types]")
-5. If English results are insufficient, mention fallback strategy (e.g., "If results are inadequate, will search in [user_language]")
-6. Indicate you'll analyze findings in the final answer stage
-
-**TEMPORAL SEARCH EXAMPLES (ALL IN ENGLISH):**
-- "Searching for current stock prices as of ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}"
-- "Searching for latest news about [topic] in ${new Date().getFullYear()}"
-- "Searching for current weather conditions for [location]"
-- "Searching for live sports scores and recent game results"
-
-**CRITICAL REMINDER:**
-- **ALL SEARCH QUERIES MUST BE IN ENGLISH BY DEFAULT**
-- **NO EXCEPTIONS** - regardless of user's language or region
-- **ONLY** use other languages if English searches fail to provide adequate results
-- **MULTIPLE ENGLISH ATTEMPTS** before considering language fallback
+CRITICAL REMINDERS:
+- Keep parameter arrays valid and aligned in length when possible
+- Never set both include_domains and exclude_domains
+- **MAXIMUM 4 QUERIES PER TOOL CALL** - use tool reuse for additional coverage
+- Scale maxResults inversely with query count (fewer queries = more results per query)
 
 DO NOT provide detailed search results or analysis during this phase.`,
 
