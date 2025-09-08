@@ -158,10 +158,10 @@ export function useMessages(chatId: string, userId: string) {
       if (files && files.length > 0) {
         // console.log('Processing new files for edit:', files.length);
         
-        // 기존의 uploadFile 함수 사용
+        // 기존의 uploadFile 함수 사용 (userId 전달)
         const uploadPromises = files.map(async (file) => {
           try {
-            const result = await uploadFile(file);
+            const result = await uploadFile(file, userId);
             return result;
           } catch (error) {
             // console.error(`Failed to upload file ${file.name}:`, error);

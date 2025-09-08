@@ -883,7 +883,9 @@ function ChatInterface({
       let attachments: Attachment[] = [];
       if (files?.length) {
         try {
-          const uploadPromises = Array.from(files).map(uploadFile);
+          // 익명 사용자 감지를 위한 userId 전달
+          const userId = user?.id || 'anonymous';
+          const uploadPromises = Array.from(files).map(file => uploadFile(file, userId));
           attachments = await Promise.all(uploadPromises);
         } catch (error) {
           console.warn('File upload failed, proceeding with text-only message');

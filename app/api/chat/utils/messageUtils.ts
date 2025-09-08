@@ -27,6 +27,12 @@ export const fetchFileContent = async (url: string, supabase?: any, fileType?: s
       urlPreview: url.substring(0, 50) + '...'
     });
     
+    // 🚀 익명 사용자 blob URL 처리: blob URL은 서버에서 접근할 수 없으므로 null 반환
+    if (url.startsWith('blob:')) {
+      console.log('🚀 [ANONYMOUS] Skipping blob URL processing for anonymous user');
+      return null;
+    }
+    
     if (url.includes('chat_attachments') && supabase) {
       const filePath = url.split('chat_attachments/')[1]?.split('?')[0];
       if (filePath) {

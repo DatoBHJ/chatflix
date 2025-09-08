@@ -367,9 +367,66 @@ export const enrichAttachmentsWithMetadata = async (attachments: any[] = []): Pr
 // 기존 파일 업로드 및 변환 함수들
 // ================================
 
-export const uploadFile = async (file: File) => {
+export const uploadFile = async (file: File, userId?: string) => {
   const supabase = createClient();
   
+  // 🚀 익명 사용자 감지: 기존 로직과 동일한 패턴 사용
+  const isAnonymousUser = !userId || userId === 'anonymous' || userId.startsWith('anonymous_');
+  
+  if (isAnonymousUser) {
+    console.log('🚀 [ANONYMOUS] Skipping Supabase Storage upload for anonymous user');
+    
+    // 익명 사용자는 Base64 data URL로 변환하여 서버에서도 접근 가능하게 함
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    
+    // 파일 타입 결정 (기존 로직과 동일)
+    const fileExt = file.name.split('.').pop();
+    let fileType: 'image' | 'code' | 'pdf' | 'file' = 'file';
+    if (file.type.startsWith('image/')) {
+      fileType = 'image';
+    } else if (file.type.includes('text') || 
+               fileExt === 'js' || fileExt === 'jsx' || fileExt === 'ts' || fileExt === 'tsx' || 
+               fileExt === 'html' || fileExt === 'css' || fileExt === 'json' || 
+               fileExt === 'md' || fileExt === 'py' || fileExt === 'java' || 
+               fileExt === 'c' || fileExt === 'cpp' || fileExt === 'cs' || 
+               fileExt === 'go' || fileExt === 'rb' || fileExt === 'php' || 
+               fileExt === 'swift' || fileExt === 'kt' || fileExt === 'rs') {
+      fileType = 'code';
+    } else if (fileExt === 'pdf') {
+      fileType = 'pdf';
+    }
+    
+    // 익명 사용자용 간단한 메타데이터 (기존 폴백 로직과 동일)
+    let metadata: FileMetadata;
+    if (fileType === 'image') {
+      // 이미지는 비동기로 메타데이터 추출
+      metadata = await extractImageMetadata(file).catch(() => ({
+        fileSize: file.size,
+        estimatedTokens: 1000
+      }));
+    } else {
+      metadata = {
+        fileSize: file.size,
+        estimatedTokens: fileType === 'pdf' ? 5000 : fileType === 'code' ? 3000 : 2000
+      };
+    }
+    
+    return {
+      name: file.name,
+      contentType: file.type,
+      url: dataUrl, // Base64 data URL 사용 (서버에서도 접근 가능)
+      path: '', // 경로 없음
+      fileType,
+      metadata
+    };
+  }
+  
+  // 기존 인증된 사용자 로직 (전혀 변경하지 않음)
   try {
     // 간단한 파일명 생성 - 타임스탬프 + 랜덤
     const fileExt = file.name.split('.').pop();
