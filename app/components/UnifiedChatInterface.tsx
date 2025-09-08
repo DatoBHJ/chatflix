@@ -688,6 +688,20 @@ function ChatInterface({
     }
   };
 
+  // Handle signup prompt events from Message components
+  useEffect(() => {
+    const handleAddSignupPrompt = (event: CustomEvent) => {
+      const { message } = event.detail;
+      setMessages((prevMessages: UIMessage[]) => [...prevMessages, message]);
+    };
+
+    window.addEventListener('addSignupPrompt', handleAddSignupPrompt as EventListener);
+    
+    return () => {
+      window.removeEventListener('addSignupPrompt', handleAddSignupPrompt as EventListener);
+    };
+  }, [setMessages]);
+
   // 🔧 FIX: 새 채팅 요청 및 구독 성공 이벤트 리스너 추가
   useEffect(() => {
     const handleNewChatRequest = () => {

@@ -712,7 +712,34 @@ const Message = memo(function MessageComponent({
     e.preventDefault();
     e.stopPropagation();
     
-    if (!user || !message.id || !chatId || isBookmarksLoading || !onBookmarkToggle) return;
+    // 🚀 익명 사용자 지원: 익명 사용자는 북마크 불가 - iMessage 스타일로 표시
+    if (!user || user.id === 'anonymous' || user.id.startsWith('anonymous_')) {
+      // 재생성과 같은 방식으로 iMessage 스타일 메시지 표시
+      const signupPromptMessage = {
+        id: `signup-prompt-bookmark-${Date.now()}`,
+        role: 'assistant',
+        content: '',
+        createdAt: new Date(),
+        parts: [],
+        annotations: [
+          {
+            type: 'signup_prompt',
+            data: {
+              message: 'Please sign in to bookmark',
+              upgradeUrl: '/login'
+            }
+          }
+        ]
+      };
+      
+      // Messages 컴포넌트의 setMessages에 접근하기 위해 이벤트 사용
+      window.dispatchEvent(new CustomEvent('addSignupPrompt', {
+        detail: { message: signupPromptMessage }
+      }));
+      return;
+    }
+    
+    if (!message.id || !chatId || isBookmarksLoading || !onBookmarkToggle) return;
     
     try {
       await onBookmarkToggle(message.id, !isBookmarked);
@@ -743,6 +770,12 @@ const Message = memo(function MessageComponent({
     return message.annotations.find((annotation: any) => annotation?.type === 'rate_limit_status');
   }, [message.annotations]);
 
+  // Check if message has signup prompt annotation
+  const signupPromptAnnotation = useMemo(() => {
+    if (!message.annotations) return null;
+    return message.annotations.find((annotation: any) => annotation?.type === 'signup_prompt');
+  }, [message.annotations]);
+
   // Type guard for rate limit annotation data
   const rateLimitData = useMemo(() => {
     if (!rateLimitAnnotation || typeof rateLimitAnnotation !== 'object' || !('data' in rateLimitAnnotation)) {
@@ -760,6 +793,17 @@ const Message = memo(function MessageComponent({
       reset?: string;
     };
   }, [rateLimitAnnotation]);
+
+  // Type guard for signup prompt annotation data
+  const signupPromptData = useMemo(() => {
+    if (!signupPromptAnnotation || typeof signupPromptAnnotation !== 'object' || !('data' in signupPromptAnnotation)) {
+      return null;
+    }
+    return signupPromptAnnotation.data as {
+      message?: string;
+      upgradeUrl?: string;
+    };
+  }, [signupPromptAnnotation]);
 
   const chatTranslations = useMemo(() => getChatInputTranslations(), []);
 
@@ -838,6 +882,34 @@ const Message = memo(function MessageComponent({
             </div>
           </div>
         </>
+      )}
+
+      {/* Signup Prompt Message */}
+      {signupPromptAnnotation && (
+        <div className="flex justify-start mb-4">
+          <div className="max-w-[85%] md:max-w-[75%]">
+            {signupPromptData && (
+              <div className="imessage-receive-bubble">
+                <p className="text-sm">
+                  {signupPromptData.message?.includes('sign in') ? (
+                    <>
+                      {signupPromptData.message.split('sign in')[0]}
+                      <button
+                        onClick={() => window.location.href = signupPromptData.upgradeUrl || '/login'}
+                        className="text-blue-500 underline hover:text-blue-600 cursor-pointer"
+                      >
+                        sign in
+                      </button>
+                      {signupPromptData.message.split('sign in')[1]}
+                    </>
+                  ) : (
+                    signupPromptData.message
+                  )}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
       <div className={`flex ${isUser ? `justify-end` : `justify-start`}`}>
         {isUser ? (

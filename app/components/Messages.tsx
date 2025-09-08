@@ -98,6 +98,7 @@ export const Messages = memo(function Messages({
     fetchBookmarks(messages);
   }, [user, chatId, messages.length, fetchBookmarks]);
 
+
   // Handle bookmark toggle
   const handleBookmarkToggle = useCallback(async (messageId: string, shouldBookmark: boolean) => {
     if (!user || !chatId || !messageId) return;

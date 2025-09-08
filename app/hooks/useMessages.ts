@@ -387,9 +387,27 @@ export function useMessages(chatId: string, userId: string) {
   }
 
   const handleRegenerate = useCallback((messageId: string, messages: UIMessage[], setMessages: (messages: UIMessage[]) => void, currentModel: string, reload: any, isAgentEnabled?: boolean, selectedTool?: string | null) => async (e: React.MouseEvent) => {
-    // 🚀 익명 사용자 지원: 익명 사용자는 재생성 불가
+    // 🚀 익명 사용자 지원: 익명 사용자는 재생성 불가 - iMessage 스타일로 표시
     if (userId === 'anonymous' || userId.startsWith('anonymous_')) {
-      alert('Please sign in to regenerate messages');
+      // Rate limit과 같은 방식으로 iMessage 스타일 메시지 표시
+      const signupPromptMessage: UIMessage = {
+        id: `signup-prompt-${Date.now()}`,
+        role: 'assistant',
+        content: '',
+        createdAt: new Date(),
+        parts: [],
+        annotations: [
+          {
+            type: 'signup_prompt',
+            data: {
+              message: 'Please sign in to ask again',
+              upgradeUrl: '/login'
+            }
+          }
+        ]
+      } as UIMessage;
+      
+      setMessages([...messages, signupPromptMessage]);
       return;
     }
     
