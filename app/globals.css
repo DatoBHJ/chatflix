@@ -1676,6 +1676,38 @@ p:has(.katex) {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Single line bullet points should look like regular single line messages */
+.message-segment.single-line-bullet {
+  border-radius: 18px !important;
+  padding: 6px 12px !important;
+  margin: 2px 0 !important;
+  background-color: var(--accent) !important;
+  color: var(--foreground) !important;
+  max-width: fit-content !important;
+  display: inline-block !important;
+}
+
+/* Remove default list styling for single line bullets */
+.message-segment.single-line-bullet ul {
+  margin: 0 !important;
+  padding: 0 !important;
+  list-style: none !important;
+}
+
+.message-segment.single-line-bullet li {
+  margin: 0 !important;
+  padding: 0 !important;
+  list-style: none !important;
+  display: inline !important;
+}
+
+/* Add bullet point manually for single line bullets */
+.message-segment.single-line-bullet li::before {
+  content: "• " !important;
+  color: var(--foreground) !important;
+  font-weight: bold !important;
+}
+
 .message-segment.multi-line {
   border-radius: 18px;
 }
@@ -2376,10 +2408,6 @@ p:has(.katex) {
   border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
 }
 
-:root[data-theme="dark"] .notification-image:hover {
-  /* No additional shadow on hover */
-}
-
 :root[data-theme="dark"] .notification-empty {
   background: color-mix(in srgb, var(--accent) 20%, transparent);
   border-color: color-mix(in srgb, var(--foreground) 20%, transparent);
@@ -2418,9 +2446,6 @@ p:has(.katex) {
     border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
   }
 
-  :root[data-theme="system"] .notification-image:hover {
-    /* No additional shadow on hover */
-  }
 
   :root[data-theme="system"] .notification-empty {
     background: color-mix(in srgb, var(--accent) 20%, transparent);

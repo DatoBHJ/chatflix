@@ -1861,6 +1861,9 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               // 링크 세그먼트인지 확인
               const isLinkSegment = /\[.*\]\(https?:\/\/[^)]+\)|https?:\/\/[^\s"'<>]+/.test(segment);
               
+              // 단일 줄 불릿 포인트인지 확인
+              const isSingleLineBullet = /^[-*+]\s/.test(segment.trim()) && !segment.includes('\n');
+              
               // 이전 세그먼트가 이미지 세그먼트인지 확인
               const prevIsImage = index > 0 && /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segmentGroup[index - 1]);
               
@@ -1912,7 +1915,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               return (
                 <div 
                   key={index} 
-                  className={`${isImageSegment ? (hasConsecutiveImages ? 'max-w-[80%] md:max-w-[40%]' : 'max-w-[100%] md:max-w-[70%]') : ''} ${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}`}`}
+                  className={`${isImageSegment ? (hasConsecutiveImages ? 'max-w-[80%] md:max-w-[40%]' : 'max-w-[100%] md:max-w-[70%]') : ''} ${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isSingleLineBullet ? ' single-line-bullet' : ''}`}`}
                   style={{
                     ...getImageStyle(),
                     ...((isImageSegment || isLinkSegment) && {
