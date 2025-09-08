@@ -597,7 +597,7 @@ function ChatInterface({
                     dailyWindow: rateLimitInfo.daily.window,
                     level: level,
                     model: modelId,
-                    upgradeUrl: '/pricing'
+                    upgradeUrl: '/api/subscription/checkout'
                   }
                 }
               ]

@@ -40,7 +40,7 @@ export const RATE_LIMITS = {
   level0: {
     hourly: {
       requests: 10,    
-      window: '4 h'
+      window: '12 h'
     },
     daily: {
       requests: 20,    
@@ -50,7 +50,7 @@ export const RATE_LIMITS = {
   level1: {
     hourly: {
       requests: 10,    
-      window: '4 h'
+      window: '12 h'
     },
     daily: {
       requests: 20,
@@ -60,7 +60,7 @@ export const RATE_LIMITS = {
   level2: {
     hourly: {
       requests: 10,
-      window: '4 h'
+      window: '12 h'
     },
     daily: {
       requests: 20,
@@ -70,10 +70,10 @@ export const RATE_LIMITS = {
   level3: {
     hourly: {
       requests: 10,    
-      window: '4 h'
+      window: '12 h'
     },
     daily: {
-      requests: 20,
+      requests: 10,
       window: '24 h'
     }
   },
@@ -97,6 +97,7 @@ export const RATE_LIMITS = {
       window: '24 h'
     }
   },
+
   // // 구독자용 레이트 리밋 설정
   // subscriber_limits: {
   //   level1: {
@@ -188,7 +189,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   supportsVision: true,
   supportsPDFs: true,
   rateLimit: {
-    level: 'level0',
+    level: 'level3',
   },
   isEnabled: true,
   isActivated: true,

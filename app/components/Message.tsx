@@ -21,7 +21,8 @@ import { LinkPreview } from './LinkPreview'
 import { formatMessageTime } from '../lib/messageTimeUtils'
 import { FollowUpQuestions } from './FollowUpQuestions'
 import { User } from '@supabase/supabase-js'
-import { getMessageComponentTranslations } from '@/app/lib/messageComponentTranslations';
+import { getModelById } from '../../lib/models/config';
+import { getChatInputTranslations } from '@/app/lib/chatInputTranslations';
 import { AlertTriangle } from 'lucide-react';
 import { TypingIndicator } from './TypingIndicator';
 
@@ -306,12 +307,45 @@ const Message = memo(function MessageComponent({
   }, [reasoningPart, reasoningComplete, loadingReasoningKey, completeReasoningKey]);
   
   // 프리미엄 업그레이드 버튼 클릭 핸들러 (최상위 레벨에 배치)
-  const router = useRouter(); // useRouter 사용
-  const handleUpgradeClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    router.push('/pricing'); // 주석 해제
-  }, [router]); // router 의존성 추가
+  // const router = useRouter(); // useRouter 사용
+  const handleUpgradeClick = async () => {
+    if (!user) {
+        window.location.href = '/login';
+        return;
+    }
+
+    if (!user.id || !user.email) {
+        alert('Your account information is incomplete. Please log out and sign in again.');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/subscription/checkout', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: user.user_metadata?.full_name || user.email.split('@')[0]
+            }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to create checkout session');
+        }
+
+        if (data.checkout && data.checkout.url) {
+            window.location.href = data.checkout.url;
+        } else {
+            throw new Error('Invalid checkout response');
+        }
+    } catch (error) {
+        console.error('Error creating checkout session:', error);
+        alert('Failed to create checkout session. Please try again.');
+    }
+  };
 
   // AI SDK 5: parts 배열에서 첨부파일 추출하거나 기존 experimental_attachments 사용
   const attachmentsFromParts = useMemo(() => {
@@ -727,7 +761,7 @@ const Message = memo(function MessageComponent({
     };
   }, [rateLimitAnnotation]);
 
-  const translations = useMemo(() => getMessageComponentTranslations(), []);
+  const chatTranslations = useMemo(() => getChatInputTranslations(), []);
 
   return (
     <div className={`message-group group animate-fade-in ${getMinHeight}`} id={message.id}>
@@ -757,45 +791,53 @@ const Message = memo(function MessageComponent({
       />
       {/* Rate Limit Status Message */}
       {rateLimitAnnotation && (
-        <div className="flex justify-start mb-4">
-          <div className="max-w-[85%] md:max-w-[75%]">
-            {rateLimitData && (
-              <div className="bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800/50 rounded-lg p-4 flex items-start space-x-3">
-                <div className="flex-shrink-0">
-                  <AlertTriangle className="h-5 w-5 text-red-500" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-red-800 dark:text-red-200">{translations.rateLimitReachedTitle}</h4>
-                  <p className="text-sm text-red-700 dark:text-red-300">
-                    {rateLimitData.minutesUntilReset && translations.rateLimitMessage.replace('{minutes}', rateLimitData.minutesUntilReset.toString())}{' '}
-                    <a href={rateLimitData.upgradeUrl} className="font-bold underline hover:text-red-800 dark:hover:text-red-200">
-                      {translations.upgradeToPro}.
-                    </a>
-                  </p>
-                  <div className="mt-4 space-y-2 text-sm text-gray-600 dark:text-gray-300">
-                    <div>{translations.model}: <span className="font-medium">{rateLimitData?.model}</span></div>
-                    <div>{translations.level}: <span className="font-medium">{rateLimitData?.level}</span></div>
-                    <div>{translations.limit}: <span className="font-medium">
-                      {translations.limitValue
-                          .replace('{hourlyLimit}', rateLimitData.hourlyLimit?.toString() || '')
-                          .replace('{hourlyWindow}', rateLimitData.hourlyWindow || '')
-                          .replace('{dailyLimit}', rateLimitData.dailyLimit?.toString() || '')
-                          .replace('{dailyWindow}', rateLimitData.dailyWindow || '')
-                      }
-                    </span></div>
-                    {rateLimitData?.reset && (
-                      <div>
-                        {translations.resets}: <span className="font-medium">
-                          {new Date(rateLimitData.reset).toLocaleString()}
-                        </span>
-                      </div>
-                    )}
+        <>
+          {/* Upgrade Card */}
+          <div className="flex justify-start mb-4">
+            <div className="max-w-[85%] md:max-w-[75%] w-full">
+              {rateLimitData && (
+                <div 
+                  className="bg-[#1E1E1E] dark:bg-black rounded-2xl p-6 border border-neutral-800 text-center text-white relative overflow-hidden"
+                >
+                  <div 
+                    className="absolute inset-0"
+                    style={{
+                      backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px)',
+                      backgroundSize: '20px 20px',
+                    }}
+                  />
+                  <div className="relative">
+                    <h3 className="font-bold text-xl">More with Pro</h3>
+                    <p className="text-sm text-gray-400 mt-2">
+                      Upgrade to Pro to continue the conversation, or try again later.
+                    </p>
+                    <div className="mt-6">
+                      <button
+                        onClick={handleUpgradeClick}
+                        className="bg-white text-black font-semibold py-2 px-4 rounded-full transition-transform transform hover:scale-105 cursor-pointer"
+                      >
+                        {chatTranslations.upgrade}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+          
+          {/* AI Message Bubble */}
+          <div className="flex justify-start mb-4">
+            <div className="max-w-[85%] md:max-w-[75%]">
+              {rateLimitData && (
+                <div className="imessage-receive-bubble">
+                  <p className="text-sm">
+                    You've reached your limit of {rateLimitData.hourlyLimit || 10} {getModelById(rateLimitData?.model || '')?.name || 'questions'} per {rateLimitData.hourlyWindow?.replace('h', ' hours') || '12 hours'} (Level {rateLimitData?.level?.replace('level', '') || '0'}) for now. Please sign up for Pro to access more or check back later.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
       )}
       <div className={`flex ${isUser ? `justify-end` : `justify-start`}`}>
         {isUser ? (
