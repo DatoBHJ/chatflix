@@ -1684,7 +1684,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           ref={olRef}
           className="my-4 list-decimal" 
           style={{ 
-            paddingLeft: isNested ? '0.5rem' : '1.25rem',
+            paddingLeft: isNested ? '0.5rem' : '1.5rem',
             listStylePosition: 'outside'
           }} 
           {...props}
