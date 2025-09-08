@@ -421,8 +421,8 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
                             <span className="text-2xl font-bold text-[var(--foreground)]">&#36;4<span className="text-sm text-[var(--muted)]">/mo</span></span>
                           </div>
                           <ul className="text-sm text-[var(--foreground)] space-y-1">
-                            <li>✓ Access to all models</li>
                             <li>✓ Unlimited requests</li>
+                            <li>✓ Access to all models</li>
                             <li>✓ Priority support</li>
                             <li>✓ Chat history storage & search</li>
                           </ul>
@@ -435,8 +435,8 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
                             <span className="text-2xl font-bold text-[var(--foreground)]">&#36;0<span className="text-sm text-[var(--muted)]">/mo</span></span>
                           </div>
                           <ul className="text-sm text-[var(--foreground)] space-y-1">
-                            <li>• Limited model access</li>
                             <li>• Rate limited requests</li>
+                            <li>• Limited model access</li>
                             <li>• Basic support</li>
                             <li>• Chat history storage & search</li>
                           </ul>
@@ -468,8 +468,8 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
                             ))}
                             
                             <ul className="text-center text-sm text-[var(--foreground)] space-y-1 mb-8">
-                              <li>Access to all models</li>
                               <li>Unlimited requests</li>
+                              <li>Access to all models</li>
                             </ul>
                             
                             {/* Subscription-dependent buttons */}
@@ -502,8 +502,8 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
                             <span className="text-2xl font-bold">&#36;0</span>
                             <span className="text-xs text-[var(--muted)] ml-2">/ month</span>
                             <ul className="text-xs text-[var(--muted)] space-y-1 mt-2 mb-2">
-                              <li>Limited model access</li>
                               <li>Rate limited requests</li>
+                              <li>Limited model access</li>
                             </ul>
                             {/* 계속 무료 사용 버튼 제거로 업그레이드 유도 */}
                           </div>
@@ -562,8 +562,8 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
                             <span className="text-2xl font-bold text-[var(--foreground)]">&#36;4<span className="text-sm text-[var(--muted)]">/mo</span></span>
                           </div>
                           <ul className="text-sm text-[var(--foreground)] space-y-1">
-                            <li>✓ Access to all models</li>
                             <li>✓ Unlimited requests</li>
+                            <li>✓ Access to all models</li>
                             <li>✓ Priority support</li>
                             <li>✓ Chat history storage & search</li>
                           </ul>
@@ -576,8 +576,8 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
                             <span className="text-2xl font-bold text-[var(--foreground)]">&#36;0<span className="text-sm text-[var(--muted)]">/mo</span></span>
                           </div>
                           <ul className="text-sm text-[var(--foreground)] space-y-1">
-                            <li>• Limited model access</li>
                             <li>• Rate limited requests</li>
+                            <li>• Limited model access</li>
                             <li>• Basic support</li>
                             <li>• Chat history storage & search</li>
                           </ul>
@@ -622,8 +622,8 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
                             ))}
                             
                             <ul className="text-center text-sm text-[var(--foreground)] space-y-1 mb-8">
-                              <li>Access to all models</li>
                               <li>Unlimited requests</li>
+                              <li>Access to all models</li>
                             </ul>
                             
                             {/* Subscription-dependent buttons */}
@@ -654,8 +654,8 @@ export function SubscriptionDialog({ isOpen, onClose, user }: SubscriptionDialog
                             <span className="text-2xl font-bold">&#36;0</span>
                             <span className="text-xs text-[var(--muted)] ml-2">/ month</span>
                             <ul className="text-xs text-[var(--muted)] space-y-1 mt-2 mb-2">
-                              <li>Limited model access</li>
                               <li>Rate limited requests</li>
+                              <li>Limited model access</li>
                             </ul>
                             {/* 계속 무료 사용 버튼 제거로 업그레이드 유도 */}
                           </div>
