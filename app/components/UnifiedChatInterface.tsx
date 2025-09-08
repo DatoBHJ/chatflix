@@ -50,20 +50,21 @@ function HomeView({
   handleGlobalDrop,
   globalDragActive,
   selectedTool,
-  setSelectedTool
+  setSelectedTool,
+  editingMessageId
 }: any) {
   const isMouseIdle = useMouseIdleDetection(3000); // 3초 동안 마우스가 움직이지 않으면 idle로 간주
 
   return (
     <main 
       className="flex-1 relative h-screen flex flex-col"
-      onDragEnter={handleGlobalDrag}
-      onDragOver={handleGlobalDrag}
-      onDragLeave={handleGlobalDragLeave}
-      onDrop={handleGlobalDrop}
+      onDragEnter={!editingMessageId ? handleGlobalDrag : undefined}
+      onDragOver={!editingMessageId ? handleGlobalDrag : undefined}
+      onDragLeave={!editingMessageId ? handleGlobalDragLeave : undefined}
+      onDrop={!editingMessageId ? handleGlobalDrop : undefined}
     >
-      {/* Global Drag Drop Overlay */}
-      <DragDropOverlay dragActive={globalDragActive} supportsPDFs={true} />
+      {/* Global Drag Drop Overlay - 메시지 편집 중일 때는 표시하지 않음 */}
+      {!editingMessageId && <DragDropOverlay dragActive={globalDragActive} supportsPDFs={true} />}
       
       {/* StarryNightBackground - 홈화면에서만 다크모드이고 설정이 활성화되고 마우스가 idle일 때만 표시 */}
       {isDarkMode && isStarryNightEnabled && isMouseIdle && <StarryNightBackground />}
@@ -224,13 +225,13 @@ function ChatView({
   return (
     <main 
       className="flex-1 relative h-screen flex flex-col"
-      onDragEnter={handleGlobalDrag}
-      onDragOver={handleGlobalDrag}
-      onDragLeave={handleGlobalDragLeave}
-      onDrop={handleGlobalDrop}
+      onDragEnter={!editingMessageId ? handleGlobalDrag : undefined}
+      onDragOver={!editingMessageId ? handleGlobalDrag : undefined}
+      onDragLeave={!editingMessageId ? handleGlobalDragLeave : undefined}
+      onDrop={!editingMessageId ? handleGlobalDrop : undefined}
     >
-      {/* Global Drag Drop Overlay */}
-      <DragDropOverlay dragActive={globalDragActive} supportsPDFs={true} />
+      {/* Global Drag Drop Overlay - 메시지 편집 중일 때는 표시하지 않음 */}
+      {!editingMessageId && <DragDropOverlay dragActive={globalDragActive} supportsPDFs={true} />}
       
       {/* Header is positioned fixed, so content area starts from the top */}
       <div className="flex-1 pt-[45px] sm:pt-[45px] flex flex-col min-h-0">
@@ -1358,6 +1359,7 @@ function ChatInterface({
       globalDragActive={globalDragActive}
       selectedTool={selectedTool}
       setSelectedTool={setSelectedTool}
+      editingMessageId={editingMessageId}
     />
   );
 }

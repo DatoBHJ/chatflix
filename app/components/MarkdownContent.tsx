@@ -468,12 +468,10 @@ const splitSegmentByLineBreaks = (segment: string): string[] => {
       /^#{1,3}\s/.test(trimmedLine) ||
       /^```/.test(trimmedLine) ||
       /^---+$/.test(trimmedLine) ||
-      /^>\s/.test(trimmedLine) ||
-      /^[^:\n]+:\s/.test(trimmedLine) ||
       /^[*_-]{3,}$/.test(trimmedLine);
 
     // 리스트 블록 종료 조건
-    if (inListBlock && (!isListItem || shouldSplit) && currentSegment.length > 0) {
+    if (inListBlock && ((!isListItem && trimmedLine !== '') || shouldSplit) && currentSegment.length > 0) {
       segments.push(currentSegment.join('\n').trim());
       currentSegment = [];
       inListBlock = false;
@@ -481,15 +479,11 @@ const splitSegmentByLineBreaks = (segment: string): string[] => {
 
     // 테이블 블록 종료 조건
     if (inTableBlock && (!isTableLine || shouldSplit) && currentSegment.length > 0) {
-      segments.push(currentSegment.join('\n').trim());
-      currentSegment = [];
-      inTableBlock = false;
-    }
-
-    // 블록 외부에서의 분할
-    if (!inListBlock && !inTableBlock && shouldSplit && currentSegment.length > 0) {
-      segments.push(currentSegment.join('\n').trim());
-      currentSegment = [];
+      if (trimmedLine !== '') {
+        segments.push(currentSegment.join('\n').trim());
+        currentSegment = [];
+        inTableBlock = false;
+      }
     }
 
     const isSeparator = /^---+$/.test(trimmedLine) || /^[*_-]{3,}$/.test(trimmedLine);
@@ -503,7 +497,7 @@ const splitSegmentByLineBreaks = (segment: string): string[] => {
     }
 
     // 현재 세그먼트에 내용 추가
-    if (trimmedLine !== '' && !isSeparator) {
+    if ((trimmedLine !== '' || inListBlock) && !isSeparator) {
       currentSegment.push(line);
     }
   }
@@ -514,132 +508,6 @@ const splitSegmentByLineBreaks = (segment: string): string[] => {
   }
 
   return segments.filter(s => s.length > 0);
-};
-
-// 리스트의 연속인지 확인하는 헬퍼 함수
-const isContinuationOfList = (lines: string[], currentIndex: number): boolean => {
-  // 이전 줄들을 확인해서 리스트가 계속되는지 판단
-  for (let i = currentIndex - 1; i >= 0; i--) {
-    const prevLine = lines[i].trim();
-    
-    // 빈 줄이면 리스트가 끝난 것으로 간주
-    if (prevLine === '') {
-      return false;
-    }
-    
-    // 이전 줄이 리스트 아이템이면 연속으로 간주
-    if (/^[-*+]\s/.test(prevLine) || /^\d+\.\s/.test(prevLine)) {
-      return true;
-    }
-    
-    // 이전 줄이 리스트가 아니면 연속이 아님
-    return false;
-  }
-  
-  return false;
-};
-
-// 복잡한 세그먼트를 더 세밀하게 분할하는 함수
-const splitSegmentByComplexity = (segment: string): string[] => {
-  const lines = segment.split('\n');
-  const segments: string[] = [];
-  let currentSegment: string[] = [];
-  let nestedListDepth = 0;
-  let lineCount = 0;
-  let consecutiveListItems = 0;
-  const MAX_LINES_PER_SEGMENT = 20; // 세그먼트당 최대 라인 수를 늘림
-  const MAX_CONSECUTIVE_LIST_ITEMS = 8; // 연속된 리스트 아이템 최대 개수
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmedLine = line.trim();
-    
-    // 이미지 세그먼트 마커가 있는지 확인
-    const hasImageSegment = line.includes('<IMAGE_SEGMENT_') || 
-                           line.includes('![') || 
-                           line.includes('[IMAGE_ID:');
-    
-    // 리스트 아이템인지 확인
-    const isListItem = trimmedLine.match(/^[*-]/) || trimmedLine.match(/^\d+\./);
-    const isNestedListItem = trimmedLine.match(/^\s+[*-]/) || trimmedLine.match(/^\s+\d+\./);
-    
-    // 중첩된 리스트 깊이 계산
-    if (trimmedLine.match(/^\d+\./)) {
-      // 번호 리스트 시작
-      nestedListDepth = Math.max(nestedListDepth, 1);
-      consecutiveListItems++;
-    } else if (trimmedLine.match(/^[*-]/)) {
-      // bullet point 리스트 시작
-      nestedListDepth = Math.max(nestedListDepth, 1);
-      consecutiveListItems++;
-    } else if (isNestedListItem) {
-      // 중첩된 리스트
-      nestedListDepth = Math.max(nestedListDepth, 2);
-      consecutiveListItems++;
-    } else {
-      // 리스트 아이템이 아니면 카운터 리셋
-      consecutiveListItems = 0;
-    }
-    
-    // 헤딩인지 확인
-    const isHeading = trimmedLine.match(/^#{1,3}\s/);
-    
-    // 다음 라인들을 미리 확인해서 맥락 유지 여부 판단
-    const nextLines = lines.slice(i + 1, i + 4);
-    const hasRelatedContent = nextLines.some(nextLine => {
-      const nextTrimmed = nextLine.trim();
-      return nextTrimmed.match(/^[*-]/) || nextTrimmed.match(/^\d+\./) || nextTrimmed.match(/^\s+[*-]/) || nextTrimmed.match(/^\s+\d+\./);
-    });
-    
-    // 분할 조건 개선
-    const shouldSplit = (
-      // 이미지 세그먼트가 있으면 무조건 분할
-      hasImageSegment ||
-      // 너무 많은 연속된 리스트 아이템이 있거나
-      consecutiveListItems >= MAX_CONSECUTIVE_LIST_ITEMS ||
-      // 라인 수가 너무 많거나
-      lineCount >= MAX_LINES_PER_SEGMENT ||
-      // 새로운 헤딩이 있고 이미 충분한 내용이 있거나
-      (isHeading && lineCount > 8) ||
-      // 중첩 깊이가 너무 깊거나
-      nestedListDepth >= 3 ||
-      // 빈 줄이 있고 다음에 관련 없는 내용이 오는 경우
-      (trimmedLine === '' && !hasRelatedContent && lineCount > 10)
-    );
-    
-    // 분할하지 말아야 할 조건들
-    const shouldNotSplit = (
-      // 이미지 세그먼트가 있으면 무조건 분할하므로 이 조건은 무시
-      hasImageSegment ? false : (
-        // 현재 라인이 리스트 아이템이고 다음에 관련 내용이 있거나
-        (isListItem && hasRelatedContent) ||
-        // 중첩된 리스트의 중간이거나
-        (isNestedListItem && hasRelatedContent) ||
-        // 빈 줄이지만 다음에 관련 내용이 있거나
-        (trimmedLine === '' && hasRelatedContent) ||
-        // 문장이 끝나지 않은 경우 (마침표가 없고 다음 라인이 있음)
-        (trimmedLine && !trimmedLine.endsWith('.') && !trimmedLine.endsWith('!') && !trimmedLine.endsWith('?') && lines[i + 1] && lines[i + 1].trim())
-      )
-    );
-    
-    if (shouldSplit && !shouldNotSplit && currentSegment.length > 0) {
-      segments.push(currentSegment.join('\n'));
-      currentSegment = [];
-      lineCount = 0;
-      nestedListDepth = 0;
-      consecutiveListItems = 0;
-    }
-    
-    currentSegment.push(line);
-    lineCount++;
-  }
-  
-  // 마지막 세그먼트 추가
-  if (currentSegment.length > 0) {
-    segments.push(currentSegment.join('\n'));
-  }
-  
-  return segments;
 };
 
 // Image component with loading state and modal support

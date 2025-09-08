@@ -1,10 +1,8 @@
-import type { UIMessage as AIMessage } from 'ai'
 import { MarkdownContent } from './MarkdownContent' 
 import { ExtendedMessage } from '../chat/[id]/types'
 import { Attachment } from '@/lib/types'
 import React, { memo, useCallback, useState, useEffect, useMemo, useRef } from 'react'
 
-import { useRouter } from 'next/navigation';
 import { AttachmentPreview } from './Attachment'
 import { DragDropOverlay } from './ChatInput/DragDropOverlay'; 
 import { 
@@ -23,7 +21,6 @@ import { FollowUpQuestions } from './FollowUpQuestions'
 import { User } from '@supabase/supabase-js'
 import { getModelById } from '../../lib/models/config';
 import { getChatInputTranslations } from '@/app/lib/chatInputTranslations';
-import { AlertTriangle } from 'lucide-react';
 import { TypingIndicator } from './TypingIndicator';
 
 
@@ -569,24 +566,6 @@ const Message = memo(function MessageComponent({
   }, [editingFiles, editingFileMap, onEditCancel]);
   
 
-
-  // Function to truncate long messages
-  const truncateMessage = useCallback((content: string, maxLength: number = 300) => {
-    if (content.length <= maxLength) return content;
-    return content.substring(0, maxLength) + ' ';
-  }, []);
-
-  // State to track which messages are expanded
-  const [expandedMessages, setExpandedMessages] = useState<Record<string, boolean>>({});
-
-  // Function to toggle message expansion
-  const toggleMessageExpansion = useCallback((messageId: string) => {
-    setExpandedMessages(prev => ({
-      ...prev,
-      [messageId]: !prev[messageId]
-    }));
-  }, []);
-
   const isEditing = editingMessageId === message.id;
 
   // 편집 모드 시작 시 텍스트 영역을 설정하는 효과
@@ -662,7 +641,6 @@ const Message = memo(function MessageComponent({
     return !!(structuredMainResponse || isInProgress);
   }, [structuredMainResponse, isInProgress]);
 
-  const isFileGenerationRelated = hasStructuredData || isStructuredResponseInProgress(message);
 
   const hasAnyContent = hasContent || structuredMainResponse || isInProgress; // hasAnyContent도 진행 중 상태 고려
 

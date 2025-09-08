@@ -12,7 +12,7 @@ export const DragDropOverlay = memo(function DragDropOverlay({
   return (
     <div 
       className="absolute inset-0 drag-upload-overlay
-                flex items-center justify-center transition-all duration-300 z-50"
+                flex items-center justify-center transition-all duration-300 z-50 pointer-events-none"
     >
       <div className="flex flex-col items-center gap-3 transform transition-transform duration-300 scale-100 hover:scale-105">
         <div className="drag-upload-icon">

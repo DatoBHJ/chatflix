@@ -80,7 +80,6 @@ export const LinkPreview = ({ url }: LinkPreviewProps) => {
       };
       
       img.onerror = (error) => {
-        console.error('Image could not be loaded for color extraction:', error);
         setColors(null); // Fallback to default styles
       };
     }
