@@ -12,6 +12,7 @@ import React from 'react';
 import dynamic from 'next/dynamic';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight, ExternalLink, Play } from 'lucide-react';
+import { LinkPreview } from './LinkPreview';
 
 // Dynamically import DynamicChart for client-side rendering
 const DynamicChart = dynamic(() => import('./charts/DynamicChart'), {
@@ -241,7 +242,29 @@ const segmentContent = (content: string): string[][] => {
     return `\n\n<IMAGE_SEGMENT_${imageIndex++}>\n\n`;
   });
 
-  // 2. 모든 코드 블록을 임시 플레이스홀더로 교체 (차트 블록 포함)
+  // 2. 링크를 별도 세그먼트로 분리
+  const linkSegments: string[] = [];
+  let linkIndex = 0;
+  
+  // 마크다운 링크 문법 [텍스트](URL) 감지 및 분리
+  const markdownLinkRegex = /\[([^\]]*)\]\(([^)]+)\)/g;
+  contentWithoutImages = contentWithoutImages.replace(markdownLinkRegex, (match, text, url) => {
+    linkSegments.push(match);
+    return `\n\n<LINK_SEGMENT_${linkIndex++}>\n\n`;
+  });
+  
+  // 일반 URL 패턴 감지 및 분리 (마크다운 링크가 아닌 경우만)
+  const urlRegex = /(https?:\/\/[^\s"'<>]+)/g;
+  contentWithoutImages = contentWithoutImages.replace(urlRegex, (match, url) => {
+    // 이미 마크다운 링크로 처리된 URL이 아닌 경우만 처리
+    if (!match.includes('[') && !match.includes(']')) {
+      linkSegments.push(match);
+      return `\n\n<LINK_SEGMENT_${linkIndex++}>\n\n`;
+    }
+    return match;
+  });
+
+  // 3. 모든 코드 블록을 임시 플레이스홀더로 교체 (차트 블록 포함)
   // 개선된 코드 블록 매칭 로직으로 중첩된 백틱 처리
   const codeBlocks: string[] = [];
   
@@ -361,6 +384,21 @@ const segmentContent = (content: string): string[][] => {
 
       // 이미지 세그먼트 마커 제거
       processedSegment = processedSegment.replace(imageSegmentRegex, '');
+
+      // 링크 세그먼트 복원
+      const linkSegmentRegex = /<LINK_SEGMENT_(\d+)>/g;
+      let linkMatch;
+
+      while ((linkMatch = linkSegmentRegex.exec(processedSegment)) !== null) {
+        const linkIndex = parseInt(linkMatch[1], 10);
+        const linkSegment = linkSegments[linkIndex];
+        if (linkSegment) {
+          processedGroup.push(linkSegment);
+        }
+      }
+
+      // 링크 세그먼트 마커 제거
+      processedSegment = processedSegment.replace(linkSegmentRegex, '');
 
       // 코드 블록 플레이스홀더 복원
       const codePlaceholderRegex = /<CODE_PLACEHOLDER_(\d+)>/g;
@@ -1036,6 +1074,45 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     return parts.length > 0 ? parts : text;
   }, []);
 
+  // Function to detect general URLs in text
+  const styleGeneralUrls = useCallback((text: string) => {
+    if (!text.includes('http://') && !text.includes('https://')) return text;
+    
+    // Exclude YouTube URLs (already handled) and image URLs (already handled)
+    const generalUrlRegex = /(https?:\/\/[^\s"'<>]+)/g;
+    
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = generalUrlRegex.exec(text)) !== null) {
+      const url = match[1];
+      
+      // Skip if it's a YouTube URL or image URL (already handled)
+      if (url.includes('youtube.com') || url.includes('youtu.be') || url.includes('image.pollinations.ai')) {
+        continue;
+      }
+      
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      
+      parts.push({
+        type: 'general_link',
+        key: match.index,
+        url: url
+      });
+      
+      lastIndex = match.index + match[0].length;
+    }
+    
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+    
+    return parts.length > 0 ? parts : text;
+  }, []);
+
   // Memoize the extractText function
   const extractText = useCallback((node: any): string => {
     if (typeof node === 'string') return node;
@@ -1141,7 +1218,10 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
         const processedImageContent = styleImageUrls(children);
         
         // Process for raw YouTube URLs
-        const processedContent = Array.isArray(processedImageContent) ? processedImageContent : styleYouTubeUrls(processedImageContent);
+        const processedYouTubeContent = Array.isArray(processedImageContent) ? processedImageContent : styleYouTubeUrls(processedImageContent);
+        
+        // Process for general URLs
+        const processedContent = Array.isArray(processedYouTubeContent) ? processedYouTubeContent : styleGeneralUrls(processedYouTubeContent);
         
         // Handle special links (images and YouTube)
         if (Array.isArray(processedContent)) {
@@ -1165,7 +1245,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                         onImageClick={() => openImageModal(part.url, "Generated image")}
                       />
                       <div className="text-xs text-[var(--muted)] mt-2 text-center break-all">
-                        {part.display}
+                        {part.display as string}
                       </div>
                     </div>
                   </div>
@@ -1174,12 +1254,18 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                 return (
                   <YouTubeEmbed 
                     key={part.key}
-                    videoId={part.videoId} 
+                    videoId={part.videoId as string} 
                     title="YouTube video" 
                     originalUrl={part.url}
                   />
                 );
-              }
+                } else if (part.type === 'general_link' && 'url' in part) {
+                  return (
+                    <div key={part.key} className="my-0.5">
+                      <LinkPreview url={part.url as string} />
+                    </div>
+                  );
+                }
             }
             return null;
           });
@@ -1270,7 +1356,16 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
         );
       }
       
-      // Regular link rendering
+      // Regular link rendering with LinkPreview
+      if (href && typeof href === 'string' && (href.startsWith('http://') || href.startsWith('https://'))) {
+        return (
+          <div className="my-0.5">
+            <LinkPreview url={href} />
+          </div>
+        );
+      }
+      
+      // Fallback for non-http links
       return (
         <a 
           href={href} 
@@ -1763,6 +1858,9 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               // 이미지 세그먼트인지 확인
               const isImageSegment = /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segment);
               
+              // 링크 세그먼트인지 확인
+              const isLinkSegment = /\[.*\]\(https?:\/\/[^)]+\)|https?:\/\/[^\s"'<>]+/.test(segment);
+              
               // 이전 세그먼트가 이미지 세그먼트인지 확인
               const prevIsImage = index > 0 && /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segmentGroup[index - 1]);
               
@@ -1814,10 +1912,10 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               return (
                 <div 
                   key={index} 
-                  className={`${isImageSegment ? (hasConsecutiveImages ? 'max-w-[80%] md:max-w-[40%]' : 'max-w-[100%] md:max-w-[70%]') : ''} ${isImageSegment ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}`}`}
+                  className={`${isImageSegment ? (hasConsecutiveImages ? 'max-w-[80%] md:max-w-[40%]' : 'max-w-[100%] md:max-w-[70%]') : ''} ${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}`}`}
                   style={{
                     ...getImageStyle(),
-                    ...(isImageSegment && {
+                    ...((isImageSegment || isLinkSegment) && {
                       background: 'transparent !important',
                       padding: '0',
                       border: 'none',
@@ -1826,7 +1924,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                     })
                   }}
                 >
-                  {isImageSegment ? (
+                  {(isImageSegment || isLinkSegment) ? (
                     <ReactMarkdown
                       remarkPlugins={remarkPlugins}
                       rehypePlugins={rehypePlugins}

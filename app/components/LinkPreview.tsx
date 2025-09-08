@@ -53,9 +53,11 @@ export const LinkPreview = ({ url }: LinkPreviewProps) => {
   
   if (!metadata || !metadata.title) {
      return (
-        <a href={url} target="_blank" rel="noopener noreferrer" className="imessage-link-preview-fallback">
-            {getDomain(url)}
-        </a>
+        <div className="my-2">
+          <a href={url} target="_blank" rel="noopener noreferrer" className="imessage-link-preview-fallback">
+              {getDomain(url)}
+          </a>
+        </div>
     );
   }
 

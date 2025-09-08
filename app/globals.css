@@ -829,7 +829,7 @@ body {
 }
 
 .message-group {
-  @apply py-6 first:pt-2 last:pb-4 max-w-[calc(100vw-2rem)] mx-auto;
+  @apply py-1 first:pt-0 last:pb-1 max-w-[calc(100vw-2rem)] mx-auto;
 }
 
 .message-group:last-child {
@@ -1648,7 +1648,7 @@ p:has(.katex) {
 .message-segments {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 0px;
   align-items: flex-start;
 }
 
@@ -1762,7 +1762,7 @@ p:has(.katex) {
 /* Mobile adjustments */
 @media (max-width: 640px) {
   .message-segments {
-    gap: 1px;
+    gap: 0px;
   }
   
   .message-segment {
