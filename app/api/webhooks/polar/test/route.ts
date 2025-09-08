@@ -40,8 +40,7 @@ export async function POST(request: NextRequest) {
               product: {
                 id: 'test_product_789'
               },
-              current_period_start: new Date().toISOString(),
-              current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
+              current_period_start: new Date().toISOString()
             }
           }
         }
@@ -73,8 +72,7 @@ export async function POST(request: NextRequest) {
               product: {
                 id: 'test_product_789'
               },
-              current_period_start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days ago
-              current_period_end: new Date().toISOString()
+              current_period_start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days ago
             }
           }
         }
@@ -207,7 +205,6 @@ function generateMockEvent(eventType: string, userId: string) {
           subscription: {
             status: 'active',
             current_period_start: now.toISOString(),
-            current_period_end: futureDate.toISOString(),
             customer: { external_id: userId }
           }
         }
@@ -221,7 +218,7 @@ function generateMockEvent(eventType: string, userId: string) {
           subscription: {
             status: 'canceled',
             current_period_start: now.toISOString(),
-            current_period_end: futureDate.toISOString(), // Still active until this date
+ // Still active until this date
             customer: { external_id: userId }
           }
         }
@@ -235,7 +232,6 @@ function generateMockEvent(eventType: string, userId: string) {
           subscription: {
             status: 'canceled',
             current_period_start: pastDate.toISOString(),
-            current_period_end: pastDate.toISOString(), // Already expired
             customer: { external_id: userId }
           }
         }
@@ -249,7 +245,6 @@ function generateMockEvent(eventType: string, userId: string) {
           subscription: {
             status: 'ended',
             current_period_start: pastDate.toISOString(),
-            current_period_end: pastDate.toISOString(),
             customer: { external_id: userId }
           }
         }

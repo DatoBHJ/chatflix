@@ -83,24 +83,9 @@ async function performDatabaseSubscriptionCheck(externalId: string): Promise<boo
     }
     
     const subscription = data[0]
-    let isActive = subscription.is_active
-    
-    // Check if subscription period has actually ended
-    if (subscription.current_period_end) {
-      const now = new Date()
-      const periodEnd = new Date(subscription.current_period_end)
-      const isPeriodEnded = now > periodEnd
-      
-      if (isPeriodEnded) {
-        isActive = false
-      } else {
-        isActive = true
-      }
-    }
-    
-
-    
-    return isActive
+    // Simply return the is_active status from database
+    // current_period_end is managed by Polar and not relevant for our subscription check
+    return subscription.is_active
   } catch (error) {
     console.error('Error in performDatabaseSubscriptionCheck:', error)
     // Fallback to Polar API
@@ -142,7 +127,6 @@ async function updateDatabaseFromPolarAPI(externalId: string, isActive: boolean)
       p_product_id: null,
       p_status: isActive ? 'active' : 'inactive',
       p_current_period_start: null,
-      p_current_period_end: null,
       p_event_type: 'api_fallback'
     })
     

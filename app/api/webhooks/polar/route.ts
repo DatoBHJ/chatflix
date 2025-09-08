@@ -11,7 +11,6 @@ interface PolarWebhookEvent {
     external_customer_id?: string
     status?: string
     current_period_start?: string
-    current_period_end?: string
     canceled_at?: string
     cancel_at_period_end?: boolean
     amount?: number
@@ -207,11 +206,6 @@ async function handleSubscriptionDeactivated(
     // Check if subscription period has actually ended
     const isActuallyInactive = checkIfSubscriptionActuallyInactive(subscriptionData)
     
-    console.log('📅 Subscription status check:', {
-      status: subscriptionData.status,
-      currentPeriodEnd: subscriptionData.currentPeriodEnd,
-      isActuallyInactive
-    })
     
     // Update subscription status in database
     await updateSubscriptionInDatabase(supabase, customerExternalId, {
@@ -276,7 +270,6 @@ function extractSubscriptionData(event: PolarWebhookEvent) {
     productId: data.product?.id || data.product_id,
     status: data.status,
     currentPeriodStart: data.current_period_start ? new Date(data.current_period_start).toISOString() : undefined,
-    currentPeriodEnd: data.current_period_end ? new Date(data.current_period_end).toISOString() : undefined,
     canceledAt: data.canceled_at ? new Date(data.canceled_at).toISOString() : undefined,
     cancelAtPeriodEnd: data.cancel_at_period_end || false,
     currentPriceAmount: data.amount || data.price?.price_amount,
@@ -296,7 +289,6 @@ async function updateSubscriptionInDatabase(
     productId?: string
     status?: string
     currentPeriodStart?: string
-    currentPeriodEnd?: string
     canceledAt?: string
     cancelAtPeriodEnd?: boolean
     currentPriceAmount?: number
@@ -315,7 +307,6 @@ async function updateSubscriptionInDatabase(
       p_product_id: data.productId,
       p_status: data.status,
       p_current_period_start: data.currentPeriodStart,
-      p_current_period_end: data.currentPeriodEnd,
       p_canceled_at: data.canceledAt,
       p_cancel_at_period_end: data.cancelAtPeriodEnd,
       p_current_price_amount: data.currentPriceAmount,
