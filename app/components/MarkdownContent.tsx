@@ -464,7 +464,7 @@ const splitSegmentByLineBreaks = (segment: string): string[] => {
 
     // 분할 조건들 - 블록 외부에서만 적용
     const shouldSplit =
-      (trimmedLine === '' && !inListBlock && !inTableBlock) || // 블록 안에선 빈 줄로 분할 안 함
+      // (trimmedLine === '' && !inListBlock && !inTableBlock) || // 블록 안에선 빈 줄로 분할 안 함
       /^#{1,3}\s/.test(trimmedLine) ||
       /^```/.test(trimmedLine) ||
       /^---+$/.test(trimmedLine) ||
@@ -497,7 +497,7 @@ const splitSegmentByLineBreaks = (segment: string): string[] => {
     }
 
     // 현재 세그먼트에 내용 추가
-    if ((trimmedLine !== '' || inListBlock) && !isSeparator) {
+    if (!isSeparator) {
       currentSegment.push(line);
     }
   }
