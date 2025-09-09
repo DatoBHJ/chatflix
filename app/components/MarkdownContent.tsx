@@ -336,28 +336,15 @@ const segmentContent = (content: string): string[][] => {
 
   const separatorSegments = placeholderContent.split(/\n\s*---\s*\n/);
 
-  for (let i = 0; i < separatorSegments.length; i++) {
-    const segment = separatorSegments[i];
-    if (!segment || !segment.trim()) {
-      // 비어있는 그룹은 건너뜀 (연속된 구분선 등)
-      if (currentGroup.length > 0) {
-        messageGroups.push([...currentGroup]);
-        currentGroup = [];
-      }
-      continue;
+  separatorSegments.forEach(segment => {
+    if (segment.trim()) {
+      const subSegments = splitSegmentByLineBreaks(segment);
+      currentGroup.push(...subSegments);
     }
-
-    // 각 세그먼트를 더 세밀하게 분할
-    const subSegments = splitSegmentByLineBreaks(segment);
-    currentGroup.push(...subSegments);
-
-    // 구분선 뒤이거나 마지막이면 그룹 종료
-    if (i < separatorSegments.length - 1 || i === separatorSegments.length - 1) {
-      if (currentGroup.length > 0) {
-        messageGroups.push([...currentGroup]);
-        currentGroup = [];
-      }
-    }
+  });
+  
+  if (currentGroup.length > 0) {
+    messageGroups.push([...currentGroup]);
   }
 
   // 4. 코드 블록과 이미지 세그먼트 복원 (그룹 단위 유지)
@@ -1712,10 +1699,22 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   // Render grouped segments into separate bubbles
   return (
     <>
-      {segments.map((segmentGroup, groupIndex) => (
-        <div key={groupIndex} className="imessage-receive-bubble">
-          <div className={variant === 'clean' ? 'markdown-segments' : 'message-segments'}>
-            {segmentGroup.map((segment, index) => {
+      {segments.map((segmentGroup, groupIndex) => {
+        // Identify the last actual text bubble (exclude image/link-only segments)
+        const imageRegex = /\[IMAGE_ID:|!\[.*\]\(.*\)/;
+        const linkRegex = /\[.*\]\(https?:\/\/[^)]+\)|https?:\/\/[^\s"'<>]+/;
+        let lastBubbleIndex = -1;
+        for (let i = 0; i < segmentGroup.length; i++) {
+          const s = segmentGroup[i];
+          const isImg = imageRegex.test(s);
+          const isLnk = linkRegex.test(s);
+          if (!isImg && !isLnk) lastBubbleIndex = i;
+        }
+
+        return (
+          <div key={groupIndex} className="imessage-receive-bubble">
+            <div className={variant === 'clean' ? 'markdown-segments' : 'message-segments'}>
+              {segmentGroup.map((segment, index) => {
               // 이미지 세그먼트인지 확인
               const isImageSegment = /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segment);
               
@@ -1773,10 +1772,11 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                 };
               };
               
+              const isLastBubble = !isImageSegment && !isLinkSegment && index === lastBubbleIndex;
               return (
                 <div 
                   key={index} 
-                  className={`${isImageSegment ? (hasConsecutiveImages ? 'max-w-[80%] md:max-w-[40%]' : 'max-w-[100%] md:max-w-[70%]') : ''} ${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isSingleLineBullet ? ' single-line-bullet' : ''}`}`}
+                  className={`${isImageSegment ? (hasConsecutiveImages ? 'max-w-[80%] md:max-w-[40%]' : 'max-w-[100%] md:max-w-[70%]') : ''} ${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isSingleLineBullet ? ' single-line-bullet' : ''}${isLastBubble ? ' last-bubble' : ''}`}`}
                   style={{
                     ...getImageStyle(),
                     ...((isImageSegment || isLinkSegment) && {
@@ -1812,7 +1812,8 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
             })}
           </div>
         </div>
-      ))}
+        );
+      })}
 
       {/* Image Modal */}
       {isMounted && selectedImage && createPortal(

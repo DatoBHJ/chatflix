@@ -1720,7 +1720,7 @@ p:has(.katex) {
 }
 
 /* Only the last segment gets the tail */
-.message-segment:last-child::before {
+.message-segment.last-bubble::before {
   content: "";
   position: absolute;
   left: -8px;
@@ -1732,12 +1732,12 @@ p:has(.katex) {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.message-segment.multi-line:last-child::before {
+.message-segment.multi-line.last-bubble::before {
   height: 16px;
   border-bottom-right-radius: 16px 14px;
 }
 
-.message-segment:last-child::after {
+.message-segment.last-bubble::after {
   content: "";
   position: absolute;
   left: -26px;
@@ -1749,12 +1749,12 @@ p:has(.katex) {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.message-segment.multi-line:last-child::after {
+.message-segment.multi-line.last-bubble::after {
   height: 16px;
   border-bottom-right-radius: 10px;
 }
 
-:root[data-theme="dark"] .message-segment:last-child::after {
+:root[data-theme="dark"] .message-segment.last-bubble::after {
   background-color: var(--background-dark);
 }
 
@@ -1801,26 +1801,26 @@ p:has(.katex) {
     padding: 5px 11px;
   }
   
-  .message-segment:last-child::before {
+  .message-segment.last-bubble::before {
     left: -9px;
     width: 20px;
     height: 16px;
     border-bottom-right-radius: 16px 14px;
   }
   
-  .message-segment.multi-line:last-child::before {
+  .message-segment.multi-line.last-bubble::before {
     height: 16px;
     border-bottom-right-radius: 16px 14px;
   }
   
-  .message-segment:last-child::after {
+  .message-segment.last-bubble::after {
     left: -26px;
     width: 26px;
     height: 16px;
     border-bottom-right-radius: 10px;
   }
   
-  .message-segment.multi-line:last-child::after {
+  .message-segment.multi-line.last-bubble::after {
     height: 16px;
     border-bottom-right-radius: 10px;
   }
