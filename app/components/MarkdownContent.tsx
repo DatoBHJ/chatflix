@@ -532,14 +532,7 @@ const ImageWithLoading = memo(function ImageWithLoadingComponent({
   );
 
   if (!isValidUrl) {
-    return (
-      <div className="bg-[var(--accent)] rounded-lg p-4 text-center text-[var(--muted)]">
-        <svg className="w-8 h-8 mx-auto mb-2 text-[var(--muted)]" fill="none" strokeWidth="1.5" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-        </svg>
-        <div>Invalid image URL</div>
-      </div>
-    );
+    return null;
   }
 
   // 일반 이미지가 에러나면 아무것도 렌더링하지 않음
