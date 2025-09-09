@@ -93,8 +93,14 @@ function ThemeInitScript() {
         __html: `
           (function() {
             function updateThemeColor(theme) {
-              // PWA에서 오버스크롤 시 보이는 배경색을 테마에 맞게 설정
-              const themeColor = theme === 'dark' ? '#000000' : '#ffffff';
+              // CSS 변수에서 현재 배경색을 자동으로 읽어와서 PWA theme-color 설정
+              // 이렇게 하면 CSS에서 배경색을 변경해도 자동으로 반영됨
+              const computedStyle = getComputedStyle(document.documentElement);
+              const backgroundColor = computedStyle.getPropertyValue('--background').trim();
+              
+              // CSS 변수가 설정되지 않은 경우 기본값 사용
+              const themeColor = backgroundColor || (theme === 'dark' ? '#161617' : '#ffffff');
+              
               let themeColorMeta = document.querySelector('meta[name="theme-color"]');
               if (!themeColorMeta) {
                 themeColorMeta = document.createElement('meta');
