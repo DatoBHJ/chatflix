@@ -457,6 +457,12 @@ const splitSegmentByLineBreaks = (segment: string): string[] => {
       /^---+$/.test(trimmedLine) ||
       /^[*_-]{3,}$/.test(trimmedLine);
 
+    // 테이블이 시작될 때 새로운 세그먼트 시작
+    if (!inTableBlock && isTableLine && currentSegment.length > 0) {
+      segments.push(currentSegment.join('\n').trim());
+      currentSegment = [];
+    }
+
     // 리스트 블록 종료 조건
     if (inListBlock && ((!isListItem && trimmedLine !== '') || shouldSplit) && currentSegment.length > 0) {
       segments.push(currentSegment.join('\n').trim());
@@ -466,11 +472,9 @@ const splitSegmentByLineBreaks = (segment: string): string[] => {
 
     // 테이블 블록 종료 조건
     if (inTableBlock && (!isTableLine || shouldSplit) && currentSegment.length > 0) {
-      if (trimmedLine !== '') {
-        segments.push(currentSegment.join('\n').trim());
-        currentSegment = [];
-        inTableBlock = false;
-      }
+      segments.push(currentSegment.join('\n').trim());
+      currentSegment = [];
+      inTableBlock = false;
     }
 
     const isSeparator = /^---+$/.test(trimmedLine) || /^[*_-]{3,}$/.test(trimmedLine);
