@@ -113,9 +113,9 @@ export async function GET(req: NextRequest) {
       redirect: 'follow',
     });
 
-    if (!response.ok) {
-        throw new Error(`Failed to fetch URL: ${response.statusText}`);
-    }
+    // if (!response.ok) {
+    //     throw new Error(`Failed to fetch URL: ${response.statusText}`);
+    // }
 
     const html = await response.text();
 
