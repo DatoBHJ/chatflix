@@ -1568,19 +1568,63 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
         </div>
       );
     },
-    table: ({ children, ...props }: React.PropsWithChildren<ExtraProps>) => (
-      <div className="overflow-x-auto my-6 max-w-full">
-        <table className="w-full border-collapse table-auto" {...props}>{children}</table>
-      </div>
-    ),
+    table: ({ children, ...props }: React.PropsWithChildren<ExtraProps>) => {
+      // Count columns to determine if we need mobile optimization
+      const tableRef = useRef<HTMLTableElement>(null);
+      const [isWideTable, setIsWideTable] = useState(false);
+      const [showScrollHint, setShowScrollHint] = useState(false);
+
+      useEffect(() => {
+        if (tableRef.current) {
+          const table = tableRef.current;
+          const columns = table.querySelectorAll('th, td').length;
+          const firstRow = table.querySelector('tr');
+          const firstRowCells = firstRow ? firstRow.querySelectorAll('th, td').length : 0;
+          
+          // Consider it a wide table if it has more than 3 columns or if any cell content is long
+          const hasLongContent = Array.from(table.querySelectorAll('td, th')).some(cell => 
+            cell.textContent && cell.textContent.length > 20
+          );
+          
+          setIsWideTable(firstRowCells > 3 || hasLongContent);
+        }
+      }, [children]);
+
+      return (
+        <div className="responsive-table-container my-6 max-w-full">
+          <div 
+            className={`table-wrapper ${isWideTable ? 'wide-table' : ''}`}
+            onScroll={(e) => {
+              const element = e.currentTarget;
+              const isAtEnd = element.scrollLeft >= (element.scrollWidth - element.clientWidth - 10);
+              setShowScrollHint(!isAtEnd);
+            }}
+          >
+            <table 
+              ref={tableRef}
+              className="responsive-table w-full border-collapse" 
+              {...props}
+            >
+              {children}
+            </table>
+            {isWideTable && showScrollHint && (
+              <div className="scroll-hint">
+                <ChevronRight size={16} />
+                <span>Swipe to see more</span>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    },
     th: ({ children, ...props }) => (
-      <th className="bg-[var(--accent)] font-medium text-[var(--muted)] uppercase tracking-wider p-3 border border-[var(--accent)] text-left min-w-0" {...props}>
-        <div className="break-words">{children}</div>
+      <th className="table-header bg-[var(--accent)] font-medium text-[var(--muted)] uppercase tracking-wider p-2 sm:p-3 border border-[var(--accent)] text-left min-w-0" {...props}>
+        <div className="break-words text-sm sm:text-base">{children}</div>
       </th>
     ),
     td: ({ children, ...props }) => (
-      <td className="p-3 border border-[var(--accent)] min-w-0" {...props}>
-        <div className="break-words">{children}</div>
+      <td className="table-cell p-2 sm:p-3 border border-[var(--accent)] min-w-0" {...props}>
+        <div className="break-words text-sm sm:text-base">{children}</div>
       </td>
     ),
     blockquote: ({ children, ...props }) => (

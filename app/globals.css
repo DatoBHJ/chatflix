@@ -1229,6 +1229,176 @@ body {
   @apply bg-[var(--accent)] font-medium text-[var(--muted)] uppercase tracking-wider;
 }
 
+/* Responsive Table Styles */
+.responsive-table-container {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+}
+
+.table-wrapper {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted) transparent;
+}
+
+.table-wrapper::-webkit-scrollbar {
+  height: 6px;
+}
+
+.table-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb {
+  background-color: var(--muted);
+  border-radius: 3px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+  background-color: var(--foreground);
+}
+
+.responsive-table {
+  min-width: 100%;
+  border-collapse: collapse;
+}
+
+/* Mobile-first table cell styles */
+.table-header,
+.table-cell {
+  white-space: nowrap;
+  min-width: 80px;
+  max-width: 200px;
+}
+
+.table-header > div,
+.table-cell > div {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Wide table specific styles */
+.table-wrapper.wide-table {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.table-wrapper.wide-table .responsive-table {
+  min-width: 600px; /* Ensure minimum width for wide tables */
+}
+
+/* Scroll hint styles */
+.scroll-hint {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  z-index: 10;
+  animation: fadeInOut 2s ease-in-out;
+}
+
+@keyframes fadeInOut {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  .table-wrapper {
+    border-radius: 8px;
+    margin: 0 -8px; /* Extend to screen edges on mobile */
+    padding: 0 8px;
+  }
+  
+  .responsive-table {
+    font-size: 14px;
+  }
+  
+  .table-header,
+  .table-cell {
+    padding: 8px 6px !important;
+    min-width: 60px;
+    max-width: 150px;
+  }
+  
+  .table-header > div,
+  .table-cell > div {
+    font-size: 13px;
+    line-height: 1.3;
+  }
+  
+  /* Make table headers more prominent on mobile */
+  .table-header {
+    background-color: var(--accent) !important;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+  }
+  
+  /* Add subtle alternating row colors for better readability */
+  .responsive-table tbody tr:nth-child(even) {
+    background-color: color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+  
+  .scroll-hint {
+    right: 4px;
+    font-size: 11px;
+    padding: 3px 6px;
+  }
+}
+
+/* Tablet optimizations */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .table-wrapper {
+    border-radius: 8px;
+  }
+  
+  .table-header,
+  .table-cell {
+    padding: 10px 8px !important;
+    min-width: 70px;
+    max-width: 180px;
+  }
+  
+  .table-header > div,
+  .table-cell > div {
+    font-size: 14px;
+  }
+}
+
+/* Desktop optimizations */
+@media (min-width: 1025px) {
+  .table-wrapper {
+    border-radius: 8px;
+  }
+  
+  .table-header,
+  .table-cell {
+    padding: 12px !important;
+    min-width: 100px;
+    max-width: 250px;
+  }
+  
+  .table-header > div,
+  .table-cell > div {
+    font-size: 15px;
+  }
+}
+
 /* Blockquote Styles */
 .message-content blockquote {
   @apply border-l-4 border-[var(--muted)] pl-4 my-4 italic text-[var(--muted)];
