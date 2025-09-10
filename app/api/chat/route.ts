@@ -574,6 +574,10 @@ export async function POST(req: Request): Promise<Response> {
                     }
                   };
                   collectedToolResults.structuredResponse = structuredResponse;
+                  
+                  // 🆕 토큰 사용량을 completion에서 직접 추출 (AI SDK v5 방식)
+                  collectedToolResults.token_usage = completion.usage || completion.totalUsage;
+                  
                   globalCollectedToolResults = { ...collectedToolResults };
                   
                   writer.write({
@@ -642,6 +646,9 @@ export async function POST(req: Request): Promise<Response> {
                   followup_questions: followUpQuestions 
                 }
               };
+              
+              // 🆕 토큰 사용량을 completion에서 직접 추출 (AI SDK v5 방식)
+              globalCollectedToolResults.token_usage = completion.usage || completion.totalUsage;
               
               writer.write({
                 type: 'data-structured_response',
@@ -783,7 +790,7 @@ export async function POST(req: Request): Promise<Response> {
                 getProviderFromModel(model),
                 {
                   original_model: requestData.originalModel || model,
-                  token_usage: (lastAssistantMessage as any).usage,
+                  token_usage: globalCollectedToolResults.token_usage || null,
                   tool_results: globalCollectedToolResults || {}
                 },
                 isRegeneration || false
