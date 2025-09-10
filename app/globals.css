@@ -1236,43 +1236,39 @@ body {
   max-width: 100%;
 }
 
+/* Minimal table wrapper - remove visual chrome */
 .table-wrapper {
   position: relative;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  scrollbar-color: var(--muted) transparent;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 20%, transparent) transparent;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  /* Ensure table wrapper can scroll horizontally */
+  width: 100%;
+  min-width: 100%;
 }
 
-.table-wrapper::-webkit-scrollbar {
-  height: 6px;
+.table-wrapper.wide-table {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
-.table-wrapper::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.table-wrapper::-webkit-scrollbar-thumb {
-  background-color: var(--muted);
-  border-radius: 3px;
-}
-
-.table-wrapper::-webkit-scrollbar-thumb:hover {
-  background-color: var(--foreground);
-}
-
+/* Table should be at least as wide as its content to enable horizontal scroll */
 .responsive-table {
+  width: max-content;
   min-width: 100%;
   border-collapse: collapse;
 }
 
-/* Mobile-first table cell styles */
+/* Ensure cells don't force overflow clipping */
 .table-header,
 .table-cell {
   white-space: nowrap;
-  min-width: 80px;
-  max-width: 200px;
 }
 
 .table-header > div,
@@ -1282,14 +1278,78 @@ body {
   overflow-wrap: break-word;
 }
 
-/* Wide table specific styles */
-.table-wrapper.wide-table {
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+/* Table segment bubble: minimal look */
+.message-segment.table-segment,
+.markdown-segment.table-segment {
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  /* Override ALL parent width constraints for table segments only */
+  max-width: none !important;
+  width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  /* Force table segments to break out of any container width limits */
+  min-width: 100vw !important;
+  position: relative !important;
 }
 
-.table-wrapper.wide-table .responsive-table {
-  min-width: 600px; /* Ensure minimum width for wide tables */
+/* Ensure table segment containers don't constrain width */
+.message-segment.table-segment > *,
+.markdown-segment.table-segment > * {
+  max-width: none !important;
+  width: 100% !important;
+  min-width: 100vw !important;
+}
+
+/* Table segment content container - remove all width constraints */
+.table-segment-content {
+  max-width: none !important;
+  width: 100% !important;
+  min-width: 100vw !important;
+  overflow: visible !important;
+}
+
+/* Table wrapper in table segments - no width limits */
+.message-segment.table-segment .table-wrapper,
+.markdown-segment.table-segment .table-wrapper {
+  max-width: none !important;
+  width: 100% !important;
+  min-width: 100vw !important;
+}
+
+/* Table itself in table segments - no width limits */
+.message-segment.table-segment .responsive-table,
+.markdown-segment.table-segment .responsive-table {
+  max-width: none !important;
+  width: max-content !important;
+  min-width: 100vw !important;
+}
+
+/* Make the scroll area full-bleed on mobile for easier swipe */
+@media (max-width: 640px) {
+  .message-segment.table-segment,
+  .markdown-segment.table-segment {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+    min-width: 100vw !important;
+  }
+  
+  .message-segment.table-segment .table-wrapper,
+  .markdown-segment.table-segment .table-wrapper {
+    margin-left: -12px;
+    margin-right: -12px;
+    padding-left: 12px;
+    padding-right: 12px;
+    min-width: calc(100vw - 24px) !important;
+  }
+  
+  .message-segment.table-segment .responsive-table,
+  .markdown-segment.table-segment .responsive-table {
+    min-width: calc(100vw - 24px) !important;
+  }
 }
 
 /* Scroll hint styles */
@@ -2706,6 +2766,40 @@ p:has(.katex) {
 
 .side-panel.maximized .safari-window-button.maximize .icon {
   opacity: 1;
+}
+
+/* Table segment container - remove bubble styling and enable full-width scroll */
+.message-segment.table-segment,
+.markdown-segment.table-segment {
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Ensure table-segment children can scroll horizontally without clipping */
+.message-segment.table-segment > .responsive-table-container,
+.markdown-segment.table-segment > .responsive-table-container,
+.message-segment.table-segment > .message-content,
+.markdown-segment.table-segment > .message-content {
+  overflow: visible;
+}
+
+/* Mobile: stretch table wrapper to screen edges to avoid right cut-off */
+@media (max-width: 640px) {
+  .message-segment.table-segment .table-wrapper,
+  .markdown-segment.table-segment .table-wrapper {
+    margin-left: -12px;
+    margin-right: -12px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  /* Prevent inner containers from clipping the horizontal scroll */
+  .message-segment.table-segment .message-content,
+  .markdown-segment.table-segment .message-content {
+    overflow: visible !important;
+  }
 }
 
 

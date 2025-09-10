@@ -1576,12 +1576,10 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       // Count columns to determine if we need mobile optimization
       const tableRef = useRef<HTMLTableElement>(null);
       const [isWideTable, setIsWideTable] = useState(false);
-      const [showScrollHint, setShowScrollHint] = useState(false);
 
       useEffect(() => {
         if (tableRef.current) {
           const table = tableRef.current;
-          const columns = table.querySelectorAll('th, td').length;
           const firstRow = table.querySelector('tr');
           const firstRowCells = firstRow ? firstRow.querySelectorAll('th, td').length : 0;
           
@@ -1595,28 +1593,15 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       }, [children]);
 
       return (
-        <div className="responsive-table-container my-6 max-w-full">
-          <div 
-            className={`table-wrapper ${isWideTable ? 'wide-table' : ''}`}
-            onScroll={(e) => {
-              const element = e.currentTarget;
-              const isAtEnd = element.scrollLeft >= (element.scrollWidth - element.clientWidth - 10);
-              setShowScrollHint(!isAtEnd);
-            }}
-          >
+        <div className="responsive-table-container my-4 max-w-full">
+          <div className={`table-wrapper ${isWideTable ? 'wide-table' : ''}`}>
             <table 
               ref={tableRef}
-              className="responsive-table w-full border-collapse" 
+              className="responsive-table border-collapse" 
               {...props}
             >
               {children}
             </table>
-            {isWideTable && showScrollHint && (
-              <div className="scroll-hint">
-                <ChevronRight size={16} />
-                <span>Swipe to see more</span>
-              </div>
-            )}
           </div>
         </div>
       );
@@ -1772,6 +1757,9 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               // 단일 줄 불릿 포인트인지 확인
               const isSingleLineBullet = /^[-*+]\s/.test(segment.trim()) && !segment.includes('\n');
               
+              // 테이블 세그먼트인지 확인 (마크다운 표 패턴: 헤더 행 + 구분 행 존재)
+              const isTableSegment = /(^|\n)\s*\|.*\|\s*(\n|$)/.test(segment) && /(^|\n)\s*\|?\s*[:\-]+\s*(\|\s*[:\-]+\s*)+\|?\s*(\n|$)/.test(segment);
+              
               // 이전 세그먼트가 이미지 세그먼트인지 확인
               const prevIsImage = index > 0 && /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segmentGroup[index - 1]);
               
@@ -1824,15 +1812,20 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               return (
                 <div 
                   key={index} 
-                  className={`${isImageSegment ? (hasConsecutiveImages ? 'max-w-[80%] md:max-w-[40%]' : 'max-w-[100%] md:max-w-[70%]') : ''} ${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isSingleLineBullet ? ' single-line-bullet' : ''}${isLastBubble ? ' last-bubble' : ''}`}`}
+                  className={`${isImageSegment ? (hasConsecutiveImages ? 'max-w-[80%] md:max-w-[40%]' : 'max-w-[100%] md:max-w-[70%]') : ''} ${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isSingleLineBullet ? ' single-line-bullet' : ''}${isLastBubble ? ' last-bubble' : ''}${isTableSegment ? ' table-segment' : ''}`}`}
                   style={{
                     ...getImageStyle(),
+                    ...(isTableSegment && {
+                      background: 'transparent',
+                      padding: 0,
+                      border: 'none',
+                      boxShadow: 'none'
+                    }),
                     ...((isImageSegment || isLinkSegment) && {
                       background: 'transparent !important',
                       padding: '0',
                       border: 'none',
                       boxShadow: 'none'
-                      // margin 속성 제거 - getImageStyle()에서 개별 margin 속성으로 처리
                     })
                   }}
                 >
@@ -1845,7 +1838,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                       {segment}
                     </ReactMarkdown>
                   ) : (
-                    <div className="max-w-full overflow-x-auto message-content break-words">
+                    <div className={`${isTableSegment ? 'table-segment-content' : 'max-w-full overflow-x-auto'} message-content break-words`}>
                       <ReactMarkdown
                         remarkPlugins={remarkPlugins}
                         rehypePlugins={rehypePlugins}
