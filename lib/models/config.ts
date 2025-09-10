@@ -762,10 +762,11 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isActivated: true,
     isAgentEnabled: true,
     contextWindow: 131072,
-    latency: 0.2,
-    tps: 425,
-    intelligenceIndex: 49,
-    IFBench:42
+    latency: 0.3,
+    tps: 340,
+    intelligenceIndex: 50,
+    IFBench:42,
+    maxOutputTokens: 16384,
   },    
   // Kimi K2 
   {
@@ -781,7 +782,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
       level: 'level2',
     },
     supportsPDFs: false,
-    isEnabled: true,
+    isEnabled: false,
     isActivated: true,
     isAgentEnabled: true,
     contextWindow: 131072,
