@@ -161,7 +161,10 @@ function escapeCurrencyDollars(text: string): string {
   // 패턴 5: 템플릿 변수 (예: ${variableName}) - 화폐로 처리하지 않음
   const templateVariablePattern = /(?<![\\a-zA-Z0-9_])\$\{[a-zA-Z_][a-zA-Z0-9_.]*\}(?=\b|[^\w\s])/g;
   
-  // 패턴 6: 백슬래시로 이스케이프된 달러는 LaTeX 수식이므로 건드리지 않음
+  // 패턴 6: 주식 티커 심볼 (예: $NVDA, $ORCL, $AAPL) - 화폐로 처리
+  const stockTickerPattern = /(?<![\\a-zA-Z0-9_])\$([A-Z]{1,5})(?=\b|[^\w\s])/g;
+  
+  // 패턴 7: 백슬래시로 이스케이프된 달러는 LaTeX 수식이므로 건드리지 않음
   const escapedDollarRegex = /\\\$/g;
   const escapedDollars: string[] = [];
   let escapedIndex = 0;
@@ -174,6 +177,7 @@ function escapeCurrencyDollars(text: string): string {
   text = text.replace(currencyPattern1, '&#36;$1');
   text = text.replace(currencyPattern2, '&#36;$1');
   text = text.replace(currencyPattern3, '&#36;$1');
+  text = text.replace(stockTickerPattern, '&#36;$1');
   
   // 프로그래밍 변수와 템플릿 변수는 그대로 유지 (화폐로 처리하지 않음)
   // 이들은 LaTeX 수식 처리 단계에서 적절히 처리됨
@@ -214,6 +218,7 @@ interface MarkdownContentProps {
   enableSegmentation?: boolean;
   variant?: 'default' | 'clean'; // 'clean'은 배경색 없는 버전
   searchTerm?: string | null; // 🚀 FEATURE: Search term for highlighting
+  isReasoningSection?: boolean; // ReasoningSection에서만 메시지 형식 완전 제거
 }
 
 // 더 적극적으로 마크다운 구조를 분할하는 함수 - 구분선(---)을 기준으로 메시지 그룹 분할
@@ -795,7 +800,8 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   content, 
   enableSegmentation = false,
   variant = 'default',
-  searchTerm = null
+  searchTerm = null,
+  isReasoningSection = false
 }: MarkdownContentProps) {
 
   // Image modal state
@@ -1745,8 +1751,8 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
         }
 
         return (
-          <div key={groupIndex} className="imessage-receive-bubble">
-            <div className={variant === 'clean' ? 'markdown-segments' : 'message-segments'}>
+          <div key={groupIndex} className={isReasoningSection ? '' : 'imessage-receive-bubble'}>
+            <div className={isReasoningSection ? 'markdown-segments' : 'message-segments'}>
               {segmentGroup.map((segment, index) => {
               // 이미지 세그먼트인지 확인
               const isImageSegment = /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segment);
