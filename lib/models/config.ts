@@ -846,7 +846,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level1',
     },
-    description: 'If the request to the deepseek-reasoner model includes the tools parameter, the request will actually be processed using the deepseek-chat model.',
+    // description: 'If the request to the deepseek-reasoner model includes the tools parameter, the request will actually be processed using the deepseek-chat model.',
     supportsPDFs: false,
     reasoning: true,
     isEnabled: true,
