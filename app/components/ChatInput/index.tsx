@@ -1436,7 +1436,6 @@ export function ChatInput({
                     hideTokenTooltipFunc();
                   }}
                 >
-                  {/* Token Counter Badge */}
                   <div 
                     className={`token-counter ${
                       tokenCount > tokenThresholds.danger ? 'error' : 
@@ -1446,7 +1445,6 @@ export function ChatInput({
                     {`${Math.round((tokenCount / tokenThresholds.limit) * 100)}%`}
                   </div>
                   
-                  {/* Apple-style Token Usage Tooltip */}
                   {showTokenTooltip && (() => {
                     const proThresholds = getTokenThresholds(modelConfig?.contextWindow, true);
                     const nonProThresholds = tokenThresholds;
@@ -1481,10 +1479,8 @@ export function ChatInput({
                           transform: 'translateY(-2px)'
                         }}
                       >
-                                      {/* Apple-style arrow removed */}
                         
                         <div className="flex flex-col gap-3">
-                          {/* Header with icon */}
                           <div className="flex items-center gap-2.5">
                             <div className="w-5 h-5 rounded-full bg-blue-500/15 flex items-center justify-center">
                               <Gauge className="w-3 h-3 text-blue-600 dark:text-blue-400" strokeWidth={2} />
@@ -1494,7 +1490,6 @@ export function ChatInput({
                             </span>
                           </div>
 
-                          {/* Usage stats with better typography */}
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-medium text-[var(--muted)]">
                               Usage
@@ -1512,7 +1507,6 @@ export function ChatInput({
                             </div>
                           </div>
     
-                          {/* Apple-style progress bar */}
                           <div className="relative">
                             <div className="w-full bg-gray-200/60 dark:bg-gray-700/40 rounded-full h-1.5 overflow-hidden">
                               <div 
@@ -1520,7 +1514,6 @@ export function ChatInput({
                                 style={{ width: `${progressPercentage}%` }}
                               ></div>
                             </div>
-                            {/* Progress percentage */}
                             <div className="flex justify-end mt-1">
                               <span className="text-xs font-medium text-[var(--muted)] tabular-nums">
                                 {Math.round(progressPercentage)}%
@@ -1528,7 +1521,6 @@ export function ChatInput({
                             </div>
                           </div>
                           
-                          {/* Status message with better styling */}
                           <div className="flex items-start gap-2">
                             {tokenCount > displayThresholds.danger ? (
                               <AlertTriangle className="w-3.5 h-3.5 text-red-500 mt-0.5 flex-shrink-0" strokeWidth={2} />
@@ -1542,7 +1534,6 @@ export function ChatInput({
                             </p>
                           </div>
                           
-                          {/* Pro upgrade with Apple-style button - 컨텍스트 윈도우 제한 제거됨 */}
                           {false && (
                             <div className="pt-2 border-t border-gray-200/50 dark:border-gray-700/50">
                               <a 
@@ -1554,9 +1545,6 @@ export function ChatInput({
                                 onMouseEnter={() => setIsHoveringUpgrade(true)}
                                 onMouseLeave={() => setIsHoveringUpgrade(false)}
                               >
-                                {/* <svg className="w-4 h-4 transition-transform duration-200 group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                </svg> */}
                                 {translations.upgrade}
                                 <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
