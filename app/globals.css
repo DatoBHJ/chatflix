@@ -1291,7 +1291,7 @@ body {
   margin-left: 0 !important;
   margin-right: 0 !important;
   /* Force table segments to break out of any container width limits */
-  min-width: 100vw !important;
+  min-width: 100% !important;
   position: relative !important;
 }
 
@@ -1300,14 +1300,14 @@ body {
 .markdown-segment.table-segment > * {
   max-width: none !important;
   width: 100% !important;
-  min-width: 100vw !important;
+  min-width: 100% !important;
 }
 
 /* Table segment content container - remove all width constraints */
 .table-segment-content {
   max-width: none !important;
   width: 100% !important;
-  min-width: 100vw !important;
+  min-width: 100% !important;
   overflow: visible !important;
 }
 
@@ -1316,7 +1316,10 @@ body {
 .markdown-segment.table-segment .table-wrapper {
   max-width: none !important;
   width: 100% !important;
-  min-width: 100vw !important;
+  min-width: 100% !important;
+  /* Ensure horizontal scrolling works on desktop */
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
 }
 
 /* Table itself in table segments - no width limits */
@@ -1324,7 +1327,22 @@ body {
 .markdown-segment.table-segment .responsive-table {
   max-width: none !important;
   width: max-content !important;
-  min-width: 100vw !important;
+  min-width: 100% !important;
+}
+
+/* Desktop: Allow tables to expand beyond container width */
+@media (min-width: 641px) {
+  .message-segment.table-segment .table-wrapper,
+  .markdown-segment.table-segment .table-wrapper {
+    /* Allow table to expand beyond parent container on desktop */
+    min-width: 100% !important;
+  }
+  
+  .message-segment.table-segment .responsive-table,
+  .markdown-segment.table-segment .responsive-table {
+    /* Table can be as wide as needed on desktop */
+    min-width: 100% !important;
+  }
 }
 
 /* Make the scroll area full-bleed on mobile for easier swipe */
