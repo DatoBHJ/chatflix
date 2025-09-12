@@ -364,21 +364,6 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     setIsEditing(true);
     setEditingPromptIndex(promptIndex);
     setEditingContent(suggestedPrompts[promptIndex]);
-    
-    // 다음 렌더링 후 초기 너비 설정
-    setTimeout(() => {
-      if (textareaRef.current) {
-        const textarea = textareaRef.current;
-        const container = textarea.closest('.relative') as HTMLElement;
-        if (container) {
-          const textWidth = textarea.scrollWidth;
-          const minWidth = 200;
-          const maxWidth = 600;
-          const newWidth = Math.max(minWidth, Math.min(maxWidth, textWidth + 40));
-          container.style.width = `${newWidth}px`;
-        }
-      }
-    }, 0);
   };
 
   // 편집 취소
@@ -469,10 +454,28 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   useEffect(() => {
     if (isEditing && textareaRef.current) {
       const textarea = textareaRef.current;
-      textarea.style.height = 'auto';
-      textarea.style.height = `${textarea.scrollHeight}px`;
+
+      const resizeTextarea = () => {
+        textarea.style.height = 'auto';
+        const scrollHeight = textarea.scrollHeight;
+        // Ensure getComputedStyle runs only in browser
+        if (typeof window !== 'undefined') {
+          const maxHeight = parseInt(window.getComputedStyle(textarea).maxHeight, 10);
+          
+          if (scrollHeight > maxHeight) {
+            textarea.style.height = `${maxHeight}px`;
+          } else {
+            textarea.style.height = `${scrollHeight}px`;
+          }
+        } else {
+           textarea.style.height = `${scrollHeight}px`;
+        }
+      };
+
+      resizeTextarea();
       textarea.focus();
-      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      const len = textarea.value.length;
+      textarea.setSelectionRange(len, len);
     }
   }, [isEditing]);
 
@@ -480,8 +483,25 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   useEffect(() => {
     if (isAdding && newPromptTextareaRef.current) {
       const textarea = newPromptTextareaRef.current;
-      textarea.style.height = 'auto';
-      textarea.style.height = `${textarea.scrollHeight}px`;
+
+      const resizeTextarea = () => {
+        textarea.style.height = 'auto';
+        const scrollHeight = textarea.scrollHeight;
+        // Ensure getComputedStyle runs only in browser
+        if (typeof window !== 'undefined') {
+          const maxHeight = parseInt(window.getComputedStyle(textarea).maxHeight, 10);
+          
+          if (scrollHeight > maxHeight) {
+            textarea.style.height = `${maxHeight}px`;
+          } else {
+            textarea.style.height = `${scrollHeight}px`;
+          }
+        } else {
+           textarea.style.height = `${scrollHeight}px`;
+        }
+      };
+
+      resizeTextarea();
     }
   }, [isAdding, newPromptContent]);
 
@@ -633,7 +653,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
               >
                 {isEditing && editingPromptIndex === index ? (
                   <div className="flex items-center justify-end gap-2 w-full">
-                    <div className="relative" style={{ width: 'fit-content', minWidth: '200px' }}>
+                    <div className="relative w-full max-w-md">
                       <div className="imessage-edit-bubble">
                         <textarea
                           ref={textareaRef}
@@ -642,15 +662,16 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                             setEditingContent(e.target.value);
                             const textarea = e.currentTarget;
                             textarea.style.height = 'auto';
-                            textarea.style.height = `${textarea.scrollHeight}px`;
-                            // 너비도 동적으로 조정
-                            const container = textarea.closest('.relative') as HTMLElement;
-                            if (container) {
-                              const textWidth = textarea.scrollWidth;
-                              const minWidth = 200;
-                              const maxWidth = 600;
-                              const newWidth = Math.max(minWidth, Math.min(maxWidth, textWidth + 40));
-                              container.style.width = `${newWidth}px`;
+                            const scrollHeight = textarea.scrollHeight;
+                            if (typeof window !== 'undefined') {
+                              const maxHeight = parseInt(window.getComputedStyle(textarea).maxHeight, 10);
+                              if (scrollHeight > maxHeight) {
+                                textarea.style.height = `${maxHeight}px`;
+                              } else {
+                                textarea.style.height = `${scrollHeight}px`;
+                              }
+                            } else {
+                              textarea.style.height = `${scrollHeight}px`;
                             }
                           }}
                           onKeyDown={(e) => {
@@ -831,7 +852,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
             {/* 새 프롬프트 추가 UI */}
             {isAdding ? (
               <div className="flex items-center justify-end gap-2 w-full">
-                <div className="relative" style={{ width: 'fit-content', minWidth: '200px' }}>
+                <div className="relative w-full max-w-md">
                   <div className="imessage-edit-bubble">
                     <textarea
                       ref={newPromptTextareaRef}
@@ -840,15 +861,16 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                         setNewPromptContent(e.target.value);
                         const textarea = e.currentTarget;
                         textarea.style.height = 'auto';
-                        textarea.style.height = `${textarea.scrollHeight}px`;
-                        // 너비도 동적으로 조정
-                        const container = textarea.closest('.relative') as HTMLElement;
-                        if (container) {
-                          const textWidth = textarea.scrollWidth;
-                          const minWidth = 200;
-                          const maxWidth = 600;
-                          const newWidth = Math.max(minWidth, Math.min(maxWidth, textWidth + 40));
-                          container.style.width = `${newWidth}px`;
+                        const scrollHeight = textarea.scrollHeight;
+                        if (typeof window !== 'undefined') {
+                          const maxHeight = parseInt(window.getComputedStyle(textarea).maxHeight, 10);
+                          if (scrollHeight > maxHeight) {
+                            textarea.style.height = `${maxHeight}px`;
+                          } else {
+                            textarea.style.height = `${scrollHeight}px`;
+                          }
+                        } else {
+                          textarea.style.height = `${scrollHeight}px`;
                         }
                       }}
                       onKeyDown={(e) => {
