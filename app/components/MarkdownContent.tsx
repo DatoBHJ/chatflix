@@ -453,10 +453,77 @@ const splitSegmentByLineBreaks = (segment: string): string[] => {
     // Block detectors
     const isListItem = /^([-*+]\s(?:\[[ xX]\]\s)?|\d+\.\s)/.test(trimmedLine);
     const isTableLine = /^\s*\|.*\|\s*$/.test(trimmedLine); // 테이블 행 감지
+    const isBoldHeading = /^\*\*[^*]+\*\*\s*$/.test(trimmedLine); // 볼드 제목 감지 (예: **기원 시점**)
+    const isListItemWithBold = /^([-*+]\s(?:\[[ xX]\]\s)?|\d+\.\s)\*\*[^*]+\*\*/.test(trimmedLine); // 리스트 아이템 + 볼드 (예: - **제목**)
+
+    // 볼드 제목과 그 다음 줄을 함께 그룹핑하기 위한 특별 처리 (독립적인 볼드 제목 또는 리스트 아이템 내 볼드)
+    if ((isBoldHeading || isListItemWithBold) && i < lines.length - 1) {
+      // 현재 세그먼트가 있으면 먼저 완료
+      if (currentSegment.length > 0) {
+        segments.push(currentSegment.join('\n').trim());
+        currentSegment = [];
+      }
+      
+      // 볼드 제목 추가
+      currentSegment.push(line);
+      
+      // 다음 줄들을 찾아서 함께 그룹핑 (빈 줄이나 다른 구조가 나올 때까지)
+      let j = i + 1;
+      while (j < lines.length) {
+        const nextLine = lines[j];
+        const nextTrimmed = nextLine.trim();
+        
+        // 빈 줄이면 건너뛰되, 그 다음에 내용이 있으면 계속 그룹핑
+        if (nextTrimmed === '') {
+          // 그 다음 줄을 확인
+          if (j + 1 < lines.length) {
+            const lineAfterEmpty = lines[j + 1].trim();
+            // 리스트 아이템의 경우 들여쓰기된 설명도 포함
+            const isIndentedDescription = /^\s{2,}/.test(lines[j + 1]) && lineAfterEmpty !== '';
+            if ((lineAfterEmpty !== '' && 
+                !(/^#{1,3}\s/.test(lineAfterEmpty)) && 
+                !(/^\*\*[^*]+\*\*\s*$/.test(lineAfterEmpty)) &&
+                !(/^```/.test(lineAfterEmpty)) &&
+                !(/^---+$/.test(lineAfterEmpty)) &&
+                !(/^[*_-]{3,}$/.test(lineAfterEmpty)) &&
+                !(/^([-*+]\s(?:\[[ xX]\]\s)?|\d+\.\s)/.test(lineAfterEmpty)) &&
+                !(/^\s*\|.*\|\s*$/.test(lineAfterEmpty))) || isIndentedDescription) {
+              // 빈 줄과 그 다음 내용을 모두 포함
+              currentSegment.push(nextLine);
+              j++;
+              continue;
+            }
+          }
+          break;
+        }
+        
+        // 새로운 구조가 시작되면 중단 (단, 들여쓰기된 설명은 예외)
+        const isIndentedDescription = /^\s{2,}/.test(nextLine) && nextTrimmed !== '';
+        const isNewStructure = /^#{1,3}\s/.test(nextTrimmed) ||
+            /^\*\*[^*]+\*\*\s*$/.test(nextTrimmed) ||
+            /^```/.test(nextTrimmed) ||
+            /^---+$/.test(nextTrimmed) ||
+            /^[*_-]{3,}$/.test(nextTrimmed) ||
+            /^([-*+]\s(?:\[[ xX]\]\s)?|\d+\.\s)/.test(nextTrimmed) ||
+            /^\s*\|.*\|\s*$/.test(nextTrimmed);
+            
+        if (isNewStructure && !isIndentedDescription) {
+          break;
+        }
+        
+        // 일반 텍스트나 들여쓰기된 설명이면 계속 추가
+        currentSegment.push(nextLine);
+        j++;
+      }
+      
+      // 처리한 줄들 건너뛰기
+      i = j - 1;
+      continue;
+    }
 
     // 분할 조건들 - 블록 외부에서만 적용
     const shouldSplit =
-      // (trimmedLine === '' && !inListBlock && !inTableBlock) || // 블록 안에선 빈 줄로 분할 안 함
+      (trimmedLine === '' && !inListBlock && !inTableBlock) ||
       /^#{1,3}\s/.test(trimmedLine) ||
       /^```/.test(trimmedLine) ||
       /^---+$/.test(trimmedLine) ||
@@ -484,6 +551,12 @@ const splitSegmentByLineBreaks = (segment: string): string[] => {
 
     const isSeparator = /^---+$/.test(trimmedLine) || /^[*_-]{3,}$/.test(trimmedLine);
 
+    // 일반적인 분할 처리
+    if (shouldSplit && currentSegment.length > 0) {
+      segments.push(currentSegment.join('\n').trim());
+      currentSegment = [];
+    }
+
     // 블록 상태 시작
     if (isListItem) {
       inListBlock = true;
@@ -493,7 +566,7 @@ const splitSegmentByLineBreaks = (segment: string): string[] => {
     }
 
     // 현재 세그먼트에 내용 추가
-    if (!isSeparator) {
+    if (!isSeparator && !(shouldSplit && trimmedLine === '')) {
       currentSegment.push(line);
     }
   }
