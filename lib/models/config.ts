@@ -713,8 +713,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isActivated: true,
     isAgentEnabled: true,
     contextWindow: 131072,
-    // latency: 3.8,
-    // tps: 574,
+    latency: 4.2,
+    tps: 491,
     // intelligenceIndex: 61,
   },
   // openai/gpt-oss-20b
@@ -735,8 +735,8 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     isActivated: true,
     isAgentEnabled: true,
     contextWindow: 131072,
-    // latency: 2,
-    // tps: 1152,
+    latency: 2,
+    tps: 1119,
     // intelligenceIndex: 49,
   },
   // Kimi K2
