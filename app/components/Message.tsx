@@ -2,6 +2,7 @@ import { MarkdownContent } from './MarkdownContent'
 import { ExtendedMessage } from '../chat/[id]/types'
 import { Attachment } from '@/lib/types'
 import React, { memo, useCallback, useState, useEffect, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 
 import { AttachmentPreview } from './Attachment'
 import { DragDropOverlay } from './ChatInput/DragDropOverlay'; 
@@ -712,6 +713,14 @@ const Message = memo(function MessageComponent({
   // 모바일 여부 확인
   const [isMobile, setIsMobile] = useState(false);
   
+  // 롱프레스 관련 상태 추가
+  const [longPressActive, setLongPressActive] = useState(false);
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
+  const [touchStartTime, setTouchStartTime] = useState<number>(0);
+  const [touchStartY, setTouchStartY] = useState<number>(0);
+  const [isLongPressActive, setIsLongPressActive] = useState(false);
+  const [bubbleViewportRect, setBubbleViewportRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  
   useEffect(() => {
     const checkIfMobile = () => {
       setIsMobile(window.innerWidth < 640); // sm breakpoint
@@ -721,6 +730,119 @@ const Message = memo(function MessageComponent({
     window.addEventListener('resize', checkIfMobile);
     return () => window.removeEventListener('resize', checkIfMobile);
   }, []);
+
+  // 롱프레스 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+      }
+    };
+  }, [longPressTimer]);
+
+  // 롱프레스 활성화 시 버블 위치 계산 및 스크롤 잠금
+  useEffect(() => {
+    if (longPressActive) {
+      if (bubbleRef.current) {
+        const rect = bubbleRef.current.getBoundingClientRect();
+        // 좌측으로 이동하기 위해 left 값을 조정 (말풍선 꼬리 잘림 방지)
+        setBubbleViewportRect({ 
+          top: rect.top, 
+          left: Math.max(8, rect.left - (rect.width * 0.025)), // 2.5% 좌측 이동, 최소 8px 여백
+          width: rect.width, 
+          height: rect.height 
+        });
+      }
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      const handleScrollCancel = () => {
+        setLongPressActive(false);
+        setIsLongPressActive(false);
+        setBubbleViewportRect(null);
+      };
+      window.addEventListener('scroll', handleScrollCancel, { passive: true });
+      window.addEventListener('resize', handleScrollCancel);
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        window.removeEventListener('scroll', handleScrollCancel);
+        window.removeEventListener('resize', handleScrollCancel);
+      };
+    } else {
+      setBubbleViewportRect(null);
+    }
+  }, [longPressActive]);
+
+  // 터치 시작 핸들러
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!isMobile || !isUser) return;
+    
+    e.preventDefault();
+    setTouchStartTime(Date.now());
+    setTouchStartY(e.touches[0].clientY);
+    setIsLongPressActive(false);
+    
+    // 롱프레스 타이머 시작 (500ms)
+    const timer = setTimeout(() => {
+      setLongPressActive(true);
+      setIsLongPressActive(true);
+    }, 500);
+    
+    setLongPressTimer(timer);
+  };
+
+  // 터치 종료 핸들러
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!isMobile || !isUser) return;
+    
+    e.preventDefault();
+    
+    // 타이머 정리
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+    
+    const touchEndTime = Date.now();
+    const touchDuration = touchEndTime - touchStartTime;
+    
+    // 롱프레스가 활성화된 상태에서는 일반 클릭 방지
+    if (isLongPressActive) {
+      return;
+    }
+    
+    // 짧은 터치인 경우 일반 클릭으로 처리 (아무것도 하지 않음)
+    if (touchDuration < 500 && !longPressActive) {
+      // 일반 클릭은 아무것도 하지 않음
+    }
+    
+    // 롱프레스 상태 초기화
+    setLongPressActive(false);
+    setIsLongPressActive(false);
+  };
+
+  // 터치 이동 핸들러 (스크롤 방지)
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isMobile || !isUser) return;
+    
+    const currentY = e.touches[0].clientY;
+    const deltaY = Math.abs(currentY - touchStartY);
+    
+    // 수직 이동이 10px 이상이면 롱프레스 취소
+    if (deltaY > 10) {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        setLongPressTimer(null);
+      }
+      setLongPressActive(false);
+      setIsLongPressActive(false);
+    }
+  };
+
+  // 롱프레스 취소 핸들러
+  const handleLongPressCancel = () => {
+    setLongPressActive(false);
+    setIsLongPressActive(false);
+  };
 
   // 메시지가 긴지 또는 파일이 있는지 확인
   const isLongOrHasFiles = useMemo(() => {
@@ -1093,7 +1215,19 @@ const Message = memo(function MessageComponent({
                     ));
                   })()}
                   {(hasTextContent) && (
-                    <div className="imessage-send-bubble" ref={bubbleRef}>
+                    <div 
+                      className="imessage-send-bubble" 
+                      ref={bubbleRef}
+                      onTouchStart={handleTouchStart}
+                      onTouchEnd={handleTouchEnd}
+                      onTouchMove={handleTouchMove}
+                      style={{
+                        WebkitTapHighlightColor: 'transparent',
+                        WebkitTouchCallout: 'none',
+                        WebkitUserSelect: 'none',
+                        userSelect: 'none'
+                      }}
+                    >
                       <UserMessageContent 
                         content={
                           hasContent 
@@ -1108,11 +1242,29 @@ const Message = memo(function MessageComponent({
                     {formatMessageTime((message as any).createdAt || new Date())}
                   </div>
                 </div>
-                <div className="flex justify-end mt-2 gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
+                {/* 편집 버튼들 - 데스크탑 호버 시 표시, 모바일 롱프레스 시 표시 */}
+                <div className={`flex justify-end mt-2 gap-2 transition-opacity duration-300 ${
+                  isMobile 
+                    ? (longPressActive ? 'opacity-100' : 'opacity-0') 
+                    : 'opacity-0 md:group-hover:opacity-100'
+                }`}>
                   <button
-                    onClick={handleEditStartClick}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleEditStartClick();
+                      if (isMobile) {
+                        handleLongPressCancel();
+                      }
+                    }}
                     className="imessage-control-btn"
                     title="Edit message"
+                    style={{
+                      WebkitTapHighlightColor: 'transparent',
+                      WebkitTouchCallout: 'none',
+                      WebkitUserSelect: 'none',
+                      userSelect: 'none'
+                    }}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
@@ -1120,9 +1272,22 @@ const Message = memo(function MessageComponent({
                     </svg>
                   </button>
                   <button
-                    onClick={() => onCopy(message)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onCopy(message);
+                      if (isMobile) {
+                        handleLongPressCancel();
+                      }
+                    }}
                     className={`imessage-control-btn ${isCopied ? 'copied' : ''}`}
                     title={isCopied ? "Copied!" : "Copy message"}
+                    style={{
+                      WebkitTapHighlightColor: 'transparent',
+                      WebkitTouchCallout: 'none',
+                      WebkitUserSelect: 'none',
+                      userSelect: 'none'
+                    }}
                   >
                     {isCopied ? (
                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1135,6 +1300,29 @@ const Message = memo(function MessageComponent({
                       </svg>
                     )}
                   </button>
+                  {/* 모바일에서만 취소 버튼 표시 */}
+                  {isMobile && longPressActive && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleLongPressCancel();
+                      }}
+                      className="imessage-control-btn text-gray-500 hover:text-gray-700"
+                      title="Cancel"
+                      style={{
+                        WebkitTapHighlightColor: 'transparent',
+                        WebkitTouchCallout: 'none',
+                        WebkitUserSelect: 'none',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -1265,6 +1453,98 @@ const Message = memo(function MessageComponent({
             <TypingIndicator variant="compact" />
           </div>
         </div>
+      )}
+      {/* 롱프레스 오버레이: 전체 화면 블러 + 포커스된 메시지 클론 */}
+      {longPressActive && bubbleViewportRect && createPortal(
+        <div 
+          className="fixed inset-0 z-[9999]"
+          role="dialog"
+          aria-modal="true"
+        >
+          {/* 블러 레이어 (배경 전체) */}
+          <div 
+            className="absolute inset-0 bg-black/20 backdrop-blur-md"
+            onClick={handleLongPressCancel}
+          />
+
+          {/* 포커스된 메시지 클론 (원래 위치에 살짝 확대) */}
+          <div
+            className="absolute"
+            style={{
+              top: `${bubbleViewportRect.top}px`,
+              left: `${bubbleViewportRect.left}px`,
+              width: `${bubbleViewportRect.width}px`,
+              // height는 내용에 맞춰 자동
+              transform: 'scale(1.05)',
+              transformOrigin: 'top left',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 메시지 버블 복제 */}
+            <div className="imessage-send-bubble" style={{ boxShadow: '0 12px 32px rgba(0,0,0,0.35)' }}>
+              <UserMessageContent 
+                content={
+                  hasContent 
+                    ? processedContent 
+                    : (processedParts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n') || '')
+                }
+                searchTerm={searchTerm}
+              />
+            </div>
+            {/* 버튼 클론 (원래와 동일 동작) - 모바일에서는 X 버튼 제거 */}
+            <div className="flex justify-end mt-2 gap-2 opacity-100 transition-opacity duration-300">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleEditStartClick();
+                  handleLongPressCancel();
+                }}
+                className="imessage-control-btn"
+                title="Edit message"
+                style={{
+                  WebkitTapHighlightColor: 'transparent',
+                  WebkitTouchCallout: 'none',
+                  WebkitUserSelect: 'none',
+                  userSelect: 'none'
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onCopy(message);
+                  handleLongPressCancel();
+                }}
+                className={`imessage-control-btn ${isCopied ? 'copied' : ''}`}
+                title={isCopied ? "Copied!" : "Copy message"}
+                style={{
+                  WebkitTapHighlightColor: 'transparent',
+                  WebkitTouchCallout: 'none',
+                  WebkitUserSelect: 'none',
+                  userSelect: 'none'
+                }}
+              >
+                {isCopied ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20,6 9,17 4,12"/>
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>,
+        typeof window !== 'undefined' ? document.body : (null as any)
       )}
     </div>
   );
