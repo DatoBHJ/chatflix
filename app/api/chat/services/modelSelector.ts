@@ -593,7 +593,7 @@ function selectModelBasedOnAnalysis(
         if (analysis.complexity === 'complex') {
           return 'gemini-2.5-pro'; // gemini 2.5 pro
         } else { // simple/medium
-          return 'gpt-4.1'; // gpt-4.1
+          return 'gemini-2.5-flash'; // gemini 2.5 flash
         }
       } else {
         // 비멀티모달 + 코딩: 복잡도에 따라 모델 선택
@@ -676,8 +676,8 @@ function selectModelBasedOnAnalysis(
     else {
       // 기타 카테고리
       if (modelType === 'chatflix-ultimate-pro') {
-        // Pro 버전: 모든 복잡도 claude-sonnet-4
-        return 'claude-sonnet-4-20250514';
+        // Pro 버전: 모든 복잡도 deepseek-chat
+        return 'deepseek-chat';
       } else {
         // 일반 버전: 모든 복잡도 gemini-2.5-flash
         return 'gemini-2.5-flash';
