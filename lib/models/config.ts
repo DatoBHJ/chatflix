@@ -741,10 +741,10 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   },
   // Kimi K2
   {
-    id: 'moonshotai/kimi-k2-instruct',
-    name: 'Kimi K2',
+    id: 'moonshotai/kimi-k2-instruct-0905',
+    name: 'Kimi K2 0905',
     // cutoff: 'Dec 2023',
-    abbreviation: 'K2',
+    abbreviation: 'K2-0905',
     country: 'US',
     description: 'Developed by Moonshot AI, powered by Groq',
     provider: 'groq',
@@ -752,16 +752,17 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level2',
     },
+    isNew: true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
     isAgentEnabled: true,
-    contextWindow: 131072,
+    contextWindow: 256000,
     latency: 0.3,
-    tps: 340,
+    tps: 343,
     intelligenceIndex: 50,
-    IFBench:42,
-    maxOutputTokens: 16384,
+    // IFBench:42,
+    // maxOutputTokens: 16384,
   },    
   // Kimi K2 
   // {
