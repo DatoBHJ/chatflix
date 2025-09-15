@@ -456,10 +456,6 @@ export async function POST(req: Request): Promise<Response> {
             }
           );
 
-          console.log('--------------------------------');
-          console.log('🔧 [AGENT SYSTEM PROMPT]', agentSystemPrompt);
-          console.log('--------------------------------');
-
           // 도구 호출이 있는 경우 텍스트 응답을 조건부로 처리
           const textResponsePromise = streamText({
             model: providers.languageModel(toolExecutionModel),
