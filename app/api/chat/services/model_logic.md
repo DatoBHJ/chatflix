@@ -21,7 +21,9 @@ Gemini 2.0 Flash로 분석:
 | **멀티모달 + 단순** | `gpt-4.1` | `claude-sonnet-4` |
 | **멀티모달 + 중간** | `gpt-4.1` | `gemini-2.5-pro` |
 | **멀티모달 + 복잡** | `gemini-2.5-pro` | `gemini-2.5-pro` |
-| **비멀티모달 + 모든 복잡도** | `gemini-2.5-flash` | `gemini-2.5-flash` (단순), `claude-sonnet-4` (중간), `claude-sonnet-4-thinking` (복잡) |
+| **비멀티모달 + 단순** | `grok-code-fast-1` | `grok-code-fast-1` |
+| **비멀티모달 + 중간** | `gemini-2.5-flash` | `claude-sonnet-4` |
+| **비멀티모달 + 복잡** | `gemini-2.5-flash` | `claude-sonnet-4-thinking` |
 
 #### **🖼️ 이미지 포함**
 
@@ -162,7 +164,7 @@ contextInfo: {
 
 | 구분 | Chatflix Ultimate | Chatflix Ultimate Pro |
 |------|-------------------|----------------------|
-| **코딩 (비멀티모달)** | 모든 복잡도 `gemini-2.5-flash` | 단순 `gemini-2.5-flash`, 중간 `claude-sonnet-4`, 복잡 `claude-sonnet-4-thinking` |
+| **코딩 (비멀티모달)** | 단순 `grok-code-fast-1`, 중간/복잡 `gemini-2.5-flash` | 단순 `grok-code-fast-1`, 중간 `claude-sonnet-4`, 복잡 `claude-sonnet-4-thinking` |
 | **기타 (비멀티모달)** | 모든 복잡도 `gemini-2.5-flash` | 모든 복잡도 `claude-sonnet-4` |
 | **Math (비멀티모달)** | 모든 복잡도 `grok-4-0709` | 모든 복잡도 `grok-4-0709` |
 | **Technical (비멀티모달)** | 모든 복잡도 `gemini-2.5-flash` | 단순 `gemini-2.5-flash`, 중간/복잡 `claude-sonnet-4` |
@@ -174,7 +176,7 @@ contextInfo: {
 
 ```text
 예시 1: 긴 코드 리뷰 요청 (코드 파일 첨부)
-1차 선택: gpt-4.1 (1M+ 컨텍스트) - Coding 카테고리, 비멀티모달
+1차 선택: gpt-4.1 (1M+ 컨텍스트) - Coding 카테고리, 멀티모달
 컨텍스트 계산: 
   - 입력: 2K 토큰
   - 히스토리: 50K 토큰  
@@ -183,6 +185,16 @@ contextInfo: {
   - 안전 마진: 0.7 (첨부파일 무거움)
   - 필요 컨텍스트: (2K + 50K + 3K + 3K) / 0.7 ≈ 83K
 결과: 그대로 사용 (1M+ >= 83K, 충분한 컨텍스트)
+
+예시 1-2: 단순 코딩 질문 (비멀티모달)
+1차 선택: grok-code-fast-1 - Coding 카테고리, 단순 복잡도, 비멀티모달
+컨텍스트 계산:
+  - 입력: 500 토큰
+  - 히스토리: 5K 토큰
+  - 예상 출력: 1K 토큰 (단순 코딩 답변)
+  - 안전 마진: 0.85 (첨부파일 없음)
+  - 필요 컨텍스트: (500 + 5K + 1K) / 0.85 ≈ 7.6K
+결과: 그대로 사용 (grok-code-fast-1 컨텍스트 >= 7.6K, 충분한 컨텍스트)
 
 예시 2: 수학 문제 풀이 (중간 복잡도)
 1차 선택: grok-4-0709 (1M+ 컨텍스트) - Math 카테고리, 비멀티모달
