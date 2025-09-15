@@ -285,9 +285,12 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
       <div className="pl-0 mb-2">
       <div className="pt-4 sm:pt-30 pb-2 sm:pb-2 pr-8 sm:pr-0">
         <div className="flex items-center gap-3">
-          <h2 className={`text-3xl sm:text-3xl md:text-4xl font-semibold tracking-tight ${
-            !messageTitle ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'
-          }`}>
+          <h2
+            className={`text-3xl sm:text-3xl md:text-4xl font-semibold tracking-tight break-keep text-balance ${
+              !messageTitle ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'
+            }`}
+            style={{ wordBreak: 'keep-all' }}
+          >
             {derivedTitle}
           </h2>
         </div>
