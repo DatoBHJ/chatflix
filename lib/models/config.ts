@@ -960,7 +960,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     cutoff: 'July 2024',
     abbreviation: 'EXAONE-3.5-32B',
     country: 'Korea',
-    description: 'Developed by LG, powered by TogetherAI',
+    description: 'A fast bilingual Korean-English model. Developed by LG, powered by TogetherAI',
     provider: 'together',
     supportsVision: false,
     rateLimit: {
