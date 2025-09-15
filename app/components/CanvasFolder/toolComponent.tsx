@@ -188,6 +188,9 @@ export const ImageWithLoading = memo(function ImageWithLoadingComponent({
     // Animation effect for loading simulation
     const [loadingTime, setLoadingTime] = useState(0);
     
+    // pollination 이미지인지 확인
+    const isPollinationImage = src && typeof src === 'string' && src.includes('image.pollinations.ai');
+    
     // Simulate progress when loading starts
     useEffect(() => {
       if (!isLoaded && !error) {
@@ -227,50 +230,72 @@ export const ImageWithLoading = memo(function ImageWithLoadingComponent({
       <div className="relative w-full">
         {!isLoaded && !error && (
           <div className="bg-[var(--accent)] animate-pulse rounded-lg overflow-hidden" style={{ aspectRatio: "16/9" }}>
-            {/* Skeleton loading effect */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-              {/* Image loading icon */}
-              <svg 
-                className="w-12 h-12 text-[var(--muted)] mb-2 animate-spin" 
-                fill="none" 
-                strokeWidth="1.5" 
-                viewBox="0 0 24 24" 
-                stroke="currentColor"
-                style={{ animationDuration: '2s' }}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-              </svg>
-              
-              {/* Loading text - Changed from p to span to avoid nesting issues */}
-              <span className="text-[var(--muted)] text-sm font-medium block">
-                Loading image... {loadingProgress}%
-              </span>
-              
-              {/* Loading progress indicator - Avoid div inside p issue */}
-              <span className="w-3/4 h-1.5 bg-[var(--muted)] bg-opacity-20 rounded-full mt-3 overflow-hidden block">
-                <span 
-                  className="h-full bg-[var(--muted)] rounded-full transition-all duration-300 ease-out block"
-                  style={{ width: `${loadingProgress}%` }}
-                ></span>
-              </span>
-              
-              {/* Image description display (if available) */}
-              {alt && (
-                <span className="mt-3 text-xs text-[var(--muted)] italic opacity-70 block">
-                  {alt}
-                </span>
-              )}
-            </div>
-            
-            {/* Background pattern */}
-            <div className="absolute inset-0 opacity-5">
-              <div className="h-full w-full" 
-                style={{ 
-                  backgroundImage: 'radial-gradient(var(--muted) 1px, transparent 1px)', 
-                  backgroundSize: '20px 20px' 
-                }}>
+            {isPollinationImage ? (
+              // AI 이미지 생성용 완전 미니멀 로딩 UI
+              <div className="absolute inset-0 bg-[var(--accent)] flex flex-col items-center justify-center p-6">
+                <div className="flex flex-col items-center space-y-4">
+                  {/* 미니멀한 회전 애니메이션만 */}
+                  <div className="w-6 h-6 border border-[color-mix(in_srgb,var(--foreground)_20%,transparent)] border-t-[var(--foreground)] rounded-full animate-spin"></div>
+                  
+                  {/* 미니멀한 로딩 텍스트 */}
+                  <div className="text-center space-y-1">
+                    <div className="text-[var(--foreground)] font-medium text-sm">
+                      Creating image
+                    </div>
+                    <div className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)] text-xs">
+                      This may take a moment
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              // 일반 검색 이미지용 기존 로딩 UI
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
+                {/* Image loading icon */}
+                <svg 
+                  className="w-12 h-12 text-[var(--muted)] mb-2 animate-spin" 
+                  fill="none" 
+                  strokeWidth="1.5" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                  style={{ animationDuration: '2s' }}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                </svg>
+                
+                {/* Loading text - Changed from p to span to avoid nesting issues */}
+                <span className="text-[var(--muted)] text-sm font-medium block">
+                  Loading image... {loadingProgress}%
+                </span>
+                
+                {/* Loading progress indicator - Avoid div inside p issue */}
+                <span className="w-3/4 h-1.5 bg-[var(--muted)] bg-opacity-20 rounded-full mt-3 overflow-hidden block">
+                  <span 
+                    className="h-full bg-[var(--muted)] rounded-full transition-all duration-300 ease-out block"
+                    style={{ width: `${loadingProgress}%` }}
+                  ></span>
+                </span>
+                
+                {/* Image description display (if available) */}
+                {alt && (
+                  <span className="mt-3 text-xs text-[var(--muted)] italic opacity-70 block">
+                    {alt}
+                  </span>
+                )}
+              </div>
+            )}
+            
+            {/* Background pattern - only for non-AI images */}
+            {!isPollinationImage && (
+              <div className="absolute inset-0 opacity-5">
+                <div className="h-full w-full" 
+                  style={{ 
+                    backgroundImage: 'radial-gradient(var(--muted) 1px, transparent 1px)', 
+                    backgroundSize: '20px 20px' 
+                  }}>
+                </div>
+              </div>
+            )}
           </div>
         )}
         

@@ -1,8 +1,42 @@
 /**
- * 토큰 수 추정 함수
+ * 토큰 수 추정 함수 - 서버 사이드에서는 tiktoken, 클라이언트에서는 추정
  */
-export function estimateTokenCount(text: string): number {
-  // 대략적인 토큰 수 계산 (영어 기준 4자당 1토큰, 한글은 1-2자당 1토큰)
+export function estimateTokenCount(text: string, model: string = 'gpt-4'): number {
+  if (!text || text.length === 0) {
+    return 0;
+  }
+
+  // 서버 사이드에서만 tiktoken 사용 (Node.js 환경)
+  if (typeof window === 'undefined') {
+    try {
+      // 동적 import로 tiktoken 로드 (서버 사이드에서만)
+      const { encoding_for_model } = require('tiktoken');
+      
+      // 1단계: 기본 모델로 시도
+      try {
+        const encoding = encoding_for_model(model as any);
+        const tokens = encoding.encode(text);
+        return tokens.length;
+      } catch (error) {
+        console.warn(`tiktoken failed for model ${model}, trying gpt-4:`, error);
+        
+        // 2단계: gpt-4로 시도
+        try {
+          const encoding = encoding_for_model('gpt-4' as any);
+          const tokens = encoding.encode(text);
+          return tokens.length;
+        } catch (error2) {
+          console.warn('tiktoken failed for gpt-4, using fallback estimation:', error2);
+          // 3단계로 진행
+        }
+      }
+    } catch (importError) {
+      console.warn('tiktoken import failed, using fallback estimation:', importError);
+      // 3단계로 진행
+    }
+  }
+
+  // 3단계: 옛날 방식 (텍스트 길이 기반 추정) - 클라이언트 사이드 또는 tiktoken 실패 시
   const isMainlyKorean = /[\uAC00-\uD7AF]/.test(text) && 
                          (text.match(/[\uAC00-\uD7AF]/g)?.length || 0) / text.length > 0.3;
   
@@ -30,18 +64,37 @@ export interface Message {
 
 // 🆕 개선된 멀티모달 토큰 추정 함수 (실제 토큰 사용량 우선 사용)
 export function estimateMultiModalTokens(msg: Message): number {
-  // 🆕 새로운 token_usage 칼럼에서 실제 토큰 사용량 우선 확인
-  if ((msg as any).token_usage?.totalTokens) {
-    const actualTokens = (msg as any).token_usage.totalTokens;
-    return actualTokens;
+  // 🆕 새로운 token_usage 구조에서 실제 토큰 사용량 우선 확인
+  if ((msg as any).token_usage) {
+    const tokenUsage = (msg as any).token_usage;
+    
+    // usage와 totalUsage 분리 저장 구조에 맞게 처리
+    if (tokenUsage.totalUsage?.totalTokens) {
+      return tokenUsage.totalUsage.totalTokens;
+    } else if (tokenUsage.usage?.totalTokens) {
+      return tokenUsage.usage.totalTokens;
+    } else if (tokenUsage.totalTokens) {
+      // 기존 단일 구조 호환성
+      return tokenUsage.totalTokens;
+    }
   }
 
   // 🆕 백워드 호환성: 기존 tool_results에서도 확인 (마이그레이션 전 데이터)
-  if ((msg as any).tool_results?.token_usage?.totalTokens) {
-    const actualTokens = (msg as any).tool_results.token_usage.totalTokens;
-    return actualTokens;
+  if ((msg as any).tool_results?.token_usage) {
+    const tokenUsage = (msg as any).tool_results.token_usage;
+    
+    if (tokenUsage.totalUsage?.totalTokens) {
+      return tokenUsage.totalUsage.totalTokens;
+    } else if (tokenUsage.usage?.totalTokens) {
+      return tokenUsage.usage.totalTokens;
+    } else if (tokenUsage.totalTokens) {
+      return tokenUsage.totalTokens;
+    }
   }
   
+  // 🔧 실제 토큰 사용량이 없는 경우에만 예측 로직 사용 (백업용)
+  // 실제 토큰 사용량을 우선 사용하므로 이 부분은 거의 사용되지 않음
+  /*
   let total = 0;
 
   // v5 parts 우선 처리
@@ -118,6 +171,10 @@ export function estimateMultiModalTokens(msg: Message): number {
   }
   
   return total;
+  */
+  
+  // 🔧 실제 토큰 사용량이 없는 경우 기본값 반환 (예측 로직 대신)
+  return 0;
 }
 
 // 파일 타입별 토큰 추정 함수

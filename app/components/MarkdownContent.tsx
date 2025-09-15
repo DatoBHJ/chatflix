@@ -13,6 +13,7 @@ import dynamic from 'next/dynamic';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight, ExternalLink, Play } from 'lucide-react';
 import { LinkPreview } from './LinkPreview';
+import { highlightSearchTerm, highlightSearchTermInChildren } from '@/app/utils/searchHighlight';
 
 // Dynamically import DynamicChart for client-side rendering
 const DynamicChart = dynamic(() => import('./charts/DynamicChart'), {
@@ -219,6 +220,7 @@ interface MarkdownContentProps {
   variant?: 'default' | 'clean'; // 'clean'은 배경색 없는 버전
   searchTerm?: string | null; // 🚀 FEATURE: Search term for highlighting
   isReasoningSection?: boolean; // ReasoningSection에서만 메시지 형식 완전 제거
+  messageType?: 'user' | 'assistant' | 'default'; // 🚀 FEATURE: Message type for different highlight colors
 }
 
 // 더 적극적으로 마크다운 구조를 분할하는 함수 - 구분선(---)을 기준으로 메시지 그룹 분할
@@ -581,14 +583,35 @@ const ImageWithLoading = memo(function ImageWithLoadingComponent({
   }
   
   return (
-         <div className="relative w-full">
+    <div className="relative w-full">
       {!isLoaded && !error && (
         <div className="text-[var(--muted)] text-sm py-2">
-          <div className="typing-indicator-compact">
-            <div className="typing-dot-compact"></div>
-            <div className="typing-dot-compact"></div>
-            <div className="typing-dot-compact"></div>
-          </div>
+          {isPollinationImage ? (
+            // AI 이미지 생성용 완전 미니멀 로딩 UI
+            <div className="bg-[var(--accent)] rounded-2xl p-6 border border-[color-mix(in_srgb,var(--foreground)_4%,transparent)]">
+              <div className="flex flex-col items-center space-y-4">
+                {/* 미니멀한 회전 애니메이션만 */}
+                <div className="w-6 h-6 border border-[color-mix(in_srgb,var(--foreground)_20%,transparent)] border-t-[var(--foreground)] rounded-full animate-spin"></div>
+                
+                {/* 미니멀한 로딩 텍스트 */}
+                <div className="text-center space-y-1">
+                  <div className="text-[var(--foreground)] font-medium text-sm">
+                    Creating image
+                  </div>
+                  <div className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)] text-xs">
+                    This may take a moment
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // 일반 검색 이미지용 기존 로딩 UI
+            <div className="typing-indicator-compact">
+              <div className="typing-dot-compact"></div>
+              <div className="typing-dot-compact"></div>
+              <div className="typing-dot-compact"></div>
+            </div>
+          )}
         </div>
       )}
       
@@ -806,38 +829,6 @@ const InlineMath = ({ content }: { content: string }) => {
   );
 };
 
-// 🚀 FEATURE: Search term highlighting function
-const highlightSearchTerm = (text: string, term: string | null) => {
-  if (!term || !term.trim() || !text) return text;
-
-  // Split search term into words and escape for regex
-  const searchWords = term.trim().toLowerCase().split(/\s+/).filter(word => word.length > 0);
-  const escapedWords = searchWords.map(word =>
-    word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  );
-  
-  if (escapedWords.length === 0) return text;
-
-  const regex = new RegExp(`(${escapedWords.join('|')})`, 'giu');
-  const parts = text.split(regex);
-
-  return parts.map((part, index) => {
-    // Check if the part matches any of the search words (case-insensitive)
-    const isMatch = escapedWords.some(word => new RegExp(`^${word}$`, 'i').test(part));
-    
-    if (isMatch) {
-      return (
-        <span
-          key={index}
-          className="px-0.5 rounded bg-[#007AFF]/20 text-[#007AFF] font-medium"
-        >
-          {part}
-        </span>
-      );
-    }
-    return part;
-  });
-};
 
 // Memoize the MarkdownContent component to prevent unnecessary re-renders
 export const MarkdownContent = memo(function MarkdownContentComponent({ 
@@ -845,7 +836,8 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   enableSegmentation = false,
   variant = 'default',
   searchTerm = null,
-  isReasoningSection = false
+  isReasoningSection = false,
+  messageType = 'default'
 }: MarkdownContentProps) {
 
   // Image modal state
@@ -1065,7 +1057,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       // Process text content to detect image generation links
       if (typeof children === 'string') {
         // 🚀 FEATURE: Apply search term highlighting first
-        const highlightedContent = highlightSearchTerm(children, searchTerm);
+        const highlightedContent = highlightSearchTerm(children, searchTerm, { messageType });
         
         // Handle image markdown pattern
         const pollinationsRegex = /!\[([^\]]*)\]\((https:\/\/image\.pollinations\.ai\/[^)]+)\)/g;
@@ -1130,10 +1122,10 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           const elements = processedContent.map((part, index) => {
             if (typeof part === 'string') {
               // 🚀 FEATURE: Apply search term highlighting to text parts
-              const highlightedPart = highlightSearchTerm(part, searchTerm);
-              return <span key={index}>
-                {Array.isArray(highlightedPart) ? highlightedPart : highlightedPart}
-              </span>;
+                  const highlightedPart = highlightSearchTerm(part, searchTerm, { messageType });
+                  return <span key={index}>
+                    {highlightedPart}
+                  </span>;
             } else if (part && typeof part === 'object' && 'type' in part) {
               if (part.type === 'image_link' && 'display' in part) {
                 return (
@@ -1177,12 +1169,14 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
         
         // For regular text, just render
         return <p className="my-3 leading-relaxed break-words" {...props}>
-          {Array.isArray(highlightedContent) ? highlightedContent : highlightedContent}
+          {highlightedContent}
         </p>;
       }
       
-      // If children is not a string, render as-is
-      return <p className="my-3 leading-relaxed break-words" {...props}>{children}</p>;
+      // If children is not a string, apply highlighting to children
+      return <p className="my-3 leading-relaxed break-words" {...props}>
+        {highlightSearchTermInChildren(children, searchTerm, { messageType })}
+      </p>;
     },
     img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
       // Agent 도구에서 생성된 이미지 URL을 처리합니다
@@ -1658,17 +1652,21 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     },
     th: ({ children, ...props }) => (
       <th className="table-header bg-[var(--accent)] font-medium text-[var(--muted)] uppercase tracking-wider p-2 sm:p-3 border border-[var(--accent)] text-left min-w-0" {...props}>
-        <div className="break-words text-sm sm:text-base">{children}</div>
+        <div className="break-words text-sm sm:text-base">
+          {highlightSearchTermInChildren(children, searchTerm, { messageType })}
+        </div>
       </th>
     ),
     td: ({ children, ...props }) => (
       <td className="table-cell p-2 sm:p-3 border border-[var(--accent)] min-w-0" {...props}>
-        <div className="break-words text-sm sm:text-base">{children}</div>
+        <div className="break-words text-sm sm:text-base">
+          {highlightSearchTermInChildren(children, searchTerm, { messageType })}
+        </div>
       </td>
     ),
     blockquote: ({ children, ...props }) => (
       <blockquote className="border-l-2 border-[var(--muted)] pl-4 my-6 text-[var(--muted)] italic" {...props}>
-        {children}
+        {highlightSearchTermInChildren(children, searchTerm, { messageType })}
       </blockquote>
     ),
     ul: ({ children, ...props }) => {
@@ -1728,7 +1726,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
         listStylePosition: 'outside',
         paddingLeft: '0.25rem'
       }} {...props}>
-        {children}
+        {highlightSearchTermInChildren(children, searchTerm, { messageType })}
         <style jsx>{`
           li ul, li ol {
             padding-left: 0.5rem !important;
@@ -1737,25 +1735,39 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       </li>
     ),
     h1: ({ children, ...props }) => (
-      <h1 className="text-2xl font-bold mt-8 mb-4 break-words" {...props}>{children}</h1>
+      <h1 className="text-2xl font-bold mt-8 mb-4 break-words" {...props}>
+        {highlightSearchTermInChildren(children, searchTerm, { messageType })}
+      </h1>
     ),
     h2: ({ children, ...props }) => (
-      <h2 className="text-xl font-bold mt-6 mb-3 break-words" {...props}>{children}</h2>
+      <h2 className="text-xl font-bold mt-6 mb-3 break-words" {...props}>
+        {highlightSearchTermInChildren(children, searchTerm, { messageType })}
+      </h2>
     ),
     h3: ({ children, ...props }) => (
-      <h3 className="text-lg font-bold mt-5 mb-2 break-words" {...props}>{children}</h3>
+      <h3 className="text-lg font-bold mt-5 mb-2 break-words" {...props}>
+        {highlightSearchTermInChildren(children, searchTerm, { messageType })}
+      </h3>
     ),
     strong: ({ children, ...props }) => (
-      <strong className="font-bold" {...props}>{children}</strong>
+      <strong className="font-bold" {...props}>
+        {highlightSearchTermInChildren(children, searchTerm, { messageType })}
+      </strong>
     ),
     em: ({ children, ...props }) => (
-      <em className="italic" {...props}>{children}</em>
+      <em className="italic" {...props}>
+        {highlightSearchTermInChildren(children, searchTerm, { messageType })}
+      </em>
     ),
     b: ({ children, ...props }) => (
-      <b className="font-bold" {...props}>{children}</b>
+      <b className="font-bold" {...props}>
+        {highlightSearchTermInChildren(children, searchTerm, { messageType })}
+      </b>
     ),
     i: ({ children, ...props }) => (
-      <i className="italic" {...props}>{children}</i>
+      <i className="italic" {...props}>
+        {highlightSearchTermInChildren(children, searchTerm, { messageType })}
+      </i>
     ),
     math: ({ value, inline }: MathProps) => {
       // For block math, use the dedicated wrapper component

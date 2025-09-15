@@ -15,7 +15,6 @@ import { SidePanel } from '@/app/components/SidePanel';
 import { ChatInputArea } from '@/app/components/ChatInputArea';
 import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getXSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData } from '@/app/hooks/toolFunction';
 import { Annotation } from '@/app/lib/messageUtils';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { nanoid } from 'nanoid';
 import { SuggestedPrompt } from '@/app/components/SuggestedPrompt/SuggestedPrompt';
 import { useHomeStarryNight } from '@/app/hooks/useHomeStarryNight';
@@ -70,7 +69,7 @@ function HomeView({
       {isDarkMode && isStarryNightEnabled && isMouseIdle && <StarryNightBackground />}
       
       {/* Header is positioned fixed, so content area starts from the top */}
-      <div className="flex-1 pt-[45px] sm:pt-[45px] flex flex-col min-h-0">
+      <div className="flex-1 pt-[45px] sm:pt-[32px] flex flex-col min-h-0">
         {/* 주 컨텐츠 영역 - Mobile/Desktop Responsive */}
         {/* Mobile Layout */}
         <div className="flex flex-col sm:hidden min-h-0 flex-1">
@@ -219,7 +218,9 @@ function ChatView({
   globalShowVideoError,
   searchTerm, // 🚀 FEATURE: Add search term for highlighting
   selectedTool,
-  setSelectedTool
+  setSelectedTool,
+  handleMaximizeToggle,
+  isPanelMaximized
 }: any) {
   
   return (
@@ -234,7 +235,7 @@ function ChatView({
       {!editingMessageId && <DragDropOverlay dragActive={globalDragActive} supportsPDFs={true} />}
       
       {/* Header is positioned fixed, so content area starts from the top */}
-      <div className="flex-1 pt-[45px] sm:pt-[45px] flex flex-col min-h-0">
+      <div className="flex-1 pt-[45px] sm:pt-[32px] flex flex-col min-h-0">
         {/* 주 컨텐츠 영역 - Mobile/Desktop Responsive */}
         {/* Mobile Layout */}
         <div className="flex flex-col sm:hidden min-h-0 flex-1">
@@ -276,56 +277,49 @@ function ChatView({
         
         {/* Desktop Layout */}
         <div className="hidden sm:flex min-h-0 flex-1">
-          <PanelGroup direction="horizontal" className="flex-1">
-            <Panel defaultSize={100} minSize={20} className="flex flex-col">
-              <div className="overflow-y-auto pb-44 flex-1 scrollbar-minimal" ref={messagesContainerRef}>
-                <div className={`${activePanel?.messageId ? 'max-w-none' : 'w-full mx-auto'}`}>
-                  <Messages
-                    messages={messages}
-                    currentModel={currentModel}
-                    isRegenerating={isRegenerating}
-                    editingMessageId={editingMessageId}
-                    editingContent={editingContent}
-                    copiedMessageId={copiedMessageId}
-                    onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, nextModel, reload, isAgentEnabled, selectedTool)}
-                    onCopy={handleCopyMessage}
-                    onEditStart={handleEditStart}
-                    onEditCancel={handleEditCancel}
-                    onEditSave={(messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => handleEditSave(messageId, nextModel, messages, setMessages, reload, isAgentEnabled, files, remainingAttachments, selectedTool)}
-                    setEditingContent={setEditingContent}
-                    chatId={chatId}
-                    isLoading={isLoading}
-                    activePanelMessageId={activePanel?.messageId ?? null}
-                    togglePanel={togglePanel}
-                    user={user}
-                    handleFollowUpQuestionClick={handleFollowUpQuestionClick}
-                    hasCanvasData={hasCanvasData}
-                    isWaitingForToolResults={isWaitingForToolResults}
-                    messagesEndRef={messagesEndRef}
-                    searchTerm={searchTerm} // 🚀 FEATURE: Pass search term for highlighting
-                  />
-                </div>
+          <div className="flex-1 flex flex-col">
+            <div className="overflow-y-auto pb-44 flex-1 scrollbar-minimal" ref={messagesContainerRef}>
+              <div className="w-full mx-auto">
+                <Messages
+                  messages={messages}
+                  currentModel={currentModel}
+                  isRegenerating={isRegenerating}
+                  editingMessageId={editingMessageId}
+                  editingContent={editingContent}
+                  copiedMessageId={copiedMessageId}
+                  onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, nextModel, reload, isAgentEnabled, selectedTool)}
+                  onCopy={handleCopyMessage}
+                  onEditStart={handleEditStart}
+                  onEditCancel={handleEditCancel}
+                  onEditSave={(messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => handleEditSave(messageId, nextModel, messages, setMessages, reload, isAgentEnabled, files, remainingAttachments, selectedTool)}
+                  setEditingContent={setEditingContent}
+                  chatId={chatId}
+                  isLoading={isLoading}
+                  activePanelMessageId={activePanel?.messageId ?? null}
+                  activePanel={activePanel}
+                  togglePanel={togglePanel}
+                  user={user}
+                  handleFollowUpQuestionClick={handleFollowUpQuestionClick}
+                  hasCanvasData={hasCanvasData}
+                  isWaitingForToolResults={isWaitingForToolResults}
+                  messagesEndRef={messagesEndRef}
+                  searchTerm={searchTerm} // 🚀 FEATURE: Pass search term for highlighting
+                />
               </div>
-            </Panel>
-            {activePanel?.messageId && (
-              <>
-                <PanelResizeHandle className="group relative flex w-5 cursor-col-resize items-center justify-center focus:outline-none">
-                  {/* Handle */}
-                  <div className="h-14 w-[8px] rounded-full bg-[var(--accent)] transition-colors group-hover:bg-[var(--muted)]" />
-                </PanelResizeHandle>
-                <Panel defaultSize={50} minSize={20} className="flex flex-col">
-                  <SidePanel
-                    activePanel={activePanel}
-                    messages={messages}
-                    togglePanel={togglePanel}
-                    canvasContainerRef={canvasContainerRef}
-                  />
-                </Panel>
-              </>
-            )}
-          </PanelGroup>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* SidePanel for both mobile and desktop */}
+      <SidePanel
+        activePanel={activePanel}
+        messages={messages}
+        togglePanel={togglePanel}
+        canvasContainerRef={canvasContainerRef}
+        onMaximizeToggle={handleMaximizeToggle}
+        isPanelMaximized={isPanelMaximized}
+      />
 
       <ChatInputArea
         currentModel={currentModel}
@@ -420,6 +414,7 @@ function ChatInterface({
   const [activePanel, setActivePanel] = useState<{ messageId: string; type: 'canvas' | 'structuredResponse' | 'attachment'; fileIndex?: number; toolType?: string; fileName?: string } | null>(null);
   const [userPanelPreference, setUserPanelPreference] = useState<boolean | null>(null);
   const [lastPanelDataMessageId, setLastPanelDataMessageId] = useState<string | null>(null);
+  const [isPanelMaximized, setIsPanelMaximized] = useState(false);
 
   // Track if session has been created to prevent duplicate creation
   const [sessionCreated, setSessionCreated] = useState<boolean>(!!initialChatId);
@@ -1152,16 +1147,26 @@ function ChatInterface({
     }
   };
 
-  // 패널 토글
+  // 패널 토글 - 간단한 열림/닫힘 (전체 화면 모달 방식)
   const togglePanel = (messageId: string, type: 'canvas' | 'structuredResponse' | 'attachment', fileIndex?: number, toolType?: string, fileName?: string) => {
-    if (activePanel?.messageId === messageId && activePanel.type === type && activePanel?.fileIndex === fileIndex && activePanel?.toolType === toolType) {
+    const isSameOpen = activePanel?.messageId === messageId && activePanel.type === type && activePanel?.fileIndex === fileIndex && activePanel?.toolType === toolType;
+    if (isSameOpen) {
+      // 닫기: 즉시 상태 해제
       setActivePanel(null);
       setUserPanelPreference(false);
-    } else {
-      setActivePanel({ messageId, type, fileIndex, toolType, fileName });
-      setUserPanelPreference(true);
+      setIsPanelMaximized(false);
+      return;
     }
+
+    // 열기: 상태 설정
+    setActivePanel({ messageId, type, fileIndex, toolType, fileName });
+    setUserPanelPreference(true);
   };
+
+  // 패널 최대화/복원 토글 핸들러
+  const handleMaximizeToggle = useCallback(() => {
+    setIsPanelMaximized(!isPanelMaximized);
+  }, [isPanelMaximized]);
 
   // 캔버스 데이터 확인
   const hasCanvasData = (message: any) => {
@@ -1211,22 +1216,34 @@ function ChatInterface({
     );
   };
 
-  // 로딩 중인 도구 결과 확인
+  // 로딩 중인 도구 결과 확인 - 실제 도구 데이터 기반으로 판단
   const isWaitingForToolResults = (message: any) => {
     if (message.role === 'assistant' && isLoading && message.id === messages[messages.length - 1]?.id) {
-      if (message.parts) {
-        const hasReasoning = message.parts.some((part: any) => part.type === 'reasoning');
-        const hasText = message.parts.some((part: any) => part.type === 'text');
-        
-        if (hasReasoning && hasText) {
-          return false;
-        }
+      // 1. 도구 호출이 시작되었는지 확인 (tool-call parts가 있는지)
+      const hasToolCalls = message.parts?.some((part: any) => part.type === 'tool-call');
+      
+      if (!hasToolCalls) {
+        return false; // 도구 호출이 없으면 도구 결과 대기 상태가 아님
       }
       
-      const annotations = ((message as any).annotations || []) as Annotation[];
-      const hasStructuredResponse = annotations.some(a => a?.type === 'structured_response');
+      // 2. 도구 결과가 완료되었는지 확인
+      const hasToolResults = message.parts?.some((part: any) => part.type === 'tool-result');
       
-      return !hasStructuredResponse;
+      if (hasToolResults) {
+        return false; // 도구 결과가 있으면 대기 상태가 아님
+      }
+      
+      // 3. 텍스트 응답이 시작되었는지 확인
+      const hasTextStarted = message.parts?.some((part: any) => 
+        part.type === 'text' && (part.text || '').trim().length > 0
+      );
+      
+      if (hasTextStarted) {
+        return false; // 텍스트 응답이 시작되었으면 도구 대기 상태가 아님
+      }
+      
+      // 4. 도구 호출은 있지만 결과나 텍스트 응답이 없는 경우 = 도구 결과 대기 중
+      return true;
     }
     
     return false;
@@ -1328,6 +1345,8 @@ function ChatInterface({
         searchTerm={searchTerm}
         selectedTool={selectedTool}
         setSelectedTool={setSelectedTool}
+        handleMaximizeToggle={handleMaximizeToggle}
+        isPanelMaximized={isPanelMaximized}
       />
     );
   }

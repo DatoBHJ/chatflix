@@ -427,6 +427,7 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
         isHovering || isSidebarOpen 
           ? 'bg-transparent' 
           : 'bg-[var(--accent)] dark:bg-[var(--sidebar-dark)]'
+          // : 'bg-[var(--accent)] dark:bg-[var(--sidebar-dark)]'
       }`}
     >
       <div className="flex justify-between items-center py-1.5 sm:py-1 md:py-0.5 pl-10 sm:pl-4 pr-5 h-10 md:h-8">

@@ -8,10 +8,12 @@ import { DragDropOverlay } from './ChatInput/DragDropOverlay';
 import { 
   getStructuredResponseMainContent, 
   getStructuredResponseDescription, 
+  getStructuredResponseTitle,
   isStructuredResponseInProgress
 } from '@/app/lib/messageUtils';
 import { ModelNameWithLogo, ModelCapabilityBadges } from './ModelInfo'; 
 import { linkifyText } from '../lib/textUtils'
+import { highlightSearchTermInChildren } from '@/app/utils/searchHighlight'
 import { UnifiedInfoPanel } from './UnifiedInfoPanel'
 import { FilesPreview } from './FilePreview/FilesPreview'
 import { EditingFilePreview } from './FilePreview/EditingFilePreview'
@@ -42,6 +44,7 @@ interface MessageProps {
   isWaitingForToolResults?: boolean
   messageHasCanvasData?: boolean
   activePanelMessageId?: string | null
+  activePanel?: { messageId: string; type: string; toolType?: string } | null
   togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse' | 'attachment', fileIndex?: number, toolType?: string, fileName?: string) => void
   isLastMessage?: boolean
   webSearchData?: any
@@ -63,17 +66,29 @@ interface MessageProps {
   searchTerm?: string | null // 🚀 FEATURE: Search term for highlighting
 }
 
-function isReasoningComplete(message: any): boolean {
-  // If there are both reasoning and text parts, then reasoning is complete
+function isReasoningComplete(message: any, isStreaming: boolean): boolean {
   if (message.parts) {
-    const hasReasoning = message.parts.some((part: any) => part.type === 'reasoning');
-    const hasText = message.parts.some((part: any) => part.type === 'text');
+    const reasoningPart = message.parts.find((part: any) => part.type === 'reasoning');
     
-    // Reasoning is complete if there's both a reasoning part and a text part
-    return hasReasoning && hasText;
+    if (!reasoningPart) {
+      return false;
+    }
+    
+    const reasoningText = reasoningPart.reasoningText || reasoningPart.text || '';
+    
+    // 텍스트 응답이 시작되었으면 reasoning 완료
+    const hasTextStarted = message.parts.some((part: any) => 
+      part.type === 'text' && (part.text || '').trim().length > 0
+    );
+    
+    if (hasTextStarted) {
+      return true;
+    }
+    
+    // 스트리밍이 끝났고 reasoning 내용이 충분하면 완료
+    return !isStreaming && reasoningText.trim().length > 20;
   }
   
-  // Default to false if structure isn't as expected
   return false;
 }
 
@@ -82,17 +97,21 @@ interface UserMessageContentProps {
   showGradient?: boolean;
   onClick?: () => void;
   isClickable?: boolean;
+  searchTerm?: string | null;
 }
 
 function UserMessageContent({ 
   content, 
   showGradient, 
   onClick,
-  isClickable 
+  isClickable,
+  searchTerm
 }: UserMessageContentProps) {
-  const processedContent = content.split('\\n').map((line, index, array) => (
+  // content가 undefined이거나 빈 문자열일 때 안전하게 처리
+  const safeContent = content || '';
+  const processedContent = safeContent.split('\\n').map((line, index, array) => (
     <React.Fragment key={index}>
-      {linkifyText(line)}
+      {highlightSearchTermInChildren(linkifyText(line), searchTerm || null, { messageType: 'user' })}
       {index < array.length - 1 && <br />}
     </React.Fragment>
   ));
@@ -133,6 +152,7 @@ const Message = memo(function MessageComponent({
   chatId,
   isStreaming = false,
   isWaitingForToolResults = false,
+  activePanel,
   togglePanel,
   isLastMessage,
   webSearchData,
@@ -157,9 +177,17 @@ const Message = memo(function MessageComponent({
   // Pre-compiled regex for better performance
   const IMAGE_ID_REGEX = useMemo(() => /\[IMAGE_ID:([^\]]+)\]/g, []);
 
-  // Memoized function to replace image placeholders with actual URLs
+  // Memoized function to replace image placeholders with actual URLs - AI SDK v5 호환
   const processedContent = useMemo(() => {
-    const content = message.content;
+    // 1. message.content가 있으면 우선 사용
+    let content = message.content;
+    
+    // 2. message.content가 없으면 parts에서 텍스트 추출
+    if (!content && message.parts && Array.isArray(message.parts)) {
+      const textParts = message.parts.filter((part: any) => part.type === 'text');
+      content = textParts.map((part: any) => part.text || '').join('\n');
+    }
+    
     if (!content) return content;
     
     // Quick check: if no placeholder exists, return original content immediately
@@ -180,7 +208,7 @@ const Message = memo(function MessageComponent({
       // Remove placeholder completely in all other cases
       return '';
     });
-  }, [message.content, imageMap, IMAGE_ID_REGEX]);
+  }, [message.content, message.parts, imageMap, IMAGE_ID_REGEX]);
 
   // Memoized function for parts processing
   const processedParts = useMemo(() => {
@@ -283,9 +311,26 @@ const Message = memo(function MessageComponent({
 
   // Reasoning part state management
   const reasoningPart = message.parts?.find((part: any) => part.type === 'reasoning');
-  const reasoningComplete = isReasoningComplete(message);
+  const reasoningComplete = isReasoningComplete(message, isStreaming);
   const loadingReasoningKey = `${message.id}-reasoning-loading`;
   const completeReasoningKey = `${message.id}-reasoning-complete`;
+  
+  const hasReasoningPart = !!reasoningPart;
+  
+  // Reasoning 진행 상태 감지
+  const isReasoningInProgress = useMemo(() => {
+    if (!hasReasoningPart) return false;
+    
+    // 스트리밍 중이고 텍스트가 아직 시작되지 않았으면 reasoning 진행 중
+    if (isStreaming && hasReasoningPart) {
+      const hasTextStarted = message.parts?.some((part: any) => 
+        part.type === 'text' && (part.text || '').trim().length > 0
+      );
+      return !hasTextStarted;
+    }
+    
+    return !reasoningComplete;
+  }, [hasReasoningPart, isStreaming, reasoningComplete, message.parts]);
   
   // Auto-expand/collapse logic for reasoning parts
   useEffect(() => {
@@ -323,7 +368,7 @@ const Message = memo(function MessageComponent({
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                name: user.user_metadata?.full_name || user.email.split('@')[0]
+                name: user.user_metadata?.full_name || (user.email ? user.email.split('@')[0] : 'User')
             }),
         });
 
@@ -606,7 +651,22 @@ const Message = memo(function MessageComponent({
   const isAssistant = message.role === 'assistant';
   const isUser = message.role === 'user';
   const hasAttachments = allAttachments && allAttachments.length > 0;
-  const hasContent = message.content && message.content.trim().length > 0;
+  // AI SDK v5: parts 배열에서 텍스트 내용 확인 (message.content는 빈 문자열일 수 있음)
+  const hasContent = useMemo(() => {
+    // 1. message.content가 있으면 확인
+    if (message.content && message.content.trim().length > 0) {
+      return true;
+    }
+    
+    // 2. parts 배열에서 text 타입 part 확인
+    if (message.parts && Array.isArray(message.parts)) {
+      return message.parts.some((part: any) => 
+        part.type === 'text' && part.text && part.text.trim().length > 0
+      );
+    }
+    
+    return false;
+  }, [message.content, message.parts]);
   
 
   
@@ -667,11 +727,23 @@ const Message = memo(function MessageComponent({
     // 파일이 있는 경우
     if (hasAttachments) return true;
     
-    // 메시지가 긴 경우 (300자 이상)
-    if (hasContent && message.content.length > 300) return true;
+    // 메시지가 긴 경우 (300자 이상) - AI SDK v5 호환
+    if (hasContent) {
+      // message.content가 있으면 확인
+      if (message.content && message.content.length > 300) return true;
+      
+      // parts 배열에서 텍스트 길이 확인
+      if (message.parts && Array.isArray(message.parts)) {
+        const textParts = message.parts.filter((part: any) => part.type === 'text');
+        const totalTextLength = textParts.reduce((total: number, part: any) => 
+          total + (part.text ? part.text.length : 0), 0
+        );
+        if (totalTextLength > 300) return true;
+      }
+    }
     
     return false;
-  }, [hasAttachments, hasContent, message.content]);
+  }, [hasAttachments, hasContent, message.content, message.parts]);
 
   // 조건에 따른 최소 높이 계산
   const getMinHeight = useMemo(() => {
@@ -785,6 +857,11 @@ const Message = memo(function MessageComponent({
 
   const chatTranslations = useMemo(() => getChatInputTranslations(), []);
 
+  // 메시지 제목 추출
+  const messageTitle = useMemo(() => {
+    return getStructuredResponseTitle(message);
+  }, [message]);
+
   return (
     <div className={`message-group group animate-fade-in ${getMinHeight}`} id={message.id}>
       <UnifiedInfoPanel
@@ -794,6 +871,7 @@ const Message = memo(function MessageComponent({
         isWaitingForToolResults={isWaitingForToolResults}
         isStreaming={isStreaming}
         reasoningComplete={reasoningComplete}
+        isReasoningInProgress={isReasoningInProgress}
         reasoningPartExpanded={reasoningPartExpanded}
         setReasoningPartExpanded={setReasoningPartExpanded}
         userOverrideReasoningPartRef={userOverrideReasoningPartRef}
@@ -804,12 +882,15 @@ const Message = memo(function MessageComponent({
         mathCalculationData={mathCalculationData}
         linkReaderData={linkReaderData}
         imageGeneratorData={imageGeneratorData}
-
         xSearchData={xSearchData}
         youTubeSearchData={youTubeSearchData}
         youTubeLinkAnalysisData={youTubeLinkAnalysisData}
         messageId={message.id}
         togglePanel={togglePanel}
+        activePanel={activePanel}
+        messageTitle={messageTitle}
+        searchTerm={searchTerm} // 🚀 FEATURE: Pass search term for highlighting
+        message={message} // 🚀 Pass message to detect title generation started
       />
       {/* Rate Limit Status Message */}
       {rateLimitAnnotation && (
@@ -871,17 +952,17 @@ const Message = memo(function MessageComponent({
                 <p className="text-sm">
                   {signupPromptData.message?.includes('sign in') ? (
                     <>
-                      {signupPromptData.message.split('sign in')[0]}
+                      {signupPromptData.message?.split('sign in')[0] || ''}
                       <button
                         onClick={() => window.location.href = signupPromptData.upgradeUrl || '/login'}
                         className="text-blue-500 underline hover:text-blue-600 cursor-pointer"
                       >
                         sign in
                       </button>
-                      {signupPromptData.message.split('sign in')[1]}
+                      {signupPromptData.message?.split('sign in')[1] || ''}
                     </>
                   ) : (
-                    signupPromptData.message
+                    signupPromptData.message || ''
                   )}
                 </p>
               </div>
@@ -1018,7 +1099,8 @@ const Message = memo(function MessageComponent({
                           hasContent 
                             ? processedContent 
                             : (processedParts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n') || '')
-                        } 
+                        }
+                        searchTerm={searchTerm}
                       />
                     </div>
                   )}
@@ -1069,10 +1151,10 @@ const Message = memo(function MessageComponent({
             
               {message.parts ? (
                     processedParts?.map((part: any, index: number) => (
-                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} />
+                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} />
                   ))
                         ) : (
-                      (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} />
+                      (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} />
                   )}
                   
                   <FilesPreview
@@ -1190,3 +1272,8 @@ const Message = memo(function MessageComponent({
 
 
 export { Message }; 
+
+
+
+
+

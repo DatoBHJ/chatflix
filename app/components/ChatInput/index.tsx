@@ -1424,7 +1424,7 @@ export function ChatInput({
               ></div>
               
               {/* Token Counter and Tooltip Container */}
-              {tokenCount > 0 && !modelId?.includes('chatflix') && (
+              {/* {tokenCount > 0 && !modelId?.includes('chatflix') && (
                 <div 
                   className="absolute top-1/2 -translate-y-1/2 right-2"
                   onMouseEnter={() => {
@@ -1557,7 +1557,7 @@ export function ChatInput({
                     )
                   })()}
                 </div>
-              )}
+              )} */}
             </div>
   
             {/* Submit Button */}
@@ -1580,3 +1580,5 @@ export function ChatInput({
     </div>
   );
   }
+
+

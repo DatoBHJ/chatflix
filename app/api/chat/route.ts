@@ -25,6 +25,7 @@ import {
   // fetchFileContent,
   extractTextFromMessage,
   extractTextFromCompletion,
+  generateMessageTitle,
   generateFollowUpQuestions,
   processMessagesForAI
 } from './utils/messageUtils';
@@ -45,7 +46,6 @@ import { getProviderOptionsWithTools } from './utils/providerOptions';
 // 메모리 관련 import
 import { initializeMemoryBank, getAllMemoryBank, getUserPersonalInfo } from '@/utils/memory-bank';
 import { smartUpdateMemoryBanks } from './services/memoryService';
-import { estimateTokenCount } from '@/utils/context-manager';
 import { selectOptimalModel } from './services/modelSelector';
 import { estimateMultiModalTokens } from '@/utils/context-manager';
 // import { 
@@ -215,6 +215,7 @@ export async function POST(req: Request): Promise<Response> {
   //     });
   //   }
   // } else 
+  
   if (isChatflixModel) {
     // Chatflix 모델은 자체 rate limit만 체크 (선택된 개별 모델 rate limit 무시)
     const chatflixRateLimitResult = await handleChatflixRateLimiting(user?.id || anonymousUserId, originalModel, isSubscribed);
@@ -332,21 +333,7 @@ export async function POST(req: Request): Promise<Response> {
 
         // 3. 향상된 시스템 프롬프트 (캐시된 메모리 사용) - 에러 시에도 계속 진행
         let userMemory = null;
-        try {
-          userMemory = !isAnonymousUser ? await getCachedUserMemory(user?.id || anonymousUserId) : null;
-        } catch (memoryError) {
-          console.error('🧠 [MEMORY] Failed to load user memory, continuing without it:', memoryError);
-          userMemory = null;
-        }
-        const currentSystemPrompt = buildSystemPrompt(
-          isAgentEnabled ? 'agent' : 'regular',
-          userMemory
-        );
-        
-        // 🔧 MEDIUM PRIORITY OPTIMIZATION: 시스템 프롬프트 토큰 계산 한 번만 수행
-        const systemTokensCounts = estimateTokenCount(currentSystemPrompt);
-        // 이미 위에서 계산된 maxContextTokens 사용
-        let remainingTokens = maxContextTokens - systemTokensCounts;
+        userMemory = !isAnonymousUser ? await getCachedUserMemory(user?.id || anonymousUserId) : null;
         
         // 🔧 MEDIUM PRIORITY OPTIMIZATION: 메시지별 토큰 미리 계산 및 캐싱
         const messagesWithTokens = processMessages.map(msg => {
@@ -358,13 +345,6 @@ export async function POST(req: Request): Promise<Response> {
         });
         
         if (isAgentEnabled) {
-          
-          // Re-calculate system tokens specifically for agent mode for accuracy
-          const agentSystemPromptForCalc = buildSystemPrompt('agent', userMemory);
-          
-          const agentSystemTokens = estimateTokenCount(agentSystemPromptForCalc);
-          remainingTokens = maxContextTokens - agentSystemTokens;
-
           const optimizedMessagesForRouting = messagesWithTokens;
 
           // 현재 질문 추출을 위한 준비
@@ -373,9 +353,6 @@ export async function POST(req: Request): Promise<Response> {
           // 현재 질문만 userQuery에 할당
           const currentMessage = optimizedMessagesForRouting[optimizedMessagesForRouting.length - 1];
           userQuery = extractTextFromMessage(currentMessage);
-
-                     // 🆕 STEP 0: Request Routing Analysis
-
 
           // 🆕 사용자가 직접 도구를 선택한 경우 vs 자동 라우팅
           let selectedActiveTools: Array<keyof typeof TOOL_REGISTRY>;
@@ -454,144 +431,183 @@ export async function POST(req: Request): Promise<Response> {
             ])
           );
               
-              // Provider options with tools
-              const providerOptions = getProviderOptionsWithTools(
-                model,
-                modelConfig,
-                user?.id || anonymousUserId,
-                selectedActiveTools.length > 0,
-                chatId
-              );
+          // Provider options with tools
+          const providerOptions = getProviderOptionsWithTools(
+            model,
+            modelConfig,
+            user?.id || anonymousUserId,
+            selectedActiveTools.length > 0,
+            chatId
+          );
 
-              // RESPOND: 도구 실행 모델 결정
-              let toolExecutionModel = model;
+          // RESPOND: 도구 실행 모델 결정
+          let toolExecutionModel = model;
 
-              // 🆕 STEP 2: Prepare optimized messages for final execution
-              // 🔧 AI SDK v5: 공통 메시지 처리 함수 사용 (도구 유무와 관계없이 동일)
-              const finalMessagesForExecution = await processMessagesForAI(messagesWithTokens, model);
-              
-              // 시스템 프롬프트 설정 (캐시된 메모리 사용)
-              const systemPrompt = buildSystemPrompt(
-                'agent', 
-                userMemory,
-                {
-                  selectedTools: selectedActiveTools
+          // 🆕 STEP 2: Prepare optimized messages for final execution
+          // 🔧 AI SDK v5: 공통 메시지 처리 함수 사용 (도구 유무와 관계없이 동일)
+          const finalMessagesForExecution = await processMessagesForAI(messagesWithTokens, model);
+          
+          // 시스템 프롬프트 설정 (캐시된 메모리 사용)
+          const agentSystemPrompt = buildSystemPrompt(
+            'agent', 
+            userMemory,
+            {
+              selectedTools: selectedActiveTools
+            }
+          );
+
+          // 도구 호출이 있는 경우 텍스트 응답을 조건부로 처리
+          const textResponsePromise = streamText({
+            model: providers.languageModel(toolExecutionModel),
+            experimental_transform: [
+              smoothStream({delayInMs: 25}),
+              // markdownJoinerTransform(),
+            ],
+            system: agentSystemPrompt,
+            messages: finalMessagesForExecution,
+            tools: allTools,
+            activeTools: selectedActiveTools,
+            providerOptions,
+            // Allow up to 10 tool-using steps; then force a final answer without tools on step 11
+            stopWhen: stepCountIs(selectedActiveTools?.length > 0 ? 11 : 3),
+            prepareStep: ({ stepNumber }) => {
+              // After 10 steps of potential tool usage, force a text-only answer
+              if (stepNumber > 10) {
+                return {
+                  toolChoice: 'none',
+                  activeTools: []
+                };
+              }
+              return undefined;
+            },
+            toolChoice: 'auto',
+            maxRetries: 20,
+            abortSignal: abortController.signal,
+            experimental_repairToolCall: async ({ toolCall, tools, inputSchema, error }) => {
+              if (NoSuchToolError.isInstance(error)) {
+                return null; // do not attempt to fix invalid tool names
+              }
+
+              console.log('🔧 [REPAIR] Fixing tool call');
+              console.log('🔧 [REPAIR] toolCall:', toolCall);
+              console.log('🔧 [REPAIR] tools:', Object.keys(tools));
+              console.log('🔧 [REPAIR] parameterSchema:', inputSchema);
+              console.log('🔧 [REPAIR] error:', error);
+
+              const tool = tools[toolCall.toolName as keyof typeof tools];
+
+              // Pre-process the input to handle JSON string cases
+              let processedInput = toolCall.input;
+              if (typeof toolCall.input === 'string') {
+                try {
+                  processedInput = JSON.parse(toolCall.input);
+                } catch {
+                  // If it's not valid JSON, keep as is
                 }
-              );
+              }
 
-              // 도구 호출이 있는 경우 텍스트 응답을 조건부로 처리
-              const textResponsePromise = streamText({
-                model: providers.languageModel(toolExecutionModel),
-                experimental_transform: [
-                  smoothStream({delayInMs: 25}),
-                  // markdownJoinerTransform(),
-                ],
-                system: systemPrompt,
-                messages: finalMessagesForExecution,
-                tools: allTools,
-                activeTools: selectedActiveTools,
-                providerOptions,
-                // Allow up to 10 tool-using steps; then force a final answer without tools on step 11
-                stopWhen: stepCountIs(selectedActiveTools?.length > 0 ? 11 : 3),
-                prepareStep: ({ stepNumber }) => {
-                  // After 10 steps of potential tool usage, force a text-only answer
-                  if (stepNumber > 10) {
-                    return {
-                      toolChoice: 'none',
-                      activeTools: []
-                    };
-                  }
-                  return undefined;
-                },
-                toolChoice: 'auto',
-                maxRetries: 20,
-                abortSignal: abortController.signal,
-                experimental_repairToolCall: async ({ toolCall, tools, inputSchema, error }) => {
-                  if (NoSuchToolError.isInstance(error)) {
-                    return null; // do not attempt to fix invalid tool names
-                  }
-
-                  console.log('🔧 [REPAIR] Fixing tool call');
-                  console.log('🔧 [REPAIR] toolCall:', toolCall);
-                  console.log('🔧 [REPAIR] tools:', Object.keys(tools));
-                  console.log('🔧 [REPAIR] parameterSchema:', inputSchema);
-                  console.log('🔧 [REPAIR] error:', error);
-
-                  const tool = tools[toolCall.toolName as keyof typeof tools];
-
-                  // Pre-process the input to handle JSON string cases
-                  let processedInput = toolCall.input;
-                  if (typeof toolCall.input === 'string') {
-                    try {
-                      processedInput = JSON.parse(toolCall.input);
-                    } catch {
-                      // If it's not valid JSON, keep as is
-                    }
-                  }
-
-                  const { object: repairedArgs } = await generateObject({
-                    model: providers.languageModel('moonshotai/kimi-k2-instruct'),
-                    schema: tool.inputSchema,
-                    prompt: [
-                      `The model tried to call the tool "${toolCall.toolName}" with the following arguments:`,
-                      JSON.stringify(processedInput),
-                      `The tool accepts the following schema:`,
-                      JSON.stringify(inputSchema(toolCall)),
-                      'Please fix the arguments to match the schema exactly.',
-                      'Ensure all required fields are provided and data types are correct.',
-                      'If you see JSON strings that should be arrays, parse them properly.',
-                      `Today's date is ${new Date().toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                      })}`,
-                    ].join('\n'),
-                  });
-
-                  console.log('🔧 [REPAIR] repairedArgs:', repairedArgs);
-
-                  return { ...toolCall, args: JSON.stringify(repairedArgs) };
-                },
-                onChunk: process.env.NODE_ENV === 'development' ? (event) => {
-                  const { chunk } = event;
-                  if (chunk?.type === 'tool-call' || chunk?.type === 'tool-result') {
-                    // 개발 환경에서만 도구 호출 로깅
-                  }
-                } : undefined,
-                onFinish: async (completion) => {
-                  if (abortController.signal.aborted) return;
-                  
-                  // 간단한 도구 결과 수집 (TOOL_REGISTRY 구조에 맞게)
-                  const collectedToolResults = collectToolResults(allTools, selectedActiveTools);
-                  await incrementSuccessfulRequestCount(supabase, user?.id || anonymousUserId, today, currentRequestCount, isSubscribed);
-                  // 🚀 Kimi K2 모델 호환성: 안전한 텍스트 추출
-                  const aiResponse = extractTextFromCompletion(completion);
-                  const followUpQuestions = await generateFollowUpQuestions(userQuery, aiResponse);
-                  
-                  const structuredResponse = {
-                    response: { 
-                      followup_questions: followUpQuestions 
-                    }
-                  };
-                  collectedToolResults.structuredResponse = structuredResponse;
-                  
-                  // 🆕 토큰 사용량을 completion에서 직접 추출 (AI SDK v5 방식)
-                  collectedToolResults.token_usage = completion.usage || completion.totalUsage;
-                  
-                  globalCollectedToolResults = { ...collectedToolResults };
-                  
-                  writer.write({
-                    type: 'data-structured_response',
-                    id: `structured-${assistantMessageId}`,
-                    data: structuredResponse,
-                  });
-                }
+              const { object: repairedArgs } = await generateObject({
+                model: providers.languageModel('moonshotai/kimi-k2-instruct'),
+                schema: tool.inputSchema,
+                prompt: [
+                  `The model tried to call the tool "${toolCall.toolName}" with the following arguments:`,
+                  JSON.stringify(processedInput),
+                  `The tool accepts the following schema:`,
+                  JSON.stringify(inputSchema(toolCall)),
+                  'Please fix the arguments to match the schema exactly.',
+                  'Ensure all required fields are provided and data types are correct.',
+                  'If you see JSON strings that should be arrays, parse them properly.',
+                  `Today's date is ${new Date().toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}`,
+                ].join('\n'),
               });
 
-              textResponsePromise.consumeStream();
-              writer.merge(textResponsePromise.toUIMessageStream({
-                sendReasoning: true,
-              }));
+              console.log('🔧 [REPAIR] repairedArgs:', repairedArgs);
+
+              return { ...toolCall, args: JSON.stringify(repairedArgs) };
+            },
+            onChunk: process.env.NODE_ENV === 'development' ? (event) => {
+              const { chunk } = event;
+              if (chunk?.type === 'tool-call' || chunk?.type === 'tool-result') {
+                // 개발 환경에서만 도구 호출 로깅
+              }
+            } : undefined,
+            onFinish: async (completion) => {
+              if (abortController.signal.aborted) return;
+              
+              // 🚀 최적화: 요청 카운트 증가를 비동기로 처리 (사용자 응답 블로킹 방지)
+              incrementSuccessfulRequestCount(supabase, user?.id || anonymousUserId, today, currentRequestCount, isSubscribed)
+                .catch(error => console.error('Failed to increment request count:', error));
+              
+              // 🚀 Kimi K2 모델 호환성: 안전한 텍스트 추출
+              const aiResponse = extractTextFromCompletion(completion);
+      
+              // 🚀 제목 생성 시작 신호 전송
+              writer.write({
+                type: 'data-title_generation_started',
+                id: `title-start-${assistantMessageId}`,
+                data: { started: true },
+              });
+      
+              // 🚀 제목 먼저 생성하고 즉시 전송 (메모리 제거로 성능 최적화)
+              const messageTitle = await generateMessageTitle(userQuery, aiResponse);
+              
+              const titleResponse = {
+                response: { 
+                  title: messageTitle
+                }
+              };
+              
+              writer.write({
+                type: 'data-structured_response',
+                id: `title-${assistantMessageId}`,
+                data: titleResponse,
+              });
+              
+              // 🚀 Follow-up 질문은 별도로 생성하고 나중에 전송 (메모리 제거로 성능 최적화)
+              const followUpQuestions = await generateFollowUpQuestions(userQuery, aiResponse);
+              
+              const followUpResponse = {
+                response: { 
+                  followup_questions: followUpQuestions 
+                }
+              };
+              
+              writer.write({
+                type: 'data-structured_response',
+                id: `followup-${assistantMessageId}`,
+                data: followUpResponse,
+              });
+              
+              // 🚀 제목과 질문 생성 후 도구 결과 수집 (빠른 인메모리 작업이므로 동기 처리 유지)
+              const collectedToolResults = collectToolResults(allTools, selectedActiveTools);
+              
+              // 최종 structuredResponse 구성 (기존 호환성 유지)
+              const structuredResponse = {
+                response: { 
+                  title: messageTitle,
+                  followup_questions: followUpQuestions 
+                }
+              };
+              collectedToolResults.structuredResponse = structuredResponse;
+              
+              // 🆕 토큰 사용량을 completion에서 직접 추출 (AI SDK v5 방식) - usage와 totalUsage 분리 저장
+              collectedToolResults.token_usage = {
+                usage: completion.usage || null,
+                totalUsage: completion.totalUsage || null
+              };
+              
+              globalCollectedToolResults = { ...collectedToolResults };
+            }
+          });
+
+          textResponsePromise.consumeStream();
+          writer.merge(textResponsePromise.toUIMessageStream({
+            sendReasoning: true,
+          }));
         } else {
           // 일반 채팅 흐름 - 원래 코드 사용에 토큰 제한 최적화 추가
           //  이미 계산된 시스템 토큰 재사용
@@ -608,13 +624,15 @@ export async function POST(req: Request): Promise<Response> {
             chatId
           );
           
+          const regularSystemPrompt = buildSystemPrompt('regular', userMemory);
+          
           const result = streamText({
             model: providers.languageModel(model),
             experimental_transform: [
               smoothStream({delayInMs: 25}),
               // markdownJoinerTransform(),
             ],
-            system: currentSystemPrompt,
+            system: regularSystemPrompt,
             messages: messages,
             providerOptions: regularProviderOptions,
             stopWhen: stepCountIs(3),
@@ -623,38 +641,30 @@ export async function POST(req: Request): Promise<Response> {
             onFinish: async (completion) => {
               if (abortController.signal.aborted) return;
 
-              // Increment daily request count only on successful, non-aborted completion
+              // 🚀 최적화: 요청 카운트 증가를 비동기로 처리 (사용자 응답 블로킹 방지)
               if (!abortController.signal.aborted && !isAnonymousUser) {
-                await incrementSuccessfulRequestCount(
+                incrementSuccessfulRequestCount(
                   supabase,
                   user?.id || anonymousUserId,
                   today,
                   currentRequestCount,
                   isSubscribed
-                );
+                ).catch(error => console.error('Failed to increment request count:', error));
               }
 
-              // 🚀 일반 모드에서도 followup questions 생성
-              const currentMessage = messagesWithTokens[messagesWithTokens.length - 1];
-              const userQuery = extractTextFromMessage(currentMessage);
-              // 🚀 Kimi K2 모델 호환성: 안전한 텍스트 추출
-              const aiResponse = extractTextFromCompletion(completion);
-              const followUpQuestions = await generateFollowUpQuestions(userQuery, aiResponse);
+              // 🚀 일반 모드에서는 follow-up question 제거 (성능 최적화)
               
-              const structuredResponse = {
-                response: { 
-                  followup_questions: followUpQuestions 
+              // 🚀 최적화: 토큰 사용량 저장을 비동기로 처리 (사용자 응답 블로킹 방지)
+              setTimeout(() => {
+                try {
+                  globalCollectedToolResults.token_usage = {
+                    usage: completion.usage || null,
+                    totalUsage: completion.totalUsage || null
+                  };
+                } catch (error) {
+                  console.error('Failed to save token usage:', error);
                 }
-              };
-              
-              // 🆕 토큰 사용량을 completion에서 직접 추출 (AI SDK v5 방식)
-              globalCollectedToolResults.token_usage = completion.usage || completion.totalUsage;
-              
-              writer.write({
-                type: 'data-structured_response',
-                id: `structured-${assistantMessageId}`,
-                data: structuredResponse,
-              });
+              }, 0);
             }
           });
           writer.merge(result.toUIMessageStream({
@@ -778,34 +788,42 @@ export async function POST(req: Request): Promise<Response> {
 
             console.log('💾 [onFinish] Saving completed messages via v5 stream');
             
-            // 🚀 익명 사용자 지원: 익명 사용자는 DB 저장 건너뛰기
+            // 🚀 최적화: 메시지 저장을 비동기로 처리 (사용자 응답 블로킹 방지)
             if (!isAnonymousUser && sessionExists) {
-              await saveCompletedMessages(
-                supabase,
-                finalChatId,
-                user?.id || anonymousUserId,
-                originalUserMessage,
-                lastAssistantMessage,
-                model,
-                getProviderFromModel(model),
-                {
-                  original_model: requestData.originalModel || model,
-                  token_usage: globalCollectedToolResults.token_usage || null,
-                  tool_results: globalCollectedToolResults || {}
-                },
-                isRegeneration || false
-              );
+              // 백그라운드에서 메시지 저장 실행 (사용자 응답과 완전 분리)
+              setImmediate(async () => {
+                try {
+                  await saveCompletedMessages(
+                    supabase,
+                    finalChatId,
+                    user?.id || anonymousUserId,
+                    originalUserMessage,
+                    lastAssistantMessage,
+                    model,
+                    getProviderFromModel(model),
+                    {
+                      original_model: requestData.originalModel || model,
+                      token_usage: globalCollectedToolResults.token_usage || null,
+                      tool_results: globalCollectedToolResults || {}
+                    },
+                    isRegeneration || false
+                  );
 
-              console.log('✅ [onFinish] Messages saved successfully');
+                  console.log('✅ [onFinish] Messages saved successfully');
+                } catch (error) {
+                  console.error('💥 [onFinish] Failed to save messages:', error);
+                }
+              });
             } else if (isAnonymousUser) {
               console.log('🚀 [ANONYMOUS] Skipping message save for anonymous user');
             } else {
               console.log('⚠️ [SESSION] Skipping message save - session not available');
             }
 
-            // 🆕 Smart Memory Update for regular chat (익명 사용자는 건너뛰기)
+            // 🚀 최적화: Smart Memory Update를 백그라운드 작업으로 처리 (사용자 응답 블로킹 방지)
             if (chatId && !abortedByClient && !isAnonymousUser) {
-              setTimeout(async () => {
+              // 백그라운드에서 메모리 업데이트 실행 (사용자 응답과 완전 분리)
+              setImmediate(async () => {
                 try {
                   // 사용자 메시지 내용 추출
                   const userMessage = originalUserMessage.content || 
@@ -843,7 +861,7 @@ export async function POST(req: Request): Promise<Response> {
                 } catch (error) {
                   console.error('💥 [MEMORY] Smart memory update failed:', error);
                 }
-              }, 1000);
+              });
             }
           }
         } catch (error) {

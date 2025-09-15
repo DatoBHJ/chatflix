@@ -26,6 +26,7 @@ interface MessagesProps {
   isWaitingForToolResults: (message: any) => boolean
   hasCanvasData: (message: any) => boolean
   activePanelMessageId: string | null
+  activePanel?: { messageId: string; type: string; toolType?: string } | null
   togglePanel: (messageId: string, type: 'canvas' | 'structuredResponse' | 'attachment', fileIndex?: number, toolType?: string, fileName?: string) => void
   user: User | null
   handleFollowUpQuestionClick: (question: string) => Promise<void>
@@ -52,6 +53,7 @@ export const Messages = memo(function Messages({
   isWaitingForToolResults,
   hasCanvasData,
   activePanelMessageId,
+  activePanel,
   togglePanel,
   user,
   handleFollowUpQuestionClick,
@@ -230,6 +232,7 @@ export const Messages = memo(function Messages({
                     isWaitingForToolResults={isWaitingForToolResults(message)}
                     messageHasCanvasData={messageHasCanvasData}
                     activePanelMessageId={activePanelMessageId}
+                    activePanel={activePanel}
                     togglePanel={togglePanel}
                     isLastMessage={isLastMessage}
                     webSearchData={webSearchData}

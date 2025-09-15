@@ -114,7 +114,7 @@ const extractDomain = (url: string): string => {
 };
 
 // Topic icon mapping function
-const getTopicIconComponent = (topicIcon: string) => {
+export const getTopicIconComponent = (topicIcon: string) => {
   const iconProps = { size: 14, strokeWidth: 1.5 };
   
   switch (topicIcon) {
@@ -138,6 +138,22 @@ const getTopicIconComponent = (topicIcon: string) => {
       return <BookOpen {...iconProps} />;
     default:
       return <Search {...iconProps} />;
+  }
+};
+
+// Topic name mapping function
+export const getTopicName = (topic: string): string => {
+  switch (topic) {
+    case 'general': return 'Web Search';
+    case 'news': return 'News Search';
+    case 'financial report': return 'Financial Report';
+    case 'company': return 'Company Search';
+    case 'research paper': return 'Research Paper';
+    case 'pdf': return 'PDF Search';
+    case 'github': return 'GitHub Search';
+    case 'personal site': return 'Personal Site';
+    case 'linkedin profile': return 'LinkedIn Search';
+    default: return 'Web Search';
   }
 };
 
@@ -875,11 +891,17 @@ const MultiSearch: React.FC<{
     isComplete: boolean;
     annotations?: QueryCompletion[];
   }>;
+  highlightedQueries?: string[];
+  initialAllSelected?: boolean;
+  onFilterChange?: (hasActiveFilters: boolean, selectedTopics?: string[], isAllQueriesSelected?: boolean) => void;
 }> = ({
   result,
   args,
   annotations = [],
-  results = []
+  results = [],
+  highlightedQueries = [],
+  initialAllSelected = false,
+  onFilterChange
 }) => {
   // 1. 모든 useState 훅을 상단에 배치
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
@@ -888,6 +910,65 @@ const MultiSearch: React.FC<{
   
   // 초기 쿼리 순서를 저장하는 ref
   const initialQueryOrderRef = useRef<string[]>([]);
+  
+  // 최신 콜백을 참조하는 ref
+  const onFilterChangeRef = useRef(onFilterChange);
+  
+  // 콜백 ref 업데이트
+  useEffect(() => {
+    onFilterChangeRef.current = onFilterChange;
+  }, [onFilterChange]);
+
+  // NEW: Multi-select support
+  const [selectedQueryList, setSelectedQueryList] = useState<string[]>(highlightedQueries || []);
+  const [allChipSelected, setAllChipSelected] = useState<boolean>(false);
+  const [userHasInteracted, setUserHasInteracted] = useState<boolean>(false);
+
+  // Sync when highlightedQueries changes (from preview/topic selection)
+  useEffect(() => {
+    const incoming = Array.isArray(highlightedQueries) ? highlightedQueries : [];
+    const currentKey = (selectedQueryList || []).slice().sort().join('|');
+    const incomingKey = incoming.slice().sort().join('|');
+    if (currentKey !== incomingKey) {
+      setSelectedQueryList(incoming);
+      setAllChipSelected(false);
+    }
+  }, [JSON.stringify(highlightedQueries)]);
+
+  // Notify parent when filter state changes
+  useEffect(() => {
+    console.log('MultiSearch: useEffect triggered - selectedQueryList:', selectedQueryList, 'allChipSelected:', allChipSelected, 'userHasInteracted:', userHasInteracted);
+    
+    if (onFilterChangeRef.current && userHasInteracted) {
+      // Active filters = specific queries are selected (not "All Queries") AND user has manually interacted
+      const hasActiveFilters = selectedQueryList.length > 0 && !allChipSelected;
+      
+      // Calculate topics of selected queries
+      let selectedTopics: string[] = [];
+      if (hasActiveFilters) {
+        const searchesToUse = allCompletedSearches.length > 0 ? allCompletedSearches : [];
+        selectedTopics = selectedQueryList
+          .map(query => {
+            const search = searchesToUse.find(s => s.query === query);
+            return search?.topic || 'general';
+          })
+          .filter(Boolean);
+      }
+      
+      console.log('MultiSearch: Calling onFilterChangeRef.current with hasActiveFilters:', hasActiveFilters, 'selectedTopics:', selectedTopics, 'allChipSelected:', allChipSelected);
+      onFilterChangeRef.current(hasActiveFilters, selectedTopics, allChipSelected && userHasInteracted);
+    } else {
+      console.log('MultiSearch: Skipping onFilterChangeRef.current call - onFilterChangeRef.current:', !!onFilterChangeRef.current, 'userHasInteracted:', userHasInteracted);
+    }
+  }, [selectedQueryList, allChipSelected, userHasInteracted, result, results]);
+
+  // If explicitly requested, select All Queries (only styling; leaves results unfiltered)
+  useEffect(() => {
+    if (initialAllSelected) {
+      setSelectedQueryList([]);
+      setAllChipSelected(true);
+    }
+  }, [initialAllSelected]);
   
   // Sorting function for search results
   const sortResults = (results: SearchResult[]) => {
@@ -1169,9 +1250,11 @@ const MultiSearch: React.FC<{
     
     if (!searchesToUse.length) return [];
     
-    // If filter is active, only include results from that search query
-    const filteredSearches = activeFilter 
-      ? searchesToUse.filter(search => search.query === activeFilter)
+    // If multi-select is active, include results from selected queries only
+    const selectionActive = selectedQueryList && selectedQueryList.length > 0;
+    const selectedSet = new Set(selectionActive ? selectedQueryList : []);
+    const filteredSearches = selectionActive
+      ? searchesToUse.filter(search => selectedSet.has(search.query))
       : searchesToUse;
     
     // Collect all results from all searches
@@ -1199,7 +1282,7 @@ const MultiSearch: React.FC<{
     // Sort by result count (keep domain-level sorting by count)
     return Object.entries(groups)
       .sort(([, resultsA], [, resultsB]) => resultsB.length - resultsA.length);
-  }, [allCompletedSearches, result, activeFilter]);
+  }, [allCompletedSearches, result, JSON.stringify(selectedQueryList), sortOrder, sortDirection]);
 
   // Get sorted flat results when sorting is active
   const sortedFlatResults = useMemo(() => {
@@ -1212,9 +1295,11 @@ const MultiSearch: React.FC<{
     
     if (!searchesToUse.length) return null;
     
-    // If filter is active, only include results from that search query
-    const filteredSearches = activeFilter 
-      ? searchesToUse.filter(search => search.query === activeFilter)
+    // If multi-select is active, include results from selected queries only
+    const selectionActive = selectedQueryList && selectedQueryList.length > 0;
+    const selectedSet = new Set(selectionActive ? selectedQueryList : []);
+    const filteredSearches = selectionActive
+      ? searchesToUse.filter(search => selectedSet.has(search.query))
       : searchesToUse;
     
     // Collect all results from all searches
@@ -1224,9 +1309,9 @@ const MultiSearch: React.FC<{
     });
     
     return sortResults(allResults);
-  }, [allCompletedSearches, result, activeFilter, sortOrder, sortDirection]);
+  }, [allCompletedSearches, result, JSON.stringify(selectedQueryList), sortOrder, sortDirection]);
 
-  // Calculate total results based on active filter
+  // Calculate total results based on selection
   const totalResults = useMemo(() => {
     // Use allCompletedSearches if available
     const searchesToUse = allCompletedSearches.length > 0 
@@ -1235,12 +1320,17 @@ const MultiSearch: React.FC<{
     
     if (!searchesToUse.length) return 0;
     
-    return activeFilter
-      ? searchesToUse.find(s => s.query === activeFilter)?.results.length || 0
-      : searchesToUse.reduce((sum, search) => sum + search.results.length, 0);
-  }, [allCompletedSearches, result, activeFilter]);
+    const selectionActive = selectedQueryList && selectedQueryList.length > 0;
+    if (selectionActive) {
+      const selectedSet = new Set(selectedQueryList);
+      return searchesToUse
+        .filter(s => selectedSet.has(s.query))
+        .reduce((sum, s) => sum + s.results.length, 0);
+    }
+    return searchesToUse.reduce((sum, search) => sum + search.results.length, 0);
+  }, [allCompletedSearches, result, JSON.stringify(selectedQueryList)]);
 
-  // Get filtered images based on active filter
+  // Get filtered images based on selection
   const displayImages = useMemo(() => {
     // Use allCompletedSearches if available
     const searchesToUse = allCompletedSearches.length > 0 
@@ -1249,22 +1339,26 @@ const MultiSearch: React.FC<{
     
     if (!searchesToUse.length) return [];
     
-    if (activeFilter) {
-      // For individual query, apply the same filtering as allImages
-      const search = searchesToUse.find(s => s.query === activeFilter);
-      if (!search) return [];
-      
-      const validFilteredImages = getUniqueValidImages(search.images);
-      return validFilteredImages.map(img => ({
-        ...img,
-        sourceQuery: search.query || 'Search Result',
-        searchIndex: searchesToUse.findIndex(s => s.query === activeFilter)
-      }));
+    if (selectedQueryList.length > 0) {
+      const selectedSet = new Set(selectedQueryList);
+      const selectedSearches = searchesToUse.filter(s => selectedSet.has(s.query));
+      const images = selectedSearches.flatMap(search => {
+        const valid = getUniqueValidImages(search.images);
+        return valid.map(img => ({
+          ...img,
+          sourceQuery: search.query || 'Search Result',
+          searchIndex: searchesToUse.findIndex(s => s.query === search.query)
+        }));
+      });
+      // Deduplicate across selected
+      const uniq = new Map<string, any>();
+      images.forEach(img => { if (!uniq.has(img.url)) uniq.set(img.url, img); });
+      return Array.from(uniq.values());
     }
     
     // For "All Queries", return deduplicated images
     return allImages;
-  }, [allCompletedSearches, result, activeFilter, allImages]);
+  }, [allCompletedSearches, result, JSON.stringify(selectedQueryList), allImages]);
 
   // 쿼리가 진행 중인지 확인하는 함수 (개별 쿼리별로 상태 확인)
   const isQueryLoading = (query: string): boolean => {
@@ -1298,9 +1392,13 @@ const MultiSearch: React.FC<{
         {/* 통합된 쿼리 필터 (완료된 쿼리 + 로딩 중인 쿼리) */}
         <div className="flex flex-wrap gap-2 mb-4 overflow-hidden">
           <button
-            onClick={() => setActiveFilter(null)}
+            onClick={() => {
+              setUserHasInteracted(true);
+              setSelectedQueryList([]);
+              setAllChipSelected(prev => !prev);
+            }}
             className={`px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all text-sm font-medium
-                      ${activeFilter === null 
+                      ${allChipSelected 
                         ? "bg-[#007AFF] text-white" 
                         : "bg-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_90%,var(--foreground)_5%)]"
                       }`}
@@ -1314,6 +1412,7 @@ const MultiSearch: React.FC<{
             // 이 쿼리에 대한 결과가 있는지 확인
             const searchResult = allCompletedSearches.find(s => s.query === query);
             const isLoading = isQueryLoading(query);
+            const isSelected = selectedQueryList.includes(query);
             
             // 로딩 중인 쿼리의 topic 정보 가져오기
             const loadingTopicInfo = results
@@ -1325,34 +1424,32 @@ const MultiSearch: React.FC<{
             const topicIcon = searchResult?.topicIcon || loadingTopicInfo?.topicIcon || 'search';
             const topic = searchResult?.topic || loadingTopicInfo?.topic || 'general';
             
-            // 토픽 이름 매핑 (실제 사용되는 토픽들)
-            const getTopicName = (topic: string) => {
-              switch (topic) {
-                case 'general': return 'General Search';
-                case 'news': return 'News';
-                case 'financial report': return 'Financial Report';
-                case 'company': return 'Company';
-                case 'research paper': return 'Research Paper';
-                case 'pdf': return 'PDF Documents';
-                case 'github': return 'GitHub';
-                case 'personal site': return 'Personal Site';
-                case 'linkedin profile': return 'LinkedIn Profile';
-                default: return 'General Search';
-              }
-            };
             
             return (
               <button
                 key={i}
-                onClick={() => !isLoading && setActiveFilter(query === activeFilter ? null : query)}
+                onClick={() => {
+                  if (isLoading) return;
+                  setUserHasInteracted(true);
+                  setAllChipSelected(false);
+                  setSelectedQueryList(prev => {
+                    const set = new Set(prev);
+                    if (set.has(query)) {
+                      set.delete(query);
+                    } else {
+                      set.add(query);
+                    }
+                    return Array.from(set);
+                  });
+                }}
                 disabled={isLoading}
                 className={`px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all text-sm font-medium relative group min-w-0 max-w-full
-                          ${query === activeFilter 
+                          ${isSelected
                             ? "bg-[#007AFF] text-white" 
                             : isLoading
                               ? "bg-[var(--accent)] opacity-60 cursor-not-allowed" 
-                              : "bg-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_90%,var(--foreground)_5%)]"
-                          }`}
+                              : "bg-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_90%,var(--foreground)_5%)]"}
+                          `}
 
               >
                 {/* Topic 아이콘을 고정 크기 컨테이너로 래핑 */}
@@ -1370,19 +1467,9 @@ const MultiSearch: React.FC<{
                 
                 {/* 검색 결과가 있는 경우 결과 수 표시 */}
                 {searchResult && searchResult.results.length > 0 && (
-                  <span className="text-xs text-[var(--muted)] flex-shrink-0">({searchResult.results.length})</span>
+                  <span className={`text-xs flex-shrink-0 ${isSelected ? 'text-white' : 'text-[var(--muted)]'}`}>({searchResult.results.length})</span>
                 )}
                 
-                {/* 호버 툴팁 */}
-                <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-[var(--foreground)] text-[var(--background)] text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10 shadow-lg">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-[14px] h-[14px] flex items-center justify-center flex-shrink-0">
-                      {getTopicIconComponent(topicIcon)}
-                    </div>
-                    <span>{getTopicName(topic)}</span>
-                  </div>
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-[var(--foreground)]"></div>
-                </div>
               </button>
             );
           })}

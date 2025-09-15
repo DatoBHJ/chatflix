@@ -109,6 +109,7 @@ type CanvasProps = {
   } | null;
   isCompact?: boolean;
   selectedTool?: string;
+  onSearchFilterChange?: (hasActiveFilters: boolean, selectedTopics?: string[], isAllQueriesSelected?: boolean) => void;
 };
 
 /**
@@ -126,6 +127,7 @@ export default function Canvas({
   youTubeLinkAnalysisData,
   isCompact = false,
   selectedTool,
+  onSearchFilterChange,
 }: CanvasProps) {
   // Don't render if there's no data to display
   if (!webSearchData && !mathCalculationData && !linkReaderData && !imageGeneratorData && !xSearchData && !youTubeSearchData && !youTubeLinkAnalysisData) return null;
@@ -232,7 +234,7 @@ export default function Canvas({
   return (
     <div className={`tool-results-canvas ${compactModeClasses}`}>
       {/* Web Search Results or Loading State */}
-      {(!selectedTool || selectedTool === 'web-search') && webSearchData && (
+      {(!selectedTool || selectedTool.startsWith?.('web-search')) && webSearchData && (
         <div className="">
           {!selectedTool && (
           <div 
@@ -278,6 +280,26 @@ export default function Canvas({
                 args={webSearchData.args}
                 annotations={webSearchData.annotations}
                 results={webSearchData.results}
+                onFilterChange={onSearchFilterChange}
+                {...(() => {
+                  // If a single unique topic exists in the preview selection, mark All Queries selected
+                  if (selectedTool && selectedTool.startsWith?.('web-search:topic:')) {
+                    const topic = selectedTool.split(':').pop();
+                    // Count unique topics present in webSearchData
+                    const allSearches = (webSearchData.results || []).flatMap((r: any) => r.searches || []);
+                    const uniqueTopics = new Set(allSearches.map((s: any) => s?.topic || 'general'));
+                    if (uniqueTopics.size === 1) {
+                      return { highlightedQueries: [], initialAllSelected: true };
+                    }
+                    // Otherwise, highlight queries for the selected topic
+                    const searches = allSearches.filter((s: any) => (s as any).topic === topic);
+                    const argQueries = (webSearchData.args?.queries || []) as string[];
+                    const queriesFromSearches = searches.map((s: any) => s.query).filter(Boolean);
+                    const merged = [...new Set([...(argQueries || []), ...queriesFromSearches])];
+                    return { highlightedQueries: merged, initialAllSelected: false };
+                  }
+                  return { highlightedQueries: [], initialAllSelected: false };
+                })()}
               />
             </div>
           </div>

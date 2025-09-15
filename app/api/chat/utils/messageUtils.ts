@@ -319,162 +319,130 @@ export const extractTextFromMessage = (msg: any): string => {
 
 
 
-// OG Follow Up Questions
-// export async function generateFollowUpQuestions(
-//   userQuery: string,
-//   aiResponse: string,
-//   userMemoryData?: string
-// ): Promise<string[]> {
-//   try {
-//     const contextInfo = 'The AI has provided a text response to the user.';
+
+/**
+ * 메시지 제목 생성 함수
+ */
+export async function generateMessageTitle(
+  userQuery: string,
+  aiResponse: string
+): Promise<string> {
+  try {
+    const contextInfo = 'Generate a concise, descriptive title for this conversation exchange.';
+
+
+    const titleResult = await generateObject({
+      model: providers.languageModel('gemini-2.5-flash'),
+      prompt: `You are generating a concise, descriptive title for a conversation exchange between a user and an AI assistant.
+
+**CRITICAL INSTRUCTION: Generate a short, clear title that captures the essence of the conversation**
+
+User's query: "${userQuery}"
+AI's response: "${aiResponse}"
+Context: ${contextInfo}
+
+**TITLE GUIDELINES:**
+- Keep it under 50 characters
+- Use title case (capitalize important words)
+- Be specific and descriptive
+- Capture the main topic or action
+- Avoid generic words like "Question", "Help", "Chat"
+- Make it searchable and memorable
+- Respond in the same language as the user's query
+
+**GOOD EXAMPLES:**
+✅ "React Hooks Best Practices"
+✅ "Python Data Analysis with Pandas"
+✅ "Latest AI News Summary"
+✅ "Image Generation: Sunset Landscape"
+✅ "Web Search: Climate Change 2024"
+✅ "Code Review: JavaScript Function"
+
+**BAD EXAMPLES:**
+❌ "Question about programming"
+❌ "Help needed"
+❌ "Chat about AI"
+❌ "General inquiry"
+❌ "Random question"
+
+**Generate a single, concise title that best represents this conversation exchange.**`,
+      schema: z.object({
+        title: z.string().max(50)
+      })
+    });
     
-//     // 사용자 메모리 데이터가 있으면 개인화된 컨텍스트 추가
-//     const personalizationContext = userMemoryData ? `
-// **USER MEMORY & PREFERENCES:**
-// ${userMemoryData}
-
-// **PERSONALIZATION INSTRUCTIONS:**
-// - Consider the user's interests, preferences, and communication style from their memory data
-// - Generate questions that align with their typical topics of interest
-// - Use their preferred level of detail and technical depth
-// - Match their communication style (formal/casual, technical/non-technical)
-// - Consider their past interactions and what they typically ask about
-// - If they have specific domains of expertise or interest, incorporate those
-// - Use their preferred language style and terminology` : '';
-
-//     const followUpResult = await generateObject({
-//       model: providers.languageModel('gemini-2.0-flash'),
-//       prompt: `You are generating follow-up questions that a USER would naturally ask or input to an AI assistant. These should be direct requests, commands, or questions that users would actually type, NOT questions the AI would ask the user.
-
-// **CRITICAL INSTRUCTION: Generate user inputs TO the AI, not AI questions TO the user**
-
-// User's original query: "${userQuery}"
-// AI's response: "${aiResponse}"
-// Context: ${contextInfo}${personalizationContext}
-
-// **WRONG EXAMPLES (AI asking user - DO NOT generate these):**
-// ❌ "What details would you like me to emphasize in this image?"
-// ❌ "Which style would you prefer?"
-// ❌ "Do you want me to modify anything?"
-// ❌ "Would you like me to create variations?"
-
-// **CORRECT EXAMPLES (User asking/requesting from AI - Generate these types):**
-// ✅ "Create a similar image with a dog instead"
-// ✅ "Search for the latest news about this topic"
-// ✅ "How does this algorithm work?"
-// ✅ "What are the pros and cons of this approach?"
-// ✅ "Make this image in a different style"
-// ✅ "Find research papers about this subject"
-// ✅ "Search YouTube for tutorials on this"
-// ✅ "Explain this concept in more detail"
-// ✅ "What are the alternatives to this approach?"
-
-// **Generate 3 different types of user inputs:**
-// 1. **Action Request**: User asks AI to create, generate, search, or make something
-// 2. **Information Question**: User asks AI to explain, analyze, or provide information
-// 3. **Follow-up Inquiry**: User asks about alternatives, improvements, or related topics
-
-// **IMPORTANT RULES:**
-// - Write as natural user inputs TO the AI (commands, requests, or questions)
-// - Can be imperative ("Create...") or interrogative ("How does...?", "What is...?")
-// - Respond in the same language as the user's original query
-// - Make them natural and actionable - things users would actually type
-// - Each input should be distinctly different in purpose
-// - If user memory data is available, personalize questions based on their interests and communication style
-// - Consider their technical level, preferred topics, and past interaction patterns`,
-//       schema: z.object({
-//         followup_questions: z.array(z.string()).length(3)
-//       })
-//     });
-    
-//     return followUpResult.object.followup_questions;
-//   } catch (e) { 
-//     console.error('Error generating follow-up questions:', e);
-//     return [];
-//   }
-// }
-
+    return titleResult.object.title;
+  } catch (e) { 
+    console.error('Error generating message title:', e);
+    return 'Untitled';
+  }
+}
 
 /**
  * 후속 질문 생성 함수
  */
 export async function generateFollowUpQuestions(
   userQuery: string,
-  aiResponse: string,
-  userMemoryData?: string
+  aiResponse: string
 ): Promise<string[]> {
   try {
     const contextInfo = 'The AI has provided a text response to the user.';
     
-    // 사용자 메모리 데이터가 있으면 개인화된 컨텍스트 추가
-    const personalizationContext = userMemoryData ? `
-**USER MEMORY & PREFERENCES:**
-${userMemoryData}
-
-**PERSONALIZATION INSTRUCTIONS:**
-- Consider the user's interests, preferences, and communication style from their memory data
-- Generate questions that align with their typical topics of interest
-- Use their preferred level of detail and technical depth
-- Match their communication style (formal/casual, technical/non-technical)
-- Consider their past interactions and what they typically ask about
-- If they have specific domains of expertise or interest, incorporate those
-- Use their preferred language style and terminology` : '';
-
     const followUpResult = await generateObject({
       model: providers.languageModel('gemini-2.0-flash'),
-      prompt: `You are generating follow-up questions that a USER would naturally ask to continue the conversation with an AI assistant. These should be questions that naturally flow from the current response and help deepen the discussion.
+      prompt: `You are generating follow-up questions that a USER would naturally ask to continue the conversation with an AI assistant.
 
-**CRITICAL INSTRUCTION: Generate natural conversation continuations that build upon the current response**
+**CRITICAL INSTRUCTION: ALWAYS generate very short and concise questions (under 15 words each) that are easy to read and click, regardless of memory data availability**
 
 User's original query: "${userQuery}"
 AI's response: "${aiResponse}"
-Context: ${contextInfo}${personalizationContext}
+Context: ${contextInfo}
+
+**UNIVERSAL QUESTION STYLE (Always Apply):**
+- Generate VERY SHORT questions (under 15 words each)
+- Focus on immediate, actionable follow-ups
+- Make them easy to scan and click
+- Avoid long, complex questions that users might skip
+- Prioritize curiosity-driven, specific questions over broad ones
+
+**SHORT QUESTION EXAMPLES:**
+✅ "Show me the code for this"
+✅ "What are the alternatives?"
+✅ "How does this work in practice?"
+✅ "Any real-world examples?"
+✅ "What's the next step?"
+✅ "Explain this simpler"
+
 
 **CONVERSATION FLOW PRINCIPLES:**
-- Questions should naturally continue the current topic or explore related aspects
-- Focus on deepening understanding, exploring implications, or connecting to broader themes
-- Questions should feel like a natural next step in the conversation
-- Avoid questions that feel like starting a completely new topic
-- Questions should build upon the information just provided
-- Make questions "click-worthy" by including subtle summaries of key elements and sparking curiosity – keep them short and intriguing
+- Questions should naturally continue the current topic
+- Build upon the information just provided
+- Feel like logical next steps in the discussion
+- Avoid questions that feel like starting completely new topics
+- Make questions "click-worthy" with specific details and curiosity
 
 **WRONG EXAMPLES (Don't generate these):**
 ❌ "What details would you like me to emphasize in this image?"
 ❌ "Which style would you prefer?"
 ❌ "Do you want me to modify anything?"
 ❌ "Would you like me to create variations?"
-❌ Questions that feel like starting a completely unrelated topic
-❌ "What are the ethical implications of this technology?"  // Avoid boring ethical questions
-❌ "How can we solve the privacy issues here?"  // Too unrelated and not engaging
-❌ "What countries might adopt this first?"  // Too obvious and not curiosity-driven
-
-**CORRECT EXAMPLES (Generate these types):**
-✅ "You mentioned 125,000-word vocab – any cases where it perfectly matched thoughts?"  // Summarizes key detail, builds curiosity
-✅ "£10,000 robot pregnancy vs real hospital costs – how much cheaper?"  // Engaging real-life comparison
-✅ "60-year zombie satellite signal – what's it actually saying now?"  // Stimulating with keywords
-✅ "37.6% indoor solar efficiency – how much could it cut my home electric bill?"  // Practical and click-worthy
-✅ "Brad Pitt burglary – what exactly did they steal?"  // Intriguing detail request
-✅ "AI-generated images got 90 years – what did the guy do to get caught?"  // Mysterious angle
+❌ Long, complex questions that are hard to scan
+❌ Boring ethical or obvious questions
+❌ Questions that feel unrelated to the current topic
 
 **Generate 3 different types of conversation continuations:**
-1. **Deepening Questions**: Questions that explore the current topic in more detail, depth, or complexity
-2. **Connection Questions**: Questions that connect the current topic to related concepts, applications, or broader themes
-3. **Practical Questions**: Questions that explore real-world applications, implications, or next steps
+1. **Deepening Questions**: Explore the current topic in more detail
+2. **Connection Questions**: Connect to related concepts or applications  
+3. **Practical Questions**: Explore real-world applications or next steps
 
 **IMPORTANT RULES:**
 - Write as natural conversation continuations that flow from the current response
-- Questions should feel like logical next steps in the discussion
-- Can be interrogative ("How does...?", "What are...?") or exploratory ("Tell me more about...", "Explain how...")
-- Respond in the same language as the user's original query
-- Make them feel like natural conversation flow, not isolated requests
-- Each question should explore a different aspect or direction of the current topic
-- If user memory data is available, personalize questions based on their interests and communication style
-- Consider their technical level, preferred topics, and past interaction patterns
-- Questions should encourage further exploration and discussion
-- Include key phrases or details from the AI response to subtly summarize and build curiosity
-- Prioritize engaging, fun, or mysterious angles (e.g., specific examples, real-life calculations, surprising facts) to make them "click-worthy"
-- Avoid boring, overly ethical, or obvious questions; focus on rabbit hole-style depth that users would naturally pursue
-- Keep questions concise (under 20-30 words) and punchy to encourage quick clicks`,
+- ALWAYS keep questions under 15 words each for easy scanning and clicking
+- Each question should explore a different aspect of the current topic
+- Include key phrases or details from the AI response to build curiosity
+- Focus on engaging, specific angles rather than broad, generic questions
+- Use clear, simple language that is easy to understand
+- Respond in the same language as the user's original query`,
       schema: z.object({
         followup_questions: z.array(z.string()).length(3)
       })
@@ -487,106 +455,6 @@ Context: ${contextInfo}${personalizationContext}
   }
 }
 
-/**
- * 도구 실행 계획 생성 함수
- */
-// export async function generateToolExecutionPlan(
-//   userQuery: string,
-//   selectedTools: string[],
-//   contextMessages: any[],
-//   toolDescriptions: Record<string, string>,
-// ): Promise<{
-//   plan: string;
-//   essentialContext: string;
-// }> {    
-//     // 첨부파일 감지
-//     const hasAttachments = contextMessages.some(msg => {
-//       if (Array.isArray(msg.content)) {
-//         return msg.content.some((part: any) => part.type === 'image' || part.type === 'file');
-//       }
-//       // AI SDK 5: parts 배열 구조 체크
-//       if (Array.isArray(msg.parts)) {
-//         return msg.parts.some((part: any) => part.type === 'image' || part.type === 'file');
-//       }
-//       // 하위 호환성을 위한 experimental_attachments 체크
-//       return Array.isArray((msg as any).experimental_attachments) && (msg as any).experimental_attachments.length > 0;
-//     });
-    
-//     // 시스템 프롬프트 (첨부파일 유무에 따라 다르게)
-//     const currentDate = new Date().toLocaleDateString('en-US', { 
-//       year: 'numeric', 
-//       month: 'long', 
-//       day: 'numeric',
-//       weekday: 'long'
-//     });
-    
-//     const systemPrompt = `You are an AI assistant analyzing a user's request to create a detailed execution plan for using tools.
-
-// **Current Date:** ${currentDate}
-// **User's Request:** ${userQuery}
-// **Selected Tools:** ${selectedTools.join(', ')}
-// **Available Tools:** ${Object.entries(toolDescriptions).map(([key, desc]) => `${key}: ${desc}`).join('\n')}
-// ${hasAttachments ? `**CRITICAL: ATTACHMENTS DETECTED**
-// The conversation contains attached files (PDFs, images, documents). You MUST:
-// 1. **Extract ALL specific details** from attached files that are relevant to the user's request
-// 2. **List every specific entity** (companies, people, places, dates, numbers, etc.) mentioned in attachments
-// 3. **Include ALL relevant context** from attachments in your plan
-// 4. **Be extremely detailed** about what information to search for based on attachment content
-// 5. **Mention specific search terms** and entities that should be researched
-// 6. **Consider temporal relevance** - if attachments contain dates, check if information is current as of ${currentDate}
-
-// **Example for company-related requests:**
-// - If user asks "check if mentioned companies are listed" and PDF contains companies A, B, C
-// - Your plan MUST list: "Search for: Company A, Company B, Company C"
-// - Include any additional details from PDF about these companies
-
-// **Example for data analysis requests:**
-// - If user asks "analyze this data" and PDF contains specific data points
-// - Your plan MUST include: "Search for: [specific data points], [relevant metrics], [related trends]"
-
-// **ATTACHMENT ANALYSIS REQUIREMENTS:**
-// - Extract ALL company names, product names, dates, locations, numbers, statistics
-// - Include ALL relevant keywords and search terms
-// - Be comprehensive - don't miss any important details
-// - If attachment contains lists, include ALL items in the list
-// - If attachment contains tables, extract ALL relevant data points
-// - **Temporal Analysis**: If attachments contain dates, determine if information needs current verification as of ${currentDate}` : ''}
-
-// **Your Task:**
-// 1. **Analyze User Intent**: Understand what the user really wants
-// 2. **Create Execution Plan**: Detail how to use each selected tool effectively${hasAttachments ? ', including ALL specific details from attachments' : ''}
-// 3. **Extract Essential Context**: Identify the most relevant context from conversation history${hasAttachments ? ', with comprehensive details from attached files' : ''}
-
-// **Requirements:**
-// - Respond in the user's language
-// - Be specific about tool usage order and purpose
-// - Focus on what will help the user most
-// - Extract only context that directly relates to the current request
-// - **Consider temporal relevance** - if the request involves time-sensitive information, prioritize current data as of ${currentDate}${hasAttachments ? `
-// - **MANDATORY**: Include ALL specific entities, numbers, dates, and details from attachments
-// - **MANDATORY**: List every search term and entity that should be researched
-// - **MANDATORY**: Be exhaustive - don't skip any relevant details from attachments
-// - **MANDATORY**: For any dates in attachments, determine if current verification is needed as of ${currentDate}` : ''}
-
-// **Output Format:**
-// - Plan: Step-by-step tool execution strategy${hasAttachments ? ' with ALL specific details from attachments' : ''}
-// - Essential Context: Only the most relevant parts of conversation history${hasAttachments ? ', including comprehensive attachment details' : ''}`;
-
-//     // 🔧 메시지 변환 - unified converter 사용
-//     const convertedMessages = convertToModelMessages(contextMessages);
-    
-//     const planResult = await generateObject({
-//       model: providers.languageModel('gemini-2.0-flash'),
-//       system: systemPrompt,
-//       messages: convertedMessages,
-//       schema: z.object({
-//         plan: z.string().describe('Detailed step-by-step plan for tool execution'),
-//         essentialContext: z.string().describe('Only the most relevant context from conversation history')
-//       })
-//     });
-    
-//     return planResult.object;
-// }
 
 /**
  * 공통 메시지 처리 함수 - 에이전트 모드와 일반 모드에서 공통으로 사용

@@ -4,24 +4,82 @@ import { UIMessage } from 'ai'
 import Canvas from '@/app/components/Canvas';
 import { StructuredResponse } from '@/app/components/StructuredResponse';
 import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData } from '@/app/hooks/toolFunction';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { AttachmentTextViewer } from './AttachmentTextViewer';
 
 interface SidePanelProps {
   activePanel: { messageId: string; type: 'canvas' | 'structuredResponse' | 'attachment'; fileIndex?: number; toolType?: string; fileName?: string } | null;
   messages: UIMessage[];
   togglePanel: (messageId: string, type: 'canvas' | 'structuredResponse' | 'attachment', fileIndex?: number, toolType?: string, fileName?: string) => void;
-  canvasContainerRef: React.RefObject<HTMLDivElement | null>;
+  canvasContainerRef?: React.RefObject<HTMLDivElement>;
+  onMaximizeToggle?: () => void;
+  isPanelMaximized?: boolean;
 }
 
-export function SidePanel({
+export const SidePanel: React.FC<SidePanelProps> = ({
   activePanel,
   messages,
   togglePanel,
-  canvasContainerRef
-}: SidePanelProps) {
+  canvasContainerRef,
+  onMaximizeToggle,
+  isPanelMaximized = false
+}: SidePanelProps) => {
   const [copiedFileIndex, setCopiedFileIndex] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [isMobilePanelVisible, setIsMobilePanelVisible] = useState(false);
+  const [mobilePanelElements, setMobilePanelElements] = useState({
+    background: false,
+    content: false
+  });
+  const [hasActiveSearchFilters, setHasActiveSearchFilters] = useState(false);
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [isAllQueriesSelected, setIsAllQueriesSelected] = useState(false);
+
+  // Memoized callback for search filter changes
+  const handleSearchFilterChange = useCallback((hasActiveFilters: boolean, topics?: string[], isAllSelected?: boolean) => {
+    console.log('SidePanel: handleSearchFilterChange called with:', hasActiveFilters, topics, 'isAllSelected:', isAllSelected);
+    console.log('SidePanel: Current state - hasActiveSearchFilters:', hasActiveSearchFilters, 'selectedTopics:', selectedTopics, 'isAllQueriesSelected:', isAllQueriesSelected);
+    
+    // Only update if values actually changed
+    if (hasActiveFilters !== hasActiveSearchFilters) {
+      console.log('SidePanel: Updating hasActiveSearchFilters from', hasActiveSearchFilters, 'to', hasActiveFilters);
+      setHasActiveSearchFilters(hasActiveFilters);
+    }
+    
+    const newTopics = topics || [];
+    const currentTopicsString = JSON.stringify(selectedTopics);
+    const newTopicsString = JSON.stringify(newTopics);
+    
+    if (currentTopicsString !== newTopicsString) {
+      console.log('SidePanel: Updating selectedTopics from', selectedTopics, 'to', newTopics);
+      setSelectedTopics(newTopics);
+    }
+    
+    const newIsAllSelected = isAllSelected || false;
+    if (newIsAllSelected !== isAllQueriesSelected) {
+      console.log('SidePanel: Updating isAllQueriesSelected from', isAllQueriesSelected, 'to', newIsAllSelected);
+      setIsAllQueriesSelected(newIsAllSelected);
+    }
+  }, [hasActiveSearchFilters, selectedTopics, isAllQueriesSelected]);
+
+  // Debug: Log filter state changes
+  useEffect(() => {
+    console.log('SidePanel: hasActiveSearchFilters changed to:', hasActiveSearchFilters, 'selectedTopics:', selectedTopics);
+  }, [hasActiveSearchFilters, selectedTopics]);
+
+  // Keep a ref to the activePanel data so we can still render it during the exit animation
+  const activePanelRef = useRef(activePanel);
+  
+  // Memoize the mobile panel open state to avoid recalculation
+  const isMobilePanelOpen = useMemo(() => !!activePanel?.messageId, [activePanel?.messageId]);
+  
+  // Update ref only when activePanel changes
+  useEffect(() => {
+    if (activePanel) {
+      activePanelRef.current = activePanel;
+    }
+  }, [activePanel]);
 
   // 모바일 화면 여부 확인
   useEffect(() => {
@@ -34,83 +92,168 @@ export function SidePanel({
     return () => window.removeEventListener('resize', checkIfMobile);
   }, []);
 
-  if (!activePanel?.messageId) {
-    return (
-      <div 
-        className={`fixed sm:relative sm:top-1.5 right-0 bottom-0 
-          w-full sm:w-0 bg-[var(--background)] sm:border-l 
-          border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] 
-          overflow-hidden z-[60] 
-          transition-all duration-300 ease-in-out transform 
-          translate-x-full sm:translate-x-0 sm:opacity-0 
-          scrollbar-minimal`}
-        style={{ 
-          // height: 'calc(100vh - 60px)',
-          maxHeight: '100%'
-        }}
-        ref={canvasContainerRef}
-      />
-    );
+  // Disable body scroll when mobile panel is visible and add ESC listener
+  useEffect(() => {
+    if (isMobilePanelVisible) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          if (activePanelRef.current) {
+            togglePanel(activePanelRef.current.messageId, activePanelRef.current.type, activePanelRef.current.fileIndex, activePanelRef.current.toolType);
+          }
+        }
+      };
+      window.addEventListener('keydown', onKey);
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        window.removeEventListener('keydown', onKey);
+      };
+    }
+  }, [isMobilePanelVisible, togglePanel]);
+
+  // Stage mount/unmount for smooth enter/exit with staggered animation
+  useEffect(() => {
+    if (isMobilePanelOpen) {
+      // ensure visible when opening
+      setIsMobilePanelVisible(true);
+      
+      // Staggered sequence - background first, then content (like Header battery panel)
+      const timeouts = [
+        setTimeout(() => setMobilePanelElements(prev => ({ ...prev, background: true })), 10),
+        setTimeout(() => setMobilePanelElements(prev => ({ ...prev, content: true })), 200)
+      ];
+      
+      return () => {
+        timeouts.forEach(timeout => clearTimeout(timeout));
+      };
+    } else if (isMobilePanelVisible) {
+      // closing: reverse sequence - start immediately
+      setMobilePanelElements({ background: false, content: false });
+      const timeoutId = setTimeout(() => {
+        setIsMobilePanelVisible(false);
+      }, 300);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isMobilePanelOpen, isMobilePanelVisible]);
+
+  // Handle immediate close animation when activePanel becomes null
+  useEffect(() => {
+    if (!activePanel && isMobilePanelVisible) {
+      // Start closing animation immediately when activePanel becomes null
+      setMobilePanelElements({ background: false, content: false });
+      const timeoutId = setTimeout(() => {
+        setIsMobilePanelVisible(false);
+      }, 300);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [activePanel, isMobilePanelVisible]);
+
+  // Early return when no panel is visible
+  if (!isMobilePanelVisible) {
+    return null;
   }
 
-  const activeMessage = messages.find(msg => msg.id === activePanel.messageId);
+  const panelData = activePanel || activePanelRef.current;
+  
+  if (!panelData) {
+    return null;
+  }
+
+  // From this point on, panelData is guaranteed to be non-null.
+  const nonNullPanelData = panelData!;
+
+  const activeMessage = messages.find(msg => msg.id === nonNullPanelData.messageId);
   if (!activeMessage) return null;
 
   const webSearchData = getWebSearchResults(activeMessage);
   const mathCalculationData = getMathCalculationData(activeMessage);
   const linkReaderData = getLinkReaderData(activeMessage);
   const imageGeneratorData = getImageGeneratorData(activeMessage);
-
   const youTubeSearchData = getYouTubeSearchData(activeMessage);
   const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(activeMessage);
 
+  // Helper function to get topic display name
+  const getTopicDisplayName = (topic: string): string => {
+    switch (topic) {
+      case 'general': return 'Web Search';
+      case 'news': return 'News Search';
+      case 'github': return 'GitHub Search';
+      case 'personal site': return 'Personal Sites';
+      case 'linkedin profile': return 'LinkedIn Profiles';
+      case 'company': return 'Company Search';
+      case 'financial report': return 'Financial Reports';
+      case 'research paper': return 'Academic Papers';
+      case 'pdf': return 'PDF Search';
+      default: return 'Web Search';
+    }
+  };
+
   const getPanelTitle = () => {
-    if (activePanel.type === 'canvas') {
-      if (activePanel.toolType) {
-        const toolNames: { [key: string]: string } = {
-          'web-search': 'Web Search',
-          'calculator': 'Calculator', 
-          'link-reader': 'Link Reader',
-          'image-generator': 'Image Generator',
-          'academic-search': 'Academic Search',
-          'x-search': 'X Search',
-          'youtube-search': 'YouTube Search',
-          'youtube-analyzer': 'YouTube Analyzer'
-        };
-        return toolNames[activePanel.toolType] || 'Canvas Tool';
+    if (nonNullPanelData.type === 'canvas') {
+      if (nonNullPanelData.toolType) {
+        // 디버깅: 실제 toolType 확인
+        console.log('SidePanel toolType:', nonNullPanelData.toolType, 'hasActiveSearchFilters:', hasActiveSearchFilters, 'selectedTopics:', selectedTopics);
+        
+        // web-search:topic:xxx 패턴 처리
+        if (nonNullPanelData.toolType.startsWith('web-search:topic:')) {
+          // If "All Queries" is selected, show "Searches"
+          if (isAllQueriesSelected) {
+            return 'Searches';
+          }
+          
+          // If search filters are active, determine title based on selected topics
+          if (hasActiveSearchFilters && selectedTopics.length > 0) {
+            // Get unique topics
+            const uniqueTopics = [...new Set(selectedTopics)];
+            
+            // If all selected queries are from the same topic, show that topic's title
+            if (uniqueTopics.length === 1) {
+              return getTopicDisplayName(uniqueTopics[0]);
+            } else {
+              // Mixed topics, show generic "Searches"
+              return 'Searches';
+            }
+          }
+          
+          // No active filters, show original topic
+          const topic = nonNullPanelData.toolType.replace('web-search:topic:', '');
+          return getTopicDisplayName(topic);
+        }
+        
+        // 기타 도구들
+        switch (nonNullPanelData.toolType) {
+          case 'calculator': return 'Calculator';
+          case 'link-reader': return 'Link Reader';
+          case 'image-generator': return 'Image Generator';
+          case 'youtube-search': return 'YouTube Search';
+          case 'youtube-analyzer': return 'YouTube Analyzer';
+          case 'x-search': return 'X Search';
+          default: return 'Canvas Results';
+        }
       }
       
       // If no toolType specified, determine title based on available data
-      // Show specific tool name if only one tool has data
-      const activeToolsCount = [
-        webSearchData,
-        mathCalculationData,
-        linkReaderData,
-        imageGeneratorData,
-        youTubeSearchData,
-        youTubeLinkAnalysisData
-      ].filter(Boolean).length;
-      
-      if (activeToolsCount === 1) {
-        if (webSearchData) return 'Web Search';
+        if (webSearchData) return 'Searches';
         if (mathCalculationData) return 'Calculator';
         if (linkReaderData) return 'Link Reader';
         if (imageGeneratorData) return 'Image Generator';
-
         if (youTubeSearchData) return 'YouTube Search';
         if (youTubeLinkAnalysisData) return 'YouTube Analysis';
-      }
       
       return 'Canvas';
     }
-    if (activePanel.type === 'attachment') {
-      return activePanel.fileName || 'Attachment';
+    if (nonNullPanelData.type === 'structuredResponse') {
+      return 'Tool Result';
     }
-    return activePanel.fileName || 'File Details';
+    if (nonNullPanelData.type === 'attachment') {
+      return 'User uploaded file';
+    }
+    return null;
   };
 
   const getPanelSubtitle = () => {
-    if (activePanel.type === 'canvas' && !activePanel.toolType) {
+    if (nonNullPanelData.type === 'canvas' && !nonNullPanelData.toolType) {
       const canvasDataSummary: string[] = [];
       if (webSearchData) canvasDataSummary.push('Web Search');
       if (mathCalculationData) canvasDataSummary.push('Calculator');
@@ -125,7 +268,7 @@ export function SidePanel({
         return canvasDataSummary.join(', ');
       }
     }
-    if (activePanel.type === 'attachment') {
+    if (nonNullPanelData.type === 'attachment') {
       return 'User uploaded file';
     }
     return null;
@@ -133,7 +276,7 @@ export function SidePanel({
 
   const renderFileActions = () => {
     // StructuredResponse 파일 액션
-    if (activePanel.type === 'structuredResponse' && typeof activePanel.fileIndex === 'number') {
+    if (nonNullPanelData.type === 'structuredResponse' && typeof nonNullPanelData.fileIndex === 'number') {
       // StructuredResponse.tsx와 동일한 방식으로 파일 데이터 가져오기
       const getStructuredResponseData = (message: any) => {
         const structuredResponseAnnotation = message.annotations?.find(
@@ -148,198 +291,103 @@ export function SidePanel({
           return message.tool_results.structuredResponse.response;
         }
         
-        const progressAnnotations = message.annotations?.filter(
-          (annotation: any) => annotation.type === 'structured_response_progress'
-        );
-        
-        if (progressAnnotations?.length > 0) {
-          const latestProgress = progressAnnotations[progressAnnotations.length - 1];
-          if (latestProgress.data?.response) {
-            return {
-              ...latestProgress.data.response,
-              isProgress: true
-            };
-          }
-        }
-        
-        return null;
-      };
-      
-      const responseData = getStructuredResponseData(activeMessage);
-      const filesForPanel = responseData?.files;
-      if (!filesForPanel || activePanel.fileIndex < 0 || activePanel.fileIndex >= filesForPanel.length) {
         return null;
       }
 
-      const selectedFile = filesForPanel[activePanel.fileIndex];
-      const copyKey = `${activePanel.messageId}-${activePanel.fileIndex}`;
-      const isCopied = copiedFileIndex === copyKey;
-      
-      const downloadFile = () => {
-        const blob = new Blob([selectedFile.content], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = selectedFile.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      };
-      
-      const copyFileContent = () => {
-        let content = selectedFile.content;
-        // 코드 블록 제거
-        if (content.trim().startsWith('```')) {
-          content = content.trim().replace(/^```[^\n]*\n?/, '').replace(/```$/, '');
-        }
-        navigator.clipboard.writeText(content)
-          .then(() => {
-            setCopiedFileIndex(copyKey);
-            // 2초 후 복사 상태 초기화
-            setTimeout(() => {
-              setCopiedFileIndex(null);
-            }, 2000);
-          })
-          .catch((err) => {
-            console.error('Failed to copy file content:', err);
-          });
-      };
+      const fileData = getStructuredResponseData(activeMessage);
+
+      if (fileData && fileData[nonNullPanelData.fileIndex]) {
+        const file = fileData[nonNullPanelData.fileIndex];
+        const isCopied = copiedFileIndex === `${nonNullPanelData.messageId}-${nonNullPanelData.fileIndex}`;
       
       return (
-        <>
-          {/* 다운로드 버튼 */}
+          <div className="flex items-center gap-2">
           <button
-            onClick={downloadFile}
-            className="rounded-full p-1.5 sm:p-2 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors"
-            title="Download file"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" className="sm:w-[18px] sm:h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7,10 12,15 17,10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-          </button>
-          {/* 복사 버튼 */}
-          <button
-            onClick={copyFileContent}
-            className={`rounded-full p-1.5 sm:p-2 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-all duration-200 ${
-              isCopied ? 'text-green-500' : 'text-[var(--foreground)]'
-            }`}
-            title={isCopied ? "Copied!" : "Copy file content"}
+              onClick={() => {
+                navigator.clipboard.writeText(file.content || '');
+                setCopiedFileIndex(`${nonNullPanelData.messageId}-${nonNullPanelData.fileIndex}`);
+                setTimeout(() => setCopiedFileIndex(null), 2000);
+              }}
+              className="p-1.5 hover:bg-[var(--accent)] rounded-md transition-colors"
+              title="Copy to clipboard"
           >
             {isCopied ? (
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" className="sm:w-[18px] sm:h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 6 9 17l-5-5"/>
+                <svg className="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" className="sm:w-[18px] sm:h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
-                <path d="M4 16c-1.1 0-2-.9-2 2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                <svg className="w-3.5 h-3.5 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
             )}
           </button>
-        </>
+          </div>
       );
+      }
     }
 
     // Attachment 파일 액션
-    if (activePanel.type === 'attachment' && typeof activePanel.fileIndex === 'number') {
+    if (nonNullPanelData.type === 'attachment' && typeof nonNullPanelData.fileIndex === 'number') {
       const attachmentsFromParts = (() => {
         const parts = (activeMessage as any)?.parts;
-        if (!Array.isArray(parts)) return [] as any[];
+        if (!parts) return [];
         return parts
-          .filter((part: any) => part.type === 'image' || part.type === 'file')
-          .map((part: any, index: number) => {
-            if (part.type === 'image') {
-              return {
-                name: `image-${index}`,
-                contentType: 'image/jpeg',
-                url: part.image,
-                fileType: 'image' as const
-              };
-            } else {
-              return {
-                name: part.filename || `file-${index}`,
-                contentType: part.mediaType || 'application/octet-stream',
-                url: part.url,
-                fileType: 'file' as const
-              };
-            }
-          })
-          .filter(Boolean);
+          .filter((part: any) => part.type === 'attachment')
+          .map((part: any) => part.attachment);
       })();
 
       const attachments = (activeMessage as any).experimental_attachments || attachmentsFromParts;
-      if (!attachments || activePanel.fileIndex < 0 || activePanel.fileIndex >= attachments.length) {
+      if (!attachments || nonNullPanelData.fileIndex < 0 || nonNullPanelData.fileIndex >= attachments.length) {
         return null;
       }
 
-      const selectedAttachment = attachments[activePanel.fileIndex];
+      const selectedAttachment = attachments[nonNullPanelData.fileIndex];
       
       const downloadAttachment = () => {
-        window.open(selectedAttachment.url, '_blank');
+        const link = document.createElement('a');
+        link.href = selectedAttachment.url;
+        link.download = selectedAttachment.name || 'download';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       };
       
       return (
-        <>
-          {/* 다운로드 버튼 */}
+        <div className="flex items-center gap-2">
           <button
             onClick={downloadAttachment}
-            className="rounded-full p-1.5 sm:p-2 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors"
+            className="p-1.5 hover:bg-[var(--accent)] rounded-md transition-colors"
             title="Download file"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" className="sm:w-[18px] sm:h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7,10 12,15 17,10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
+            <svg className="w-3.5 h-3.5 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </button>
-        </>
+        </div>
       );
     }
-
-    return null;
   };
 
   // 사용자 첨부파일 렌더링 함수
   const renderAttachmentContent = () => {
-    if (activePanel.type !== 'attachment' || typeof activePanel.fileIndex !== 'number') {
+    if (nonNullPanelData.type !== 'attachment' || typeof nonNullPanelData.fileIndex !== 'number') {
       return null;
     }
 
-    // Prefer DB attachments, but fall back to parts-derived attachments for v5-only messages
     const attachmentsFromParts = (() => {
       const parts = (activeMessage as any)?.parts;
-      if (!Array.isArray(parts)) return [] as any[];
+      if (!parts) return [];
       return parts
-        .filter((part: any) => part.type === 'image' || part.type === 'file')
-        .map((part: any, index: number) => {
-          if (part.type === 'image') {
-            return {
-              name: `image-${index}`,
-              contentType: 'image/jpeg',
-              url: part.image,
-              fileType: 'image' as const
-            };
-          } else {
-            return {
-              name: part.filename || `file-${index}`,
-              contentType: part.mediaType || 'application/octet-stream',
-              url: part.url,
-              fileType: 'file' as const
-            };
-          }
-        })
-        .filter(Boolean);
+        .filter((part: any) => part.type === 'attachment')
+        .map((part: any) => part.attachment);
     })();
 
     const attachments = (activeMessage as any).experimental_attachments || attachmentsFromParts;
-    if (!attachments || activePanel.fileIndex < 0 || activePanel.fileIndex >= attachments.length) {
+    if (!attachments || nonNullPanelData.fileIndex < 0 || nonNullPanelData.fileIndex >= attachments.length) {
       return <div className="text-center text-[var(--muted)]">Attachment not found</div>;
     }
 
-    const attachment = attachments[activePanel.fileIndex];
+    const attachment = attachments[nonNullPanelData.fileIndex];
     const isImage = attachment.contentType?.startsWith('image/');
     const isPDF = attachment.contentType === 'application/pdf' || attachment.name?.toLowerCase().endsWith('.pdf');
     const isText = attachment.contentType?.startsWith('text/') || 
@@ -402,143 +450,72 @@ export function SidePanel({
     }
   };
 
-  return (
-    <div 
-  className="side-panel fixed sm:relative sm:top-1.5 right-0 bottom-0 
-    w-full sm:w-full sm:h-full bg-[var(--background)] sm:border-l 
-    border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] 
-    overflow-y-auto z-[60] 
-    transition-all duration-300 ease-in-out transform 
-    translate-x-0 opacity-100 sm:flex-shrink-0 
-    scrollbar-minimal"
-  style={{ 
-    height: isMobile ? '100vh' : '100%',
-    maxHeight: isMobile ? '100vh' : '100%',
-    minWidth: 0 // Prevent flex item from overflowing
-  }}
-  ref={canvasContainerRef}
->
-  {/* 사파리 스타일 헤더 */}
-  <div className="sticky top-0 z-20 bg-[var(--background)] flex items-center justify-between px-2 sm:px-4 py-1.5 border-b border-[color-mix(in_srgb,var(--foreground)_7%,transparent)]">
-    <div className="flex items-center gap-1">
-      {/* 모바일: 닫기 버튼만, 데스크톱: 사파리 스타일 버튼들 */}
-      <div>
-        {/* 모바일에서만 표시되는 닫기 버튼 */}
-        {isMobile && (
+  // 모든 경우에 Header 스타일의 애니메이션 패널 사용 (모바일과 데스크톱 동일)
+  return createPortal(
+      <div className={`fixed inset-0 z-[70] text-[var(--foreground)] pointer-events-auto transition-all duration-500 ease-out ${
+        mobilePanelElements.background ? 'opacity-100' : 'opacity-0'
+      }`}
+        style={{ backgroundColor: 'var(--background)' }}
+      >
+        <div className="absolute inset-0" onClick={() => {
+          if (activePanelRef.current) {
+            togglePanel(activePanelRef.current.messageId, activePanelRef.current.type, activePanelRef.current.fileIndex, activePanelRef.current.toolType);
+          }
+        }} />
+        <div 
+          className={`relative h-full w-full flex flex-col transform-gpu transition-all duration-400 ease-out ${
+            mobilePanelElements.content ? 'opacity-100 translate-y-0 scale-y-100' : 'opacity-0 -translate-y-4 scale-y-[0.95]'
+          }`} 
+          style={{ transformOrigin: 'top center' }}
+        >
           <button 
-            onClick={() => togglePanel(activePanel.messageId, activePanel.type, activePanel.fileIndex, activePanel.toolType)}
-            className="imessage-control-btn"
-            title="Close panel"
+            aria-label="Close"
+            className="absolute top-3 right-3 p-2 rounded-full z-10 cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (activePanelRef.current) {
+                togglePanel(activePanelRef.current.messageId, activePanelRef.current.type, activePanelRef.current.fileIndex, activePanelRef.current.toolType);
+              }
+            }}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
-        )}
-        
-        {/* 데스크톱에서만 표시되는 사파리 스타일 버튼들 */}
-        {!isMobile && (
-          <div className="flex items-center gap-2">
-            {/* 빨간색 닫기 버튼 */}
-            <button 
-              onClick={() => togglePanel(activePanel.messageId, activePanel.type, activePanel.fileIndex, activePanel.toolType)}
-              className="safari-window-button close"
-              title="Close panel"
-            >
-              <div className="icon">
-                <svg viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M1 1L7 7M7 1L1 7" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
-                </svg>
-              </div>
-            </button>
-            
-            {/* 회색 최소화 버튼 (비활성) */}
-            <button 
-              className="safari-window-button minimize"
-              title="Minimize (not available)"
-              disabled
-            />
-            
-            {/* 초록색 최대화 버튼 */}
-            <button 
-              onClick={() => {
-                // 창 최대화/복원 효과
-                const panel = canvasContainerRef.current;
-                if (panel) {
-                  if (panel.classList.contains('maximized')) {
-                    // 최대화 상태에서 원래 크기로 복원
-                    panel.classList.remove('maximized');
-                    panel.style.position = '';
-                    panel.style.top = '';
-                    panel.style.right = '';
-                    panel.style.bottom = '';
-                    panel.style.left = '';
-                    panel.style.width = '';
-                    panel.style.height = '';
-                    panel.style.zIndex = '';
-                    panel.style.transform = '';
-                    panel.style.borderRadius = '';
-                  } else {
-                    // 기본 상태에서 전체 화면으로 최대화
-                    panel.classList.add('maximized');
-                    panel.style.position = 'fixed';
-                    panel.style.top = '0';
-                    panel.style.right = '0';
-                    panel.style.bottom = '0';
-                    panel.style.left = '0';
-                    panel.style.width = '100vw';
-                    panel.style.height = '100vh';
-                    panel.style.zIndex = '9999';
-                    panel.style.transform = 'scale(1)';
-                    panel.style.borderRadius = '0';
-                  }
-                }
-              }}
-              className="safari-window-button maximize"
-              title="Toggle maximize"
-            >
-              <div className="icon">
-                <svg viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="2" y="2" width="4" height="4" stroke="currentColor" strokeWidth="1" fill="none"/>
-                </svg>
-              </div>
-            </button>
-          </div>
-        )}
-      </div>
-      
-
-    </div>
-    
-    {/* 우측 액션 버튼들 */}
-    <div className="flex items-center gap-1">
-      {renderFileActions()}
-    </div>
-  </div>
-
-  {/* 패널 내용 */}
-  <div className="px-3 sm:px-4 pt-0 sm:pt-4 pb-28 min-w-0 flex-1 overflow-hidden">
-    <div key={`panel-content-${activeMessage.id}`} className="h-full overflow-y-auto">
-      {activePanel.type === 'canvas' && (
+          <div className={`flex-grow overflow-y-auto px-12 sm:px-16 md:px-20 lg:px-32 xl:px-40 2xl:px-48 pt-12 sm:pt-30 pb-8 transform-gpu transition-all duration-400 ease-out ${
+            mobilePanelElements.content ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-6'
+          }`}>
+            <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-medium tracking-tight pl-0.5">
+              {getPanelTitle()}
+            </h2>
+            <div className={`sm:mt-20 mt-10 text-base text-[var(--muted)] transform-gpu transition-all duration-400 ease-out ${
+              mobilePanelElements.content ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
+            }`}>
+              <div className="mb-6 text-base font-normal text-[var(--muted)] pl-0 sm:pl-3.5">Tool Results</div>
+              <div className="text-[var(--foreground)]/80 leading-relaxed">
+                {nonNullPanelData.type === 'canvas' && (
         <Canvas
           webSearchData={webSearchData}
           mathCalculationData={mathCalculationData}
           linkReaderData={linkReaderData}
           imageGeneratorData={imageGeneratorData}
-
           youTubeSearchData={youTubeSearchData}
           youTubeLinkAnalysisData={youTubeLinkAnalysisData}
-          isCompact={false} // 패널에서는 항상 전체 보기
-          selectedTool={activePanel.toolType} // 선택된 도구 전달
+                    isCompact={false}
+                    selectedTool={nonNullPanelData.toolType}
+                    onSearchFilterChange={handleSearchFilterChange}
         />
       )}
-      {activePanel.type === 'structuredResponse' && (
-        <StructuredResponse message={activeMessage} fileIndex={activePanel.fileIndex} />
+                {nonNullPanelData.type === 'structuredResponse' && (
+                  <StructuredResponse message={activeMessage} fileIndex={nonNullPanelData.fileIndex} />
       )}
-      {activePanel.type === 'attachment' && renderAttachmentContent()}
+                {nonNullPanelData.type === 'attachment' && renderAttachmentContent()}
+              </div>
     </div>
   </div>
 </div>
+      </div>,
+      document.body
 );
 } 

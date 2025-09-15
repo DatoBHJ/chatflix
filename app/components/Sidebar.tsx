@@ -19,6 +19,7 @@ import { Settings, LifeBuoy, Zap, LogOut, CreditCard } from 'lucide-react'
 import { SquarePencil } from 'react-ios-icons'
 import { ProblemReportDialog } from './ProblemReportDialog'
 import { SubscriptionDialog } from './SubscriptionDialog'
+import { highlightSearchTerm } from '@/app/utils/searchHighlight'
 
 interface SidebarProps {
   user: any;  // You might want to define a proper User type
@@ -877,14 +878,82 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
         messageResults = fallbackMessageResults;
       }
 
+      // 🚀 NEW: Search structured response titles with improved error handling
+      let structuredResponseResults: any[] = [];
+      let structuredResponseError = null;
+
+      try {
+        // First try PGroonga RPC function
+        const { data: rpcResults, error: rpcError } = await supabase
+          .rpc('search_structured_response_titles_pgroonga', {
+            search_term: search,
+            user_id_param: user.id,
+            limit_param: 50
+          });
+
+        if (rpcError) {
+          throw rpcError;
+        }
+        
+        structuredResponseResults = rpcResults || [];
+      } catch (error) {
+        console.warn('PGroonga RPC search failed, falling back to ILIKE:', error);
+        structuredResponseError = error;
+        
+        // Fallback to direct query with ILIKE
+        try {
+          const { data: fallbackStructuredResults, error: fallbackStructuredError } = await supabase
+            .from('messages')
+            .select('chat_session_id, id, tool_results, created_at, content')
+            .eq('user_id', user.id)
+            .not('tool_results', 'is', null)
+            .filter('tool_results->structuredResponse->response->title', 'not.is', null)
+            .order('created_at', { ascending: false })
+            .limit(50);
+          
+          if (fallbackStructuredError) {
+            console.error('Fallback structured response search error:', fallbackStructuredError);
+            structuredResponseResults = [];
+          } else {
+            // Filter and process results in JavaScript for better compatibility
+            structuredResponseResults = (fallbackStructuredResults || [])
+              .filter(msg => {
+                const title = msg.tool_results?.structuredResponse?.response?.title;
+                return title && (
+                  title.toLowerCase().includes(search.toLowerCase()) ||
+                  msg.content.toLowerCase().includes(search.toLowerCase())
+                );
+              })
+              .map(msg => ({
+                chat_session_id: msg.chat_session_id,
+                message_id: msg.id,
+                title: msg.tool_results?.structuredResponse?.response?.title || '',
+                created_at: msg.created_at,
+                content: msg.content
+              }));
+          }
+        } catch (fallbackError) {
+          console.error('Both RPC and fallback structured response search failed:', fallbackError);
+          structuredResponseResults = [];
+        }
+      }
+
       // Get unique session IDs from message search
       const messageSessionIds = messageResults 
         ? [...new Set(messageResults.map((msg: any) => msg.chat_session_id))]
         : [];
 
+      // Get unique session IDs from structured response search
+      const structuredResponseSessionIds = structuredResponseResults 
+        ? [...new Set(structuredResponseResults.map((msg: any) => msg.chat_session_id))]
+        : [];
+
+      // Combine all session IDs
+      const allMessageSessionIds = [...new Set([...messageSessionIds, ...structuredResponseSessionIds])];
+
       // Fetch session details for message search results (only if not already in title results)
       const existingSessionIds = new Set((titleResults || []).map((s: any) => s.id));
-      const newSessionIds = messageSessionIds.filter(id => !existingSessionIds.has(id));
+      const newSessionIds = allMessageSessionIds.filter(id => !existingSessionIds.has(id));
       
       const { data: messageSessionResults, error: sessionError } = newSessionIds.length > 0 
         ? await supabase
@@ -911,11 +980,18 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
         // Find messages for this session
         const sessionMessages = messageResults?.filter((msg: any) => msg.chat_session_id === session.id) || [];
         
+        // Find structured response results for this session
+        const sessionStructuredResponses = structuredResponseResults?.filter((msg: any) => msg.chat_session_id === session.id) || [];
+        
         const firstUserMsg = sessionMessages
           .filter((msg: any) => msg.role === 'user')
           .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
         
         const latestMsg = sessionMessages
+          .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+        
+        // Get the latest structured response for this session
+        const latestStructuredResponse = sessionStructuredResponses
           .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 
         // Determine title with better fallback logic
@@ -962,19 +1038,34 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
           return snippet;
         };
         
-        // sessionMessages are already sorted DESC, so the first element is the latest match
-        const latestMatchingMessage = sessionMessages.length > 0 ? sessionMessages[0] : null;
+        // Check for structured response matches first (highest priority)
+        if (latestStructuredResponse && latestStructuredResponse.title) {
+          const structuredTitle = latestStructuredResponse.title;
+          if (structuredTitle.toLowerCase().includes(searchTermLower)) {
+            lastMessage = `📋 ${createSnippet(structuredTitle, search)}`;
+            lastMessageTime = new Date(latestStructuredResponse.created_at).getTime();
+          } else if (latestStructuredResponse.content && latestStructuredResponse.content.toLowerCase().includes(searchTermLower)) {
+            lastMessage = `📋 ${structuredTitle} - ${createSnippet(latestStructuredResponse.content, search)}`;
+            lastMessageTime = new Date(latestStructuredResponse.created_at).getTime();
+          }
+        }
+        
+        // If no structured response match, check regular messages
+        if (!lastMessage) {
+          // sessionMessages are already sorted DESC, so the first element is the latest match
+          const latestMatchingMessage = sessionMessages.length > 0 ? sessionMessages[0] : null;
 
-        if (latestMatchingMessage) {
-          lastMessage = createSnippet(latestMatchingMessage.content, search);
-          lastMessageTime = new Date(latestMatchingMessage.created_at).getTime();
-        } else if (session.initial_message && session.initial_message.toLowerCase().includes(searchTermLower)) {
-          lastMessage = createSnippet(session.initial_message, search);
-        } else {
-          // Fallback for title-only matches
-          const fallbackPreview = latestMsg ? latestMsg.content : (session.initial_message || '');
-          lastMessage = fallbackPreview.length > 100 ? fallbackPreview.substring(0, 100) + '...' : fallbackPreview;
-          lastMessageTime = latestMsg ? new Date(latestMsg.created_at).getTime() : new Date(session.created_at).getTime();
+          if (latestMatchingMessage) {
+            lastMessage = createSnippet(latestMatchingMessage.content, search);
+            lastMessageTime = new Date(latestMatchingMessage.created_at).getTime();
+          } else if (session.initial_message && session.initial_message.toLowerCase().includes(searchTermLower)) {
+            lastMessage = createSnippet(session.initial_message, search);
+          } else {
+            // Fallback for title-only matches
+            const fallbackPreview = latestMsg ? latestMsg.content : (session.initial_message || '');
+            lastMessage = fallbackPreview.length > 100 ? fallbackPreview.substring(0, 100) + '...' : fallbackPreview;
+            lastMessageTime = latestMsg ? new Date(latestMsg.created_at).getTime() : new Date(session.created_at).getTime();
+          }
         }
 
         // Determine current model
@@ -993,14 +1084,21 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
 
       // Sort efficiently by relevance and time
       processedChats.sort((a, b) => {
-        // Prioritize title matches over message matches
+        // Prioritize structured response matches (highest priority)
+        const aStructuredMatch = a.lastMessage?.startsWith('📋');
+        const bStructuredMatch = b.lastMessage?.startsWith('📋');
+        
+        if (aStructuredMatch && !bStructuredMatch) return -1;
+        if (!aStructuredMatch && bStructuredMatch) return 1;
+        
+        // Then prioritize title matches over message matches
         const aTitleMatch = a.title.toLowerCase().includes(search);
         const bTitleMatch = b.title.toLowerCase().includes(search);
         
         if (aTitleMatch && !bTitleMatch) return -1;
         if (!aTitleMatch && bTitleMatch) return 1;
         
-        // Then sort by time
+        // Finally sort by time
         const timeA = a.lastMessageTime ?? 0;
         const timeB = b.lastMessageTime ?? 0;
         return timeB - timeA;
@@ -1013,8 +1111,9 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
       // 🚀 PERFORMANCE MONITORING: Log search performance with PGroonga status
       const searchEndTime = performance.now();
       const searchDuration = searchEndTime - searchStartTime;
-      const usedPGroonga = !titleError && !messageError;
-      console.log(`🔍 ${usedPGroonga ? 'PGroonga' : 'ILIKE'} search completed in ${searchDuration.toFixed(2)}ms for term: "${search}" (${processedChats.length} results)`);
+      const usedPGroonga = !titleError && !messageError && !structuredResponseError;
+      const structuredResponseCount = structuredResponseResults?.length || 0;
+      console.log(`🔍 ${usedPGroonga ? 'PGroonga' : 'ILIKE'} search completed in ${searchDuration.toFixed(2)}ms for term: "${search}" (${processedChats.length} results, ${structuredResponseCount} structured responses)`);
       
     } catch (error) {
       console.error('Error searching chats:', error);
@@ -1112,38 +1211,6 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
     setHasAutoSelected(false);
   }, [searchTerm]);
 
-  // Enhanced search term highlighting function with multilingual support
-  const highlightSearchTerm = (text: string, term: string, isSelected: boolean = false) => {
-    if (!term.trim()) return text;
-    
-    // 🚀 IMPROVEMENT: Handle multiple words and phrases for highlighting
-    const searchWords = term.trim().split(/\s+/).filter(word => word.length > 0);
-    const escapedWords = searchWords.map(word => 
-      word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    );
-    const regex = new RegExp(`(${escapedWords.join('|')})`, 'giu');
-    const parts = text.split(regex);
-    
-    return parts.map((part, index) => {
-      const isMatch = escapedWords.some(word => new RegExp(`^${word}$`, 'i').test(part));
-      
-      if (isMatch) {
-        return (
-          <span 
-            key={index} 
-            className={`px-0.5 rounded text-xs transition-colors ${ 
-              isSelected 
-                ? 'bg-white/30 text-white font-medium' 
-                : 'bg-[#007AFF]/20 text-[#007AFF] font-medium'
-            }`}
-          >
-            {part}
-          </span>
-        );
-      }
-      return part;
-    });
-  };
 
 
 
@@ -1506,7 +1573,7 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
                                           }}
                                           title="Double-click to edit title"
                                         >
-                                          {searchTerm ? highlightSearchTerm(chat.title, searchTerm, isSelected) : chat.title}
+                                          {searchTerm ? highlightSearchTerm(chat.title, searchTerm, { isSelected }) : chat.title}
                                         </p>
                                       )}
                                       <span className={`text-xs flex-shrink-0 ${ 
@@ -1536,7 +1603,7 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
                                         isSelected ? 'text-white/70' : 'text-[var(--muted)]'
                                       }`}>
                                         {searchTerm && chat.lastMessage 
-                                          ? highlightSearchTerm(chat.lastMessage, searchTerm, isSelected)
+                                          ? highlightSearchTerm(chat.lastMessage, searchTerm, { isSelected })
                                           : chat.lastMessage || 'No messages yet'}
                                       </p>
                                       

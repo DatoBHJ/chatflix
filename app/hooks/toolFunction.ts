@@ -566,12 +566,19 @@ export const getMathCalculationData = (message: UIMessage) => {
   
   // 2. 실시간 주석에서 계산 단계 추출
   let mathAnnotations: any[] = [];
+  let mathStarted = false;
   
   // Check annotations array (legacy format)
   if ((message as any).annotations) {
-    mathAnnotations = (((message as any).annotations) as any[])
+    const calculationAnnotations = (((message as any).annotations) as any[])
       .filter(a => a && typeof a === 'object' && a.type && 
         ['math_calculation', 'math_calculation_complete'].includes(a.type));
+    
+    const startAnnotations = (((message as any).annotations) as any[])
+      .filter(a => a && typeof a === 'object' && a.type === 'math_calculation_started');
+    
+    mathAnnotations = calculationAnnotations;
+    mathStarted = startAnnotations.length > 0;
   }
   
   // Check parts array for streaming annotations (AI SDK 5 format)
@@ -579,25 +586,35 @@ export const getMathCalculationData = (message: UIMessage) => {
     const mathParts = ((message as any).parts as any[])
       .filter(p => p?.type === 'data-math_calculation');
     
+    const mathStartParts = ((message as any).parts as any[])
+      .filter(p => p?.type === 'data-math_calculation_started');
+    
     // Convert parts format to annotations format for consistency
     mathAnnotations = [
       ...mathAnnotations,
       ...mathParts.map(p => ({ type: 'math_calculation', ...p.data }))
     ];
+    mathStarted = mathStarted || mathStartParts.length > 0;
   }
   
-  if (mathAnnotations.length === 0) return null;
+  // 시작 신호가 있거나 계산 단계가 있으면 반환
+  if (mathStarted || mathAnnotations.length > 0) {
+    // 최신 계산 단계 반환
+    const calculationSteps = mathAnnotations
+      .filter(a => a.type === 'math_calculation' && a.calculationSteps)
+      .flatMap(a => a.calculationSteps)
+      .filter((step, index, self) => 
+        index === self.findIndex(s => s.step === step.step)
+      )
+      .sort((a, b) => a.step - b.step);
+    
+    return { 
+      calculationSteps,
+      status: calculationSteps.length > 0 ? 'completed' : 'processing'
+    };
+  }
   
-  // 최신 계산 단계 반환
-  const calculationSteps = mathAnnotations
-    .filter(a => a.type === 'math_calculation' && a.calculationSteps)
-    .flatMap(a => a.calculationSteps)
-    .filter((step, index, self) => 
-      index === self.findIndex(s => s.step === step.step)
-    )
-    .sort((a, b) => a.step - b.step);
-  
-  return calculationSteps.length > 0 ? { calculationSteps } : null;
+  return null;
 };
 
 // Extract link reader attempts from message annotations and tool_results
@@ -613,6 +630,7 @@ export const getLinkReaderData = (message: UIMessage) => {
   // Check for link reader annotations
   let linkReaderAnnotations: any[] = [];
   let linkReaderUpdates: any[] = [];
+  let linkReaderStarted = false;
   
   // Check annotations array (legacy format)
   if ((message as any).annotations) {
@@ -623,6 +641,11 @@ export const getLinkReaderData = (message: UIMessage) => {
       
     linkReaderUpdates = (((message as any).annotations) as any[])
       .filter(a => a && typeof a === 'object' && a.type === 'link_reader_attempt_update');
+    
+    const startAnnotations = (((message as any).annotations) as any[])
+      .filter(a => a && typeof a === 'object' && a.type === 'link_reader_started');
+    
+    linkReaderStarted = startAnnotations.length > 0;
   }
   
   // Check parts array for streaming annotations (AI SDK 5 format)
@@ -631,6 +654,8 @@ export const getLinkReaderData = (message: UIMessage) => {
       .filter(p => p?.type === 'data-link_reader_attempt');
     const linkUpdateParts = ((message as any).parts as any[])
       .filter(p => p?.type === 'data-link_reader_attempt_update');
+    const linkStartParts = ((message as any).parts as any[])
+      .filter(p => p?.type === 'data-link_reader_started');
     
     linkReaderAnnotations = [
       ...linkReaderAnnotations,
@@ -641,25 +666,38 @@ export const getLinkReaderData = (message: UIMessage) => {
       ...linkReaderUpdates,
       ...linkUpdateParts.map(p => ({ type: 'link_reader_attempt_update', data: p.data }))
     ];
+    
+    linkReaderStarted = linkReaderStarted || linkStartParts.length > 0;
   }
   
-  if (linkReaderAnnotations.length === 0) return null;
+  // 시작 신호가 있거나 시도가 있으면 반환
+  if (linkReaderStarted || linkReaderAnnotations.length > 0) {
+    // Create a map of attempts by URL for easy updating
+    const attemptsMap = new Map(
+      linkReaderAnnotations.map(attempt => [attempt.url, attempt])
+    );
+    
+    // Apply updates from annotations
+    linkReaderUpdates.forEach(update => {
+      const data = update.data;
+      if (data?.url && attemptsMap.has(data.url)) {
+        // Update the attempt with latest data
+        Object.assign(attemptsMap.get(data.url), data);
+      }
+    });
+    
+    const linkAttempts = Array.from(attemptsMap.values());
+    const hasSuccessfulAttempt = linkAttempts.some(attempt => 
+      attempt.status === 'success' || (attempt.title && !attempt.error)
+    );
+    
+    return { 
+      linkAttempts,
+      status: hasSuccessfulAttempt ? 'completed' : 'processing'
+    };
+  }
   
-  // Create a map of attempts by URL for easy updating
-  const attemptsMap = new Map(
-    linkReaderAnnotations.map(attempt => [attempt.url, attempt])
-  );
-  
-  // Apply updates from annotations
-  linkReaderUpdates.forEach(update => {
-    const data = update.data;
-    if (data?.url && attemptsMap.has(data.url)) {
-      // Update the attempt with latest data
-      Object.assign(attemptsMap.get(data.url), data);
-    }
-  });
-  
-  return { linkAttempts: Array.from(attemptsMap.values()) };
+  return null;
 };
 
 // Extract image generator data from message annotations and tool_results
@@ -674,6 +712,7 @@ export const getImageGeneratorData = (message: UIMessage) => {
     
     // Check for image generator annotations
     let imageAnnotations: any[] = [];
+    let imageStarted = false;
     
     // Check annotations array (legacy format)
     if ((message as any).annotations) {
@@ -681,6 +720,11 @@ export const getImageGeneratorData = (message: UIMessage) => {
         .filter(a => a && typeof a === 'object' && a.type === 'generated_image')
         .map(a => a.data)
         .filter(Boolean);
+      
+      const startAnnotations = (((message as any).annotations) as any[])
+        .filter(a => a && typeof a === 'object' && a.type === 'image_generation_started');
+      
+      imageStarted = startAnnotations.length > 0;
     }
     
     // Check parts array for streaming annotations (AI SDK 5 format)
@@ -688,15 +732,25 @@ export const getImageGeneratorData = (message: UIMessage) => {
       const imageParts = ((message as any).parts as any[])
         .filter(p => p?.type === 'data-generated_image');
       
+      const imageStartParts = ((message as any).parts as any[])
+        .filter(p => p?.type === 'data-image_generation_started');
+      
       imageAnnotations = [
         ...imageAnnotations,
         ...imageParts.map(p => p.data).filter(Boolean)
       ];
+      imageStarted = imageStarted || imageStartParts.length > 0;
     }
     
-    if (imageAnnotations.length === 0) return null;
+    // 시작 신호가 있거나 이미지가 있으면 반환
+    if (imageStarted || imageAnnotations.length > 0) {
+      return { 
+        generatedImages: imageAnnotations,
+        status: imageAnnotations.length > 0 ? 'completed' : 'processing'
+      };
+    }
     
-    return { generatedImages: imageAnnotations };
+    return null;
   };
 
   
@@ -714,18 +768,48 @@ export const getImageGeneratorData = (message: UIMessage) => {
       }
     }
     
-    // Check for X search annotations
-    if (!(message as any).annotations) return null;
+    // Check for X search annotations and parts
+    let xSearchAnnotations: any[] = [];
+    let xSearchStarted = false;
     
-    // Get X search annotations
-    const xSearchAnnotations = (((message as any).annotations) as any[])
-      .filter(a => a && typeof a === 'object' && a.type === 'x_search_complete')
-      .map(a => a.data)
-      .filter(Boolean);
+    // Check annotations array (legacy format)
+    if ((message as any).annotations) {
+      const completeAnnotations = (((message as any).annotations) as any[])
+        .filter(a => a && typeof a === 'object' && a.type === 'x_search_complete')
+        .map(a => a.data)
+        .filter(Boolean);
+      
+      const startAnnotations = (((message as any).annotations) as any[])
+        .filter(a => a && typeof a === 'object' && a.type === 'x_search_started');
+      
+      xSearchAnnotations = completeAnnotations;
+      xSearchStarted = startAnnotations.length > 0;
+    }
     
-    if (xSearchAnnotations.length === 0) return null;
+    // Check parts array for streaming annotations (AI SDK 5 format)
+    if ((message as any).parts && Array.isArray((message as any).parts)) {
+      const xCompleteParts = ((message as any).parts as any[])
+        .filter(p => p?.type === 'data-x_search_complete');
+      
+      const xStartParts = ((message as any).parts as any[])
+        .filter(p => p?.type === 'data-x_search_started');
+      
+      xSearchAnnotations = [
+        ...xSearchAnnotations,
+        ...xCompleteParts.map(p => p.data).filter(Boolean)
+      ];
+      xSearchStarted = xSearchStarted || xStartParts.length > 0;
+    }
     
-    return { xResults: xSearchAnnotations };
+    // 시작 신호가 있거나 완료 결과가 있으면 반환
+    if (xSearchStarted || xSearchAnnotations.length > 0) {
+      return { 
+        xResults: xSearchAnnotations,
+        status: xSearchAnnotations.length > 0 ? 'completed' : 'processing'
+      };
+    }
+    
+    return null;
   };
   
 
@@ -739,31 +823,48 @@ export const getImageGeneratorData = (message: UIMessage) => {
       }
     }
     
-    // Check for YouTube search annotations
+    // Check for YouTube search annotations and parts
     let youtubeSearchAnnotations: any[] = [];
+    let youtubeSearchStarted = false;
     
     // Check annotations array (legacy format)
     if ((message as any).annotations) {
-      youtubeSearchAnnotations = (((message as any).annotations) as any[])
+      const completeAnnotations = (((message as any).annotations) as any[])
         .filter(a => a && typeof a === 'object' && a.type === 'youtube_search_complete')
         .map(a => a.data)
         .filter(Boolean);
+      
+      const startAnnotations = (((message as any).annotations) as any[])
+        .filter(a => a && typeof a === 'object' && a.type === 'youtube_search_started');
+      
+      youtubeSearchAnnotations = completeAnnotations;
+      youtubeSearchStarted = startAnnotations.length > 0;
     }
     
     // Check parts array for streaming annotations (AI SDK 5 format)
     if ((message as any).parts && Array.isArray((message as any).parts)) {
-      const youtubeParts = ((message as any).parts as any[])
+      const youtubeCompleteParts = ((message as any).parts as any[])
         .filter(p => p?.type === 'data-youtube_search_complete');
+      
+      const youtubeStartParts = ((message as any).parts as any[])
+        .filter(p => p?.type === 'data-youtube_search_started');
       
       youtubeSearchAnnotations = [
         ...youtubeSearchAnnotations,
-        ...youtubeParts.map(p => p.data).filter(Boolean)
+        ...youtubeCompleteParts.map(p => p.data).filter(Boolean)
       ];
+      youtubeSearchStarted = youtubeSearchStarted || youtubeStartParts.length > 0;
     }
     
-    if (youtubeSearchAnnotations.length === 0) return null;
+    // 시작 신호가 있거나 완료 결과가 있으면 반환
+    if (youtubeSearchStarted || youtubeSearchAnnotations.length > 0) {
+      return { 
+        youtubeResults: youtubeSearchAnnotations,
+        status: youtubeSearchAnnotations.length > 0 ? 'completed' : 'processing'
+      };
+    }
     
-    return { youtubeResults: youtubeSearchAnnotations };
+    return null;
   };
 
   
@@ -778,25 +879,36 @@ export const getImageGeneratorData = (message: UIMessage) => {
       }
     }
     
-    // Check annotations if no tool_results found
+    // Check annotations and parts for YouTube analysis
     let youtubeAnalysisAnnotations: any[] = [];
+    let youtubeAnalysisStarted = false;
     
     // Check annotations array (legacy format)
     if ((message as any).annotations) {
-      youtubeAnalysisAnnotations = (((message as any).annotations) as any[])
+      const completeAnnotations = (((message as any).annotations) as any[])
         .filter(a => a && typeof a === 'object' && 
           (a.type === 'youtube_analysis_complete' || a.type === 'youtube_link_analysis_complete'))
         .map(a => a.data?.results || a.data)
         .filter(Boolean)
         .flat();
+      
+      const startAnnotations = (((message as any).annotations) as any[])
+        .filter(a => a && typeof a === 'object' && 
+          (a.type === 'youtube_analysis_started' || a.type === 'youtube_link_analysis_started'));
+      
+      youtubeAnalysisAnnotations = completeAnnotations;
+      youtubeAnalysisStarted = startAnnotations.length > 0;
     }
     
     // Check parts array for streaming annotations (AI SDK 5 format)
     if ((message as any).parts && Array.isArray((message as any).parts)) {
-      const youtubeParts = ((message as any).parts as any[])
+      const youtubeCompleteParts = ((message as any).parts as any[])
         .filter(p => p?.type === 'data-youtube_analysis_complete');
       
-      const partsResults = youtubeParts
+      const youtubeStartParts = ((message as any).parts as any[])
+        .filter(p => p?.type === 'data-youtube_analysis_started');
+      
+      const partsResults = youtubeCompleteParts
         .map(p => p.data?.results || p.data)
         .filter(Boolean)
         .flat();
@@ -805,7 +917,16 @@ export const getImageGeneratorData = (message: UIMessage) => {
         ...youtubeAnalysisAnnotations,
         ...partsResults
       ];
+      youtubeAnalysisStarted = youtubeAnalysisStarted || youtubeStartParts.length > 0;
     }
     
-    return youtubeAnalysisAnnotations.length > 0 ? { analysisResults: youtubeAnalysisAnnotations } : null;
+    // 시작 신호가 있거나 완료 결과가 있으면 반환
+    if (youtubeAnalysisStarted || youtubeAnalysisAnnotations.length > 0) {
+      return { 
+        analysisResults: youtubeAnalysisAnnotations,
+        status: youtubeAnalysisAnnotations.length > 0 ? 'completed' : 'processing'
+      };
+    }
+    
+    return null;
   };

@@ -486,13 +486,23 @@ export function createJinaLinkReaderTool(dataStream?: any) {
         };
         
           if (dataStream) {
+            // Send link reader started signal
+            dataStream.write({
+              type: 'data-link_reader_started',
+              id: `ann-link-start-${Date.now()}`,
+              data: {
+                url,
+                started: true
+              }
+            });
+            
             // Store the attempt
             linkAttempts.push(attempt);
             
-            // Send start annotation
+            // Send attempt annotation
             dataStream.write({
               type: 'data-link_reader_attempt',
-              id: `ann-link-start-${Date.now()}`,
+              id: `ann-link-attempt-${Date.now()}`,
               data: attempt
             });
           }
@@ -771,6 +781,22 @@ export function createImageGeneratorTool(dataStream?: any) {
       // seed가 제공되지 않으면 랜덤 값을 생성 (새 이미지 생성 시), 제공되면 그 값을 사용 (이미지 편집 시)
       const currentSeed = seed === undefined ? Math.floor(Math.random() * Number.MAX_SAFE_INTEGER) : seed;
 
+      // 이미지 생성 시작 신호 전송
+      if (dataStream) {
+        dataStream.write({
+          type: 'data-image_generation_started',
+          id: `ann-image-start-${Date.now()}`,
+          data: {
+            prompts: Array.isArray(prompts) ? prompts : [prompts],
+            model,
+            width,
+            height,
+            seed: currentSeed,
+            started: true
+          }
+        });
+      }
+
       try {
         // Pollinations.AI API 토큰 확인 (서버 사이드에서만 사용)
         const apiToken = process.env.POLLINATIONAI_API_KEY;
@@ -873,6 +899,16 @@ export function createCalculatorTool(dataStream: any) {
     description: toolDefinitions.calculator.description,
     inputSchema: z.object({ expression: z.string().describe(toolDefinitions.calculator.inputSchema.expression) }),
     execute: async ({ expression }) => {
+      // 계산 시작 신호 전송
+      dataStream.write({
+        type: 'data-math_calculation_started',
+        id: `ann-math-start-${Date.now()}`,
+        data: {
+          expression,
+          started: true
+        }
+      });
+      
       stepCounter++;
       const result = mathjs.evaluate(expression);
       calculationSteps.push({
@@ -931,6 +967,16 @@ export function createYouTubeSearchTool(dataStream: any) {
       query: z.string().describe(toolDefinitions.youtubeSearch.inputSchema.query),
     }),
     execute: async ({ query }: { query: string }) => {
+      // YouTube 검색 시작 신호 전송
+      dataStream.write({
+        type: 'data-youtube_search_started',
+        id: `ann-youtube-start-${Date.now()}`,
+        data: {
+          query,
+          started: true
+        }
+      });
+      
       try {
         const searchApiKey = process.env.SEARCH_API_KEY;
         if (!searchApiKey) {
@@ -1101,6 +1147,17 @@ export function createYouTubeLinkAnalyzerTool(dataStream: any) {
       urls: string[];
       lang?: string;
     }) => {
+      // YouTube 분석 시작 신호 전송
+      dataStream.write({
+        type: 'data-youtube_analysis_started',
+        id: `ann-youtube-analysis-start-${Date.now()}`,
+        data: {
+          urls,
+          lang,
+          started: true
+        }
+      });
+      
       try {
         const searchApiKey = process.env.SEARCH_API_KEY;
         if (!searchApiKey) {

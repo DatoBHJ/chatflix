@@ -1,6 +1,19 @@
 import React, { memo, useMemo, useState, useCallback, useEffect } from 'react'
-import { Search, Calculator, Link2, ImageIcon, BookOpen, Youtube, Wrench } from 'lucide-react'
+import { Calculator, Link2, ImageIcon, Youtube } from 'lucide-react'
 import { XLogo, YouTubeLogo } from '../CanvasFolder/CanvasLogo'
+import { getTopicIconComponent, getTopicName } from '../MultiSearch'
+
+// Shimmer animation styles
+const shimmerStyles = `
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+`;
 
 // Create CanvasToolsPreview component
 export const CanvasToolsPreview = memo(function CanvasToolsPreview({
@@ -14,7 +27,8 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
   youTubeLinkAnalysisData,
   messageId,
   togglePanel,
-  contentOnly = false
+  hideToggle = false,
+  activePanel
 }: {
   webSearchData?: any;
   mathCalculationData?: any;
@@ -26,16 +40,24 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
   youTubeLinkAnalysisData?: any;
   messageId: string;
   togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string, fileName?: string) => void;
-  contentOnly?: boolean; // 버블 없이 내용만 렌더링
+  hideToggle?: boolean;
+  activePanel?: { messageId: string; type: string; toolType?: string } | null;
 }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
+
+  // 패널이 닫힐 때 선택 상태 리셋
+  useEffect(() => {
+    if (!activePanel || activePanel.messageId !== messageId || activePanel.type !== 'canvas') {
+      setSelectedToolId(null);
+    }
+  }, [activePanel, messageId]);
 
   const tools = useMemo(() => {
     const activeTools = [];
     
     if (webSearchData) {
       const queries = (webSearchData.args?.queries || []) as string[];
-      let displayText = '';
+      const topics = (webSearchData.args?.topics || []) as string[];
       
       // Handle case where queries might be a JSON string
       let processedQueries: string[] = [];
@@ -52,45 +74,81 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         processedQueries = [];
       }
       
-      if (processedQueries.length > 0) {
-        displayText = processedQueries.slice(0, 2).map((q: string) => `"${q}"`).join(', ');
-        if (processedQueries.length > 2) {
-          displayText += ` +${processedQueries.length - 2} more`;
+      // Handle case where topics might be a JSON string
+      let processedTopics: string[] = [];
+      if (Array.isArray(topics)) {
+        processedTopics = topics;
+      } else if (typeof topics === 'string') {
+        try {
+          const parsed = JSON.parse(topics);
+          processedTopics = Array.isArray(parsed) ? parsed : [topics];
+        } catch {
+          processedTopics = [topics];
         }
       } else {
-        const fallbackQueries = webSearchData.results?.flatMap((r: any) => 
-          r.searches?.map((s: any) => s.query).filter(Boolean) || []
-        ) || [];
-        
-        if (fallbackQueries.length > 0) {
-          const uniqueQueries = [...new Set(fallbackQueries)] as string[];
-          displayText = uniqueQueries.slice(0, 2).map((q: string) => `"${q}"`).join(', ');
-          if (uniqueQueries.length > 2) {
-            displayText += ` +${uniqueQueries.length - 2} more`;
+        processedTopics = [];
+      }
+      
+      // MultiSearch-style real-time updates: Create a map to track all queries and their states
+      const searchMap = new Map<string, any>();
+      
+      // 1. Initialize all queries from args as "in_progress" (like MultiSearch does)
+      processedQueries.forEach((query, index) => {
+        searchMap.set(query, {
+          query,
+          topic: processedTopics[index] || processedTopics[0] || 'general',
+          topicIcon: 'search',
+          results: [],
+          status: 'in_progress'
+        });
+      });
+      
+      // 2. Update with streaming results as they come in (like MultiSearch's allCompletedSearches)
+      if (webSearchData.results) {
+        webSearchData.results.forEach((result: any) => {
+          if (result.searches) {
+            result.searches.forEach((search: any) => {
+              // Update existing entry or create new one
+              searchMap.set(search.query, {
+                ...search,
+                status: result.isComplete ? 'completed' : 'in_progress'
+              });
+            });
           }
+        });
+      }
+      
+      // 3. Convert map to array and group by topic
+      const searchResults = Array.from(searchMap.values());
+      const topicMap = new Map<string, { topic: string; topicIcon: string; queries: string[]; status: 'processing' | 'completed'; count: number }>();
+      
+      searchResults.forEach((search: any) => {
+        const topic = search.topic || 'general';
+        const topicIcon = search.topicIcon || 'search';
+        const status: 'processing' | 'completed' = search.status === 'in_progress' ? 'processing' : 'completed';
+        const count = Array.isArray(search.results) ? search.results.length : 0;
+        
+        if (!topicMap.has(topic)) {
+          topicMap.set(topic, { topic, topicIcon, queries: [search.query].filter(Boolean), status, count });
         } else {
-          displayText = 'Web search performed';
+          const entry = topicMap.get(topic)!;
+          if (search.query) entry.queries.push(search.query);
+          entry.status = entry.status === 'processing' || status === 'processing' ? 'processing' : 'completed';
+          entry.count += count;
         }
-      }
+      });
       
-      let actualStatus = 'completed';
-      if (webSearchData.results && webSearchData.results.length > 0) {
-        const hasInProgressSearch = webSearchData.results.some((r: any) => r.isComplete === false);
-        if (hasInProgressSearch) {
-          actualStatus = 'processing';
-        }
-      } else if (webSearchData.status) {
-        actualStatus = webSearchData.status;
-      } else if (processedQueries.length > 0 && (!webSearchData.results || webSearchData.results.length === 0)) {
-        actualStatus = 'processing';
-      }
-      
-      activeTools.push({
-        id: 'web-search',
-        name: 'Web Search',
-        icon: <Search size={14} />,
-        status: actualStatus,
-        displayText
+      // 4. Create one tool per topic (unique)
+      Array.from(topicMap.values()).forEach((entry) => {
+        activeTools.push({
+          id: `web-search:topic:${entry.topic}`,
+          name: getTopicName(entry.topic),
+          icon: getTopicIconComponent(entry.topicIcon),
+          status: entry.status,
+          displayText: entry.queries.map(q => `"${q}"`).join(', '),
+          topic: entry.topic,
+          count: entry.count
+        });
       });
     }
     
@@ -102,16 +160,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         const expressions = steps.map((step: any) => step.expression).filter(Boolean);
         
         if (expressions.length > 0) {
-          if (expressions.length === 1) {
-            displayText = expressions[0].length > 30 ? expressions[0].substring(0, 30) + '...' : expressions[0];
-          } else {
-            const firstExpr = expressions[0].length > 20 ? expressions[0].substring(0, 20) + '...' : expressions[0];
-            const secondExpr = expressions[1].length > 20 ? expressions[1].substring(0, 20) + '...' : expressions[1];
-            displayText = `${firstExpr}, ${secondExpr}`;
-            if (expressions.length > 2) {
-              displayText += ` +${expressions.length - 2} more`;
-            }
-          }
+          displayText = expressions.join(', ');
         } else {
           displayText = `${steps.length} calculation step${steps.length > 1 ? 's' : ''}`;
         }
@@ -131,7 +180,8 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         name: 'Calculator',
         icon: <Calculator size={14} />,
         status: actualStatus,
-        displayText
+        displayText,
+        count: steps.length
       });
     }
     
@@ -149,7 +199,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
           
           try {
             const domain = url ? new URL(url).hostname.replace('www.', '') : '';
-            displayText = title && title.length < 30 ? title : domain || url;
+            displayText = title || domain || url;
           } catch {
             displayText = url;
           }
@@ -179,7 +229,8 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         name: 'Link Reader',
         icon: <Link2 size={14} />,
         status: actualStatus,
-        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
+        displayText,
+        count: attempts.length
       });
     }
     
@@ -192,7 +243,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         const prompt = firstImage.prompt || '';
         
         if (prompt) {
-          displayText = prompt.length > 40 ? prompt.substring(0, 40) + '...' : prompt;
+          displayText = prompt;
         } else {
           displayText = `${images.length} image${images.length > 1 ? 's' : ''} generated`;
         }
@@ -212,7 +263,8 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         name: 'Image Generator',
         icon: <ImageIcon size={14} />,
         status: actualStatus,
-        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
+        displayText,
+        count: images.length
       });
     }
     
@@ -226,9 +278,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         const queries = results.map((r: { query: any }) => r.query).filter(Boolean);
         
         if (queries.length > 0) {
-          displayText = queries.length === 1 
-            ? `"${queries[0]}"` 
-            : `"${queries[0]}" +${queries.length - 1} more`;
+          displayText = queries.map((q: string) => `"${q}"`).join(', ');
         } else {
           displayText = `${results.length} X search${results.length > 1 ? 'es' : ''}`;
         }
@@ -248,7 +298,8 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         name: 'X Search',
         icon: <XLogo size={14} />,
         status: actualStatus,
-        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
+        displayText,
+        count: results.length
       });
     }
     
@@ -260,9 +311,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         const queries = results.map((r: { query: any }) => r.query).filter(Boolean);
         
         if (queries.length > 0) {
-          displayText = queries.length === 1 
-            ? `"${queries[0]}"` 
-            : `"${queries[0]}" +${queries.length - 1} more`;
+          displayText = queries.map((q: string) => `"${q}"`).join(', ');
         } else {
           displayText = `${results.length} YouTube search${results.length > 1 ? 'es' : ''}`;
         }
@@ -282,7 +331,8 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         name: 'YouTube Search',
         icon: <YouTubeLogo size={14} />,
         status: actualStatus,
-        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
+        displayText,
+        count: results.length
       });
     }
     
@@ -334,184 +384,83 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         name: 'YouTube Analyzer',
         icon: <Youtube size={14} />,
         status: actualStatus,
-        displayText: displayText.length > 40 ? displayText.substring(0, 40) + '...' : displayText
+        displayText,
+        count: results.length
       });
     }
     
     return activeTools;
   }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData]);
   
-  const handleToggle = useCallback(() => {
-    setIsExpanded(!isExpanded);
-  }, [isExpanded]);
 
-  const handleToolClick = useCallback((toolId: string) => {
+
+  const handleToolClick = useCallback((tool: any) => {
+    // 같은 도구를 다시 클릭하면 선택 해제, 아니면 선택
+    if (selectedToolId === tool.id) {
+      setSelectedToolId(null);
+    } else {
+      setSelectedToolId(tool.id);
+    }
+    
     if (togglePanel) {
-      togglePanel(messageId, 'canvas', undefined, toolId);
+      if (typeof tool?.id === 'string' && tool.id.startsWith('web-search-')) {
+        const topic = tool?.topic || 'general';
+        togglePanel(messageId, 'canvas', undefined, `web-search:topic:${topic}`);
+      } else if (typeof tool?.id === 'string') {
+        togglePanel(messageId, 'canvas', undefined, tool.id);
+      } else {
+        togglePanel(messageId, 'canvas', undefined, undefined);
+      }
     }
-  }, [togglePanel, messageId]);
+  }, [togglePanel, messageId, selectedToolId]);
 
-  const getStatusIndicator = (status: string) => {
-    switch (status) {
-      case 'processing':
-      case 'loading':
-        return (
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-          </span>
-        );
-      case 'completed':
-      case 'success':
-        return <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>;
-      case 'error':
-      case 'failed':
-        return <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>;
-      default:
-        return <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>;
-    }
-  };
+
 
   if (tools.length === 0) return null;
 
-  const hasProcessingTool = tools.some(tool => tool.status === 'processing' || tool.status === 'loading');
-
-  // 도구가 진행 중일 때 자동으로 툴팁 표시
-  useEffect(() => {
-    if (hasProcessingTool && !contentOnly) {
-      setIsExpanded(true);
-    }
-  }, [hasProcessingTool, contentOnly]);
-
-  // contentOnly가 true면 도구 목록만 렌더링
-  if (contentOnly) {
-    return (
-      <div className="space-y-2">
-        {tools.map((tool) => (
-          <div
-            key={tool.id}
-            onClick={() => handleToolClick(tool.id)}
-            className="flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--accent)] transition-colors cursor-pointer group/tool"
-          >
-            <div className="flex items-center justify-center w-7 h-7">
-              {tool.icon}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="text-sm font-medium text-[var(--foreground)] truncate">
-                  {tool.name}
-                </span>
-                {getStatusIndicator(tool.status)}
-              </div>
-              <div className="text-xs text-[var(--muted)] truncate">
-                {tool.displayText}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
 
   return (
-    <div className="flex justify-start">
-      {/* Apple 스타일 미니 캔버스 버블 */}
-      <div 
-        className="group relative cursor-pointer"
-        onClick={handleToggle}
-      >
-        {/* 메인 캔버스 버블 */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-full backdrop-blur-xl border border-[var(--subtle-divider)] hover:scale-[1.02] transition-all duration-200 ease-out" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 80%, transparent)' }}>
-          {/* <Wrench className="h-3.5 w-3.5" style={{ color: 'var(--tools-color)' }} strokeWidth={2} /> */}
-          
-          {/* 도구 아이콘들 미리보기 */}
-          <div className="flex items-center gap-1">
-            {tools.slice(0, 3).map((tool) => (
-              <div key={tool.id} className="flex items-center justify-center w-4 h-4">
-                <div className="text-[var(--muted)] scale-75">
-                  {tool.icon}
-                </div>
-              </div>
-            ))}
-            {tools.length > 3 && (
-              <div className="text-xs text-[var(--muted)] ml-1">
-                +{tools.length - 3}
-              </div>
-            )}
-          </div>
-
-                     {/* 전체 상태 표시 */}
-           {hasProcessingTool ? (
-             <span className="relative flex h-2 w-2">
-               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-             </span>
-           ) : (
-             <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-           )}
-        </div>
-
-        {/* 작은 연결 버블들 */}
-        {/* <div className="absolute -bottom-0.5 left-4 flex gap-0.5">
-          <div className="w-1 h-1 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 60%, transparent)' }}></div>
-          <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 40%, transparent)' }}></div>
-        </div> */}
-
-        {/* 확장된 상세 정보 툴팁 */}
-        <div className={`absolute bottom-full left-0 mb-3 w-80 sm:w-96 bg-[var(--background)] backdrop-blur-xl rounded-2xl border border-[var(--subtle-divider)] p-4 z-50 transition-all duration-200 ease-out ${ 
-        isExpanded ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-1 pointer-events-none'        }`} 
-        // style={{ boxShadow: '0 10px 25px -5px var(--overlay), 0 4px 6px -2px var(--overlay)' }}
-        >
-          {/* 툴팁 화살표 */}
-          <div className="absolute -bottom-1.5 left-6 w-3 h-3 bg-[var(--background)] border-r border-b border-[var(--subtle-divider)] rotate-45"></div>          
-          {/* 헤더 */}
-          {/* <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-            <Wrench className="h-4 w-4" style={{ color: 'var(--tools-color)' }} strokeWidth={2} />
-            <span className="text-sm font-medium text-[var(--foreground)]">Tools</span>
-          </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                togglePanel && togglePanel(messageId, 'canvas');
-              }}
-              className="text-xs px-2 py-1 rounded-full font-medium transition-all hover:opacity-80"
-              style={{ 
-                backgroundColor: 'var(--status-bg-processing)', 
-                color: 'var(--status-text-processing)',
-              }}
+    <div className="my-0 text-sm font-sans max-w-[85%] md:max-w-[75%] lg:max-w-[65%] xl:max-w-[60%]">
+      <style>{shimmerStyles}</style>
+      
+      {/* AI Analysis 제목과 도구 목록 */}
+      <div className={hideToggle ? "pt-0 pb-8" : "pt-12 sm:pt-30 pb-8"}>
+        
+        <div className={hideToggle ? "text-base text-[var(--muted)]" : "mt-10 text-base text-[var(--muted)]"}>
+          <div className="space-y-3 pl-1.5">
+       {tools.map((tool) => (
+          <button
+            key={tool.id}
+            onClick={() => handleToolClick(tool)}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+             {/* Tool 아이콘 */}
+             <div className="text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors">
+               {tool.icon}
+             </div>
+            
+            <span 
+              className={`text-base font-medium text-[var(--foreground)] ${
+                (tool.status === 'processing' || tool.status === 'loading') 
+                  ? 'bg-gradient-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent' 
+                  : ''
+              }`}
+              style={tool.status === 'processing' || tool.status === 'loading' ? {
+                backgroundSize: '200% 100%',
+                animation: 'shimmer 2s ease-in-out infinite'
+              } : {}}
             >
-              View All
-            </button>
-          </div> */}
-          
-          {/* 도구 목록 */}
-          <div className="space-y-2 max-h-24 overflow-y-auto scrollbar-thin">
-            {tools.map((tool) => (
-              <div
-                key={tool.id}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleToolClick(tool.id);
-                }}
-                className="flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--accent)] transition-colors cursor-pointer group/tool"
-              >
-                <div className="flex items-center justify-center w-7 h-7">
-                  {tool.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-sm font-medium text-[var(--foreground)] truncate">
-                      {tool.name}
-                    </span>
-                    {getStatusIndicator(tool.status)}
-                  </div>
-                  <div className="text-xs text-[var(--muted)] truncate">
-                    {tool.displayText}
-                  </div>
-                </div>
-              </div>
-            ))}
+              {tool.name}
+            </span>
+            
+            {tool.count > 0 && (
+              <span className="text-xs text-[var(--muted)]">
+                {tool.count}
+              </span>
+            )}
+           
+          </button>
+       ))}
           </div>
         </div>
       </div>

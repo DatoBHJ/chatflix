@@ -1,14 +1,20 @@
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import ReactDOM from 'react-dom';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import rehypeRaw from 'rehype-raw';
-import rehypeSanitize from 'rehype-sanitize';
-import rehypeHighlight from 'rehype-highlight';
-import { Brain, Wrench, Maximize2, X, CheckCircle2 } from 'lucide-react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { Brain } from 'lucide-react';
 import { ReasoningSection } from './ReasoningSection';
 import { CanvasToolsPreview } from './Canvas/CanvasToolsPreview';
+import { highlightSearchTerm } from '@/app/utils/searchHighlight';
+
+// Shimmer animation styles
+const shimmerStyles = `
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+`;
 
 interface UnifiedInfoPanelProps {
   reasoningPart?: any;
@@ -17,6 +23,7 @@ interface UnifiedInfoPanelProps {
   isWaitingForToolResults: boolean;
   isStreaming: boolean;
   reasoningComplete: boolean;
+  isReasoningInProgress: boolean;
   reasoningPartExpanded: Record<string, boolean>;
   setReasoningPartExpanded: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   userOverrideReasoningPartRef: React.MutableRefObject<Record<string, boolean | null>>;
@@ -27,13 +34,134 @@ interface UnifiedInfoPanelProps {
   mathCalculationData?: any;
   linkReaderData?: any;
   imageGeneratorData?: any;
-
   xSearchData?: any;
   youTubeSearchData?: any;
   youTubeLinkAnalysisData?: any;
   messageId: string;
   togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string, fileName?: string) => void;
+  activePanel?: { messageId: string; type: string; toolType?: string } | null;
+  messageTitle?: string;
+  searchTerm?: string | null; // 🚀 FEATURE: Add search term for highlighting
+  message?: any; // 🚀 Add message prop to detect title generation started
 }
+
+// 제목 생성 시작 신호를 감지하는 헬퍼 함수
+const isTitleGenerationStarted = (message: any): boolean => {
+  if (!message) return false;
+  
+  // parts에서 title generation started 신호 확인
+  if (message.parts && Array.isArray(message.parts)) {
+    const titleStartPart = message.parts.find((part: any) => 
+      part.type === 'data-title_generation_started'
+    );
+    if (titleStartPart) return true;
+  }
+  
+  // annotations에서도 확인 (fallback)
+  if (message.annotations && Array.isArray(message.annotations)) {
+    const titleStartAnnotation = message.annotations.find((annotation: any) => 
+      annotation.type === 'title_generation_started'
+    );
+    if (titleStartAnnotation) return true;
+  }
+  
+  return false;
+};
+
+// 도구별 로딩 상태를 감지하는 헬퍼 함수
+const isToolLoading = (toolData: any, toolType: string): boolean => {
+  if (!toolData) return false;
+
+  switch (toolType) {
+    case 'webSearch':
+      // Web Search: 결과 우선 판단 → 하나라도 완료 결과가 있으면 로딩 아님
+      if (Array.isArray(toolData.results)) {
+        if (toolData.results.length === 0) {
+          // results는 있지만 비어있으면 로딩
+          return true;
+        }
+        // 결과 중 하나라도 완료면 로딩 해제
+        const hasComplete = toolData.results.some((r: any) => r && r.isComplete === true);
+        if (hasComplete) return false;
+        // 모든 결과가 미완료면 로딩
+        const allIncomplete = toolData.results.every((r: any) => r && r.isComplete === false);
+        if (allIncomplete) return true;
+      }
+      // 결과가 아직 없고 args만 있으면 로딩으로 간주
+      if (toolData.args && (!toolData.results || toolData.results.length === 0)) {
+        return true;
+      }
+      // 마지막으로, 어노테이션만 있는 경우에 한해 로딩으로 간주 (완료 신호가 없을 때만)
+      if (toolData.annotations && toolData.annotations.length > 0) {
+        const hasQueryCompletion = toolData.annotations.some((a: any) => a.type === 'query_completion');
+        const hasWebSearchComplete = toolData.annotations.some((a: any) => a.type === 'web_search_complete');
+        if (hasQueryCompletion && !hasWebSearchComplete) return true;
+      }
+      return false;
+
+    case 'mathCalculation':
+      // Math Calculation: 결과가 생기면 로딩 해제
+      if (Array.isArray(toolData.calculationSteps) && toolData.calculationSteps.length > 0) {
+        return false;
+      }
+      if (toolData.calculationSteps && toolData.calculationSteps.length === 0) return true;
+      if (toolData.status === 'processing' || toolData.status === 'in_progress') return true;
+      return false;
+
+    case 'linkReader':
+      // Link Reader: 성공 시도가 하나라도 있으면 로딩 해제
+      if (Array.isArray(toolData.linkAttempts)) {
+        if (toolData.linkAttempts.length === 0) return true;
+        const hasSuccess = toolData.linkAttempts.some((attempt: any) => 
+          attempt?.status === 'success' || (!!attempt?.title && !attempt?.error)
+        );
+        if (hasSuccess) return false;
+        const hasInProgress = toolData.linkAttempts.some((attempt: any) => 
+          attempt?.status === 'in_progress' || attempt?.status === 'processing'
+        );
+        if (hasInProgress) return true;
+        // 실패만 있는 경우 로딩 아님
+        return false;
+      }
+      return false;
+
+    case 'imageGenerator':
+      // Image Generator: 이미지가 생성되면 로딩 해제
+      if (Array.isArray(toolData.generatedImages) && toolData.generatedImages.length > 0) return false;
+      if (toolData.generatedImages && toolData.generatedImages.length === 0) return true;
+      if (toolData.status === 'processing' || toolData.status === 'in_progress') return true;
+      return false;
+
+    case 'xSearch':
+      // X Search: 결과가 하나라도 있으면 로딩 해제
+      if (Array.isArray(toolData.xResults) && toolData.xResults.length > 0) return false;
+      if (toolData.xResults && toolData.xResults.length === 0) return true;
+      if (toolData.status === 'processing' || toolData.status === 'in_progress') return true;
+      return false;
+
+    case 'youTubeSearch':
+      // YouTube Search: 결과가 하나라도 있으면 로딩 해제
+      if (Array.isArray(toolData.youtubeResults) && toolData.youtubeResults.length > 0) return false;
+      if (toolData.youtubeResults && toolData.youtubeResults.length === 0) return true;
+      if (toolData.status === 'processing' || toolData.status === 'in_progress') return true;
+      return false;
+
+    case 'youTubeAnalyzer':
+      // YouTube Analyzer: 완료(세부정보 또는 에러)가 하나라도 있으면 로딩 해제
+      if (Array.isArray(toolData.analysisResults)) {
+        if (toolData.analysisResults.length === 0) return true;
+        const hasComplete = toolData.analysisResults.some((r: any) => r?.details || r?.error);
+        if (hasComplete) return false;
+        const hasIncomplete = toolData.analysisResults.some((r: any) => !r?.error && !r?.details);
+        if (hasIncomplete) return true;
+      }
+      if (toolData.status === 'processing' || toolData.status === 'in_progress') return true;
+      return false;
+
+    default:
+      return false;
+  }
+};
 
 export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
   reasoningPart,
@@ -42,6 +170,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
   isWaitingForToolResults,
   isStreaming,
   reasoningComplete,
+  isReasoningInProgress,
   reasoningPartExpanded,
   setReasoningPartExpanded,
   userOverrideReasoningPartRef,
@@ -52,20 +181,89 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
   mathCalculationData,
   linkReaderData,
   imageGeneratorData,
-
   xSearchData,
   youTubeSearchData,
   youTubeLinkAnalysisData,
   messageId,
   togglePanel,
+  activePanel,
+  messageTitle,
+  searchTerm, // 🚀 FEATURE: Add search term for highlighting
+  message, // 🚀 Add message prop to detect title generation started
 }) => {
-  const [activeTab, setActiveTab] = useState<'thinking' | 'tools'>('thinking');
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [isFullScreen, setIsFullScreen] = useState(false);
   const [thinkingStartTime, setThinkingStartTime] = useState<number | null>(null);
+  const [isThinkingModalOpen, setIsThinkingModalOpen] = useState(false);
 
-  const thinkingScrollRef = useRef<HTMLDivElement>(null);
-  const fullScreenScrollRef = useRef<HTMLDivElement>(null);
+  // 실제 도구 데이터 기반으로 로딩 상태 감지
+  const actualToolLoadingState = useMemo(() => {
+    const toolStates = {
+      webSearch: isToolLoading(webSearchData, 'webSearch'),
+      mathCalculation: isToolLoading(mathCalculationData, 'mathCalculation'),
+      linkReader: isToolLoading(linkReaderData, 'linkReader'),
+      imageGenerator: isToolLoading(imageGeneratorData, 'imageGenerator'),
+      xSearch: isToolLoading(xSearchData, 'xSearch'),
+      youTubeSearch: isToolLoading(youTubeSearchData, 'youTubeSearch'),
+      youTubeAnalyzer: isToolLoading(youTubeLinkAnalysisData, 'youTubeAnalyzer'),
+    };
+
+    const isLoadingAnyTool = Object.values(toolStates).some(Boolean);
+    const loadingTools = Object.entries(toolStates)
+      .filter(([_, isLoading]) => isLoading)
+      .map(([toolName, _]) => toolName);
+
+    return {
+      isLoadingAnyTool,
+      loadingTools,
+      toolStates
+    };
+  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData]);
+
+  // 제목이 도착하기 전까지 현재 상태를 간단히 표시
+  const derivedTitle = useMemo(() => {
+    if (messageTitle) return highlightSearchTerm(messageTitle, searchTerm || null);
+    if (isReasoningInProgress) return 'Thinking...';
+    
+    // 실제 도구 로딩 상태 기반으로 제목 표시
+    if (actualToolLoadingState.isLoadingAnyTool) {
+      const toolCount = actualToolLoadingState.loadingTools.length;
+      if (toolCount === 1) {
+        const toolName = actualToolLoadingState.loadingTools[0];
+        const toolDisplayNames: { [key: string]: string } = {
+          webSearch: 'Searching',
+          mathCalculation: 'Calculating',
+          linkReader: 'Reading Links',
+          imageGenerator: 'Generating Images',
+          xSearch: 'Searching X/Twitter',
+          youTubeSearch: 'Searching YouTube',
+          youTubeAnalyzer: 'Analyzing YouTube'
+        };
+        return toolDisplayNames[toolName] || 'Using Tools...';
+      } else {
+        return `Using ${toolCount} Tools...`;
+      }
+    }
+    
+    // 제목 생성 시작 신호가 있으면 "Generating Title..." 표시
+    if (isTitleGenerationStarted(message) && !messageTitle) {
+      return 'Generating Title...';
+    }
+    
+    if (isStreaming) return 'Answering...';
+    return 'Untitled';
+  }, [messageTitle, searchTerm, isReasoningInProgress, actualToolLoadingState, isStreaming, hasAnyContent, message]);
+
+  // 실제 도구 로딩 상태를 포함한 전체 로딩 상태
+  const isLoading = !hasAnyContent || actualToolLoadingState.isLoadingAnyTool || isStreaming;
+  const key = isLoading ? loadingReasoningKey : completeReasoningKey;
+
+  const handleReasoningToggle = useCallback((expanded: boolean) => {
+    setReasoningPartExpanded(prev => ({ ...prev, [key]: expanded }));
+    userOverrideReasoningPartRef.current = { ...userOverrideReasoningPartRef.current, [key]: expanded };
+  }, [key, setReasoningPartExpanded, userOverrideReasoningPartRef]);
+
+  const handleToggleClick = useCallback(() => {
+    setIsThinkingModalOpen(true);
+  }, []);
 
   useEffect(() => {
     if (isAssistant && reasoningPart && !thinkingStartTime) {
@@ -75,414 +273,90 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
 
   const hasReasoning = reasoningPart && isAssistant;
   const hasCanvas = hasActualCanvasData && isAssistant;
-  const hasBoth = hasReasoning && hasCanvas;
+  const hasTitle = isAssistant && messageTitle; // 백엔드에서 제목을 전송한 경우에만 제목 표시
 
-  const hasProcessingTool = useMemo(() => {
-    const toolData = [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData];
-    return toolData.some(data => {
-      if (!data) return false;
-      if (data.results && Array.isArray(data.results)) {
-        return data.results.some((r: any) => r.isComplete === false);
-      }
-      if (data.status && (data.status === 'processing' || data.status === 'loading')) {
-        return true;
-      }
-      return false;
-    });
-  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData]);
-
-  useEffect(() => {
-    if (activeTab === 'thinking' && isExpanded && thinkingScrollRef.current && reasoningPart) {
-      const scrollContainer = thinkingScrollRef.current;
-      scrollContainer.scrollTop = scrollContainer.scrollHeight;
-    }
-  }, [reasoningPart?.reasoningText, reasoningPart?.text, activeTab, isExpanded]);
-
-  useEffect(() => {
-    if (!reasoningComplete && activeTab === 'thinking' && isExpanded && thinkingScrollRef.current) {
-      const scrollContainer = thinkingScrollRef.current;
-      const scrollToBottom = () => {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight;
-      };
-      scrollToBottom();
-      const timeoutId = setTimeout(scrollToBottom, 100);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [reasoningPart?.reasoningText, reasoningPart?.text, reasoningComplete, activeTab, isExpanded]);
-
-  useEffect(() => {
-    if (hasProcessingTool && hasBoth) {
-      setActiveTab('tools');
-      setIsExpanded(true);
-    }
-  }, [hasProcessingTool, hasBoth]);
-
-  // Auto scroll for full screen
-  useEffect(() => {
-    if (isFullScreen && activeTab === 'thinking' && fullScreenScrollRef.current && reasoningPart) {
-      fullScreenScrollRef.current.scrollTop = fullScreenScrollRef.current.scrollHeight;
-    }
-  }, [reasoningPart?.reasoningText, reasoningPart?.text, isFullScreen, activeTab]);
-
-  const handleTabChange = useCallback((tab: 'thinking' | 'tools') => {
-    setActiveTab(tab);
-    setTimeout(() => {
-      if (tab === 'thinking' && thinkingScrollRef.current) {
-        thinkingScrollRef.current.scrollTop = thinkingScrollRef.current.scrollHeight;
-      }
-    }, 50);
-  }, []);
-
-  const handleBubbleClick = useCallback(() => {
-    if (hasBoth) {
-      const newExpanded = !isExpanded;
-      setIsExpanded(newExpanded);
-      if (newExpanded) {
-        setTimeout(() => {
-          if (activeTab === 'thinking' && thinkingScrollRef.current) {
-            thinkingScrollRef.current.scrollTop = thinkingScrollRef.current.scrollHeight;
-          }
-        }, 50);
-      }
-    } else if (hasReasoning) {
-      const isLoading = !hasAnyContent || isWaitingForToolResults || isStreaming;
-      const key = isLoading ? loadingReasoningKey : completeReasoningKey;
-      const isReasoningExpanded = reasoningPartExpanded[key] ?? !reasoningComplete;
-      const newExpansionState = !isReasoningExpanded;
-      setReasoningPartExpanded(prev => ({ ...prev, [key]: newExpansionState }));
-      userOverrideReasoningPartRef.current = { ...userOverrideReasoningPartRef.current, [key]: newExpansionState };
-    }
-  }, [hasBoth, isExpanded, hasReasoning, hasAnyContent, isWaitingForToolResults, isStreaming, loadingReasoningKey, completeReasoningKey, reasoningPartExpanded, reasoningComplete, setReasoningPartExpanded, userOverrideReasoningPartRef, activeTab]);
-
-  const handleFullScreenToggle = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsFullScreen(!isFullScreen);
-  }, [isFullScreen]);
-
-  const handleFullScreenTabChange = useCallback((tab: 'thinking' | 'tools') => {
-    setActiveTab(tab);
-    setTimeout(() => {
-      if (tab === 'thinking' && fullScreenScrollRef.current) {
-        fullScreenScrollRef.current.scrollTop = fullScreenScrollRef.current.scrollHeight;
-      }
-    }, 50);
-  }, []);
-
-  if (!hasReasoning && !hasCanvas) return null;
-
-  // Full screen popup rendering
-  if (isFullScreen) {
-    const elapsedTime = thinkingStartTime ? Math.floor((Date.now() - thinkingStartTime) / 1000) : 0;
-    
-    return ReactDOM.createPortal(
-      <div className="fixed inset-0 z-[9999] backdrop-blur-sm flex items-center justify-center p-4" style={{ backgroundColor: 'var(--overlay)' }}>
-        <div className="relative w-full max-w-5xl h-full max-h-[90vh] bg-[var(--background)] rounded-2xl overflow-hidden flex flex-col" style={{ boxShadow: '0 25px 50px -12px var(--overlay), 0 10px 20px -5px var(--overlay)' }}>
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-[var(--subtle-divider)]">
-            <div className="flex items-center gap-3">
-              {activeTab === 'thinking' ? (
-                <>
-                  <Brain className="h-5 w-5" style={{ color: 'var(--reasoning-color)' }} strokeWidth={2} />
-                  <div>
-                    <h3 className="font-semibold text-[var(--foreground)]">AI Reasoning</h3>
-                    <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                      {!reasoningComplete ? (
-                        <>
-                          <div className="animate-spin rounded-full border-2 border-transparent border-t-[var(--reasoning-color)] h-3 w-3" style={{ animationDuration: '0.8s' }}></div>
-                          <span>Thinking for {elapsedTime}s</span>
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle2 className="h-3 w-3 text-green-500" strokeWidth={2.5} />
-                          <span>Completed in {elapsedTime}s</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <Wrench className="h-5 w-5" style={{ color: 'var(--tools-color)' }} strokeWidth={2} />
-                  <div>
-                    <h3 className="font-semibold text-[var(--foreground)]">Tools & Analysis</h3>
-                    <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                      {hasProcessingTool ? (
-                        <>
-                          <span className="relative flex h-3 w-3">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
-                          </span>
-                          <span>Processing tools...</span>
-                        </>
-                      ) : (
-                        <>
-                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                          <span>Tools completed</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-            <button
-              onClick={handleFullScreenToggle}
-              className="p-2 hover:bg-[var(--accent)] rounded-lg transition-colors"
-            >
-              <X className="h-5 w-5 text-[var(--muted)]" />
-            </button>
-          </div>
-          
-          {/* Tab switcher */}
-          <div className="flex items-center gap-1 mx-4 mt-4 mb-2 bg-[var(--accent)] rounded-lg p-1">
-            <button
-              onClick={() => handleFullScreenTabChange('thinking')}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors flex-1 justify-center ${activeTab === 'thinking' ? 'bg-[var(--background)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--foreground)]'}`}
-              style={{ color: activeTab === 'thinking' ? 'var(--reasoning-color)' : undefined }}
-            >
-              <Brain className="h-4 w-4" strokeWidth={2} />
-              <span>Thinking</span>
-              {!reasoningComplete && (
-                <div className="flex gap-0.5">
-                  <div className="w-1 h-1 bg-current rounded-full animate-pulse"></div>
-                </div>
-              )}
-            </button>
-            <button
-              onClick={() => handleFullScreenTabChange('tools')}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors flex-1 justify-center ${activeTab === 'tools' ? 'bg-[var(--background)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--foreground)]'}`}
-              style={{ color: activeTab === 'tools' ? 'var(--tools-color)' : undefined }}
-            >
-              <Wrench className="h-4 w-4" strokeWidth={2} />
-              <span>Tools</span>
-              {hasProcessingTool && (
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-                </span>
-              )}
-            </button>
-          </div>
-          
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto p-4">
-            {activeTab === 'thinking' ? (
-              <div 
-                ref={fullScreenScrollRef}
-                className="text-[var(--foreground)] leading-relaxed scroll-smooth"
-              >
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm, remarkMath]}
-                  rehypePlugins={[rehypeRaw, rehypeHighlight]}
-                >
-                  {reasoningPart.reasoningText || reasoningPart.text}
-                </ReactMarkdown>
-              </div>
-            ) : (
-              <CanvasToolsPreview
-                webSearchData={webSearchData}
-                mathCalculationData={mathCalculationData}
-                linkReaderData={linkReaderData}
-                imageGeneratorData={imageGeneratorData}
-                xSearchData={xSearchData}
-                youTubeSearchData={youTubeSearchData}
-                youTubeLinkAnalysisData={youTubeLinkAnalysisData}
-                messageId={messageId}
-                togglePanel={togglePanel}
-                contentOnly={true}
-              />
-            )}
-          </div>
-        </div>
-      </div>,
-      document.body
-    );
-  }
-
-  if (!hasBoth) {
-    return (
-      <div className="pl-0 mb-2">
-        {hasReasoning && (
-          <div className="flex-shrink-0">
-            {(() => {
-              const isLoading = !hasAnyContent || isWaitingForToolResults || isStreaming;
-              const key = isLoading ? loadingReasoningKey : completeReasoningKey;
-              const isReasoningExpanded = reasoningPartExpanded[key] ?? !reasoningComplete;
-
-              const handleToggle = (expanded: boolean) => {
-                setReasoningPartExpanded(prev => ({ ...prev, [key]: expanded }));
-                userOverrideReasoningPartRef.current = { ...userOverrideReasoningPartRef.current, [key]: expanded };
-              };
-
-              return (
-                <ReasoningSection 
-                  content={reasoningPart.reasoningText || reasoningPart.text} 
-                  isComplete={reasoningComplete}
-                  isExpanded={isReasoningExpanded}
-                  setIsExpanded={handleToggle}
-                  startTime={thinkingStartTime}
-                  key={key} 
-                />
-              );
-            })()}
-          </div>
-        )}
-        {hasCanvas && (
-          <div className="flex-shrink-0">
-            <CanvasToolsPreview
-              webSearchData={webSearchData}
-              mathCalculationData={mathCalculationData}
-              linkReaderData={linkReaderData}
-              imageGeneratorData={imageGeneratorData}
-              xSearchData={xSearchData}
-              youTubeSearchData={youTubeSearchData}
-              youTubeLinkAnalysisData={youTubeLinkAnalysisData}
-              messageId={messageId}
-              togglePanel={togglePanel}
-            />
-          </div>
-        )}
-      </div>
-    );
+  if (!hasReasoning && !hasCanvas && !hasTitle) {
+    return null;
   }
 
   return (
-    <div className="flex justify-start pl-0 mb-2">
-      <div className="group relative cursor-pointer" onClick={handleBubbleClick}>
-        <div className="flex items-center gap-2 px-3 py-2 rounded-full backdrop-blur-xl border border-[var(--subtle-divider)] hover:scale-[1.02] transition-all duration-200 ease-out" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 80%, transparent)' }}>
-          {activeTab === 'thinking' ? (
-            <Brain className="h-3.5 w-3.5" style={{ color: 'var(--reasoning-color)' }} strokeWidth={2} />
-          ) : (
-            <Wrench className="h-3.5 w-3.5" style={{ color: 'var(--tools-color)' }} strokeWidth={2} />
-          )}
-          
-          {activeTab === 'thinking' ? (
-            !reasoningComplete ? (
-              <div className="flex items-center gap-1">
-                <div className="flex gap-0.5">
-                  <div className="w-0.5 h-0.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                  <div className="w-0.5 h-0.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                  <div className="w-0.5 h-0.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+    <>
+      <style>{shimmerStyles}</style>
+      <div className="pl-0 mb-2">
+      <div className="pt-12 sm:pt-30 pb-2 sm:pb-2 pr-8 sm:pr-0">
+        <div className="flex items-center gap-3">
+          <h2 className={`text-3xl sm:text-3xl md:text-4xl font-semibold tracking-tight ${
+            !messageTitle ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'
+          }`}>
+            {derivedTitle}
+          </h2>
+        </div>
+        
+        {(hasReasoning || hasCanvas) && (
+          <div className="mt-12  text-base text-[var(--muted)]">
+            {hasReasoning && (
+              <div className="mb-8">
+                <div className="mb-5 text-base font-normal text-[var(--muted)] pl-1.5">Thinking</div>
+                <div className="space-y-3 pl-1.5">
+                  <button
+                    onClick={handleToggleClick}
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <div className="text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors">
+                      <Brain size={14} />
+                    </div>
+                    
+                    <span className={`text-base font-medium text-[var(--foreground)] ${
+                      isReasoningInProgress 
+                        ? 'bg-gradient-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent' 
+                        : ''
+                    }`}
+                    style={isReasoningInProgress ? {
+                      backgroundSize: '200% 100%',
+                      animation: 'shimmer 2s ease-in-out infinite'
+                    } : {}}
+                    >
+                      Reasoning Process
+                    </span>
+                  </button>
                 </div>
               </div>
-            ) : (
-              <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-            )
-          ) : (
-            hasProcessingTool ? (
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-              </span>
-            ) : (
-              <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-            )
-          )}
-
-          <div className="flex items-center gap-1 text-xs text-[var(--muted)]">
-            <span 
-              className={activeTab === 'thinking' ? 'font-medium' : ''}
-              style={{ color: activeTab === 'thinking' ? 'var(--reasoning-color)' : undefined }}
-            >
-              Thinking
-            </span>
-            <span>•</span>
-            <span 
-              className={activeTab === 'tools' ? 'font-medium' : ''}
-              style={{ color: activeTab === 'tools' ? 'var(--tools-color)' : undefined }}
-            >
-              Tools
-            </span>
-          </div>
-        </div>
-
-        {/* <div className="absolute -bottom-0.5 left-4 flex gap-0.5">
-          <div className="w-1 h-1 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 60%, transparent)' }}></div>
-          <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--background) 40%, transparent)' }}></div>
-        </div> */}
-
-        <div className={`absolute bottom-full left-0 mb-3 w-80 sm:w-96 bg-[var(--background)] backdrop-blur-xl rounded-2xl border border-[var(--subtle-divider)] p-4 z-50 transition-all duration-200 ease-out ${isExpanded ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-1 pointer-events-none'}`} 
-        // style={{ boxShadow: '0 10px 25px -5px var(--overlay), 0 4px 6px -2px var(--overlay)' }}
-        >
-          <div className="absolute -bottom-1.5 left-6 w-3 h-3 bg-[var(--background)] border-r border-b border-[var(--subtle-divider)] rotate-45"></div>
-          
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-1 bg-[var(--accent)] rounded-lg p-1 flex-1 mr-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleTabChange('thinking');
-                }}
-                className={`flex items-center gap-2 px-3 py-0 sm:py-1 rounded-md text-xs font-medium transition-colors flex-1 justify-center ${activeTab === 'thinking' ? 'bg-[var(--background)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--foreground)]'}`}
-                style={{ color: activeTab === 'thinking' ? 'var(--reasoning-color)' : undefined }}
-              >
-                <Brain className="h-3 w-3" strokeWidth={2} />
-                <span>Thinking</span>
-                {!reasoningComplete && (
-                  <div className="flex gap-0.5">
-                    <div className="w-1 h-1 bg-current rounded-full animate-pulse"></div>
-                  </div>
-                )}
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleTabChange('tools');
-                }}
-                className={`flex items-center gap-2 px-3 py-0 sm:py-1 rounded-md text-xs font-medium transition-colors flex-1 justify-center ${activeTab === 'tools' ? 'bg-[var(--background)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--foreground)]'}`}
-                style={{ color: activeTab === 'tools' ? 'var(--tools-color)' : undefined }}
-              >
-                <Wrench className="h-3 w-3" strokeWidth={2} />
-                <span>Tools</span>
-                {hasProcessingTool && (
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-                  </span>
-                )}
-              </button>
-            </div>
-            <button
-              onClick={handleFullScreenToggle}
-              className="p-1 hover:bg-[var(--accent)] rounded-lg transition-colors"
-              title="Expand to full screen"
-            >
-              <Maximize2 className="h-3.5 w-3.5 text-[var(--muted)]" />
-            </button>
-          </div>
-          
-          <div className="max-h-24 overflow-y-auto scrollbar-thin">
-            {activeTab === 'thinking' ? (
-              <div 
-                ref={thinkingScrollRef}
-                className="text-sm text-[var(--foreground)] leading-relaxed scroll-smooth"
-              >
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm, remarkMath]}
-                  rehypePlugins={[rehypeRaw, rehypeHighlight]}
-                >
-                  {reasoningPart.reasoningText || reasoningPart.text}
-                </ReactMarkdown>
+            )}
+            
+            {hasCanvas && (
+              <div>
+                <div className="mb-5 text-base font-normal text-[var(--muted)] pl-1.5">Tools</div>
+                <CanvasToolsPreview
+                  webSearchData={webSearchData}
+                  mathCalculationData={mathCalculationData}
+                  linkReaderData={linkReaderData}
+                  imageGeneratorData={imageGeneratorData}
+                  xSearchData={xSearchData}
+                  youTubeSearchData={youTubeSearchData}
+                  youTubeLinkAnalysisData={youTubeLinkAnalysisData}
+                  messageId={messageId}
+                  togglePanel={togglePanel}
+                  hideToggle={true}
+                  activePanel={activePanel}
+                />
               </div>
-            ) : (
-               <CanvasToolsPreview
-                 webSearchData={webSearchData}
-                 mathCalculationData={mathCalculationData}
-                 linkReaderData={linkReaderData}
-                 imageGeneratorData={imageGeneratorData}
-                 xSearchData={xSearchData}
-                 youTubeSearchData={youTubeSearchData}
-                 youTubeLinkAnalysisData={youTubeLinkAnalysisData}
-                 messageId={messageId}
-                 togglePanel={togglePanel}
-                 contentOnly={true}
-               />
             )}
           </div>
-          
-          
-        </div>
+        )}
       </div>
-    </div>
+
+      {isThinkingModalOpen && (
+        <ReasoningSection 
+          content={reasoningPart.reasoningText || reasoningPart.text} 
+          isComplete={reasoningComplete}
+          startTime={thinkingStartTime}
+          key={`thinking-modal-${key}`}
+          hideToggle={true}
+          onModalClose={() => setIsThinkingModalOpen(false)}
+        />
+      )}
+      </div>
+    </>
   );
 };
+
