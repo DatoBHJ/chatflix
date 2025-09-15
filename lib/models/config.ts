@@ -833,7 +833,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     intelligenceIndex: 26,
     // maxOutputTokens: 32768,
   },
-
    // DeepSeek V3.1 (Thinking)
    {
     id: 'deepseek-reasoner',
@@ -933,6 +932,50 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     IFBench:51,
     isNew: true,
   },
+  {
+    id: 'deepseek-ai/DeepSeek-V3.1',
+    name: 'DeepSeek V3.1',
+    cutoff: 'July 2024',
+    abbreviation: 'DSV3.1',
+    country: 'CHINA',
+    description: 'Developed by DeepSeek, powered by TogetherAI',
+    provider: 'together',
+    supportsVision: false,
+    rateLimit: {
+      level: 'level2',
+    },
+    isNew: true,
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: false,
+    contextWindow: 128000,
+    tps: 119,
+    intelligenceIndex: 45,
+    latency: 1.1,
+  },
+  {
+    id: 'lgai/exaone-3-5-32b-instruct',
+    name: 'EXAONE 3.5 32B',
+    cutoff: 'July 2024',
+    abbreviation: 'EXAONE-3.5-32B',
+    country: 'Korea',
+    description: 'Developed by LG, powered by TogetherAI',
+    provider: 'together',
+    supportsVision: false,
+    rateLimit: {
+      level: 'level1',
+    },
+    isNew: true,
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: false,
+    contextWindow: 32000,
+    // tps: 119,
+    intelligenceIndex: 33,
+    // latency: 1.1,
+  },
   // // DeepSeek R1 (Thinking)
   // {
   //   id: 'deepseek-ai/DeepSeek-R1',
@@ -959,28 +1002,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   //   maxOutputTokens: 32000,
   //   IFBench:40
   // },
-  // // DeepSeek V3 (Mar' 25)
-  // {
-  //   id: 'deepseek-ai/DeepSeek-V3',
-  //   name: 'DeepSeek V3',
-  //   cutoff: 'July 2024',
-  //   abbreviation: 'DSV3',
-  //   country: 'CHINA',
-  //   description: 'Developed by DeepSeek, powered by TogetherAI',
-  //   provider: 'together',
-  //   supportsVision: false,
-  //   rateLimit: {
-  //     level: 'level2',
-  //   },
-  //   supportsPDFs: false,
-  //   isEnabled: false,
-  //   isActivated: true,
-  //   isAgentEnabled: true,
-  //   contextWindow: 128000,
-  //   tps: 101,
-  //   intelligenceIndex: 44,
-  //   latency: 0.6,
-  // },
+  // DeepSeek V3.1 
 ];
 
 // Export the final MODEL_CONFIGS
