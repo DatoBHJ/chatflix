@@ -59,7 +59,8 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   const [isSaving, setIsSaving] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [newPromptContent, setNewPromptContent] = useState<string>('');
-  const [userName, setUserName] = useState<string>('You');
+  const [userName, setUserName] = useState<string>('');
+  const [isUserNameLoading, setIsUserNameLoading] = useState<boolean>(true);
   const [isMobile, setIsMobile] = useState(false);
   
   // 롱프레스 관련 상태
@@ -206,12 +207,14 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   // 사용자 이름 로드 함수
   const loadUserName = async () => {
     if (!userId) {
+      setIsUserNameLoading(false);
       return;
     }
     
     // 🚀 익명 사용자 지원: 익명 사용자는 "Guest"로 설정
     if (userId === 'anonymous') {
       setUserName('Guest');
+      setIsUserNameLoading(false);
       return;
     }
     
@@ -221,6 +224,8 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     } catch (error) {
       console.error('Error loading user name:', error);
       setUserName('You');
+    } finally {
+      setIsUserNameLoading(false);
     }
   };
 
@@ -229,6 +234,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     // 🚀 디바운스: userId가 빠르게 변경되는 경우 마지막 변경만 처리
     const timeoutId = setTimeout(() => {
       setIsInitialLoading(true);
+      setIsUserNameLoading(true); // 사용자 이름 로딩 시작
       Promise.all([
         loadUserPrompts(),
         loadUserName()
@@ -523,7 +529,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   };
 
   // 초기 로딩 중이거나 사용자 정보 로딩 중에는 아무것도 보여주지 않음
-  if (isInitialLoading) {
+  if (isInitialLoading || isUserNameLoading) {
     return <div className={`min-h-16 relative flex items-center justify-end ${className}`}></div>;
   }
 

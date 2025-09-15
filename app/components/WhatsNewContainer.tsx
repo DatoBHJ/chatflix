@@ -14,6 +14,8 @@ const WhatsNewContainer: React.FC<WhatsNewContainerProps> = ({ openPanel }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [hasEverBeenOpened, setHasEverBeenOpened] = useState(false);
+  const [showBadge, setShowBadge] = useState(false); // 배지 표시 상태 추가
+  const [badgeReady, setBadgeReady] = useState(false); // 배지 준비 상태 추가
   const { lastSeenUpdateId, lastSeenTimestamp, updateLastSeen, isLoaded } = useLastSeenUpdate();
   const supabase = createClient();
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -82,6 +84,7 @@ const WhatsNewContainer: React.FC<WhatsNewContainerProps> = ({ openPanel }) => {
         console.log('WhatsNewContainer: No updates available');
         setNewUpdatesCount(0);
         setHasNewUpdates(false);
+        setShowBadge(false);
         setIsInitialized(true);
         return;
       }
@@ -111,6 +114,7 @@ const WhatsNewContainer: React.FC<WhatsNewContainerProps> = ({ openPanel }) => {
         console.log('WhatsNewContainer: First time visitor - no notifications');
         setNewUpdatesCount(0);
         setHasNewUpdates(false);
+        setShowBadge(false);
       } else {
         const lastSeenUpdate = updates.find(update => update.id === lastSeenUpdateId);
         
@@ -121,7 +125,9 @@ const WhatsNewContainer: React.FC<WhatsNewContainerProps> = ({ openPanel }) => {
             totalUpdates: updates.length
           });
           setNewUpdatesCount(newUpdates.length);
-          setHasNewUpdates(newUpdates.length > 0);
+          const hasUpdates = newUpdates.length > 0;
+          setHasNewUpdates(hasUpdates);
+          setShowBadge(hasUpdates);
         } else {
           const newUpdates = updates.filter(
             update => update.timestamp > lastSeenUpdate.timestamp
@@ -131,12 +137,20 @@ const WhatsNewContainer: React.FC<WhatsNewContainerProps> = ({ openPanel }) => {
             totalUpdates: updates.length
           });
           setNewUpdatesCount(newUpdates.length);
-          setHasNewUpdates(newUpdates.length > 0);
+          const hasUpdates = newUpdates.length > 0;
+          setHasNewUpdates(hasUpdates);
+          setShowBadge(hasUpdates);
         }
       }
       
       // 초기화 완료 표시
       setIsInitialized(true);
+      
+      // 배지 준비 상태를 약간 지연시켜 깜빡임 방지
+      setTimeout(() => {
+        setBadgeReady(true);
+      }, 100);
+      
       console.log('WhatsNewContainer: Initialization complete');
     };
 
@@ -160,6 +174,7 @@ const WhatsNewContainer: React.FC<WhatsNewContainerProps> = ({ openPanel }) => {
       
       setHasNewUpdates(false);
       setNewUpdatesCount(0);
+      setShowBadge(false);
     }
   };
   
@@ -211,8 +226,8 @@ const WhatsNewContainer: React.FC<WhatsNewContainerProps> = ({ openPanel }) => {
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
           <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
         </svg>
-        {hasNewUpdates && isInitialized && (
-          <span className={`absolute top-0.5 h-[12px] bg-blue-500 rounded-full flex items-center justify-center ${
+        {showBadge && badgeReady && (
+          <span className={`absolute top-0.5 h-[12px] bg-blue-500 rounded-full flex items-center justify-center transition-all duration-300 ease-out ${
             newUpdatesCount > 10 ? 'right-0.5 min-w-[18px] px-1' : 'right-1 min-w-[12px]'
           }`}>
             <span className="text-white text-[8px] font-bold leading-none">

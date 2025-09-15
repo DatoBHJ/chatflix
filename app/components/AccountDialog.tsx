@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { clearAllSubscriptionCache } from '@/lib/utils'
+import { getCachedUserName, invalidateUserNameCache } from '@/lib/user-name-cache'
 
 import Image from 'next/image'
 import { ThemeToggle } from './ThemeToggle'
@@ -23,8 +24,8 @@ import { useHomeStarryNight } from '@/app/hooks/useHomeStarryNight'
 import { useDarkMode } from '@/app/hooks/useDarkMode'
 import { getSidebarTranslations } from '../lib/sidebarTranslations'
 
-// Export these functions to be used elsewhere
-export const fetchUserName = async (userId: string, supabase: any) => {
+// Internal function to fetch user name from database (without cache)
+const fetchUserNameFromDB = async (userId: string, supabase: any) => {
   try {
     // First try to get name from all_user table
     const { data, error } = await supabase
@@ -46,6 +47,12 @@ export const fetchUserName = async (userId: string, supabase: any) => {
     const { data: { user } } = await supabase.auth.getUser();
     return user?.user_metadata?.name || 'You';
   }
+};
+
+// Export these functions to be used elsewhere
+export const fetchUserName = async (userId: string, supabase: any) => {
+  // Use cached version for better performance
+  return await getCachedUserName(userId, () => fetchUserNameFromDB(userId, supabase));
 };
 
 export const updateUserName = async (userId: string, userName: string, supabase: any) => {
@@ -94,6 +101,9 @@ export const updateUserName = async (userId: string, userName: string, supabase:
         throw new Error(insertError.message);
       }
     }
+
+    // 🚀 Invalidate user name cache since we updated the name
+    invalidateUserNameCache(userId);
 
     // 🚀 Immediately update memory bank (runs in the background)
     try {

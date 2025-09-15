@@ -22,11 +22,11 @@ dotenv.config({
 // 도구 설명 및 매개변수 정의
 const toolDefinitions = {
   webSearch: {
-    description: 'Search the web using Exa for information with multiple queries. This tool automatically optimizes queries. Note: `include_domains` and `exclude_domains` are mutually exclusive. `include_domains` will be prioritized. CRITICAL: Use 2-4 queries maximum per tool call. Scale maxResults inversely with query count. If results are insufficient, reuse the tool with different query angles rather than adding more queries.',
+    description: 'Search the web using Exa for information with multiple queries. This tool automatically optimizes queries. Note: `include_domains` and `exclude_domains` are mutually exclusive. `include_domains` will be prioritized. Use 2-4 queries maximum per tool call. Scale maxResults inversely with query count for balanced results.',
     inputSchema: {
-      queries: 'Array of search queries to look up on the web. Exa\'s autoprompt feature will optimize these. Use 2-4 queries maximum per tool call. Scale maxResults inversely: 1 query=30-50, 2 queries=20-40 each, 3 queries=10-30 each, 4 queries=8-20 each.',
-      maxResults: 'Array of maximum number of results to return per query. Scale inversely with query count: 1 query=30-50, 2 queries=20-40 each, 3 queries=10-30 each, 4 queries=8-20 each. Default is 10.',
-      topics: 'Array of topic types to search for. CRITICAL: Use diverse topic types for comprehensive results. Options: general, news, financial report, company, research paper, pdf, github, personal site, linkedin profile. Choose appropriate topics based on query content: news for current events, research papers for academic info, financial reports for business data, company for corporate info, pdf for official documents, github for code/tech, personal site for blogs, linkedin profile for professional info.',
+      queries: 'Array of search queries to look up on the web. Exa\'s autoprompt feature will optimize these. Use 2-4 queries maximum per tool call. Scale maxResults inversely: 1 query=15-20, 2 queries=8-12 each, 3 queries=6-10 each, 4 queries=5-8 each.',
+      maxResults: 'Array of maximum number of results to return per query. Scale inversely with query count: 1 query=15-20, 2 queries=8-12 each, 3 queries=6-10 each, 4 queries=5-8 each. Default is 10.',
+      topics: 'Array of topic types to search for. Use diverse topic types for comprehensive results. Options: general, news, financial report, company, research paper, pdf, github, personal site, linkedin profile. Choose appropriate topics based on query content: news for current events, research papers for academic info, financial reports for business data, company for corporate info, pdf for official documents, github for code/tech, personal site for blogs, linkedin profile for professional info.',
       include_domains: 'A list of domains to prioritize in search results. Cannot be used with exclude_domains.',
       exclude_domains: 'A list of domains to exclude from all search results. Cannot be used with include_domains.'
     }

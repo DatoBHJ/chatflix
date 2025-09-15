@@ -34,10 +34,12 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
   // 🚀 익명 사용자 지원: 익명 사용자 식별
   const isAnonymousUser = user?.isAnonymous || user?.id === 'anonymous';
 
-  const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
-  const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(true);
-  const [isBatteryPanelOpen, setIsBatteryPanelOpen] = useState(false);
-  const [isBatteryPanelVisible, setIsBatteryPanelVisible] = useState(false);
+    const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
+    const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(true);
+    const [batteryAnimationProgress, setBatteryAnimationProgress] = useState(0);
+    const [isBatteryAnimating, setIsBatteryAnimating] = useState(false);
+    const [isBatteryPanelOpen, setIsBatteryPanelOpen] = useState(false);
+    const [isBatteryPanelVisible, setIsBatteryPanelVisible] = useState(false);
   const [batteryPanelElements, setBatteryPanelElements] = useState({
     background: false,
     content: false
@@ -61,7 +63,8 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
   const [allExpanded, setAllExpanded] = useState(false);
 
   // Get user name
-  const [userName, setUserName] = useState('You');
+  const [userName, setUserName] = useState('');
+  const [isUserNameLoading, setIsUserNameLoading] = useState(true);
   const batteryRef = useRef<HTMLDivElement>(null);
   const batteryRef2 = useRef<HTMLDivElement>(null);
   // Load user name when user changes
@@ -75,14 +78,18 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
         } catch (error) {
           console.error('Error loading user name:', error);
           setUserName('Account');
+        } finally {
+          setIsUserNameLoading(false);
         }
       };
       
       loadUserName();
     } else if (isAnonymousUser) {
       setUserName('Guest');
+      setIsUserNameLoading(false);
     } else {
       setUserName('Account');
+      setIsUserNameLoading(false);
     }
   }, [user, isAnonymousUser]);
 
@@ -325,10 +332,54 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
       setIsSubscribed(false);
     } finally {
       setIsSubscriptionLoading(false);
-    }
-  }, [user?.id, isSubscribed, isAnonymousUser]);
-  
-  useEffect(() => {
+      }
+    }, [user?.id, isSubscribed, isAnonymousUser]);
+    
+    // 배터리 애니메이션 효과 - 로딩 완료 시에만 애니메이션
+    useEffect(() => {
+      if (!isSubscriptionLoading && isSubscribed !== null) {
+        const targetWidth = isSubscribed ? 19 : 7;
+        
+        // 이미 애니메이션이 완료된 상태라면 바로 표시
+        if (batteryAnimationProgress === targetWidth) {
+          return;
+        }
+        
+        // 로딩이 완료된 상태라면 애니메이션으로 채우기
+        setIsBatteryAnimating(true);
+        setBatteryAnimationProgress(0);
+        
+        // 애니메이션 진행
+        const animateBattery = () => {
+          const duration = 1200; // 1.2초
+          const startTime = Date.now();
+          
+          const animate = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // easeOutCubic 이징 함수
+            const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+            const currentWidth = easeOutCubic * targetWidth;
+            
+            setBatteryAnimationProgress(currentWidth);
+            
+            if (progress < 1) {
+              requestAnimationFrame(animate);
+            } else {
+              setIsBatteryAnimating(false);
+            }
+          };
+          
+          requestAnimationFrame(animate);
+        };
+        
+        // 약간의 지연 후 애니메이션 시작
+        setTimeout(animateBattery, 200);
+      }
+    }, [isSubscriptionLoading, isSubscribed]);
+    
+    useEffect(() => {
     // 🚀 익명 사용자 지원: 익명 사용자는 구독 상태 확인 건너뛰기
     if (isAnonymousUser) {
       setIsSubscribed(false);
@@ -473,101 +524,101 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
           
           {/* Pro/Free Status - moved next to notification */}
           <div className="flex items-center justify-center">
-            {isSubscriptionLoading && isSubscribed === null ? (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-400/15 text-[var(--muted)] font-medium">Loading...</span>
-            ) : (
-              <div className="flex items-center justify-center relative">
-                {isAnonymousUser ? (
-                  <>
-                    {/* Decorative Battery for Anonymous Users */}
-                    <div 
-                      ref={batteryRef}
-                      className="flex items-center justify-center relative group cursor-pointer"
-                      onClick={openBatteryPanel}
-                    >
-                      <svg 
-                        className="w-8 h-9 text-[var(--foreground)] transition-all duration-300 scale-100" 
-                        viewBox="0 0 35 30" 
-                        fill="none" 
-                      >
-                        {/* Battery Body */}
-                        <rect 
-                          x="9" 
-                          y="9" 
-                          width="22" 
-                          height="11" 
-                          rx="2.2" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          strokeWidth="1.2"
-                        />
-                        {/* Battery Terminal */}
-                        <polygon 
-                          points="33,12.5 33.3,15 33,17.5" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          strokeWidth="1.2"
-                        />
-                        <rect 
-                          x="10.5" 
-                          y="10.5" 
-                          rx="1.2" 
-                          height="8" 
-                          width="2.5" 
-                          fill="#ef4444"
-                          // fill="currentColor" // 통일된 foreground 색상
-                        />
-                      </svg>
-                      
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    {/* iPhone Battery Icon from react-ios-icons */}
-                    <div 
-                      ref={batteryRef2}
-                      className="relative flex items-center justify-center cursor-pointer group"
-                      onClick={openBatteryPanel}
-                    >
-                      <svg 
-                        className={`w-8 h-9 text-[var(--foreground)] transition-all duration-300 scale-100 cursor-pointer`}
-                        viewBox="0 0 35 30" 
-                        fill="none" 
-                      >
-                        {/* Battery Body */}
-                        <rect 
-                          x="9" 
-                          y="9" 
-                          width="22" 
-                          height="11" 
-                          rx="2.2" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          strokeWidth="1.2"
-                        />
-                        {/* Battery Terminal */}
-                        <polygon 
-                          points="33,12.5 33.3,15 33,17.5" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          strokeWidth="1.2"
-                        />
-                        <rect 
-                          x="10.5" 
-                          y="10.5" 
-                          rx="1.2" 
-                          height="8" 
-                          width={isSubscribed ? "19" : "7"} 
-                          // fill={isSubscribed ? "#22c55e" : "#eab308"}
-                          fill="currentColor" // 통일된 foreground 색상
-                        />
-                      </svg>
-                      
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+            <div className="flex items-center justify-center relative">
+              {isAnonymousUser ? (
+                <>
+                  {/* Decorative Battery for Anonymous Users */}
+                  <div 
+                    ref={batteryRef}
+                    className="flex items-center justify-center relative group cursor-pointer"
+                    onClick={openBatteryPanel}
+                  >
+                     <svg 
+                       className={`w-8 h-9 text-[var(--foreground)] transition-all duration-500 ease-out ${
+                         isBatteryAnimating ? 'scale-105 drop-shadow-lg' : 'scale-100'
+                       }`} 
+                       viewBox="0 0 35 30" 
+                       fill="none" 
+                     >
+                       {/* Battery Body */}
+                       <rect 
+                         x="9" 
+                         y="9" 
+                         width="22" 
+                         height="11" 
+                         rx="2.2" 
+                         fill="none" 
+                         stroke="currentColor" 
+                         strokeWidth="1.2"
+                       />
+                       {/* Battery Terminal */}
+                       <polygon 
+                         points="33,12.5 33.3,15 33,17.5" 
+                         fill="none" 
+                         stroke="currentColor" 
+                         strokeWidth="1.2"
+                       />
+                       <rect 
+                         x="10.5" 
+                         y="10.5" 
+                         rx="1.2" 
+                         height="8" 
+                         width={isSubscriptionLoading ? 0 : (isBatteryAnimating ? batteryAnimationProgress : 2.5)} 
+                         fill={isSubscriptionLoading ? "transparent" : "currentColor"}
+                         className="transition-all duration-75 ease-out"
+                       />
+                     </svg>
+                     
+                   </div>
+                </>
+              ) : (
+                <>
+                  {/* iPhone Battery Icon from react-ios-icons */}
+                  <div 
+                    ref={batteryRef2}
+                    className="relative flex items-center justify-center cursor-pointer group"
+                    onClick={openBatteryPanel}
+                  >
+                     <svg 
+                       className={`w-8 h-9 text-[var(--foreground)] transition-all duration-500 ease-out cursor-pointer ${
+                         isBatteryAnimating ? 'scale-105 drop-shadow-lg' : 'scale-100'
+                       }`}
+                       viewBox="0 0 35 30" 
+                       fill="none" 
+                     >
+                       {/* Battery Body */}
+                       <rect 
+                         x="9" 
+                         y="9" 
+                         width="22" 
+                         height="11" 
+                         rx="2.2" 
+                         fill="none" 
+                         stroke="currentColor" 
+                         strokeWidth="1.2"
+                       />
+                       {/* Battery Terminal */}
+                       <polygon 
+                         points="33,12.5 33.3,15 33,17.5" 
+                         fill="none" 
+                         stroke="currentColor" 
+                         strokeWidth="1.2"
+                       />
+                       <rect 
+                         x="10.5" 
+                         y="10.5" 
+                         rx="1.2" 
+                         height="8" 
+                         width={isSubscriptionLoading ? 0 : (isBatteryAnimating ? batteryAnimationProgress : (isSubscribed ? 19 : 7))} 
+                         fill={isSubscriptionLoading ? "transparent" : "currentColor"}
+                         className="transition-all duration-75 ease-out"
+                       />
+                     </svg>
+                     
+                   </div>
+                </>
+              )}
+            </div>
           </div>
           
           <WhatsNewContainer openPanel={openWhatsNewPanel} />
@@ -644,7 +695,7 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
     )}
     
     {/* Account Panel */}
-    {isAccountPanelVisible && (
+    {isAccountPanelVisible && !isUserNameLoading && (
       <div className={`fixed inset-0 z-[70] text-[var(--foreground)] pointer-events-auto transition-all duration-500 ease-out ${
         accountPanelElements.background ? 'opacity-100' : 'opacity-0'
       }`}
@@ -674,7 +725,7 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
             accountPanelElements.content ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-6'
           }`}>
             <h2 className="text-3xl sm:text-3xl md:text-4xl font-semibold tracking-tight">
-              {userName}
+              {!isUserNameLoading && userName}
             </h2>
             {isAnonymousUser && (
               <p className="mt-6 text-sm text-[var(--muted)] pl-1">

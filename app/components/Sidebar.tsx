@@ -39,7 +39,8 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
   const [isProblemReportOpen, setIsProblemReportOpen] = useState(false)
   const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(false)
   const [profileImage, setProfileImage] = useState<string | null>(null)
-  const [userName, setUserName] = useState('You')
+  const [userName, setUserName] = useState('')
+  const [isUserNameLoading, setIsUserNameLoading] = useState(true)
   const [isExpanded, setIsExpanded] = useState(true) // Always expanded - no toggle needed
   const [translations, setTranslations] = useState({
     home: 'Home',
@@ -236,12 +237,21 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
     if (user) {
       // Load user name from all_user table
       const loadUserData = async () => {
-        const name = await fetchUserName(user.id, supabase);
-        setUserName(name);
+        try {
+          const name = await fetchUserName(user.id, supabase);
+          setUserName(name);
+        } catch (error) {
+          console.error('Error loading user name:', error);
+          setUserName('You');
+        } finally {
+          setIsUserNameLoading(false);
+        }
         fetchProfileImage(user.id);
       };
       
       loadUserData();
+    } else {
+      setIsUserNameLoading(false);
     }
   }, [user, supabase]); // ✅ P1 FIX: fetchProfileImage 의존성 제거로 안정성 증대
 
@@ -1772,13 +1782,13 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-[var(--foreground)] text-[var(--background)]">
-                        {userName.charAt(0).toUpperCase()}
+                        {!isUserNameLoading && userName.charAt(0).toUpperCase()}
                       </div>
                     )}
                   </div>
                 </div>
                 <span className="ml-3 text-sm font-medium whitespace-nowrap text-[var(--muted)]">
-                  {userName}
+                  {!isUserNameLoading && userName}
                 </span>
               </button>
             </>
@@ -1808,12 +1818,14 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-[var(--foreground)] text-[var(--background)]">
-                      {userName.charAt(0).toUpperCase()}
+                      {!isUserNameLoading && userName.charAt(0).toUpperCase()}
                     </div>
                   )}
                 </div>
                 <div>
-                  <div className="font-semibold text-sm text-[var(--foreground)]">{userName}</div>
+                  <div className="font-semibold text-sm text-[var(--foreground)]">
+                    {!isUserNameLoading && userName}
+                  </div>
                   <div className="text-xs text-[var(--muted)]">{user.email}</div>
                 </div>
               </div>

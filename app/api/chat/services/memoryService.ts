@@ -2,9 +2,10 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { updateMemoryBank, getLastMemoryUpdate } from '@/utils/memory-bank';
 // import { MultiModalMessage } from '../types';
 import { callMemoryBankUpdate } from '@/app/api/chat/utils/callMemoryBankUpdate';
+import { getCachedUserName } from '@/lib/user-name-cache';
 
-// fetchUserName 함수 - 최적화된 버전 (중복 auth 호출 방지)
-const fetchUserName = async (userId: string, supabase: SupabaseClient) => {
+// Internal function to fetch user name from database (without cache)
+const fetchUserNameFromDB = async (userId: string, supabase: SupabaseClient) => {
   try {
     console.log(`👤 [USER NAME] Fetching name for user ${userId}`);
     
@@ -47,6 +48,12 @@ const fetchUserName = async (userId: string, supabase: SupabaseClient) => {
     console.error('❌ [USER NAME] Unexpected error fetching user name:', error);
     return 'You'; // 안전한 폴백
   }
+};
+
+// fetchUserName 함수 - Redis 캐시를 사용하는 최적화된 버전
+const fetchUserName = async (userId: string, supabase: SupabaseClient) => {
+  // Use cached version for better performance
+  return await getCachedUserName(userId, () => fetchUserNameFromDB(userId, supabase));
 };
 
 // 메모리 뱅크 업데이트에 사용할 AI 모델 및 설정

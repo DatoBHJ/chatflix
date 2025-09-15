@@ -27,7 +27,7 @@ CORRECT CALL EXAMPLE:
 {
   "queries": ["vector database benchmarks 2024", "best vector index for RAG latency", "HNSW vs IVF flat tradeoffs"],
   "topics": ["research paper", "general", "github"],
-  "maxResults": [12, 10, 10]
+  "maxResults": [8, 8, 8]
 }
 
 ENGLISH-FIRST POLICY:
@@ -36,14 +36,14 @@ ENGLISH-FIRST POLICY:
 - Only if results are inadequate, retry in the user's language as a secondary pass
 
 QUERY COUNT AND RESULTS SCALING:
-- 1 query: Use 30-50 maxResults (deep focus)
-- 2 queries: Use 20-40 maxResults each (balanced coverage)
-- 3 queries: Use 10-30 maxResults each (broad coverage)
-- 4 queries: Use 8-20 maxResults each (maximum breadth)
+- 1 query: Use 15-20 maxResults (deep focus)
+- 2 queries: Use 8-12 maxResults each (balanced coverage)
+- 3 queries: Use 6-10 maxResults each (broad coverage)
+- 4 queries: Use 5-8 maxResults each (maximum breadth)
 
 SEARCH STRATEGY:
-- Deep search: 1-2 tightly focused queries with high maxResults
-- Broad search: 3-4 queries with different phrasings and topics, moderate maxResults
+- Deep search: 1-2 tightly focused queries with moderate maxResults
+- Broad search: 2-4 queries with different phrasings and topics, balanced maxResults
 - Keep include_domains if you need authoritative sources only; otherwise leave undefined
 - Consider exclude_domains for noisy sources; otherwise leave undefined
 
@@ -96,19 +96,19 @@ DOMAIN-SPECIFIC LEVERAGING:
 EXAMPLE QUERY PATTERNS BY SCENARIO (optimized for Exa's strengths):
 - Academic Research (3 queries, leveraging "research paper" strength):
   queries: ["embeddings for document retrieval survey", "attention mechanism transformer architecture", "neural network optimization techniques"]
-  topics: ["research paper", "research paper", "research paper"], maxResults: [15, 15, 15]
+  topics: ["research paper", "research paper", "research paper"], maxResults: [8, 8, 8]
 - Company Intelligence (2 queries, leveraging "company" + "financial report"):
   queries: ["SpaceX company valuation revenue growth", "Tesla financial performance 2024"]
-  topics: ["company", "financial report"], maxResults: [35, 35]
+  topics: ["company", "financial report"], maxResults: [10, 10]
 - Personal/Professional Profiles (3 queries, leveraging "linkedin profile" strength):
   queries: ["machine learning engineer at Google", "AI researcher at Stanford University", "data scientist at Microsoft"]
-  topics: ["linkedin profile", "linkedin profile", "linkedin profile"], maxResults: [20, 20, 20]
+  topics: ["linkedin profile", "linkedin profile", "linkedin profile"], maxResults: [7, 7, 7]
 - Code & Implementation (4 queries, leveraging "github" strength):
   queries: ["vector database implementation HNSW", "OpenAI API integration example", "React hooks tutorial", "machine learning model deployment"]
-  topics: ["github", "github", "github", "github"], maxResults: [12, 12, 12, 12]
+  topics: ["github", "github", "github", "github"], maxResults: [6, 6, 6, 6]
 - Wikipedia Knowledge (2 queries, leveraging "general" for Wikipedia):
   queries: ["artificial intelligence Wikipedia", "machine learning history Wikipedia"]
-  topics: ["general", "general"], maxResults: [30, 30]
+  topics: ["general", "general"], maxResults: [10, 10]
 
 ITERATIVE REFINEMENT (TOOL REUSE STRATEGY):
 - If results are insufficient or sparse after deduplication:
@@ -122,46 +122,15 @@ EXECUTION FORMAT:
 1. State your plan and topic strategy (e.g., "Searching in English with diversified queries across [topics]")
 2. Always mention English-first (e.g., "English-first with multiple variations")
 3. If time-sensitive, mention temporal context (e.g., "as of ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}")
-4. Provide only a one-line summary of findings (count + high-level coverage)
-5. If results are inadequate, mention fallback to the user's language
-6. Indicate you will analyze findings in the final answer stage
+4. If results are inadequate, mention fallback to the user's language
 
 CRITICAL REMINDERS:
 - Keep parameter arrays valid and aligned in length when possible
 - Never set both include_domains and exclude_domains
 - **MAXIMUM 4 QUERIES PER TOOL CALL** - use tool reuse for additional coverage
 - Scale maxResults inversely with query count (fewer queries = more results per query)
-
-DO NOT provide detailed search results or analysis during this phase.`,
-
-  // calculator: `
-  // For calculator tool execution:
-  // - Use calculator tool for all mathematical calculations
-  // - Input expressions in proper mathjs format
-  // - For unit conversions use format like "12.7 cm to inch"
-  // - For trigonometric functions use "deg" or "rad" as needed
-
-  // EXECUTION FORMAT:
-  // 1. State your calculation plan (e.g., "Calculating [specific operation]")
-  // 2. Provide ONLY a one-line result (e.g., "The calculation result is [value]")
-  // 3. Indicate you'll explain in the final answer stage
-
-  // DO NOT show step-by-step calculation process or explain mathematical concepts during this phase.`,
-
-  // linkReader: `
-  // For link reader tool execution:
-  // - Use link_reader to extract content from valid URLs
-  // - URLs must start with http:// or https://
-  // - Check success and message fields in response
-  // - If link fails, try an alternative URL if available
-
-  // EXECUTION FORMAT:
-  // 1. State your link reading plan (e.g., "Reading content from [URL]")
-  // 2. Provide ONLY a one-line summary (e.g., "Successfully extracted content about [topic]")
-  // 3. Indicate you'll analyze content in the final answer stage
-
-  // DO NOT include article summaries or quotes during this phase.`,
-
+- Use reasonable result counts that balance comprehensiveness with efficiency
+`,
   imageGenerator: `
   If user requests to generate images, you must use the image_generator tool.
 
@@ -193,9 +162,9 @@ DO NOT provide detailed search results or analysis during this phase.`,
 
   EXECUTION FORMAT:
   1. State your generation plan (e.g., "Generating image of [description] using [model]" or "Editing previous image (seed: [original_seed]) to [new_description] by modifying the prompt to '[new_prompt_snippet]'").
-  2. ALWAYS display the generated image link in your response immediately after generation (e.g., "Image has been generated successfully: [IMAGE_URL]" or include the image directly in your response).
+  2. ALWAYS display the generated image link in your response immediately after generation.
 
-  IMPORTANT: Always include the generated image link or display the image directly in your main response, not just in supporting files.
+  IMPORTANT: Always include the generated image link or display the image directly in your main response.
 
   INSTRUCTIONS:
   - Always include the model name and the seed value in your response.
@@ -226,22 +195,14 @@ DO NOT provide detailed search results or analysis during this phase.`,
   https://www.youtube.com/watch?v=HaxnRvfUOZQ
   
   This video shows the highlights from the Mallorca vs Barcelona game with excellent commentary.
-  
-  **INCORRECT FORMAT (AVOID):**
-  Here's a great video about Barcelona's recent match: [MALLORCA 0 vs 3 FC BARCELONA | LALIGA 2025/26 MD01 🔵🔴](https://www.youtube.com/watch?v=HaxnRvfUOZQ) with excellent commentary.
-  
+
   **Why this format works better:**
   - YouTube links are automatically detected and rendered as embedded players
   - Text content remains clean and readable
   - Links are visually separated from text for better user experience
   - The rendering system can properly segment content for optimal display
 
-  EXECUTION FORMAT:
-  1. State your search plan (e.g., "Searching YouTube for videos about [topic]")
-  2. Provide ONLY a one-line summary (e.g., "Found [number] relevant videos about [topic]")
-  3. Indicate you'll analyze findings in the final answer stage
-
-  DO NOT list video titles or provide content descriptions during this phase.`,
+  `,
 
   youtubeLinkAnalyzer: `
   For YouTube link analyzer tool execution:
@@ -262,14 +223,7 @@ DO NOT provide detailed search results or analysis during this phase.`,
   
   https://www.youtube.com/watch?v=HaxnRvfUOZQ
   
-  Analysis: This video contains detailed match highlights and commentary.
-
-  EXECUTION FORMAT:
-  1. State your analysis plan (e.g., "Analyzing YouTube video about [topic]")
-  2. Provide ONLY a one-line summary (e.g., "Successfully analyzed video content about [topic]")
-  3. Indicate you'll provide detailed analysis in the final answer stage
-
-  DO NOT include transcript excerpts or detailed content analysis during this phase.`,
+  Analysis: This video contains detailed match highlights and commentary.`,
 
   previousToolResults: `
   For previous tool results tool execution:
@@ -301,8 +255,6 @@ DO NOT provide detailed search results or analysis during this phase.`,
   EXECUTION FORMAT:
   1. State your analysis plan (e.g., "Checking previous tool results for [specific context needed]")
   2. Provide ONLY a one-line summary (e.g., "Found [number] relevant previous tool results for [context]")
-  3. Indicate you'll reference these results in your final answer
-
-  DO NOT list detailed previous results or provide analysis during this phase.`
+  3. Indicate you'll reference these results in your final answer`
 };
 
