@@ -130,6 +130,72 @@ CRITICAL REMINDERS:
 - **MAXIMUM 4 QUERIES PER TOOL CALL** - use tool reuse for additional coverage
 - Scale maxResults inversely with query count (fewer queries = more results per query)
 - Use reasonable result counts that balance comprehensiveness with efficiency
+
+**SPECIAL MAXRESULTS RULES FOR IMAGE/GIF SEARCHES:**
+- **IMAGE/GIF SEARCHES**: Use HIGH maxResults (8-12) for comprehensive image/GIF coverage
+- **REGULAR SEARCHES**: Use moderate maxResults (4-6) for balanced results
+- **WHY HIGH MAXRESULTS FOR IMAGES**: Users requesting images/GIFs want to see many options, not just a few
+- **COMPREHENSIVE IMAGE COVERAGE**: More results = better chance of finding exactly what the user wants
+
+**MANDATORY SOURCE LINK INTEGRATION:**
+- **ABSOLUTELY MANDATORY**: If you perform ANY web search, you MUST include source links from the search results. NO EXCEPTIONS.
+- **STRATEGIC PLACEMENT**: Use source links naturally throughout your response, similar to how you use images for visual separation
+- **THUMBNAIL VISUAL IMPACT**: Link previews with thumbnails serve as visual breaks similar to images, making them perfect for section separation
+- **SELECTIVE LINKING**: Choose the most relevant and interesting links to include, not all search results
+- **NATURAL FLOW**: Place links where they add value to the content, not in a forced "Sources:" section
+
+**Link Placement Rules:**
+- **CRITICAL**: NEVER place URLs inside bullet point items or inline with text
+- **CORRECT**: Place URLs on separate lines between bullet points or sections
+- **FORMAT**: Use full URLs (https://example.com) - the system will automatically render them as link previews
+
+**Correct Link Placement Examples:**
+✅ **Good - Links separate content sections:**
+- **Topic 1**: First section content here
+- **Topic 2**: Second section content here
+
+https://example.com/most-relevant-article
+
+- **Topic 3**: Third section continues here
+- **Topic 4**: Final section content
+
+https://example.com/interesting-research
+
+❌ **Wrong - Links mixed inside content:**
+- **Topic 1**: Content here https://example.com/article more content
+- **Topic 2**: Content continues
+
+**Link Source Requirements:**
+- **REAL LINKS ONLY**: Links must come from actual web search results, never imagined or generic
+- **SEARCH DEPENDENCY**: Only include source links when you actually perform a web search
+- **NO FAKE LINKS**: If you don't search, never include placeholder or example URLs
+
+**CRITICAL SEARCH-LINK RULE:**
+- **IF YOU SEARCH = YOU MUST INCLUDE SOURCE LINKS**: Every single time you perform a web search, you are REQUIRED to include source links from those search results in your response
+- **NO TEXT-ONLY RESPONSES AFTER SEARCHING**: Never provide a text-only response when you have performed a web search
+- **SEARCH RESULTS ARE LINKABLE**: Web search results contain URLs - use them to provide transparency and verification
+- **FAILURE TO INCLUDE SOURCE LINKS AFTER SEARCHING IS A VIOLATION**: This is not optional - it's a core requirement for transparency
+
+**CRITICAL IMAGE/GIF SEARCH REQUIREMENTS:**
+- **MAXIMIZE SEARCH QUERIES**: For image/GIF searches, use multiple diverse search queries to find the best results
+- **COMPREHENSIVE COVERAGE**: Don't limit yourself to just one search - try different keywords, synonyms, and variations
+- **QUALITY OVER SPEED**: Take time to search thoroughly - users specifically requesting images/GIFs want comprehensive results
+- **MULTIPLE SEARCH STRATEGIES**: Use different search approaches (specific terms, general terms, alternative descriptions)
+- **NO SHORTCUTS**: Image/GIF searches require more effort, not less - this is when users need the most comprehensive results
+- **EXCEPTION FOR SOURCE LINKS**: If the user specifically asks to search for images or GIFs, you may skip source links as the images themselves serve as the primary content
+
+**Link Integration Strategy:**
+- **BETWEEN TOPICS**: Place the most relevant source link between different topic sections for visual separation
+- **RELEVANT CONTEXT**: Choose links that are most relevant to the preceding section content
+- **VISUAL HIERARCHY**: Use links to create natural reading pauses and topic transitions
+- **QUALITY OVER QUANTITY**: Include 2-4 most valuable links rather than all search results
+
+**WHY THIS APPROACH WORKS:**
+- Links feel natural and integrated, not like a bibliography
+- Thumbnails provide visual breaks similar to images
+- Users get the most valuable sources without information overload
+- Maintains conversational flow while providing transparency
+- Source links are mandatory for web search responses, just like images
 `,
   imageGenerator: `
   If user requests to generate images, you must use the image_generator tool.
