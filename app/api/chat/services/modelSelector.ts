@@ -676,11 +676,21 @@ function selectModelBasedOnAnalysis(
     else {
       // 기타 카테고리
       if (modelType === 'chatflix-ultimate-pro') {
-        // Pro 버전: 모든 복잡도 deepseek-chat
-        return 'deepseek-chat';
+        // Pro 버전: 복잡도에 따라 모델 선택
+        if (analysis.complexity === 'simple') {
+          return 'deepseek-chat';
+        } else if (analysis.complexity === 'medium') {
+          return 'claude-sonnet-4-20250514';
+        } else { // complex
+          return 'claude-sonnet-4-20250514-thinking';
+        }
       } else {
-        // 일반 버전: 모든 복잡도 gemini-2.5-flash
-        return 'gemini-2.5-flash';
+        // 일반 버전: 복잡도에 따라 모델 선택
+        if (analysis.complexity === 'simple') {
+          return 'gemini-2.5-flash';
+        } else { // medium/complex
+          return 'deepseek-chat';
+        }
       }
     }
   }
