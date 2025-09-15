@@ -283,7 +283,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
     <>
       <style>{shimmerStyles}</style>
       <div className="pl-0 mb-2">
-      <div className="pt-12 sm:pt-30 pb-2 sm:pb-2 pr-8 sm:pr-0">
+      <div className="pt-4 sm:pt-30 pb-2 sm:pb-2 pr-8 sm:pr-0">
         <div className="flex items-center gap-3">
           <h2 className={`text-3xl sm:text-3xl md:text-4xl font-semibold tracking-tight ${
             !messageTitle ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'

@@ -1092,7 +1092,7 @@ const Message = memo(function MessageComponent({
           </div>
         </div>
       )}
-      <div className={`flex ${isUser ? `justify-end` : `justify-start`}`}>
+      <div className={`flex ${isUser ? `justify-end` : `justify-start`} ${isUser ? 'mt-10' : ''}`}>
         {isUser ? (
           <div className="w-full" style={{ minHeight: containerMinHeight }}>
             {isEditing ? (
@@ -1363,7 +1363,7 @@ const Message = memo(function MessageComponent({
       )}
     </div>
       {isAssistant && !isStreaming && (
-        <div className="flex justify-start mt-2 gap-2 items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
+        <div className="flex justify-start mt-2 mb-4 gap-2 items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
           <button 
             onClick={onRegenerate(message.id)}
             disabled={isRegenerating}
