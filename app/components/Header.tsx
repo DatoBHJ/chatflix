@@ -14,6 +14,8 @@ import { Battery, SquarePencil, Bookmark, Gear } from 'react-ios-icons'
 import { FeatureUpdate } from '../types/FeatureUpdate'; // Import FeatureUpdate type
 // Remove MarkdownContent import - not needed for simple text display
 import { createClient } from '@/utils/supabase/client';
+import { createPortal } from 'react-dom';
+import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export interface HeaderProps {
   isSidebarOpen: boolean;
@@ -52,6 +54,13 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
     background: false,
     content: false
   });
+  
+  // Image modal state
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number>(-1);
+  const [currentUpdateImages, setCurrentUpdateImages] = useState<string[]>([]);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   // What's New Panel States
   const [isWhatsNewPanelOpen, setIsWhatsNewPanelOpen] = useState(false);
@@ -93,6 +102,11 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
     }
   }, [user, isAnonymousUser]);
 
+  // Mount state for portal rendering
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   // Disable body scroll when panel is visible and add ESC listener
   useEffect(() => {
     if (isBatteryPanelVisible || isAccountPanelVisible) {
@@ -111,6 +125,55 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
       };
     }
   }, [isBatteryPanelVisible, isAccountPanelVisible]);
+
+  // Image modal functions
+  const handleImageClick = (imageUrl: string, images: string[], index: number) => {
+    setSelectedImage(imageUrl);
+    setSelectedImageIndex(index);
+    setCurrentUpdateImages(images);
+    setIsImageModalOpen(true);
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeImageModal = () => {
+    setSelectedImage(null);
+    setSelectedImageIndex(-1);
+    setCurrentUpdateImages([]);
+    setIsImageModalOpen(false);
+    document.body.style.overflow = '';
+  };
+
+  const navigateImage = (direction: 'prev' | 'next') => {
+    if (currentUpdateImages.length === 0) return;
+    
+    let newIndex = selectedImageIndex;
+    if (direction === 'next') {
+      newIndex = (selectedImageIndex + 1) % currentUpdateImages.length;
+    } else {
+      newIndex = selectedImageIndex === 0 ? currentUpdateImages.length - 1 : selectedImageIndex - 1;
+    }
+    
+    setSelectedImageIndex(newIndex);
+    setSelectedImage(currentUpdateImages[newIndex]);
+  };
+
+  // Handle keyboard navigation for image modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isImageModalOpen) return;
+      
+      if (e.key === 'Escape') {
+        closeImageModal();
+      } else if (e.key === 'ArrowRight') {
+        navigateImage('next');
+      } else if (e.key === 'ArrowLeft') {
+        navigateImage('prev');
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isImageModalOpen, selectedImageIndex, currentUpdateImages]);
 
   // Stage mount/unmount for smooth enter/exit with staggered animation
   useEffect(() => {
@@ -935,7 +998,10 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                               {update.images && update.images.length > 0 && (
                                 <div className="space-y-4">
                                   {update.images.length === 1 ? (
-                                    <div className="rounded-xl overflow-hidden">
+                                    <div 
+                                      className="rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                                      onClick={() => handleImageClick(update.images![0], update.images!, 0)}
+                                    >
                                       <Image 
                                         src={update.images[0]}
                                         alt={update.title}
@@ -947,7 +1013,11 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                                   ) : (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                       {update.images.map((img, i) => (
-                                        <div key={i} className="rounded-xl overflow-hidden">
+                                        <div 
+                                          key={i} 
+                                          className="rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                                          onClick={() => handleImageClick(img, update.images!, i)}
+                                        >
                                           <Image 
                                             src={img}
                                             alt={`${update.title} image ${i+1}`}
@@ -989,5 +1059,80 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
       isOpen={isSubscriptionDialogOpen}
       onClose={() => setIsSubscriptionDialogOpen(false)}
     />
+    
+    {/* Image Modal */}
+    {isMounted && isImageModalOpen && selectedImage && createPortal(
+      <div 
+        className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center" 
+        onClick={closeImageModal}
+        style={{ 
+          position: 'fixed', 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          width: '100vw', 
+          height: '100vh',
+          margin: 0,
+          padding: 0
+        }}
+      >
+        {/* Close button */}
+        <button
+          onClick={closeImageModal}
+          className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+        >
+          <X className="h-5 w-5" strokeWidth={1.5} />
+        </button>
+        
+        {/* Navigation buttons */}
+        {currentUpdateImages.length > 1 && (
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                navigateImage('prev');
+              }}
+              className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+            >
+              <ChevronLeft className="h-5 w-5" strokeWidth={1.5} />
+            </button>
+            
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                navigateImage('next');
+              }}
+              className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+            >
+              <ChevronRight className="h-5 w-5" strokeWidth={1.5} />
+            </button>
+          </>
+        )}
+        
+        {/* Image counter */}
+        {currentUpdateImages.length > 1 && (
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 px-3 py-1 rounded-full bg-black/50 text-white text-sm">
+            {selectedImageIndex + 1} / {currentUpdateImages.length}
+          </div>
+        )}
+        
+        {/* Image content */}
+        <div 
+          className="max-w-[90vw] max-h-[90vh] relative"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Image 
+            src={selectedImage}
+            alt={`Image ${selectedImageIndex + 1}`}
+            width={1200}
+            height={900}
+            className="max-h-[90vh] max-w-full h-auto object-contain"
+            style={{ borderRadius: '8px' }}
+          />
+        </div>
+      </div>,
+      document.body
+    )}
   </>)
 }
