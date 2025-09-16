@@ -1095,7 +1095,7 @@ const Message = memo(function MessageComponent({
           </div>
         </div>
       )}
-      <div className={`flex ${isUser ? `justify-end` : `justify-start`} ${isUser ? 'mt-10' : ''}`}>
+      <div className={`flex ${isUser ? `justify-end` : `justify-start`} ${isUser ? 'mt-10 sm:mt-12 mb-0 sm:mb-10' : ''}`}>
         {isUser ? (
           <div className="w-full" style={{ minHeight: containerMinHeight }}>
             {isEditing ? (
@@ -1364,7 +1364,7 @@ const Message = memo(function MessageComponent({
       )}
     </div>
       {isAssistant && !isStreaming && (
-        <div className={`flex justify-start mt-2 mb-4 gap-2 items-center transition-opacity duration-300 ${
+        <div className={`flex justify-start mt-2 mb-0 gap-2 items-center transition-opacity duration-300 ${
           isMobile 
             ? 'opacity-100' 
             : 'opacity-0 md:group-hover:opacity-100'
