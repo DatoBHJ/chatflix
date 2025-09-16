@@ -2020,6 +2020,29 @@ p:has(.katex) {
   display: none !important;
 }
 
+/* Long press scaled bubble tail adjustments */
+.imessage-send-bubble.long-press-scaled::before {
+  right: -7.35px; /* -7px * 1.05 */
+  width: 18.9px; /* 18px * 1.05 */
+  height: 16.8px; /* 16px * 1.05 */
+}
+
+.imessage-send-bubble.long-press-scaled::after {
+  right: -27.3px; /* -26px * 1.05 */
+  width: 27.3px; /* 26px * 1.05 */
+  height: 16.8px; /* 16px * 1.05 */
+}
+
+.imessage-send-bubble.long-press-scaled.multi-line::before {
+  height: 16.8px; /* 16px * 1.05 */
+  border-bottom-left-radius: 16.8px 14.7px; /* 16px * 1.05, 14px * 1.05 */
+}
+
+.imessage-send-bubble.long-press-scaled.multi-line::after {
+  height: 16.8px; /* 16px * 1.05 */
+  border-bottom-left-radius: 10.5px; /* 10px * 1.05 */
+}
+
 /* Hover effect removed for sidebar bubbles to prevent unwanted hover on selected items */
 
 /* Line clamp utilities for sidebar */
