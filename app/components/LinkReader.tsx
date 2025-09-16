@@ -1,5 +1,5 @@
-import React from 'react';
-import { ExternalLink, CheckCircle, XCircle, Clock } from 'lucide-react';
+import React, { useState } from 'react';
+import { ExternalLink, CheckCircle, XCircle, Clock, Eye, EyeOff, Copy, Check } from 'lucide-react';
 
 type LinkReaderProps = {
   linkAttempts: {
@@ -10,13 +10,24 @@ type LinkReaderProps = {
     success?: boolean;
     status?: 'in_progress' | 'success' | 'failed';
   }[];
+  rawContent?: {
+    url: string;
+    title: string;
+    content: string;
+    contentType: string;
+    contentLength: number;
+    timestamp: string;
+  }[];
 };
 
 /**
  * LinkReader Component
  * Displays a list of links that were attempted to be read by the Jina.ai link reader tool
  */
-export default function LinkReader({ linkAttempts }: LinkReaderProps) {
+export default function LinkReader({ linkAttempts, rawContent }: LinkReaderProps) {
+  const [expandedContent, setExpandedContent] = useState<Set<string>>(new Set());
+  const [copiedUrls, setCopiedUrls] = useState<Set<string>>(new Set());
+
   if (!linkAttempts?.length) return null;
 
   // Helper function to get status indicator
@@ -27,6 +38,39 @@ export default function LinkReader({ linkAttempts }: LinkReaderProps) {
     if (isFailed) return <XCircle size={14} className="mr-2 flex-shrink-0 text-red-500" />;
     if (isSuccess) return <CheckCircle size={14} className="mr-2 flex-shrink-0 text-green-500" />;
     return <Clock size={14} className="mr-2 flex-shrink-0 text-blue-500 animate-pulse" />;
+  };
+
+  // Helper function to toggle content expansion
+  const toggleContent = (url: string) => {
+    const newExpanded = new Set(expandedContent);
+    if (newExpanded.has(url)) {
+      newExpanded.delete(url);
+    } else {
+      newExpanded.add(url);
+    }
+    setExpandedContent(newExpanded);
+  };
+
+  // Helper function to copy content to clipboard
+  const copyContent = async (url: string, content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedUrls(prev => new Set(prev).add(url));
+      setTimeout(() => {
+        setCopiedUrls(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(url);
+          return newSet;
+        });
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy content:', error);
+    }
+  };
+
+  // Helper function to get raw content for a URL
+  const getRawContentForUrl = (url: string) => {
+    return rawContent?.find(content => content.url === url);
   };
 
   return (
@@ -41,29 +85,74 @@ export default function LinkReader({ linkAttempts }: LinkReaderProps) {
               : attempt.status === 'success' 
                 ? 'Success' 
                 : 'Loading...';
+            
+            const rawData = getRawContentForUrl(attempt.url);
+            const isExpanded = expandedContent.has(attempt.url);
+            const isCopied = copiedUrls.has(attempt.url);
                 
             return (
-              <div key={index} className="flex items-start border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] rounded p-2">
-                <div className="flex-1 overflow-hidden">
-                  <div className="flex items-center">
-                    {getStatusIcon(attempt)}
-                    <ExternalLink size={14} className="mr-2 flex-shrink-0" />
-                    <a 
-                      href={attempt.url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-sm font-medium text-blue-500 hover:underline truncate"
-                    >
-                      {attempt.title || attempt.url}
-                    </a>
-                    <span className="text-xs ml-2 text-neutral-500">{statusText}</span>
+              <div key={index} className="border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] rounded p-2">
+                <div className="flex items-start">
+                  <div className="flex-1 overflow-hidden">
+                    <div className="flex items-center">
+                      {getStatusIcon(attempt)}
+                      <ExternalLink size={14} className="mr-2 flex-shrink-0" />
+                      <a 
+                        href={attempt.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-blue-500 hover:underline truncate"
+                      >
+                        {attempt.title || attempt.url}
+                      </a>
+                      <span className="text-xs ml-2 text-neutral-500">{statusText}</span>
+                    </div>
+                    {attempt.error && (
+                      <p className="text-xs text-red-500 mt-1">
+                        Error: {attempt.error}
+                      </p>
+                    )}
                   </div>
-                  {attempt.error && (
-                    <p className="text-xs text-red-500 mt-1">
-                      Error: {attempt.error}
-                    </p>
+                  
+                  {/* Raw content toggle and copy buttons */}
+                  {rawData && (
+                    <div className="flex items-center gap-1 ml-2">
+                      <button
+                        onClick={() => toggleContent(attempt.url)}
+                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+                        title={isExpanded ? "Hide raw content" : "Show raw content"}
+                      >
+                        {isExpanded ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                      <button
+                        onClick={() => copyContent(attempt.url, rawData.content)}
+                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+                        title="Copy raw content"
+                      >
+                        {isCopied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                      </button>
+                    </div>
                   )}
                 </div>
+                
+                {/* Raw content display */}
+                {rawData && isExpanded && (
+                  <div className="mt-3 pt-3 border-t border-[color-mix(in_srgb,var(--foreground)_10%,transparent)]">
+                    <div className="mb-2">
+                      <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Raw Content ({rawData.contentLength} characters)
+                      </h5>
+                      <div className="text-xs text-gray-500 dark:text-gray-500">
+                        Content Type: {rawData.contentType}
+                      </div>
+                    </div>
+                    <div className=" rounded p-3 max-h-64 overflow-y-auto">
+                      <pre className="text-xs text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">
+                        {rawData.content}
+                      </pre>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}

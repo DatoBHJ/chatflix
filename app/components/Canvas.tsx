@@ -25,6 +25,14 @@ type CanvasProps = {
       error?: string;
       timestamp?: string;
     }[];
+    rawContent?: {
+      url: string;
+      title: string;
+      content: string;
+      contentType: string;
+      contentLength: number;
+      timestamp: string;
+    }[];
   } | null;
   imageGeneratorData?: {
     generatedImages: {
@@ -400,6 +408,7 @@ export default function Canvas({
               `}</style>
               <LinkReader
                 linkAttempts={linkReaderData.linkAttempts}
+                rawContent={linkReaderData.rawContent}
               />
             </div>
           </div>

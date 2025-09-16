@@ -101,6 +101,11 @@ export function collectToolResults(tools: Record<string, any>, toolNames: string
       collected[toolConfig.resultKey] = results;
     }
     
+    // Special handling for link_reader to include rawContent
+    if (toolName === 'link_reader' && tool.rawContent && Array.isArray(tool.rawContent) && tool.rawContent.length > 0) {
+      collected.linkReaderRawContent = tool.rawContent;
+    }
+    
     return collected;
   }, {} as any);
 }

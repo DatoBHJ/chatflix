@@ -622,14 +622,19 @@ export const getLinkReaderData = (message: UIMessage) => {
   // Check if there are stored link reader attempts in tool_results
   if ((message as any).tool_results?.linkReaderAttempts) {
     const linkAttempts = (message as any).tool_results.linkReaderAttempts;
+    const rawContent = (message as any).tool_results.linkReaderRawContent;
     if (Array.isArray(linkAttempts) && linkAttempts.length > 0) {
-      return { linkAttempts };
+      return { 
+        linkAttempts,
+        rawContent: Array.isArray(rawContent) ? rawContent : []
+      };
     }
   }
   
   // Check for link reader annotations
   let linkReaderAnnotations: any[] = [];
   let linkReaderUpdates: any[] = [];
+  let linkReaderRawContent: any[] = [];
   let linkReaderStarted = false;
   
   // Check annotations array (legacy format)
@@ -641,6 +646,11 @@ export const getLinkReaderData = (message: UIMessage) => {
       
     linkReaderUpdates = (((message as any).annotations) as any[])
       .filter(a => a && typeof a === 'object' && a.type === 'link_reader_attempt_update');
+    
+    linkReaderRawContent = (((message as any).annotations) as any[])
+      .filter(a => a && typeof a === 'object' && a.type === 'link_reader_complete')
+      .map(a => a.data)
+      .filter(Boolean);
     
     const startAnnotations = (((message as any).annotations) as any[])
       .filter(a => a && typeof a === 'object' && a.type === 'link_reader_started');
@@ -654,6 +664,8 @@ export const getLinkReaderData = (message: UIMessage) => {
       .filter(p => p?.type === 'data-link_reader_attempt');
     const linkUpdateParts = ((message as any).parts as any[])
       .filter(p => p?.type === 'data-link_reader_attempt_update');
+    const linkRawContentParts = ((message as any).parts as any[])
+      .filter(p => p?.type === 'data-link_reader_complete');
     const linkStartParts = ((message as any).parts as any[])
       .filter(p => p?.type === 'data-link_reader_started');
     
@@ -665,6 +677,11 @@ export const getLinkReaderData = (message: UIMessage) => {
     linkReaderUpdates = [
       ...linkReaderUpdates,
       ...linkUpdateParts.map(p => ({ type: 'link_reader_attempt_update', data: p.data }))
+    ];
+    
+    linkReaderRawContent = [
+      ...linkReaderRawContent,
+      ...linkRawContentParts.map(p => p.data).filter(Boolean)
     ];
     
     linkReaderStarted = linkReaderStarted || linkStartParts.length > 0;
@@ -693,6 +710,7 @@ export const getLinkReaderData = (message: UIMessage) => {
     
     return { 
       linkAttempts,
+      rawContent: linkReaderRawContent,
       status: hasSuccessfulAttempt ? 'completed' : 'processing'
     };
   }

@@ -460,6 +460,16 @@ export function createJinaLinkReaderTool(dataStream?: any) {
     title?: string;
     error?: string;
   }> = [];
+  
+  // Track raw content in closure
+  const rawContent: {
+    url: string;
+    title: string;
+    content: string;
+    contentType: string;
+    contentLength: number;
+    timestamp: string;
+  }[] = [];
 
   const linkReaderTool = tool({
     description: toolDefinitions.jina_link_reader.description,
@@ -524,12 +534,12 @@ export function createJinaLinkReaderTool(dataStream?: any) {
         const isJson = contentType.includes('application/json');
         
         // 내용과 타이틀 추출
-        const rawContent = isJson 
+        const rawResponseContent = isJson 
           ? JSON.stringify(await response.json(), null, 2)
           : await response.text();
           
         let title = '';
-        let content = rawContent;
+        let content = rawResponseContent;
         
         if (isHtml) {
           // HTML에서 타이틀 추출
@@ -587,6 +597,24 @@ export function createJinaLinkReaderTool(dataStream?: any) {
             
             console.log(`[DEBUG-JINA] Returning content to AI, total length: ${result.content.length} characters`);
             
+            // Store raw content for tool results collection
+            const rawContentData = {
+              url: url,
+              title: result.title,
+              content: result.content,
+              contentType: result.contentType,
+              contentLength: result.content ? result.content.length : 0,
+              timestamp: new Date().toISOString()
+            };
+            rawContent.push(rawContentData);
+            
+            // Send raw content to client via annotation for user display
+            dataStream.write({
+              type: 'data-link_reader_complete',
+              id: `ann-link-complete-${Date.now()}`,
+              data: rawContentData
+            });
+            
             return {
               success: true,
               url: url,
@@ -643,7 +671,7 @@ export function createJinaLinkReaderTool(dataStream?: any) {
     }
   });
 
-  return Object.assign(linkReaderTool, { linkAttempts });
+  return Object.assign(linkReaderTool, { linkAttempts, rawContent });
 }
 
 // 토큰 없이 이미지 생성 도구 생성 함수. (예전 버전) 
