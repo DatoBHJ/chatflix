@@ -1363,8 +1363,12 @@ const Message = memo(function MessageComponent({
         </>
       )}
     </div>
-      {isAssistant && !isStreaming && !isMobile && (
-        <div className="flex justify-start mt-2 mb-4 gap-2 items-center opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
+      {isAssistant && !isStreaming && (
+        <div className={`flex justify-start mt-2 mb-4 gap-2 items-center transition-opacity duration-300 ${
+          isMobile 
+            ? 'opacity-100' 
+            : 'opacity-0 md:group-hover:opacity-100'
+        }`}>
           <button 
             onClick={onRegenerate(message.id)}
             disabled={isRegenerating}
