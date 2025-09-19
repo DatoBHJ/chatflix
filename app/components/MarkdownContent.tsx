@@ -847,6 +847,11 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   // Image modal state
   const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string } | null>(null);
   const [isMounted, setIsMounted] = useState(false);
+  
+  // Image gallery state
+  const [imageGallery, setImageGallery] = useState<{ src: string; alt: string }[]>([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isGalleryMode, setIsGalleryMode] = useState(false);
 
   // Check if we're in browser environment for portal rendering
   useEffect(() => {
@@ -854,13 +859,68 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     return () => setIsMounted(false);
   }, []);
 
-  // Handle keyboard navigation for image modal
+  // Image modal functions
+  const openImageModal = useCallback((src: string | undefined, alt: string, allImages?: { src: string; alt: string; originalMatch?: string }[], imageIndex?: number) => {
+    if (src && typeof src === 'string') {
+      console.log('Opening image modal:', { src, alt, allImages, imageIndex });
+      setSelectedImage({ src, alt });
+      
+      // If multiple images are provided, set up gallery mode
+      if (allImages && allImages.length > 1) {
+        console.log('Setting up gallery mode with', allImages.length, 'images');
+        setImageGallery(allImages);
+        setCurrentImageIndex(imageIndex || 0);
+        setIsGalleryMode(true);
+      } else {
+        console.log('Single image mode');
+        setImageGallery([]);
+        setCurrentImageIndex(0);
+        setIsGalleryMode(false);
+      }
+    }
+  }, []);
+
+  const closeImageModal = useCallback(() => {
+    setSelectedImage(null);
+    setImageGallery([]);
+    setCurrentImageIndex(0);
+    setIsGalleryMode(false);
+  }, []);
+
+  // Gallery navigation functions
+  const navigateToNextImage = useCallback(() => {
+    if (imageGallery.length > 1) {
+      const nextIndex = (currentImageIndex + 1) % imageGallery.length;
+      console.log('Navigating to next image:', nextIndex, 'of', imageGallery.length);
+      setCurrentImageIndex(nextIndex);
+      setSelectedImage(imageGallery[nextIndex]);
+    }
+  }, [imageGallery, currentImageIndex]);
+
+  const navigateToPreviousImage = useCallback(() => {
+    if (imageGallery.length > 1) {
+      const prevIndex = currentImageIndex === 0 ? imageGallery.length - 1 : currentImageIndex - 1;
+      console.log('Navigating to previous image:', prevIndex, 'of', imageGallery.length);
+      setCurrentImageIndex(prevIndex);
+      setSelectedImage(imageGallery[prevIndex]);
+    }
+  }, [imageGallery, currentImageIndex]);
+
+  // Handle keyboard navigation for image modal and gallery
   useEffect(() => {
-    if (!selectedImage) return;
+    if (!selectedImage && !isGalleryMode) return;
     
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         closeImageModal();
+      } else if (isGalleryMode && imageGallery.length > 1) {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          navigateToPreviousImage();
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          navigateToNextImage();
+        }
       }
     };
     
@@ -871,18 +931,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       window.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
-  }, [selectedImage]);
-
-  // Image modal functions
-  const openImageModal = useCallback((src: string | undefined, alt: string) => {
-    if (src && typeof src === 'string') {
-      setSelectedImage({ src, alt });
-    }
-  }, []);
-
-  const closeImageModal = useCallback(() => {
-    setSelectedImage(null);
-  }, []);
+  }, [selectedImage, isGalleryMode, imageGallery.length, navigateToNextImage, navigateToPreviousImage, closeImageModal]);
 
   // Pre-process the content to handle LaTeX and escape currency dollar signs
   const processedContent = useMemo(() => {
@@ -894,6 +943,37 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     if (!enableSegmentation) return [[processedContent]];
     return segmentContent(processedContent);
   }, [processedContent, enableSegmentation]);
+
+  // Extract all images from content for gallery functionality
+  const allImages = useMemo(() => {
+    const images: { src: string; alt: string; originalMatch?: string }[] = [];
+    
+    // Extract images from markdown image syntax (these are already processed from IMAGE_ID)
+    const markdownImageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+    let match;
+    while ((match = markdownImageRegex.exec(processedContent)) !== null) {
+      const [fullMatch, alt, src] = match;
+      images.push({ 
+        src, 
+        alt: alt || `Image ${images.length + 1}`,
+        originalMatch: fullMatch
+      });
+    }
+    
+    // Extract raw image URLs
+    const rawImageRegex = /(https:\/\/image\.pollinations\.ai\/[^\s)]+)/g;
+    while ((match = rawImageRegex.exec(processedContent)) !== null) {
+      const src = match[1];
+      images.push({ 
+        src, 
+        alt: `Generated image ${images.length + 1}`,
+        originalMatch: match[0]
+      });
+    }
+    
+    console.log('Extracted images for gallery:', images);
+    return images;
+  }, [processedContent]);
 
 
 
@@ -1080,7 +1160,18 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                   alt={altText || "Generated image"} 
                   className="w-auto max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md " 
                   style={{ borderRadius: '32px' }}
-                  onImageClick={() => openImageModal(urlWithNoLogo, altText || "Generated image")}
+                  onImageClick={() => {
+                    // Find the image index by matching the URL or the original match
+                    const imageIndex = allImages.findIndex(img => 
+                      img.src === urlWithNoLogo || 
+                      img.src === imageUrl ||
+                      img.originalMatch === `![](${imageUrl})` ||
+                      img.originalMatch === `![${altText || ""}](${imageUrl})` ||
+                      (img.originalMatch && img.originalMatch.includes(imageUrl))
+                    );
+                    console.log('Image click - found index:', imageIndex, 'for URL:', urlWithNoLogo);
+                    openImageModal(urlWithNoLogo, altText || "Generated image", allImages, imageIndex >= 0 ? imageIndex : 0);
+                  }}
                 />
               </div>
               <div className="text-sm text-[var(--muted)] mt-2 italic text-center">{altText}</div>
@@ -1104,7 +1195,18 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                   src={urlWithNoLogo} 
                   alt="Generated image" 
                   className="rounded-lg max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md" 
-                  onImageClick={() => openImageModal(urlWithNoLogo, "Generated image")}
+                  onImageClick={() => {
+                    // Find the image index by matching the URL or the original match
+                    const imageIndex = allImages.findIndex(img => 
+                      img.src === urlWithNoLogo || 
+                      img.src === imageUrl ||
+                      img.originalMatch === `![](${imageUrl})` ||
+                      img.originalMatch === `![Generated image](${imageUrl})` ||
+                      (img.originalMatch && img.originalMatch.includes(imageUrl))
+                    );
+                    console.log('Image click - found index:', imageIndex, 'for URL:', urlWithNoLogo);
+                    openImageModal(urlWithNoLogo, "Generated image", allImages, imageIndex >= 0 ? imageIndex : 0);
+                  }}
                 />
               </div>
               <div className="text-sm text-[var(--muted)] mt-2 italic text-center">Generated Image</div>
@@ -1140,7 +1242,17 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                         alt="Generated image" 
                         className="w-auto max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md " 
                         style={{ borderRadius: '32px' }}
-                        onImageClick={() => openImageModal(part.url, "Generated image")}
+                        onImageClick={() => {
+                          // Find the image index by matching the URL or the original match
+                          const imageIndex = allImages.findIndex(img => 
+                            img.src === part.url ||
+                            img.originalMatch === `![](${part.url})` ||
+                            img.originalMatch === `![Generated image](${part.url})` ||
+                            (img.originalMatch && img.originalMatch.includes(part.url))
+                          );
+                          console.log('Image click - found index:', imageIndex, 'for URL:', part.url);
+                          openImageModal(part.url, "Generated image", allImages, imageIndex >= 0 ? imageIndex : 0);
+                        }}
                       />
                       <div className="text-xs text-[var(--muted)] mt-2 text-center break-all">
                         {part.display as string}
@@ -1194,7 +1306,18 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                 alt={alt || "Generated image"} 
                 className="w-auto max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md " 
                 style={{ borderRadius: '18px' }}
-                onImageClick={() => openImageModal(urlWithNoLogo, alt || "Generated image")}
+                onImageClick={() => {
+                  // Find the image index by matching the URL or the original match
+                  const imageIndex = allImages.findIndex(img => 
+                    img.src === urlWithNoLogo || 
+                    img.src === src ||
+                    img.originalMatch === `![](${src})` ||
+                    img.originalMatch === `![${alt || "Generated image"}](${src})` ||
+                    (img.originalMatch && img.originalMatch.includes(src))
+                  );
+                  console.log('Image click - found index:', imageIndex, 'for URL:', urlWithNoLogo);
+                  openImageModal(urlWithNoLogo, alt || "Generated image", allImages, imageIndex >= 0 ? imageIndex : 0);
+                }}
                 {...props}
               />
             {alt && <div className="text-sm text-[var(--muted)] mt-2 italic text-center">{alt}</div>}
@@ -1210,7 +1333,19 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
             alt={alt || "Image"} 
             className="w-auto max-w-full hover:opacity-90 transition-opacity" 
             style={{ borderRadius: '18px' }}
-            onImageClick={() => typeof src === 'string' && openImageModal(src, alt || "Image")}            {...props} 
+            onImageClick={() => {
+              if (typeof src === 'string') {
+                // Find the image index by matching the URL or the original match
+                const imageIndex = allImages.findIndex(img => 
+                  img.src === src ||
+                  img.originalMatch === `![](${src})` ||
+                  img.originalMatch === `![${alt || "Image"}](${src})` ||
+                  (img.originalMatch && img.originalMatch.includes(src))
+                );
+                console.log('Image click - found index:', imageIndex, 'for URL:', src);
+                openImageModal(src, alt || "Image", allImages, imageIndex >= 0 ? imageIndex : 0);
+              }
+            }}            {...props} 
           />
           {alt && <div className="text-sm text-[var(--muted)] mt-2 italic text-center">{alt}</div>}
         </div>
@@ -1252,7 +1387,18 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                   alt={linkText || "Generated image"} 
                   className="w-auto max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md " 
                   style={{ borderRadius: '18px' }}
-                  onImageClick={() => openImageModal(urlWithNoLogo, linkText || "Generated image")}
+                  onImageClick={() => {
+                    // Find the image index by matching the URL or the original match
+                    const imageIndex = allImages.findIndex(img => 
+                      img.src === urlWithNoLogo || 
+                      img.src === href ||
+                      img.originalMatch === `![](${href})` ||
+                      img.originalMatch === `![${linkText || "Generated image"}](${href})` ||
+                      (img.originalMatch && img.originalMatch.includes(href))
+                    );
+                    console.log('Image click - found index:', imageIndex, 'for URL:', urlWithNoLogo);
+                    openImageModal(urlWithNoLogo, linkText || "Generated image", allImages, imageIndex >= 0 ? imageIndex : 0);
+                  }}
                 />
             </div>
             <div className="text-sm text-[var(--muted)] mt-2 italic text-center">{linkText}</div>
@@ -1846,21 +1992,36 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               const hasTextBefore = index > 0 && !/\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segmentGroup[index - 1]);
               const hasTextAfter = index < segmentGroup.length - 1 && !/\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segmentGroup[index + 1]);
               
-              // iMessage 스타일의 랜덤 위치와 회전 계산
+              // 연속 이미지들의 겹침을 완전히 제거하는 스타일 계산
               const getImageStyle = (): React.CSSProperties => {
                 if (!isConsecutiveImage) return {};
                 
-                // 이미지 인덱스에 따른 일관된 랜덤 값 생성
-                const seed = index * 12345; // 일관된 랜덤을 위한 시드
-                const randomX = (seed % 60) - 30; // -30px ~ +30px (더 큰 범위)
-                const randomRotate = (seed % 16) - 8; // -8도 ~ +8도 (더 큰 회전)
+                // 연속 이미지들의 총 개수 계산
+                const consecutiveImageCount = segmentGroup.filter(seg => 
+                  /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(seg)
+                ).length;
                 
-                // 텍스트가 있으면 낮은 z-index로 설정하여 텍스트 아래로 들어가도록 함
-                const zIndexValue = (hasTextBefore || hasTextAfter) ? -1 : segmentGroup.length - index;
+                // 이미지 인덱스에 따른 체계적인 위치 계산
+                const imageIndex = segmentGroup.slice(0, index + 1).filter(seg => 
+                  /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(seg)
+                ).length - 1;
                 
-                // margin 속성을 개별 속성으로 분리하여 충돌 방지
-                const marginTop = prevIsImage ? '-80px' : '0';
-                const marginBottom = nextIsImage ? '-80px' : '0';
+                // 겹침을 완전히 제거하기 위한 체계적인 배치
+                const baseOffset = 20; // 기본 오프셋 증가
+                const maxOffset = Math.min(consecutiveImageCount * 12, 60); // 최대 오프셋 증가
+                const randomX = (imageIndex % 2 === 0) ? 
+                  (imageIndex * baseOffset) % maxOffset : 
+                  -((imageIndex * baseOffset) % maxOffset);
+                
+                // 회전 각도도 더 작게 조정
+                const randomRotate = (imageIndex % 3 - 1) * 1.5; // -1.5도, 0도, 1.5도만 사용
+                
+                // 모든 이미지가 클릭 가능하도록 매우 높은 z-index 설정
+                const zIndexValue = (hasTextBefore || hasTextAfter) ? -1 : 100 + imageIndex; // 각 이미지마다 다른 높은 z-index
+                
+                // 겹침을 완전히 제거하기 위한 margin 조정
+                const marginTop = prevIsImage ? '0px' : '0'; // 겹침 완전 제거
+                const marginBottom = nextIsImage ? '0px' : '0'; // 겹침 완전 제거
                 const marginLeft = `${randomX}px`;
                 const marginRight = '0';
                 
@@ -1873,8 +2034,10 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                   zIndex: zIndexValue,
                   position: 'relative' as const,
                   transition: 'all 0.3s ease-in-out',
-                  boxShadow: '0 6px 20px rgba(0, 0, 0, 0.2)', // 더 강한 그림자
-                  cursor: 'pointer'
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                  cursor: 'pointer',
+                  pointerEvents: 'auto', // 명시적으로 포인터 이벤트 활성화
+                  isolation: 'isolate' // 새로운 스택킹 컨텍스트 생성
                 };
               };
               
@@ -1895,7 +2058,10 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                       background: 'transparent !important',
                       padding: '0',
                       border: 'none',
-                      boxShadow: 'none'
+                      boxShadow: 'none',
+                      pointerEvents: 'auto', // 모든 이미지가 클릭 가능하도록
+                      position: 'relative',
+                      zIndex: isConsecutiveImage ? 100 + index : 'auto' // 연속 이미지의 경우 매우 높은 z-index
                     })
                   }}
                 >
@@ -1934,7 +2100,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
         >
           {/* Close button */}
           <button 
-            className="absolute top-4 right-4 bg-black/40 hover:bg-black/60 p-2 rounded-full text-white transition-colors"
+            className="absolute top-4 right-4 bg-black/40 hover:bg-black/60 p-2 rounded-full text-white transition-colors z-10"
             onClick={closeImageModal}
             aria-label="Close image viewer"
           >
@@ -1946,12 +2112,48 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
             href={selectedImage.src}
             target="_blank"
             rel="noopener noreferrer"
-            className="absolute top-4 left-4 bg-black/40 hover:bg-black/60 p-2 rounded-lg text-white transition-colors flex items-center gap-2"
+            className="absolute top-4 left-4 bg-black/40 hover:bg-black/60 p-2 rounded-lg text-white transition-colors flex items-center gap-2 z-10"
             onClick={(e) => e.stopPropagation()}
           >
             <ExternalLink size={16} />
             <span className="hidden sm:inline">View Original</span>
           </a>
+
+          {/* Gallery navigation buttons */}
+          {isGalleryMode && imageGallery.length > 1 && (
+            <>
+              {/* Previous button */}
+              <button
+                className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 p-3 rounded-full text-white transition-colors z-10"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigateToPreviousImage();
+                }}
+                aria-label="Previous image"
+              >
+                <ChevronLeft size={24} />
+              </button>
+              
+              {/* Next button */}
+              <button
+                className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 p-3 rounded-full text-white transition-colors z-10"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigateToNextImage();
+                }}
+                aria-label="Next image"
+              >
+                <ChevronRight size={24} />
+              </button>
+            </>
+          )}
+
+          {/* Gallery counter */}
+          {isGalleryMode && imageGallery.length > 1 && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/40 px-3 py-1 rounded-full text-white text-sm z-10">
+              {currentImageIndex + 1} / {imageGallery.length}
+            </div>
+          )}
           
           {/* Main image container */}
           <div 
@@ -2025,6 +2227,28 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               )}
             </div>
           </div>
+
+          {/* Thumbnail indicators */}
+          {isGalleryMode && imageGallery.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+              {imageGallery.map((_, index) => (
+                <button
+                  key={index}
+                  className={`w-2 h-2 rounded-full transition-colors ${
+                    index === currentImageIndex 
+                      ? 'bg-white' 
+                      : 'bg-white/40 hover:bg-white/60'
+                  }`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentImageIndex(index);
+                    setSelectedImage(imageGallery[index]);
+                  }}
+                  aria-label={`Go to image ${index + 1}`}
+                />
+              ))}
+            </div>
+          )}
         </div>,
         document.body
       )}
