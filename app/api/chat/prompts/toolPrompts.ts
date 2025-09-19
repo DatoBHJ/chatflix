@@ -11,9 +11,12 @@ For web search tool execution (Exa):
 - Scale maxResults inversely: fewer queries = more results per query
 - Choose an appropriate topic per query to steer Exa's category index
 - If results are insufficient, reuse the tool with different query angles rather than adding more queries
+- IMPORTANT: Prefer google_search for most general information needs. Use "general" topic only when Exa's neural search might provide better results than Google (e.g., finding specific images, niche content, or when Google Search fails to provide adequate results).
 
 VALID TOPICS:
-- "general", "news", "financial report", "company", "research paper", "pdf", "github", "personal site", "linkedin profile"
+- "general" (for broad web searches when Google Search is insufficient), "financial report", "company", "research paper", "pdf", "github", "personal site", "linkedin profile"
+- Note: "news" topic removed - use google_search for news
+- STRATEGY: Start with google_search for general information. Use "general" topic only as a fallback or when you need Exa's neural search capabilities (images, niche content, semantic understanding)
 
 PARAMETERS AND FORMAT (STRICT):
 1) queries: array of strings
@@ -25,10 +28,16 @@ PARAMETERS AND FORMAT (STRICT):
 
 CORRECT CALL EXAMPLE:
 {
-  "queries": ["vector database benchmarks 2024", "best vector index for RAG latency", "HNSW vs IVF flat tradeoffs"],
-  "topics": ["research paper", "general", "github"],
+  "queries": ["vector database benchmarks 2024", "HNSW implementation github", "financial reports AI companies"],
+  "topics": ["research paper", "github", "financial report"],
   "maxResults": [8, 8, 8]
 }
+
+CRITICAL USAGE RULES:
+- PREFER google_search: For most general information, current events, and news
+- "general" topic: Use when you need Exa's strengths (images, semantic search, niche content)
+- FALLBACK strategy: Try google_search first, use "general" if results are inadequate
+- For news queries: Always use google_search tool instead
 
 ENGLISH-FIRST POLICY:
 - Always generate all initial queries in English, regardless of user language
@@ -48,9 +57,11 @@ SEARCH STRATEGY:
 - Consider exclude_domains for noisy sources; otherwise leave undefined
 
 SCENARIO-BASED TOPIC AND QUERY TIPS (optimized for Exa's coverage):
-- News/time-sensitive → topic: "news" (Very High coverage)
-  - Use terms like "latest", "update", current year/month, organization names
-  - Example queries: "latest NVIDIA AI news 2025", "OpenAI partnership updates 2025"
+- General searches → topic: "general" (when Google Search is insufficient)
+  - Use for: images, niche content, semantic understanding, creative queries
+  - Add keywords: "image", "photo", "picture" for visual content
+  - Example queries: "AI robot images", "niche programming concepts", "creative writing techniques"
+  - STRATEGY: Try google_search first, use "general" as fallback or for specialized needs
 - Academic/technical research → topics: "research paper", "pdf" (Very High coverage)
   - Add keywords: "paper", "survey", "arXiv", "benchmark", "state of the art"
   - Example queries: "retrieval augmented generation survey 2024 pdf", "agentic workflows benchmark paper"
@@ -69,31 +80,32 @@ SCENARIO-BASED TOPIC AND QUERY TIPS (optimized for Exa's coverage):
 - Financial filings/data → topic: "financial report" (Very High coverage)
   - Add "10-K", "10-Q", "investor relations", "annual report"
   - Example: "Apple 10-K revenue growth investor relations"
-- Wikipedia knowledge → topic: "general" (Very High coverage)
-  - Include "Wikipedia" in query for better targeting
-  - Example: "machine learning Wikipedia", "artificial intelligence history Wikipedia"
+- Note: For news, use google_search instead of this tool
 
 EXA'S STRONGEST CATEGORIES (leverage these for best results):
+- **General**: "Very High" coverage - for broad searches when Google Search is insufficient (images, niche content, semantic search)
 - **Research papers**: "Very High" coverage - use for academic content, surveys, benchmarks
 - **Personal pages**: "Very High" coverage - excellent for finding individual blogs, portfolios
-- **Wikipedia**: "Very High" coverage - comprehensive knowledge base via semantic search
-- **News**: "Very High" coverage - robust index of web news sources
 - **LinkedIn profiles**: "Very High (US+EU)" - extensive professional profile coverage
 - **Company homepages**: "Very High" coverage - wide index of companies
 - **Financial reports**: "Very High" coverage - SEC 10k, Yahoo Finance, etc.
 - **GitHub repos**: "High" coverage - open source code indexing
 - **Blogs**: "High" coverage - quality reading material for niche topics
-- **Places and things**: "High" coverage - restaurants, hospitals, schools, electronics
 - **Legal/policy sources**: "High" coverage - CPUC, Justia, Findlaw, etc.
 - **Government sources**: "High" coverage - IMF, CDC, WHO, etc.
+- Note: "News" category removed - use google_search for news
 
 DOMAIN-SPECIFIC LEVERAGING:
 - Legal: include_domains: ["law.justia.com", "findlaw.com"]
 - Government: include_domains: ["who.int", "cdc.gov", "nasa.gov", "sec.gov", "imf.org"]
 - Academic: include_domains: ["arxiv.org", "scholar.google.com", "ieee.org"]
-- News: include_domains: ["reuters.com", "bloomberg.com", "techcrunch.com"]
+- Note: News domains removed - use google_search for news sources
  
 EXAMPLE QUERY PATTERNS BY SCENARIO (optimized for Exa's strengths):
+- General Searches (3 queries, when Google Search is insufficient):
+  queries: ["AI robot images", "niche programming concepts", "creative design inspiration"]
+  topics: ["general", "general", "general"], maxResults: [12, 10, 10]
+  NOTE: Use as fallback when google_search doesn't provide adequate results, or for images/niche content
 - Academic Research (3 queries, leveraging "research paper" strength):
   queries: ["embeddings for document retrieval survey", "attention mechanism transformer architecture", "neural network optimization techniques"]
   topics: ["research paper", "research paper", "research paper"], maxResults: [8, 8, 8]
@@ -106,23 +118,29 @@ EXAMPLE QUERY PATTERNS BY SCENARIO (optimized for Exa's strengths):
 - Code & Implementation (4 queries, leveraging "github" strength):
   queries: ["vector database implementation HNSW", "OpenAI API integration example", "React hooks tutorial", "machine learning model deployment"]
   topics: ["github", "github", "github", "github"], maxResults: [6, 6, 6, 6]
-- Wikipedia Knowledge (2 queries, leveraging "general" for Wikipedia):
-  queries: ["artificial intelligence Wikipedia", "machine learning history Wikipedia"]
-  topics: ["general", "general"], maxResults: [10, 10]
+- Personal Blogs & Portfolios (2 queries, leveraging "personal site" strength):
+  queries: ["machine learning blog posts 2024", "AI researcher portfolio personal website"]
+  topics: ["personal site", "personal site"], maxResults: [8, 8]
+- Note: For news queries, use google_search instead
 
 ITERATIVE REFINEMENT (TOOL REUSE STRATEGY):
 - If results are insufficient or sparse after deduplication:
+  - **FIRST**: Consider if google_search might provide better results for general information
   - **REUSE THE TOOL** with different query angles rather than adding more queries
   - Mutate queries: use synonyms, invert perspective ("pros/cons", "limitations"), add constraints ("production", "privacy", "latency")
-  - Adjust topics to widen or narrow the index (e.g., switch between "general" and "research paper")
+  - Adjust topics to widen or narrow the index (e.g., switch between "github" and "research paper", or use "general" for broader results)
   - Apply include_domains for authoritative sources OR exclude_domains for noisy ones (never both)
   - Each tool call should stay within 2-4 queries maximum
+  - Note: For news information, always use google_search instead of retrying with this tool
 
 EXECUTION FORMAT:
-1. State your plan and topic strategy (e.g., "Searching in English with diversified queries across [topics]")
+1. State your plan and topic strategy
 2. Always mention English-first (e.g., "English-first with multiple variations")
 3. If time-sensitive, mention temporal context (e.g., "as of ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}")
 4. If results are inadequate, mention fallback to the user's language
+5. STRATEGY: Prefer google_search for general information, use "general" topic when Exa's strengths are needed (images, niche content, semantic search)
+6. For news queries, always use google_search instead
+7. Note: "news" topic has been removed from this tool - use google_search for news queries.
 
 CRITICAL REMINDERS:
 - Keep parameter arrays valid and aligned in length when possible
@@ -130,6 +148,11 @@ CRITICAL REMINDERS:
 - **MAXIMUM 4 QUERIES PER TOOL CALL** - use tool reuse for additional coverage
 - Scale maxResults inversely with query count (fewer queries = more results per query)
 - Use reasonable result counts that balance comprehensiveness with efficiency
+- **TOOL SELECTION STRATEGY**: Prefer google_search for general information and news
+- **"GENERAL" TOPIC USAGE**: Use when you need Exa's strengths (images, niche content, semantic search, creative queries)
+- **FALLBACK APPROACH**: Try google_search first, use "general" when Google results are insufficient
+- **FOR NEWS**: Always use google_search instead of this tool
+- **REMOVED TOPICS**: "news" topic has been removed and replaced with google_search
 
 **SPECIAL MAXRESULTS RULES FOR IMAGE/GIF SEARCHES:**
 - **IMAGE/GIF SEARCHES**: Use HIGH maxResults (8-12) for comprehensive image/GIF coverage
@@ -139,15 +162,17 @@ CRITICAL REMINDERS:
 
 **MANDATORY SOURCE LINK INTEGRATION:**
 - **ABSOLUTELY MANDATORY**: If you perform ANY web search, you MUST include source links from the search results. NO EXCEPTIONS.
-- **STRATEGIC PLACEMENT**: Use source links naturally throughout your response, similar to how you use images for visual separation
-- **THUMBNAIL VISUAL IMPACT**: Link previews with thumbnails serve as visual breaks similar to images, making them perfect for section separation
+- **PRIMARY CONTENT SEPARATOR**: Use source links as the main tool for visual content separation between topics
+- **THUMBNAIL VISUAL IMPACT**: Link previews with thumbnails serve as natural visual breaks between different sections
+- **STRATEGIC PLACEMENT**: Place links between content sections to create visual hierarchy and reading flow
 - **SELECTIVE LINKING**: Choose the most relevant and interesting links to include, not all search results
 - **NATURAL FLOW**: Place links where they add value to the content, not in a forced "Sources:" section
 
 **Link Placement Rules:**
 - **CRITICAL**: NEVER place URLs inside bullet point items or inline with text
 - **CORRECT**: Place URLs on separate lines between bullet points or sections
-- **FORMAT**: Use full URLs (https://example.com) - the system will automatically render them as link previews
+- **FORMAT**: Use clean URLs on separate lines - they will be automatically rendered as rich link previews
+- **WEB SEARCH SPECIFIC**: Use full URLs (e.g., "https://example.com") for web search results
 
 **Correct Link Placement Examples:**
 ✅ **Good - Links separate content sections:**
@@ -176,26 +201,22 @@ https://example.com/interesting-research
 - **SEARCH RESULTS ARE LINKABLE**: Web search results contain URLs - use them to provide transparency and verification
 - **FAILURE TO INCLUDE SOURCE LINKS AFTER SEARCHING IS A VIOLATION**: This is not optional - it's a core requirement for transparency
 
-**CRITICAL IMAGE/GIF SEARCH REQUIREMENTS:**
-- **MAXIMIZE SEARCH QUERIES**: For image/GIF searches, use multiple diverse search queries to find the best results
-- **COMPREHENSIVE COVERAGE**: Don't limit yourself to just one search - try different keywords, synonyms, and variations
-- **QUALITY OVER SPEED**: Take time to search thoroughly - users specifically requesting images/GIFs want comprehensive results
-- **MULTIPLE SEARCH STRATEGIES**: Use different search approaches (specific terms, general terms, alternative descriptions)
-- **NO SHORTCUTS**: Image/GIF searches require more effort, not less - this is when users need the most comprehensive results
-- **EXCEPTION FOR SOURCE LINKS**: If the user specifically asks to search for images or GIFs, you may skip source links as the images themselves serve as the primary content
+**IMAGE/GIF SEARCH REQUIREMENTS:**
+- **ONLY WHEN REQUESTED**: Include images ONLY when users specifically ask for visual content (images, photos, GIFs)
+- **COMPREHENSIVE QUERIES**: For image/GIF searches, use multiple diverse search queries with different keywords and variations
+- **THOROUGH COVERAGE**: Users requesting images/GIFs expect comprehensive visual results
+- **LINK SEPARATION PRIORITY**: For non-image searches, rely on source links for content separation instead of images
 
-**Link Integration Strategy:**
-- **BETWEEN TOPICS**: Place the most relevant source link between different topic sections for visual separation
-- **RELEVANT CONTEXT**: Choose links that are most relevant to the preceding section content
-- **VISUAL HIERARCHY**: Use links to create natural reading pauses and topic transitions
-- **QUALITY OVER QUANTITY**: Include 2-4 most valuable links rather than all search results
+**IMAGE DISPLAY FORMAT:**
+- **CRITICAL**: Use [IMAGE_ID:unique_id] format for displaying images from search results
+- **PLACEMENT**: Place image IDs on separate lines between content sections
+- **AUTOMATIC RENDERING**: The system will automatically replace image IDs with actual images
+- **UNIQUE IDS**: Each image must have a unique identifier (e.g., search_img_001, search_img_002)
 
-**WHY THIS APPROACH WORKS:**
-- Links feel natural and integrated, not like a bibliography
-- Thumbnails provide visual breaks similar to images
-- Users get the most valuable sources without information overload
-- Maintains conversational flow while providing transparency
-- Source links are mandatory for web search responses, just like images
+**WHY SOURCE LINKS WORK:**
+- Rich link previews with thumbnails provide visual breaks between content sections
+- Links feel natural and integrated, not like a forced bibliography
+- Users get valuable sources without information overload while maintaining conversational flow
 `,
   imageGenerator: `
   If user requests to generate images, you must use the image_generator tool.
@@ -225,6 +246,18 @@ https://example.com/interesting-research
   - If generating a **new image** (i.e., not an edit of a previous image in this conversation):
     - Do **NOT** specify a 'seed' value in your tool call. The tool will automatically generate a random seed.
     - Focus on creating a detailed and descriptive prompt based on the user's request.
+
+  **Image Integration for Generated Images:**
+  - **ONLY WHEN REQUESTED**: Use image_generator only when users specifically request image creation
+  - **AI IMAGE GENERATION**: Create custom visuals from text descriptions when explicitly asked
+  - **DISPLAY**: Generated images are automatically displayed with proper styling and modal support
+  - **TAGGING**: Generated images include "AI Generated" tag and download functionality
+
+  **IMAGE DISPLAY FORMAT:**
+  - **AUTOMATIC DISPLAY**: Generated images are automatically displayed using direct URLs - no ID format needed
+  - **DIRECT URL**: The image_generator tool returns direct image URLs that are automatically rendered
+  - **MODAL SUPPORT**: Generated images include click-to-expand modal functionality
+  - **NO ID FORMAT**: Unlike search images, generated images don't use [IMAGE_ID:unique_id] format
 
   EXECUTION FORMAT:
   1. State your generation plan (e.g., "Generating image of [description] using [model]" or "Editing previous image (seed: [original_seed]) to [new_description] by modifying the prompt to '[new_prompt_snippet]'").
@@ -268,6 +301,13 @@ https://example.com/interesting-research
   - Links are visually separated from text for better user experience
   - The rendering system can properly segment content for optimal display
 
+  **Adding YouTube Videos:**
+  - When you find relevant YouTube videos, mention and link them naturally
+  - Place YouTube URLs on separate lines for automatic embedded player rendering
+  - Introduce videos with natural, engaging language before the URL
+  - Include 1-3 videos when they add value to the response
+  - Works well for: tutorials, educational content, current events
+
   `,
 
   youtubeLinkAnalyzer: `
@@ -289,7 +329,88 @@ https://example.com/interesting-research
   
   https://www.youtube.com/watch?v=HaxnRvfUOZQ
   
-  Analysis: This video contains detailed match highlights and commentary.`,
+  Analysis: This video contains detailed match highlights and commentary.
+
+  **Adding YouTube Videos:**
+  - When you find relevant YouTube videos, mention and link them naturally
+  - Place YouTube URLs on separate lines for automatic embedded player rendering
+  - Introduce videos with natural, engaging language before the URL
+  - Include 1-3 videos when they add value to the response
+  - Works well for: tutorials, educational content, current events`,
+
+  googleSearch: `
+  For Google search tool execution:
+  - Use google_search for comprehensive web search using Google's search index
+  - This tool provides access to Google's organic search results and images
+  - Safe search is disabled by default to allow unrestricted search results
+  - Location and country parameters can be used to customize search results
+  - IMPORTANT: This is now the PRIMARY tool for general web search and news queries
+  - Use this tool for all general information, news, current events, and broad web searches
+
+  **PARAMETERS:**
+  - q (required): The search query - can be anything you would use in regular Google search
+  - location (optional): Geographic location for search origin (e.g., "New York", "London", "Tokyo")
+  - gl (optional): Country code for search results (e.g., "us", "uk", "jp"). Default is "us"
+
+  **SEARCH STRATEGY:**
+  - Use natural language queries that you would type into Google
+  - Include location when relevant for local results (restaurants, weather, local news)
+  - Use country code (gl) when you need results from specific countries
+  - Combine location and gl for precise geographic targeting
+
+  **EXAMPLE QUERIES BY SCENARIO:**
+  - General information: "artificial intelligence trends 2024", "machine learning tutorials"
+  - News and current events: "latest AI news", "stock market today", "breaking news"
+  - Local search: "best restaurants in New York" (with location: "New York")
+  - Country-specific: "latest news in Japan" (with gl: "jp")
+  - Technical queries: "Python web scraping tutorial", "React hooks documentation"
+  - How-to queries: "how to cook pasta", "how to learn Spanish"
+  - Product searches: "best laptops 2024", "iPhone 15 reviews"
+  - Wikipedia-style knowledge: "machine learning history", "artificial intelligence overview"
+
+  **LOCATION AND COUNTRY EXAMPLES:**
+  - location: "New York" + gl: "us" → New York, USA results
+  - location: "London" + gl: "uk" → London, UK results  
+  - location: "Tokyo" + gl: "jp" → Tokyo, Japan results
+  - location: "Sydney" + gl: "au" → Sydney, Australia results
+
+  **EXECUTION FORMAT:**
+  1. State your search plan (e.g., "Searching Google for [query] with location [location]")
+  2. Mention if using location or country parameters
+  3. Always include source links from search results in your response
+  4. This is the PRIMARY tool for general web search and news - use this instead of web_search for general queries
+
+  **MANDATORY SOURCE LINK INTEGRATION:**
+  - **ABSOLUTELY MANDATORY**: If you perform ANY Google search, you MUST include source links from the search results
+  - **PRIMARY CONTENT SEPARATOR**: Use source links as the main tool for visual content separation between topics
+  - **THUMBNAIL VISUAL IMPACT**: Link previews with thumbnails serve as natural visual breaks between sections
+  - **STRATEGIC PLACEMENT**: Place links between content sections to create visual hierarchy and reading flow
+  - **SELECTIVE LINKING**: Choose the most relevant and interesting links to include
+  - **NATURAL FLOW**: Place links where they add value to the content
+
+  **Link Placement Rules:**
+  - **CRITICAL**: NEVER place URLs inside bullet point items or inline with text
+  - **CORRECT**: Place URLs on separate lines between bullet points or sections
+
+  **CRITICAL LINK ID REQUIREMENT:**
+  - **MANDATORY LINK ID USAGE**: ALWAYS use link IDs for Google search results - NEVER use full URLs
+  - **FORMAT**: [LINK_ID:google_link_searchId_index_resultIndex] - automatically renders as rich link previews
+  - **PERFORMANCE**: Link IDs reduce token usage and improve response speed compared to full URLs
+  - **AUTOMATIC THUMBNAILS**: SearchAPI thumbnails are displayed automatically with link previews
+  - **NO FULL URLS**: Never include full URLs like "https://example.com" - always use the link ID format
+  - **SEARCH RESULT DEPENDENCY**: Link IDs are provided in Google search results - use them exclusively
+
+  **CRITICAL SEARCH-LINK RULE:**
+  - **IF YOU SEARCH = YOU MUST INCLUDE SOURCE LINKS**: Every single time you perform a Google search, you are REQUIRED to include source links from those search results in your response
+  - **NO TEXT-ONLY RESPONSES AFTER SEARCHING**: Never provide a text-only response when you have performed a Google search
+  - **SEARCH RESULTS ARE LINKABLE**: Google search results contain URLs - use them to provide transparency and verification
+  - **FAILURE TO INCLUDE SOURCE LINKS AFTER SEARCHING IS A VIOLATION**: This is not optional - it's a core requirement for transparency
+
+  **IMAGE DISPLAY FORMAT (when searching for images):**
+  - **CRITICAL**: Use [IMAGE_ID:unique_id] format for displaying images from Google search results
+  - **PLACEMENT**: Place image IDs on separate lines between content sections
+  - **AUTOMATIC RENDERING**: The system will automatically replace image IDs with actual images
+  - **UNIQUE IDS**: Each image must have a unique identifier (e.g., google_img_001, google_img_002)`,
 
   previousToolResults: `
   For previous tool results tool execution:
@@ -323,4 +444,5 @@ https://example.com/interesting-research
   2. Provide ONLY a one-line summary (e.g., "Found [number] relevant previous tool results for [context]")
   3. Indicate you'll reference these results in your final answer`
 };
+
 

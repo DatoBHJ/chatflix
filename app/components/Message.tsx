@@ -57,11 +57,15 @@ interface MessageProps {
   xSearchData?: any
   youTubeSearchData?: any
   youTubeLinkAnalysisData?: any
+  googleSearchData?: any
   user?: User | null
   handleFollowUpQuestionClick?: (question: string) => Promise<void>
   allMessages?: any[]
   isGlobalLoading?: boolean
   imageMap?: { [key: string]: string }
+  linkMap?: { [key: string]: string }
+  thumbnailMap?: { [key: string]: string }
+  titleMap?: { [key: string]: string }
   isBookmarked?: boolean
   onBookmarkToggle?: (messageId: string, shouldBookmark: boolean) => Promise<void>
   isBookmarksLoading?: boolean
@@ -165,11 +169,15 @@ const Message = memo(function MessageComponent({
   xSearchData,
   youTubeSearchData,
   youTubeLinkAnalysisData,
+  googleSearchData,
   user,
   handleFollowUpQuestionClick,
   allMessages,
   isGlobalLoading,
   imageMap = {},
+  linkMap = {},
+  thumbnailMap = {},
+  titleMap = {},
   isBookmarked,
   onBookmarkToggle,
   isBookmarksLoading,
@@ -178,6 +186,7 @@ const Message = memo(function MessageComponent({
 
   // Pre-compiled regex for better performance
   const IMAGE_ID_REGEX = useMemo(() => /\[IMAGE_ID:([^\]]+)\]/g, []);
+  const LINK_ID_REGEX = useMemo(() => /\[LINK_ID:([^\]]+)\]/g, []);
 
   // Memoized function to replace image placeholders with actual URLs - AI SDK v5 호환
   const processedContent = useMemo(() => {
@@ -192,25 +201,48 @@ const Message = memo(function MessageComponent({
     
     if (!content) return content;
     
-    // Quick check: if no placeholder exists, return original content immediately
-    if (!content.includes('[IMAGE_ID:')) {
+    // Quick check: if no placeholders exist, return original content immediately
+    if (!content.includes('[IMAGE_ID:') && !content.includes('[LINK_ID:')) {
       return content;
     }
     
     // Process placeholders only when necessary
-    return content.replace(IMAGE_ID_REGEX, (match: string, imageId: string) => {
-      // Only show image if imageMap exists AND has the specific URL
-      if (imageMap && Object.keys(imageMap).length > 0) {
-        const imageUrl = imageMap[imageId];
-        if (imageUrl) {
-          // Use empty alt text for clean display
-          return `![](${imageUrl})`;
+    let processedContent = content;
+    
+    // Process image placeholders
+    if (content.includes('[IMAGE_ID:')) {
+      processedContent = processedContent.replace(IMAGE_ID_REGEX, (match: string, imageId: string) => {
+        // Only show image if imageMap exists AND has the specific URL
+        if (imageMap && Object.keys(imageMap).length > 0) {
+          const imageUrl = imageMap[imageId];
+          if (imageUrl) {
+            // Use empty alt text for clean display
+            return `![](${imageUrl})`;
+          }
         }
-      }
-      // Remove placeholder completely in all other cases
-      return '';
-    });
-  }, [message.content, message.parts, imageMap, IMAGE_ID_REGEX]);
+        // Remove placeholder completely in all other cases
+        return '';
+      });
+    }
+    
+    // Process link placeholders
+    if (content.includes('[LINK_ID:')) {
+      processedContent = processedContent.replace(LINK_ID_REGEX, (match: string, linkId: string) => {
+        // Only show link if linkMap exists AND has the specific URL
+        if (linkMap && Object.keys(linkMap).length > 0) {
+          const linkUrl = linkMap[linkId];
+          if (linkUrl) {
+            // Return the URL directly - MarkdownContent will handle LinkPreview rendering
+            return linkUrl;
+          }
+        }
+        // Remove placeholder completely in all other cases
+        return '';
+      });
+    }
+    
+    return processedContent;
+  }, [message.content, message.parts, imageMap, linkMap, IMAGE_ID_REGEX, LINK_ID_REGEX]);
 
   // Memoized function for parts processing
   const processedParts = useMemo(() => {
@@ -219,13 +251,15 @@ const Message = memo(function MessageComponent({
     return message.parts.map((part: any) => {
       if (part.type === 'text' && part.text) {
         // Quick check for performance
-        if (!part.text.includes('[IMAGE_ID:')) {
+        if (!part.text.includes('[IMAGE_ID:') && !part.text.includes('[LINK_ID:')) {
           return part;
         }
         
-        return {
-          ...part,
-          text: part.text.replace(IMAGE_ID_REGEX, (match: string, imageId: string) => {
+        let processedText = part.text;
+        
+        // Process image placeholders
+        if (part.text.includes('[IMAGE_ID:')) {
+          processedText = processedText.replace(IMAGE_ID_REGEX, (match: string, imageId: string) => {
             if (imageMap && Object.keys(imageMap).length > 0) {
               const imageUrl = imageMap[imageId];
               if (imageUrl) {
@@ -233,12 +267,31 @@ const Message = memo(function MessageComponent({
               }
             }
             return '';
-          })
+          });
+        }
+        
+        // Process link placeholders
+        if (part.text.includes('[LINK_ID:')) {
+          processedText = processedText.replace(LINK_ID_REGEX, (match: string, linkId: string) => {
+            if (linkMap && Object.keys(linkMap).length > 0) {
+              const linkUrl = linkMap[linkId];
+              if (linkUrl) {
+                // Return the URL directly - MarkdownContent will handle LinkPreview rendering
+                return linkUrl;
+              }
+            }
+            return '';
+          });
+        }
+        
+        return {
+          ...part,
+          text: processedText
         };
       }
       return part;
     });
-  }, [message.parts, imageMap, IMAGE_ID_REGEX]);
+  }, [message.parts, imageMap, linkMap, IMAGE_ID_REGEX, LINK_ID_REGEX]);
 
   const bubbleRef = useRef<HTMLDivElement>(null);
   const aiBubbleRef = useRef<HTMLDivElement>(null);
@@ -680,7 +733,8 @@ const Message = memo(function MessageComponent({
       imageGeneratorData ||
       xSearchData ||
       youTubeSearchData ||
-      youTubeLinkAnalysisData
+      youTubeLinkAnalysisData ||
+      googleSearchData
     );
   }, [
     webSearchData,
@@ -689,7 +743,8 @@ const Message = memo(function MessageComponent({
     imageGeneratorData,
     xSearchData,
     youTubeSearchData,
-    youTubeLinkAnalysisData
+    youTubeLinkAnalysisData,
+    googleSearchData
   ]);
 
   const structuredMainResponse = useMemo(() => getStructuredResponseMainContent(message), [message]);
@@ -1010,6 +1065,7 @@ const Message = memo(function MessageComponent({
         xSearchData={xSearchData}
         youTubeSearchData={youTubeSearchData}
         youTubeLinkAnalysisData={youTubeLinkAnalysisData}
+        googleSearchData={googleSearchData}
         messageId={message.id}
         togglePanel={togglePanel}
         activePanel={activePanel}
@@ -1340,10 +1396,10 @@ const Message = memo(function MessageComponent({
             
               {message.parts ? (
                     processedParts?.map((part: any, index: number) => (
-                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} />
+                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} />
                   ))
                         ) : (
-                      (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} />
+                      (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} />
                   )}
                   
                   <FilesPreview

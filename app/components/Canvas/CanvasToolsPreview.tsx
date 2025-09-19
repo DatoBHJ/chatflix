@@ -1,7 +1,8 @@
 import React, { memo, useMemo, useState, useCallback, useEffect } from 'react'
-import { Calculator, Link2, ImageIcon, Youtube } from 'lucide-react'
+import { Calculator, Link2, ImageIcon, Youtube, Search } from 'lucide-react'
+import { SiGoogle } from 'react-icons/si'
 import { XLogo, YouTubeLogo } from '../CanvasFolder/CanvasLogo'
-import { getTopicIconComponent, getTopicName } from '../MultiSearch'
+import { getTopicIconComponent, getTopicName, getTopicIcon } from '../MultiSearch'
 
 // Shimmer animation styles
 const shimmerStyles = `
@@ -25,6 +26,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
   xSearchData,
   youTubeSearchData,
   youTubeLinkAnalysisData,
+  googleSearchData,
   messageId,
   togglePanel,
   hideToggle = false,
@@ -38,6 +40,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
   xSearchData?: any;
   youTubeSearchData?: any;
   youTubeLinkAnalysisData?: any;
+  googleSearchData?: any;
   messageId: string;
   togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string, fileName?: string) => void;
   hideToggle?: boolean;
@@ -55,71 +58,123 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
   const tools = useMemo(() => {
     const activeTools = [];
     
-    if (webSearchData) {
-      const queries = (webSearchData.args?.queries || []) as string[];
-      const topics = (webSearchData.args?.topics || []) as string[];
+    // Unified Search Processing: Combine Web Search and Google Search
+    if (webSearchData || googleSearchData) {
+      const allSearchMaps = new Map<string, any>();
       
-      // Handle case where queries might be a JSON string
-      let processedQueries: string[] = [];
-      if (Array.isArray(queries)) {
-        processedQueries = queries;
-      } else if (typeof queries === 'string') {
-        try {
-          const parsed = JSON.parse(queries);
-          processedQueries = Array.isArray(parsed) ? parsed : [queries];
-        } catch {
-          processedQueries = [queries];
-        }
-      } else {
-        processedQueries = [];
-      }
-      
-      // Handle case where topics might be a JSON string
-      let processedTopics: string[] = [];
-      if (Array.isArray(topics)) {
-        processedTopics = topics;
-      } else if (typeof topics === 'string') {
-        try {
-          const parsed = JSON.parse(topics);
-          processedTopics = Array.isArray(parsed) ? parsed : [topics];
-        } catch {
-          processedTopics = [topics];
-        }
-      } else {
-        processedTopics = [];
-      }
-      
-      // MultiSearch-style real-time updates: Create a map to track all queries and their states
-      const searchMap = new Map<string, any>();
-      
-      // 1. Initialize all queries from args as "in_progress" (like MultiSearch does)
-      processedQueries.forEach((query, index) => {
-        searchMap.set(query, {
-          query,
-          topic: processedTopics[index] || processedTopics[0] || 'general',
-          topicIcon: 'search',
-          results: [],
-          status: 'in_progress'
-        });
-      });
-      
-      // 2. Update with streaming results as they come in (like MultiSearch's allCompletedSearches)
-      if (webSearchData.results) {
-        webSearchData.results.forEach((result: any) => {
-          if (result.searches) {
-            result.searches.forEach((search: any) => {
-              // Update existing entry or create new one
-              searchMap.set(search.query, {
-                ...search,
-                status: result.isComplete ? 'completed' : 'in_progress'
-              });
-            });
+      // Process Web Search data
+      if (webSearchData) {
+        const queries = (webSearchData.args?.queries || []) as string[];
+        const topics = (webSearchData.args?.topics || []) as string[];
+        
+        // Handle case where queries might be a JSON string
+        let processedQueries: string[] = [];
+        if (Array.isArray(queries)) {
+          processedQueries = queries;
+        } else if (typeof queries === 'string') {
+          try {
+            const parsed = JSON.parse(queries);
+            processedQueries = Array.isArray(parsed) ? parsed : [queries];
+          } catch {
+            processedQueries = [queries];
           }
+        } else {
+          processedQueries = [];
+        }
+        
+        // Handle case where topics might be a JSON string
+        let processedTopics: string[] = [];
+        if (Array.isArray(topics)) {
+          processedTopics = topics;
+        } else if (typeof topics === 'string') {
+          try {
+            const parsed = JSON.parse(topics);
+            processedTopics = Array.isArray(parsed) ? parsed : [topics];
+          } catch {
+            processedTopics = [topics];
+          }
+        } else {
+          processedTopics = [];
+        }
+
+        // Initialize queries from web search
+        processedQueries.forEach((query, index) => {
+          const topic = processedTopics[index] || processedTopics[0] || 'general';
+          allSearchMaps.set(`web-${query}`, {
+            query,
+            topic,
+            topicIcon: getTopicIcon(topic),
+            results: [],
+            status: 'in_progress',
+            source: 'web'
+          });
         });
+        
+        // Update with web search results
+        if (webSearchData.results) {
+          webSearchData.results.forEach((result: any) => {
+            if (result.searches) {
+              result.searches.forEach((search: any) => {
+                allSearchMaps.set(`web-${search.query}`, {
+                  ...search,
+                  status: result.isComplete ? 'completed' : 'in_progress',
+                  source: 'web'
+                });
+              });
+            }
+          });
+        }
       }
       
-      // 3. Convert map to array and group by topic
-      const searchResults = Array.from(searchMap.values());
+      // Process Google Search data
+      if (googleSearchData) {
+        const queries = (googleSearchData.args?.queries || []) as string[];
+        
+        // Handle Google Search queries
+        let processedQueries: string[] = [];
+        if (Array.isArray(queries)) {
+          processedQueries = queries;
+        } else if (typeof queries === 'string') {
+          try {
+            const parsed = JSON.parse(queries);
+            processedQueries = Array.isArray(parsed) ? parsed : [queries];
+          } catch {
+            processedQueries = [queries];
+          }
+        } else {
+          processedQueries = [];
+        }
+
+        // Initialize queries from google search
+        processedQueries.forEach((query) => {
+          allSearchMaps.set(`google-${query}`, {
+            query,
+            topic: 'google',
+            topicIcon: 'google',
+            results: [],
+            status: 'in_progress',
+            source: 'google'
+          });
+        });
+        
+        // Update with google search results
+        if (googleSearchData.results) {
+          googleSearchData.results.forEach((result: any) => {
+            if (result.searches) {
+              result.searches.forEach((search: any) => {
+                allSearchMaps.set(`google-${search.query}`, {
+                  ...search,
+                  status: result.isComplete ? 'completed' : 'in_progress',
+                  source: 'google'
+                });
+              });
+            }
+          });
+        }
+      }
+      
+      // Group all searches by topic
+      const searchResults = Array.from(allSearchMaps.values());
       const topicMap = new Map<string, { topic: string; topicIcon: string; queries: string[]; status: 'processing' | 'completed'; count: number }>();
       
       searchResults.forEach((search: any) => {
@@ -138,10 +193,13 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         }
       });
       
-      // 4. Create one tool per topic (unique)
+      // Create tools for each topic
       Array.from(topicMap.values()).forEach((entry) => {
+        // Determine the correct ID prefix based on topic
+        const idPrefix = entry.topic === 'google' ? 'google-search' : 'web-search';
+        
         activeTools.push({
-          id: `web-search:topic:${entry.topic}`,
+          id: `${idPrefix}:topic:${entry.topic}`,
           name: getTopicName(entry.topic),
           icon: getTopicIconComponent(entry.topicIcon),
           status: entry.status,
@@ -389,8 +447,9 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
       });
     }
     
+    
     return activeTools;
-  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData]);
+  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData, googleSearchData]);
   
 
 
@@ -406,6 +465,9 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
       if (typeof tool?.id === 'string' && tool.id.startsWith('web-search-')) {
         const topic = tool?.topic || 'general';
         togglePanel(messageId, 'canvas', undefined, `web-search:topic:${topic}`);
+      } else if (typeof tool?.id === 'string' && tool.id.startsWith('google-search:topic:')) {
+        // Google Search 도구는 이미 올바른 형식이므로 그대로 전달
+        togglePanel(messageId, 'canvas', undefined, tool.id);
       } else if (typeof tool?.id === 'string') {
         togglePanel(messageId, 'canvas', undefined, tool.id);
       } else {

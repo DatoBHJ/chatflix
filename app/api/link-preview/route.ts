@@ -7,6 +7,42 @@ const getMetaTag = (html: string, property: string) => {
   return match ? match[1] : null;
 };
 
+const getFavicon = (html: string, baseUrl: string) => {
+  // Try to find favicon from link tags in order of preference
+  const faviconPatterns = [
+    /<link[^>]*?rel=["'](?:shortcut )?icon["'][^>]*?href=["']([^"']*)["']/i,
+    /<link[^>]*?href=["']([^"']*)["'][^>]*?rel=["'](?:shortcut )?icon["']/i,
+    /<link[^>]*?rel=["']apple-touch-icon["'][^>]*?href=["']([^"']*)["']/i,
+    /<link[^>]*?href=["']([^"']*)["'][^>]*?rel=["']apple-touch-icon["']/i
+  ];
+
+  for (const pattern of faviconPatterns) {
+    const match = html.match(pattern);
+    if (match) {
+      const href = match[1];
+      // Convert relative URLs to absolute
+      if (href.startsWith('//')) {
+        return `https:${href}`;
+      } else if (href.startsWith('/')) {
+        const url = new URL(baseUrl);
+        return `${url.protocol}//${url.host}${href}`;
+      } else if (!href.startsWith('http')) {
+        const url = new URL(baseUrl);
+        return `${url.protocol}//${url.host}/${href}`;
+      }
+      return href;
+    }
+  }
+
+  // Fallback to default favicon.ico
+  try {
+    const url = new URL(baseUrl);
+    return `${url.protocol}//${url.host}/favicon.ico`;
+  } catch {
+    return null;
+  }
+};
+
 // YouTube URL detection and video ID extraction
 const extractYouTubeVideoId = (url: string): string | null => {
   const patterns = [
@@ -44,6 +80,7 @@ const getYouTubeMetadata = async (url: string) => {
     title: data.title || '',
     description: '', // oEmbed doesn't provide description
     image: data.thumbnail_url || '',
+    favicon: 'https://www.youtube.com/favicon.ico',
     publisher: 'YouTube',
     url: url,
   };
@@ -122,6 +159,7 @@ export async function GET(req: NextRequest) {
     const title = getMetaTag(html, 'og:title') || html.match(/<title>([^<]*)<\/title>/)?.[1] || '';
     const description = getMetaTag(html, 'og:description') || getMetaTag(html, 'description') || '';
     const image = getMetaTag(html, 'og:image') || getMetaTag(html, 'twitter:image') || '';
+    const favicon = getFavicon(html, url);
     
     let publisher = '';
     try {
@@ -132,6 +170,7 @@ export async function GET(req: NextRequest) {
       title,
       description,
       image,
+      favicon,
       publisher,
       url: response.url, // Use the final URL after redirects
     };

@@ -22,11 +22,11 @@ dotenv.config({
 // 도구 설명 및 매개변수 정의
 const toolDefinitions = {
   webSearch: {
-    description: 'Search the web using Exa for information with multiple queries. This tool automatically optimizes queries. Note: `include_domains` and `exclude_domains` are mutually exclusive. `include_domains` will be prioritized. Use 2-4 queries maximum per tool call. Scale maxResults inversely with query count for balanced results.',
+    description: 'Search the web using Exa for information with multiple queries. This tool automatically optimizes queries. Note: `include_domains` and `exclude_domains` are mutually exclusive. `include_domains` will be prioritized. Use 2-4 queries maximum per tool call. Scale maxResults inversely with query count for balanced results. STRATEGY: Prefer google_search for general information and news. Use this tool when you need Exa\'s strengths (images, niche content, semantic search, academic papers, etc.).',
     inputSchema: {
       queries: 'Array of search queries to look up on the web. Exa\'s autoprompt feature will optimize these. Use 2-4 queries maximum per tool call. Scale maxResults inversely: 1 query=15-20, 2 queries=8-12 each, 3 queries=6-10 each, 4 queries=5-8 each.',
       maxResults: 'Array of maximum number of results to return per query. Scale inversely with query count: 1 query=15-20, 2 queries=8-12 each, 3 queries=6-10 each, 4 queries=5-8 each. Default is 10.',
-      topics: 'Array of topic types to search for. Use diverse topic types for comprehensive results. Options: general, news, financial report, company, research paper, pdf, github, personal site, linkedin profile. Choose appropriate topics based on query content: news for current events, research papers for academic info, financial reports for business data, company for corporate info, pdf for official documents, github for code/tech, personal site for blogs, linkedin profile for professional info.',
+      topics: 'Array of topic types to search for. Use diverse topic types for comprehensive results. Options: general (for images, niche content, semantic search), financial report, company, research paper, pdf, github, personal site, linkedin profile. Note: news topic removed - use google_search for news. STRATEGY: Prefer google_search for general information. Use "general" topic when you need Exa\'s strengths like images, niche content, or semantic understanding. Choose appropriate topics: research papers for academic info, financial reports for business data, company for corporate info, pdf for official documents, github for code/tech, personal site for blogs, linkedin profile for professional info.',
       include_domains: 'A list of domains to prioritize in search results. Cannot be used with exclude_domains.',
       exclude_domains: 'A list of domains to exclude from all search results. Cannot be used with include_domains.'
     }
@@ -86,6 +86,14 @@ const toolDefinitions = {
       domain: 'Academic domain to optimize the query for (math, physics, chemistry, etc.).'
     }
   },
+  googleSearch: {
+    description: 'Search Google using SearchAPI for comprehensive web search results. This tool provides access to Google\'s search index with location and language customization.',
+    inputSchema: {
+      queries: 'The search queries to send to Google. Can be a single query string or an array of queries. Each query can be anything you would use in a regular Google search.',
+      locations: 'Optional. The locations from where you want the searches to originate (e.g., "New York", "London", "Tokyo"). Can be a single location or array matching queries.',
+      gls: 'Optional. The country codes for search results (e.g., "us", "uk", "jp"). Can be a single code or array matching queries. Default is "us".'
+    }
+  },
 };
 // Web Search 도구 생성 함수
 export function createWebSearchTool(dataStream: any, forcedTopic?: string) {
@@ -93,8 +101,8 @@ export function createWebSearchTool(dataStream: any, forcedTopic?: string) {
   const searchResults: any[] = [];
   
   const AllowedTopic = z.enum([
-    'general',
-    'news',
+    'general', // 복원됨 - 이미지 검색용
+    // 'news', // 제거됨 - Google Search로 대체
     'financial report',
     'company',
     'research paper',
@@ -121,7 +129,7 @@ export function createWebSearchTool(dataStream: any, forcedTopic?: string) {
       ])
       .optional()
       .transform((v) => (v === undefined ? undefined : Array.isArray(v) ? v : [v])),
-    // Accept single topic or array; coerce and default to ['general'] if missing
+    // Accept single topic or array; coerce and default to ['general'] if missing (복원됨)
     topics: z
       .union([
         z.array(AllowedTopic),
@@ -146,7 +154,7 @@ export function createWebSearchTool(dataStream: any, forcedTopic?: string) {
   type WebSearchInput = {
     queries: string[];
     maxResults?: number[];
-    topics: ('general' | 'news' | 'financial report' | 'company' | 'research paper' | 'pdf' | 'github' | 'personal site' | 'linkedin profile')[];
+    topics: ('general' | /* 'news' | */ 'financial report' | 'company' | 'research paper' | 'pdf' | 'github' | 'personal site' | 'linkedin profile')[];
     include_domains?: string[];
     exclude_domains?: string[];
   };
@@ -154,7 +162,7 @@ export function createWebSearchTool(dataStream: any, forcedTopic?: string) {
     searchId: string;
     searches: Array<{
       query: string;
-      topic: 'general' | 'news' | 'financial report' | 'company' | 'research paper' | 'pdf' | 'github' | 'personal site' | 'linkedin profile';
+      topic: 'general' | /* 'news' | */ 'financial report' | 'company' | 'research paper' | 'pdf' | 'github' | 'personal site' | 'linkedin profile';
       results: any[];
       images: any[];
     }>;
@@ -242,9 +250,12 @@ export function createWebSearchTool(dataStream: any, forcedTopic?: string) {
             type: "neural",
           };
           
+          // general이 아닌 경우에만 category 설정 (general 복원됨)
           if (currentTopic !== 'general') {
             searchOptions.category = currentTopic;
             console.log(`[SEARCH_DEBUG] Using category: "${currentTopic}" for query: "${query}"`);
+          } else {
+            console.log(`[SEARCH_DEBUG] Using general search (no category) for query: "${query}"`);
           }
           
           
@@ -1410,6 +1421,337 @@ export function createYouTubeLinkAnalyzerTool(dataStream: any) {
   
   // Return the tool along with the analysis results array
   return Object.assign(youtubeAnalyzerTool, { analysisResults });
+}
+
+// Google Search 도구 생성 함수
+export function createGoogleSearchTool(dataStream: any) {
+  // 검색 결과를 저장할 배열
+  const searchResults: Array<{
+    searchId: string;
+    searches: Array<{
+      query: string;
+      topic: 'google';
+      results: any[];
+      images: any[];
+    }>;
+    imageMap: Record<string, string>;
+  }> = [];
+  
+  const googleSearchInputSchema = z.object({
+    // Accept string or array; coerce to array for consistency with Web Search
+    queries: z
+      .union([
+        z.array(z.string()),
+        z.string()
+      ])
+      .transform((v) => (Array.isArray(v) ? v : [v]))
+      .describe(toolDefinitions.googleSearch.inputSchema.queries),
+    // Accept string or array; coerce to array
+    locations: z
+      .union([
+        z.array(z.string()),
+        z.string()
+      ])
+      .optional()
+      .transform((v) => (v === undefined ? undefined : Array.isArray(v) ? v : [v]))
+      .describe(toolDefinitions.googleSearch.inputSchema.locations),
+    // Accept string or array; coerce to array
+    gls: z
+      .union([
+        z.array(z.string()),
+        z.string()
+      ])
+      .optional()
+      .transform((v) => (v === undefined ? undefined : Array.isArray(v) ? v : [v]))
+      .describe(toolDefinitions.googleSearch.inputSchema.gls),
+  });
+
+  type GoogleSearchInput = {
+    queries: string[];
+    locations?: string[];
+    gls?: string[];
+  };
+  type GoogleSearchOutput = {
+    searchId: string;
+    searches: Array<{
+      query: string;
+      topic: 'google';
+      results: any[];
+      images: any[];
+    }>;
+    imageMap: Record<string, string>;
+    // linkMap: Record<string, string>;
+    // thumbnailMap: Record<string, string>;
+  };
+
+  const googleSearchTool = tool<GoogleSearchInput, GoogleSearchOutput>({
+    description: toolDefinitions.googleSearch.description,
+    inputSchema: googleSearchInputSchema as unknown as z.ZodType<GoogleSearchInput>,
+    execute: async (input: GoogleSearchInput) => {
+      const { queries, locations, gls } = input;
+      
+      const apiKey = process.env.SEARCH_API_KEY;
+      if (!apiKey) {
+        throw new Error('SEARCH_API_KEY is not defined in environment variables');
+      }
+      
+      // Generate a unique search ID for this search attempt
+      const searchId = `google_search_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      
+      // Debug logging for Google search
+      console.log('=== Google Search (SearchAPI) Debug Info ===');
+      console.log('Search ID:', searchId);
+      console.log('Search queries:', queries);
+      console.log('Search parameters:', {
+        locations: locations || ['none'],
+        gls: gls || ['us']
+      });
+      
+      try {
+        // Execute searches in parallel (like Web Search)
+        const searchPromises = queries.map(async (query, index) => {
+          const currentLocation = (locations && locations[index]) || locations?.[0];
+          const currentGl = (gls && gls[index]) || gls?.[0] || 'us';
+          
+          try {
+            // Google 검색 시작 신호 전송
+            if (dataStream?.write) {
+              dataStream.write({
+                type: 'data-google_search_started',
+                id: `ann-google-start-${searchId}-${index}`,
+                data: {
+                  searchId,
+                  query,
+                  index,
+                  total: queries.length,
+                  started: true
+                }
+              });
+            }
+
+            // SearchAPI Google Search 요청
+            const searchUrl = 'https://www.searchapi.io/api/v1/search';
+            const searchParams = new URLSearchParams({
+              engine: 'google',
+              q: query,
+              api_key: apiKey,
+              safe: 'off' // Safe search off as requested
+            });
+
+            // Optional parameters
+            if (currentLocation) {
+              searchParams.append('location', currentLocation);
+            }
+            if (currentGl) {
+              searchParams.append('gl', currentGl);
+            }
+
+            console.log(`[GOOGLE_SEARCH] Making request to: ${searchUrl}?${searchParams.toString()}`);
+            
+            const response = await fetch(`${searchUrl}?${searchParams}`);
+            if (!response.ok) {
+              throw new Error(`SearchAPI Google search failed: ${response.status} ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            console.log(`[GOOGLE_SEARCH] Received response with ${data.organic_results?.length || 0} organic results`);
+            
+            // Process organic results with link IDs
+            const rawResults = (data.organic_results || []).map((result: any, resultIndex: number) => {
+              const linkId = `google_link_${searchId}_${index}_${resultIndex}`;
+              return {
+                url: result.link,
+                title: result.title || '',
+                content: result.snippet || '',
+                publishedDate: result.date,
+                author: result.source,
+                score: result.rank,
+                summary: result.snippet,
+                linkId: linkId,
+                thumbnail: result.thumbnail || null
+              };
+            });
+
+            // Process images if available
+            const rawImages = (data.images || []).map((image: any) => ({
+              url: image.original,
+              description: image.title || image.alt || '',
+            }));
+
+            const deduplicatedResults = deduplicateResults(rawResults);
+            const deduplicatedImages = rawImages.length > 0 ? deduplicateResults(rawImages) : [];
+            
+            // Generate unique IDs for images and create mapping
+            const imagesWithIds = deduplicatedImages.map((image: any, imageIndex: number) => {
+              const imageId = `google_img_${searchId}_${index}_${imageIndex}`;
+              return {
+                ...image,
+                id: imageId
+              };
+            });
+            
+            // 개별 쿼리 완료 어노테이션 (UI 업데이트용)
+            if (dataStream?.write) {
+              dataStream.write({
+                type: 'data-google_search_query_complete',
+                id: `ann-google-query-${searchId}-${index}`,
+                data: {
+                  searchId,
+                  query,
+                  results: deduplicatedResults,
+                  images: imagesWithIds
+                }
+              });
+            }
+            
+            return {
+              query,
+              topic: 'google' as const,
+              results: deduplicatedResults,
+              images: imagesWithIds
+            };
+          } catch (error) {
+            console.error(`Error searching with Google for query "${query}":`, error);
+            
+            // 에러 상태 어노테이션 전송
+            if (dataStream?.write) {
+              dataStream.write({
+                type: 'data-google_search_error',
+                id: `ann-google-error-${searchId}-${index}`,
+                data: {
+                  searchId,
+                  query,
+                  error: error instanceof Error ? error.message : 'Unknown error'
+                }
+              });
+            }
+            
+            return {
+              query,
+              topic: 'google' as const,
+              results: [],
+              images: []
+            };
+          }
+        });
+        
+        // Wait for all searches to complete
+        const searchResultsData = await Promise.all(searchPromises);
+        
+        // Create unified image map, link map, thumbnail map, and title map
+        const imageMap: { [key: string]: string } = {};
+        const linkMap: { [key: string]: string } = {};
+        const thumbnailMap: { [key: string]: string } = {};
+        const titleMap: { [key: string]: string } = {};
+        
+        searchResultsData.forEach((search, index) => {
+          // Process images
+          search.images.forEach((image: any) => {
+            if (image.id && image.url) {
+              imageMap[image.id] = image.url;
+            }
+          });
+          
+          // Process links, thumbnails, and titles
+          search.results.forEach((result: any) => {
+            if (result.linkId && result.url) {
+              linkMap[result.linkId] = result.url;
+            }
+            if (result.linkId && result.thumbnail) {
+              thumbnailMap[result.linkId] = result.thumbnail;
+            }
+            if (result.url && result.title) {
+              titleMap[result.url] = result.title;
+            }
+          });
+        });
+
+        // 최종 검색 결과를 저장 (AI 응답용 - linkMap, thumbnailMap 제외)
+        const finalResult = { 
+          searchId, 
+          searches: searchResultsData,
+          imageMap
+        };
+        
+        // 배열에 결과 추가 (AI용)
+        searchResults.push(finalResult);
+        
+        // tool_results 저장용으로 linkMap, thumbnailMap, titleMap 포함된 객체도 추가
+        const finalResultWithMaps = {
+          searchId,
+          searches: searchResultsData,
+          imageMap,
+          linkMap,
+          thumbnailMap,
+          titleMap
+        };
+        searchResults.push(finalResultWithMaps);
+        
+        
+        // 전체 검색 완료 어노테이션 전송 (웹 검색과 동일한 방식)
+        if (dataStream?.write) {
+          dataStream.write({
+            type: 'data-google_search_complete',
+            id: `ann-google-complete-${searchId}`,
+            data: {
+              searchId,
+              searches: searchResultsData,
+              imageMap,
+              linkMap,
+              thumbnailMap,
+              titleMap
+            }
+          });
+        }
+        
+        // 결과 반환
+        return finalResult;
+      } catch (error) {
+        console.error(`Error in Google search execution:`, error);
+        
+        // 에러 상태 어노테이션 전송
+        if (dataStream?.write) {
+          dataStream.write({
+            type: 'data-google_search_error',
+            id: `ann-google-error-${searchId}`,
+            data: {
+              searchId,
+              queries,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            }
+          });
+        }
+        
+        // 에러 시에도 빈 결과를 searchResults 배열에 추가
+        const emptyResult = {
+          searchId,
+          searches: queries.map(query => ({
+            query,
+            topic: 'google' as const,
+            results: [],
+            images: []
+          })),
+          imageMap: {}
+        };
+        
+        const emptyResultWithMaps = {
+          ...emptyResult,
+          linkMap: {},
+          thumbnailMap: {},
+          titleMap: {}
+        };
+        
+        searchResults.push(emptyResult);
+        searchResults.push(emptyResultWithMaps);
+        
+        // Return empty results (AI 응답용 - linkMap, thumbnailMap 제외)
+        return emptyResult;
+      }
+    }
+  });
+  
+  // 기능은 Google 검색 도구지만 저장된 결과 배열도 함께 반환
+  return Object.assign(googleSearchTool, { searchResults });
 }
 
 // 🆕 이전 도구 결과 참조 도구 생성 함수

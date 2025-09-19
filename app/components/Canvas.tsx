@@ -3,6 +3,7 @@ import MultiSearch from './MultiSearch';
 import MathCalculation from './MathCalculation';
 import LinkReader from './LinkReader';
 import { ChevronUp, ChevronDown, Brain, Link2, Image as ImageIcon, AlertTriangle, X, ChevronLeft, ChevronRight, ExternalLink, Search, Calculator, BookOpen, FileSearch, Youtube, Database } from 'lucide-react';
+import { SiGoogle } from 'react-icons/si';
 import { createPortal } from 'react-dom';
 import { Tweet } from 'react-tweet';
 import { XLogo, YouTubeLogo } from './CanvasFolder/CanvasLogo';
@@ -115,9 +116,15 @@ type CanvasProps = {
       error?: string;
     }[];
   } | null;
+  googleSearchData?: {
+    result: any;
+    args: any;
+    annotations: any[];
+    results: any[];
+  } | null;
   isCompact?: boolean;
   selectedTool?: string;
-  onSearchFilterChange?: (hasActiveFilters: boolean, selectedTopics?: string[], isAllQueriesSelected?: boolean) => void;
+  onSearchFilterChange?: (hasActiveFilters: boolean, selectedTopics?: string[], isAllQueriesSelected?: boolean, userHasInteracted?: boolean) => void;
 };
 
 /**
@@ -133,12 +140,76 @@ export default function Canvas({
   xSearchData, 
   youTubeSearchData, 
   youTubeLinkAnalysisData,
+  googleSearchData,
   isCompact = false,
   selectedTool,
   onSearchFilterChange,
 }: CanvasProps) {
+  // Merge Web Search and Google Search data for unified display
+  const mergedSearchData = useMemo(() => {
+    if (!webSearchData && !googleSearchData) return null;
+    
+    // Combine results from both web search and google search
+    const allResults: any[] = [];
+    const allArgs: any[] = [];
+    const allAnnotations: any[] = [];
+    let mergedImageMap: { [key: string]: string } = {};
+    let mergedLinkMap: { [key: string]: string } = {};
+    let mergedThumbnailMap: { [key: string]: string } = {};
+    
+    // Add Web Search data
+    if (webSearchData) {
+      if (webSearchData.results) {
+        allResults.push(...webSearchData.results);
+      }
+      if (webSearchData.args) {
+        allArgs.push(webSearchData.args);
+      }
+      if (webSearchData.annotations) {
+        allAnnotations.push(...webSearchData.annotations);
+      }
+      if ((webSearchData as any).imageMap) {
+        mergedImageMap = { ...mergedImageMap, ...(webSearchData as any).imageMap };
+      }
+    }
+    
+    // Add Google Search data
+    if (googleSearchData) {
+      if (googleSearchData.results) {
+        allResults.push(...googleSearchData.results);
+      }
+      if (googleSearchData.args) {
+        allArgs.push(googleSearchData.args);
+      }
+      if (googleSearchData.annotations) {
+        allAnnotations.push(...googleSearchData.annotations);
+      }
+      if ((googleSearchData as any).imageMap) {
+        mergedImageMap = { ...mergedImageMap, ...(googleSearchData as any).imageMap };
+      }
+      if ((googleSearchData as any).linkMap) {
+        mergedLinkMap = { ...mergedLinkMap, ...(googleSearchData as any).linkMap };
+      }
+      if ((googleSearchData as any).thumbnailMap) {
+        mergedThumbnailMap = { ...mergedThumbnailMap, ...(googleSearchData as any).thumbnailMap };
+      }
+    }
+    
+    if (allResults.length === 0 && allArgs.length === 0) return null;
+    
+    return {
+      result: null, // For backward compatibility
+      results: allResults,
+      args: allArgs.length > 0 ? allArgs[0] : null, // Use first args for compatibility
+      annotations: allAnnotations,
+      imageMap: mergedImageMap,
+      linkMap: mergedLinkMap,
+      thumbnailMap: mergedThumbnailMap
+    };
+  }, [webSearchData, googleSearchData]);
+
   // Don't render if there's no data to display
-  if (!webSearchData && !mathCalculationData && !linkReaderData && !imageGeneratorData && !xSearchData && !youTubeSearchData && !youTubeLinkAnalysisData) return null;
+  if (!mergedSearchData && !mathCalculationData && !linkReaderData && !imageGeneratorData && !xSearchData && !youTubeSearchData && !youTubeLinkAnalysisData) return null;
 
   // Simplified state management - all sections are initially open
   // Only track if data is in "generation complete" state
@@ -241,8 +312,8 @@ export default function Canvas({
 
   return (
     <div className={`tool-results-canvas ${compactModeClasses}`}>
-      {/* Web Search Results or Loading State */}
-      {(!selectedTool || selectedTool.startsWith?.('web-search')) && webSearchData && (
+      {/* Unified Search Results (Web Search + Google Search) */}
+      {(!selectedTool || selectedTool.startsWith?.('web-search') || selectedTool === 'google-search' || selectedTool.startsWith?.('google-search:topic:')) && mergedSearchData && (
         <div className="">
           {!selectedTool && (
           <div 
@@ -251,7 +322,7 @@ export default function Canvas({
           >
             <div className="flex items-center gap-2.5">
               <Search className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-              <h2 className="font-medium text-left tracking-tight">Web Search</h2>
+              <h2 className="font-medium text-left tracking-tight">Searches</h2>
             </div>
             <div className="flex items-center gap-2">
               <div className="rounded-full p-1 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors">
@@ -284,26 +355,37 @@ export default function Canvas({
                 }
               `}</style>
               <MultiSearch 
-                result={webSearchData.result} 
-                args={webSearchData.args}
-                annotations={webSearchData.annotations}
-                results={webSearchData.results}
+                result={mergedSearchData.result} 
+                args={mergedSearchData.args}
+                annotations={mergedSearchData.annotations}
+                results={mergedSearchData.results}
                 onFilterChange={onSearchFilterChange}
                 {...(() => {
-                  // If a single unique topic exists in the preview selection, mark All Queries selected
-                  if (selectedTool && selectedTool.startsWith?.('web-search:topic:')) {
+                  // Handle both web-search and google-search topic filtering
+                  if (selectedTool && (selectedTool.startsWith?.('web-search:topic:') || selectedTool.startsWith?.('google-search:topic:'))) {
                     const topic = selectedTool.split(':').pop();
-                    // Count unique topics present in webSearchData
-                    const allSearches = (webSearchData.results || []).flatMap((r: any) => r.searches || []);
+                    // Count unique topics present in mergedSearchData
+                    const allSearches = (mergedSearchData.results || []).flatMap((r: any) => r.searches || []);
                     const uniqueTopics = new Set(allSearches.map((s: any) => s?.topic || 'general'));
                     if (uniqueTopics.size === 1) {
                       return { highlightedQueries: [], initialAllSelected: true };
                     }
                     // Otherwise, highlight queries for the selected topic
                     const searches = allSearches.filter((s: any) => (s as any).topic === topic);
-                    const argQueries = (webSearchData.args?.queries || []) as string[];
+                    
+                    // Only include queries from the relevant search type based on topic
+                    let relevantQueries: string[] = [];
+                    
+                    if (topic === 'google') {
+                      // For google search topic, only include google queries
+                      relevantQueries = (googleSearchData?.args?.queries || []) as string[];
+                    } else {
+                      // For web search topics (general, company, etc.), only include web search queries
+                      relevantQueries = (webSearchData?.args?.queries || []) as string[];
+                    }
+                    
                     const queriesFromSearches = searches.map((s: any) => s.query).filter(Boolean);
-                    const merged = [...new Set([...(argQueries || []), ...queriesFromSearches])];
+                    const merged = [...new Set([...relevantQueries, ...queriesFromSearches])];
                     return { highlightedQueries: merged, initialAllSelected: false };
                   }
                   return { highlightedQueries: [], initialAllSelected: false };
@@ -677,6 +759,7 @@ export default function Canvas({
           </div>
         </div>
       )}
+
 
       {/* Image viewer modal - portal to body to avoid z-index issues */}
       {isMounted && selectedImageIndex >= 0 && imageGeneratorData?.generatedImages && createPortal(

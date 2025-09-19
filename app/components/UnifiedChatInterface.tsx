@@ -13,7 +13,7 @@ import { getSystemDefaultModelId, MODEL_CONFIGS, RATE_LIMITS, isChatflixModel, g
 import { Messages } from '@/app/components/Messages';
 import { SidePanel } from '@/app/components/SidePanel';
 import { ChatInputArea } from '@/app/components/ChatInputArea';
-import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getXSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData } from '@/app/hooks/toolFunction';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getXSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGoogleSearchData } from '@/app/hooks/toolFunction';
 import { Annotation } from '@/app/lib/messageUtils';
 import { nanoid } from 'nanoid';
 import { SuggestedPrompt } from '@/app/components/SuggestedPrompt/SuggestedPrompt';
@@ -1212,6 +1212,7 @@ function ChatInterface({
       getImageGeneratorData(message) || 
       getYouTubeSearchData(message) || 
       getYouTubeLinkAnalysisData(message) || 
+      getGoogleSearchData(message) ||
       hasStructuredResponseFiles()
     );
   };

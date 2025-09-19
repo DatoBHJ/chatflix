@@ -887,6 +887,493 @@ export const getImageGeneratorData = (message: UIMessage) => {
 
   
 
+  // Extract Google search data from message annotations and tool_results
+  export const getGoogleSearchData = (message: UIMessage) => {
+    if (!message) return null;
+    
+    // Check if there are stored Google search results in tool_results
+    if ((message as any).tool_results?.googleSearchResults) {
+      const googleResults = (message as any).tool_results.googleSearchResults;
+      if (Array.isArray(googleResults) && googleResults.length > 0) {
+        // Process stored results to match the expected format
+        const processedResults = googleResults.map((result: any) => {
+          if (result.searches && Array.isArray(result.searches)) {
+            return {
+              searchId: result.searchId,
+              searches: result.searches.map((search: any) => ({
+                query: search.query,
+                topic: search.topic || 'google',
+                topicIcon: 'google',
+                results: search.results || [],
+                images: search.images || []
+              })),
+              isComplete: true
+            };
+          }
+          return null;
+        }).filter(Boolean);
+        
+        if (processedResults.length > 0) {
+          // linkMap, thumbnailMap, titleMap이 있는 객체 찾기 (배열에서 두 번째 객체)
+          const resultWithMaps = googleResults.find((result: any) => result.linkMap || result.thumbnailMap || result.titleMap);
+          
+          return {
+            result: null,
+            args: null,
+            annotations: [],
+            results: processedResults,
+            imageMap: googleResults[0]?.imageMap || {},
+            linkMap: resultWithMaps?.linkMap || {},
+            thumbnailMap: resultWithMaps?.thumbnailMap || {},
+            titleMap: resultWithMaps?.titleMap || {}
+          };
+        }
+      }
+    }
+    
+    // Get query completion annotations - check both annotations and parts for AI SDK 5 compatibility
+    let queryCompletions: any[] = [];
+    let googleSearchCompletions: any[] = [];
+    
+    // Check annotations array (legacy format)
+    if ((message as any).annotations) {
+      queryCompletions = ((message as any).annotations as any[]).filter(a => a?.type === 'google_search_started');
+      googleSearchCompletions = ((message as any).annotations as any[]).filter(a => a?.type === 'google_search_complete');
+    }
+    
+    // Check parts array for streaming annotations (AI SDK 5 format)
+    if ((message as any).parts && Array.isArray((message as any).parts)) {
+      const queryParts = ((message as any).parts as any[]).filter(p => p?.type === 'data-google_search_started');
+      const googleSearchParts = ((message as any).parts as any[]).filter(p => p?.type === 'data-google_search_complete');
+      
+      // Convert parts format to annotations format for consistency
+      queryCompletions = [
+        ...queryCompletions,
+        ...queryParts.map(p => ({ type: 'google_search_started', data: p.data }))
+      ];
+      googleSearchCompletions = [
+        ...googleSearchCompletions,
+        ...googleSearchParts.map(p => ({ type: 'google_search_complete', data: p.data }))
+      ];
+    }
+
+    // Extract imageMap, linkMap, thumbnailMap, titleMap from annotations
+    let imageMap: { [key: string]: string } = {};
+    let linkMap: { [key: string]: string } = {};
+    let thumbnailMap: { [key: string]: string } = {};
+    let titleMap: { [key: string]: string } = {};
+    
+    googleSearchCompletions.forEach(completion => {
+      if (completion.data?.imageMap) {
+        imageMap = { ...imageMap, ...completion.data.imageMap };
+      }
+      if (completion.data?.linkMap) {
+        linkMap = { ...linkMap, ...completion.data.linkMap };
+      }
+      if (completion.data?.thumbnailMap) {
+        thumbnailMap = { ...thumbnailMap, ...completion.data.thumbnailMap };
+      }
+      if (completion.data?.titleMap) {
+        titleMap = { ...titleMap, ...completion.data.titleMap };
+      }
+    });
+
+    // Group query completions by searchId
+    const queryCompletionsBySearchId = new Map<string, any[]>();
+    queryCompletions.forEach(completion => {
+      const searchId = completion.data?.searchId || 'default';
+      if (!queryCompletionsBySearchId.has(searchId)) {
+        queryCompletionsBySearchId.set(searchId, []);
+      }
+      queryCompletionsBySearchId.get(searchId)?.push(completion);
+    });
+
+    // Get all searchIds from query completions (including the latest one)
+    const searchIds = Array.from(queryCompletionsBySearchId.keys()).filter(id => id !== 'default');
+    // Latest searchId for determining which search is currently in progress
+    const latestSearchId = searchIds.length > 0 ? searchIds[searchIds.length - 1] : null;
+    
+    // Track completed searches and in-progress searches separately
+    const completedSearchIdSet = new Set<string>();
+    const allResults: any[] = [];
+    
+    // Helper function to process search results
+    const processSearchResults = (results: any[]) => {
+      return results.map(result => ({
+        ...result,
+        // Ensure Google-specific fields are preserved
+        summary: result.summary || result.content || undefined,
+        score: result.score || undefined,
+        author: result.author || undefined,
+        publishedDate: result.publishedDate || undefined,
+      }));
+    };
+
+    // Process Google search completions to determine which searches are complete
+    if (googleSearchCompletions.length > 0) {
+      // Group Google search completions by searchId
+      const googleSearchCompletionsBySearchId = new Map<string, any[]>();
+      googleSearchCompletions.forEach(completion => {
+        const searchId = completion.data?.searchId || 'default';
+        if (!googleSearchCompletionsBySearchId.has(searchId)) {
+          googleSearchCompletionsBySearchId.set(searchId, []);
+        }
+        googleSearchCompletionsBySearchId.get(searchId)?.push(completion);
+        
+        // Mark this searchId as completed
+        if (searchId !== 'default') {
+          completedSearchIdSet.add(searchId);
+        }
+      });
+      
+      // Process all completed Google searches
+      for (const [searchId, completions] of googleSearchCompletionsBySearchId.entries()) {
+        if (searchId === 'default') continue;
+        
+        // Extract all searches from this searchId
+        const searchesForThisId: any[] = [];
+        
+        completions.forEach(completion => {
+          if (completion.data && completion.data.results) {
+            searchesForThisId.push({
+              query: completion.data.query,
+              results: completion.data.results,
+              images: completion.data.images || []
+            });
+          }
+        });
+        
+        if (searchesForThisId.length > 0) {
+          // Add this completed searchId result to our collection
+          allResults.push({
+            searchId,
+            searches: searchesForThisId.map(search => ({
+              ...search,
+              topic: 'google',
+              topicIcon: 'google',
+              results: processSearchResults(search.results || []),
+              images: search.images || []
+            })),
+            isComplete: true
+          });
+        }
+      }
+    }
+    
+    // 진행 중인 검색 처리
+    let inProgressSearchIds = new Set<string>();
+    if (latestSearchId && !completedSearchIdSet.has(latestSearchId)) {
+      inProgressSearchIds.add(latestSearchId);
+    }
+    
+    // 모든 진행 중인 검색 ID에 대해 쿼리 상태 처리
+    for (const searchId of inProgressSearchIds) {
+      const latestQueryCompletions = queryCompletionsBySearchId.get(searchId) || [];
+      
+      // 진행 중인 검색이 있는 경우에만 추가
+      if (latestQueryCompletions.length > 0) {
+        allResults.push({
+          searchId,
+          searches: [{
+            query: latestQueryCompletions[0]?.data?.query || 'Searching...',
+            topic: 'google',
+            topicIcon: 'google',
+            results: [],
+            images: []
+          }],
+          isComplete: false,
+          // 모든 쿼리 완료 어노테이션을 보존
+          annotations: latestQueryCompletions
+        });
+      }
+    }
+    
+    // If we've found results via annotations, return them
+    if (allResults.length > 0) {
+      return {
+        result: null, // For backward compatibility
+        args: null,
+        annotations: queryCompletions,
+        results: allResults,
+        imageMap
+      };
+    }
+    
+    // Check for stored tool results as a fallback
+    if ((message as any).tool_results) {
+      const toolResults = (message as any).tool_results;
+      
+      // Extract imageMap from tool_results
+      if (toolResults.googleSearchResults) {
+        toolResults.googleSearchResults.forEach((result: any) => {
+          if (result.imageMap) {
+            imageMap = { ...imageMap, ...result.imageMap };
+          }
+        });
+      }
+      
+      // Handle both new and legacy formats
+      let storedResults: any[] = [];
+      
+      if (toolResults.googleSearchResults) {
+        // New format with googleSearchResults key
+        if (Array.isArray(toolResults.googleSearchResults)) {
+          // Process all results with searchIds
+          const resultsWithIds = toolResults.googleSearchResults.filter((r: any) => r.searchId);
+          
+          // Create a result entry for each unique searchId
+          const processedIds = new Set<string>();
+          
+          resultsWithIds.forEach((result: any) => {
+            const searchId = result.searchId;
+            if (searchId && !processedIds.has(searchId)) {
+              processedIds.add(searchId);
+              storedResults.push({
+                searchId,
+                searches: [{
+                  query: result.query,
+                  topic: 'google',
+                  topicIcon: 'google',
+                  results: processSearchResults(result.results || []),
+                  images: result.images || []
+                }],
+                isComplete: true
+              });
+            }
+          });
+          
+          // Handle results without searchId (legacy)
+          if (storedResults.length === 0) {
+            const mergedSearches = toolResults.googleSearchResults.flatMap((r: any) => r.results || []);
+            if (mergedSearches.length > 0) {
+              storedResults.push({
+                searchId: 'legacy',
+                searches: [{
+                  query: 'Google Search',
+                  topic: 'google',
+                  topicIcon: 'google',
+                  results: processSearchResults(mergedSearches),
+                  images: []
+                }],
+                isComplete: true
+              });
+            }
+          }
+        }
+      }
+      
+      if (storedResults.length > 0) {
+        return {
+          result: null, // For backward compatibility
+          args: null,
+          annotations: queryCompletions,
+          results: storedResults,
+          imageMap
+        };
+      }
+    }
+    
+    // If no parts property or it's empty, return null or loading state
+    if (!message.parts || message.parts.length === 0) {
+      // If we have query completions, we can show a loading state
+      if (queryCompletions.length > 0) {
+        return {
+          result: null, // For backward compatibility
+          args: { q: '', location: '', gl: '' },
+          annotations: queryCompletions,
+          results: [{
+            searchId: latestSearchId || 'default',
+            searches: [{
+              query: 'Searching...',
+              topic: 'google',
+              topicIcon: 'google',
+              results: [],
+              images: []
+            }],
+            isComplete: false,
+            annotations: queryCompletions
+          }],
+          imageMap
+        };
+      }
+      return null;
+    }
+    
+    // Collect all results and args from tool invocations
+    const allInvocationResults: any[] = [];
+    const allArgs: any[] = [];
+    const processedSearchIds = new Set<string>();
+    
+    for (const part of message.parts || []) {
+      // v5 UI tool parts are typed as `tool-<name>`; handle both dynamic and static
+      if (part && typeof (part as any).type === 'string' && (part as any).type.startsWith('tool-')) {
+        try {
+          const toolName = (part as any).type.slice('tool-'.length);
+          if (toolName !== 'google_search') continue;
+          const input = (part as any).input;
+          const output = (part as any).output;
+          if (input) allArgs.push(JSON.parse(JSON.stringify(input)));
+          if (output) {
+            const result = JSON.parse(JSON.stringify(output));
+            
+            // Extract imageMap from invocation result
+            if (result.imageMap) {
+              imageMap = { ...imageMap, ...result.imageMap };
+            }
+            
+            if (result.searchId && !processedSearchIds.has(result.searchId)) {
+              processedSearchIds.add(result.searchId);
+              
+              // Check if new structure with searches array
+              if (result.searches && Array.isArray(result.searches)) {
+                allInvocationResults.push({
+                  searchId: result.searchId,
+                  searches: result.searches.map((search: any) => ({
+                    query: search.query,
+                    topic: search.topic || 'google',
+                    topicIcon: 'google',
+                    results: processSearchResults(search.results || []),
+                    images: search.images || []
+                  })),
+                  isComplete: true
+                });
+              } else {
+                // Legacy single query structure
+                allInvocationResults.push({
+                  searchId: result.searchId,
+                  searches: [{
+                    query: result.query || 'Google Search',
+                    topic: 'google',
+                    topicIcon: 'google',
+                    results: processSearchResults(result.results || []),
+                    images: result.images || []
+                  }],
+                  isComplete: true
+                });
+              }
+            } else if (!result.searchId) {
+              // Legacy result without searchId
+              allInvocationResults.push({
+                searchId: 'legacy_invocation',
+                searches: [{
+                  query: 'Google Search',
+                  topic: 'google',
+                  topicIcon: 'google',
+                  results: processSearchResults(result.results || []),
+                  images: result.images || []
+                }],
+                isComplete: true
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing Google search results:', error);
+        }
+      }
+    }
+    
+    // Check google_search_complete annotations if we didn't find results in invocations
+    if ((message as any).annotations && allInvocationResults.length === 0) {
+      const googleSearchAnnotations = ((message as any).annotations as any[])
+        .filter(a => a?.type === 'google_search_complete');
+      
+      if (googleSearchAnnotations.length > 0) {
+        // Group annotations by searchId
+        const annotationsBySearchId = new Map<string, any[]>();
+        
+        googleSearchAnnotations.forEach(annotation => {
+          const searchId = annotation.data?.searchId || 'default';
+          if (!annotationsBySearchId.has(searchId)) {
+            annotationsBySearchId.set(searchId, []);
+          }
+          annotationsBySearchId.get(searchId)?.push(annotation);
+        });
+        
+        // Process each searchId group
+        for (const [searchId, annotations] of annotationsBySearchId.entries()) {
+          if (searchId === 'default') continue;
+          
+          const searches = annotations
+            .filter(a => a.data?.results)
+            .map(a => ({
+              query: a.data.query,
+              topic: 'google',
+              topicIcon: 'google',
+              results: processSearchResults(a.data.results || []),
+              images: a.data.images || []
+            }));
+          
+          if (searches.length > 0) {
+            allInvocationResults.push({
+              searchId,
+              searches,
+              isComplete: true
+            });
+          }
+        }
+      }
+    }
+    
+    // If we have results from invocations or annotations
+    if (allInvocationResults.length > 0) {
+      // Check if latest searchId is still in progress
+      if (latestSearchId && !processedSearchIds.has(latestSearchId) && 
+          queryCompletionsBySearchId.has(latestSearchId)) {
+        // Add in-progress search
+        allInvocationResults.push({
+          searchId: latestSearchId,
+          searches: [{
+            query: 'Searching...',
+            topic: 'google',
+            topicIcon: 'google',
+            results: [],
+            images: []
+          }],
+          isComplete: false,
+          annotations: queryCompletionsBySearchId.get(latestSearchId)
+        });
+      }
+      
+      return {
+        result: null, // For backward compatibility 
+        args: allArgs[0] || null,
+        annotations: queryCompletions,
+        results: allInvocationResults,
+        imageMap,
+        linkMap,
+        thumbnailMap,
+        titleMap
+      };
+    }
+    
+    // Extract queries for loading state
+    if (allArgs.length > 0) {
+      return {
+        result: null, // For backward compatibility
+        args: allArgs[0],
+        annotations: queryCompletions,
+        results: [{
+          searchId: latestSearchId || 'default',
+          searches: [{
+            query: 'Searching...',
+            topic: 'google',
+            topicIcon: 'google',
+            results: [],
+            images: []
+          }],
+          isComplete: false,
+          annotations: queryCompletions
+        }],
+        imageMap,
+        linkMap,
+        thumbnailMap,
+        titleMap
+      };
+    }
+    
+    return null;
+  };
+
   // Extract YouTube link analysis data from message annotations and tool_results
   export const getYouTubeLinkAnalysisData = (message: UIMessage) => {
     // Check tool_results first

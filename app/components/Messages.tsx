@@ -4,7 +4,7 @@ import { UIMessage as AIMessage } from 'ai'
 import { User } from '@supabase/supabase-js'
 import React, { useState, useEffect, useCallback, memo } from 'react'
 import { Message as MessageComponent } from '@/app/components/Message'
-import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData } from '@/app/hooks/toolFunction';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGoogleSearchData } from '@/app/hooks/toolFunction';
 import { formatMessageGroupTimestamp } from '@/app/lib/messageGroupTimeUtils';
 import { createClient } from '@/utils/supabase/client';
 
@@ -187,16 +187,31 @@ export const Messages = memo(function Messages({
           
           const webSearchData = getWebSearchResults(message);
           const imageGeneratorData = getImageGeneratorData(message);
+          const googleSearchData = getGoogleSearchData(message);
           
           // Combine web search images and generated images into imageMap
           const imageMap = {
             ...(webSearchData?.imageMap || {}),
+            ...(googleSearchData?.imageMap || {}),
             ...(imageGeneratorData?.generatedImages?.reduce((acc: any, image: any, index: number) => {
               // Create a unique key for generated images
               const imageKey = `generated_image_${image.seed || index}`;
               acc[imageKey] = image.imageUrl;
               return acc;
             }, {}) || {})
+          };
+          
+          // Combine link maps and thumbnail maps from Google Search
+          const linkMap = {
+            ...(googleSearchData?.linkMap || {})
+          };
+          
+          const thumbnailMap = {
+            ...(googleSearchData?.thumbnailMap || {})
+          };
+          
+          const titleMap = {
+            ...(googleSearchData?.titleMap || {})
           };
           
           const mathCalculationData = getMathCalculationData(message);
@@ -242,11 +257,15 @@ export const Messages = memo(function Messages({
 
                     youTubeSearchData={youTubeSearchData}
                     youTubeLinkAnalysisData={youTubeLinkAnalysisData}
+                    googleSearchData={googleSearchData}
                     user={user}
                     handleFollowUpQuestionClick={handleFollowUpQuestionClick}
                     allMessages={messages}
                     isGlobalLoading={isLoading}
                     imageMap={imageMap}
+                    linkMap={linkMap}
+                    thumbnailMap={thumbnailMap}
+                    titleMap={titleMap}
                     isBookmarked={bookmarkedMessageIds.has(message.id)}
                     onBookmarkToggle={handleBookmarkToggle}
                     isBookmarksLoading={isBookmarksLoading}

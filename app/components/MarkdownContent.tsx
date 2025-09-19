@@ -221,6 +221,8 @@ interface MarkdownContentProps {
   searchTerm?: string | null; // 🚀 FEATURE: Search term for highlighting
   isReasoningSection?: boolean; // ReasoningSection에서만 메시지 형식 완전 제거
   messageType?: 'user' | 'assistant' | 'default'; // 🚀 FEATURE: Message type for different highlight colors
+  thumbnailMap?: { [key: string]: string }; // 🚀 FEATURE: Thumbnail map for link previews
+  titleMap?: { [key: string]: string }; // 🚀 FEATURE: Title map for link previews
 }
 
 // 더 적극적으로 마크다운 구조를 분할하는 함수 - 구분선(---)을 기준으로 메시지 그룹 분할
@@ -837,7 +839,9 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   variant = 'default',
   searchTerm = null,
   isReasoningSection = false,
-  messageType = 'default'
+  messageType = 'default',
+  thumbnailMap = {},
+  titleMap = {}
 }: MarkdownContentProps) {
 
   // Image modal state
@@ -1215,6 +1219,10 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       );
     },
     a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
+      // Check if this URL has a thumbnail in the thumbnailMap
+      const thumbnailUrl = href && thumbnailMap[href] ? thumbnailMap[href] : undefined;
+      // Check if this URL has a title in the titleMap
+      const searchApiTitle = href && titleMap[href] ? titleMap[href] : undefined;
       // Check if this is a YouTube link
       if (href && isYouTubeUrl(href)) {
         const videoId = extractYouTubeVideoId(href);
@@ -1256,7 +1264,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       if (href && typeof href === 'string' && (href.startsWith('http://') || href.startsWith('https://'))) {
         return (
           <div className="my-0.5">
-            <LinkPreview url={href} />
+            <LinkPreview url={href} thumbnailUrl={thumbnailUrl} searchApiTitle={searchApiTitle} />
           </div>
         );
       }

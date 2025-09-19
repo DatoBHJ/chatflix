@@ -37,6 +37,7 @@ interface UnifiedInfoPanelProps {
   xSearchData?: any;
   youTubeSearchData?: any;
   youTubeLinkAnalysisData?: any;
+  googleSearchData?: any;
   messageId: string;
   togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string, fileName?: string) => void;
   activePanel?: { messageId: string; type: string; toolType?: string } | null;
@@ -158,6 +159,28 @@ const isToolLoading = (toolData: any, toolType: string): boolean => {
       if (toolData.status === 'processing' || toolData.status === 'in_progress') return true;
       return false;
 
+    case 'googleSearch':
+      // Google Search: 결과가 하나라도 있으면 로딩 해제
+      if (Array.isArray(toolData.results) && toolData.results.length > 0) {
+        // 결과 중 하나라도 완료면 로딩 해제
+        const hasComplete = toolData.results.some((r: any) => r && r.isComplete === true);
+        if (hasComplete) return false;
+        // 모든 결과가 미완료면 로딩
+        const allIncomplete = toolData.results.every((r: any) => r && r.isComplete === false);
+        if (allIncomplete) return true;
+      }
+      // 결과가 아직 없고 args만 있으면 로딩으로 간주
+      if (toolData.args && (!toolData.results || toolData.results.length === 0)) {
+        return true;
+      }
+      // 마지막으로, 어노테이션만 있는 경우에 한해 로딩으로 간주 (완료 신호가 없을 때만)
+      if (toolData.annotations && toolData.annotations.length > 0) {
+        const hasQueryCompletion = toolData.annotations.some((a: any) => a.type === 'google_search_started');
+        const hasGoogleSearchComplete = toolData.annotations.some((a: any) => a.type === 'google_search_complete');
+        if (hasQueryCompletion && !hasGoogleSearchComplete) return true;
+      }
+      return false;
+
     default:
       return false;
   }
@@ -184,6 +207,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
   xSearchData,
   youTubeSearchData,
   youTubeLinkAnalysisData,
+  googleSearchData,
   messageId,
   togglePanel,
   activePanel,
@@ -204,6 +228,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
       xSearch: isToolLoading(xSearchData, 'xSearch'),
       youTubeSearch: isToolLoading(youTubeSearchData, 'youTubeSearch'),
       youTubeAnalyzer: isToolLoading(youTubeLinkAnalysisData, 'youTubeAnalyzer'),
+      googleSearch: isToolLoading(googleSearchData, 'googleSearch'),
     };
 
     const isLoadingAnyTool = Object.values(toolStates).some(Boolean);
@@ -216,7 +241,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
       loadingTools,
       toolStates
     };
-  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData]);
+  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData, googleSearchData]);
 
   // 제목이 도착하기 전까지 현재 상태를 간단히 표시
   const derivedTitle = useMemo(() => {
@@ -235,7 +260,8 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
           imageGenerator: 'Generating Images',
           xSearch: 'Searching X/Twitter',
           youTubeSearch: 'Searching YouTube',
-          youTubeAnalyzer: 'Analyzing YouTube'
+          youTubeAnalyzer: 'Analyzing YouTube',
+          googleSearch: 'Searching Google'
         };
         return toolDisplayNames[toolName] || 'Using Tools...';
       } else {
@@ -337,6 +363,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
                   xSearchData={xSearchData}
                   youTubeSearchData={youTubeSearchData}
                   youTubeLinkAnalysisData={youTubeLinkAnalysisData}
+                  googleSearchData={googleSearchData}
                   messageId={messageId}
                   togglePanel={togglePanel}
                   hideToggle={true}

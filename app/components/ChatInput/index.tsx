@@ -7,6 +7,7 @@ import { useChatInputStyles } from './ChatInputStyles';
 import { FileUploadButton, FilePreview, fileHelpers } from './FileUpload';
 import { DragDropOverlay, ErrorToast } from './DragDropOverlay';
 import { Brain, Gauge, AlertTriangle, CheckCircle, Search, Calculator, Link, Image, Video, FileText, Plus, Newspaper, BarChart3, Building, BookOpen, Github, User, Briefcase, FileVideo, Paperclip, Youtube } from 'lucide-react';
+import { SiGoogle } from 'react-icons/si';
 import { Brain as BrainIOS, LightBulb, Apple, Folder, Send } from 'react-ios-icons'; 
 import { FileMetadata } from '@/lib/types';
 import { 
@@ -24,10 +25,12 @@ const MENTION_CONTEXT_RANGE = 200; // 커서 주변 검색 범위 (앞뒤로)
 const DEBOUNCE_TIME = 200; // 디바운스 시간 (ms)
 // 비구독자 컨텍스트 윈도우 제한 제거됨
 
-// 도구 정의 - 웹서치 토픽별로 세분화
+// 도구 정의 - Google Search가 일반 검색의 기본 도구, Exa는 특별한 콘텐츠용
 const TOOLS = [
-  { id: 'web_search:general', icon: <Search strokeWidth={1.8} />, name: 'Web Search', description: 'Search the web for information' },
-  { id: 'web_search:news', icon: <Newspaper strokeWidth={1.8} />, name: 'News Search', description: 'Find latest news and articles' },
+  { id: 'google_search', icon: <SiGoogle size={18} />, name: 'Google Search', description: 'Search Google for comprehensive results' },
+  { id: 'web_search:general', icon: <Search strokeWidth={1.8} />, name: 'Advanced Search', description: 'AI-powered search for images, research, and specialized content' },
+  // 뉴스는 Google Search로 통합 (Exa news 제거됨)
+  // { id: 'web_search:news', icon: <Newspaper strokeWidth={1.8} />, name: 'News Search', description: 'Find latest news and articles' },
   { id: 'youtube_search', icon: <Youtube strokeWidth={1.8} />, name: 'YouTube Search', description: 'Search YouTube videos' },
   { id: 'youtube_link_analyzer', icon: <Youtube strokeWidth={1.8} />, name: 'YouTube Analyzer', description: 'Analyze YouTube videos' },
   { id: 'image_generator', icon: <Image strokeWidth={1.8} />, name: 'Image Generator', description: 'Generate images from text' },
@@ -259,8 +262,8 @@ export function ChatInput({
     ? (() => {        
         // Mobile placeholders (concise)
         const mobilePlaceholders: { [key: string]: string } = {
-          'web_search:general': 'Search the web',
-          'web_search:news': 'Search the news',
+          'web_search:general': 'Search for images or niche content',
+          // 'web_search:news': 'Search the news', // 제거됨 - Google Search로 대체
           'web_search:financial report': 'Search financial reports',
           'web_search:company': 'Search companies',
           'web_search:research paper': 'Search research papers',
@@ -269,6 +272,7 @@ export function ChatInput({
           'web_search:personal site': 'Search personal websites',
           'web_search:linkedin profile': 'Search LinkedIn profiles',
 
+          'google_search': 'Search Google',
           'calculator': 'Enter a calculation',
           'link_reader': 'Paste a URL to read',
           'image_generator': 'Describe an image to generate',
@@ -278,8 +282,8 @@ export function ChatInput({
 
         // Desktop placeholders (detailed examples)
         const desktopPlaceholders: { [key: string]: string } = {
-          'web_search:general': 'Search the web',
-          'web_search:news': 'Find breaking news about AI war',
+          'web_search:general': 'Search for images or niche content',
+          // 'web_search:news': 'Find breaking news about AI war', // 제거됨 - Google Search로 대체
           'web_search:financial report': 'Search Apple\'s revenue growth reports',
           'web_search:company': 'Find company making space travel cheaper',
           'web_search:research paper': 'Find papers about embeddings',
@@ -288,6 +292,7 @@ export function ChatInput({
           'web_search:personal site': 'Find life coach for work stress',
           'web_search:linkedin profile': 'Find best computer scientist at Berkeley',
 
+          'google_search': 'Search Google',
           'calculator': 'Calculate mortgage payment 500k 30yr 4.5%',
           'link_reader': 'https://www.showstudio.com/projects/in_camera/kanye_west',
           'image_generator': 'Draw a futuristic city skyline at sunset',

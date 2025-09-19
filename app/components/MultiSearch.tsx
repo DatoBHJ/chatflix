@@ -26,6 +26,7 @@ import {
   Briefcase,
   BookOpen
 } from 'lucide-react';
+import { SiGoogle } from 'react-icons/si';
 
 type SearchImage = {
   url: string;
@@ -136,15 +137,33 @@ export const getTopicIconComponent = (topicIcon: string) => {
       return <Briefcase {...iconProps} />;
     case 'book-open':
       return <BookOpen {...iconProps} />;
+    case 'google':
+      return <SiGoogle {...iconProps} />;
     default:
       return <Search {...iconProps} />;
+  }
+};
+
+// Topic icon mapping function - determines icon based on topic
+export const getTopicIcon = (topic: string): string => {
+  switch (topic) {
+    case 'github': return 'github';
+    case 'news': return 'newspaper';
+    case 'financial report': return 'building';
+    case 'company': return 'building';
+    case 'research paper': return 'file-text';
+    case 'pdf': return 'file-text';
+    case 'personal site': return 'user';
+    case 'linkedin profile': return 'briefcase';
+    case 'google': return 'google';
+    default: return 'search';
   }
 };
 
 // Topic name mapping function
 export const getTopicName = (topic: string): string => {
   switch (topic) {
-    case 'general': return 'Web Search';
+    case 'general': return 'Advanced Search';
     case 'news': return 'News Search';
     case 'financial report': return 'Financial Report';
     case 'company': return 'Company Search';
@@ -153,7 +172,8 @@ export const getTopicName = (topic: string): string => {
     case 'github': return 'GitHub Search';
     case 'personal site': return 'Personal Site';
     case 'linkedin profile': return 'LinkedIn Search';
-    default: return 'Web Search';
+    case 'google': return 'Google Search';
+    default: return 'Advanced Search';
   }
 };
 
@@ -893,7 +913,7 @@ const MultiSearch: React.FC<{
   }>;
   highlightedQueries?: string[];
   initialAllSelected?: boolean;
-  onFilterChange?: (hasActiveFilters: boolean, selectedTopics?: string[], isAllQueriesSelected?: boolean) => void;
+  onFilterChange?: (hasActiveFilters: boolean, selectedTopics?: string[], isAllQueriesSelected?: boolean, userHasInteracted?: boolean) => void;
 }> = ({
   result,
   args,
@@ -955,8 +975,10 @@ const MultiSearch: React.FC<{
           .filter(Boolean);
       }
       
-      console.log('MultiSearch: Calling onFilterChangeRef.current with hasActiveFilters:', hasActiveFilters, 'selectedTopics:', selectedTopics, 'allChipSelected:', allChipSelected);
-      onFilterChangeRef.current(hasActiveFilters, selectedTopics, allChipSelected && userHasInteracted);
+      // Pass the current state of allChipSelected and userHasInteracted
+      // This ensures parent knows when "All Queries" is deselected and if user has interacted
+      console.log('MultiSearch: Calling onFilterChangeRef.current with hasActiveFilters:', hasActiveFilters, 'selectedTopics:', selectedTopics, 'isAllQueriesSelected:', allChipSelected, 'userHasInteracted:', userHasInteracted);
+      onFilterChangeRef.current(hasActiveFilters, selectedTopics, allChipSelected, userHasInteracted);
     } else {
       console.log('MultiSearch: Skipping onFilterChangeRef.current call - onFilterChangeRef.current:', !!onFilterChangeRef.current, 'userHasInteracted:', userHasInteracted);
     }

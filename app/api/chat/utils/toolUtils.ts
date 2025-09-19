@@ -5,6 +5,7 @@ import {
   createCalculatorTool, 
   createYouTubeSearchTool, 
   createYouTubeLinkAnalyzerTool, 
+  createGoogleSearchTool,
   createPreviousToolResultsTool, 
 } from '../tools';
 
@@ -40,6 +41,11 @@ export const TOOL_REGISTRY = {
     createFn: createYouTubeLinkAnalyzerTool,
     resultKey: 'youtubeLinkAnalysisResults',
     description: 'Analyzing YouTube video content and metadata'
+  },
+  'google_search': {
+    createFn: createGoogleSearchTool,
+    resultKey: 'googleSearchResults',
+    description: 'Google search using SearchAPI for comprehensive web results'
   },
   'previous_tool_results': {
     createFn: createPreviousToolResultsTool,
@@ -91,6 +97,7 @@ export function collectToolResults(tools: Record<string, any>, toolNames: string
       'image_generator': 'generatedImages',
       'youtube_search': 'searchResults',
       'youtube_link_analyzer': 'analysisResults',
+      'google_search': 'searchResults',
       'previous_tool_results': 'previousToolResults'
     };
     

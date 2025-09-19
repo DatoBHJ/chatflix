@@ -533,7 +533,7 @@ export function useMessages(chatId: string, userId: string) {
             chatId,
             isRegeneration: true,
             existingMessageId: assistantMessageId,
-            saveToDb: false,
+            saveToDb: true,
             isAgentEnabled: !!isAgentEnabled,
             selectedTool: selectedTool || null // 현재 선택된 도구 사용
           }

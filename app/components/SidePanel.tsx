@@ -3,7 +3,7 @@
 import { UIMessage } from 'ai'
 import Canvas from '@/app/components/Canvas';
 import { StructuredResponse } from '@/app/components/StructuredResponse';
-import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData } from '@/app/hooks/toolFunction';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGoogleSearchData } from '@/app/hooks/toolFunction';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { AttachmentTextViewer } from './AttachmentTextViewer';
@@ -35,9 +35,10 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   const [hasActiveSearchFilters, setHasActiveSearchFilters] = useState(false);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [isAllQueriesSelected, setIsAllQueriesSelected] = useState(false);
+  const [userHasInteracted, setUserHasInteracted] = useState(false);
 
   // Memoized callback for search filter changes
-  const handleSearchFilterChange = useCallback((hasActiveFilters: boolean, topics?: string[], isAllSelected?: boolean) => {
+  const handleSearchFilterChange = useCallback((hasActiveFilters: boolean, topics?: string[], isAllSelected?: boolean, userInteracted?: boolean) => {
     console.log('SidePanel: handleSearchFilterChange called with:', hasActiveFilters, topics, 'isAllSelected:', isAllSelected);
     console.log('SidePanel: Current state - hasActiveSearchFilters:', hasActiveSearchFilters, 'selectedTopics:', selectedTopics, 'isAllQueriesSelected:', isAllQueriesSelected);
     
@@ -61,7 +62,13 @@ export const SidePanel: React.FC<SidePanelProps> = ({
       console.log('SidePanel: Updating isAllQueriesSelected from', isAllQueriesSelected, 'to', newIsAllSelected);
       setIsAllQueriesSelected(newIsAllSelected);
     }
-  }, [hasActiveSearchFilters, selectedTopics, isAllQueriesSelected]);
+    
+    const newUserInteracted = userInteracted || false;
+    if (newUserInteracted !== userHasInteracted) {
+      console.log('SidePanel: Updating userHasInteracted from', userHasInteracted, 'to', newUserInteracted);
+      setUserHasInteracted(newUserInteracted);
+    }
+  }, [hasActiveSearchFilters, selectedTopics, isAllQueriesSelected, userHasInteracted]);
 
   // Debug: Log filter state changes
   useEffect(() => {
@@ -172,11 +179,12 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   const imageGeneratorData = getImageGeneratorData(activeMessage);
   const youTubeSearchData = getYouTubeSearchData(activeMessage);
   const youTubeLinkAnalysisData = getYouTubeLinkAnalysisData(activeMessage);
+  const googleSearchData = getGoogleSearchData(activeMessage);
 
   // Helper function to get topic display name
   const getTopicDisplayName = (topic: string): string => {
     switch (topic) {
-      case 'general': return 'Web Search';
+      case 'general': return 'Advanced Search';
       case 'news': return 'News Search';
       case 'github': return 'GitHub Search';
       case 'personal site': return 'Personal Sites';
@@ -185,15 +193,14 @@ export const SidePanel: React.FC<SidePanelProps> = ({
       case 'financial report': return 'Financial Reports';
       case 'research paper': return 'Academic Papers';
       case 'pdf': return 'PDF Search';
-      default: return 'Web Search';
+      case 'google': return 'Google Search';
+      default: return 'Advanced Search';
     }
   };
 
   const getPanelTitle = () => {
     if (nonNullPanelData.type === 'canvas') {
       if (nonNullPanelData.toolType) {
-        // 디버깅: 실제 toolType 확인
-        console.log('SidePanel toolType:', nonNullPanelData.toolType, 'hasActiveSearchFilters:', hasActiveSearchFilters, 'selectedTopics:', selectedTopics);
         
         // web-search:topic:xxx 패턴 처리
         if (nonNullPanelData.toolType.startsWith('web-search:topic:')) {
@@ -216,8 +223,46 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             }
           }
           
-          // No active filters, show original topic
+          // Check if user has interacted with filters but no specific queries are selected
+          // In mixed search scenarios (both web and google data), show "Searches"
+          if (webSearchData && googleSearchData && userHasInteracted && !isAllQueriesSelected) {
+            return 'Searches';
+          }
+          
+          // No active filters - show the topic that was directly clicked from preview
           const topic = nonNullPanelData.toolType.replace('web-search:topic:', '');
+          return getTopicDisplayName(topic);
+        }
+        
+        // google-search:topic:xxx 패턴 처리
+        if (nonNullPanelData.toolType.startsWith('google-search:topic:')) {
+          // If "All Queries" is selected, show "Searches" (unified with web search)
+          if (isAllQueriesSelected) {
+            return webSearchData && googleSearchData ? 'Searches' : 'Google Search';
+          }
+          
+          // If search filters are active, determine title based on selected topics
+          if (hasActiveSearchFilters && selectedTopics.length > 0) {
+            // Get unique topics
+            const uniqueTopics = [...new Set(selectedTopics)];
+            
+            // If all selected queries are from the same topic, show that topic's title
+            if (uniqueTopics.length === 1) {
+              return getTopicDisplayName(uniqueTopics[0]);
+            } else {
+              // Mixed topics, show generic "Searches"
+              return 'Searches';
+            }
+          }
+          
+          // Check if user has interacted with filters but no specific queries are selected
+          // In mixed search scenarios (both web and google data), show "Searches"
+          if (webSearchData && googleSearchData && userHasInteracted && !isAllQueriesSelected) {
+            return 'Searches';
+          }
+          
+          // No active filters - show the topic that was directly clicked from preview
+          const topic = nonNullPanelData.toolType.replace('google-search:topic:', '');
           return getTopicDisplayName(topic);
         }
         
@@ -229,12 +274,14 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           case 'youtube-search': return 'YouTube Search';
           case 'youtube-analyzer': return 'YouTube Analyzer';
           case 'x-search': return 'X Search';
+          case 'google-search': return 'Google Search';
           default: return 'Canvas Results';
         }
       }
       
       // If no toolType specified, determine title based on available data
-        if (webSearchData) return 'Searches';
+        // Unified search: if either web search or google search data exists, show "Searches"
+        if (webSearchData || googleSearchData) return 'Searches';
         if (mathCalculationData) return 'Calculator';
         if (linkReaderData) return 'Link Reader';
         if (imageGeneratorData) return 'Image Generator';
@@ -255,13 +302,14 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   const getPanelSubtitle = () => {
     if (nonNullPanelData.type === 'canvas' && !nonNullPanelData.toolType) {
       const canvasDataSummary: string[] = [];
-      if (webSearchData) canvasDataSummary.push('Web Search');
+      if (webSearchData) canvasDataSummary.push('Advanced Search');
       if (mathCalculationData) canvasDataSummary.push('Calculator');
       if (linkReaderData) canvasDataSummary.push('Link Reader');
       if (imageGeneratorData) canvasDataSummary.push('Image Gen');
 
       if (youTubeSearchData) canvasDataSummary.push('YouTube Search');
       if (youTubeLinkAnalysisData) canvasDataSummary.push('YouTube Analysis');
+      if (googleSearchData) canvasDataSummary.push('Google Search');
 
       // Only show subtitle if there are multiple tools (since single tool name is already in title)
       if (canvasDataSummary.length > 1) {
@@ -502,6 +550,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           imageGeneratorData={imageGeneratorData}
           youTubeSearchData={youTubeSearchData}
           youTubeLinkAnalysisData={youTubeLinkAnalysisData}
+          googleSearchData={googleSearchData}
                     isCompact={false}
                     selectedTool={nonNullPanelData.toolType}
                     onSearchFilterChange={handleSearchFilterChange}
