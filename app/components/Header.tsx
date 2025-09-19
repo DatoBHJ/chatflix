@@ -414,7 +414,7 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
         
         // 애니메이션 진행
         const animateBattery = () => {
-          const duration = 1200; // 1.2초
+          const duration = 1800; // 1.8초
           const startTime = Date.now();
           
           const animate = () => {
