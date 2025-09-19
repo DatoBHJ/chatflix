@@ -1742,7 +1742,16 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
             </div>
           ) : (
             <>
-              <Link href="/bookmarks" className="flex items-center group w-full text-left">
+              <Link 
+                href="/bookmarks" 
+                className="flex items-center group w-full text-left"
+                onClick={() => {
+                  // 모바일에서 사이드바 닫기
+                  if (toggleSidebar) {
+                    toggleSidebar();
+                  }
+                }}
+              >
                 <div className="min-w-[40px] h-10 rounded-lg flex items-center justify-center">
                   <svg 
                     width="16" 
