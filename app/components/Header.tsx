@@ -12,7 +12,7 @@ import { checkSubscriptionClient, clearClientSubscriptionCache } from '@/lib/sub
 import { clearAllSubscriptionCache } from '@/lib/utils'
 import { Battery, SquarePencil, Bookmark, Gear } from 'react-ios-icons'
 import { FeatureUpdate } from '../types/FeatureUpdate'; // Import FeatureUpdate type
-// Remove MarkdownContent import - not needed for simple text display
+import { MarkdownContent } from './MarkdownContent'; // Import MarkdownContent for rich text display
 import { createClient } from '@/utils/supabase/client';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -271,8 +271,7 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
     if (isWhatsNewPanelOpen) {
       document.body.style.overflow = 'hidden';
       setIsWhatsNewPanelVisible(true);
-      // Reset accordion state when opening
-      setExpandedUpdates(new Set());
+      // Don't reset accordion state - let the latest update auto-expand
       setAllExpanded(false);
       
       const timeouts = [
@@ -326,6 +325,12 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
           }));
           
           setUpdates(formattedUpdates);
+          
+          // Auto-expand the latest update
+          if (formattedUpdates.length > 0) {
+            const latestUpdate = formattedUpdates[0]; // First item is the latest
+            setExpandedUpdates(new Set([latestUpdate.id]));
+          }
         } catch (error) {
           console.error('Error in fetchUpdates:', error);
         } finally {
@@ -414,7 +419,7 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
         
         // 애니메이션 진행
         const animateBattery = () => {
-          const duration = 1800; // 1.8초
+          const duration = 1200; // 1.2초
           const startTime = Date.now();
           
           const animate = () => {
@@ -914,7 +919,7 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
       <div className={`fixed inset-0 z-[70] text-[var(--foreground)] pointer-events-auto transition-all duration-500 ease-out ${
         whatsNewPanelElements.background ? 'opacity-100' : 'opacity-0'
       }`}
-        style={{ backgroundColor: 'var(--accent)' }}
+        style={{ backgroundColor: 'var(--background)' }}
       >
         <div className="absolute inset-0" onClick={closeWhatsNewPanel} />
         <div 
@@ -963,18 +968,18 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                     )}
                   </div>
                   
-                  <div className="border-t border-[var(--subtle-divider)]">
+                  <div>
                     {updates.map((update, index) => {
                       const isExpanded = expandedUpdates.has(update.id);
                       return (
-                        <div key={update.id} className="border-b border-[var(--subtle-divider)] last:border-b-0">
+                        <div key={update.id}>
                           <button
                             onClick={() => toggleUpdate(update.id)}
                             className="w-full text-left py-4 group cursor-pointer"
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex-1">
-                                <span className="text-base font-semibold text-[var(--foreground)] group-hover:text-[var(--muted)] transition-colors">
+                                <span className="text-base font-semibold text-[var(--foreground)]">
                                   {update.title}
                                 </span>
                                 <p className="text-xs text-[var(--muted)] font-light mt-0.5">
@@ -989,48 +994,55 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                             isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
                           }`}>
                             <div className="pb-6 pt-2">
-                              {/* Description */}
-                              <div className="text-[var(--foreground)]/80 whitespace-pre-wrap leading-relaxed mb-6">
-                                {update.description}
-                              </div>
-                              
-                              {/* Images */}
-                              {update.images && update.images.length > 0 && (
-                                <div className="space-y-4">
-                                  {update.images.length === 1 ? (
-                                    <div 
-                                      className="rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
-                                      onClick={() => handleImageClick(update.images![0], update.images!, 0)}
-                                    >
-                                      <Image 
-                                        src={update.images[0]}
-                                        alt={update.title}
-                                        width={800}
-                                        height={400}
-                                        className="w-full h-auto object-cover"
-                                      />
-                                    </div>
-                                  ) : (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                      {update.images.map((img, i) => (
-                                        <div 
-                                          key={i} 
-                                          className="rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
-                                          onClick={() => handleImageClick(img, update.images!, i)}
-                                        >
-                                          <Image 
-                                            src={img}
-                                            alt={`${update.title} image ${i+1}`}
-                                            width={400}
-                                            height={300}
-                                            className="w-full h-auto object-cover"
-                                          />
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
+                              {/* Images and Description with iMessage bubble style */}
+                              <div className="mb-6 pl-2">
+                                {/* Images first */}
+                                {update.images && update.images.length > 0 && (
+                                  <div className="mb-4">
+                                    {update.images.length === 1 ? (
+                                      <div 
+                                        className="rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                                        onClick={() => handleImageClick(update.images![0], update.images!, 0)}
+                                      >
+                                        <Image 
+                                          src={update.images[0]}
+                                          alt={update.title}
+                                          width={800}
+                                          height={400}
+                                          className="w-full h-auto object-cover"
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        {update.images.map((img, i) => (
+                                          <div 
+                                            key={i} 
+                                            className="rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                                            onClick={() => handleImageClick(img, update.images!, i)}
+                                          >
+                                            <Image 
+                                              src={img}
+                                              alt={`${update.title} image ${i+1}`}
+                                              width={400}
+                                              height={300}
+                                              className="w-full h-auto object-cover"
+                                            />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                
+                                {/* Description with segmentation */}
+                                <div className="text-[var(--foreground)]">
+                                  <MarkdownContent 
+                                    content={update.description} 
+                                    enableSegmentation={true}
+                                    messageType="assistant"
+                                  />
                                 </div>
-                              )}
+                              </div>
                             </div>
                           </div>
                         </div>
