@@ -251,29 +251,7 @@ const segmentContent = (content: string): string[][] => {
     return `\n\n<IMAGE_SEGMENT_${imageIndex++}>\n\n`;
   });
 
-  // 2. 링크를 별도 세그먼트로 분리
-  const linkSegments: string[] = [];
-  let linkIndex = 0;
-  
-  // 마크다운 링크 문법 [텍스트](URL) 감지 및 분리
-  const markdownLinkRegex = /\[([^\]]*)\]\(([^)]+)\)/g;
-  contentWithoutImages = contentWithoutImages.replace(markdownLinkRegex, (match, text, url) => {
-    linkSegments.push(match);
-    return `\n\n<LINK_SEGMENT_${linkIndex++}>\n\n`;
-  });
-  
-  // 일반 URL 패턴 감지 및 분리 (마크다운 링크가 아닌 경우만)
-  const urlRegex = /(https?:\/\/[^\s"'<>]+)/g;
-  contentWithoutImages = contentWithoutImages.replace(urlRegex, (match, url) => {
-    // 이미 마크다운 링크로 처리된 URL이 아닌 경우만 처리
-    if (!match.includes('[') && !match.includes(']')) {
-      linkSegments.push(match);
-      return `\n\n<LINK_SEGMENT_${linkIndex++}>\n\n`;
-    }
-    return match;
-  });
-
-  // 3. 모든 코드 블록을 임시 플레이스홀더로 교체 (차트 블록 포함)
+  // 2. 모든 코드 블록을 먼저 임시 플레이스홀더로 교체 (차트 블록 포함)
   // 개선된 코드 블록 매칭 로직으로 중첩된 백틱 처리
   const codeBlocks: string[] = [];
   
@@ -339,11 +317,37 @@ const segmentContent = (content: string): string[][] => {
   
   const placeholderContent = extractCodeBlocks(contentWithoutImages);
 
-  // 3. 구분선(---)을 기준으로 먼저 메시지 그룹을 분할
+  // 3. 코드 블록을 제외한 나머지 텍스트에서 링크를 별도 세그먼트로 분리
+  const linkSegments: string[] = [];
+  let linkIndex = 0;
+  
+  // 마크다운 링크 문법 [텍스트](URL) 감지 및 분리 (코드 블록 플레이스홀더는 제외)
+  const markdownLinkRegex = /\[([^\]]*)\]\(([^)]+)\)/g;
+  const contentWithLinkSegments = placeholderContent.replace(markdownLinkRegex, (match, text, url) => {
+    // 코드 블록 플레이스홀더 내부가 아닌 경우만 링크로 분리
+    if (!match.includes('<CODE_PLACEHOLDER_')) {
+      linkSegments.push(match);
+      return `\n\n<LINK_SEGMENT_${linkIndex++}>\n\n`;
+    }
+    return match;
+  });
+  
+  // 일반 URL 패턴 감지 및 분리 (마크다운 링크가 아닌 경우만, 코드 블록 플레이스홀더 제외)
+  const urlRegex = /(https?:\/\/[^\s"'<>]+)/g;
+  const finalContent = contentWithLinkSegments.replace(urlRegex, (match, url) => {
+    // 이미 마크다운 링크로 처리된 URL이 아니고, 코드 블록 플레이스홀더 내부가 아닌 경우만 처리
+    if (!match.includes('[') && !match.includes(']') && !match.includes('<CODE_PLACEHOLDER_')) {
+      linkSegments.push(match);
+      return `\n\n<LINK_SEGMENT_${linkIndex++}>\n\n`;
+    }
+    return match;
+  });
+
+  // 4. 구분선(---)을 기준으로 먼저 메시지 그룹을 분할
   const messageGroups: string[][] = [];
   let currentGroup: string[] = [];
 
-  const separatorSegments = placeholderContent.split(/\n\s*---\s*\n/);
+  const separatorSegments = finalContent.split(/\n\s*---\s*\n/);
 
   separatorSegments.forEach(segment => {
     if (segment.trim()) {
@@ -356,7 +360,7 @@ const segmentContent = (content: string): string[][] => {
     messageGroups.push([...currentGroup]);
   }
 
-  // 4. 코드 블록과 이미지 세그먼트 복원 (그룹 단위 유지)
+  // 5. 코드 블록과 이미지 세그먼트 복원 (그룹 단위 유지)
   const finalMessageGroups: string[][] = [];
 
   for (const group of messageGroups) {
@@ -425,7 +429,7 @@ const segmentContent = (content: string): string[][] => {
     }
   }
 
-  // 5. 최종적으로 비어있지 않은 그룹만 반환
+  // 6. 최종적으로 비어있지 않은 그룹만 반환
   const result = finalMessageGroups.filter(group => group.length > 0);
 
   if (result.length === 0) {
@@ -674,8 +678,21 @@ const isYouTubeUrl = (url: string): boolean => {
   return youtubeRegex.test(url);
 };
 
+const isYouTubeShorts = (url: string): boolean => {
+  if (!url) return false;
+  return url.includes('/shorts/') || url.includes('youtube.com/shorts/');
+};
+
 const extractYouTubeVideoId = (url: string): string | null => {
   if (!url) return null;
+  
+  // Handle YouTube Shorts first
+  if (isYouTubeShorts(url)) {
+    const shortsMatch = url.match(/(?:youtube\.com\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    if (shortsMatch && shortsMatch[1]) {
+      return shortsMatch[1];
+    }
+  }
   
   // Handle different YouTube URL formats
   const patterns = [
@@ -693,30 +710,121 @@ const extractYouTubeVideoId = (url: string): string | null => {
   return null;
 };
 
+// TikTok utility functions
+const isTikTokUrl = (url: string): boolean => {
+  return url.includes('tiktok.com') || url.includes('vm.tiktok.com');
+};
+
+const extractTikTokVideoId = (url: string): string | null => {
+  const patterns = [
+    // Standard TikTok video URL: https://www.tiktok.com/@username/video/1234567890
+    /tiktok\.com\/@([^\/]+)\/video\/(\d+)/,
+    // Generic TikTok video URL: https://www.tiktok.com/video/1234567890
+    /tiktok\.com\/.*\/video\/(\d+)/,
+    // Short TikTok URL: https://vm.tiktok.com/abc123
+    /vm\.tiktok\.com\/([^\/\?]+)/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) {
+      // For @username/video/1234567890 format, return the video ID (match[2])
+      // For other formats, return match[1]
+      return match[2] || match[1];
+    }
+  }
+  return null;
+};
+
+// Google Video Link Component
+const GoogleVideoLink = memo(function GoogleVideoLinkComponent({ 
+  linkId, 
+  title = "Video"
+}: { 
+  linkId: string; 
+  title?: string;
+}) {
+  // Extract video information from linkId if possible
+  const parts = linkId.split('_');
+  const searchId = parts[2];
+  const query = parts[3];
+  const videoIndex = parts[4];
+  
+  return (
+    <div className="my-4 p-4 bg-[var(--accent)] rounded-lg border border-[var(--subtle-divider)]">
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 bg-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
+          <Play size={20} className="text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-medium text-[var(--foreground)] truncate">
+            {title}
+          </h3>
+          <p className="text-sm text-[var(--muted)] truncate">
+            Google Video Search Result
+          </p>
+          <p className="text-xs text-[var(--muted)] mt-1 font-mono">
+            ID: {linkId}
+          </p>
+        </div>
+        <div className="flex-shrink-0">
+          <button 
+            className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm rounded-md transition-colors flex items-center gap-1.5"
+            onClick={() => {
+              // Try to find the actual video URL from the MultiSearch component
+              // This would need to be connected to the video data from the search results
+              console.log('Google Video link clicked:', linkId);
+              // For now, we'll show an alert - this should be connected to the actual video data
+              alert(`Video link clicked: ${linkId}\n\nThis would open the video in a new tab or modal.`);
+            }}
+          >
+            <Play size={14} />
+            Watch
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 // YouTube Embed Player Component
 const YouTubeEmbed = memo(function YouTubeEmbedComponent({ 
   videoId, 
   title = "YouTube video",
-  originalUrl 
+  originalUrl,
+  isShorts = false
 }: { 
   videoId: string; 
   title?: string; 
   originalUrl?: string;
+  isShorts?: boolean;
 }) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   
-  const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+  // For Shorts, use the shorts embed URL
+  const embedUrl = isShorts 
+    ? `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`
+    : `https://www.youtube.com/embed/${videoId}`;
   
   return (
-    <div className="my-6 w-full">
-      <div className="relative w-full bg-black rounded-lg overflow-hidden shadow-lg" style={{ aspectRatio: '16/9' }}>
+    <div className={`my-6 w-full ${isShorts ? 'flex justify-center' : ''}`}>
+      <div 
+        className={`relative bg-black rounded-lg overflow-hidden shadow-lg ${
+          isShorts ? 'max-w-[400px] w-full' : 'w-full'
+        }`}
+        style={{ 
+          aspectRatio: isShorts ? '9/16' : '16/9',
+          maxWidth: isShorts ? 'min(400px, 90vw)' : '100%',
+          width: isShorts ? 'min(400px, 90vw)' : '100%'
+        }}
+      >
         {/* Loading state */}
         {isLoading && !hasError && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500 mx-auto mb-2"></div>
-              <p className="text-white text-sm">Loading video...</p>
+              <p className="text-white text-sm">Loading {isShorts ? 'short' : 'video'}...</p>
             </div>
           </div>
         )}
@@ -728,7 +836,7 @@ const YouTubeEmbed = memo(function YouTubeEmbedComponent({
               <div className="w-12 h-12 mx-auto mb-2 bg-red-500 rounded-full flex items-center justify-center">
                 <X size={24} className="text-white" />
               </div>
-              <p className="text-white text-sm mb-2">Video failed to load</p>
+              <p className="text-white text-sm mb-2">{isShorts ? 'Short' : 'Video'} failed to load</p>
               {originalUrl && (
                 <a
                   href={originalUrl}
@@ -759,28 +867,136 @@ const YouTubeEmbed = memo(function YouTubeEmbedComponent({
         />
       </div>
       
-      {/* Video info */}
-      <div className="mt-2 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
-            <Play size={8} className="text-white ml-0.5" />
+      {/* Video info - hidden for Shorts to avoid duplication */}
+      {!isShorts && (
+        <div className="mt-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+              <Play size={8} className="text-white ml-0.5" />
+            </div>
+            <span className="text-sm text-[var(--muted-foreground)]">
+              {title}
+            </span>
           </div>
-          <span className="text-sm text-[var(--muted-foreground)]">
-            {title}
-          </span>
+          {originalUrl && (
+            <a
+              href={originalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors flex items-center gap-1"
+            >
+              <ExternalLink size={12} />
+              YouTube
+            </a>
+          )}
         </div>
-        {originalUrl && (
-          <a
-            href={originalUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors flex items-center gap-1"
-          >
-            <ExternalLink size={12} />
-            YouTube
-          </a>
-        )}
+      )}
+    </div>
+  );
+});
+
+// TikTok Embed Player Component with fallback to LinkPreview
+const TikTokEmbed = memo(function TikTokEmbedComponent({ 
+  videoId, 
+  title = "TikTok video",
+  originalUrl 
+}: { 
+  videoId: string; 
+  title?: string; 
+  originalUrl?: string;
+}) {
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const [useFallback, setUseFallback] = useState(false);
+  
+  
+  const embedUrl = `https://www.tiktok.com/embed/${videoId}`;
+  
+  // If error occurs, fallback to LinkPreview
+  if (useFallback && originalUrl) {
+    return (
+      <div className="my-4">
+        <LinkPreview url={originalUrl} />
       </div>
+    );
+  }
+  
+  return (
+    <div className="my-6 w-full flex justify-center">
+      <div 
+        className="relative bg-black rounded-lg overflow-hidden shadow-lg max-w-[400px] w-full"
+        style={{ 
+          aspectRatio: '9/16',
+          maxWidth: 'min(400px, 90vw)',
+          width: 'min(400px, 90vw)'
+        }}
+      >
+        {/* Loading state */}
+        {isLoading && !hasError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500 mx-auto mb-2"></div>
+              <p className="text-white text-sm">Loading TikTok...</p>
+            </div>
+          </div>
+        )}
+        
+        {/* Error state */}
+        {hasError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+            <div className="text-center p-4">
+              <div className="w-12 h-12 mx-auto mb-2 bg-pink-500 rounded-full flex items-center justify-center">
+                <X size={24} className="text-white" />
+              </div>
+              <p className="text-white text-sm mb-2">TikTok failed to load</p>
+              <p className="text-white text-xs mb-3 opacity-75">Falling back to link preview...</p>
+              {originalUrl && (
+                <button
+                  onClick={() => setUseFallback(true)}
+                  className="text-pink-400 hover:text-pink-300 text-xs underline mb-2 block"
+                >
+                  Show as link preview
+                </button>
+              )}
+              {originalUrl && (
+                <a
+                  href={originalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-pink-400 hover:text-pink-300 text-xs underline"
+                >
+                  Open on TikTok
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {/* TikTok iframe */}
+        <iframe
+          src={embedUrl}
+          title={title}
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          className="absolute inset-0 w-full h-full"
+          onLoad={() => setIsLoading(false)}
+          onError={() => {
+            console.warn('TikTok embed failed, falling back to LinkPreview');
+            setHasError(true);
+            setIsLoading(false);
+            // Auto-fallback after 3 seconds
+            setTimeout(() => {
+              if (originalUrl) {
+                setUseFallback(true);
+              }
+            }, 3000);
+          }}
+        />
+      </div>
+      
+      {/* Video info - hidden for TikTok to avoid duplication */}
+      {/* TikTok info is already embedded in the iframe, so we hide the external info */}
     </div>
   );
 });
@@ -1013,11 +1229,12 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     return parts.length > 0 ? parts : text;
   }, []);
 
-  // Function to detect YouTube URLs in text
+  // Function to detect YouTube URLs in text (including Shorts)
   const styleYouTubeUrls = useCallback((text: string) => {
     if (!text.includes('youtube.com') && !text.includes('youtu.be')) return text;
     
-    const youtubeUrlRegex = /(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|m\.youtube\.com\/watch\?v=)[a-zA-Z0-9_-]{11}(?:\S*)?)/g;
+    // Updated regex to include YouTube Shorts
+    const youtubeUrlRegex = /(https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|v\/)|youtu\.be\/|m\.youtube\.com\/(?:watch\?v=|shorts\/))[a-zA-Z0-9_-]{11}(?:\S*)?)/g;
     
     const parts = [];
     let lastIndex = 0;
@@ -1030,17 +1247,91 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       
       const youtubeUrl = match[1];
       const videoId = extractYouTubeVideoId(youtubeUrl);
+      const isShorts = isYouTubeShorts(youtubeUrl);
       
       if (videoId) {
         parts.push({
           type: 'youtube_link',
           key: match.index,
           url: youtubeUrl,
-          videoId: videoId
+          videoId: videoId,
+          isShorts: isShorts
         });
       } else {
         parts.push(youtubeUrl);
       }
+      
+      lastIndex = match.index + match[0].length;
+    }
+    
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+    
+    return parts.length > 0 ? parts : text;
+  }, []);
+
+  // Function to detect TikTok URLs in text
+  const styleTikTokUrls = useCallback((text: string) => {
+    if (!text.includes('tiktok.com') && !text.includes('vm.tiktok.com')) return text;
+    
+    const tiktokUrlRegex = /(https?:\/\/(?:www\.)?(?:tiktok\.com\/@[^\/]+\/video\/\d+|tiktok\.com\/.*\/video\/\d+|vm\.tiktok\.com\/[^\/\?\s]+)(?:\S*)?)/g;
+    
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = tiktokUrlRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      
+      const tiktokUrl = match[1];
+      const videoId = extractTikTokVideoId(tiktokUrl);
+      
+      if (videoId) {
+        parts.push({
+          type: 'tiktok_link',
+          key: match.index,
+          url: tiktokUrl,
+          videoId: videoId
+        });
+      } else {
+        parts.push(tiktokUrl);
+      }
+      
+      lastIndex = match.index + match[0].length;
+    }
+    
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+    
+    return parts.length > 0 ? parts : text;
+  }, []);
+
+
+  // Function to detect Google Video link IDs in text
+  const styleGoogleVideoLinks = useCallback((text: string) => {
+    if (!text.includes('google_video_link_')) return text;
+    
+    const googleVideoLinkRegex = /(google_video_link_[a-zA-Z0-9_]+)/g;
+    
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = googleVideoLinkRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      
+      const linkId = match[1];
+      parts.push({
+        type: 'google_video_link',
+        key: match.index,
+        linkId: linkId
+      });
       
       lastIndex = match.index + match[0].length;
     }
@@ -1217,11 +1508,17 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
         // Process for raw image URLs
         const processedImageContent = styleImageUrls(children);
         
-        // Process for raw YouTube URLs
-        const processedYouTubeContent = Array.isArray(processedImageContent) ? processedImageContent : styleYouTubeUrls(processedImageContent);
-        
-        // Process for general URLs
-        const processedContent = Array.isArray(processedYouTubeContent) ? processedYouTubeContent : styleGeneralUrls(processedYouTubeContent);
+      // Process for raw YouTube URLs
+      const processedYouTubeContent = Array.isArray(processedImageContent) ? processedImageContent : styleYouTubeUrls(processedImageContent);
+      
+      // Process for TikTok URLs
+      const processedTikTokContent = Array.isArray(processedYouTubeContent) ? processedYouTubeContent : styleTikTokUrls(processedYouTubeContent);
+      
+      // Process for Google Video links
+      const processedGoogleVideoContent = Array.isArray(processedTikTokContent) ? processedTikTokContent : styleGoogleVideoLinks(processedTikTokContent);
+      
+      // Process for general URLs
+      const processedContent = Array.isArray(processedGoogleVideoContent) ? processedGoogleVideoContent : styleGeneralUrls(processedGoogleVideoContent);
         
         // Handle special links (images and YouTube)
         if (Array.isArray(processedContent)) {
@@ -1233,7 +1530,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                     {highlightedPart}
                   </span>;
             } else if (part && typeof part === 'object' && 'type' in part) {
-              if (part.type === 'image_link' && 'display' in part) {
+              if (part.type === 'image_link' && 'display' in part && 'url' in part) {
                 return (
                   <div key={part.key} className="my-4">
                     <div className="block cursor-pointer">
@@ -1260,13 +1557,31 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                     </div>
                   </div>
                 );
-              } else if (part.type === 'youtube_link' && 'videoId' in part) {
+              } else if (part.type === 'youtube_link' && 'videoId' in part && 'url' in part) {
                 return (
                   <YouTubeEmbed 
                     key={part.key}
                     videoId={part.videoId as string} 
                     title="YouTube video" 
                     originalUrl={part.url}
+                    isShorts={'isShorts' in part ? part.isShorts as boolean : false}
+                  />
+                );
+              } else if (part.type === 'tiktok_link' && 'videoId' in part && 'url' in part) {
+                return (
+                  <TikTokEmbed 
+                    key={part.key}
+                    videoId={part.videoId as string} 
+                    title="TikTok video" 
+                    originalUrl={part.url}
+                  />
+                );
+              } else if (part.type === 'google_video_link' && 'linkId' in part) {
+                return (
+                  <GoogleVideoLink 
+                    key={part.key}
+                    linkId={part.linkId as string}
+                    title="Video"
                   />
                 );
                 } else if (part.type === 'general_link' && 'url' in part) {
@@ -1362,12 +1677,30 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       if (href && isYouTubeUrl(href)) {
         const videoId = extractYouTubeVideoId(href);
         const linkText = typeof children === 'string' ? children : extractText(children);
+        const isShorts = isYouTubeShorts(href);
         
         if (videoId) {
           return (
             <YouTubeEmbed 
               videoId={videoId} 
               title={linkText || "YouTube video"} 
+              originalUrl={href}
+              isShorts={isShorts}
+            />
+          );
+        }
+      }
+
+      // Check if this is a TikTok link
+      if (href && isTikTokUrl(href)) {
+        const videoId = extractTikTokVideoId(href);
+        const linkText = typeof children === 'string' ? children : extractText(children);
+        
+        if (videoId) {
+          return (
+            <TikTokEmbed 
+              videoId={videoId} 
+              title={linkText || "TikTok video"} 
               originalUrl={href}
             />
           );
