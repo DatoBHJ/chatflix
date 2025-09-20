@@ -1389,7 +1389,7 @@ const Message = memo(function MessageComponent({
         ) : (
           <>
           {(hasAnyRenderableContent || structuredDescription) && (
-            <div className="imessage-receive-bubble" ref={aiBubbleRef} style={{ overflow: 'visible' }}>
+            <div className="imessage-receive-bubble" ref={aiBubbleRef} style={{ overflow: 'hidden' }}>
               <div className="imessage-content-wrapper space-y-4">
                 {/* 기존 컨텐츠 렌더링 로직 */}
               {hasAttachments && (allAttachments as any[])!.map((attachment: any, index: number) => (
