@@ -824,7 +824,7 @@ body {
 
 /* Message Container Styles */
 .messages-container {
-  @apply max-w-7xl mx-auto w-full pl-3 pr-3 overflow-hidden pb-10 sm:pb-12;
+  @apply max-w-7xl mx-auto w-full pl-1 pr-1 overflow-hidden pb-10 sm:pb-12;
   padding-top: 1rem; /* Add consistent top padding */
 }
 
