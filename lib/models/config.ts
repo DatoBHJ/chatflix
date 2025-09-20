@@ -245,6 +245,60 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     maxOutputTokens: 16000,
     description: 'A speedy reasoning model that excels at agentic coding.',
   },
+  // Grok 4 fast non reasoning  
+  {
+    id: 'grok-4-fast-reasoning',
+    name: 'Grok 4 Fast (Thinking)',
+    description: 'The model thinks before responding. Reasoning process is hidden.',
+    // cutoff: 'Jul 2025',
+    // pro: true,
+    abbreviation: 'G4-F-T',
+    country: 'US',
+    provider: 'xai',
+    supportsVision: true,
+    // censored: false,
+    rateLimit: {
+      level: 'level3',
+    },
+    reasoning: true,
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: true,
+    contextWindow: 2000000,
+    tps: 297,
+    intelligenceIndex: 60,
+    latency: 2.6,
+    maxOutputTokens: 16000,
+    IFBench:51,
+    isNew: true,
+  },
+  // Grok 4 fast non reasoning  
+  {
+    id: 'grok-4-fast-non-reasoning',
+    name: 'Grok 4 Fast',
+    // cutoff: 'Jul 2025',
+    // pro: true,
+    abbreviation: 'G4-F',
+    country: 'US',
+    provider: 'xai',
+    supportsVision: true,
+    // censored: false,
+    rateLimit: {
+      level: 'level3',
+    },
+    supportsPDFs: false,
+    isEnabled: true,
+    isActivated: true,
+    isAgentEnabled: true,
+    contextWindow: 2000000,
+    tps: 265,
+    intelligenceIndex: 39,
+    latency: 0.6,
+    maxOutputTokens: 16000,
+    IFBench:38,
+    isNew: true,
+  },
   // Grok 4 
   {
     id: 'grok-4-0709',
@@ -254,7 +308,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     abbreviation: 'G4-0709',
     country: 'US',
     provider: 'xai',
-    supportsVision: true,
+    supportsVision: false,
     // censored: false,
     rateLimit: {
       level: 'level3',
@@ -372,6 +426,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'gpt-5',
     name: 'GPT-5 (Thinking)',
+    description: 'The model thinks before responding. Reasoning process is hidden.',
     cutoff: 'Oct 2024',
     abbreviation: 'G5',
     country: 'US',
@@ -396,6 +451,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'gpt-5-mini',
     name: 'GPT-5 Mini (Thinking)',
+    description: 'The model thinks before responding. Reasoning process is hidden.',
     cutoff: 'Oct 2024',
     abbreviation: 'G5M',
     country: 'US',
@@ -419,6 +475,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   {
     id: 'gpt-5-nano',
     name: 'GPT-5 Nano (Thinking)',
+    description: 'The model thinks before responding. Reasoning process is hidden.',
     cutoff: 'Oct 2024',
     abbreviation: 'G5N',
     country: 'US',
@@ -752,7 +809,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level2',
     },
-    isNew: true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -858,7 +914,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     latency: 102.4,
     maxOutputTokens: 32000,
     IFBench:42,
-    isNew: true,
   },
   // DeepSeek V3.1
   {
@@ -881,7 +936,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     intelligenceIndex: 45,
     latency: 2.8,
     IFBench:38,
-    isNew: true,
   },
   {
     id: 'Qwen/Qwen3-235B-A22B-Thinking-2507',
@@ -906,7 +960,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     latency: 37.6,
     maxOutputTokens: 32000,
     IFBench:51,
-    isNew: true,
   },
   {
     id: 'Qwen/Qwen3-235B-A22B-Instruct-2507-tput',
@@ -931,7 +984,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     latency: 0.3,
     maxOutputTokens: 32000,
     IFBench:51,
-    isNew: true,
   },
   {
     id: 'deepseek-ai/DeepSeek-V3.1',
@@ -945,7 +997,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level2',
     },
-    isNew: true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
@@ -967,7 +1018,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     rateLimit: {
       level: 'level1',
     },
-    isNew: true,
     supportsPDFs: false,
     isEnabled: true,
     isActivated: true,
