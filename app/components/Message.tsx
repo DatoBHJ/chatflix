@@ -216,6 +216,8 @@ const Message = memo(function MessageComponent({
         if (imageMap && Object.keys(imageMap).length > 0) {
           const imageUrl = imageMap[imageId];
           if (imageUrl) {
+            // Debug logging
+            console.log('Processing IMAGE_ID:', imageId, 'URL:', imageUrl);
             // Use empty alt text for clean display
             return `![](${imageUrl})`;
           }
@@ -1078,7 +1080,7 @@ const Message = memo(function MessageComponent({
         <>
           {/* Upgrade Card */}
           <div className="flex justify-start mb-4">
-            <div className="max-w-[85%] md:max-w-[75%] w-full">
+            <div className="max-w-[85%] md:max-w-[75%] w-full" style={{ overflow: 'visible' }}>
               {rateLimitData && (
                 <div 
                   className="bg-[#1E1E1E] dark:bg-black rounded-2xl p-6 border border-neutral-800 text-center text-white relative overflow-hidden"
@@ -1111,7 +1113,7 @@ const Message = memo(function MessageComponent({
           
           {/* AI Message Bubble */}
           <div className="flex justify-start mb-4">
-            <div className="max-w-[85%] md:max-w-[75%]">
+            <div className="max-w-[85%] md:max-w-[75%]" style={{ overflow: 'visible' }}>
               {rateLimitData && (
                 <div className="imessage-receive-bubble">
                   <p className="text-sm">
@@ -1127,7 +1129,7 @@ const Message = memo(function MessageComponent({
       {/* Signup Prompt Message */}
       {signupPromptAnnotation && (
         <div className="flex justify-start mb-4">
-          <div className="max-w-[85%] md:max-w-[75%]">
+          <div className="max-w-[85%] md:max-w-[75%]" style={{ overflow: 'visible' }}>
             {signupPromptData && (
               <div className="imessage-receive-bubble">
                 <p className="text-sm">
@@ -1387,7 +1389,7 @@ const Message = memo(function MessageComponent({
         ) : (
           <>
           {(hasAnyRenderableContent || structuredDescription) && (
-            <div className="imessage-receive-bubble" ref={aiBubbleRef}>
+            <div className="imessage-receive-bubble" ref={aiBubbleRef} style={{ overflow: 'visible' }}>
               <div className="imessage-content-wrapper space-y-4">
                 {/* 기존 컨텐츠 렌더링 로직 */}
               {hasAttachments && (allAttachments as any[])!.map((attachment: any, index: number) => (
@@ -1396,10 +1398,10 @@ const Message = memo(function MessageComponent({
             
               {message.parts ? (
                     processedParts?.map((part: any, index: number) => (
-                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} />
+                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile}/>
                   ))
                         ) : (
-                      (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} />
+                      (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile}/>
                   )}
                   
                   <FilesPreview

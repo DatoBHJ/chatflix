@@ -155,8 +155,8 @@ export const Messages = memo(function Messages({
   };
 
   return (
-    <div className="messages-container mb-4 flex flex-col sm:px-4">
-      <div className="flex-grow">
+    <div className="messages-container mb-4 flex flex-col sm:px-4" style={{ overflow: 'visible' }}>
+      <div className="flex-grow" style={{ overflow: 'visible' }}>
         {/* Chatflix label - iMessage style */}
         {messages.length > 0 && (
           <div className="message-timestamp" style={{ paddingBottom: '0', textTransform: 'none', color: '#737373' }}>
@@ -201,16 +201,19 @@ export const Messages = memo(function Messages({
             }, {}) || {})
           };
           
-          // Combine link maps and thumbnail maps from Google Search
+          // Combine link maps and thumbnail maps from both Google Search and Web Search
           const linkMap = {
+            ...(webSearchData?.linkMap || {}),
             ...(googleSearchData?.linkMap || {})
           };
           
           const thumbnailMap = {
+            ...(webSearchData?.thumbnailMap || {}),
             ...(googleSearchData?.thumbnailMap || {})
           };
           
           const titleMap = {
+            ...(webSearchData?.titleMap || {}),
             ...(googleSearchData?.titleMap || {})
           };
           

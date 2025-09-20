@@ -194,6 +194,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
       case 'research paper': return 'Academic Papers';
       case 'pdf': return 'PDF Search';
       case 'google': return 'Google Search';
+      case 'google_images': return 'Google Images';
+    case 'google_videos': return 'Google Videos';
       default: return 'Advanced Search';
     }
   };
@@ -275,6 +277,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           case 'youtube-analyzer': return 'YouTube Analyzer';
           case 'x-search': return 'X Search';
           case 'google-search': return 'Google Search';
+          case 'google-images': return 'Google Images';
+          case 'google-videos': return 'Google Videos';
           default: return 'Canvas Results';
         }
       }

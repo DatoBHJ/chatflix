@@ -164,6 +164,8 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
               result.searches.forEach((search: any) => {
                 allSearchMaps.set(`google-${search.query}`, {
                   ...search,
+                  topic: search.topic || search.engine || 'google',
+                  topicIcon: 'google',
                   status: result.isComplete ? 'completed' : 'in_progress',
                   source: 'google'
                 });
@@ -181,7 +183,16 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
         const topic = search.topic || 'general';
         const topicIcon = search.topicIcon || 'search';
         const status: 'processing' | 'completed' = search.status === 'in_progress' ? 'processing' : 'completed';
-        const count = Array.isArray(search.results) ? search.results.length : 0;
+        
+        // Calculate count based on topic type
+        let count = 0;
+        if (topic === 'google_images' && Array.isArray(search.images)) {
+          count = search.images.length;
+        } else if (topic === 'google_videos' && Array.isArray(search.videos)) {
+          count = search.videos.length;
+        } else {
+          count = Array.isArray(search.results) ? search.results.length : 0;
+        }
         
         if (!topicMap.has(topic)) {
           topicMap.set(topic, { topic, topicIcon, queries: [search.query].filter(Boolean), status, count });
@@ -196,7 +207,10 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
       // Create tools for each topic
       Array.from(topicMap.values()).forEach((entry) => {
         // Determine the correct ID prefix based on topic
-        const idPrefix = entry.topic === 'google' ? 'google-search' : 'web-search';
+        let idPrefix = 'web-search';
+        if (entry.topic === 'google' || entry.topic === 'google_images' || entry.topic === 'google_videos') {
+          idPrefix = 'google-search';
+        }
         
         activeTools.push({
           id: `${idPrefix}:topic:${entry.topic}`,

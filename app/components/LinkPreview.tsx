@@ -36,9 +36,11 @@ interface LinkPreviewProps {
   url: string;
   thumbnailUrl?: string; // 🚀 FEATURE: Optional thumbnail URL from SearchAPI
   searchApiTitle?: string; // 🚀 FEATURE: Optional title from SearchAPI
+  isVideoLink?: boolean; // 🚀 FEATURE: Indicates if this is a video link
+  videoDuration?: string; // 🚀 FEATURE: Video duration for video links
 }
 
-export const LinkPreview = ({ url, thumbnailUrl, searchApiTitle }: LinkPreviewProps) => {
+export const LinkPreview = ({ url, thumbnailUrl, searchApiTitle, isVideoLink = false, videoDuration }: LinkPreviewProps) => {
   const [metadata, setMetadata] = useState<LinkMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [colors, setColors] = useState<{ background: string; text: string; domainText: string; } | null>(null);
@@ -211,16 +213,40 @@ export const LinkPreview = ({ url, thumbnailUrl, searchApiTitle }: LinkPreviewPr
   return (
     <a href={metadata.url} target="_blank" rel="noopener noreferrer" className="imessage-link-preview">
         {metadata.image && !imageLoadError && (
-            <img 
-                src={metadata.image} 
-                alt={metadata.title} 
-                className="preview-image"
-                onError={(e) => {
-                    console.warn(`Failed to load image (likely CORS or network error): ${metadata.image}`);
-                    setImageLoadError(true);
-                }}
-                onLoad={() => setImageLoadError(false)}
-            />
+            <div className="relative">
+                <img 
+                    src={metadata.image} 
+                    alt={metadata.title} 
+                    className="preview-image"
+                    onError={(e) => {
+                        console.warn(`Failed to load image (likely CORS or network error): ${metadata.image}`);
+                        setImageLoadError(true);
+                    }}
+                    onLoad={() => setImageLoadError(false)}
+                />
+                {/* Video play button overlay */}
+                {isVideoLink && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="bg-black/60 rounded-full p-3">
+                            <svg 
+                                width="24" 
+                                height="24" 
+                                viewBox="0 0 24 24" 
+                                fill="white"
+                                className="ml-1"
+                            >
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                        </div>
+                    </div>
+                )}
+                {/* Video duration badge */}
+                {isVideoLink && videoDuration && (
+                    <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-1 rounded">
+                        {videoDuration}
+                    </div>
+                )}
+            </div>
         )}
         <div 
             className="preview-content"
@@ -257,6 +283,9 @@ export const LinkPreview = ({ url, thumbnailUrl, searchApiTitle }: LinkPreviewPr
                     style={colors ? { color: colors.domainText } : {}}
                 >
                     {metadata.publisher || getDomain(metadata.url)}
+                    {isVideoLink && (
+                        <span className="ml-2 text-xs opacity-75">🎥</span>
+                    )}
                 </p>
             </div>
         </div>

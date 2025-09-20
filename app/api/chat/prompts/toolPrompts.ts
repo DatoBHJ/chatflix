@@ -171,29 +171,36 @@ CRITICAL REMINDERS:
 **Link Placement Rules:**
 - **CRITICAL**: NEVER place URLs inside bullet point items or inline with text
 - **CORRECT**: Place URLs on separate lines between bullet points or sections
-- **FORMAT**: Use clean URLs on separate lines - they will be automatically rendered as rich link previews
-- **WEB SEARCH SPECIFIC**: Use full URLs (e.g., "https://example.com") for web search results
+- **FORMAT**: Use link IDs on separate lines - they will be automatically rendered as rich link previews
+- **WEB SEARCH SPECIFIC**: Use link IDs (e.g., "[LINK_ID:exa_link_searchId_index_resultIndex]") for web search results
+
+**CRITICAL LINK ID REQUIREMENT:**
+- **MANDATORY LINK ID USAGE**: ALWAYS use link IDs for Exa search results - NEVER use full URLs.
+- **FORMAT**: [LINK_ID:exa_link_searchId_index_resultIndex] - this format will be automatically rendered as a rich link preview.
+- **PERFORMANCE**: Using link IDs is more efficient and ensures proper rendering with thumbnails.
+- **NO FULL URLS**: Never include the full "https://..." URL in your response. Always use the link ID format provided in the search results.
 
 **Correct Link Placement Examples:**
 ✅ **Good - Links separate content sections:**
 - **Topic 1**: First section content here
 - **Topic 2**: Second section content here
 
-https://example.com/most-relevant-article
+[LINK_ID:exa_link_searchId_0_0]
 
 - **Topic 3**: Third section continues here
 - **Topic 4**: Final section content
 
-https://example.com/interesting-research
+[LINK_ID:exa_link_searchId_0_1]
 
 ❌ **Wrong - Links mixed inside content:**
-- **Topic 1**: Content here https://example.com/article more content
+- **Topic 1**: Content here [LINK_ID:exa_link_searchId_0_0] more content
 - **Topic 2**: Content continues
 
 **Link Source Requirements:**
 - **REAL LINKS ONLY**: Links must come from actual web search results, never imagined or generic
 - **SEARCH DEPENDENCY**: Only include source links when you actually perform a web search
 - **NO FAKE LINKS**: If you don't search, never include placeholder or example URLs
+- **LINK ID FORMAT**: Use [LINK_ID:exa_link_searchId_index_resultIndex] format for all web search results
 
 **CRITICAL SEARCH-LINK RULE:**
 - **IF YOU SEARCH = YOU MUST INCLUDE SOURCE LINKS**: Every single time you perform a web search, you are REQUIRED to include source links from those search results in your response
@@ -202,16 +209,22 @@ https://example.com/interesting-research
 - **FAILURE TO INCLUDE SOURCE LINKS AFTER SEARCHING IS A VIOLATION**: This is not optional - it's a core requirement for transparency
 
 **IMAGE/GIF SEARCH REQUIREMENTS:**
-- **ONLY WHEN REQUESTED**: Include images ONLY when users specifically ask for visual content (images, photos, GIFs)
-- **COMPREHENSIVE QUERIES**: For image/GIF searches, use multiple diverse search queries with different keywords and variations
-- **THOROUGH COVERAGE**: Users requesting images/GIFs expect comprehensive visual results
-- **LINK SEPARATION PRIORITY**: For non-image searches, rely on source links for content separation instead of images
+- **ONLY WHEN REQUESTED**: Include images ONLY when users specifically ask for visual content (images, photos, GIFs).
+- **COMPREHENSIVE QUERIES**: For image/GIF searches, use multiple diverse search queries with different keywords and variations.
+- **THOROUGH COVERAGE**: Users requesting images/GIFs expect comprehensive visual results.
+- **LINK SEPARATION PRIORITY**: For ALL non-image searches, you MUST rely on source links for content separation instead of images. Do not include images unless the user's primary goal is to see visual content.
 
 **IMAGE DISPLAY FORMAT:**
 - **CRITICAL**: Use [IMAGE_ID:unique_id] format for displaying images from search results
 - **PLACEMENT**: Place image IDs on separate lines between content sections
 - **AUTOMATIC RENDERING**: The system will automatically replace image IDs with actual images
 - **UNIQUE IDS**: Each image must have a unique identifier (e.g., search_img_001, search_img_002)
+
+**IMAGE/VIDEO COUNT ANNOUNCEMENT:**
+- **MANDATORY**: Always inform users about the total number of images/videos found
+- **FORMAT**: "Found X images" or "Found X videos" or "Found X images and Y videos"
+- **TOOL RESULTS REFERENCE**: If more images/videos are available than displayed, mention: "Click on the tool results to see all X images/videos"
+- **SIMPLE LANGUAGE**: Keep the announcement brief and natural
 
 **WHY SOURCE LINKS WORK:**
 - Rich link previews with thumbnails provide visual breaks between content sections
@@ -310,33 +323,33 @@ https://example.com/interesting-research
 
   `,
 
-  youtubeLinkAnalyzer: `
-  For YouTube link analyzer tool execution:
-  - Input must be valid YouTube video URLs (array format)
-  - Accepts multiple URLs in a single request
-  - Optional lang parameter can specify preferred transcript language (e.g., "en", "es", "fr")
-  - Tool automatically falls back to available languages if preferred language unavailable
+  // youtubeLinkAnalyzer: `
+  // For YouTube link analyzer tool execution:
+  // - Input must be valid YouTube video URLs (array format)
+  // - Accepts multiple URLs in a single request
+  // - Optional lang parameter can specify preferred transcript language (e.g., "en", "es", "fr")
+  // - Tool automatically falls back to available languages if preferred language unavailable
 
-  **YouTube Link Formatting Guidelines:**
-  When presenting YouTube video links in your response, follow these formatting rules to ensure optimal rendering:
+  // **YouTube Link Formatting Guidelines:**
+  // When presenting YouTube video links in your response, follow these formatting rules to ensure optimal rendering:
   
-  1. **Separate YouTube links from surrounding text**: Place YouTube URLs on their own lines with blank lines before and after
-  2. **Use clean URL format**: Present the full YouTube URL without markdown link syntax
-  3. **Provide context separately**: Add video descriptions, titles, or commentary in separate text blocks
+  // 1. **Separate YouTube links from surrounding text**: Place YouTube URLs on their own lines with blank lines before and after
+  // 2. **Use clean URL format**: Present the full YouTube URL without markdown link syntax
+  // 3. **Provide context separately**: Add video descriptions, titles, or commentary in separate text blocks
   
-  **CORRECT FORMAT EXAMPLE:**
-  Here's the video I analyzed:
+  // **CORRECT FORMAT EXAMPLE:**
+  // Here's the video I analyzed:
   
-  https://www.youtube.com/watch?v=HaxnRvfUOZQ
+  // https://www.youtube.com/watch?v=HaxnRvfUOZQ
   
-  Analysis: This video contains detailed match highlights and commentary.
+  // Analysis: This video contains detailed match highlights and commentary.
 
-  **Adding YouTube Videos:**
-  - When you find relevant YouTube videos, mention and link them naturally
-  - Place YouTube URLs on separate lines for automatic embedded player rendering
-  - Introduce videos with natural, engaging language before the URL
-  - Include 1-3 videos when they add value to the response
-  - Works well for: tutorials, educational content, current events`,
+  // **Adding YouTube Videos:**
+  // - When you find relevant YouTube videos, mention and link them naturally
+  // - Place YouTube URLs on separate lines for automatic embedded player rendering
+  // - Introduce videos with natural, engaging language before the URL
+  // - Include 1-3 videos when they add value to the response
+  // - Works well for: tutorials, educational content, current events`,
 
   googleSearch: `
   For Google search tool execution:
@@ -394,7 +407,10 @@ https://example.com/interesting-research
 
   **CRITICAL LINK ID REQUIREMENT:**
   - **MANDATORY LINK ID USAGE**: ALWAYS use link IDs for Google search results - NEVER use full URLs
-  - **FORMAT**: [LINK_ID:google_link_searchId_index_resultIndex] - automatically renders as rich link previews
+  - **FORMATS (VERY IMPORTANT):**
+    - For **web search** results ('engine: "google"'): Use [LINK_ID:google_link_searchId_index_resultIndex]
+    - For **video search** results ('engine: "google_videos"'): Use [LINK_ID:google_video_link_searchId_index_resultIndex]
+    - For **image search** results that are presented as links ('engine: "google_images"'): Use [LINK_ID:google_img_link_searchId_index_resultIndex]
   - **PERFORMANCE**: Link IDs reduce token usage and improve response speed compared to full URLs
   - **AUTOMATIC THUMBNAILS**: SearchAPI thumbnails are displayed automatically with link previews
   - **NO FULL URLS**: Never include full URLs like "https://example.com" - always use the link ID format
@@ -410,7 +426,13 @@ https://example.com/interesting-research
   - **CRITICAL**: Use [IMAGE_ID:unique_id] format for displaying images from Google search results
   - **PLACEMENT**: Place image IDs on separate lines between content sections
   - **AUTOMATIC RENDERING**: The system will automatically replace image IDs with actual images
-  - **UNIQUE IDS**: Each image must have a unique identifier (e.g., google_img_001, google_img_002)`,
+  - **UNIQUE IDS**: Each image must have a unique identifier (e.g., google_img_001, google_img_002)
+
+  **IMAGE/VIDEO COUNT ANNOUNCEMENT:**
+  - **MANDATORY**: Always inform users about the total number of images/videos found
+  - **FORMAT**: "Found X images" or "Found X videos" or "Found X images and Y videos"
+  - **TOOL RESULTS REFERENCE**: If more images/videos are available than displayed, mention: "Click on the tool results to see all X images/videos"
+  - **SIMPLE LANGUAGE**: Keep the announcement brief and natural`,
 
   previousToolResults: `
   For previous tool results tool execution:

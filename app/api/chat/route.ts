@@ -384,6 +384,24 @@ export async function POST(req: Request): Promise<Response> {
               
               // 웹서치 도구 생성 시 사용할 토픽 정보를 저장
               (writer as any)._selectedWebSearchTopic = topic;
+            } else if (selectedTool === 'google-images') {
+              // Google Images 도구 선택 시 처리
+              console.log(`[TOOL_SELECTION] Google Images selected`);
+              
+              // Google Search 도구에 google_images 엔진을 강제로 설정
+              selectedActiveTools = addToolsWithPreviousResults(['google_search']);
+              
+              // Google Search 도구 생성 시 사용할 엔진 정보를 저장
+              (writer as any)._selectedGoogleSearchEngine = 'google_images';
+            } else if (selectedTool === 'google-videos') {
+              // Google Videos 도구 선택 시 처리
+              console.log(`[TOOL_SELECTION] Google Videos selected`);
+              
+              // Google Search 도구에 google_videos 엔진을 강제로 설정
+              selectedActiveTools = addToolsWithPreviousResults(['google_search']);
+              
+              // Google Search 도구 생성 시 사용할 엔진 정보를 저장
+              (writer as any)._selectedGoogleSearchEngine = 'google_videos';
             } else {
               // 일반 도구인 경우
               selectedActiveTools = addToolsWithPreviousResults([selectedTool]);
@@ -427,6 +445,8 @@ export async function POST(req: Request): Promise<Response> {
                 ? (config.createFn as any)(writer, chatId) // previous_tool_results에만 chatId 전달
                 : toolName === 'web_search' && (writer as any)._selectedWebSearchTopic
                 ? config.createFn(writer, (writer as any)._selectedWebSearchTopic) // 웹서치에 강제 토픽 전달
+                : toolName === 'google_search' && (writer as any)._selectedGoogleSearchEngine
+                ? config.createFn(writer, (writer as any)._selectedGoogleSearchEngine) // Google Search에 강제 엔진 전달
                 : config.createFn(writer)
             ])
           );
@@ -446,7 +466,7 @@ export async function POST(req: Request): Promise<Response> {
           // 🆕 STEP 2: Prepare optimized messages for final execution
           // 🔧 AI SDK v5: 공통 메시지 처리 함수 사용 (도구 유무와 관계없이 동일)
           const finalMessagesForExecution = await processMessagesForAI(messagesWithTokens, model);
-          
+          console.log('finalMessagesForExecution', JSON.stringify(finalMessagesForExecution, null, 2));
           // 시스템 프롬프트 설정 (캐시된 메모리 사용)
           const agentSystemPrompt = buildSystemPrompt(
             'agent', 

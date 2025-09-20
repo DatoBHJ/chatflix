@@ -223,6 +223,7 @@ interface MarkdownContentProps {
   messageType?: 'user' | 'assistant' | 'default'; // 🚀 FEATURE: Message type for different highlight colors
   thumbnailMap?: { [key: string]: string }; // 🚀 FEATURE: Thumbnail map for link previews
   titleMap?: { [key: string]: string }; // 🚀 FEATURE: Title map for link previews
+  isMobile?: boolean;
 }
 
 // 더 적극적으로 마크다운 구조를 분할하는 함수 - 구분선(---)을 기준으로 메시지 그룹 분할
@@ -235,7 +236,50 @@ const segmentContent = (content: string): string[][] => {
 
   // 1. 이미지 ID와 마크다운 이미지 문법을 별도 세그먼트로 분리
   const imageIdRegex = /\[IMAGE_ID:([^\]]+)\]/g;
-  const markdownImageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+  // 더 안전한 마크다운 이미지 파싱 - 괄호가 포함된 URL 처리
+  const parseMarkdownImages = (text: string) => {
+    const results: Array<{match: string, alt: string, url: string, start: number, end: number}> = [];
+    let index = 0;
+    
+    while (index < text.length) {
+      const imgStart = text.indexOf('![', index);
+      if (imgStart === -1) break;
+      
+      const altStart = imgStart + 2;
+      const altEnd = text.indexOf(']', altStart);
+      if (altEnd === -1) {
+        index = imgStart + 1;
+        continue;
+      }
+      
+      const urlStart = text.indexOf('(', altEnd);
+      if (urlStart === -1 || urlStart !== altEnd + 1) {
+        index = imgStart + 1;
+        continue;
+      }
+      
+      // URL 끝 찾기 - 괄호 밸런스 고려
+      let urlEnd = urlStart + 1;
+      let parenCount = 1;
+      while (urlEnd < text.length && parenCount > 0) {
+        if (text[urlEnd] === '(') parenCount++;
+        else if (text[urlEnd] === ')') parenCount--;
+        urlEnd++;
+      }
+      
+      if (parenCount === 0) {
+        const alt = text.slice(altStart, altEnd);
+        const url = text.slice(urlStart + 1, urlEnd - 1);
+        const match = text.slice(imgStart, urlEnd);
+        results.push({ match, alt, url, start: imgStart, end: urlEnd });
+        index = urlEnd;
+      } else {
+        index = imgStart + 1;
+      }
+    }
+    
+    return results;
+  };
   const imageSegments: string[] = [];
   let imageIndex = 0;
   
@@ -245,10 +289,15 @@ const segmentContent = (content: string): string[][] => {
     return `\n\n<IMAGE_SEGMENT_${imageIndex++}>\n\n`;
   });
   
-  // 마크다운 이미지 문법을 임시 마커로 교체
-  contentWithoutImages = contentWithoutImages.replace(markdownImageRegex, (match, alt, url) => {
+  // 마크다운 이미지 문법을 임시 마커로 교체 - 더 안전한 파싱
+  const markdownImages = parseMarkdownImages(contentWithoutImages);
+  // 역순으로 처리하여 인덱스 변경 방지
+  markdownImages.reverse().forEach(({ match, alt, url, start, end }) => {
+    console.log('Parsed markdown image:', { match, alt, url });
     imageSegments.push(match);
-    return `\n\n<IMAGE_SEGMENT_${imageIndex++}>\n\n`;
+    contentWithoutImages = contentWithoutImages.slice(0, start) + 
+      `\n\n<IMAGE_SEGMENT_${imageIndex++}>\n\n` + 
+      contentWithoutImages.slice(end);
   });
 
   // 2. 모든 코드 블록을 먼저 임시 플레이스홀더로 교체 (차트 블록 포함)
@@ -788,7 +837,7 @@ const GoogleVideoLink = memo(function GoogleVideoLinkComponent({
 });
 
 // YouTube Embed Player Component
-const YouTubeEmbed = memo(function YouTubeEmbedComponent({ 
+export const YouTubeEmbed = memo(function YouTubeEmbedComponent({ 
   videoId, 
   title = "YouTube video",
   originalUrl,
@@ -896,7 +945,7 @@ const YouTubeEmbed = memo(function YouTubeEmbedComponent({
 });
 
 // TikTok Embed Player Component with fallback to LinkPreview
-const TikTokEmbed = memo(function TikTokEmbedComponent({ 
+export const TikTokEmbed = memo(function TikTokEmbedComponent({ 
   videoId, 
   title = "TikTok video",
   originalUrl 
@@ -1057,7 +1106,8 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   isReasoningSection = false,
   messageType = 'default',
   thumbnailMap = {},
-  titleMap = {}
+  titleMap = {},
+  isMobile = false
 }: MarkdownContentProps) {
 
   // Image modal state
@@ -2339,23 +2389,30 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                   /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(seg)
                 ).length - 1;
                 
-                // 겹침을 완전히 제거하기 위한 체계적인 배치
-                const baseOffset = 20; // 기본 오프셋 증가
-                const maxOffset = Math.min(consecutiveImageCount * 12, 60); // 최대 오프셋 증가
-                const randomX = (imageIndex % 2 === 0) ? 
-                  (imageIndex * baseOffset) % maxOffset : 
-                  -((imageIndex * baseOffset) % maxOffset);
-                
+                // 겹침을 일정하게 번갈아가면서 표현하기 위한 X 오프셋 계산
+                const baseOffset = 15;
+                const maxOffset = 0;
+                // const maxOffset = 45;
+                let offsetX = Math.floor((imageIndex + 1) / 2) * baseOffset;
+                if (offsetX > maxOffset) offsetX = maxOffset;
+                if (imageIndex % 2 !== 0) { // odd indexes are on the left
+                    offsetX = -offsetX;
+                }
+
+                // 모바일에서 이미지가 너무 왼쪽으로 치우치지 않도록 조정
+                const finalRandomX = isMobile && offsetX < 0 ? Math.max(offsetX, 0) : offsetX;
+  
                 // 회전 각도도 더 작게 조정
                 const randomRotate = (imageIndex % 3 - 1) * 1.5; // -1.5도, 0도, 1.5도만 사용
                 
                 // 모든 이미지가 클릭 가능하도록 매우 높은 z-index 설정
                 const zIndexValue = (hasTextBefore || hasTextAfter) ? -1 : 100 + imageIndex; // 각 이미지마다 다른 높은 z-index
                 
-                // 겹침을 완전히 제거하기 위한 margin 조정
-                const marginTop = prevIsImage ? '0px' : '0'; // 겹침 완전 제거
-                const marginBottom = nextIsImage ? '0px' : '0'; // 겹침 완전 제거
-                const marginLeft = `${randomX}px`;
+                // iMessage처럼 겹치도록 margin 조정
+                const marginTop = prevIsImage ? '-40px' : '0';
+                // const marginTop = prevIsImage ? '-10px' : '0';
+                const marginBottom = '0';
+                const marginLeft = `${finalRandomX}px`;
                 const marginRight = '0';
                 
                 return {
@@ -2370,7 +2427,10 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                   boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
                   cursor: 'pointer',
                   pointerEvents: 'auto', // 명시적으로 포인터 이벤트 활성화
-                  isolation: 'isolate' // 새로운 스택킹 컨텍스트 생성
+                  isolation: 'isolate', // 새로운 스택킹 컨텍스트 생성
+                  // 이미지가 컨테이너를 넘어서도 보이도록 설정
+                  overflow: 'visible',
+                  minWidth: 'fit-content'
                 };
               };
               
@@ -2378,7 +2438,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               return (
                 <div 
                   key={index} 
-                  className={`${isImageSegment ? (hasConsecutiveImages ? 'max-w-[80%] md:max-w-[40%]' : 'max-w-[100%] md:max-w-[70%]') : ''} ${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isSingleLineBullet ? ' single-line-bullet' : ''}${isLastBubble ? ' last-bubble' : ''}${isTableSegment ? ' table-segment' : ''}`}`}
+                  className={`${isImageSegment ? (hasConsecutiveImages ? (isMobile ? 'max-w-[45%]' : 'max-w-[100%] md:max-w-[90%]') : (isMobile ? 'max-w-[55%]' : 'max-w-[100%] md:max-w-[70%]')) : ''} ${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isSingleLineBullet ? ' single-line-bullet' : ''}${isLastBubble ? ' last-bubble' : ''}${isTableSegment ? ' table-segment' : ''}`}`}
                   style={{
                     ...getImageStyle(),
                     ...(isTableSegment && {
@@ -2394,7 +2454,11 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                       boxShadow: 'none',
                       pointerEvents: 'auto', // 모든 이미지가 클릭 가능하도록
                       position: 'relative',
-                      zIndex: isConsecutiveImage ? 100 + index : 'auto' // 연속 이미지의 경우 매우 높은 z-index
+                      zIndex: isConsecutiveImage ? 100 + index : 'auto', // 연속 이미지의 경우 매우 높은 z-index
+                      // 이미지가 컨테이너를 넘어서도 보이도록 설정
+                      overflow: 'visible',
+                      minWidth: 'fit-content',
+                      width: 'auto'
                     })
                   }}
                 >

@@ -59,6 +59,28 @@ const extractYouTubeVideoId = (url: string): string | null => {
   return null;
 };
 
+// TikTok URL detection and video ID extraction
+const extractTikTokVideoId = (url: string): string | null => {
+  const patterns = [
+    /tiktok\.com\/@([^\/]+)\/video\/(\d+)/,
+    /tiktok\.com\/.*\/video\/(\d+)/,
+    /vm\.tiktok\.com\/([^\/\?]+)/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) {
+      return match[1] || match[2];
+    }
+  }
+  return null;
+};
+
+// Check if URL is TikTok
+const isTikTokUrl = (url: string): boolean => {
+  return url.includes('tiktok.com') || url.includes('vm.tiktok.com');
+};
+
 // Get YouTube metadata using oEmbed API
 const getYouTubeMetadata = async (url: string) => {
   const videoId = extractYouTubeVideoId(url);
@@ -82,6 +104,33 @@ const getYouTubeMetadata = async (url: string) => {
     image: data.thumbnail_url || '',
     favicon: 'https://www.youtube.com/favicon.ico',
     publisher: 'YouTube',
+    url: url,
+  };
+};
+
+// Get TikTok metadata - since TikTok doesn't have oEmbed, we'll use a fallback approach
+const getTikTokMetadata = async (url: string) => {
+  const videoId = extractTikTokVideoId(url);
+  if (!videoId) {
+    throw new Error('Invalid TikTok URL');
+  }
+
+  // Extract username from URL if available
+  const usernameMatch = url.match(/tiktok\.com\/@([^\/]+)/);
+  const username = usernameMatch ? usernameMatch[1] : '';
+
+  // Since TikTok doesn't provide oEmbed API and requires JavaScript for dynamic content,
+  // we'll provide a generic but more informative title
+  const title = username 
+    ? `TikTok Video by @${username}`
+    : 'TikTok Video';
+
+  return {
+    title: title,
+    description: 'Watch this video on TikTok',
+    image: '', // TikTok doesn't provide static thumbnails via API
+    favicon: 'https://www.tiktok.com/favicon.ico',
+    publisher: 'TikTok',
     url: url,
   };
 };
@@ -129,6 +178,13 @@ export async function GET(req: NextRequest) {
     if (videoId) {
       // Use YouTube oEmbed API for YouTube URLs
       const metadata = await getYouTubeMetadata(url);
+      return NextResponse.json(metadata);
+    }
+
+    // Check if it's a TikTok URL
+    if (isTikTokUrl(url)) {
+      // Use TikTok metadata function for TikTok URLs
+      const metadata = await getTikTokMetadata(url);
       return NextResponse.json(metadata);
     }
 

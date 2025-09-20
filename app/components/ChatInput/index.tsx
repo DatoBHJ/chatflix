@@ -28,6 +28,8 @@ const DEBOUNCE_TIME = 200; // 디바운스 시간 (ms)
 // 도구 정의 - Google Search가 일반 검색의 기본 도구, Exa는 특별한 콘텐츠용
 const TOOLS = [
   { id: 'google_search', icon: <SiGoogle size={18} />, name: 'Google Search', description: 'Search Google for comprehensive results' },
+  { id: 'google-images', icon: <SiGoogle size={18} />, name: 'Google Images', description: 'Search Google Images for visual content' },
+  { id: 'google-videos', icon: <SiGoogle size={18} />, name: 'Google Videos', description: 'Search Google Videos for video content' },
   { id: 'web_search:general', icon: <Search strokeWidth={1.8} />, name: 'Advanced Search', description: 'AI-powered search for images, research, and specialized content' },
   // 뉴스는 Google Search로 통합 (Exa news 제거됨)
   // { id: 'web_search:news', icon: <Newspaper strokeWidth={1.8} />, name: 'News Search', description: 'Find latest news and articles' },
@@ -273,6 +275,8 @@ export function ChatInput({
           'web_search:linkedin profile': 'Search LinkedIn profiles',
 
           'google_search': 'Search Google',
+          'google-images': 'Search images on Google',
+          'google-videos': 'Search videos on Google',
           'calculator': 'Enter a calculation',
           'link_reader': 'Paste a URL to read',
           'image_generator': 'Describe an image to generate',
@@ -293,6 +297,8 @@ export function ChatInput({
           'web_search:linkedin profile': 'Find best computer scientist at Berkeley',
 
           'google_search': 'Search Google',
+          'google-images': 'Search images on Google',
+          'google-videos': 'Search videos on Google',
           'calculator': 'Calculate mortgage payment 500k 30yr 4.5%',
           'link_reader': 'https://www.showstudio.com/projects/in_camera/kanye_west',
           'image_generator': 'Draw a futuristic city skyline at sunset',

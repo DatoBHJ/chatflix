@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, memo, useRef } from 'react';
 import MultiSearch from './MultiSearch';
 import MathCalculation from './MathCalculation';
 import LinkReader from './LinkReader';
-import { ChevronUp, ChevronDown, Brain, Link2, Image as ImageIcon, AlertTriangle, X, ChevronLeft, ChevronRight, ExternalLink, Search, Calculator, BookOpen, FileSearch, Youtube, Database } from 'lucide-react';
+import { ChevronUp, ChevronDown, Brain, Link2, Image as ImageIcon, AlertTriangle, X, ChevronLeft, ChevronRight, ExternalLink, Search, Calculator, BookOpen, FileSearch, Youtube, Database, Video } from 'lucide-react';
 import { SiGoogle } from 'react-icons/si';
 import { createPortal } from 'react-dom';
 import { Tweet } from 'react-tweet';
@@ -313,7 +313,7 @@ export default function Canvas({
   return (
     <div className={`tool-results-canvas ${compactModeClasses}`}>
       {/* Unified Search Results (Web Search + Google Search) */}
-      {(!selectedTool || selectedTool.startsWith?.('web-search') || selectedTool === 'google-search' || selectedTool.startsWith?.('google-search:topic:')) && mergedSearchData && (
+           {(!selectedTool || selectedTool.startsWith?.('web-search') || selectedTool === 'google-search' || selectedTool.startsWith?.('google-search:topic:') || selectedTool === 'google-images' || selectedTool === 'google-videos') && mergedSearchData && (
         <div className="">
           {!selectedTool && (
           <div 
@@ -321,8 +321,63 @@ export default function Canvas({
             onClick={toggleWebSearch}
           >
             <div className="flex items-center gap-2.5">
-              <Search className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
-              <h2 className="font-medium text-left tracking-tight">Searches</h2>
+              {(() => {
+                     // Check if this is specifically Google Images or Google Videos from selectedTool
+                     if (selectedTool === 'google-images' || selectedTool === 'google-search:topic:google_images') {
+                       return (
+                         <>
+                           <ImageIcon className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
+                           <h2 className="font-medium text-left tracking-tight">Google Images</h2>
+                         </>
+                       );
+                     }
+                     
+                     if (selectedTool === 'google-videos' || selectedTool === 'google-search:topic:google_videos') {
+                       return (
+                         <>
+                           <Video className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
+                           <h2 className="font-medium text-left tracking-tight">Google Videos</h2>
+                         </>
+                       );
+                     }
+                
+                     // Check if this is primarily Google Images or Google Videos search from data
+                     const allSearches = (mergedSearchData.results || []).flatMap((r: any) => r.searches || []);
+                     const hasGoogleImages = allSearches.some((s: any) => s?.topic === 'google_images' || s?.engine === 'google_images');
+                     const hasGoogleVideos = allSearches.some((s: any) => s?.topic === 'google_videos' || s?.engine === 'google_videos');
+                     const hasOnlyGoogleImages = allSearches.every((s: any) => s?.topic === 'google_images' || s?.engine === 'google_images');
+                     const hasOnlyGoogleVideos = allSearches.every((s: any) => s?.topic === 'google_videos' || s?.engine === 'google_videos');
+                
+                     if (hasOnlyGoogleImages && hasGoogleImages) {
+                       return (
+                         <>
+                           <ImageIcon className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
+                           <h2 className="font-medium text-left tracking-tight">Google Images</h2>
+                         </>
+                       );
+                     } else if (hasOnlyGoogleVideos && hasGoogleVideos) {
+                       return (
+                         <>
+                           <Video className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
+                           <h2 className="font-medium text-left tracking-tight">Google Videos</h2>
+                         </>
+                       );
+                     } else if (hasGoogleImages || hasGoogleVideos) {
+                  return (
+                    <>
+                      <Search className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
+                      <h2 className="font-medium text-left tracking-tight">Searches</h2>
+                    </>
+                  );
+                } else {
+                  return (
+                    <>
+                      <Search className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
+                      <h2 className="font-medium text-left tracking-tight">Searches</h2>
+                    </>
+                  );
+                }
+              })()}
             </div>
             <div className="flex items-center gap-2">
               <div className="rounded-full p-1 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors">
@@ -376,17 +431,16 @@ export default function Canvas({
                     // Only include queries from the relevant search type based on topic
                     let relevantQueries: string[] = [];
                     
-                    if (topic === 'google') {
-                      // For google search topic, only include google queries
-                      relevantQueries = (googleSearchData?.args?.queries || []) as string[];
+                    if (topic === 'google' || topic === 'google_images' || topic === 'google_videos') {
+                      // For google search topics, get queries from actual search results filtered by topic
+                      // This ensures we only get queries that match the specific topic (google vs google_images)
+                      relevantQueries = searches.map((s: any) => s.query).filter(Boolean);
                     } else {
                       // For web search topics (general, company, etc.), only include web search queries
                       relevantQueries = (webSearchData?.args?.queries || []) as string[];
                     }
                     
-                    const queriesFromSearches = searches.map((s: any) => s.query).filter(Boolean);
-                    const merged = [...new Set([...relevantQueries, ...queriesFromSearches])];
-                    return { highlightedQueries: merged, initialAllSelected: false };
+                    return { highlightedQueries: relevantQueries, initialAllSelected: false };
                   }
                   return { highlightedQueries: [], initialAllSelected: false };
                 })()}

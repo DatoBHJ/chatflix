@@ -30,11 +30,24 @@ export const getWebSearchResults = (message: UIMessage) => {
       ];
     }
 
-    // Extract imageMap from annotations
+    // Extract imageMap, linkMap, thumbnailMap, titleMap from annotations
     let imageMap: { [key: string]: string } = {};
+    let linkMap: { [key: string]: string } = {};
+    let thumbnailMap: { [key: string]: string } = {};
+    let titleMap: { [key: string]: string } = {};
+    
     webSearchCompletions.forEach(completion => {
       if (completion.data?.imageMap) {
         imageMap = { ...imageMap, ...completion.data.imageMap };
+      }
+      if (completion.data?.linkMap) {
+        linkMap = { ...linkMap, ...completion.data.linkMap };
+      }
+      if (completion.data?.thumbnailMap) {
+        thumbnailMap = { ...thumbnailMap, ...completion.data.thumbnailMap };
+      }
+      if (completion.data?.titleMap) {
+        titleMap = { ...titleMap, ...completion.data.titleMap };
       }
     });
 
@@ -283,7 +296,10 @@ export const getWebSearchResults = (message: UIMessage) => {
         args: null,
         annotations: queryCompletions,
         results: allResults,
-        imageMap
+        imageMap,
+        linkMap,
+        thumbnailMap,
+        titleMap
       };
     }
     
@@ -291,17 +307,35 @@ export const getWebSearchResults = (message: UIMessage) => {
     if ((message as any).tool_results) {
       const toolResults = (message as any).tool_results;
       
-      // Extract imageMap from tool_results
+      // Extract imageMap, linkMap, thumbnailMap, titleMap from tool_results
       if (toolResults.webSearchResults) {
         toolResults.webSearchResults.forEach((result: any) => {
           if (result.imageMap) {
             imageMap = { ...imageMap, ...result.imageMap };
+          }
+          if (result.linkMap) {
+            linkMap = { ...linkMap, ...result.linkMap };
+          }
+          if (result.thumbnailMap) {
+            thumbnailMap = { ...thumbnailMap, ...result.thumbnailMap };
+          }
+          if (result.titleMap) {
+            titleMap = { ...titleMap, ...result.titleMap };
           }
         });
       } else if (Array.isArray(toolResults)) {
         toolResults.forEach((result: any) => {
           if (result.imageMap) {
             imageMap = { ...imageMap, ...result.imageMap };
+          }
+          if (result.linkMap) {
+            linkMap = { ...linkMap, ...result.linkMap };
+          }
+          if (result.thumbnailMap) {
+            thumbnailMap = { ...thumbnailMap, ...result.thumbnailMap };
+          }
+          if (result.titleMap) {
+            titleMap = { ...titleMap, ...result.titleMap };
           }
         });
       }
@@ -380,7 +414,10 @@ export const getWebSearchResults = (message: UIMessage) => {
           args: null,
           annotations: queryCompletions,
           results: storedResults,
-          imageMap
+          imageMap,
+          linkMap,
+          thumbnailMap,
+          titleMap
         };
       }
     }
@@ -399,7 +436,10 @@ export const getWebSearchResults = (message: UIMessage) => {
             isComplete: false,
             annotations: queryCompletions
           }],
-          imageMap
+          imageMap,
+          linkMap,
+          thumbnailMap,
+          titleMap
         };
       }
       return null;
@@ -512,7 +552,10 @@ export const getWebSearchResults = (message: UIMessage) => {
         args: allArgs[0] || null,
         annotations: queryCompletions,
         results: allInvocationResults,
-        imageMap
+        imageMap,
+        linkMap,
+        thumbnailMap,
+        titleMap
       };
     }
     
@@ -528,7 +571,10 @@ export const getWebSearchResults = (message: UIMessage) => {
           isComplete: false,
           annotations: queryCompletions
         }],
-        imageMap
+        imageMap,
+        linkMap,
+        thumbnailMap,
+        titleMap
       };
     }
     
@@ -902,10 +948,11 @@ export const getImageGeneratorData = (message: UIMessage) => {
               searchId: result.searchId,
               searches: result.searches.map((search: any) => ({
                 query: search.query,
-                topic: search.topic || 'google',
+                topic: search.topic || search.engine || 'google',
                 topicIcon: 'google',
                 results: search.results || [],
-                images: search.images || []
+                images: search.images || [],
+                videos: search.videos || []
               })),
               isComplete: true
             };
@@ -917,12 +964,15 @@ export const getImageGeneratorData = (message: UIMessage) => {
           // linkMap, thumbnailMap, titleMap이 있는 객체 찾기 (배열에서 두 번째 객체)
           const resultWithMaps = googleResults.find((result: any) => result.linkMap || result.thumbnailMap || result.titleMap);
           
+          // imageMap을 모든 결과에서 찾기 (일반적으로 첫 번째 또는 두 번째 객체에 있음)
+          const resultWithImageMap = googleResults.find((result: any) => result.imageMap && Object.keys(result.imageMap).length > 0);
+          
           return {
             result: null,
             args: null,
             annotations: [],
             results: processedResults,
-            imageMap: googleResults[0]?.imageMap || {},
+            imageMap: resultWithImageMap?.imageMap || {},
             linkMap: resultWithMaps?.linkMap || {},
             thumbnailMap: resultWithMaps?.thumbnailMap || {},
             titleMap: resultWithMaps?.titleMap || {}
@@ -937,19 +987,26 @@ export const getImageGeneratorData = (message: UIMessage) => {
     
     // Check annotations array (legacy format)
     if ((message as any).annotations) {
-      queryCompletions = ((message as any).annotations as any[]).filter(a => a?.type === 'google_search_started');
+      queryCompletions = ((message as any).annotations as any[]).filter(a => 
+        a?.type === 'google_search_started' || a?.type === 'google_search_query_complete'
+      );
       googleSearchCompletions = ((message as any).annotations as any[]).filter(a => a?.type === 'google_search_complete');
     }
     
     // Check parts array for streaming annotations (AI SDK 5 format)
     if ((message as any).parts && Array.isArray((message as any).parts)) {
-      const queryParts = ((message as any).parts as any[]).filter(p => p?.type === 'data-google_search_started');
+      const queryParts = ((message as any).parts as any[]).filter(p => 
+        p?.type === 'data-google_search_started' || p?.type === 'data-google_search_query_complete'
+      );
       const googleSearchParts = ((message as any).parts as any[]).filter(p => p?.type === 'data-google_search_complete');
       
       // Convert parts format to annotations format for consistency
       queryCompletions = [
         ...queryCompletions,
-        ...queryParts.map(p => ({ type: 'google_search_started', data: p.data }))
+        ...queryParts.map(p => ({ 
+          type: p.type === 'data-google_search_started' ? 'google_search_started' : 'google_search_query_complete', 
+          data: p.data 
+        }))
       ];
       googleSearchCompletions = [
         ...googleSearchCompletions,
@@ -1049,10 +1106,11 @@ export const getImageGeneratorData = (message: UIMessage) => {
             searchId,
             searches: searchesForThisId.map(search => ({
               ...search,
-              topic: 'google',
+              topic: search.topic || 'google',
               topicIcon: 'google',
               results: processSearchResults(search.results || []),
-              images: search.images || []
+              images: search.images || [],
+              videos: search.videos || []
             })),
             isComplete: true
           });
@@ -1076,10 +1134,11 @@ export const getImageGeneratorData = (message: UIMessage) => {
           searchId,
           searches: [{
             query: latestQueryCompletions[0]?.data?.query || 'Searching...',
-            topic: 'google',
+            topic: latestQueryCompletions[0]?.data?.topic || 'google',
             topicIcon: 'google',
             results: [],
-            images: []
+            images: [],
+            videos: []
           }],
           isComplete: false,
           // 모든 쿼리 완료 어노테이션을 보존
@@ -1095,7 +1154,10 @@ export const getImageGeneratorData = (message: UIMessage) => {
         args: null,
         annotations: queryCompletions,
         results: allResults,
-        imageMap
+        imageMap,
+        linkMap,
+        thumbnailMap,
+        titleMap
       };
     }
     
@@ -1132,10 +1194,11 @@ export const getImageGeneratorData = (message: UIMessage) => {
                 searchId,
                 searches: [{
                   query: result.query,
-                  topic: 'google',
+                  topic: result.topic || 'google',
                   topicIcon: 'google',
                   results: processSearchResults(result.results || []),
-                  images: result.images || []
+                  images: result.images || [],
+                  videos: result.videos || []
                 }],
                 isComplete: true
               });
@@ -1153,7 +1216,8 @@ export const getImageGeneratorData = (message: UIMessage) => {
                   topic: 'google',
                   topicIcon: 'google',
                   results: processSearchResults(mergedSearches),
-                  images: []
+                  images: [],
+                  videos: []
                 }],
                 isComplete: true
               });
@@ -1168,7 +1232,10 @@ export const getImageGeneratorData = (message: UIMessage) => {
           args: null,
           annotations: queryCompletions,
           results: storedResults,
-          imageMap
+          imageMap,
+          linkMap,
+          thumbnailMap,
+          titleMap
         };
       }
     }
@@ -1188,7 +1255,8 @@ export const getImageGeneratorData = (message: UIMessage) => {
               topic: 'google',
               topicIcon: 'google',
               results: [],
-              images: []
+              images: [],
+              videos: []
             }],
             isComplete: false,
             annotations: queryCompletions
@@ -1233,7 +1301,8 @@ export const getImageGeneratorData = (message: UIMessage) => {
                     topic: search.topic || 'google',
                     topicIcon: 'google',
                     results: processSearchResults(search.results || []),
-                    images: search.images || []
+                    images: search.images || [],
+                    videos: search.videos || []
                   })),
                   isComplete: true
                 });
@@ -1243,10 +1312,11 @@ export const getImageGeneratorData = (message: UIMessage) => {
                   searchId: result.searchId,
                   searches: [{
                     query: result.query || 'Google Search',
-                    topic: 'google',
+                    topic: result.topic || 'google',
                     topicIcon: 'google',
                     results: processSearchResults(result.results || []),
-                    images: result.images || []
+                    images: result.images || [],
+                    videos: result.videos || []
                   }],
                   isComplete: true
                 });
@@ -1257,10 +1327,11 @@ export const getImageGeneratorData = (message: UIMessage) => {
                 searchId: 'legacy_invocation',
                 searches: [{
                   query: 'Google Search',
-                  topic: 'google',
+                  topic: result.topic || 'google',
                   topicIcon: 'google',
                   results: processSearchResults(result.results || []),
-                  images: result.images || []
+                  images: result.images || [],
+                  videos: result.videos || []
                 }],
                 isComplete: true
               });
@@ -1297,10 +1368,11 @@ export const getImageGeneratorData = (message: UIMessage) => {
             .filter(a => a.data?.results)
             .map(a => ({
               query: a.data.query,
-              topic: 'google',
+              topic: a.data.topic || 'google',
               topicIcon: 'google',
               results: processSearchResults(a.data.results || []),
-              images: a.data.images || []
+              images: a.data.images || [],
+              videos: a.data.videos || []
             }));
           
           if (searches.length > 0) {
@@ -1327,7 +1399,8 @@ export const getImageGeneratorData = (message: UIMessage) => {
             topic: 'google',
             topicIcon: 'google',
             results: [],
-            images: []
+            images: [],
+            videos: []
           }],
           isComplete: false,
           annotations: queryCompletionsBySearchId.get(latestSearchId)
@@ -1359,7 +1432,8 @@ export const getImageGeneratorData = (message: UIMessage) => {
             topic: 'google',
             topicIcon: 'google',
             results: [],
-            images: []
+            images: [],
+            videos: []
           }],
           isComplete: false,
           annotations: queryCompletions

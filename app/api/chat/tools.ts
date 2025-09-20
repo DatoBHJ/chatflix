@@ -87,9 +87,11 @@ const toolDefinitions = {
     }
   },
   googleSearch: {
-    description: 'Search Google using SearchAPI for comprehensive web search results. This tool provides access to Google\'s search index with location and language customization.',
+    description: 'Search Google using SearchAPI for comprehensive web search results. This tool provides access to Google\'s search index with location and language customization. Supports both web search and image search.',
     inputSchema: {
       queries: 'The search queries to send to Google. Can be a single query string or an array of queries. Each query can be anything you would use in a regular Google search.',
+      engines: 'Optional. The search engines to use. Can be a single engine or array matching queries. Options: "google" (web search), "google_images" (image search), "google_videos" (video search). Default is "google".',
+      maxResults: 'Optional. Maximum number of results to return per query. For google search, default is 10. For google_images, this parameter is ignored (all images sent to client, LLM context limited to 20). Can be a single number or array matching queries.',
       locations: 'Optional. The locations from where you want the searches to originate (e.g., "New York", "London", "Tokyo"). Can be a single location or array matching queries.',
       gls: 'Optional. The country codes for search results (e.g., "us", "uk", "jp"). Can be a single code or array matching queries. Default is "us".'
     }
@@ -167,6 +169,7 @@ export function createWebSearchTool(dataStream: any, forcedTopic?: string) {
       images: any[];
     }>;
     imageMap: Record<string, string>;
+    totalImagesFound: number;
   };
 
   const webSearchTool = tool<WebSearchInput, WebSearchOutput>({
@@ -275,15 +278,19 @@ export function createWebSearchTool(dataStream: any, forcedTopic?: string) {
           }
           
           const rawResults = data.results
-            .map((result: any) => ({
-              url: result.url,
-              title: result.title || '',
-              content: result.text.text || '',
-              publishedDate: result.publishedDate,
-              author: result.author,
-              score: result.score,
-              summary: result.summary,
-            }));
+            .map((result: any, resultIndex: number) => {
+              const linkId = `exa_link_${searchId}_${index}_${resultIndex}`;
+              return {
+                url: result.url,
+                title: result.title || '',
+                content: result.text.text || '',
+                publishedDate: result.publishedDate,
+                author: result.author,
+                score: result.score,
+                summary: result.summary,
+                linkId: linkId,
+              };
+            });
         
           const rawImages = data.results.filter((r: any) => r.image).map((r: any) => ({
               url: r.image,
@@ -427,28 +434,68 @@ export function createWebSearchTool(dataStream: any, forcedTopic?: string) {
         };
       });
       
-      // Create image mapping for all images across all searches
+      // Create image mapping, link mapping, thumbnail mapping, and title mapping for all searches
       const imageMap: { [key: string]: string } = {};
+      const linkMap: { [key: string]: string } = {};
+      const thumbnailMap: { [key: string]: string } = {};
+      const titleMap: { [key: string]: string } = {};
+      
       finalSearches.forEach(search => {
+        // Process images
         search.images.forEach((image: any) => {
           if (image.id && image.url) {
             imageMap[image.id] = image.url;
           }
         });
+        
+        // Process links, thumbnails, and titles
+        search.results.forEach((result: any) => {
+          if (result.linkId && result.url) {
+            linkMap[result.linkId] = result.url;
+          }
+          if (result.linkId && result.thumbnail) {
+            thumbnailMap[result.linkId] = result.thumbnail;
+          }
+          if (result.url && result.title) {
+            titleMap[result.url] = result.title;
+          }
+        });
       });
       
-      // 최종 검색 결과를 저장 (imageMap 포함)
-      const finalResult = { searchId, searches: finalSearches, imageMap };
+      // 총 이미지 개수 계산
+      const totalImagesFound = finalSearches.reduce((total, search) => total + search.images.length, 0);
+      
+      // 최종 검색 결과를 저장 (AI 응답용 - linkMap, thumbnailMap 제외)
+      const finalResult = { searchId, searches: finalSearches, imageMap, totalImagesFound };
+      
+      // tool_results 저장용으로 linkMap, thumbnailMap, titleMap 포함된 객체도 추가
+      const finalResultWithMaps = {
+        searchId,
+        searches: finalSearches,
+        imageMap,
+        linkMap,
+        thumbnailMap,
+        titleMap,
+        totalImagesFound
+      };
+      searchResults.push(finalResultWithMaps);
       
       // 배열에 결과 추가하고 UI를 위한 어노테이션도 전송
       searchResults.push(finalResult);
       
-      // 전체 검색 완료 어노테이션 전송 (imageMap 포함)
+      // 전체 검색 완료 어노테이션 전송 (linkMap, thumbnailMap, titleMap 포함)
       if (dataStream?.write) {
         dataStream.write({
           type: 'data-web_search_complete',
           id: `ann-${searchId}-complete`,
-          data: finalResult
+          data: {
+            searchId,
+            searches: finalSearches,
+            imageMap,
+            linkMap,
+            thumbnailMap,
+            titleMap
+          }
         });
       }
       
@@ -1424,15 +1471,17 @@ export function createYouTubeLinkAnalyzerTool(dataStream: any) {
 }
 
 // Google Search 도구 생성 함수
-export function createGoogleSearchTool(dataStream: any) {
+export function createGoogleSearchTool(dataStream: any, forcedEngine?: string) {
   // 검색 결과를 저장할 배열
   const searchResults: Array<{
     searchId: string;
     searches: Array<{
       query: string;
-      topic: 'google';
+      topic: 'google' | 'google_images' | 'google_videos';
+      engine: 'google' | 'google_images' | 'google_videos';
       results: any[];
       images: any[];
+      videos?: any[];
     }>;
     imageMap: Record<string, string>;
   }> = [];
@@ -1446,6 +1495,24 @@ export function createGoogleSearchTool(dataStream: any) {
       ])
       .transform((v) => (Array.isArray(v) ? v : [v]))
       .describe(toolDefinitions.googleSearch.inputSchema.queries),
+    // Accept string or array; coerce to array
+    engines: z
+      .union([
+        z.array(z.enum(['google', 'google_images', 'google_videos'])),
+        z.enum(['google', 'google_images', 'google_videos'])
+      ])
+      .optional()
+      .transform((v) => (v === undefined ? ['google'] : Array.isArray(v) ? v : [v]))
+      .describe(toolDefinitions.googleSearch.inputSchema.engines),
+    // Accept number or array of numbers; coerce to array
+    maxResults: z
+      .union([
+        z.array(z.number()),
+        z.number()
+      ])
+      .optional()
+      .transform((v) => (v === undefined ? undefined : Array.isArray(v) ? v : [v]))
+      .describe(toolDefinitions.googleSearch.inputSchema.maxResults),
     // Accept string or array; coerce to array
     locations: z
       .union([
@@ -1468,6 +1535,8 @@ export function createGoogleSearchTool(dataStream: any) {
 
   type GoogleSearchInput = {
     queries: string[];
+    engines?: ('google' | 'google_images' | 'google_videos')[];
+    maxResults?: number[];
     locations?: string[];
     gls?: string[];
   };
@@ -1475,11 +1544,15 @@ export function createGoogleSearchTool(dataStream: any) {
     searchId: string;
     searches: Array<{
       query: string;
-      topic: 'google';
+      topic: 'google' | 'google_images' | 'google_videos';
+      engine: 'google' | 'google_images' | 'google_videos';
       results: any[];
       images: any[];
+      videos?: any[];
     }>;
     imageMap: Record<string, string>;
+    totalImagesFound: number;
+    totalVideosFound: number;
     // linkMap: Record<string, string>;
     // thumbnailMap: Record<string, string>;
   };
@@ -1488,7 +1561,12 @@ export function createGoogleSearchTool(dataStream: any) {
     description: toolDefinitions.googleSearch.description,
     inputSchema: googleSearchInputSchema as unknown as z.ZodType<GoogleSearchInput>,
     execute: async (input: GoogleSearchInput) => {
-      const { queries, locations, gls } = input;
+      const { queries, engines, maxResults, locations, gls } = input;
+      
+      // 강제로 지정된 엔진이 있으면 해당 엔진만 사용
+      const finalEngines = forcedEngine ? 
+        Array(queries.length).fill(forcedEngine as 'google' | 'google_images') : 
+        engines;
       
       const apiKey = process.env.SEARCH_API_KEY;
       if (!apiKey) {
@@ -1503,6 +1581,7 @@ export function createGoogleSearchTool(dataStream: any) {
       console.log('Search ID:', searchId);
       console.log('Search queries:', queries);
       console.log('Search parameters:', {
+        engines: engines || ['google'],
         locations: locations || ['none'],
         gls: gls || ['us']
       });
@@ -1510,6 +1589,8 @@ export function createGoogleSearchTool(dataStream: any) {
       try {
         // Execute searches in parallel (like Web Search)
         const searchPromises = queries.map(async (query, index) => {
+          const currentEngine = (finalEngines && finalEngines[index]) || finalEngines?.[0] || 'google';
+          const currentMaxResults = (maxResults && maxResults[index]) || maxResults?.[0];
           const currentLocation = (locations && locations[index]) || locations?.[0];
           const currentGl = (gls && gls[index]) || gls?.[0] || 'us';
           
@@ -1532,7 +1613,7 @@ export function createGoogleSearchTool(dataStream: any) {
             // SearchAPI Google Search 요청
             const searchUrl = 'https://www.searchapi.io/api/v1/search';
             const searchParams = new URLSearchParams({
-              engine: 'google',
+              engine: currentEngine,
               q: query,
               api_key: apiKey,
               safe: 'off' // Safe search off as requested
@@ -1554,29 +1635,117 @@ export function createGoogleSearchTool(dataStream: any) {
             }
             
             const data = await response.json();
-            console.log(`[GOOGLE_SEARCH] Received response with ${data.organic_results?.length || 0} organic results`);
+            console.log(`[GOOGLE_SEARCH] Received response with ${data.organic_results?.length || 0} organic results and ${data.images?.length || 0} images`);
             
-            // Process organic results with link IDs
-            const rawResults = (data.organic_results || []).map((result: any, resultIndex: number) => {
-              const linkId = `google_link_${searchId}_${index}_${resultIndex}`;
-              return {
-                url: result.link,
-                title: result.title || '',
-                content: result.snippet || '',
-                publishedDate: result.date,
-                author: result.source,
-                score: result.rank,
-                summary: result.snippet,
-                linkId: linkId,
-                thumbnail: result.thumbnail || null
-              };
-            });
+            // Process results based on engine type
+            let rawResults: any[] = [];
+            let rawImages: any[] = [];
+            let rawVideos: any[] = [];
+            
+            if (currentEngine === 'google_images') {
+              // For Google Images, send all images to client but limit LLM context to 20
+              const allImages = data.images || [];
+              const maxImagesForLLM = 20;
+              const limitedImagesForLLM = allImages.slice(0, maxImagesForLLM);
+              
+              console.log(`[GOOGLE_IMAGES] Total images: ${allImages.length}, sending all to client, limiting LLM context to ${limitedImagesForLLM.length} images`);
+              
+              // For Google Images, process ALL images for client display
+              rawImages = allImages.map((image: any, imageIndex: number) => ({
+                url: image.original?.link || image.original,
+                description: image.title || image.source?.name || '',
+                width: image.original?.width,
+                height: image.original?.height,
+                thumbnail: image.thumbnail,
+                source: image.source?.name,
+                sourceLink: image.source?.link,
+                position: image.position
+              }));
+              
+              // For LLM context, create "results" from LIMITED image metadata (20 max)
+              rawResults = limitedImagesForLLM.map((image: any, resultIndex: number) => {
+                const linkId = `google_img_link_${searchId}_${index}_${resultIndex}`;
+                return {
+                  url: image.source?.link || image.original?.link || image.original,
+                  title: image.title || image.source?.name || '',
+                  content: `Image from ${image.source?.name || 'Unknown source'}`,
+                  publishedDate: null,
+                  author: image.source?.name,
+                  score: image.position,
+                  summary: image.title || '',
+                  linkId: linkId,
+                  thumbnail: image.thumbnail,
+                  isImageResult: true
+                };
+              });
+            } else if (currentEngine === 'google_videos') {
+              // For Google Videos, send all videos to client but limit LLM context to 20
+              const allVideos = data.videos || [];
+              const maxVideosForLLM = 20;
+              const limitedVideosForLLM = allVideos.slice(0, maxVideosForLLM);
+              
+              console.log(`[GOOGLE_VIDEOS] Total videos: ${allVideos.length}, sending all to client, limiting LLM context to ${limitedVideosForLLM.length} videos`);
+              
+              // For Google Videos, process ALL videos for client display
+              rawVideos = allVideos.map((video: any, videoIndex: number) => ({
+                url: video.link,
+                title: video.title || '',
+                description: video.snippet || '',
+                thumbnail: video.thumbnail,
+                source: video.source,
+                channel: video.channel,
+                length: video.length,
+                date: video.date,
+                position: video.position
+              }));
+              
+              // For LLM context, create "results" from LIMITED video metadata (20 max)
+              rawResults = limitedVideosForLLM.map((video: any, resultIndex: number) => {
+                const linkId = `google_video_link_${searchId}_${index}_${resultIndex}`;
+                return {
+                  url: video.link,
+                  title: video.title || '',
+                  content: video.snippet || '',
+                  publishedDate: video.date,
+                  author: video.channel,
+                  score: video.position,
+                  summary: video.snippet,
+                  linkId: linkId,
+                  thumbnail: video.thumbnail,
+                  isVideoResult: true,
+                  length: video.length,
+                  source: video.source
+                };
+              });
 
-            // Process images if available
-            const rawImages = (data.images || []).map((image: any) => ({
-              url: image.original,
-              description: image.title || image.alt || '',
-            }));
+              // For Google Videos, don't collect images
+              rawImages = [];
+            } else {
+              // For regular Google search, process organic results with optional limit
+              const defaultMaxResults = 10;
+              const maxResults = currentMaxResults || defaultMaxResults;
+              const limitedOrganicResults = (data.organic_results || []).slice(0, maxResults);
+              
+              console.log(`[GOOGLE_SEARCH] Limiting organic results from ${data.organic_results?.length || 0} to ${limitedOrganicResults.length} results (max: ${maxResults})`);
+              
+              rawResults = limitedOrganicResults.map((result: any, resultIndex: number) => {
+                const linkId = `google_link_${searchId}_${index}_${resultIndex}`;
+                return {
+                  url: result.link,
+                  title: result.title || '',
+                  content: result.snippet || '',
+                  publishedDate: result.date,
+                  author: result.source,
+                  score: result.rank,
+                  summary: result.snippet,
+                  linkId: linkId,
+                  thumbnail: result.thumbnail || null
+                };
+              });
+
+              // For regular Google search, don't collect images - only use image search tool for images
+              rawImages = [];
+            }
 
             const deduplicatedResults = deduplicateResults(rawResults);
             const deduplicatedImages = rawImages.length > 0 ? deduplicateResults(rawImages) : [];
@@ -1598,6 +1767,13 @@ export function createGoogleSearchTool(dataStream: any) {
                 data: {
                   searchId,
                   query,
+                  index,
+                  total: queries.length,
+                  status: 'completed',
+                  resultsCount: deduplicatedResults.length,
+                  imagesCount: imagesWithIds.length,
+                  topic: currentEngine as 'google' | 'google_images' | 'google_videos',
+                  engine: currentEngine,
                   results: deduplicatedResults,
                   images: imagesWithIds
                 }
@@ -1606,9 +1782,11 @@ export function createGoogleSearchTool(dataStream: any) {
             
             return {
               query,
-              topic: 'google' as const,
+              topic: currentEngine as 'google' | 'google_images' | 'google_videos',
+              engine: currentEngine,
               results: deduplicatedResults,
-              images: imagesWithIds
+              images: imagesWithIds,
+              videos: currentEngine === 'google_videos' ? rawVideos : []
             };
           } catch (error) {
             console.error(`Error searching with Google for query "${query}":`, error);
@@ -1628,9 +1806,11 @@ export function createGoogleSearchTool(dataStream: any) {
             
             return {
               query,
-              topic: 'google' as const,
+              topic: currentEngine as 'google' | 'google_images' | 'google_videos',
+              engine: currentEngine,
               results: [],
-              images: []
+              images: [],
+              videos: []
             };
           }
         });
@@ -1666,11 +1846,17 @@ export function createGoogleSearchTool(dataStream: any) {
           });
         });
 
+        // 총 이미지와 비디오 개수 계산
+        const totalImagesFound = searchResultsData.reduce((total, search) => total + search.images.length, 0);
+        const totalVideosFound = searchResultsData.reduce((total, search) => total + (search.videos?.length || 0), 0);
+        
         // 최종 검색 결과를 저장 (AI 응답용 - linkMap, thumbnailMap 제외)
         const finalResult = { 
           searchId, 
           searches: searchResultsData,
-          imageMap
+          imageMap,
+          totalImagesFound,
+          totalVideosFound
         };
         
         // 배열에 결과 추가 (AI용)
@@ -1683,7 +1869,9 @@ export function createGoogleSearchTool(dataStream: any) {
           imageMap,
           linkMap,
           thumbnailMap,
-          titleMap
+          titleMap,
+          totalImagesFound,
+          totalVideosFound
         };
         searchResults.push(finalResultWithMaps);
         
@@ -1725,13 +1913,20 @@ export function createGoogleSearchTool(dataStream: any) {
         // 에러 시에도 빈 결과를 searchResults 배열에 추가
         const emptyResult = {
           searchId,
-          searches: queries.map(query => ({
-            query,
-            topic: 'google' as const,
-            results: [],
-            images: []
-          })),
-          imageMap: {}
+          searches: queries.map((query, index) => {
+            const currentEngine = (finalEngines && finalEngines[index]) || finalEngines?.[0] || 'google';
+            return {
+              query,
+              topic: currentEngine as 'google' | 'google_images' | 'google_videos',
+              engine: currentEngine,
+              results: [],
+              images: [],
+              videos: []
+            };
+          }),
+          imageMap: {},
+          totalImagesFound: 0,
+          totalVideosFound: 0
         };
         
         const emptyResultWithMaps = {

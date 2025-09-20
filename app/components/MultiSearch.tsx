@@ -6,6 +6,7 @@ import {
   ExternalLink, 
   Calendar, 
   ImageIcon, 
+  Image,
   ChevronDown, 
   ChevronUp, 
   Layers, 
@@ -24,9 +25,78 @@ import {
   FileText,
   Twitter,
   Briefcase,
-  BookOpen
+  BookOpen,
+  Video,
+  Play
 } from 'lucide-react';
 import { SiGoogle } from 'react-icons/si';
+import { YouTubeEmbed, TikTokEmbed } from './MarkdownContent';
+import { LinkPreview } from './LinkPreview';
+
+// YouTube utility functions
+const isYouTubeUrl = (url: string): boolean => {
+  if (!url) return false;
+  const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be|m\.youtube\.com)\/.+/i;
+  return youtubeRegex.test(url);
+};
+
+const isYouTubeShorts = (url: string): boolean => {
+  if (!url) return false;
+  return url.includes('/shorts/') || url.includes('youtube.com/shorts/');
+};
+
+const extractYouTubeVideoId = (url: string): string | null => {
+  if (!url) return null;
+  
+  // Handle YouTube Shorts first
+  if (isYouTubeShorts(url)) {
+    const shortsMatch = url.match(/(?:youtube\.com\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    if (shortsMatch && shortsMatch[1]) {
+      return shortsMatch[1];
+    }
+  }
+  
+  // Handle different YouTube URL formats
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|m\.youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]{11})/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  
+  return null;
+};
+
+// TikTok utility functions
+const isTikTokUrl = (url: string): boolean => {
+  return url.includes('tiktok.com') || url.includes('vm.tiktok.com');
+};
+
+const extractTikTokVideoId = (url: string): string | null => {
+  const patterns = [
+    // Standard TikTok video URL: https://www.tiktok.com/@username/video/1234567890
+    /tiktok\.com\/@([^\/]+)\/video\/(\d+)/,
+    // Generic TikTok video URL: https://www.tiktok.com/video/1234567890
+    /tiktok\.com\/.*\/video\/(\d+)/,
+    // Short TikTok URL: https://vm.tiktok.com/abc123
+    /vm\.tiktok\.com\/([^\/\?]+)/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) {
+      // For @username/video/1234567890 format, return the video ID (match[2])
+      // For other formats, return match[1]
+      return match[2] || match[1];
+    }
+  }
+  return null;
+};
 
 type SearchImage = {
   url: string;
@@ -46,12 +116,26 @@ type SearchResult = {
   publishedDate?: string;
 };
 
+type SearchVideo = {
+  url: string;
+  title: string;
+  description: string;
+  thumbnail: string;
+  source: string;
+  channel: string;
+  length: string;
+  date: string;
+  position: number;
+};
+
 type SearchQueryResult = {
   query: string;
   topic?: string;
   topicIcon?: string;
+  engine?: 'google' | 'google_images' | 'google_videos';
   results: SearchResult[];
   images: SearchImage[];
+  videos?: SearchVideo[];
 };
 
 type MultiSearchResponse = {
@@ -139,6 +223,8 @@ export const getTopicIconComponent = (topicIcon: string) => {
       return <BookOpen {...iconProps} />;
     case 'google':
       return <SiGoogle {...iconProps} />;
+    case 'google_images':
+      return <Image {...iconProps} />;
     default:
       return <Search {...iconProps} />;
   }
@@ -156,6 +242,8 @@ export const getTopicIcon = (topic: string): string => {
     case 'personal site': return 'user';
     case 'linkedin profile': return 'briefcase';
     case 'google': return 'google';
+    case 'google_images': return 'google';
+    case 'google_videos': return 'google';
     default: return 'search';
   }
 };
@@ -173,6 +261,8 @@ export const getTopicName = (topic: string): string => {
     case 'personal site': return 'Personal Site';
     case 'linkedin profile': return 'LinkedIn Search';
     case 'google': return 'Google Search';
+    case 'google_images': return 'Google Images';
+    case 'google_videos': return 'Google Videos';
     default: return 'Advanced Search';
   }
 };
@@ -363,12 +453,33 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
     return getUniqueValidImages(images);
   }, [images]);
   
+  // Track window size for responsive image display
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
   // Determine number of images to display based on total count
   const displayImages = useMemo(() => {
-    // When not expanded, show one less to make room for the "Show More" button
-    const count = validImages.length <= 8 ? validImages.length : (expanded ? validImages.length : 7);
+    // Calculate max images based on screen size
+    let maxImagesCollapsed;
+    if (windowWidth >= 1024) {
+      // Large desktop: 5 columns × 2 rows = 10 images
+      maxImagesCollapsed = 10;
+    } else if (windowWidth >= 640) {
+      // Medium desktop: 4 columns × 2 rows = 8 images
+      maxImagesCollapsed = 8;
+    } else {
+      // Mobile: show 7 images max
+      maxImagesCollapsed = 7;
+    }
+    
+    const count = validImages.length <= maxImagesCollapsed ? validImages.length : (expanded ? validImages.length : maxImagesCollapsed);
     return validImages.slice(0, count);
-  }, [validImages, expanded]);
+  }, [validImages, expanded, windowWidth]);
   
   // Return early if there are no valid images
   if (!validImages || validImages.length === 0) {
@@ -501,7 +612,19 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
         
         @media (min-width: 640px) {
           .tetris-grid {
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            grid-template-rows: repeat(2, 1fr);
+            max-height: calc(2 * (180px + 12px) - 12px);
+            overflow: hidden;
+          }
+        }
+        
+        @media (min-width: 1024px) {
+          .tetris-grid {
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            max-height: calc(2 * (180px + 12px) - 12px);
+            overflow: hidden;
           }
         }
         
@@ -822,9 +945,68 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
         .view-original-button:hover {
           background-color: rgba(0, 0, 0, 0.8);
         }
+        
+        .expanded-grid {
+          max-height: none !important;
+          overflow: visible !important;
+          grid-template-rows: none !important;
+        }
+        
+        @media (min-width: 640px) {
+          .expanded-grid {
+            grid-template-rows: none !important;
+          }
+        }
+        
+        @media (min-width: 1024px) {
+          .expanded-grid {
+            grid-template-rows: none !important;
+          }
+        }
+        
+        /* Video-specific Tetris item styles */
+        .tetris-item .imessage-link-preview {
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+        
+        .tetris-item .preview-image {
+          height: 60%;
+          object-fit: cover;
+        }
+        
+        .tetris-item .preview-content {
+          height: 40%;
+          padding: 8px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+        }
+        
+        .tetris-item .preview-title {
+          font-size: 11px;
+          line-height: 1.2;
+          margin: 0;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        
+        .tetris-item .preview-domain {
+          font-size: 9px;
+          margin: 0;
+          opacity: 0.8;
+        }
+        
+        .tetris-item .preview-favicon {
+          width: 12px !important;
+          height: 12px !important;
+        }
       `}</style>
       
-      <div className={`tetris-grid transition-all duration-500 ease-in-out ${expanded ? '' : 'max-h-[425px] overflow-hidden'}`}>
+      <div className={`tetris-grid transition-all duration-500 ease-in-out ${expanded ? 'expanded-grid' : 'max-h-[425px] overflow-hidden'}`}>
         {displayImages.map((image, index) => (
           <div key={index} className="tetris-item">
             <a
@@ -855,13 +1037,13 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
         ))}
         
         {/* Show More card replaces the last image when not expanded */}
-        {!expanded && validImages.length > 8 && (
+        {!expanded && validImages.length > displayImages.length && (
           <div 
             className="tetris-item show-more-card"
             onClick={toggleExpanded}
           >
             <div className="thumbnail-mosaic">
-              {validImages.slice(7, 11).map((img, idx) => (
+              {validImages.slice(displayImages.length, displayImages.length + 4).map((img, idx) => (
                 <img 
                   key={idx} 
                   src={img.url} 
@@ -875,7 +1057,7 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
               ))}
             </div>
             <div className="show-more-content !bg-transparent backdrop-filter-none">
-              <span className="text-2xl font-semibold mb-2">+{validImages.length - 7}</span>
+              <span className="text-2xl font-semibold mb-2">+{validImages.length - displayImages.length}</span>
               <span className="text-sm mb-1">View All Images</span>
               <ChevronDown className="h-4 w-4 mt-1 animate-bounce" strokeWidth={2} />
             </div>
@@ -884,7 +1066,7 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
       </div>
       
       {/* Floating collapse button - only shows when expanded */}
-      {expanded && validImages.length > 8 && (
+      {expanded && validImages.length > displayImages.length && (
         <div className="collapse-button" onClick={toggleExpanded}>
           <ChevronUp className="h-5 w-5" strokeWidth={2} />
           <span>Collapse Gallery</span>
@@ -895,6 +1077,382 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
       {isMounted && selectedImage && createPortal(
         modalContent,
         document.body
+      )}
+    </div>
+  );
+};
+
+// Video grid component with Tetris-style layout
+const VideoGrid = ({ videos }: { videos: SearchVideo[] }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'youtube' | 'shorts' | 'tiktok' | 'links'>('all');
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  
+  // Track window size for responsive video display
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
+  // Function to toggle expanded state
+  const toggleExpanded = () => {
+    setExpanded(!expanded);
+  };
+  
+  // Validate and categorize videos into specific types
+  const { youtubeVideos, youtubeShorts, tiktokVideos, thumbnailVideos } = useMemo(() => {
+    if (!videos || videos.length === 0) return { 
+      youtubeVideos: [], 
+      youtubeShorts: [], 
+      tiktokVideos: [], 
+      thumbnailVideos: [] 
+    };
+    
+    const validVideos = videos.filter(video => 
+      video?.url && 
+      video?.title &&
+      typeof video.url === 'string' && 
+      typeof video.title === 'string'
+    );
+    
+    const youtube: SearchVideo[] = [];
+    const shorts: SearchVideo[] = [];
+    const tiktok: SearchVideo[] = [];
+    const thumbnails: SearchVideo[] = [];
+    
+    validVideos.forEach(video => {
+      if (isYouTubeUrl(video.url)) {
+        if (isYouTubeShorts(video.url)) {
+          shorts.push(video);
+        } else {
+          youtube.push(video);
+        }
+      } else if (isTikTokUrl(video.url)) {
+        tiktok.push(video);
+      } else {
+        thumbnails.push(video);
+      }
+    });
+    
+    return { 
+      youtubeVideos: youtube, 
+      youtubeShorts: shorts, 
+      tiktokVideos: tiktok, 
+      thumbnailVideos: thumbnails 
+    };
+  }, [videos]);
+  
+  // Filter videos based on active filter
+  const filteredVideos = useMemo(() => {
+    switch (activeFilter) {
+      case 'youtube':
+        return { youtubeVideos, youtubeShorts: [], tiktokVideos: [], thumbnailVideos: [] };
+      case 'shorts':
+        return { youtubeVideos: [], youtubeShorts, tiktokVideos: [], thumbnailVideos: [] };
+      case 'tiktok':
+        return { youtubeVideos: [], youtubeShorts: [], tiktokVideos, thumbnailVideos: [] };
+      case 'links':
+        return { youtubeVideos: [], youtubeShorts: [], tiktokVideos: [], thumbnailVideos };
+      default:
+        return { youtubeVideos, youtubeShorts, tiktokVideos, thumbnailVideos };
+    }
+  }, [activeFilter, youtubeVideos, youtubeShorts, tiktokVideos, thumbnailVideos]);
+  
+  // Determine number of thumbnail videos to display based on total count
+  const displayThumbnailVideos = useMemo(() => {
+    // Calculate max videos based on screen size
+    let maxVideosCollapsed;
+    if (windowWidth >= 1024) {
+      // Large desktop: 5 columns × 2 rows = 10 videos
+      maxVideosCollapsed = 10;
+    } else if (windowWidth >= 640) {
+      // Medium desktop: 4 columns × 2 rows = 8 videos
+      maxVideosCollapsed = 8;
+    } else {
+      // Mobile: show 7 videos max
+      maxVideosCollapsed = 7;
+    }
+    
+    const videosToShow = filteredVideos.thumbnailVideos;
+    const count = videosToShow.length <= maxVideosCollapsed ? videosToShow.length : (expanded ? videosToShow.length : maxVideosCollapsed);
+    return videosToShow.slice(0, count);
+  }, [filteredVideos.thumbnailVideos, expanded, windowWidth]);
+  
+  // Return early if there are no videos at all
+  if (youtubeVideos.length === 0 && youtubeShorts.length === 0 && tiktokVideos.length === 0 && thumbnailVideos.length === 0) {
+    return null;
+  }
+  
+  return (
+    <div className="mb-8">
+      {/* Header with filter buttons */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Video className="h-4 w-4 text-[var(--muted)]" strokeWidth={1.5} />
+          <span className="text-sm font-medium text-[var(--muted)]">Videos</span>
+          
+          {/* Filter buttons */}
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => setActiveFilter('all')}
+              className={`text-xs px-2 py-1 rounded-md transition-colors font-medium ${
+                activeFilter === 'all' 
+                  ? 'bg-[var(--accent)] text-[var(--accent-foreground)]' 
+                  : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--muted)]/20'
+              }`}
+            >
+              All
+            </button>
+            {youtubeVideos.length > 0 && (
+              <button 
+                onClick={() => setActiveFilter('youtube')}
+                className={`text-xs px-2 py-1 rounded-md transition-colors font-medium ${
+                  activeFilter === 'youtube' 
+                    ? 'bg-[var(--accent)] text-[var(--accent-foreground)]' 
+                    : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--muted)]/20'
+                }`}
+              >
+                YouTube
+              </button>
+            )}
+            {youtubeShorts.length > 0 && (
+              <button 
+                onClick={() => setActiveFilter('shorts')}
+                className={`text-xs px-2 py-1 rounded-md transition-colors font-medium ${
+                  activeFilter === 'shorts' 
+                    ? 'bg-[var(--accent)] text-[var(--accent-foreground)]' 
+                    : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--muted)]/20'
+                }`}
+              >
+                Shorts
+              </button>
+            )}
+            {tiktokVideos.length > 0 && (
+              <button 
+                onClick={() => setActiveFilter('tiktok')}
+                className={`text-xs px-2 py-1 rounded-md transition-colors font-medium ${
+                  activeFilter === 'tiktok' 
+                    ? 'bg-[var(--accent)] text-[var(--accent-foreground)]' 
+                    : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--muted)]/20'
+                }`}
+              >
+                TikTok
+              </button>
+            )}
+            {thumbnailVideos.length > 0 && (
+              <button 
+                onClick={() => setActiveFilter('links')}
+                className={`text-xs px-2 py-1 rounded-md transition-colors font-medium ${
+                  activeFilter === 'links' 
+                    ? 'bg-[var(--accent)] text-[var(--accent-foreground)]' 
+                    : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--muted)]/20'
+                }`}
+              >
+                Links
+              </button>
+            )}
+          </div>
+      </div>
+      
+        {/* Collapse button - only shows when there are videos to collapse */}
+        {(youtubeVideos.length > 0 || youtubeShorts.length > 0 || tiktokVideos.length > 0 || thumbnailVideos.length > 0) && (
+          <button 
+            onClick={() => {
+              setIsCollapsed(!isCollapsed);
+              // Toggle all video sections visibility
+              const videoSections = document.querySelectorAll('[data-video-section]');
+              videoSections.forEach(section => {
+                section.classList.toggle('hidden', !isCollapsed);
+              });
+            }}
+            className="text-xs flex items-center gap-1.5 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors font-medium"
+          >
+            {isCollapsed ? (
+              <>
+                <ChevronDown className="h-3 w-3" strokeWidth={2} />
+                <span>Expand</span>
+              </>
+            ) : (
+              <>
+                <ChevronUp className="h-3 w-3" strokeWidth={2} />
+                <span>Collapse</span>
+              </>
+            )}
+          </button>
+        )}
+      </div>
+          
+      {/* YouTube Videos Section */}
+      {filteredVideos.youtubeVideos.length > 0 && (
+        <div className="mb-6" data-video-section>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-4 h-4 bg-red-500 rounded flex items-center justify-center">
+              <Play size={10} className="text-white ml-0.5" />
+              </div>
+            <span className="text-sm font-medium text-[var(--muted)]">YouTube Videos</span>
+            </div>
+          <div className="space-y-4">
+            {filteredVideos.youtubeVideos.map((video, index) => {
+              const videoId = extractYouTubeVideoId(video.url);
+              if (videoId) {
+                return (
+                  <YouTubeEmbed
+                    key={`youtube-${index}`}
+                    videoId={videoId}
+                    title={video.title}
+                    originalUrl={video.url}
+                    isShorts={false}
+                  />
+                );
+              }
+              return null;
+            })}
+              </div>
+            </div>
+          )}
+      
+      {/* YouTube Shorts Section */}
+      {filteredVideos.youtubeShorts.length > 0 && (
+        <div className="mb-6" data-video-section>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-4 h-4 bg-red-500 rounded flex items-center justify-center">
+              <Play size={10} className="text-white ml-0.5" />
+        </div>
+            <span className="text-sm font-medium text-[var(--muted)]">YouTube Shorts</span>
+        </div>
+          <div className="space-y-4">
+            {filteredVideos.youtubeShorts.map((video, index) => {
+              const videoId = extractYouTubeVideoId(video.url);
+              if (videoId) {
+                return (
+                  <YouTubeEmbed
+                    key={`shorts-${index}`}
+                    videoId={videoId}
+                    title={video.title}
+                    originalUrl={video.url}
+                    isShorts={true}
+                  />
+                );
+              }
+              return null;
+            })}
+                  </div>
+                </div>
+      )}
+      
+      {/* TikTok Videos Section */}
+      {filteredVideos.tiktokVideos.length > 0 && (
+        <div className="mb-6" data-video-section>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-4 h-4 bg-black rounded flex items-center justify-center">
+              <Play size={10} className="text-white ml-0.5" />
+              </div>
+            <span className="text-sm font-medium text-[var(--muted)]">TikTok Videos</span>
+          </div>
+          <div className="space-y-4">
+            {filteredVideos.tiktokVideos.map((video, index) => {
+              const videoId = extractTikTokVideoId(video.url);
+              if (videoId) {
+                return (
+                  <TikTokEmbed
+                    key={`tiktok-${index}`}
+                    videoId={videoId}
+                    title={video.title}
+                    originalUrl={video.url}
+                  />
+                );
+              }
+              return null;
+            })}
+        </div>
+      </div>
+      )}
+      
+      {/* Thumbnail Videos Section */}
+      {filteredVideos.thumbnailVideos.length > 0 && (
+        <div className="mb-6" data-video-section>
+          <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-blue-500 rounded flex items-center justify-center">
+                <ExternalLink size={10} className="text-white" />
+              </div>
+              <span className="text-sm font-medium text-[var(--muted)]">Video Links</span>
+        </div>
+        
+            {/* Show toggle button only if there are thumbnail videos and not all are shown */}
+            {filteredVideos.thumbnailVideos.length > displayThumbnailVideos.length && (
+        <button 
+          onClick={toggleExpanded} 
+          className="text-xs flex items-center gap-1.5 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors font-medium"
+        >
+          {expanded ? (
+            <>
+              <ChevronUp className="h-3 w-3" strokeWidth={2} />
+              <span>Collapse</span>
+            </>
+          ) : (
+            <>
+              <ChevronDown className="h-3 w-3" strokeWidth={2} />
+              <span>View All</span>
+            </>
+          )}
+        </button>
+            )}
+      </div>
+      
+          <div className={`tetris-grid transition-all duration-500 ease-in-out ${expanded ? 'expanded-grid' : 'max-h-[425px] overflow-hidden'}`}>
+            {displayThumbnailVideos.map((video, index) => (
+          <div key={index} className="tetris-item">
+                <LinkPreview 
+                  url={video.url}
+                  thumbnailUrl={video.thumbnail}
+                  searchApiTitle={video.title}
+                  isVideoLink={true}
+                  videoDuration={video.length}
+                />
+          </div>
+        ))}
+        
+        {/* Show More card replaces the last video when not expanded */}
+            {!expanded && thumbnailVideos.length > displayThumbnailVideos.length && (
+          <div 
+            className="tetris-item show-more-card"
+            onClick={toggleExpanded}
+          >
+            <div className="thumbnail-mosaic">
+                  {thumbnailVideos.slice(displayThumbnailVideos.length, displayThumbnailVideos.length + 4).map((video, idx) => (
+                <img 
+                  key={idx} 
+                  src={video.thumbnail} 
+                  alt="" 
+                  loading="lazy" 
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+              ))}
+            </div>
+            <div className="show-more-content !bg-transparent backdrop-filter-none">
+                  <span className="text-2xl font-semibold mb-2">+{thumbnailVideos.length - displayThumbnailVideos.length}</span>
+                  <span className="text-sm mb-1">View All Links</span>
+              <ChevronDown className="h-4 w-4 mt-1 animate-bounce" strokeWidth={2} />
+            </div>
+          </div>
+        )}
+      </div>
+      
+          {/* Floating collapse button - only shows when expanded and there are thumbnail videos */}
+          {expanded && thumbnailVideos.length > displayThumbnailVideos.length && (
+        <div className="collapse-button" onClick={toggleExpanded}>
+          <ChevronUp className="h-5 w-5" strokeWidth={2} />
+          <span>Collapse Gallery</span>
+        </div>
+      )}
+        </div>
       )}
     </div>
   );
@@ -1263,6 +1821,45 @@ const MultiSearch: React.FC<{
     });
   }, [allCompletedSearches, result]);
 
+  // Calculate total videos from all search results
+  const allVideos = useMemo(() => {
+    // Use allCompletedSearches if available
+    const searchesToUse = allCompletedSearches.length > 0 
+      ? allCompletedSearches 
+      : (result && result.searches ? result.searches : []);
+    
+    if (!searchesToUse.length) return [];
+    
+    // Extract all valid videos with source information
+    const videos = searchesToUse.flatMap((search, searchIndex) => {
+      if (!search.videos) return [];
+      
+      // Filter valid videos
+      return search.videos
+        .filter(video => 
+          video?.url && 
+          video?.title &&
+          video?.thumbnail &&
+          typeof video.url === 'string' && 
+          typeof video.title === 'string' &&
+          typeof video.thumbnail === 'string'
+        )
+        .map(video => ({
+          ...video,
+          sourceQuery: search.query || 'Search Result',
+          searchIndex
+        }));
+    });
+    
+    // Remove duplicates across all searches
+    const uniqueUrls = new Set();
+    return videos.filter(video => {
+      if (uniqueUrls.has(video.url)) return false;
+      uniqueUrls.add(video.url);
+      return true;
+    });
+  }, [allCompletedSearches, result]);
+
   // Group all results by domain or show as flat list when sorting
   const domainGroups = useMemo(() => {
     // Use allCompletedSearches if available
@@ -1381,6 +1978,45 @@ const MultiSearch: React.FC<{
     // For "All Queries", return deduplicated images
     return allImages;
   }, [allCompletedSearches, result, JSON.stringify(selectedQueryList), allImages]);
+
+  // Get filtered videos based on selection
+  const displayVideos = useMemo(() => {
+    // Use allCompletedSearches if available
+    const searchesToUse = allCompletedSearches.length > 0 
+      ? allCompletedSearches 
+      : (result && result.searches ? result.searches : []);
+    
+    if (!searchesToUse.length) return [];
+    
+    if (selectedQueryList.length > 0) {
+      const selectedSet = new Set(selectedQueryList);
+      const selectedSearches = searchesToUse.filter(s => selectedSet.has(s.query));
+      const videos = selectedSearches.flatMap(search => {
+        if (!search.videos) return [];
+        return search.videos
+          .filter(video => 
+            video?.url && 
+            video?.title &&
+            video?.thumbnail &&
+            typeof video.url === 'string' && 
+            typeof video.title === 'string' &&
+            typeof video.thumbnail === 'string'
+          )
+          .map(video => ({
+            ...video,
+            sourceQuery: search.query || 'Search Result',
+            searchIndex: searchesToUse.findIndex(s => s.query === search.query)
+          }));
+      });
+      // Deduplicate across selected
+      const uniq = new Map<string, any>();
+      videos.forEach(video => { if (!uniq.has(video.url)) uniq.set(video.url, video); });
+      return Array.from(uniq.values());
+    }
+    
+    // For "All Queries", return deduplicated videos
+    return allVideos;
+  }, [allCompletedSearches, result, JSON.stringify(selectedQueryList), allVideos]);
 
   // 쿼리가 진행 중인지 확인하는 함수 (개별 쿼리별로 상태 확인)
   const isQueryLoading = (query: string): boolean => {
@@ -1551,6 +2187,11 @@ const MultiSearch: React.FC<{
         {/* Image Gallery */}
         {displayImages.length > 0 && (
           <ImageGrid images={displayImages} />
+        )}
+        
+        {/* Video Gallery */}
+        {displayVideos.length > 0 && (
+          <VideoGrid videos={displayVideos} />
         )}
         
         {/* Display search results directly in the main area */}
