@@ -1249,7 +1249,7 @@ body {
 .message-content ul li {
   padding-left: 0rem !important;
 }
-
+/* 
 @media (max-width: 768px) {
   .message-content ul li {
     margin-bottom: 1rem;
@@ -1258,7 +1258,7 @@ body {
   .message-content ul li:last-child {
     margin-bottom: 0 !important;
   }
-}
+} */
 
 .message-content ol li {
   padding-left: 0.1rem !important;
