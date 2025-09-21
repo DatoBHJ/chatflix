@@ -2222,7 +2222,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
         <ul
           ref={ulRef}
           className={`my-4 list-disc list-outside ${
-            isNested ? 'pl-2' : 'pl-[1rem] md:pl-[0.9rem]'
+            isNested ? 'pl-2' : 'pl-[1.25rem] md:pl-[0.9rem]'
           }`}
           {...props}
         >
