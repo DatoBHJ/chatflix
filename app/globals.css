@@ -1235,7 +1235,7 @@ body {
 /* Remove left padding from list items to match regular message spacing */
 .message-content ul li,
 .message-content ol li {
-  padding-left: 0 !important;
+  padding-left: 0.1rem !important;
 }
 
 /* Link Styles */
