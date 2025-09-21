@@ -56,7 +56,7 @@ function HomeView({
 
   return (
     <main 
-      className="flex-1 relative h-screen flex flex-col"
+      className="flex-1 relative flex flex-col"
       onDragEnter={!editingMessageId ? handleGlobalDrag : undefined}
       onDragOver={!editingMessageId ? handleGlobalDrag : undefined}
       onDragLeave={!editingMessageId ? handleGlobalDragLeave : undefined}
@@ -225,7 +225,7 @@ function ChatView({
   
   return (
     <main 
-      className="flex-1 relative h-screen flex flex-col"
+      className="flex-1 relative flex flex-col"
       onDragEnter={!editingMessageId ? handleGlobalDrag : undefined}
       onDragOver={!editingMessageId ? handleGlobalDrag : undefined}
       onDragLeave={!editingMessageId ? handleGlobalDragLeave : undefined}
