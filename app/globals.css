@@ -242,7 +242,7 @@
 /* Mobile responsiveness for iMessage bubbles */
 @media (max-width: 640px) {
   .imessage-send-bubble {
-    max-width: 320px;
+    max-width: 85vw;
     padding: 5px 11px;
   }
   
@@ -297,6 +297,13 @@
   .imessage-receive-bubble.multi-line::after {
     height: 16px;
     border-bottom-right-radius: 10px;
+  }
+}
+
+/* 작은 모바일 화면에서 더 제한적인 너비 */
+@media (max-width: 480px) {
+  .imessage-send-bubble {
+    max-width: 80vw;
   }
 }
 
