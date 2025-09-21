@@ -547,7 +547,17 @@ export function ChatInput({
   // placeholder 변경 시 입력 필드 초기화 (자동 포커스는 하지 않음)
   useEffect(() => {
     if (inputRef.current) {
-      inputRef.current.classList.add('empty');
+      // 입력창에 실제 텍스트가 있는지 확인
+      const hasContent = inputRef.current.innerText && inputRef.current.innerText.trim() !== '';
+      
+      // 텍스트가 없을 때만 'empty' 클래스 추가
+      if (!hasContent) {
+        inputRef.current.classList.add('empty');
+      } else {
+        inputRef.current.classList.remove('empty');
+      }
+      
+      // placeholder 속성은 항상 업데이트
       inputRef.current.setAttribute('data-placeholder', placeholder);
     }
   }, [placeholder]);
