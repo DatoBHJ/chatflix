@@ -311,15 +311,6 @@ export function ChatInput({
       : "Chatflix.app"
   );
 
-  // 초기 렌더링 시 자동 포커스
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus({ preventScroll: true });
-    }
-  }, []);
-
-
-
   // 디바운스된 입력 처리 함수
   const debouncedInputHandler = useCallback(() => {
     if (!inputRef.current || isSubmittingRef.current) return;
@@ -545,9 +536,6 @@ export function ChatInput({
         target: { value: '' }
       } as React.ChangeEvent<HTMLTextAreaElement>);
       
-      // 입력 필드에 포커스
-      inputRef.current.focus();
-      
       // 디바운스 타이머 정리
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
@@ -595,10 +583,8 @@ export function ChatInput({
         }
       } as FileList;
 
-      // 입력 및 UI를 즉시 클리어하여 즉각적 UX 제공
-      inputRef.current.innerText = '';
-      inputRef.current.classList.add('empty');
-      handleInputChange({ target: { value: '' } } as React.ChangeEvent<HTMLTextAreaElement>);
+      // 입력 및 UI를 즉시 클리어하여 즉각적 UX 제공 (clearInput 사용으로 placeholder 재설정 보장)
+      clearInput();
 
       // 파일 상태는 제출 직후 정리 (미리 스냅샷으로 전달했으므로 안전)
       const urls = Array.from(fileMap.values()).map(({ url }) => url).filter(url => url.startsWith('blob:'));
@@ -1523,5 +1509,6 @@ export function ChatInput({
     </div>
   );
   }
+
 
 
