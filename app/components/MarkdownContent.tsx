@@ -2245,11 +2245,9 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       return (
         <ol 
           ref={olRef}
-          className="my-4 list-decimal" 
-          style={{ 
-            paddingLeft: isNested ? '0.5rem' : '1.5rem',
-            listStylePosition: 'outside'
-          }} 
+          className={`my-4 list-decimal list-outside ${
+            isNested ? 'pl-2' : 'pl-[1.5rem] md:pl-[1.1rem]'
+          }`}
           {...props}
         >
           {children}
