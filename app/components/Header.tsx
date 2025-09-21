@@ -946,7 +946,7 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
           }`}>
             <h2 className="text-3xl sm:text-3xl md:text-4xl font-semibold tracking-tight">What's New</h2>
             
-            <div className={`sm:mt-20 mt-10 text-base text-[var(--muted)] transform-gpu transition-all duration-400 ease-out pl-1.5 ${
+            <div className={`sm:mt-20 mt-10 text-base text-[var(--muted)] transform-gpu transition-all duration-400 ease-out pl-0 ${
               whatsNewPanelElements.content ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
             }`}>
               {isLoadingUpdates ? (
@@ -990,8 +990,8 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                           </button>
                           
                           {/* Expanded Content */}
-                          <div className={`overflow-hidden transition-all duration-500 ease-out ${
-                            isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+                          <div className={`transition-all duration-500 ease-out ${
+                            isExpanded ? 'max-h-[2000px] opacity-100 overflow-visible' : 'max-h-0 opacity-0 overflow-hidden'
                           }`}>
                             <div className="pb-6 pt-2">
                               {/* Images and Description with iMessage bubble style */}
@@ -1035,7 +1035,7 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                                 )}
                                 
                                 {/* Description with segmentation */}
-                                <div className="text-[var(--foreground)]">
+                                <div className="text-[var(--foreground)] -ml-2">
                                   <MarkdownContent 
                                     content={update.description} 
                                     enableSegmentation={true}
