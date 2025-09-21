@@ -665,7 +665,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
     abbreviation: 'o3',
     country: 'US',
     provider: 'openai',
-    supportsVision: false,
+    supportsVision: true,
     rateLimit: {
       level: 'level3',
     },
