@@ -324,22 +324,8 @@ export function ChatInput({
   const debouncedInputHandler = useCallback(() => {
     if (!inputRef.current || isSubmittingRef.current) return;
     
-    // 모바일에서 더 안전한 텍스트 콘텐츠 가져오기
-    let content = '';
-    try {
-      // innerText가 모바일에서 즉시 반영되지 않을 수 있으므로 innerHTML도 확인
-      content = inputRef.current.innerText || inputRef.current.textContent || '';
-      
-      // 모바일에서 빈 HTML 태그가 남아있을 수 있으므로 정리
-      if (content === '' && inputRef.current.innerHTML.trim() !== '') {
-        // HTML 태그만 남아있는 경우 완전히 클리어
-        inputRef.current.innerHTML = '';
-        content = '';
-      }
-    } catch (error) {
-      console.warn('Error getting input content:', error);
-      content = '';
-    }
+    // 현재 텍스트 콘텐츠 가져오기 (innerText로 변경하여 공백 유지)
+    const content = inputRef.current.innerText || '';
     
     // 이전 텍스트와 동일하면 처리 스킵 (불필요한 처리 방지)
     if (content === lastTextContentRef.current) return;
@@ -541,16 +527,10 @@ export function ChatInput({
 
 
 
-  // 입력 필드 클리어 - 완전한 클리어 함수 (모바일 최적화)
+  // 입력 필드 클리어 - 완전한 클리어 함수
   const clearInput = () => {
     if (inputRef.current) {
-      // 모든 디바운스 타이머 정리
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
-      }
-      
-      // 모든 콘텐츠 및 빈 노드 제거 (innerHTML이 모바일에서 더 안전)
+      // 모든 콘텐츠 및 빈 노드 제거
       inputRef.current.innerHTML = '';
       lastTextContentRef.current = ''; // 참조 업데이트
       
@@ -565,15 +545,13 @@ export function ChatInput({
         target: { value: '' }
       } as React.ChangeEvent<HTMLTextAreaElement>);
       
-      // 모바일에서 포커스 처리 개선
-      if (isMobile) {
-        // 모바일에서는 약간의 지연 후 포커스 (키보드 이벤트 충돌 방지)
-        setTimeout(() => {
-          inputRef.current?.focus();
-        }, 50);
-      } else {
-        // 데스크톱에서는 즉시 포커스
-        inputRef.current.focus();
+      // 입력 필드에 포커스
+      inputRef.current.focus();
+      
+      // 디바운스 타이머 정리
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
       }
     }
   };
@@ -617,41 +595,10 @@ export function ChatInput({
         }
       } as FileList;
 
-      // 모바일에서 안전한 입력 클리어 - 강제 DOM 조작
-      const clearInputSafely = () => {
-        if (!inputRef.current) return;
-        
-        // 모든 디바운스 타이머 정리
-        if (debounceTimerRef.current) {
-          clearTimeout(debounceTimerRef.current);
-          debounceTimerRef.current = null;
-        }
-        
-        // innerHTML로 완전 클리어 (모바일에서 더 안전)
-        inputRef.current.innerHTML = '';
-        lastTextContentRef.current = '';
-        
-        // 빈 상태 클래스 강제 추가
-        inputRef.current.classList.add('empty');
-        
-        // placeholder 속성 재설정
-        inputRef.current.setAttribute('data-placeholder', placeholder);
-        
-        // 부모 상태 즉시 업데이트
-        handleInputChange({ target: { value: '' } } as React.ChangeEvent<HTMLTextAreaElement>);
-        
-        // 모바일에서 포커스 유지 (키보드 숨김 방지)
-        if (isMobile) {
-          setTimeout(() => {
-            inputRef.current?.focus();
-          }, 100);
-        } else {
-          inputRef.current.focus();
-        }
-      };
-
-      // 입력 클리어 실행
-      clearInputSafely();
+      // 입력 및 UI를 즉시 클리어하여 즉각적 UX 제공
+      inputRef.current.innerText = '';
+      inputRef.current.classList.add('empty');
+      handleInputChange({ target: { value: '' } } as React.ChangeEvent<HTMLTextAreaElement>);
 
       // 파일 상태는 제출 직후 정리 (미리 스냅샷으로 전달했으므로 안전)
       const urls = Array.from(fileMap.values()).map(({ url }) => url).filter(url => url.startsWith('blob:'));
@@ -672,7 +619,7 @@ export function ChatInput({
     } finally {
       isSubmittingRef.current = false;
     }
-  }, [handleInputChange, handleSubmit, files, fileMap, isLoading, selectedTool, placeholder, isMobile]);
+  }, [handleInputChange, handleSubmit, files, fileMap, isLoading, selectedTool]);
 
   // 메시지 제출 핸들러 (폼 제출 이벤트)
   const handleMessageSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -750,8 +697,9 @@ export function ChatInput({
       }
     });
     
-    // 메시지 제출 (입력 클리어는 submitMessage에서 이미 처리됨)
+    // 메시지 제출 및 입력 클리어
     handleSubmit(eventWithTool, fileList);
+    handleInputChange({ target: { value: '' } } as React.ChangeEvent<HTMLTextAreaElement>);
   };
 
 
@@ -783,19 +731,13 @@ export function ChatInput({
           debouncedInputHandler();
         }
       } else {
-        // 일반 Enter: 메시지 제출 - 모바일에서 더 안전한 처리
+        // 일반 Enter: 메시지 제출 - 직접 함수 호출로 이벤트 큐 건너뛰기
         e.preventDefault();
         if (!isSubmittingRef.current && !isLoading) {
-          // 모바일에서는 즉시 실행, 데스크톱에서는 requestAnimationFrame 사용
-          if (isMobile) {
-            // 모바일에서 즉시 실행하여 키보드 이벤트와의 충돌 방지
+          // 중요: requestAnimationFrame 사용하여 다음 렌더링 프레임에 제출 처리
+          requestAnimationFrame(() => {
             submitMessage();
-          } else {
-            // 데스크톱에서는 requestAnimationFrame 사용
-            requestAnimationFrame(() => {
-              submitMessage();
-            });
-          }
+          });
         }
       }
     } else if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
