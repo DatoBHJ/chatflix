@@ -2219,13 +2219,11 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       }, []);
       
       return (
-        <ul 
+        <ul
           ref={ulRef}
-          className="my-4 list-disc" 
-          style={{ 
-            paddingLeft: isNested ? '0.5rem' : '1rem',
-            listStylePosition: 'outside'
-          }} 
+          className={`my-4 list-disc list-outside ${
+            isNested ? 'pl-2' : 'pl-[1rem] md:pl-[0.9rem]'
+          }`}
           {...props}
         >
           {children}
