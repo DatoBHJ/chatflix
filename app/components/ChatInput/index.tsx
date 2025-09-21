@@ -5,7 +5,7 @@ import { getModelById } from '@/lib/models/config';
 import { ChatInputProps } from './types';
 import { useChatInputStyles } from './ChatInputStyles';
 import { FileUploadButton, FilePreview, fileHelpers } from './FileUpload';
-import { DragDropOverlay, ErrorToast } from './DragDropOverlay';
+import { ErrorToast } from './DragDropOverlay';
 import { Brain, Gauge, AlertTriangle, CheckCircle, Search, Calculator, Link, Image, Video, FileText, Plus, Newspaper, BarChart3, Building, BookOpen, Github, User, Briefcase, FileVideo, Paperclip, Youtube } from 'lucide-react';
 import { SiGoogle } from 'react-icons/si';
 import { Brain as BrainIOS, LightBulb, Apple, Folder, Send } from 'react-ios-icons'; 
@@ -152,7 +152,6 @@ export function ChatInput({
   // 상태 관리
   const [files, setFiles] = useState<File[]>([]);
   const [fileMap, setFileMap] = useState<Map<string, { file: File, url: string }>>(new Map());
-  const [dragActive, setDragActive] = useState(false);
   const [showPDFError, setShowPDFError] = useState(false);
   const [showFolderError, setShowFolderError] = useState(false);
   const [showVideoError, setShowVideoError] = useState(false);
@@ -897,62 +896,6 @@ export function ChatInput({
     };
   }, []);
 
-  // 드래그 처리
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // 드래그가 파일을 포함하는지 확인
-    if (e.dataTransfer.types.includes('Files')) {
-      if (e.type === "dragenter" || e.type === "dragover") {
-        setDragActive(true);
-      }
-    }
-  };
-
-  // 드래그 떠남 처리
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    // 폼 요소를 떠날 때만 비활성화
-    if (e.currentTarget.contains(e.relatedTarget as Node)) {
-      return;
-    }
-    setDragActive(false);
-  };
-
-  // 드롭 처리
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    
-    const items = e.dataTransfer.items;
-    if (!items) return;
-
-    // 폴더 확인 - 실제 폴더가 있는지 확인
-    let hasFolder = false;
-    for (let i = 0; i < items.length; i++) {
-      const entry = items[i].webkitGetAsEntry();
-      if (entry?.isDirectory) {
-        hasFolder = true;
-        break;
-      }
-    }
-
-    // 폴더가 있으면 에러 표시하고 처리 중단
-    if (hasFolder) {
-      setShowFolderError(true);
-      setTimeout(() => setShowFolderError(false), 3000);
-      return;
-    }
-
-    // 폴더가 없으면 파일 처리
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFiles(e.dataTransfer.files);
-    }
-  };
 
   // 파일 처리 - 메타데이터 추출 추가
   const handleFiles = async (newFiles: FileList) => {
@@ -1196,12 +1139,7 @@ export function ChatInput({
       <form 
         ref={formRef} 
         onSubmit={handleMessageSubmit} 
-        className={`flex flex-col gap-2 sticky bottom-0 bg-transparent p-1
-          ${dragActive ? 'drag-target-active' : ''}`}
-        onDragEnter={handleDrag}
-        onDragOver={handleDrag}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        className="flex flex-col gap-2 sticky bottom-0 bg-transparent p-1"
       >
         
         <FilePreview files={files} fileMap={fileMap} removeFile={removeFile} />
@@ -1217,11 +1155,7 @@ export function ChatInput({
         <ErrorToast show={showVideoError || globalShowVideoError} message="Video files are not supported" />
   
         <div 
-          className={`relative transition-transform duration-300 ${dragActive ? 'scale-[1.01]' : ''}`}
-          onDragEnter={handleDrag}
-          onDragLeave={handleDragLeave}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
+          className="relative transition-transform duration-300"
         >
           <input
             type="file"
@@ -1584,7 +1518,6 @@ export function ChatInput({
           </div>
         </div>
   
-        <DragDropOverlay dragActive={dragActive} supportsPDFs={supportsPDFs} />
   
 
       </form>

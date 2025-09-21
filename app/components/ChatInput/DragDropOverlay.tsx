@@ -1,12 +1,14 @@
 // app/components/chat/ChatInput/DragDropOverlay.tsx
 import { memo } from 'react';
-import { DragDropOverlayProps } from './types';
 
 // 메모이제이션된 DragDropOverlay 컴포넌트
 export const DragDropOverlay = memo(function DragDropOverlay({ 
   dragActive, 
   supportsPDFs = false 
-}: DragDropOverlayProps) {
+}: { 
+  dragActive: boolean; 
+  supportsPDFs?: boolean; 
+}) {
   if (!dragActive) return null;
 
   return (

@@ -33,10 +33,6 @@ export interface FilePreviewProps {
   removeFile: (file: File) => void;
 }
 
-export interface DragDropOverlayProps {
-  dragActive: boolean;
-  supportsPDFs?: boolean;
-}
 
 
 
