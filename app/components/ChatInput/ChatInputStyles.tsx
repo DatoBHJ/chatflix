@@ -144,24 +144,6 @@ export function useChatInputStyles() {
           color: var(--foreground);
         }
         
-        /* 멘션 스타일 */
-        .mention-tag-wrapper {
-          display: inline-flex;
-          align-items: center;
-          margin: 0 1px;
-        }
-        
-        .mention-tag {
-          display: inline-block;
-          background-color: color-mix(in srgb, var(--foreground) 7%, transparent);
-          padding: 1px 5px;
-          border-radius: 4px;
-          font-size: 0.95em;
-          font-weight: 500;
-          white-space: nowrap;
-          cursor: default;
-          user-select: all;
-        }
         
         /* 드래그 & 드롭 활성 */
         .drag-target-active {
@@ -181,97 +163,6 @@ export function useChatInputStyles() {
           z-index: 0;
         }
         
-        /* 숏컷 스타일 (원래 디자인) */
-        .shortcuts-container {
-          max-height: 300px;
-          overflow-y: auto;
-          scrollbar-width: thin;
-          scrollbar-color: color-mix(in srgb, var(--foreground) 20%, transparent) transparent;
-          border-radius: 8px;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-          backdrop-filter: blur(16px);
-          border: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
-          animation: slideDown 0.2s ease-out;
-          transform-origin: top center;
-        }
-        
-        .shortcuts-container::-webkit-scrollbar {
-          width: 4px;
-        }
-        
-        .shortcuts-container::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        
-        .shortcuts-container::-webkit-scrollbar-thumb {
-          background: color-mix(in srgb, var(--foreground) 20%, transparent);
-          border-radius: 4px;
-        }
-        
-        .shortcut-item {
-          width: 100%;
-          padding: 16px 24px;
-          text-align: left;
-          transition: all 0.2s ease;
-          position: relative;
-          overflow: hidden;
-        }
-        
-        .shortcut-item.selected {
-          background: color-mix(in srgb, var(--accent) 30%, transparent);
-        }
-        
-        .shortcut-item:hover {
-          background: color-mix(in srgb, var(--accent) 20%, transparent);
-        }
-        
-        .shortcut-item .highlight {
-          color: var(--foreground);
-          font-weight: 500;
-          position: relative;
-        }
-        
-        .shortcut-item .highlight::after {
-          content: '';
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          width: 100%;
-          height: 2px;
-          background: color-mix(in srgb, var(--accent) 50%, transparent);
-        }
-        
-        .shortcut-item.selected .indicator {
-          position: absolute;
-          left: 0;
-          top: 0;
-          bottom: 0;
-          width: 3px;
-          background: var(--foreground);
-          animation: fadeIn 0.2s ease-out;
-        }
-        
-        @keyframes slideDown {
-          from {
-            opacity: 0;
-            transform: translateY(-10px) scale(0.98);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
-        }
-        
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: scaleY(0.8);
-          }
-          to {
-            opacity: 1;
-            transform: scaleY(1);
-          }
-        }
         
         /* Trending terms styles */
         .trending-term {

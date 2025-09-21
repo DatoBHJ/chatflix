@@ -1600,7 +1600,7 @@ body {
 
 
 
-/* Mention styles */
+/* Input styles */
 .yeezy-input {
   outline: none;
 }
@@ -1610,32 +1610,6 @@ body {
   color: var(--muted);
   opacity: 0.5;
   pointer-events: none;
-}
-
-.mention-tag {
-  display: inline-block;
-  padding: 0.1em 0.3em;
-  margin: 0 1px;
-  font-weight: 500;
-  cursor: default;
-  user-select: none;
-  background-color: rgba(239, 68, 68, 0.1);  /* light red background */
-  color: rgb(239, 68, 68);  /* red text */
-  border-radius: 0;
-}
-
-.mention-tag:hover {
-  background-color: rgba(239, 68, 68, 0.15);  /* slightly darker red on hover */
-}
-
-/* Dark theme adjustment for mention tag */
-:root[data-theme="dark"] .mention-tag {
-  background-color: rgba(248, 113, 113, 0.15);  /* darker red background */
-  color: rgb(248, 113, 113);  /* lighter red text */
-}
-
-:root[data-theme="dark"] .mention-tag:hover {
-  background-color: rgba(248, 113, 113, 0.2);  /* slightly darker red on hover */
 }
 
 /* Sidebar Styles */

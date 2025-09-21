@@ -21,7 +21,6 @@ import { checkSubscriptionClient } from '@/lib/subscription-client';
 import { estimateTokenCount, estimateMultiModalTokens, estimateFileTokens, estimateAttachmentTokens } from '@/utils/context-manager';
 
 // 상수 정의
-const MENTION_CONTEXT_RANGE = 200; // 커서 주변 검색 범위 (앞뒤로)
 const DEBOUNCE_TIME = 200; // 디바운스 시간 (ms)
 // 비구독자 컨텍스트 윈도우 제한 제거됨
 
