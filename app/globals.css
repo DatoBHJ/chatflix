@@ -1233,7 +1233,10 @@ body {
 }
 
 /* Remove left padding from list items to match regular message spacing */
-.message-content ul li,
+.message-content ul li {
+  padding-left: 0rem !important;
+}
+
 .message-content ol li {
   padding-left: 0.1rem !important;
 }
