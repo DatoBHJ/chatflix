@@ -824,8 +824,26 @@ body {
 
 /* Message Container Styles */
 .messages-container {
-  @apply max-w-7xl mx-auto w-full pl-1 pr-1 overflow-hidden pb-10 sm:pb-12;
+  @apply max-w-7xl mx-auto w-full pb-10 sm:pb-12;
   padding-top: 1rem; /* Add consistent top padding */
+  overflow: visible; /* 기본적으로 visible 허용 */
+}
+
+/* 데스크탑에서 메시지 꼬리 여백 확보 */
+@media (min-width: 641px) {
+  .messages-container {
+    padding-left: 2rem; /* 32px - AI 메시지 꼬리용 */
+    padding-right: 2rem; /* 32px - 사용자 메시지 꼬리용 */
+  }
+}
+
+/* 모바일에서는 가로 스크롤 방지 및 적절한 패딩 유지 */
+@media (max-width: 640px) {
+  .messages-container {
+    padding-left: 1.5rem; /* 24px */
+    padding-right: 1.5rem; /* 24px */
+    overflow-x: hidden;
+  }
 }
 
 .message-group {

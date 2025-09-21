@@ -155,8 +155,8 @@ export const Messages = memo(function Messages({
   };
 
   return (
-    <div className="messages-container mb-4 flex flex-col sm:px-4" style={{ overflow: 'hidden' }}>
-      <div className="flex-grow" style={{ overflow: 'hidden' }}>
+    <div className="messages-container mb-4 flex flex-col sm:px-4">
+      <div className="flex-grow">
         {/* Chatflix label - iMessage style */}
         {messages.length > 0 && (
           <div className="message-timestamp" style={{ paddingBottom: '0', textTransform: 'none', color: '#737373' }}>
