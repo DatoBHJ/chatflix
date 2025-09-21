@@ -545,11 +545,15 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
       className={`fixed top-0 right-0 left-0 z-30 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
         isHovering || isSidebarOpen 
           ? 'bg-transparent' 
+          // : 'bg-transparent'
           : 'bg-[var(--accent)] dark:bg-[var(--sidebar-dark)]'
-          // : 'bg-[var(--accent)] dark:bg-[var(--sidebar-dark)]'
       }`}
     >
-      <div className="flex justify-between items-center py-1.5 sm:py-1 md:py-0.5 pl-10 sm:pl-4 pr-5 h-10 md:h-8">
+      <div className="flex justify-between items-center py-1.5 sm:py-1 md:py-0.5 pl-10 sm:pl-4 pr-5 h-10 md:h-8 relative">
+      {/* <div className="flex justify-between items-center py-1.5 sm:py-1 md:py-0.5 pl-10 sm:pl-4 pr-5 h-10 md:h-8 relative">
+        {!(isHovering || isSidebarOpen) && (
+          <div className="absolute inset-0 bg-gradient-to-b from-[var(--accent)] via-[var(--accent)]/60 to-transparent dark:from-[var(--sidebar-dark)] dark:via-[var(--sidebar-dark)]/60 -z-10" style={{ height: '200%', top: '-100%' }}></div>
+        )} */}
         <div className="flex items-center gap-2 md:gap-1.5 relative">
           {showBackButton && (
             <button
@@ -1035,7 +1039,7 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                                 )}
                                 
                                 {/* Description with segmentation */}
-                                <div className="text-[var(--foreground)] -ml-2">
+                                <div className="text-[var(--2oreground)] -ml-2">
                                   <MarkdownContent 
                                     content={update.description} 
                                     enableSegmentation={true}
