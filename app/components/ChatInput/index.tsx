@@ -518,18 +518,30 @@ export function ChatInput({
 
 
 
-  // 입력 필드 클리어 - 완전한 클리어 함수
+  // 입력 필드 클리어 - 완전한 클리어 함수 (모바일 최적화)
   const clearInput = () => {
     if (inputRef.current) {
       // 모든 콘텐츠 및 빈 노드 제거
       inputRef.current.innerHTML = '';
       lastTextContentRef.current = ''; // 참조 업데이트
       
-      // 빈 상태 클래스 추가 (강제로)
-      inputRef.current.classList.add('empty');
-      
-      // placeholder 속성 재설정
-      inputRef.current.setAttribute('data-placeholder', placeholder);
+      // 모바일에서 DOM 업데이트를 보장하기 위해 requestAnimationFrame 사용
+      requestAnimationFrame(() => {
+        if (inputRef.current) {
+          // 빈 상태 클래스 추가 (강제로)
+          inputRef.current.classList.add('empty');
+          
+          // placeholder 속성 재설정
+          inputRef.current.setAttribute('data-placeholder', placeholder);
+          
+          // 모바일에서 추가 확인 - innerText가 정말 비어있는지 체크
+          if (inputRef.current.innerText && inputRef.current.innerText.trim() !== '') {
+            // 아직 내용이 남아있다면 강제로 다시 클리어
+            inputRef.current.innerHTML = '';
+            inputRef.current.classList.add('empty');
+          }
+        }
+      });
       
       // 부모 상태 업데이트 (즉시)
       handleInputChange({
@@ -595,6 +607,17 @@ export function ChatInput({
 
       // 입력 및 UI를 즉시 클리어하여 즉각적 UX 제공 (clearInput 사용으로 placeholder 재설정 보장)
       clearInput();
+      
+      // 모바일에서 추가 보장 - 이중 체크로 확실히 클리어
+      if (isMobile) {
+        setTimeout(() => {
+          if (inputRef.current && inputRef.current.innerText && inputRef.current.innerText.trim() !== '') {
+            inputRef.current.innerHTML = '';
+            inputRef.current.classList.add('empty');
+            inputRef.current.setAttribute('data-placeholder', placeholder);
+          }
+        }, 50); // 50ms 후 한 번 더 체크
+      }
 
       // 파일 상태는 제출 직후 정리 (미리 스냅샷으로 전달했으므로 안전)
       const urls = Array.from(fileMap.values()).map(({ url }) => url).filter(url => url.startsWith('blob:'));
@@ -696,6 +719,23 @@ export function ChatInput({
     // 메시지 제출 및 입력 클리어
     handleSubmit(eventWithTool, fileList);
     handleInputChange({ target: { value: '' } } as React.ChangeEvent<HTMLTextAreaElement>);
+    
+    // 모바일에서 추가 보장 - 입력창이 확실히 클리어되도록
+    if (isMobile && inputRef.current) {
+      // 즉시 클리어
+      inputRef.current.innerHTML = '';
+      inputRef.current.classList.add('empty');
+      inputRef.current.setAttribute('data-placeholder', placeholder);
+      
+      // 50ms 후 한 번 더 체크하여 확실히 클리어
+      setTimeout(() => {
+        if (inputRef.current && inputRef.current.innerText && inputRef.current.innerText.trim() !== '') {
+          inputRef.current.innerHTML = '';
+          inputRef.current.classList.add('empty');
+          inputRef.current.setAttribute('data-placeholder', placeholder);
+        }
+      }, 50);
+    }
   };
 
 
@@ -734,6 +774,17 @@ export function ChatInput({
           requestAnimationFrame(() => {
             submitMessage();
           });
+          
+          // 모바일에서 추가 보장 - Enter 키 후 즉시 클리어
+          if (isMobile && inputRef.current) {
+            setTimeout(() => {
+              if (inputRef.current && inputRef.current.innerText && inputRef.current.innerText.trim() !== '') {
+                inputRef.current.innerHTML = '';
+                inputRef.current.classList.add('empty');
+                inputRef.current.setAttribute('data-placeholder', placeholder);
+              }
+            }, 10); // 10ms 후 즉시 체크
+          }
         }
       }
     } else if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
