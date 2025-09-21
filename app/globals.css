@@ -1219,6 +1219,18 @@ body {
   @apply ml-4 mt-2;
 }
 
+/* Remove bottom margin from last list item to prevent extra spacing */
+.message-content ul li:last-child,
+.message-content ol li:last-child {
+  @apply mb-0;
+}
+
+/* Remove left padding from list items to match regular message spacing */
+.message-content ul li,
+.message-content ol li {
+  padding-left: 0 !important;
+}
+
 /* Link Styles */
 .message-content a {
   color: rgb(96 165 250); /* text-blue-400 */

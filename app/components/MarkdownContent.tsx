@@ -2223,7 +2223,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           ref={ulRef}
           className="my-4 list-disc" 
           style={{ 
-            paddingLeft: isNested ? '0.5rem' : '1.25rem',
+            paddingLeft: isNested ? '0.5rem' : '1rem',
             listStylePosition: 'outside'
           }} 
           {...props}
