@@ -1,6 +1,18 @@
 @import "tailwindcss";
 @import "./styles/typing-indicator.css";
 
+/* Minimal reset to prevent subtle global scroll caused by default UA margins */
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Map Tailwind's screen height utilities to dynamic viewport on supported browsers */
+@supports (height: 100dvh) {
+  .h-screen { height: 100dvh !important; }
+  .min-h-screen { min-height: 100dvh !important; }
+}
+
 /* Code highlighting styles - using custom styling instead of highlight.js */
 
 /* Tailwind v4 theme variables (breakpoints) */
@@ -733,6 +745,7 @@ body {
   letter-spacing: -0.015em;
   overflow-x: hidden;
   min-height: 100vh;
+  min-height: 100dvh; /* Dynamic viewport height for mobile */
 }
 
 /* 미래지향적 스크롤바 스타일 */
@@ -1235,6 +1248,16 @@ body {
 /* Remove left padding from list items to match regular message spacing */
 .message-content ul li {
   padding-left: 0rem !important;
+}
+
+@media (max-width: 768px) {
+  .message-content ul li {
+    margin-bottom: 1rem;
+  }
+  
+  .message-content ul li:last-child {
+    margin-bottom: 0 !important;
+  }
 }
 
 .message-content ol li {

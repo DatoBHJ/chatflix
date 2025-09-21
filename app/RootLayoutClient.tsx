@@ -159,7 +159,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
             {/* Hover trigger area for desktop */}
             {!isMobile && (
               <div 
-                className="fixed left-0 top-0 w-4 h-full z-[70]"
+                className="fixed left-0 top-0 w-4 h-screen z-[70]"
                 onMouseEnter={() => handleSidebarHover(true)}
                 onMouseLeave={() => handleSidebarHover(false)}
               />
@@ -167,7 +167,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
             
             {/* Always visible sidebar for mobile and desktop */}
             <div 
-              className={`fixed left-0 top-0 h-full z-50 transform transition-all duration-300 sm:duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+              className={`fixed left-0 top-0 h-screen z-50 transform transition-all duration-300 sm:duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
                 shouldShowSidebar ? 'translate-x-0' : '-translate-x-full'
               }`}
               style={{

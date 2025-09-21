@@ -1039,7 +1039,7 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                                 )}
                                 
                                 {/* Description with segmentation */}
-                                <div className="text-[var(--2oreground)] -ml-2">
+                                <div className="text-[var(--foreground)] -ml-2">
                                   <MarkdownContent 
                                     content={update.description} 
                                     enableSegmentation={true}
