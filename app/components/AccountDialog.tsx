@@ -20,7 +20,7 @@ import {
   CreditCard
 } from 'lucide-react'
 import Link from 'next/link'
-import { useHomeStarryNight } from '@/app/hooks/useHomeStarryNight'
+// import { useHomeStarryNight } from '@/app/hooks/useHomeStarryNight'
 import { useDarkMode } from '@/app/hooks/useDarkMode'
 import { getSidebarTranslations } from '../lib/sidebarTranslations'
 
@@ -166,7 +166,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
   const [isMobile, setIsMobile] = useState(false)
   const [mobileView, setMobileView] = useState<string | null>(null)
   const isDarkMode = useDarkMode()
-  const { isEnabled: isStarryNightEnabled, toggle: toggleStarryNight } = useHomeStarryNight()
+  // const { isEnabled: isStarryNightEnabled, toggle: toggleStarryNight } = useHomeStarryNight()
   
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -962,7 +962,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
               </div>
               
               {/* 다크모드일 때만 별 효과 토글 표시 */}
-              {isDarkMode && (
+              {/* {isDarkMode && (
                 <div className="flex items-center justify-between mt-4">
                   <span className="text-base">{translations.starryNightBackground}</span>
                   <label className="relative inline-flex items-center cursor-pointer">
@@ -975,7 +975,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
                     <div className="w-11 h-6 bg-gray-200 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#007AFF] shadow-inner"></div>
                   </label>
                 </div>
-              )}
+              )} */}
 
             </div>
           </div>

@@ -17,11 +17,11 @@ import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getXSearchData, getWe
 import { Annotation } from '@/app/lib/messageUtils';
 import { nanoid } from 'nanoid';
 import { SuggestedPrompt } from '@/app/components/SuggestedPrompt/SuggestedPrompt';
-import { useHomeStarryNight } from '@/app/hooks/useHomeStarryNight';
+// import { useHomeStarryNight } from '@/app/hooks/useHomeStarryNight';
 import { useMouseIdleDetection } from '@/app/hooks/useMouseIdleDetection';
 import { useDarkMode } from '@/app/hooks/useDarkMode';
 import { formatMessageGroupTimestamp } from '@/app/lib/messageGroupTimeUtils';
-import { StarryNightBackground } from './StarryNightBackground.backup';
+// import { StarryNightBackground } from './StarryNightBackground.backup';
 import { DragDropOverlay } from './ChatInput/DragDropOverlay';
 
 // HomeView 컴포넌트 (메시지가 없을 때 표시)
@@ -42,7 +42,7 @@ function HomeView({
   setHasAgentModels,
   onSuggestedPromptClick,
   isDarkMode,
-  isStarryNightEnabled,
+  // isStarryNightEnabled,
   handleModelSelectorChange,
   handleGlobalDrag,
   handleGlobalDragLeave,
@@ -66,7 +66,7 @@ function HomeView({
       {!editingMessageId && <DragDropOverlay dragActive={globalDragActive} supportsPDFs={true} />}
       
       {/* StarryNightBackground - 홈화면에서만 다크모드이고 설정이 활성화되고 마우스가 idle일 때만 표시 */}
-      {isDarkMode && isStarryNightEnabled && isMouseIdle && <StarryNightBackground />}
+      {/* {isDarkMode && isStarryNightEnabled && isMouseIdle && <StarryNightBackground />} */}
       
       {/* Header is positioned fixed, so content area starts from the top */}
       <div className="flex-1 pt-[40px] md:pt-[32px] flex flex-col min-h-0">
@@ -365,7 +365,7 @@ function ChatInterface({
   const searchTerm = searchParams.get('search'); // 🚀 FEATURE: Get search term from URL
   const { user, isLoading: authLoading, isAuthenticated, isAnonymous } = useAuth();
   const isDarkMode = useDarkMode();
-  const { isEnabled: isStarryNightEnabled } = useHomeStarryNight();
+  // const { isEnabled: isStarryNightEnabled } = useHomeStarryNight();
 
 
 
@@ -1371,7 +1371,7 @@ function ChatInterface({
       setHasAgentModels={setHasAgentModels}
       onSuggestedPromptClick={handleSuggestedPromptClick}
       isDarkMode={isDarkMode}
-      isStarryNightEnabled={isStarryNightEnabled}
+      // isStarryNightEnabled={isStarryNightEnabled}
       handleModelSelectorChange={handleModelSelectorChange}
       handleGlobalDrag={handleGlobalDrag}
       handleGlobalDragLeave={handleGlobalDragLeave}

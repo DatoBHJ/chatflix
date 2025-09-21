@@ -3,7 +3,7 @@ import React, { useRef, useEffect, useState } from 'react';
 
 // 성능을 위해 타입을 더 가볍게 조정
 interface Star {
-  x: number; y: number; radius: number; baseOpacity: number; twinkleOffset: number; type: 'small' | 'medium' | 'large' | 'bright';
+  x: number; y: number; radius: number; baseOpacity: number; type: 'small' | 'medium' | 'large' | 'bright';
 }
 interface ShootingStar {
   x: number; y: number; vx: number; vy: number; life: number;
@@ -12,7 +12,7 @@ interface ShootingStar {
 
 // 상수 정의 - 성능 최적화된 값들
 const STAR_COUNT_DESKTOP = 5000; // 스타워즈 느낌을 위해 대폭 증가
-const STAR_COUNT_MOBILE = 800; // 모바일에서는 대폭 감소
+const STAR_COUNT_MOBILE = 2000; // 모바일에서도 별을 훨씬 많이 표시
 
 const SHOOTING_STAR_MAX_LIFE = 1.5; // 초
 const ROTATION_SPEED = 0.05; // 더 천천히 회전
@@ -74,26 +74,29 @@ export const StarryNightBackground = () => {
       const random = Math.random();
       let opacity, radius, type: 'small' | 'medium' | 'large' | 'bright';
       
+      // 모바일과 데스크탑에서 별 크기 다르게 설정
+      const sizeMultiplier = isMobile ? 0.5 : 1.0; // 모바일에서는 크기를 절반으로
+      
       // 별 타입별 분포 조정 (더 멀리 있는 밤하늘 느낌)
       if (random < 0.05) {
         // 5% - 매우 밝은 별 (스타워즈의 주요 별들)
         opacity = Math.random() * 0.2 + 0.9;
-        radius = Math.random() * 1.2 + 1.0; // 크기 감소: 2.0~4.0 → 1.0~2.2
+        radius = (Math.random() * 1.2 + 1.0) * sizeMultiplier; // 모바일에서 더 작게
         type = 'bright';
       } else if (random < 0.15) {
         // 10% - 큰 별들
         opacity = Math.random() * 0.3 + 0.7;
-        radius = Math.random() * 0.8 + 0.8; // 크기 감소: 1.5~3.0 → 0.8~1.6
+        radius = (Math.random() * 0.8 + 0.8) * sizeMultiplier; // 모바일에서 더 작게
         type = 'large';
       } else if (random < 0.45) {
         // 30% - 중간 별들
         opacity = Math.random() * 0.3 + 0.5;
-        radius = Math.random() * 0.6 + 0.6; // 크기 감소: 1.0~2.0 → 0.6~1.2
+        radius = (Math.random() * 0.6 + 0.6) * sizeMultiplier; // 모바일에서 더 작게
         type = 'medium';
       } else {
         // 55% - 작은 별들 (배경 별들)
         opacity = Math.random() * 0.4 + 0.2;
-        radius = Math.random() * 0.4 + 0.3; // 크기 감소: 0.5~1.3 → 0.3~0.7
+        radius = (Math.random() * 0.4 + 0.3) * sizeMultiplier; // 모바일에서 더 작게
         type = 'small';
       }
       
@@ -106,7 +109,6 @@ export const StarryNightBackground = () => {
         y: Math.sin(angle) * distance,
         radius,
         baseOpacity: opacity,
-        twinkleOffset: Math.random() * Math.PI * 2,
         type,
       });
     }
@@ -176,28 +178,8 @@ export const StarryNightBackground = () => {
         const distanceFromCenter = Math.sqrt(star.x * star.x + star.y * star.y);
         if (distanceFromCenter > maxVisibleDistance) return;
         
-        // 별 타입별 미묘한 깜빡임 효과
-        let twinkleSpeed, twinkleIntensity;
-        switch (star.type) {
-          case 'bright':
-            twinkleSpeed = 0.3; // 거의 깜빡이지 않음
-            twinkleIntensity = 0.02; // 매우 미묘
-            break;
-          case 'large':
-            twinkleSpeed = 0.5; // 거의 깜빡이지 않음
-            twinkleIntensity = 0.03; // 매우 미묘
-            break;
-          case 'medium':
-            twinkleSpeed = 0.8;
-            twinkleIntensity = 0.04; // 대폭 감소
-            break;
-          default: // small
-            twinkleSpeed = 0.4;
-            twinkleIntensity = 0.02; // 대폭 감소
-        }
-        
-        const twinkle = Math.sin((now + star.twinkleOffset) * twinkleSpeed) * twinkleIntensity + (1 - twinkleIntensity);
-        ctx.globalAlpha = star.baseOpacity * twinkle;
+        // 깜빡임 효과 완전 제거 - 고정된 투명도 사용
+        ctx.globalAlpha = star.baseOpacity;
         
         // 별 타입별 다른 색상
         switch (star.type) {
