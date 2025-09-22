@@ -332,7 +332,56 @@ const Message = memo(function MessageComponent({
   useEffect(() => {
     const segments = document.querySelectorAll('.message-segment');
     segments.forEach((segment) => {
-      if (segment.clientHeight > 36) {
+      // 세그먼트 내의 가장 큰 텍스트 크기를 찾기
+      const getLargestFontSize = (element: Element): number => {
+        const computedStyle = window.getComputedStyle(element);
+        const fontSize = parseFloat(computedStyle.fontSize);
+        
+        let maxFontSize = fontSize;
+        
+        // 자식 요소들도 확인
+        const children = element.children;
+        for (let i = 0; i < children.length; i++) {
+          const childMaxSize = getLargestFontSize(children[i]);
+          maxFontSize = Math.max(maxFontSize, childMaxSize);
+        }
+        
+        return maxFontSize;
+      };
+      
+      const maxFontSize = getLargestFontSize(segment);
+      
+      // 글꼴 크기에 따른 동적 임계값 계산
+      // 기본 16px 기준으로 36px 임계값, 글꼴이 클수록 임계값도 증가
+      const baseFontSize = 16;
+      const baseThreshold = 36;
+      const threshold = (maxFontSize / baseFontSize) * baseThreshold;
+      
+      // 텍스트 크기에 따른 패딩 클래스 추가
+      const removePaddingClasses = () => {
+        segment.classList.remove('text-size-sm', 'text-size-base', 'text-size-lg', 'text-size-xl', 'text-size-2xl', 'text-size-3xl', 'text-size-4xl');
+      };
+      
+      removePaddingClasses();
+      
+      // 글꼴 크기에 따른 클래스 추가
+      if (maxFontSize <= 14) {
+        segment.classList.add('text-size-sm');
+      } else if (maxFontSize <= 16) {
+        segment.classList.add('text-size-base');
+      } else if (maxFontSize <= 18) {
+        segment.classList.add('text-size-lg');
+      } else if (maxFontSize <= 20) {
+        segment.classList.add('text-size-xl');
+      } else if (maxFontSize <= 24) {
+        segment.classList.add('text-size-2xl');
+      } else if (maxFontSize <= 30) {
+        segment.classList.add('text-size-3xl');
+      } else {
+        segment.classList.add('text-size-4xl');
+      }
+      
+      if (segment.clientHeight > threshold) {
         segment.classList.add('multi-line');
       } else {
         segment.classList.remove('multi-line');
@@ -1478,16 +1527,8 @@ const Message = memo(function MessageComponent({
             </svg>
           </button>
           
-          {/* 구분선 */}
-          {/* <div className="w-px h-4 bg-[var(--subtle-divider)] mx-2"></div> */}
-          
-          {/* Model capability badges first */}
-          <ModelCapabilityBadges modelId={(message as ExtendedMessage).model || currentModel} />
-          
-          {/* Then model name with logo */}
+          {/* Model name with logo */}
           <ModelNameWithLogo modelId={(message as ExtendedMessage).model || currentModel} />
-          
-          {/* Canvas 버튼 제거됨 */}
         </div>
       )}
       {/* Add follow-up questions for the last assistant message */}

@@ -538,12 +538,11 @@ html, body {
   --background-overlay-dark: rgba(0, 0, 0, 0.55);
 
   /* Dark theme variables */
-  /* --background-dark: #1E1E1E; literal imessage dark mode */
-  --background-dark: #161617;
-  /* --background-dark: #000000; */
+  /* --background-dark: #161617; */
+  --background-dark: #000000;
   --foreground-dark: #e5e5e5;
   --accent-dark: #262626;
-  /* --accent-dark: #3B3B3D; literal imessage dark mode */
+  /* --accent-dark: #181818;  */
   /* --sidebar-dark: #242424; literal imessage dark mode */
   --sidebar-dark: #131313;
 
@@ -844,8 +843,8 @@ body {
 
 /* Message Container Styles */
 .messages-container {
-  @apply max-w-7xl mx-auto w-full pb-10 sm:pb-12;
-  padding-top: 1rem; /* Add consistent top padding */
+  @apply max-w-7xl mx-auto w-full pb-10 sm:pb-12 pt-[60px] md:pt-[52px] ;
+  /* padding-top: 1rem; Add consistent top padding */
   overflow: visible; /* 기본적으로 visible 허용 */
 }
 
@@ -1212,26 +1211,13 @@ body {
   @apply mb-0;
 }
 
-/* Headings */
-.message-content h1 {
-  @apply text-2xl font-semibold mt-6 mb-4;
-}
-
-.message-content h2 {
-  @apply text-xl font-semibold mt-6 mb-3;
-}
-
-.message-content h3 {
-  @apply text-lg font-semibold mt-5 mb-2;
-}
-
 /* List Styles */
 .message-content ul {
-  @apply list-disc list-inside space-y-2 my-4;
+  @apply list-disc list-inside space-y-4 my-4;
 }
 
 .message-content ol {
-  @apply list-decimal list-inside space-y-2 my-4;
+  @apply list-decimal list-inside space-y-4 my-4;
 }
 
 .message-content li > ul,
@@ -1557,7 +1543,7 @@ body {
 
 /* Emphasis */
 .message-content strong {
-  @apply font-semibold;
+  @apply font-bold;
 }
 
 .message-content em {
@@ -1936,6 +1922,7 @@ p:has(.katex) {
   gap: 0px;
   align-items: flex-start;
 }
+
 
 /* Remove bubble styling when using segments */
 .imessage-receive-bubble:has(.message-segments) {
@@ -2878,6 +2865,98 @@ p:has(.katex) {
   .markdown-segment.table-segment .message-content {
     overflow: visible !important;
   }
+}
+
+
+/* Style for h1, h2, h3 headers inside message bubbles */
+.message-content h1 strong,
+.message-content h2 strong,
+.message-content h3 strong {
+  font-weight: 600; /* font-semibold */
+  font-size: inherit !important; /* 부모 헤더의 글꼴 크기 상속 */
+}
+
+
+
+/* Special spacing for message segments containing headers */
+.message-segment.contains-header {
+  margin-top: 3.25rem !important; /* 60px - equivalent to mt-15 */
+}
+
+/* First message segment should not have extra top margin */
+.message-segments .message-segment.contains-header:first-child {
+  margin-top: 0 !important;
+}
+
+/* Reduce top margin for consecutive header segments */
+.message-segment.contains-header + .message-segment.contains-header {
+  margin-top: 1rem !important; /* 16px - reduced spacing for consecutive headers */
+}
+
+
+/* Text size based padding adjustments */
+/* Small text (≤14px) - maximum horizontal ratio */
+.message-segment.text-size-sm {
+  padding: 6px 22px !important;
+}
+
+/* Base text (≤16px) - follows same rule as others */
+.message-segment.text-size-base {
+  padding: 8px 16px !important;
+}
+
+/* Large text (≤18px) - reduced horizontal ratio */
+.message-segment.text-size-lg {
+  padding: 8px 16px !important;
+}
+
+/* Extra large text (≤20px) - further reduced horizontal ratio */
+.message-segment.text-size-xl {
+  padding: 8px 18px !important;
+}
+
+/* 2XL text (≤24px) - moderate horizontal padding */
+.message-segment.text-size-2xl {
+  padding: 8px 14px !important;
+}
+
+/* 3XL text (≤30px) - minimal horizontal advantage */
+.message-segment.text-size-3xl {
+  padding: 12px 16px !important;
+}
+
+/* 4XL text (>30px) - balanced padding */
+.message-segment.text-size-4xl {
+  padding: 22px 28px !important;
+}
+
+/* Single line adjustments - reduce vertical padding */
+.message-segment.text-size-sm:not(.multi-line) {
+  padding: 4px 22px !important;
+}
+
+.message-segment.text-size-base:not(.multi-line) {
+  padding: 6px 16px !important;
+}
+
+.message-segment.text-size-lg:not(.multi-line) {
+  padding: 6px 16px !important;
+}
+
+.message-segment.text-size-xl:not(.multi-line) {
+  padding: 6px 18px !important;
+}
+
+.message-segment.text-size-2xl:not(.multi-line) {
+  padding: 6px 14px !important;
+}
+
+.message-segment.text-size-3xl:not(.multi-line) {
+  padding: 8px 16px !important;
+}
+
+.message-segment.text-size-4xl:not(.multi-line) {
+  padding: 16px 28px !important;
 }
 
 

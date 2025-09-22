@@ -69,7 +69,7 @@ function HomeView({
       {/* {isDarkMode && isStarryNightEnabled && isMouseIdle && <StarryNightBackground />} */}
       
       {/* Header is positioned fixed, so content area starts from the top */}
-      <div className="flex-1 pt-[40px] md:pt-[32px] flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0">
         {/* 주 컨텐츠 영역 - Mobile/Desktop Responsive */}
         {/* Mobile Layout */}
         <div className="flex flex-col sm:hidden min-h-0 flex-1">
@@ -235,7 +235,7 @@ function ChatView({
       {!editingMessageId && <DragDropOverlay dragActive={globalDragActive} supportsPDFs={true} />}
       
       {/* Header is positioned fixed, so content area starts from the top */}
-      <div className="flex-1 pt-[40px] md:pt-[32px] flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0">
         {/* 주 컨텐츠 영역 - Mobile/Desktop Responsive */}
         {/* Mobile Layout */}
         <div className="flex flex-col sm:hidden min-h-0 flex-1">

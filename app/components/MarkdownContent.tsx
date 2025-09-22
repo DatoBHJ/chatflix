@@ -506,49 +506,78 @@ const splitSegmentByLineBreaks = (segment: string): string[] => {
     const line = lines[i];
     const trimmedLine = line.trim();
 
+    // 헤더는 항상 별도의 세그먼트로 분리
+    if (/^#{1,3}\s/.test(trimmedLine)) {
+      if (currentSegment.length > 0) {
+        segments.push(currentSegment.join('\n').trim());
+      }
+      segments.push(line);
+      currentSegment = [];
+      continue;
+    }
+
     // Block detectors
     const isListItem = /^([-*+]\s(?:\[[ xX]\]\s)?|\d+\.\s)/.test(trimmedLine);
     const isTableLine = /^\s*\|.*\|\s*$/.test(trimmedLine); // 테이블 행 감지
 
-    // 연속된 리스트 아이템들을 하나의 세그먼트로 그룹핑
+    // 리스트 아이템들을 들여쓰기 레벨별로 그룹핑 (부모와 자식 그룹 분리)
     if (isListItem) {
       if (currentSegment.length > 0) {
         segments.push(currentSegment.join('\n').trim());
         currentSegment = [];
       }
       
+      // 현재 리스트 아이템의 들여쓰기 레벨 확인
+      const currentIndentLevel = line.match(/^(\s*)/)?.[1]?.length || 0;
+      
       let j = i;
+      let groupContent: string[] = [];
+      
       while (j < lines.length) {
         const currentLine = lines[j];
         const currentTrimmed = currentLine.trim();
+        const lineIndentLevel = currentLine.match(/^(\s*)/)?.[1]?.length || 0;
         const isCurrentListItem = /^([-*+]\s(?:\[[ xX]\]\s)?|\d+\.\s)/.test(currentTrimmed);
-        const isIndented = /^\s{2,}/.test(currentLine) && currentTrimmed !== '';
-
+        
         if (currentTrimmed === '') {
-            // 빈 줄 다음에 리스트가 계속되는지 확인
-            if (j + 1 < lines.length) {
-                const nextLineTrimmed = lines[j+1].trim();
-                const isNextLineListItem = /^([-*+]\s(?:\[[ xX]\]\s)?|\d+\.\s)/.test(nextLineTrimmed);
-                if(isNextLineListItem) {
-                    currentSegment.push(currentLine);
-                    j++;
-                    continue;
-                }
+          // 빈 줄 다음에 리스트가 계속되는지 확인
+          if (j + 1 < lines.length) {
+            const nextLineTrimmed = lines[j+1].trim();
+            const nextLineIndentLevel = lines[j+1].match(/^(\s*)/)?.[1]?.length || 0;
+            const isNextLineListItem = /^([-*+]\s(?:\[[ xX]\]\s)?|\d+\.\s)/.test(nextLineTrimmed);
+            
+            // 같은 레벨의 리스트가 계속되면 빈 줄 포함
+            if (isNextLineListItem && nextLineIndentLevel === currentIndentLevel) {
+              groupContent.push(currentLine);
+              j++;
+              continue;
             }
-            break; // 리스트 종료
+          }
+          break; // 리스트 그룹 종료
         }
-
-        if (isCurrentListItem || isIndented) {
-          currentSegment.push(currentLine);
+        
+        if (isCurrentListItem) {
+          if (lineIndentLevel === currentIndentLevel) {
+            // 같은 들여쓰기 레벨의 리스트 아이템은 그룹에 포함
+            groupContent.push(currentLine);
+          } else {
+            // 다른 들여쓰기 레벨이면 그룹 종료
+            break;
+          }
+        } else if (lineIndentLevel > currentIndentLevel) {
+          // 더 깊은 들여쓰기의 내용은 현재 그룹에 포함
+          groupContent.push(currentLine);
         } else {
-          // 리스트가 아닌 다른 구조가 나오면 중단
+          // 더 얕은 들여쓰기나 리스트가 아닌 내용이면 그룹 종료
           break;
         }
+        
         j++;
       }
       
-      segments.push(currentSegment.join('\n').trim());
-      currentSegment = [];
+      if (groupContent.length > 0) {
+        segments.push(groupContent.join('\n').trim());
+      }
       i = j - 1; // 바깥 루프 인덱스 업데이트
       continue;
     }
@@ -556,7 +585,6 @@ const splitSegmentByLineBreaks = (segment: string): string[] => {
     // 분할 조건들 - 블록 외부에서만 적용
     const shouldSplit =
       (trimmedLine === '' && !inTableBlock) ||
-      /^#{1,3}\s/.test(trimmedLine) ||
       /^```/.test(trimmedLine) ||
       /^---+$/.test(trimmedLine) ||
       /^[*_-]{3,}$/.test(trimmedLine);
@@ -1815,13 +1843,14 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       const match = /language-(\w+)/.exec(className || '');
       const isInline = !match;
       
-      if (isInline) {
-        return (
-          <code className="hljs font-mono text-sm bg-[var(--inline-code-bg)] text-[var(--inline-code-text)] px-1.5 py-0.5 rounded" {...props}>
-            {children}
-          </code>
-        );
-      }
+        if (isInline) {
+          // 인라인 코드를 일반 텍스트처럼 처리
+          return (
+            <span {...props}>
+              {highlightSearchTermInChildren(children, searchTerm, { messageType })}
+            </span>
+          );
+        }
       
       const language = match?.[1] || '';
       // Use the existing extractText utility which is designed to handle complex children structures.
@@ -2255,7 +2284,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       );
     },
     li: ({ children, ...props }) => (
-      <li className="my-2 break-words leading-relaxed" style={{ 
+      <li className="my-3 break-words leading-relaxed" style={{ 
         listStylePosition: 'outside',
         paddingLeft: '0.25rem'
       }} {...props}>
@@ -2268,22 +2297,22 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       </li>
     ),
     h1: ({ children, ...props }) => (
-      <h1 className="text-2xl font-bold mt-8 mb-4 break-words" {...props}>
+      <h1 className="text-3xl font-semibold tracking-tight break-words" {...props}>
         {highlightSearchTermInChildren(children, searchTerm, { messageType })}
       </h1>
     ),
     h2: ({ children, ...props }) => (
-      <h2 className="text-xl font-bold mt-6 mb-3 break-words" {...props}>
+      <h2 className="text-3xl font-semibold tracking-tight break-words" {...props}>
         {highlightSearchTermInChildren(children, searchTerm, { messageType })}
       </h2>
     ),
     h3: ({ children, ...props }) => (
-      <h3 className="text-lg font-bold mt-5 mb-2 break-words" {...props}>
+      <h3 className="text-2xl font-semibold tracking-tight break-words" {...props}>
         {highlightSearchTermInChildren(children, searchTerm, { messageType })}
       </h3>
     ),
     strong: ({ children, ...props }) => (
-      <strong className="font-bold" {...props}>
+      <strong className="text-lg" {...props}>
         {highlightSearchTermInChildren(children, searchTerm, { messageType })}
       </strong>
     ),
@@ -2352,8 +2381,29 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               // 단일 줄 불릿 포인트인지 확인
               const isSingleLineBullet = /^[-*+]\s/.test(segment.trim()) && !segment.includes('\n');
               
+              // 볼드가 바로 옆에 있는 bullet point인지 확인 (연속/단일 상관없이)
+              const hasBoldNextToBullet = /^[-*+]\s+\*\*/.test(segment.trim()) || 
+                                          /\n\s*[-*+]\s+\*\*/.test(segment);
+              
+              // bullet point에서 bullet 제거한 텍스트
+              let processedSegment = segment;
+              
+              if (isSingleLineBullet) {
+                // 단일 줄 bullet point는 bullet 제거
+                processedSegment = segment.replace(/^[-*+]\s/, '').trim();
+              } else if (hasBoldNextToBullet) {
+                // 볼드가 바로 옆에 있는 bullet point들은 모든 줄에서 bullet만 제거
+                processedSegment = segment.replace(/^(\s*)[-*+]\s+/gm, '$1');
+              }
+              
               // 테이블 세그먼트인지 확인 (마크다운 표 패턴: 헤더 행 + 구분 행 존재)
               const isTableSegment = /(^|\n)\s*\|.*\|\s*(\n|$)/.test(segment) && /(^|\n)\s*\|?\s*[:\-]+\s*(\|\s*[:\-]+\s*)+\|?\s*(\n|$)/.test(segment);
+              
+              // 헤더 세그먼트인지 확인 (#, ##, ###)
+              const isHeaderSegment = /^#{1,3}\s/.test(segment.trim());
+              
+              // h2 헤더 세그먼트인지 확인
+              const isH2HeaderSegment = /^##\s/.test(segment.trim());
               
               // 이전 세그먼트가 이미지 세그먼트인지 확인
               const prevIsImage = index > 0 && /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segmentGroup[index - 1]);
@@ -2430,11 +2480,13 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                 };
               };
               
-              const isLastBubble = !isImageSegment && !isLinkSegment && index === lastBubbleIndex;
+              const nextIsHeader = index < segmentGroup.length - 1 && /^#{1,3}\s/.test(segmentGroup[index + 1].trim());
+
+              const isLastBubble = !isImageSegment && !isLinkSegment && (index === lastBubbleIndex || nextIsHeader);
               return (
                 <div 
                   key={index} 
-                  className={`${isImageSegment ? (hasConsecutiveImages ? (isMobile ? 'max-w-[45%]' : 'max-w-[100%] md:max-w-[90%]') : (isMobile ? 'max-w-[55%]' : 'max-w-[100%] md:max-w-[70%]')) : ''} ${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isSingleLineBullet ? ' single-line-bullet' : ''}${isLastBubble ? ' last-bubble' : ''}${isTableSegment ? ' table-segment' : ''}`}`}
+                  className={`${isImageSegment ? (hasConsecutiveImages ? (isMobile ? 'max-w-[45%]' : 'max-w-[100%] md:max-w-[90%]') : (isMobile ? 'max-w-[55%]' : 'max-w-[100%] md:max-w-[70%]')) : ''} ${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isSingleLineBullet ? ' single-line-bullet' : ''}${isLastBubble ? ' last-bubble' : ''}${isTableSegment ? ' table-segment' : ''}${isHeaderSegment ? ' contains-header' : ''}${isH2HeaderSegment ? ' contains-h2-header' : ''}`}`}
                   style={{
                     ...getImageStyle(),
                     ...(isTableSegment && {
@@ -2464,16 +2516,16 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                       rehypePlugins={rehypePlugins}
                       components={components}
                     >
-                      {segment}
+                      {processedSegment}
                     </ReactMarkdown>
                   ) : (
-                    <div className={`${isTableSegment ? 'table-segment-content' : 'max-w-full overflow-x-auto'} message-content break-words`}>
+                    <div className={`${isTableSegment ? 'table-segment-content' : 'message-content'} max-w-full overflow-x-auto break-words`}>
                       <ReactMarkdown
                         remarkPlugins={remarkPlugins}
                         rehypePlugins={rehypePlugins}
                         components={components}
                       >
-                        {segment}
+                        {processedSegment}
                       </ReactMarkdown>
                     </div>
                   )}

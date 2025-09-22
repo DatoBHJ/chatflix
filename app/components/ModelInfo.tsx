@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { getModelById } from '@/lib/models/config'
 import { getProviderLogo, hasLogo } from '@/lib/models/logoUtils'
@@ -6,6 +6,32 @@ import { getProviderLogo, hasLogo } from '@/lib/models/logoUtils'
 // Model name with logo component
 export const ModelNameWithLogo = ({ modelId }: { modelId: string }) => {
   const model = getModelById(modelId);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-collapse after a delay
+  useEffect(() => {
+    if (isExpanded) {
+      const timer = setTimeout(() => {
+        setIsExpanded(false);
+      }, 3000); // Collapse after 3 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [isExpanded]);
+
+  // Collapse when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsExpanded(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
   
   if (!model) {
     return (
@@ -18,25 +44,43 @@ export const ModelNameWithLogo = ({ modelId }: { modelId: string }) => {
   // Always use abbreviation when available
   const displayName = model.abbreviation || model.name || modelId;
   
-      return (
-      <div className="rounded-full px-2 py-1 text-xs font-medium flex items-center gap-1.5 cursor-pointer bg-black/5 dark:bg-white/5 text-[var(--muted)] hover:bg-black/10 dark:hover:bg-white/10 transition-all duration-200 opacity-100 md:opacity-0 md:group-hover:opacity-100">
-        {/* Provider Logo */}
-        {model.provider && hasLogo(model.provider) && (
-          <div className="w-4 h-4 flex-shrink-0 rounded-full overflow-hidden">
+  const hasProviderLogo = model.provider && hasLogo(model.provider);
+
+  return (
+    <div
+      ref={containerRef}
+      onClick={() => setIsExpanded(!isExpanded)}
+      className={`relative flex items-center h-7 transition-all duration-300 ease-in-out rounded-full cursor-pointer group
+        ${isExpanded
+            ? 'bg-black/5 dark:bg-white/5 text-[var(--muted)] hover:bg-black/10 dark:hover:bg-white/10 px-2 py-1 gap-1.5'
+            : 'w-7 bg-[var(--accent)] opacity-70 hover:opacity-100 p-2'
+        }`
+      }
+      title={`Model: ${displayName}`}
+    >
+      <div className={`flex-shrink-0 w-3 h-3 flex items-center justify-center transition-transform duration-300 ease-in-out ${!isExpanded ? 'group-hover:scale-110' : ''}`}>
+        {hasProviderLogo && (
             <Image 
-              src={getProviderLogo(model.provider, model.id)}
-              alt={`${model.provider} logo`}
-              width={16}
-              height={16}
-              className="object-contain"
+                src={getProviderLogo(model.provider, model.id)}
+                alt={`${model.provider} logo`}
+                width={12}
+                height={12}
+                className="object-contain"
             />
-          </div>
         )}
-        <span className="uppercase tracking-wider">
-          {displayName}
+      </div>
+
+      {/* Text container */}
+      <div 
+        className="overflow-hidden transition-all duration-300 ease-in-out"
+        style={{ maxWidth: isExpanded ? '100px' : '0', whiteSpace: 'nowrap' }}
+      >
+        <span className="uppercase tracking-wider text-xs font-medium">
+            {displayName}
         </span>
       </div>
-    );
+    </div>
+  );
 };
 
 // Model capability badges component
