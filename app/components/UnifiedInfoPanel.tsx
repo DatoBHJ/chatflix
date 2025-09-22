@@ -312,9 +312,9 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
       <div className="pt-12 sm:pt-16 pb-2 sm:pb-2 pr-8 sm:pr-0">
         <div className="flex items-center gap-3">
           <h2
-            className={`text-3xl sm:text-3xl md:text-4xl font-semibold tracking-tight break-keep text-balance ${
+            className={`text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight break-keep text-balance ${
               !messageTitle ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'
-            }`}
+            } ${!(hasReasoning || hasCanvas) ? 'mb-8' : ''}`}
             style={{ wordBreak: 'keep-all' }}
           >
             {derivedTitle}
