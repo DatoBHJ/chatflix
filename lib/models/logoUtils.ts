@@ -21,7 +21,12 @@ export const getProviderLogo = (provider: string, modelId?: string) => {
   };
   
   // Check if provider has a logo
-  export const hasLogo = (provider: string) => {
+  export const hasLogo = (provider: string, modelId?: string) => {
+    // Special case for Chatflix models
+    if (modelId === 'chatflix-ultimate' || modelId === 'chatflix-ultimate-pro') {
+      return true;
+    }
+    
     const providersWithLogos = ['anthropic', 'openai', 'google', 'together', 'xai', 'deepseek', 'groq'];
     return providersWithLogos.includes(provider);
   };

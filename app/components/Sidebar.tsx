@@ -1531,7 +1531,7 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
                                       const avatarBg = isSelected ? 'bg-white/25' : 'bg-[var(--accent)]';
                                       return (
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${avatarBg}`}>
-                                          {modelConfig?.provider && hasLogo(modelConfig.provider) ? (
+                                          {modelConfig?.provider && hasLogo(modelConfig.provider, modelConfig.id) ? (
                                             <Image 
                                               src={getProviderLogo(modelConfig.provider, modelConfig.id || undefined)}
                                               alt={`${modelConfig.provider} logo`}

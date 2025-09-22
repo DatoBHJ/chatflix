@@ -165,6 +165,7 @@ export async function POST(req: Request): Promise<Response> {
   const originalMessages = messages.slice();
 
   // Map Chatflix Ultimate model to appropriate model based on agent mode
+  let originalModelForDB = model; // Store original model for database storage
   if (model === 'chatflix-ultimate' || model === 'chatflix-ultimate-pro') {
       // Store the original model name for DB storage
       requestData.originalModel = model;
@@ -775,7 +776,7 @@ export async function POST(req: Request): Promise<Response> {
                     .insert([{
                       id: chatId,
                       title: autoTitle, // 🚀 자동 생성된 제목 사용
-                      current_model: model,
+                      current_model: originalModelForDB, // 🚀 사용자가 선택한 원본 모델 저장
                       initial_message: initialMessage,
                       user_id: user?.id || anonymousUserId,
                     }])

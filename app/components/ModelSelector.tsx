@@ -1182,7 +1182,7 @@ export function ModelSelector({
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
                                   isSelected ? 'bg-white/25' : 'bg-[var(--accent)]'
                                 }`}>
-                                  {option.provider && hasLogo(option.provider) ? (
+                                  {option.provider && hasLogo(option.provider, option.id) ? (
                                     <Image 
                                       src={getProviderLogo(option.provider, option.id)}
                                       alt={`${option.provider} logo`}
@@ -1653,7 +1653,7 @@ export function ModelSelector({
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
                                   isSelected ? 'bg-white/25' : 'bg-[var(--accent)]'
                                 }`}>
-                                  {option.provider && hasLogo(option.provider) ? (
+                                  {option.provider && hasLogo(option.provider, option.id) ? (
                                     <Image 
                                       src={getProviderLogo(option.provider, option.id)}
                                       alt={`${option.provider} logo`}

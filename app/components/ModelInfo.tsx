@@ -44,7 +44,7 @@ export const ModelNameWithLogo = ({ modelId }: { modelId: string }) => {
   // Always use abbreviation when available
   const displayName = model.abbreviation || model.name || modelId;
   
-  const hasProviderLogo = model.provider && hasLogo(model.provider);
+  const hasProviderLogo = model.provider && hasLogo(model.provider, model.id);
 
   return (
     <div
