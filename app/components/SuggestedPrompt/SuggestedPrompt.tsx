@@ -530,18 +530,18 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
 
   // 초기 로딩 중이거나 사용자 정보 로딩 중에는 아무것도 보여주지 않음
   if (isInitialLoading || isUserNameLoading) {
-    return <div className={`min-h-16 relative flex items-center justify-end ${className}`}></div>;
+    return <div className={`relative flex items-center justify-end ${className}`}></div>;
   }
 
   return (
-    <div className={`min-h-16 relative flex flex-col items-end ${className} group `}>
+    <div className={`relative flex flex-col items-end ${className} group `}>
       {suggestedPrompts.length > 0 && (
         <>
           {userId === 'anonymous' ? (
             // 익명 사용자용 미니멀한 대화 흐름
             <>
               {/* AI 메시지 - Chatflix 인사 */}
-              <div className="flex justify-start w-full group mb-4">
+              <div className="flex justify-start w-full group mb-2">
                 <div className="max-w-[85%] md:max-w-[75%]">
                   <div className="imessage-receive-bubble">
                     <span>Hey there</span>
@@ -550,7 +550,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
               </div>
 
               {/* 사용자 메시지 - hey */}
-              <div className="flex justify-end w-full group mb-4">
+              <div className="flex justify-end w-full group mb-2">
                 <div className="max-w-[85%] md:max-w-[75%]">
                   <div className="flex flex-col items-end gap-0">
                     <div className="imessage-send-bubble">
@@ -564,7 +564,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
               </div>
 
               {/* 익명 사용자용 예약 메시지들 */}
-              <div className="flex flex-col items-end gap-2 w-full mb-4">
+              <div className="flex flex-col items-end gap-1 w-full mb-2">
                 {/* <button
                   onClick={() => handleClick("what makes chatflix better than chatgpt?")}
                   className={`imessage-send-bubble follow-up-question max-w-md ${
@@ -614,7 +614,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
             // 가입한 사용자용 간단한 인사 후 바로 예약 메시지 유도
             <>
               {/* AI 메시지 - 간단한 인사 */}
-              <div className="flex justify-start w-full group mb-4">
+              <div className="flex justify-start w-full group mb-2">
                 <div className="max-w-[85%] md:max-w-[75%]">
                   <div className="imessage-receive-bubble">
                     <span>Hey {userName}!</span>
@@ -623,7 +623,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
               </div>
 
               {/* 사용자 메시지 - hey */}
-              <div className="flex justify-end w-full group mb-4">
+              <div className="flex justify-end w-full group mb-2">
                 <div className="max-w-[85%] md:max-w-[75%]">
                   <div className="flex flex-col items-end gap-0">
                     <div className="imessage-send-bubble">
@@ -649,7 +649,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
 
           {/* 모든 프롬프트를 개별적으로 표시 - 로그인 사용자만 */}
           {userId !== 'anonymous' && (
-          <div className="flex flex-col items-end gap-2 w-full">
+          <div className="flex flex-col items-end gap-1 w-full">
             {suggestedPrompts.map((prompt, index) => (
               <div 
                 key={index} 
