@@ -1,5 +1,6 @@
 // app/components/chat/ChatInput/index.tsx
 import React, { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { flushSync } from 'react-dom';
 import { createClient } from '@/utils/supabase/client';
 import { getModelById } from '@/lib/models/config';
 import { ChatInputProps } from './types';
@@ -311,40 +312,23 @@ export function ChatInput({
       : "Chatflix.app"
   );
 
-  // 디바운스된 입력 처리 함수
+  // 입력 처리 함수 (최대 단순화)
   const debouncedInputHandler = useCallback(() => {
     if (!inputRef.current || isSubmittingRef.current) return;
-    
-    // 현재 텍스트 콘텐츠 가져오기 (innerText로 변경하여 공백 유지)
-    const content = inputRef.current.innerText || '';
-    
-    // 이전 텍스트와 동일하면 처리 스킵 (불필요한 처리 방지)
+
+    // 최소한의 처리만 - 복잡한 로직 모두 제거
+    let content = inputRef.current.innerText || '';
+
+    // 사용자가 모든 내용을 지웠을 때, 브라우저가 남기는 불필요한 줄바꿈을 제거
+    if (content === '\n') {
+      content = '';
+    }
+
+    // 중복 처리 방지만 유지
     if (content === lastTextContentRef.current) return;
     lastTextContentRef.current = content;
-    
-    // empty 클래스 동적 관리
-    if (content.trim() === '') {
-      inputRef.current.classList.add('empty');
-    } else {
-      inputRef.current.classList.remove('empty');
-    }
-    
-    // 동적 border-radius 조절
-    const inputHeight = inputRef.current.scrollHeight;
-    const minHeight = 36; // min-h-[36px]
-    
-    if (inputHeight <= minHeight + 5) {
-      // 한 줄일 때: 완전히 둥글게
-      inputRef.current.style.borderRadius = '9999px';
-    } else if (inputHeight <= minHeight + 20) {
-      // 두 줄 정도일 때: 약간 둥글게
-      inputRef.current.style.borderRadius = '20px';
-    } else {
-      // 여러 줄일 때: 더 사각형에 가깝게
-      inputRef.current.style.borderRadius = '16px';
-    }
-    
-    // 상위 컴포넌트로 변경 사항 전파
+
+    // 상위 컴포넌트로 변경 사항 전파 (empty 클래스는 className에서 자동 처리)
     handleInputChange({
       target: { value: content }
     } as any);
@@ -359,8 +343,14 @@ export function ChatInput({
     // 클립보드에서 일반 텍스트 가져오기
     const text = e.clipboardData.getData('text/plain');
     
-    // 매우 큰 텍스트인 경우 처리 방식 최적화
-    if (text.length > 10000) {
+    // 긴 텍스트인 경우 (1000자 이상) 중간 과정 숨김 처리
+    if (text.length > 1000) {
+      // 입력창을 임시로 숨김 처리
+      const originalOpacity = inputRef.current.style.opacity;
+      const originalPointerEvents = inputRef.current.style.pointerEvents;
+      inputRef.current.style.opacity = '0.3';
+      inputRef.current.style.pointerEvents = 'none';
+      
       // 현재 선택 영역 가져오기
       const selection = window.getSelection();
       if (!selection?.rangeCount) return;
@@ -368,70 +358,45 @@ export function ChatInput({
       const range = selection.getRangeAt(0);
       range.deleteContents();
       
-      // 사용자에게 처리 중임을 알림
-      const processingNode = document.createElement('span');
-      processingNode.textContent = translations.processing;
-      processingNode.style.opacity = '0.7';
-      range.insertNode(processingNode);
-      
-      // 큰 텍스트 비동기 처리를 위해 setTimeout 사용
+      // 백그라운드에서 전체 텍스트를 한 번에 처리
       setTimeout(() => {
         if (!inputRef.current) return;
         
-        // 중간 처리 메시지 제거
-        if (processingNode.parentNode) {
-          processingNode.parentNode.removeChild(processingNode);
-        }
-        
-        // 한 번의 DOM 조작으로 처리하기 위한 HTML 생성
+        // 전체 텍스트를 한 번의 DOM 조작으로 처리
         const fragment = document.createDocumentFragment();
         const lines = text.split('\n');
-        const chunkSize = 100; // 한 번에 처리할 줄 수
         
-        // 청크 처리 함수
-        const processChunk = (startIndex: number) => {
-          const endIndex = Math.min(startIndex + chunkSize, lines.length);
-          
-          for (let i = startIndex; i < endIndex; i++) {
-            if (lines[i].length > 0) {
-              fragment.appendChild(document.createTextNode(lines[i]));
-            }
-            
-            if (i < lines.length - 1) {
-              fragment.appendChild(document.createElement('br'));
-            }
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].length > 0) {
+            fragment.appendChild(document.createTextNode(lines[i]));
           }
           
-          // 다음 청크가 있으면 비동기적으로 처리
-          if (endIndex < lines.length) {
-            // 현재 처리된 내용을 DOM에 추가
-            range.insertNode(fragment);
-            range.collapse(false);
-            
-            // 다음 청크 예약 (낮은 우선순위로)
-            requestIdleCallback(() => {
-              processChunk(endIndex);
-            }, { timeout: 500 });
-          } else {
-            // 마지막 청크 처리 완료
-            range.insertNode(fragment);
-            range.collapse(false);
-            
-            // 선택 영역 업데이트 및 커서 위치 설정
-            selection.removeAllRanges();
-            selection.addRange(range);
-            
-            // 모든 처리가 끝난 후 입력 핸들러 호출
-            debouncedInputHandler();
-            
-            // 포커스 유지
-            inputRef.current?.focus();
+          if (i < lines.length - 1) {
+            fragment.appendChild(document.createElement('br'));
           }
-        };
+        }
         
-        // 첫 번째 청크 처리 시작
-        processChunk(0);
-      }, 0);
+        // 한 번에 모든 내용 삽입
+        range.insertNode(fragment);
+        range.collapse(false);
+        
+        // 선택 영역 업데이트
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        // 입력창 복원 및 처리 완료
+        inputRef.current.style.opacity = originalOpacity || '1';
+        inputRef.current.style.pointerEvents = originalPointerEvents || 'auto';
+        
+        // 모든 처리가 끝난 후 입력 핸들러 호출
+        debouncedInputHandler();
+        
+        // 최하단으로 스크롤
+        inputRef.current.scrollTop = inputRef.current.scrollHeight;
+        
+        // 포커스 유지
+        inputRef.current?.focus();
+      }, 100); // 약간의 지연으로 부드러운 전환
       
       return;
     }
@@ -499,24 +464,13 @@ export function ChatInput({
     return range.toString().length;
   };
 
-  // 사용자 입력 모니터링 및 멘션 감지 (성능 최적화)
-  const handleInputWithShortcuts = () => {
+  // 입력 이벤트 핸들러
+  const handleInput = () => {
     if (!inputRef.current || isSubmittingRef.current) return;
     
-    // 디바운스 설정 - 성능 개선을 위해 타이머 시간 증가
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    
-    // DOM 업데이트 완료 후 입력 처리 (placeholder 타이밍 이슈 해결)
-    requestAnimationFrame(() => {
+    // 타이핑은 항상 즉시 반영 - 디바운싱 제거
     debouncedInputHandler();
-    });
-    
-
   };
-
-
 
   // 입력 필드 클리어 - 완전한 클리어 함수 (모바일 최적화)
   const clearInput = () => {
@@ -559,17 +513,7 @@ export function ChatInput({
   // placeholder 변경 시 입력 필드 초기화 (자동 포커스는 하지 않음)
   useEffect(() => {
     if (inputRef.current) {
-      // 입력창에 실제 텍스트가 있는지 확인
-      const hasContent = inputRef.current.innerText && inputRef.current.innerText.trim() !== '';
-      
-      // 텍스트가 없을 때만 'empty' 클래스 추가
-      if (!hasContent) {
-        inputRef.current.classList.add('empty');
-      } else {
-        inputRef.current.classList.remove('empty');
-      }
-      
-      // placeholder 속성은 항상 업데이트
+      // placeholder 속성만 업데이트 (empty 클래스는 className에서 자동 처리)
       inputRef.current.setAttribute('data-placeholder', placeholder);
     }
   }, [placeholder]);
@@ -640,11 +584,18 @@ export function ChatInput({
     }
   }, [handleInputChange, handleSubmit, files, fileMap, isLoading, selectedTool]);
 
+  // 간단한 내용 확인 - input prop 기반으로 통일
+  const hasContent = input.length > 0 || files.length > 0;
+
+  // isInputExpanded 관련 코드 제거 - 전송 버튼 항상 하단 고정
+
+  // ResizeObserver 제거 - 전송 버튼 위치 고정으로 불필요
+
   // 메시지 제출 핸들러 (폼 제출 이벤트)
   const handleMessageSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
-    if (isLoading || (!input.trim() && files.length === 0)) return;
+    if (isLoading || !hasContent) return;
 
     // AI SDK 5 형식: parts 배열 구조 사용
     const uiParts: any[] = [];
@@ -1125,23 +1076,27 @@ export function ChatInput({
 
   // 도구 선택 핸들러
   const handleToolSelect = (toolId: string) => {
-    if (setSelectedTool) {
-      setSelectedTool(toolId);
-    }
-    if (setisAgentEnabled) {
-      setisAgentEnabled(true);
-    }
-    setShowToolSelector(false);
+    flushSync(() => {
+      if (setSelectedTool) {
+        setSelectedTool(toolId);
+      }
+      if (setisAgentEnabled) {
+        setisAgentEnabled(true);
+      }
+      setShowToolSelector(false);
+    });
   };
 
   // 도구 선택 해제 핸들러
   const handleToolDeselect = () => {
-    if (setSelectedTool) {
-      setSelectedTool(null);
-    }
-    if (setisAgentEnabled) {
-      setisAgentEnabled(false);
-    }
+    flushSync(() => {
+      if (setSelectedTool) {
+        setSelectedTool(null);
+      }
+      if (setisAgentEnabled) {
+        setisAgentEnabled(false);
+      }
+    });
   };
 
   // 선택된 도구 정보 가져오기
@@ -1216,10 +1171,10 @@ export function ChatInput({
             multiple
           />
           
-          <div ref={inputContainerRef} className="flex gap-2 sm:gap-3 items-center py-0">
+          <div ref={inputContainerRef} className="flex gap-2 sm:gap-3 items-end py-0">
             {/* Agent(뇌) 버튼 */}
             {setisAgentEnabled && (
-              <div className="relative" ref={agentDropdownRef}>
+              <div className="relative flex-shrink-0" ref={agentDropdownRef}>
                 <button
                   type="button"
                   onClick={() => {
@@ -1233,13 +1188,17 @@ export function ChatInput({
                     
                     if (selectedTool) {
                       // 도구가 선택된 상태에서 뇌 버튼을 누르면 기본 상태로 복귀
-                      setSelectedTool?.(null);
-                      setisAgentEnabled?.(false);
-                      setShowToolSelector(false);
+                      flushSync(() => {
+                        setSelectedTool?.(null);
+                        setisAgentEnabled?.(false);
+                        setShowToolSelector(false);
+                      });
                     } else if (isAgentEnabled) {
                       // 에이전트 모드에서 뇌 버튼을 누르면 기본 상태로 복귀
-                      setisAgentEnabled?.(false);
-                      setShowToolSelector(false);
+                      flushSync(() => {
+                        setisAgentEnabled?.(false);
+                        setShowToolSelector(false);
+                      });
                     } else {
                       // 일반 모드에서 뇌 버튼을 누를 때
                       if (!isCurrentModelAgentEnabled) {
@@ -1248,9 +1207,13 @@ export function ChatInput({
                         setTimeout(() => setShowAgentError(false), 3000); // 3초 후 에러 숨김
                         return;
                       }
-                      // 에이전트 모드 활성화 + 도구 선택창 표시
-                      setisAgentEnabled?.(true);
-                      setShowToolSelector(true);
+                      // 에이전트 모드 활성화 + 도구 선택창 표시 (동기 처리)
+                      flushSync(() => {
+                        if (setisAgentEnabled) {
+                          setisAgentEnabled(true);
+                        }
+                        setShowToolSelector(true);
+                      });
                     }
                   }}
                   onMouseEnter={() => {
@@ -1375,7 +1338,7 @@ export function ChatInput({
             )}
   
             {/* File upload button */}
-            <div className="relative">
+            <div className="relative flex-shrink-0">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -1386,33 +1349,67 @@ export function ChatInput({
               </button>
             </div>
   
-            <div className="flex-1 relative">
+            <div className="flex-1 relative flex-shrink-0">
               {/* Agent Error Message */}
               <ErrorToast show={showAgentError} message="This model doesn't support Agent mode. Please select an Agent-enabled model." />
               
-              <div
-                ref={inputRef}
-                contentEditable
-                onInput={handleInputWithShortcuts}
-                onPaste={handlePaste}
-                onKeyDown={handleKeyDown}
-                className={`futuristic-input ${input.trim() === '' ? 'empty' : ''} w-full transition-colors duration-300 py-1.5 px-4 rounded-full outline-none text-sm sm:text-base bg-[var(--chat-input-bg)] text-[var(--chat-input-text)] overflow-y-auto min-h-[32px] ${
-                  tokenCount > 0 ? 'has-token-counter' : ''
-                }`}
-                data-placeholder={placeholder}
-                suppressContentEditableWarning
-                style={{ 
-                  maxHeight: '300px', 
-                  wordBreak: 'break-word', 
-                  overflowWrap: 'break-word', 
-                  whiteSpace: 'pre-wrap', 
-                  lineHeight: '1.3',
-                  resize: 'none',
-                  caretColor: 'var(--chat-input-primary)',
-                  border: '1px solid var(--chat-input-border)',
-                  ...(('caretWidth' in document.documentElement.style) && { caretWidth: '2px' })
-                } as React.CSSProperties}
-              ></div>
+              <div className="relative">
+                <div
+                  ref={inputRef}
+                  contentEditable
+                  onInput={handleInput}
+                  onPaste={handlePaste}
+                  onKeyDown={handleKeyDown}
+                  className={`futuristic-input ${input === '' ? 'empty' : ''} w-full transition-colors duration-300 py-1.5 rounded-full outline-none text-sm sm:text-base bg-[var(--chat-input-bg)] text-[var(--chat-input-text)] overflow-y-auto min-h-[32px] ${
+                    tokenCount > 0 ? 'has-token-counter' : ''
+                  }`}
+                  data-placeholder={placeholder}
+                  suppressContentEditableWarning
+                  style={{ 
+                    maxHeight: '300px', 
+                    wordBreak: 'break-word', 
+                    overflowWrap: 'break-word', 
+                    whiteSpace: 'pre-wrap', 
+                    lineHeight: '1.3',
+                    resize: 'none',
+                    caretColor: 'var(--chat-input-primary)',
+                    border: '1px solid var(--chat-input-border)',
+                    paddingLeft: '1rem', // CSS에서 paddingRight 처리
+                    ...(('caretWidth' in document.documentElement.style) && { caretWidth: '2px' })
+                  } as React.CSSProperties}
+                ></div>
+                
+                {/* 입력창 내부 전송 버튼 */}
+                {(hasContent || isLoading) && (
+                  <div className="absolute right-1 bottom-1 sm:bottom-1.5">
+                    {isLoading ? (
+                      <button 
+                        onClick={(e) => { e.preventDefault(); stop(); }} 
+                        type="button" 
+                        className="flex items-center justify-center w-8 h-6 rounded-full transition-all duration-300 bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)] flex-shrink-0 cursor-pointer" 
+                        aria-label="Stop generation"
+                      >
+                        <div className="w-2 h-2 bg-current rounded-sm"></div>
+                      </button>
+                    ) : (
+                      <button 
+                        type="submit" 
+                        className={`w-8 h-6 rounded-full flex items-center justify-center transition-all duration-300 flex-shrink-0 cursor-pointer ${
+                          disabled || !hasContent 
+                            ? 'bg-[var(--chat-input-button-bg)] text-[var(--muted)] cursor-not-allowed' 
+                            : 'bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)]'
+                        }`} 
+                        disabled={disabled || !hasContent} 
+                        aria-label="Send message"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" className="transition-transform duration-300">
+                          <path d="M12 2L12 22M5 9L12 2L19 9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"></path>
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
               
               {/* Token Counter and Tooltip Container */}
               {/* {tokenCount > 0 && !modelId?.includes('chatflix') && (
@@ -1550,22 +1547,8 @@ export function ChatInput({
                 </div>
               )} */}
             </div>
-  
-            {/* Submit Button */}
-            {isLoading ? (
-              <button onClick={(e) => { e.preventDefault(); stop(); }} type="button" className="flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300 bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)] flex-shrink-0 cursor-pointer" aria-label="Stop generation">
-                <div className="w-2.5 h-2.5 bg-current rounded-sm"></div>
-              </button>
-            ) : (
-              <button type="submit" className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 flex-shrink-0 cursor-pointer ${disabled || (!input.trim() && files.length === 0) ? 'bg-[var(--chat-input-button-bg)] text-[var(--muted)] cursor-not-allowed' : 'bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)]'}`} disabled={disabled || (!input.trim() && files.length === 0)} aria-label="Send message">
-                <svg width="16" height="16" viewBox="0 0 24 24" className="transition-transform duration-300"><path d="M12 2L12 22M5 9L12 2L19 9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"></path></svg>
-              </button>
-            )}
           </div>
         </div>
-  
-  
-
       </form>
     </div>
   );

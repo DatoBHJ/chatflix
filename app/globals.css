@@ -612,10 +612,10 @@ html, body {
   --chat-input-primary-foreground-light: #ffffff;
   --chat-input-primary-foreground-dark: #ffffff;
 
-  --chat-input-bg: var(--background);
+  --chat-input-bg: color-mix(in srgb, var(--accent) 30%, transparent);
   --chat-input-border: var(--accent);
   --chat-input-text: var(--foreground);
-  --chat-input-button-bg: var(--accent);
+  --chat-input-button-bg: color-mix(in srgb, var(--accent) 30%, transparent);
   --chat-input-button-hover-bg: var(--chat-input-button-hover-bg-light);
   --chat-input-primary: var(--chat-input-primary-light);
   --chat-input-primary-foreground: var(--chat-input-primary-foreground-light);
@@ -649,10 +649,10 @@ html, body {
     --status-text-complete: var(--status-text-complete-dark);
 
     /* Chat Input Styles */
-    --chat-input-bg: var(--background);
+    --chat-input-bg: color-mix(in srgb, var(--accent) 40%, transparent);
     --chat-input-border: var(--accent);
     --chat-input-text: var(--foreground);
-    --chat-input-button-bg: var(--accent);
+    --chat-input-button-bg: color-mix(in srgb, var(--accent) 40%, transparent);
     --chat-input-button-hover-bg: var(--chat-input-button-hover-bg-dark);
     --chat-input-primary: var(--chat-input-primary-dark);
     --chat-input-primary-foreground: var(--chat-input-primary-foreground-dark);
@@ -686,10 +686,10 @@ html, body {
   --status-text-complete: var(--status-text-complete-dark);
 
   /* Chat Input Styles */
-  --chat-input-bg: var(--background);
+  --chat-input-bg: color-mix(in srgb, var(--accent) 40%, transparent);
   --chat-input-border: var(--accent);
   --chat-input-text: var(--foreground);
-  --chat-input-button-bg: var(--accent);
+  --chat-input-button-bg: color-mix(in srgb, var(--accent) 40%, transparent);
   --chat-input-button-hover-bg: var(--chat-input-button-hover-bg-dark);
   --chat-input-primary: var(--chat-input-primary-dark);
   --chat-input-primary-foreground: var(--chat-input-primary-foreground-dark);
@@ -722,10 +722,10 @@ html, body {
   --status-text-complete: var(--status-text-complete-light);
 
   /* Chat Input Styles */
-  --chat-input-bg: var(--background);
+  --chat-input-bg: color-mix(in srgb, var(--accent) 30%, transparent);
   --chat-input-border: var(--accent);
   --chat-input-text: var(--foreground);
-  --chat-input-button-bg: var(--accent);
+  --chat-input-button-bg: color-mix(in srgb, var(--accent) 30%, transparent);
   --chat-input-button-hover-bg: var(--chat-input-button-hover-bg-light);
   --chat-input-primary: var(--chat-input-primary-light);
   --chat-input-primary-foreground: var(--chat-input-primary-foreground-light);
@@ -2287,18 +2287,30 @@ p:has(.katex) {
 /* Chat Input Dynamic Border Radius */
 .futuristic-input {
   border-radius: 9999px; /* Default rounded-full */
-  transition: border-radius 0.2s ease;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
-/* When input has multiple lines or is taller, reduce border radius */
+/* 기본 상태 패딩 */
+.futuristic-input.empty {
+  padding-right: 1rem !important;
+}
+
+/* 내용이 있을 때 스타일 (여러 줄 대응) */
 .futuristic-input:not(.empty) {
-  border-radius: 20px;
+  border-radius: 16px;
+  padding-right: 3rem !important; /* 전송 버튼 간격 증가 */
 }
 
-/* For very tall content, make it even more rectangular */
-.futuristic-input[style*="height"] {
-  border-radius: 16px;
+/* Chat Input Buttons Glassmorphism Effect */
+.input-btn,
+button[class*="bg-[var(--chat-input-button-bg)]"] {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--chat-input-border);
 }
+
+/* CSS 기반 border-radius 규칙 제거 - JavaScript에서 완전 제어 */
 
 /* Chat Input Dynamic Border Radius */
 
