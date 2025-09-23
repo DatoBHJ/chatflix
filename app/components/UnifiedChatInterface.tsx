@@ -73,7 +73,7 @@ function HomeView({
         {/* 주 컨텐츠 영역 - Mobile/Desktop Responsive */}
         {/* Mobile Layout */}
         <div className="flex flex-col sm:hidden min-h-0 flex-1">
-          <div className="overflow-y-auto pb-20 flex-1 scrollbar-minimal">
+          <div className="overflow-y-auto  flex-1 scrollbar-minimal">
             <div className="messages-container mb-4 flex flex-col sm:px-4">
               <div className="flex-grow">
                 {/* Chatflix label - iMessage style */}
@@ -109,7 +109,7 @@ function HomeView({
         
         {/* Desktop Layout */}
         <div className="hidden sm:flex min-h-0 flex-1">
-          <div className="overflow-y-auto pb-20 flex-1 scrollbar-minimal">
+          <div className="overflow-y-auto flex-1 scrollbar-minimal">
             <div className="w-full mx-auto">
               <div className="messages-container mb-4 flex flex-col sm:px-4">
                 <div className="flex-grow">

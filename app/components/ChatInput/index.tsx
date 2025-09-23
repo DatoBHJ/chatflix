@@ -7,9 +7,9 @@ import { ChatInputProps } from './types';
 import { useChatInputStyles } from './ChatInputStyles';
 import { FileUploadButton, FilePreview, fileHelpers } from './FileUpload';
 import { ErrorToast } from './DragDropOverlay';
-import { Brain, Gauge, AlertTriangle, CheckCircle, Search, Calculator, Link, Image, Video, FileText, Plus, Newspaper, BarChart3, Building, BookOpen, Github, User, Briefcase, FileVideo, Paperclip, Youtube } from 'lucide-react';
+import { Search, Calculator, Link, Image, Video, FileText, Plus, BarChart3, Building, BookOpen, Github, User, Briefcase, FileVideo, Paperclip, Youtube } from 'lucide-react';
 import { SiGoogle } from 'react-icons/si';
-import { Brain as BrainIOS, LightBulb, Apple, Folder, Send } from 'react-ios-icons'; 
+import { Brain as BrainIOS } from 'react-ios-icons'; 
 import { FileMetadata } from '@/lib/types';
 import { 
   extractImageMetadata, 
@@ -18,11 +18,8 @@ import {
   extractDefaultMetadata
 } from '@/app/chat/[id]/utils';
 import { getChatInputTranslations } from '@/app/lib/chatInputTranslations';
-import { checkSubscriptionClient } from '@/lib/subscription-client';
 import { estimateTokenCount, estimateMultiModalTokens, estimateFileTokens, estimateAttachmentTokens } from '@/utils/context-manager';
 
-// 상수 정의
-const DEBOUNCE_TIME = 200; // 디바운스 시간 (ms)
 // 비구독자 컨텍스트 윈도우 제한 제거됨
 
 // 도구 정의 - Google Search가 일반 검색의 기본 도구, Exa는 특별한 콘텐츠용
@@ -144,7 +141,6 @@ export function ChatInput({
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isSubmittingRef = useRef(false);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const lastTextContentRef = useRef<string>(''); // 마지막 텍스트 콘텐츠 저장
   const agentDropdownRef = useRef<HTMLDivElement>(null);
@@ -155,33 +151,9 @@ export function ChatInput({
   const [showPDFError, setShowPDFError] = useState(false);
   const [showFolderError, setShowFolderError] = useState(false);
   const [showVideoError, setShowVideoError] = useState(false);
-  const [showAgentTooltip, setShowAgentTooltip] = useState(false);
-  const [tokenCount, setTokenCount] = useState(0);
-  const [textTokens, setTextTokens] = useState(0);
-  const [fileTokens, setFileTokens] = useState(0);
-  const [conversationTokens, setConversationTokens] = useState(0);
-  const [showTokenTooltip, setShowTokenTooltip] = useState(false);
-  const [isHoveringTokenCounter, setIsHoveringTokenCounter] = useState(false);
-  const [isHoveringTokenTooltip, setIsHoveringTokenTooltip] = useState(false);
-  const tokenTooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
-  const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(true);
   const [showAgentError, setShowAgentError] = useState(false);
-  const [isHoveringUpgrade, setIsHoveringUpgrade] = useState(false);
   const [showToolSelector, setShowToolSelector] = useState(false);
   const [translations, setTranslations] = useState({
-    usesTools: 'Intelligently selects and uses tools for better answers',
-    talkToModel: 'Talk to the model directly',
-    placeholder: 'Chat is this real?',
-    processing: 'Processing...',
-    tokenDanger: 'May not remember parts of the previous conversation, and may fail to respond.',
-    tokenWarning: 'May not remember parts of the previous conversation.',
-    tokenSafe: 'All of the conversation is included in the context.',
-    contextUsage: 'Context Usage',
-    upgradeToPro: 'Upgrade to Pro',
-    getFullContext: 'Get full {contextWindow} context window',
-    upgrade: 'Upgrade',
-    selectTool: 'Select a tool',
     uploadFile: 'Upload file'
   });
   
@@ -193,8 +165,6 @@ export function ChatInput({
   const supportsVision = modelConfig?.supportsVision ?? false;
   const supportsPDFs = modelConfig?.supportsPDFs ?? false;
   
-  // 모델별 토큰 임계값 계산
-  const tokenThresholds = getTokenThresholds(modelConfig?.contextWindow, isSubscribed ?? false);
 
 
 
@@ -205,46 +175,7 @@ export function ChatInput({
     setTranslations(getChatInputTranslations());
   }, []);
 
-  // 구독 상태 확인
-  useEffect(() => {
-    let ignore = false;
-    async function checkSubscriptionStatus() {
-      setIsSubscriptionLoading(true);
-      if (!user?.id) {
-        setIsSubscribed(false);
-        setIsSubscriptionLoading(false);
-        return;
-      }
-      try {
-        const hasSubscription = await checkSubscriptionClient();
-        if (!ignore) setIsSubscribed(hasSubscription);
-      } catch (error) {
-        if (!ignore) setIsSubscribed(false);
-      } finally {
-        if (!ignore) setIsSubscriptionLoading(false);
-      }
-    }
-    
-    checkSubscriptionStatus();
-    return () => { ignore = true; };
-  }, [user?.id]);
 
-  // 토큰 수 계산 업데이트 - 대화, 텍스트, 파일 토큰 포함
-  const tokenCounts = useMemo(() => {
-    return calculateTokens(
-      input,
-      allMessages,
-      files.map(file => ({ file })),
-      false
-    );
-  }, [input, allMessages, files]);
-
-  useEffect(() => {
-    setTextTokens(tokenCounts.input);
-    setFileTokens(tokenCounts.files);
-    setConversationTokens(tokenCounts.conversation);
-    setTokenCount(tokenCounts.total);
-  }, [tokenCounts]);
 
   // Device detection hook
   const [isMobile, setIsMobile] = useState(false);
@@ -437,32 +368,7 @@ export function ChatInput({
     inputRef.current.focus();
   };
 
-  // requestIdleCallback 폴리필 (일부 브라우저 호환성을 위해)
-  const requestIdleCallback = 
-    window.requestIdleCallback ||
-    function(cb: IdleRequestCallback, options?: IdleRequestOptions) {
-      const start = Date.now();
-      return window.setTimeout(function() {
-        cb({
-          didTimeout: false,
-          timeRemaining: function() {
-            return Math.max(0, 50 - (Date.now() - start));
-          }
-        });
-      }, options?.timeout || 1);
-    };
 
-  // 커서 위치 얻기 함수 (성능 최적화)
-  const getCursorPosition = (element: HTMLElement): number => {
-    const selection = window.getSelection();
-    if (!selection?.rangeCount) return 0;
-    
-    // 범위 내 문자열 길이로 위치 계산 (최적화)
-    const range = selection.getRangeAt(0).cloneRange();
-    range.selectNodeContents(element);
-    range.setEnd(selection.anchorNode!, selection.anchorOffset);
-    return range.toString().length;
-  };
 
   // 입력 이벤트 핸들러
   const handleInput = () => {
@@ -502,11 +408,6 @@ export function ChatInput({
         target: { value: '' }
       } as React.ChangeEvent<HTMLTextAreaElement>);
       
-      // 디바운스 타이머 정리
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
-      }
     }
   };
 
@@ -1038,18 +939,7 @@ export function ChatInput({
   };
 
   // Agent 툴팁 호버 상태 관리
-  const [isHoveringTooltip, setIsHoveringTooltip] = useState(false);
-  const [isHoveringButton, setIsHoveringButton] = useState(false);
 
-  useEffect(() => {
-    if (!isHoveringButton && !isHoveringTooltip) {
-      const hideTimer = setTimeout(() => {
-        setShowAgentTooltip(false);
-      }, 200); // 짧은 딜레이로 마우스 이동 시간 제공
-
-      return () => clearTimeout(hideTimer);
-    }
-  }, [isHoveringButton, isHoveringTooltip]);
 
 
   // 외부 클릭/터치 시 도구 선택창 닫기
@@ -1102,38 +992,6 @@ export function ChatInput({
   // 선택된 도구 정보 가져오기
   const selectedToolInfo = selectedTool ? TOOLS.find(tool => tool.id === selectedTool) : null;
 
-  // Token 툴팁 호버 상태 관리
-  const showTokenTooltipFunc = () => {
-    if (tokenTooltipTimeoutRef.current) {
-      clearTimeout(tokenTooltipTimeoutRef.current);
-      tokenTooltipTimeoutRef.current = null;
-    }
-    setShowTokenTooltip(true);
-  };
-
-  const hideTokenTooltipFunc = () => {
-    tokenTooltipTimeoutRef.current = setTimeout(() => {
-      if (!isHoveringTokenCounter && !isHoveringTokenTooltip) {
-        setShowTokenTooltip(false);
-      }
-    }, 200); // 200ms 딜레이
-  };
-
-  useEffect(() => {
-    if (!isHoveringTokenCounter && !isHoveringTokenTooltip) {
-      hideTokenTooltipFunc();
-    } else if (isHoveringTokenCounter || isHoveringTokenTooltip) {
-      showTokenTooltipFunc();
-    }
-  }, [isHoveringTokenCounter, isHoveringTokenTooltip]);
-
-  useEffect(() => {
-    return () => {
-      if (tokenTooltipTimeoutRef.current) {
-        clearTimeout(tokenTooltipTimeoutRef.current);
-      }
-    };
-  }, []);
 
   return (
     <div className="relative">
@@ -1215,13 +1073,6 @@ export function ChatInput({
                         setShowToolSelector(true);
                       });
                     }
-                  }}
-                  onMouseEnter={() => {
-                    setShowAgentTooltip(true);
-                    setIsHoveringButton(true);
-                  }}
-                  onMouseLeave={() => {
-                    setIsHoveringButton(false);
                   }}
                   className={`input-btn transition-all duration-300 flex items-center justify-center relative rounded-full w-8 h-8 cursor-pointer ${
                     selectedTool ?
@@ -1360,9 +1211,7 @@ export function ChatInput({
                   onInput={handleInput}
                   onPaste={handlePaste}
                   onKeyDown={handleKeyDown}
-                  className={`futuristic-input ${input === '' ? 'empty' : ''} w-full transition-colors duration-300 py-1.5 rounded-full outline-none text-sm sm:text-base bg-[var(--chat-input-bg)] text-[var(--chat-input-text)] overflow-y-auto min-h-[32px] ${
-                    tokenCount > 0 ? 'has-token-counter' : ''
-                  }`}
+                  className={`futuristic-input ${input === '' ? 'empty' : ''} w-full transition-colors duration-300 py-1.5 rounded-full outline-none text-sm sm:text-base bg-[var(--chat-input-bg)] text-[var(--chat-input-text)] overflow-y-auto min-h-[32px]`}
                   data-placeholder={placeholder}
                   suppressContentEditableWarning
                   style={{ 
@@ -1411,141 +1260,6 @@ export function ChatInput({
                 )}
               </div>
               
-              {/* Token Counter and Tooltip Container */}
-              {/* {tokenCount > 0 && !modelId?.includes('chatflix') && (
-                <div 
-                  className="absolute top-1/2 -translate-y-1/2 right-2"
-                  onMouseEnter={() => {
-                    setIsHoveringTokenCounter(true);
-                    showTokenTooltipFunc();
-                  }}
-                  onMouseLeave={() => {
-                    setIsHoveringTokenCounter(false);
-                    hideTokenTooltipFunc();
-                  }}
-                >
-                  <div 
-                    className={`token-counter ${
-                      tokenCount > tokenThresholds.danger ? 'error' : 
-                      tokenCount > tokenThresholds.warning ? 'warning' : ''
-                    }`}
-                  >
-                    {`${Math.round((tokenCount / tokenThresholds.limit) * 100)}%`}
-                  </div>
-                  
-                  {showTokenTooltip && (() => {
-                    const proThresholds = getTokenThresholds(modelConfig?.contextWindow, true);
-                    const nonProThresholds = tokenThresholds;
-            
-                    const isPreviewingUpgrade = !isSubscribed && isHoveringUpgrade;
-                    const displayThresholds = isPreviewingUpgrade ? proThresholds : nonProThresholds;
-                    
-                    const currentUsageColor = tokenCount > displayThresholds.danger ? 'text-red-500' : 
-                                              tokenCount > displayThresholds.warning ? 'text-orange-500' : 'text-green-500';
-            
-                    const progressBarColor = tokenCount > displayThresholds.danger ? 'bg-red-500' : 
-                                             tokenCount > displayThresholds.warning ? 'bg-orange-400' : 'bg-green-500';
-                    
-                    const progressPercentage = Math.min(100, (tokenCount / displayThresholds.limit) * 100);
-            
-                    const statusMessage = tokenCount > displayThresholds.danger ? translations.tokenDanger :
-                                          tokenCount > displayThresholds.warning ? translations.tokenWarning :
-                                          translations.tokenSafe;
-
-                    return (
-                      <div 
-                        className="absolute bottom-full mb-2 -right-2 w-64 chat-input-tooltip-backdrop rounded-2xl z-50 p-4 shadow-2xl shadow-black/20 dark:shadow-black/60 animate-in fade-in duration-200 slide-in-from-bottom-2"
-                        onMouseEnter={() => {
-                          setIsHoveringTokenTooltip(true);
-                          showTokenTooltipFunc();
-                        }}
-                        onMouseLeave={() => {
-                          setIsHoveringTokenTooltip(false);
-                          hideTokenTooltipFunc();
-                        }}
-                        style={{
-                          transform: 'translateY(-2px)'
-                        }}
-                      >
-                        
-                        <div className="flex flex-col gap-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-5 h-5 rounded-full bg-blue-500/15 flex items-center justify-center">
-                              <Gauge className="w-3 h-3 text-blue-600 dark:text-blue-400" strokeWidth={2} />
-                            </div>
-                            <span className="text-sm font-semibold text-[var(--foreground)] tracking-tight">
-                              {translations.contextUsage}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-medium text-[var(--muted)]">
-                              Usage
-                            </span>
-                            <div className="flex items-baseline gap-1">
-                              <span className={`text-sm font-bold tabular-nums ${currentUsageColor}`}>
-                                {tokenCount > 1000 ? `${(tokenCount/1000).toFixed(1)}k` : tokenCount}
-                              </span>
-                              <span className="text-xs text-[var(--muted)] font-medium">
-                                {' of '}
-                              </span>
-                              <span className={`text-sm font-bold tabular-nums ${isPreviewingUpgrade ? 'text-blue-600 dark:text-blue-400' : 'text-[var(--foreground)]'}`}>
-                                {(displayThresholds.limit / 1000).toFixed(0)}K
-                              </span>
-                            </div>
-                          </div>
-    
-                          <div className="relative">
-                            <div className="w-full bg-gray-200/60 dark:bg-gray-700/40 rounded-full h-1.5 overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full transition-all duration-500 ease-out ${progressBarColor} shadow-sm`}
-                                style={{ width: `${progressPercentage}%` }}
-                              ></div>
-                            </div>
-                            <div className="flex justify-end mt-1">
-                              <span className="text-xs font-medium text-[var(--muted)] tabular-nums">
-                                {Math.round(progressPercentage)}%
-                              </span>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-start gap-2">
-                            {tokenCount > displayThresholds.danger ? (
-                              <AlertTriangle className="w-3.5 h-3.5 text-red-500 mt-0.5 flex-shrink-0" strokeWidth={2} />
-                            ) : tokenCount > displayThresholds.warning ? (
-                              <AlertTriangle className="w-3.5 h-3.5 text-orange-500 mt-0.5 flex-shrink-0" strokeWidth={2} />
-                            ) : (
-                              <CheckCircle className="w-3.5 h-3.5 text-green-500 mt-0.5 flex-shrink-0" strokeWidth={2} />
-                            )}
-                            <p className="text-xs leading-relaxed text-[var(--foreground)] font-medium">
-                              {statusMessage}
-                            </p>
-                          </div>
-                          
-                          {false && (
-                            <div className="pt-2 border-t border-gray-200/50 dark:border-gray-700/50">
-                              <a 
-                                href="/pricing" 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="group w-full inline-flex items-center justify-center gap-2.5 text-sm bg-blue-500 hover:bg-blue-600 text-white px-4 py-2.5 rounded-xl transition-all duration-200 font-semibold shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98]"
-                                onClick={(e) => e.stopPropagation()}
-                                onMouseEnter={() => setIsHoveringUpgrade(true)}
-                                onMouseLeave={() => setIsHoveringUpgrade(false)}
-                              >
-                                {translations.upgrade}
-                                <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                                </svg>
-                              </a>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })()}
-                </div>
-              )} */}
             </div>
           </div>
         </div>
@@ -1553,6 +1267,7 @@ export function ChatInput({
     </div>
   );
   }
+
 
 
 
