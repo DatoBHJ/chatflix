@@ -2297,17 +2297,17 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       </li>
     ),
     h1: ({ children, ...props }) => (
-      <h1 className="text-3xl font-semibold tracking-tight break-words" {...props}>
+      <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight break-words" {...props}>
         {highlightSearchTermInChildren(children, searchTerm, { messageType })}
       </h1>
     ),
     h2: ({ children, ...props }) => (
-      <h2 className="text-3xl font-semibold tracking-tight break-words" {...props}>
+      <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight break-words" {...props}>
         {highlightSearchTermInChildren(children, searchTerm, { messageType })}
       </h2>
     ),
     h3: ({ children, ...props }) => (
-      <h3 className="text-2xl font-semibold tracking-tight break-words" {...props}>
+      <h3 className="text-xl sm:text-2xl font-semibold tracking-tight break-words" {...props}>
         {highlightSearchTermInChildren(children, searchTerm, { messageType })}
       </h3>
     ),
