@@ -2284,7 +2284,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       );
     },
     li: ({ children, ...props }) => (
-      <li className="my-0 break-words leading-relaxed" style={{ 
+      <li className="my-0 break-words leading-tight" style={{ 
         listStylePosition: 'outside',
         paddingLeft: '0.25rem'
       }} {...props}>
