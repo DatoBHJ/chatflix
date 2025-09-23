@@ -275,7 +275,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
     }
     
     if (isStreaming) return 'Answering...';
-    return 'Untitled';
+    return null; // 일반 모드에서 reasoning 완료 후에는 제목을 표시하지 않음
   }, [messageTitle, searchTerm, isReasoningInProgress, actualToolLoadingState, isStreaming, hasAnyContent, message]);
 
   // 실제 도구 로딩 상태를 포함한 전체 로딩 상태
@@ -300,8 +300,9 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
   const hasReasoning = reasoningPart && isAssistant;
   const hasCanvas = hasActualCanvasData && isAssistant;
   const hasTitle = isAssistant && messageTitle; // 백엔드에서 제목을 전송한 경우에만 제목 표시
+  const shouldShowTitle = derivedTitle !== null; // derivedTitle이 null이면 제목 영역 숨김
 
-  if (!hasReasoning && !hasCanvas && !hasTitle) {
+  if (!hasReasoning && !hasCanvas && !hasTitle && !shouldShowTitle) {
     return null;
   }
 
@@ -310,16 +311,18 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
       <style>{shimmerStyles}</style>
       <div className="pl-0 mb-2">
       <div className="pt-12 sm:pt-16 pb-2 sm:pb-2 pr-8 sm:pr-0">
-        <div className="flex items-center gap-3">
-          <h2
-            className={`text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight break-keep text-balance ${
-              !messageTitle ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'
-            } ${!(hasReasoning || hasCanvas) ? 'mb-8' : ''}`}
-            style={{ wordBreak: 'keep-all' }}
-          >
-            {derivedTitle}
-          </h2>
-        </div>
+        {shouldShowTitle && (
+          <div className="flex items-center gap-3">
+            <h2
+              className={`text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight break-keep text-balance ${
+                !messageTitle ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'
+              } ${!(hasReasoning || hasCanvas) ? 'mb-8' : ''}`}
+              style={{ wordBreak: 'keep-all' }}
+            >
+              {derivedTitle}
+            </h2>
+          </div>
+        )}
         
         {(hasReasoning || hasCanvas) && (
           <div className="mt-12  text-base text-[var(--muted)]">
