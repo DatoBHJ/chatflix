@@ -1403,7 +1403,7 @@ export function ChatInput({
                         aria-label="Send message"
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" className="transition-transform duration-300">
-                          <path d="M12 2L12 22M5 9L12 2L19 9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"></path>
+                          <path d="M12 2L12 22M5 9L12 2L19 9" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"></path>
                         </svg>
                       </button>
                     )}
