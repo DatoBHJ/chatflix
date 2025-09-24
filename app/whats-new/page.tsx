@@ -517,7 +517,7 @@ export default function WhatsNewPage() {
             {updates.map((update) => (
               <div 
                 key={update.id} 
-                className="p-4 rounded-xl border border-[var(--subtle-divider)] bg-[var(--background)] hover:bg-[var(--accent)] cursor-pointer transition-colors"
+                className="imessage-receive-bubble cursor-pointer transition-colors"
                 onClick={() => navigateToPost(update.id)}
               >
                 <div className="flex items-start">
