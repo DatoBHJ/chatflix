@@ -191,11 +191,17 @@ export function useMessages(chatId: string, userId: string) {
       const updatedMessages = messages.slice(0, messageIndex + 1).map(msg => {
         if (msg.id !== messageId) return msg;
         
-        // 텍스트 부분만 유지하고 기존 파일들은 제거
+        // 기존 파일들을 보존하면서 텍스트만 업데이트
         const newParts = Array.isArray(msg.parts)
-          ? msg.parts
-              .filter(part => (part as any).type === 'text') // 🚀 텍스트만 유지, 기존 파일들 제거
-              .map(part => ({ ...(part as any), text: currentEditingContent }))
+          ? msg.parts.map(part => {
+              if ((part as any).type === 'text') {
+                // 텍스트 부분만 내용 업데이트
+                return { ...(part as any), text: currentEditingContent };
+              } else {
+                // 파일 부분은 그대로 유지
+                return part;
+              }
+            })
           : [{ type: 'text', text: currentEditingContent } as any];
         
         // 🚀 새로 업로드된 첨부파일들을 parts에 추가
@@ -218,7 +224,7 @@ export function useMessages(chatId: string, userId: string) {
         return {
           ...(msg as any),
           content: currentEditingContent, // legacy UI paths still read .content
-          experimental_attachments: newAttachments.length > 0 ? newAttachments : null, // 🚀 새 파일만 포함
+          experimental_attachments: allAttachments.length > 0 ? allAttachments : null, // 🚀 기존 파일 + 새 파일 모두 포함
           parts: newParts,
         } as any;
       });
@@ -258,7 +264,7 @@ export function useMessages(chatId: string, userId: string) {
             is_edited: true,
             edited_at: new Date().toISOString(),
             host: localMessage.role === 'assistant' ? 'assistant' : 'user',
-            experimental_attachments: newAttachments.length > 0 ? newAttachments : null // 🚀 새 파일만 저장
+            experimental_attachments: allAttachments.length > 0 ? allAttachments : null // 🚀 기존 파일 + 새 파일 모두 저장
           }])
           .select()
           .single();
@@ -273,7 +279,7 @@ export function useMessages(chatId: string, userId: string) {
             content: currentEditingContent,
             is_edited: true,
             edited_at: new Date().toISOString(),
-            experimental_attachments: newAttachments.length > 0 ? newAttachments : null // 🚀 새 파일만 저장
+            experimental_attachments: allAttachments.length > 0 ? allAttachments : null // 🚀 기존 파일 + 새 파일 모두 저장
           })
           .eq('id', messageId)
           .eq('user_id', userId)
