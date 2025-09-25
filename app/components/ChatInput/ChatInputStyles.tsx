@@ -87,7 +87,7 @@ export function useChatInputStyles() {
         /* 플레이스홀더 스타일 - 빈 상태일 때만 보이게 */
         .futuristic-input.empty:before {
           content: attr(data-placeholder);
-          color: color-mix(in srgb, var(--foreground) 40%, transparent);
+          color: color-mix(in srgb, var(--muted) 80%, transparent);
           pointer-events: none;
           position: absolute;
           top: 50%;
@@ -102,7 +102,6 @@ export function useChatInputStyles() {
           overflow: hidden;
           text-overflow: ellipsis;
           z-index: 1;
-          filter: blur(0.1px);
         }
         
         /* placeholder가 있을 때만 표시되도록 보장 */
@@ -234,36 +233,6 @@ export function useChatInputStyles() {
         
         .agent-dropdown button:active:not(:disabled) {
           transform: translateY(0);
-        }
-        
-        /* 라이트모드 기본 스타일 (모델 선택창과 동일) */
-        .chat-input-tooltip-backdrop {
-          background-color: rgba(255, 255, 255, 0.1) !important;
-          backdrop-filter: url(#glass-distortion) blur(10px) saturate(180%) !important;
-          -webkit-backdrop-filter: url(#glass-distortion) blur(10px) saturate(180%) !important;
-          border: 1px solid rgba(255, 255, 255, 0.2) !important;
-          box-shadow: 0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
-        }
-        
-        /* 다크모드 전용 스타일 */
-        :root[data-theme="dark"] .chat-input-tooltip-backdrop,
-        :root[data-theme="system"] .chat-input-tooltip-backdrop {
-          background-color: rgba(0, 0, 0, 0.05) !important;
-          backdrop-filter: url(#glass-distortion-dark) blur(24px) !important;
-          -webkit-backdrop-filter: url(#glass-distortion-dark) blur(24px) !important;
-          border: 1px solid rgba(255, 255, 255, 0.1) !important;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
-        }
-        
-        /* 다크모드에서 시스템 설정 기반 테마 적용 */
-        @media (prefers-color-scheme: dark) {
-          :root[data-theme="system"] .chat-input-tooltip-backdrop {
-            background-color: rgba(0, 0, 0, 0.05) !important;
-            backdrop-filter: url(#glass-distortion-dark) blur(24px) !important;
-            -webkit-backdrop-filter: url(#glass-distortion-dark) blur(24px) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
-          }
         }
         
       `;
