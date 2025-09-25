@@ -527,58 +527,49 @@ const splitSegmentByLineBreaks = (segment: string): string[] => {
         currentSegment = [];
       }
       
-      // 현재 리스트 아이템의 들여쓰기 레벨 확인
-      const currentIndentLevel = line.match(/^(\s*)/)?.[1]?.length || 0;
-      
+      const listBlock: string[] = [];
       let j = i;
-      let groupContent: string[] = [];
-      
+      let minIndent = -1;
+
       while (j < lines.length) {
-        const currentLine = lines[j];
-        const currentTrimmed = currentLine.trim();
-        const lineIndentLevel = currentLine.match(/^(\s*)/)?.[1]?.length || 0;
-        const isCurrentListItem = /^([-*+]\s(?:\[[ xX]\]\s)?|\d+\.\s)/.test(currentTrimmed);
-        
-        if (currentTrimmed === '') {
-          // 빈 줄 다음에 리스트가 계속되는지 확인
-          if (j + 1 < lines.length) {
-            const nextLineTrimmed = lines[j+1].trim();
-            const nextLineIndentLevel = lines[j+1].match(/^(\s*)/)?.[1]?.length || 0;
-            const isNextLineListItem = /^([-*+]\s(?:\[[ xX]\]\s)?|\d+\.\s)/.test(nextLineTrimmed);
-            
-            // 같은 레벨의 리스트가 계속되면 빈 줄 포함
-            if (isNextLineListItem && nextLineIndentLevel === currentIndentLevel) {
-              groupContent.push(currentLine);
-              j++;
-              continue;
-            }
-          }
-          break; // 리스트 그룹 종료
-        }
-        
-        if (isCurrentListItem) {
-          if (lineIndentLevel === currentIndentLevel) {
-            // 같은 들여쓰기 레벨의 리스트 아이템은 그룹에 포함
-            groupContent.push(currentLine);
-          } else {
-            // 다른 들여쓰기 레벨이면 그룹 종료
+        const lineContent = lines[j];
+        const trimmedContent = lineContent.trim();
+
+        if (trimmedContent === '') {
+          // 비어있는 줄 다음에 리스트가 계속되지 않으면 리스트 블록 종료
+          if (j + 1 >= lines.length || !/^(\s*)[-*+]/.test(lines[j + 1])) {
             break;
           }
-        } else if (lineIndentLevel > currentIndentLevel) {
-          // 더 깊은 들여쓰기의 내용은 현재 그룹에 포함
-          groupContent.push(currentLine);
-        } else {
-          // 더 얕은 들여쓰기나 리스트가 아닌 내용이면 그룹 종료
-          break;
+          listBlock.push(lineContent);
+          j++;
+          continue;
         }
-        
+
+        const isLineListItem = /^([-*+]\s(?:\[[ xX]\]\s)?|\d+\.\s)/.test(trimmedContent);
+        const currentIndent = lineContent.match(/^(\s*)/)?.[0].length ?? 0;
+
+        if (minIndent === -1 && isLineListItem) {
+          minIndent = currentIndent;
+        }
+
+        if (isLineListItem) {
+          if (currentIndent < minIndent) {
+            break; // 들여쓰기가 줄어들면 리스트 블록 종료
+          }
+          listBlock.push(lineContent);
+        } else if (minIndent !== -1 && currentIndent > minIndent) {
+          // 리스트 아이템에 속한 여러 줄 텍스트
+          listBlock.push(lineContent);
+        } else {
+          break; // 리스트 블록이 아닌 경우
+        }
         j++;
       }
-      
-      if (groupContent.length > 0) {
-        segments.push(groupContent.join('\n').trim());
+
+      if (listBlock.length > 0) {
+        segments.push(listBlock.join('\n'));
       }
-      i = j - 1; // 바깥 루프 인덱스 업데이트
+      i = j - 1; // 메인 루프 인덱스 업데이트
       continue;
     }
 
