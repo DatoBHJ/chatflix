@@ -1484,6 +1484,23 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     // Use a simple div as the root component to properly handle all elements
     root: SafeWrapper,
     
+    pre: ({ children, ...props }: React.PropsWithChildren<ExtraProps>) => {
+      return (
+        <pre 
+          className="whitespace-pre-wrap break-words overflow-x-auto max-w-full" 
+          style={{ 
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            overflowWrap: 'break-word',
+            maxWidth: '100%'
+          }}
+          {...props}
+        >
+          {children}
+        </pre>
+      );
+    },
+    
     p: ({ children, ...props }: React.PropsWithChildren<ExtraProps>) => {
       // Check if this is a text-only paragraph
       const childArray = React.Children.toArray(children);

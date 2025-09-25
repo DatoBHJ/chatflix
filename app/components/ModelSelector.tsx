@@ -728,6 +728,27 @@ export function ModelSelector({
 
   return (
     <div className="relative" ref={containerRef}>
+      {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
+      <svg style={{ position: 'absolute', width: 0, height: 0 }}>
+        <defs>
+          <filter id="glass-distortion" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+            <feTurbulence type="fractalNoise" baseFrequency="0.02 0.05" numOctaves="3" seed="7" result="noise" />
+            <feImage result="radialMask" preserveAspectRatio="none" x="0" y="0" width="100%" height="100%" xlinkHref="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><defs><radialGradient id='g' cx='50%25' cy='50%25' r='70%25'><stop offset='0%25' stop-color='black'/><stop offset='100%25' stop-color='white'/></radialGradient></defs><rect width='100%25' height='100%25' fill='url(%23g)'/></svg>" />
+            <feComposite in="noise" in2="radialMask" operator="arithmetic" k1="0" k2="0" k3="1" k4="0" result="modulatedNoise" />
+            <feGaussianBlur in="modulatedNoise" stdDeviation="0.3" edgeMode="duplicate" result="smoothNoise" />
+            <feDisplacementMap in="SourceGraphic" in2="smoothNoise" scale="18" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+          {/* 다크모드 전용 글라스 필터 */}
+          <filter id="glass-distortion-dark" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+            <feTurbulence type="fractalNoise" baseFrequency="0.015 0.03" numOctaves="4" seed="7" result="noise" />
+            <feImage result="radialMask" preserveAspectRatio="none" x="0" y="0" width="100%" height="100%" xlinkHref="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><defs><radialGradient id='g-dark' cx='50%25' cy='50%25' r='80%25'><stop offset='0%25' stop-color='white'/><stop offset='100%25' stop-color='black'/></radialGradient></defs><rect width='100%25' height='100%25' fill='url(%23g-dark)'/></svg>" />
+            <feComposite in="noise" in2="radialMask" operator="arithmetic" k1="0" k2="0" k3="0.8" k4="0" result="modulatedNoise" />
+            <feGaussianBlur in="modulatedNoise" stdDeviation="0.4" edgeMode="duplicate" result="smoothNoise" />
+            <feDisplacementMap in="SourceGraphic" in2="smoothNoise" scale="12" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </defs>
+      </svg>
+      
       <div className="flex items-center gap-4 pb-0">
         <div className={`relative inline-block ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
           {/* iMessage-style "To:" field */}
@@ -745,7 +766,26 @@ export function ModelSelector({
             {!isOpen ? (
               // Show selected model when not searching
               <>
-                <div className="flex items-center gap-2 backdrop-blur-md bg-[#007AFF]/5 dark:bg-[#007AFF]/10 px-2 py-1 rounded-full h-6">
+                <div 
+                  className="flex items-center gap-2 px-2 py-1 rounded-full h-6"
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    backdropFilter: 'url(#glass-distortion) blur(1px)',
+                    WebkitBackdropFilter: 'url(#glass-distortion) blur(1px)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                    // 다크모드 전용 스타일
+                    ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                        (document.documentElement.getAttribute('data-theme') === 'system' && 
+                         window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                      backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                      backdropFilter: 'url(#glass-distortion-dark) blur(1px)',
+                      WebkitBackdropFilter: 'url(#glass-distortion-dark) blur(1px)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                    } : {})
+                  }}
+                >
                   {/* {currentModelOption?.provider && (
                     <div className="provider-logo w-4 h-4 flex-shrink-0">
                       {hasLogo(currentModelOption.provider) ? (
@@ -789,7 +829,26 @@ export function ModelSelector({
               </>
                                 ) : (
                   // Mobile: Show current model name with same styling as closed state
-                  <div className="flex items-center gap-2 backdrop-blur-md bg-[#007AFF]/5 dark:bg-[#007AFF]/10 px-2 py-1 rounded-full h-6">
+                  <div 
+                    className="flex items-center gap-2 px-2 py-1 rounded-full h-6"
+                    style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      backdropFilter: 'url(#glass-distortion) blur(1px)',
+                      WebkitBackdropFilter: 'url(#glass-distortion) blur(1px)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                      // 다크모드 전용 스타일
+                      ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                          (document.documentElement.getAttribute('data-theme') === 'system' && 
+                           window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                        backdropFilter: 'url(#glass-distortion-dark) blur(1px)',
+                        WebkitBackdropFilter: 'url(#glass-distortion-dark) blur(1px)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                      } : {})
+                    }}
+                  >
                     <span className="text-[#007AFF]/100 dark:text-[#007AFF] text-sm font-medium">
                       {currentModelOption?.name || nextModel}
                     </span>
@@ -803,9 +862,9 @@ export function ModelSelector({
               // Mobile: Use Portal to render at document.body level
                             createPortal(
                 <>
-                  {/* Backdrop with blur effect */}
+                  {/* Backdrop without blur effect */}
                   <div 
-                    className={`fixed inset-0 bg-black/10 dark:bg-black/30 backdrop-blur-sm transition-all duration-500 ease-out z-[9999997] ${
+                    className={`fixed inset-0 bg-transparent transition-all duration-500 ease-out z-[9999997] ${
                       showElements.modal ? 'opacity-100' : 'opacity-0 pointer-events-none'
                     }`}
                     onClick={handleClose}
@@ -813,16 +872,29 @@ export function ModelSelector({
                   
               <div 
                 ref={modalRef}
-                    className="fixed inset-x-0 bottom-0 w-full bg-background flex flex-col overflow-hidden rounded-t-3xl z-[9999999]"
+                    className="fixed inset-x-0 bottom-0 w-full flex flex-col overflow-hidden rounded-t-3xl z-[9999999]"
                 style={{
                       transform: showElements.modal ? `translateY(${currentTranslateY}px)` : 'translateY(calc(100vh - 60px))',
                       transition: isDragging ? 'none' : showElements.modal ? 'transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.3s ease-out' : 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-out',
                       height: 'calc(100vh - 120px)',
                       maxHeight: 'calc(100vh - 120px)',
-                      backgroundColor: 'var(--background)',
-                      backdropFilter: 'blur(0px)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                    backdropFilter: 'url(#glass-distortion) blur(24px) saturate(180%)',
+                    WebkitBackdropFilter: 'url(#glass-distortion) blur(24px) saturate(180%)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
                       willChange: 'transform, opacity',
-                      opacity: showElements.modal ? 1 : 0
+                      opacity: showElements.modal ? 1 : 0,
+                      // 다크모드 전용 스타일
+                      ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                          (document.documentElement.getAttribute('data-theme') === 'system' && 
+                           window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                        backdropFilter: 'url(#glass-distortion-dark) blur(24px)',
+                        WebkitBackdropFilter: 'url(#glass-distortion-dark) blur(24px)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                      } : {})
                 }}
                 role="listbox"
               >
@@ -858,7 +930,7 @@ export function ModelSelector({
                 <>
 
                   <div 
-                     className={`relative flex items-center justify-center py-6 px-6 border-b border-[var(--accent)] shrink-0 transition-all duration-250 ease-out ${
+                     className={`relative flex items-center justify-center py-6 px-6 shrink-0 transition-all duration-250 ease-out ${
                        showElements.title ? 'translate-y-0 opacity-100' : (isClosing ? 'translate-y-6 opacity-0' : 'translate-y-6 opacity-0')
                      }`}
                      style={{ willChange: 'transform, opacity' }}
@@ -872,7 +944,7 @@ export function ModelSelector({
               )}
               
               {/* Sort Controls */}
-              <div className={`sticky top-0 z-10 border-b border-black/5 dark:border-white/5 px-4 py-3 ${isMobile ? 'shrink-0' : '-mx-2 md:-mx-3'} ${
+              <div className={`sticky top-0 z-10 px-4 py-3 ${isMobile ? 'shrink-0' : '-mx-2 md:-mx-3'} ${
                 isMobile ? `transition-all duration-300 ease-out ${
                   showElements.sortControls ? 'translate-y-0 opacity-100' : (isClosing ? 'translate-y-8 opacity-0' : 'translate-y-8 opacity-0')
                 }` : ''
@@ -913,7 +985,7 @@ export function ModelSelector({
                   </div>
                   
                   {/* Sort Controls */}
-                  <div className={`flex items-center justify-between w-full transition-all duration-100 ease-out ${
+                  <div className={`flex items-center justify-between w-full transition-all duration-100 ease-out ${isMobile ? 'px-3' : ''} ${
                     isMobile && isMobileSearchOpen ? 'opacity-0 translate-y-0 scale-100 pointer-events-none' : 'opacity-100 translate-y-0 scale-100'
                   }`}>
                     <div className={`flex items-center gap-1 sm:gap-3 ${isMobile ? 'flex-nowrap overflow-x-auto scrollbar-hide' : 'flex-wrap'}`}>
@@ -1040,6 +1112,9 @@ export function ModelSelector({
                     )}
                   </div>
                 </div>
+                
+                {/* Separator line with margins */}
+                <div className={`border-b border-black/5 dark:border-white/5 ${isMobile ? 'mx-3' : ''} py-3`}></div>
               </div>
 
             
@@ -1115,7 +1190,7 @@ export function ModelSelector({
                       };
                       
                       return (
-                        <div key={option.id} className={`border-b border-black/5 dark:border-white/5 last:border-b-0 ${
+                        <div key={option.id} className={` ${
                           isMobile ? `transition-all duration-500 ease-out ${
                             showElements.models ? 'translate-y-0 opacity-100' : (isClosing ? 'translate-y-6 opacity-0' : 'translate-y-6 opacity-0')
                           }` : ''
@@ -1386,10 +1461,24 @@ export function ModelSelector({
               <>
                 <div 
                   ref={modalRef}
-                  className={`absolute left-1 ${position === 'top' ? 'bottom-full mb-6 w-[592px] shadow-[0_12px_48px_-12px_rgba(0,0,0,0.25)]' : 'top-full mt-2 w-[600px] shadow-[0_-12px_48px_-12px_rgba(0,0,0,0.25)]'} px-2 md:px-3 left-0 model-selector-scroll rounded-2xl z-50`}
+                  className={`absolute left-1 ${position === 'top' ? 'bottom-full mb-6 w-[592px]' : 'top-full mt-2 w-[600px]'} px-2 md:px-3 left-0 model-selector-scroll rounded-2xl z-50`}
                   style={{
                     maxHeight: `${maxModalHeight}px`,
-                    backgroundColor: 'var(--background)'
+                    backgroundColor: 'rgba(255, 255, 255, 0.5) ',
+                    backdropFilter: 'url(#glass-distortion) blur(24px) saturate(180%)',
+                    WebkitBackdropFilter: 'url(#glass-distortion) blur(24px) saturate(180%)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                    // 다크모드 전용 스타일
+                    ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                        (document.documentElement.getAttribute('data-theme') === 'system' && 
+                         window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                      backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                      backdropFilter: 'url(#glass-distortion-dark) blur(24px)',
+                      WebkitBackdropFilter: 'url(#glass-distortion-dark) blur(24px)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                    } : {})
                   }}
                   role="listbox"
                 >
@@ -1586,7 +1675,7 @@ export function ModelSelector({
                       };
                       
                       return (
-                        <div key={option.id} className={`border-b border-black/5 dark:border-white/5 last:border-b-0 ${
+                        <div key={option.id} className={` ${
                           isMobile ? `transition-all duration-500 ease-out ${
                             showElements.models ? 'translate-y-0 opacity-100' : (isClosing ? 'translate-y-6 opacity-0' : 'translate-y-6 opacity-0')
                           }` : ''

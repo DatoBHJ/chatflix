@@ -125,7 +125,8 @@ export function ChatInputArea({
     <div className={`fixed bottom-0 z-10 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
       shouldShowSidebar ? 'left-0 right-0 md:left-80' : 'left-0 right-0'
     }`}>
-      <div className="bg-gradient-to-t from-[var(--background)] via-[var(--background)]/60 to-transparent pt-2 md:pt-8 pb-6 w-full">
+      {/* <div className="bg-transparent pt-2 md:pt-8 pb-6 w-full"> */}
+      <div className="bg-gradient-to-t from-[var(--background)]/80 via-[var(--background)]/40 to-transparent dark:from-[var(--background)]/60 dark:via-[var(--background)]/25 dark:to-transparent pt-2 md:pt-8 pb-6 w-full">
       {/* <div className="pt-3 md:pt-4 pb-6 w-full backdrop-blur-md bg-white/80 dark:bg-black/80"> */}
         <div className="max-w-3xl mx-auto w-full px-0 sm:px-8 relative flex flex-col items-center">
           <div className="w-full max-w-[calc(100vw-2rem)] space-y-1">
