@@ -34,7 +34,7 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
   const [chats, setChats] = useState<Chat[]>([])
   const supabase = createClient()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const { isAccountOpen, setIsAccountOpen } = useSidebar()
+  const { isAccountOpen, setIsAccountOpen, isMobile } = useSidebar()
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
   const [isProblemReportOpen, setIsProblemReportOpen] = useState(false)
   const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(false)
@@ -1746,8 +1746,8 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
                 href="/bookmarks" 
                 className="flex items-center group w-full text-left"
                 onClick={() => {
-                  // 모바일에서 사이드바 닫기
-                  if (toggleSidebar) {
+                  // 모바일에서만 사이드바 닫기
+                  if (isMobile && toggleSidebar) {
                     toggleSidebar();
                   }
                 }}
