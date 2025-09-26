@@ -840,7 +840,7 @@ const Message = memo(function MessageComponent({
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
   const [touchStartTime, setTouchStartTime] = useState<number>(0);
   const [touchStartY, setTouchStartY] = useState<number>(0);
-  const [isLongPressActive, setIsLongPressActive] = useState(false);
+  const longPressActivatedRef = useRef(false);
   const [bubbleViewportRect, setBubbleViewportRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   
   useEffect(() => {
@@ -880,7 +880,6 @@ const Message = memo(function MessageComponent({
       document.body.style.overflow = 'hidden';
       const handleScrollCancel = () => {
         setLongPressActive(false);
-        setIsLongPressActive(false);
         setBubbleViewportRect(null);
       };
       window.addEventListener('scroll', handleScrollCancel, { passive: true });
@@ -902,12 +901,12 @@ const Message = memo(function MessageComponent({
     e.preventDefault();
     setTouchStartTime(Date.now());
     setTouchStartY(e.touches[0].clientY);
-    setIsLongPressActive(false);
+    longPressActivatedRef.current = false;
     
     // 롱프레스 타이머 시작 (500ms)
     const timer = setTimeout(() => {
+      longPressActivatedRef.current = true;
       setLongPressActive(true);
-      setIsLongPressActive(true);
     }, 500);
     
     setLongPressTimer(timer);
@@ -924,23 +923,12 @@ const Message = memo(function MessageComponent({
       clearTimeout(longPressTimer);
       setLongPressTimer(null);
     }
-    
-    const touchEndTime = Date.now();
-    const touchDuration = touchEndTime - touchStartTime;
-    
-    // 롱프레스가 활성화된 상태에서는 일반 클릭 방지
-    if (isLongPressActive) {
-      return;
+
+    // long press가 활성화되지 않았다면, 짧은 터치이므로 메뉴를 닫습니다.
+    if (!longPressActivatedRef.current) {
+        setLongPressActive(false);
     }
-    
-    // 짧은 터치인 경우 일반 클릭으로 처리 (아무것도 하지 않음)
-    if (touchDuration < 500 && !longPressActive) {
-      // 일반 클릭은 아무것도 하지 않음
-    }
-    
-    // 롱프레스 상태 초기화 (touchStartY는 유지)
-    setLongPressActive(false);
-    setIsLongPressActive(false);
+    // long press가 활성화되었다면, 메뉴를 열린 상태로 둡니다.
   };
 
   // 터치 이동 핸들러 (스크롤 방지)
@@ -957,14 +945,12 @@ const Message = memo(function MessageComponent({
         setLongPressTimer(null);
       }
       setLongPressActive(false);
-      setIsLongPressActive(false);
     }
   };
 
   // 롱프레스 취소 핸들러
   const handleLongPressCancel = () => {
     setLongPressActive(false);
-    setIsLongPressActive(false);
     setBubbleViewportRect(null);
   };
 
