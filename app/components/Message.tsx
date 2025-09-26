@@ -924,15 +924,33 @@ const Message = memo(function MessageComponent({
       }
     };
 
+    const handleGlobalTouchEnd = (e: TouchEvent) => {
+      if (isMobile && isPWA && longPressActive) {
+        // 롱프레스 메뉴 영역이 아닌 경우에만 취소
+        const target = e.target as HTMLElement;
+        const isContextMenu = target.closest('[role="dialog"]') || 
+                             target.closest('.chat-input-tooltip-backdrop') ||
+                             target.closest('button');
+        
+        if (!isContextMenu) {
+          setLongPressActive(false);
+          setIsLongPressActive(false);
+          setBubbleViewportRect(null);
+        }
+      }
+    };
+
     if (isMobile && isPWA && longPressActive) {
-      // 약간의 지연을 두어 롱프레스가 완전히 활성화된 후에 이벤트 리스너 추가
+      // PWA에서는 touchstart와 touchend 모두 감지
       const timer = setTimeout(() => {
         document.addEventListener('touchstart', handleGlobalTouch, { passive: true });
+        document.addEventListener('touchend', handleGlobalTouchEnd, { passive: true });
       }, 100);
       
       return () => {
         clearTimeout(timer);
         document.removeEventListener('touchstart', handleGlobalTouch);
+        document.removeEventListener('touchend', handleGlobalTouchEnd);
       };
     }
   }, [isMobile, isPWA, longPressActive]);
@@ -941,7 +959,11 @@ const Message = memo(function MessageComponent({
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!isMobile || !isUser) return;
     
-    e.preventDefault();
+    // PWA에서는 preventDefault를 사용하지 않음
+    if (!isPWA) {
+      e.preventDefault();
+    }
+    
     setTouchStartTime(Date.now());
     setTouchStartY(e.touches[0].clientY);
     setIsLongPressActive(false);
@@ -959,7 +981,10 @@ const Message = memo(function MessageComponent({
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (!isMobile || !isUser) return;
     
-    e.preventDefault();
+    // PWA에서는 preventDefault를 사용하지 않음 - 이것이 문제의 원인
+    if (!isPWA) {
+      e.preventDefault();
+    }
     
     // 타이머 정리
     if (longPressTimer) {
@@ -973,6 +998,7 @@ const Message = memo(function MessageComponent({
     // PWA에서는 롱프레스 메뉴가 활성화된 상태에서 터치 종료 시 메뉴를 유지
     // 전역 터치 이벤트 리스너가 메뉴 취소를 처리함
     if (isPWA && isLongPressActive) {
+      // PWA에서는 아무것도 하지 않고 메뉴를 유지
       return;
     }
     
@@ -987,11 +1013,11 @@ const Message = memo(function MessageComponent({
       if (touchDuration < 500 && !longPressActive) {
         // 일반 클릭은 아무것도 하지 않음
       }
+      
+      // 일반 웹에서만 롱프레스 상태 초기화
+      setLongPressActive(false);
+      setIsLongPressActive(false);
     }
-    
-    // 롱프레스 상태 초기화 (touchStartY는 유지)
-    setLongPressActive(false);
-    setIsLongPressActive(false);
   };
 
   // 터치 이동 핸들러 (스크롤 방지)
@@ -1562,13 +1588,28 @@ const Message = memo(function MessageComponent({
           role="dialog"
           aria-modal="true"
           onClick={handleLongPressCancel}
-          onTouchEnd={(e) => {
-            // PWA에서는 터치 이벤트도 처리
+          onTouchStart={(e) => {
+            // PWA에서는 터치 시작에서 메뉴 취소
             if (isPWA) {
+              const target = e.target as HTMLElement;
+              const isContextMenu = target.closest('[role="dialog"]') || 
+                                   target.closest('.chat-input-tooltip-backdrop') ||
+                                   target.closest('button');
+              
+              if (!isContextMenu) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleLongPressCancel();
+              }
+            }
+          }}
+          onTouchEnd={(e) => {
+            // 일반 웹에서는 터치 종료에서 메뉴 취소
+            if (!isPWA) {
               e.preventDefault();
               e.stopPropagation();
+              handleLongPressCancel();
             }
-            handleLongPressCancel();
           }}
         >
           {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
