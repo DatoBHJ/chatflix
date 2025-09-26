@@ -1508,11 +1508,6 @@ const Message = memo(function MessageComponent({
           role="dialog"
           aria-modal="true"
           onClick={handleLongPressCancel}
-          onTouchEnd={(e) => {
-            if (e.target === e.currentTarget) {
-              handleLongPressCancel();
-            }
-          }}
         >
           {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
           <svg style={{ position: 'absolute', width: 0, height: 0 }}>
@@ -1538,7 +1533,7 @@ const Message = memo(function MessageComponent({
                 top: `${bubbleViewportRect.top}px`,
                 left: `${bubbleViewportRect.left}px`,
                 width: `${bubbleViewportRect.width}px`,
-                transform: longPressActive ? 'scale(1.05) translateY(-80px)' : 'scale(1) translateY(-2px)',
+                transform: longPressActive ? 'scale(1.05) translateY(-20px)' : 'scale(1) translateY(-2px)',
                 // transformOrigin: 'top left',
                 transition: 'transform 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
               }}
@@ -1566,8 +1561,8 @@ const Message = memo(function MessageComponent({
                 // 메시지가 화면 하단 근처에 있거나 너무 길면 화면 하단에 고정, 아니면 메시지 바로 아래
                 ...((() => {
                   const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
-                  // 메시지가 translateY(-80px)로 올라갔으므로 이를 고려한 위치 계산
-                  const messageBottom = bubbleViewportRect.top + (bubbleViewportRect.height * 1.05) - 80; // scaled + translateY offset
+                  // 메시지가 translateY(-20px)로 올라갔으므로 이를 고려한 위치 계산
+                  const messageBottom = bubbleViewportRect.top + (bubbleViewportRect.height * 1.05) - 20; // scaled + translateY offset
                   const buttonHeight = 80; // 버튼 영역 높이
                   const padding = 20; // 하단 여백
                   
@@ -1608,7 +1603,6 @@ const Message = memo(function MessageComponent({
                 e.preventDefault();
                 e.stopPropagation();
               }}
-              onTouchEnd={(e) => e.stopPropagation()}
             >
               <div className="flex flex-col gap-1 space-y-1">
               {/* 편집 버튼 */}
