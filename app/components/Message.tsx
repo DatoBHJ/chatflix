@@ -842,6 +842,31 @@ const Message = memo(function MessageComponent({
   const [touchStartY, setTouchStartY] = useState<number>(0);
   const [isLongPressActive, setIsLongPressActive] = useState(false);
   const [bubbleViewportRect, setBubbleViewportRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const [transformOrigin, setTransformOrigin] = useState('top left');
+
+  const handleLongPressCancel = useCallback(() => {
+    setIsMenuVisible(false);
+    setTimeout(() => {
+      setLongPressActive(false);
+      setIsLongPressActive(false);
+      setBubbleViewportRect(null);
+    }, 300); // Animation duration
+  }, []);
+
+  useEffect(() => {
+    let frameId: number;
+    if (longPressActive) {
+        frameId = requestAnimationFrame(() => {
+            setIsMenuVisible(true);
+        });
+    }
+    return () => {
+        if (frameId) {
+            cancelAnimationFrame(frameId);
+        }
+    };
+  }, [longPressActive]);
   
   useEffect(() => {
     const checkIfMobile = () => {
@@ -868,32 +893,35 @@ const Message = memo(function MessageComponent({
       if (bubbleRef.current) {
         const rect = bubbleRef.current.getBoundingClientRect();
         
-        // 간단한 위치 계산 - 좌측으로 살짝 이동하여 말풍선 꼬리 잘림 방지
+        if (rect.left > window.innerWidth / 2) {
+          setTransformOrigin('top right');
+        } else {
+          setTransformOrigin('top left');
+        }
+
+        // 정확한 위치 계산을 위해 스크롤 오프셋 고려
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+        
         setBubbleViewportRect({ 
-          top: rect.top, 
-          left: Math.max(8, rect.left - (rect.width * 0.025)), // 2.5% 좌측 이동, 최소 8px 여백
+          top: rect.top + scrollTop, 
+          left: rect.left + scrollLeft,
           width: rect.width, 
           height: rect.height 
         });
       }
       const originalOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
-      const handleScrollCancel = () => {
-        setLongPressActive(false);
-        setIsLongPressActive(false);
-        setBubbleViewportRect(null);
-      };
-      window.addEventListener('scroll', handleScrollCancel, { passive: true });
-      window.addEventListener('resize', handleScrollCancel);
+      
+      window.addEventListener('scroll', handleLongPressCancel, { passive: true });
+      window.addEventListener('resize', handleLongPressCancel);
       return () => {
         document.body.style.overflow = originalOverflow;
-        window.removeEventListener('scroll', handleScrollCancel);
-        window.removeEventListener('resize', handleScrollCancel);
+        window.removeEventListener('scroll', handleLongPressCancel);
+        window.removeEventListener('resize', handleLongPressCancel);
       };
-    } else {
-      setBubbleViewportRect(null);
     }
-  }, [longPressActive]);
+  }, [longPressActive, handleLongPressCancel]);
 
   // 터치 시작 핸들러
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -959,13 +987,6 @@ const Message = memo(function MessageComponent({
       setLongPressActive(false);
       setIsLongPressActive(false);
     }
-  };
-
-  // 롱프레스 취소 핸들러
-  const handleLongPressCancel = () => {
-    setLongPressActive(false);
-    setIsLongPressActive(false);
-    setBubbleViewportRect(null);
   };
 
   // 메시지가 긴지 또는 파일이 있는지 확인
@@ -1357,8 +1378,8 @@ const Message = memo(function MessageComponent({
                         WebkitUserSelect: 'none',
                         userSelect: 'none',
                         cursor: !isMobile ? 'pointer' : 'default',
-                        opacity: longPressActive ? 0 : 1,
-                        transition: 'opacity 0.2s ease-out',
+                        opacity: isMenuVisible ? 0 : 1,
+                        transition: 'opacity 0.2s ease-out 0.1s',
                       }}
                     >
                       <UserMessageContent 
@@ -1523,8 +1544,12 @@ const Message = memo(function MessageComponent({
           </svg>
           
           <div 
-            className="absolute inset-0 bg-black/2" 
-            // style={{ backgroundColor: 'var(--background-overlay)' }}
+            className="absolute inset-0 backdrop-blur-md" 
+            style={{ 
+              backgroundColor: 'var(--background-overlay)',
+              opacity: isMenuVisible ? 1 : 0,
+              transition: 'opacity 0.2s ease-out'
+            }}
           />
 
           <div
@@ -1533,15 +1558,18 @@ const Message = memo(function MessageComponent({
               top: `${bubbleViewportRect.top}px`,
               left: `${bubbleViewportRect.left}px`,
               width: `${bubbleViewportRect.width}px`,
-              transform: 'scale(1.05)',
-              transformOrigin: 'top left',
+              transform: isMenuVisible ? 'scale(1.05) translateY(-2px)' : 'scale(1) translateY(-2px)',
+              transformOrigin: transformOrigin,
               transition: 'transform 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <div 
               className={`imessage-send-bubble long-press-scaled ${bubbleRef.current?.classList.contains('multi-line') ? 'multi-line' : ''}`}
-              // style={{ boxShadow: '0 12px 32px rgba(0,0,0,0.35)' }}
+              //  style={{ 
+              //    boxShadow: isMenuVisible ? '0 12px 32px rgba(0,0,0,0.35)' : 'none',
+              //    transition: 'box-shadow 0.2s ease-out'
+              //  }}
             >
               <UserMessageContent 
                 content={
@@ -1558,6 +1586,8 @@ const Message = memo(function MessageComponent({
           <div 
             className="absolute right-4"
             style={{
+              opacity: isMenuVisible ? 1 : 0,
+              transition: 'opacity 0.2s ease-out 0.05s',
               // 메시지가 화면 하단 근처에 있거나 너무 길면 화면 하단에 고정, 아니면 메시지 바로 아래
               ...((() => {
                 const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
@@ -1581,8 +1611,8 @@ const Message = memo(function MessageComponent({
                style={{ 
                 // 라이트모드 기본 스타일 (도구 선택창과 동일)
                 backgroundColor: 'rgba(255, 255, 255, 0.5)',
-                backdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
-                WebkitBackdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
+                 backdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
+                 WebkitBackdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
                 border: '1px solid rgba(255, 255, 255, 0.2)',
                 boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
                 // 다크모드 전용 스타일
@@ -1592,8 +1622,8 @@ const Message = memo(function MessageComponent({
                    window.matchMedia('(prefers-color-scheme: dark)').matches)
                 ) ? {
                   backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                  backdropFilter: isMobile ? 'blur(24px)' : 'url(#glass-distortion-dark) blur(24px)',
-                  WebkitBackdropFilter: isMobile ? 'blur(24px)' : 'url(#glass-distortion-dark) blur(24px)',
+                   backdropFilter: isMobile ? 'blur(24px)' : 'url(#glass-distortion-dark) blur(24px)',
+                   WebkitBackdropFilter: isMobile ? 'blur(24px)' : 'url(#glass-distortion-dark) blur(24px)',
                   border: '1px solid rgba(255, 255, 255, 0.1)',
                   boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
                 } : {})
