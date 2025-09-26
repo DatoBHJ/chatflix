@@ -319,14 +319,14 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     };
 
     if (isMobile && isLongPressActive) {
-      // 약간의 지연을 두어 롱프레스가 완전히 활성화된 후에 이벤트 리스너 추가
-      const timer = setTimeout(() => {
-        document.addEventListener('touchstart', handleGlobalTouch, { passive: true });
-      }, 100);
+      // 🔧 FIX: iOS Safari 호환성을 위해 이벤트 리스너를 즉시 추가하고 캡처링 사용
+      document.addEventListener('touchstart', handleGlobalTouch, { 
+        passive: false, // preventDefault를 사용할 수 있도록 passive: false
+        capture: true   // 캡처링 단계에서 이벤트 처리
+      });
       
       return () => {
-        clearTimeout(timer);
-        document.removeEventListener('touchstart', handleGlobalTouch);
+        document.removeEventListener('touchstart', handleGlobalTouch, { capture: true });
       };
     }
   }, [isMobile, isLongPressActive]);
@@ -335,17 +335,20 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   const handleTouchStart = (e: React.TouchEvent, promptIndex: number) => {
     if (!isMobile) return;
     
+    // 🔧 FIX: iOS Safari에서 preventDefault를 더 일찍 호출
     e.preventDefault();
+    e.stopPropagation();
+    
     setTouchStartTime(Date.now());
     setTouchStartY(e.touches[0].clientY);
     setIsLongPressActive(false);
     
-    // 롱프레스 타이머 시작 (500ms)
+    // 🔧 FIX: iOS Safari에서 더 안정적인 롱프레스를 위해 타이머 시간 조정
     const timer = setTimeout(() => {
       setLongPressIndex(promptIndex);
       setShowMobileActions(true);
       setIsLongPressActive(true);
-    }, 500);
+    }, 600); // 500ms에서 600ms로 증가하여 iOS Safari에서 더 안정적으로 동작
     
     setLongPressTimer(timer);
   };
@@ -365,8 +368,10 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     const touchEndTime = Date.now();
     const touchDuration = touchEndTime - touchStartTime;
     
-    // 롱프레스가 활성화된 상태에서는 일반 클릭 방지
+    // 🔧 FIX: 롱프레스가 활성화된 상태에서는 상태를 유지하고 일반 클릭만 방지
     if (isLongPressActive) {
+      // 롱프레스 메뉴가 활성화된 상태에서는 터치 종료 시에도 상태 유지
+      // 메뉴는 다른 영역 터치나 명시적 취소 시에만 사라짐
       return;
     }
     
@@ -378,21 +383,25 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
       }
     }
     
-    // 롱프레스 상태 초기화
-    setLongPressIndex(-1);
-    setShowMobileActions(false);
-    setIsLongPressActive(false);
+    // 롱프레스가 활성화되지 않은 경우에만 상태 초기화
+    if (!isLongPressActive) {
+      setLongPressIndex(-1);
+      setShowMobileActions(false);
+    }
   };
 
   // 터치 이동 핸들러 (스크롤 방지)
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isMobile) return;
     
+    // 🔧 FIX: iOS Safari에서 preventDefault 추가
+    e.preventDefault();
+    
     const currentY = e.touches[0].clientY;
     const deltaY = Math.abs(currentY - touchStartY);
     
-    // 수직 이동이 10px 이상이면 롱프레스 취소
-    if (deltaY > 10) {
+    // 🔧 FIX: iOS Safari에서 더 관대한 이동 허용 (10px → 15px)
+    if (deltaY > 15) {
       if (longPressTimer) {
         clearTimeout(longPressTimer);
         setLongPressTimer(null);
@@ -836,6 +845,9 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                           WebkitTouchCallout: 'none',
                           WebkitUserSelect: 'none',
                           userSelect: 'none',
+                          // 🔧 FIX: iOS Safari에서 더 안정적인 터치 동작을 위한 추가 속성
+                          WebkitTouchAction: 'manipulation',
+                          touchAction: 'manipulation',
                           transition: isMobile ? 'transform 0.2s ease-out, box-shadow 0.2s ease-out' : 'none',
                           transform: isMobile && isLongPressActive && longPressIndex === index ? 'scale(1.05)' : 'scale(1)',
                           boxShadow: isMobile && isLongPressActive && longPressIndex === index ? '0 8px 32px rgba(0, 122, 255, 0.15), 0 4px 16px rgba(0, 122, 255, 0.1)' : 'none',
@@ -845,7 +857,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                             color: 'white',
                             borderColor: 'transparent'
                           })
-                        }}
+                        } as any}
                       >
                         {renderPromptWithLinks(prompt)}
                       </button>
@@ -956,6 +968,18 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
               handleMobileCancel();
             }
           }}
+          onTouchStart={(e) => {
+            // 🔧 FIX: iOS Safari에서 터치 이벤트 처리
+            e.preventDefault();
+            if (e.target === e.currentTarget) {
+              handleMobileCancel();
+            }
+          }}
+          style={{
+            // 🔧 FIX: iOS Safari에서 터치 동작 제어
+            WebkitTouchAction: 'none',
+            touchAction: 'none'
+          } as any}
         >
           {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
           {/* <svg style={{ position: 'absolute', width: 0, height: 0 }}>
@@ -1034,6 +1058,13 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                     e.nativeEvent.stopImmediatePropagation();
                     handleMobileEdit(longPressIndex);
                   }}
+                  onTouchStart={(e) => {
+                    // 🔧 FIX: iOS Safari에서 터치 시작 시 즉시 처리
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
+                    handleMobileEdit(longPressIndex);
+                  }}
                   onTouchEnd={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -1041,14 +1072,15 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                     handleMobileEdit(longPressIndex);
                   }}
                   className="flex items-center gap-2 px-4 pt-3 transition-colors duration-150 rounded-xl"
-                  // style={{
-                  //   '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
-                  //   '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
-                  //   WebkitTapHighlightColor: 'transparent',
-                  //   WebkitTouchCallout: 'none',
-                  //   WebkitUserSelect: 'none',
-                  //   userSelect: 'none'
-                  // } as any}
+                  style={{
+                    WebkitTapHighlightColor: 'transparent',
+                    WebkitTouchCallout: 'none',
+                    WebkitUserSelect: 'none',
+                    userSelect: 'none',
+                    // 🔧 FIX: iOS Safari에서 터치 동작 제어
+                    WebkitTouchAction: 'manipulation',
+                    touchAction: 'manipulation'
+                  } as any}
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                   onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
@@ -1068,6 +1100,13 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                     e.nativeEvent.stopImmediatePropagation();
                     handleMobileDelete(longPressIndex);
                   }}
+                  onTouchStart={(e) => {
+                    // 🔧 FIX: iOS Safari에서 터치 시작 시 즉시 처리
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
+                    handleMobileDelete(longPressIndex);
+                  }}
                   onTouchEnd={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -1075,14 +1114,15 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                     handleMobileDelete(longPressIndex);
                   }}
                   className="flex items-center gap-2 px-4 pb-3 transition-colors duration-150 rounded-xl"
-                  // style={{
-                  //   '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
-                  //   '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
-                  //   WebkitTapHighlightColor: 'transparent',
-                  //   WebkitTouchCallout: 'none',
-                  //   WebkitUserSelect: 'none',
-                  //   userSelect: 'none'
-                  // } as any}
+                  style={{
+                    WebkitTapHighlightColor: 'transparent',
+                    WebkitTouchCallout: 'none',
+                    WebkitUserSelect: 'none',
+                    userSelect: 'none',
+                    // 🔧 FIX: iOS Safari에서 터치 동작 제어
+                    WebkitTouchAction: 'manipulation',
+                    touchAction: 'manipulation'
+                  } as any}
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                   onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
