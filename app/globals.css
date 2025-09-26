@@ -534,8 +534,8 @@ html, body {
   --subtle-divider-light: color-mix(in srgb, var(--foreground-light) 8%, transparent);
   --sidebar-divider-light: rgba(0, 0, 0, 0.15);
   /* Backdrop overlay colors for reliable iOS Safari blur */
-  --background-overlay-light: rgba(0, 0, 0, 0.02);
-  --background-overlay-dark: rgba(0, 0, 0, 0.1);
+  --background-overlay-light: rgba(0, 0, 0, 0.05);
+  --background-overlay-dark: rgba(0, 0, 0, 0.55);
 
   /* Dark theme variables */
   /* --background-dark: #161617; */

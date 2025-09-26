@@ -843,6 +843,10 @@ const Message = memo(function MessageComponent({
   const [isLongPressActive, setIsLongPressActive] = useState(false);
   const [bubbleViewportRect, setBubbleViewportRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   
+  // 롱프레스 애니메이션 변수
+  const LONG_PRESS_TRANSLATE_Y = -80; // 메시지가 위로 올라가는 픽셀
+  const LONG_PRESS_SCALE = 1.05; // 메시지 확대 비율
+  
   useEffect(() => {
     const checkIfMobile = () => {
       setIsMobile(window.innerWidth < 640); // sm breakpoint
@@ -1358,7 +1362,7 @@ const Message = memo(function MessageComponent({
                         userSelect: 'none',
                         cursor: !isMobile ? 'pointer' : 'default',
                         opacity: longPressActive ? 0 : 1,
-                        transition: 'opacity 0.2s ease-out',
+                        transition: longPressActive ? 'none' : 'opacity 0.2s ease-out',
                       }}
                     >
                       <UserMessageContent 
@@ -1533,7 +1537,7 @@ const Message = memo(function MessageComponent({
                 top: `${bubbleViewportRect.top}px`,
                 left: `${bubbleViewportRect.left}px`,
                 width: `${bubbleViewportRect.width}px`,
-                transform: longPressActive ? 'scale(1.05) translateY(-20px)' : 'scale(1) translateY(-2px)',
+                 transform: longPressActive ? `scale(${LONG_PRESS_SCALE}) translateY(${LONG_PRESS_TRANSLATE_Y}px)` : 'scale(1) translateY(-2px)',
                 // transformOrigin: 'top left',
                 transition: 'transform 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
               }}
@@ -1556,13 +1560,13 @@ const Message = memo(function MessageComponent({
 
           {/* iMessage 스타일 액션 메뉴 - 메시지 길이에 따라 위치 조정 */}
           <div 
-            className="absolute right-4"
+            className="absolute right-6"
               style={{
                 // 메시지가 화면 하단 근처에 있거나 너무 길면 화면 하단에 고정, 아니면 메시지 바로 아래
                 ...((() => {
                   const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
-                  // 메시지가 translateY(-20px)로 올라갔으므로 이를 고려한 위치 계산
-                  const messageBottom = bubbleViewportRect.top + (bubbleViewportRect.height * 1.05) - 20; // scaled + translateY offset
+                   // 메시지가 translateY로 올라갔으므로 이를 고려한 위치 계산
+                   const messageBottom = bubbleViewportRect.top + (bubbleViewportRect.height * LONG_PRESS_SCALE) + LONG_PRESS_TRANSLATE_Y; // scaled + translateY offset
                   const buttonHeight = 80; // 버튼 영역 높이
                   const padding = 20; // 하단 여백
                   
