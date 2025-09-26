@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { createClient } from '@/utils/supabase/client';
 import { fetchUserName } from '../AccountDialog';
 import { formatMessageTime } from '@/app/lib/messageTimeUtils';
-import { SquarePencil } from 'react-ios-icons';
 
 
 
-// 기본 프롬프트 배열 (2개)
+// 기본 프롬프트 배열 (3개)
 export const DEFAULT_PROMPTS = [
   "tell me the latest news.",
-  "send me funny cat gifs"
+  "send me funny cat gifs",
+  "what do u know about me"
 ];
 
 export interface SuggestedPromptProps {
@@ -71,11 +70,9 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   const [touchStartTime, setTouchStartTime] = useState<number>(0);
   const [touchStartY, setTouchStartY] = useState<number>(0);
   const [isLongPressActive, setIsLongPressActive] = useState(false);
-  const [bubbleViewportRect, setBubbleViewportRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const newPromptTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const bubbleRef = useRef<HTMLButtonElement>(null);
   const supabase = createClient();
 
 
@@ -130,7 +127,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     
     // 🔧 FIX: 캐시된 프롬프트 먼저 확인하여 즉시 로딩
     const cachedPrompts = getCachedPrompts(userId);
-    if (cachedPrompts && Array.isArray(cachedPrompts)) {
+    if (cachedPrompts && Array.isArray(cachedPrompts) && cachedPrompts.length > 0) {
       setSuggestedPrompts(cachedPrompts);
       setIsInitialLoading(false);
       console.log('⚡ Loaded prompts from cache');
@@ -160,19 +157,18 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
       
       const { data } = await Promise.race([queryPromise, timeoutPromise]) as any;
       
-      if (data?.prompts && Array.isArray(data.prompts)) {
-        // 사용자가 의도적으로 빈 배열을 저장한 경우도 포함
+      if (data?.prompts && Array.isArray(data.prompts) && data.prompts.length > 0) {
         setSuggestedPrompts(data.prompts);
         setCachedPrompts(uid, data.prompts); // 캐시 업데이트
         console.log('✅ Custom prompts loaded from DB');
       } else {
-        console.log('📝 No custom prompts found, starting with empty array');
-        setSuggestedPrompts([]);
+        console.log('📝 No custom prompts found, using defaults');
+        setSuggestedPrompts(DEFAULT_PROMPTS);
       }
     } catch (err) {
-      // 에러 발생 시 조용히 빈 배열 사용
-      console.log('⚠️ Using empty array due to load error:', err);
-      setSuggestedPrompts([]);
+      // 에러 발생 시 조용히 기본값 사용
+      console.log('⚠️ Using default prompts due to load error:', err);
+      setSuggestedPrompts(DEFAULT_PROMPTS);
     } finally {
       if (updateLoading) {
         setIsInitialLoading(false);
@@ -182,7 +178,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
 
   // Supabase에 사용자 프롬프트 저장하기 (실패 시 조용히 무시)
   const saveUserPrompts = async (prompts: string[]) => {
-    if (!userId) return;
+    if (!userId || prompts.length === 0) return;
     
     try {
       setIsSaving(true);
@@ -269,67 +265,6 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
       }
     };
   }, [longPressTimer]);
-
-  // 롱프레스 활성화 시 버블 위치 계산 및 스크롤 잠금
-  useEffect(() => {
-    if (isLongPressActive && longPressIndex >= 0) {
-      if (bubbleRef.current) {
-        const rect = bubbleRef.current.getBoundingClientRect();
-        
-        // 간단한 위치 계산 - 좌측으로 살짝 이동하여 말풍선 꼬리 잘림 방지
-        setBubbleViewportRect({ 
-          top: rect.top, 
-          left: rect.left, // 원본과 동일한 위치
-          width: rect.width, 
-          height: rect.height 
-        });
-      }
-      const originalOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-      const handleScrollCancel = () => {
-        setLongPressIndex(-1);
-        setShowMobileActions(false);
-        setIsLongPressActive(false);
-        setBubbleViewportRect(null);
-      };
-      window.addEventListener('scroll', handleScrollCancel, { passive: true });
-      window.addEventListener('resize', handleScrollCancel);
-      return () => {
-        document.body.style.overflow = originalOverflow;
-        window.removeEventListener('scroll', handleScrollCancel);
-        window.removeEventListener('resize', handleScrollCancel);
-      };
-    } else {
-      setBubbleViewportRect(null);
-    }
-  }, [isLongPressActive, longPressIndex]);
-
-  // 전역 터치 이벤트로 모바일 액션 취소 (버튼 영역 제외)
-  useEffect(() => {
-    const handleGlobalTouch = (e: TouchEvent) => {
-      if (isMobile && isLongPressActive) {
-        // 컨텍스트 메뉴 영역이 아닌 경우에만 취소
-        const target = e.target as HTMLElement;
-        const isContextMenu = target.closest('[role="dialog"]') || target.closest('.backdrop-blur-xl');
-        
-        if (!isContextMenu) {
-          handleMobileCancel();
-        }
-      }
-    };
-
-    if (isMobile && isLongPressActive) {
-      // 약간의 지연을 두어 롱프레스가 완전히 활성화된 후에 이벤트 리스너 추가
-      const timer = setTimeout(() => {
-        document.addEventListener('touchstart', handleGlobalTouch, { passive: true });
-      }, 100);
-      
-      return () => {
-        clearTimeout(timer);
-        document.removeEventListener('touchstart', handleGlobalTouch);
-      };
-    }
-  }, [isMobile, isLongPressActive]);
 
   // 터치 시작 핸들러
   const handleTouchStart = (e: React.TouchEvent, promptIndex: number) => {
@@ -422,7 +357,6 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     setShowMobileActions(false);
     setLongPressIndex(-1);
     setIsLongPressActive(false);
-    setBubbleViewportRect(null);
   };
 
   // 편집 시작
@@ -467,6 +401,11 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     // 🚀 익명 사용자 지원: 익명 사용자는 삭제 불가
     if (userId === 'anonymous') {
       alert('Please sign in to delete prompts');
+      return;
+    }
+    
+    if (suggestedPrompts.length <= 1) {
+      // 최소 1개는 유지
       return;
     }
     
@@ -596,7 +535,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
 
   return (
     <div className={`relative flex flex-col items-end ${className} group `}>
-      {(suggestedPrompts.length > 0 || userId !== 'anonymous') && (
+      {suggestedPrompts.length > 0 && (
         <>
           {userId === 'anonymous' ? (
             // 익명 사용자용 미니멀한 대화 흐름
@@ -644,15 +583,21 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                 </button> */}
                 <button
                   onClick={() => handleClick("tell me the latest news.")}
-                  className="imessage-send-bubble follow-up-question max-w-md opacity-100 cursor-pointer"
+                  className="imessage-send-bubble follow-up-question max-w-md opacity-100 transition-all duration-200 ease-out hover:scale-105 cursor-pointer"
                 >
                   <span>tell me the latest news.</span>
                 </button>
                 <button
                   onClick={() => handleClick("send me funny cat gifs")}
-                  className="imessage-send-bubble follow-up-question max-w-md opacity-100 cursor-pointer"
+                  className="imessage-send-bubble follow-up-question max-w-md opacity-100 transition-all duration-200 ease-out hover:scale-105 cursor-pointer"
                 >
                   <span>send me funny cat gifs</span>
+                </button>
+                <button
+                  onClick={() => handleClick("what do u know about me")}
+                  className="imessage-send-bubble follow-up-question max-w-md opacity-100 transition-all duration-200 ease-out hover:scale-105 cursor-pointer"
+                >
+                  <span>what do u know about me</span>
                 </button>
               </div>
 
@@ -705,7 +650,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
           {/* 모든 프롬프트를 개별적으로 표시 - 로그인 사용자만 */}
           {userId !== 'anonymous' && (
           <div className="flex flex-col items-end gap-1 w-full">
-            {suggestedPrompts.length > 0 && suggestedPrompts.map((prompt, index) => (
+            {suggestedPrompts.map((prompt, index) => (
               <div 
                 key={index} 
                 className="flex items-center justify-end gap-2 w-full group/prompt"
@@ -713,7 +658,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                 onMouseLeave={handleMouseLeave}
               >
                 {isEditing && editingPromptIndex === index ? (
-                  <div className="flex flex-col items-end gap-2 w-full animate-edit-in-view">
+                  <div className="flex items-center justify-end gap-2 w-full">
                     <div className="relative w-full max-w-md">
                       <div className="imessage-edit-bubble">
                         <textarea
@@ -748,52 +693,37 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                         />
                       </div>
                     </div>
-                    <div className="flex w-full items-center justify-between gap-2 mt-2 relative z-20">
-                      <div className="flex items-center gap-2">
-                        {/* 빈 공간 - 실제 채팅창과 동일한 레이아웃 */}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button 
-                          onClick={handleEditCancel} 
-                          className="imessage-edit-control-btn cancel" 
-                          title="Cancel"
-                          disabled={isSaving}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                        </button>
-                        <button 
-                          onClick={handleEditSave} 
-                          className="imessage-edit-control-btn save" 
-                          title="Save"
-                          disabled={isSaving || !editingContent.trim()}
-                        >
-                          {isSaving ? (
-                            <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
-                          ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                              <polyline points="17 21 17 13 7 13 7 21"/>
-                              <polyline points="7 3 7 8 15 8"/>
-                            </svg>
-                          )}
-                        </button>
-                      </div>
-                    </div>
+                    <button 
+                      onClick={handleEditCancel} 
+                      className="imessage-edit-control-btn cancel" 
+                      title="Cancel"
+                      disabled={isSaving}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                    <button 
+                      onClick={handleEditSave} 
+                      className="imessage-edit-control-btn save" 
+                      title="Save"
+                      disabled={isSaving || !editingContent.trim()}
+                    >
+                      {isSaving ? (
+                        <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                          <polyline points="17 21 17 13 7 13 7 21"/>
+                          <polyline points="7 3 7 8 15 8"/>
+                        </svg>
+                      )}
+                    </button>
                   </div>
                 ) : (
-                  <div 
-                    className="relative flex flex-col items-end gap-2 w-full"
-                    onClick={(e) => {
-                      // 모바일에서 롱프레스 액션이 활성화된 상태에서 외부 영역 클릭 시 취소
-                      if (isMobile && showMobileActions && longPressIndex === index && e.target === e.currentTarget) {
-                        handleMobileCancel();
-                      }
-                    }}
-                  >
+                  <div className="flex flex-col items-end gap-2 w-full">
                     <div className="flex items-center justify-end gap-2 w-full">
                       {/* 데스크탑 호버 버튼들 - 좌측에 표시 */}
                       {!isMobile && (
-                        <div className={`flex items-center gap-2 transition-opacity duration-300 mr-2 ${
+                        <div className={`flex items-center gap-2 transition-opacity duration-300 ${
                           hoveredPromptIndex === index ? 'opacity-100' : 'opacity-0'
                         }`}>
                           <button
@@ -806,22 +736,27 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                             </svg>
                           </button>
-                          <button
-                            onClick={() => handleDeletePrompt(index)}
-                            className="imessage-control-btn text-red-500 hover:text-red-700"
-                            title="Delete prompt"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="3,6 5,6 21,6"/>
-                              <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
-                            </svg>
-                          </button>
+                          {suggestedPrompts.length > 1 && (
+                            <button
+                              onClick={() => handleDeletePrompt(index)}
+                              className="imessage-control-btn text-red-500 hover:text-red-700"
+                              title="Delete prompt"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3,6 5,6 21,6"/>
+                                <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
+                              </svg>
+                            </button>
+                          )}
                         </div>
                       )}
                       
                       <button
-                        ref={longPressIndex === index ? bubbleRef : null}
-                        className={`imessage-send-bubble follow-up-question max-w-md ${isMobile ? 'touch-manipulation' : ''} cursor-pointer`}
+                        className={`imessage-send-bubble follow-up-question max-w-md opacity-100 ${isMobile ? 'touch-manipulation' : ''} ${
+                          isMobile && showMobileActions && longPressIndex === index 
+                            ? 'scale-105 shadow-lg transform transition-all duration-200 ease-out' 
+                            : 'transition-all duration-200 ease-out hover:scale-105 cursor-pointer'
+                        }`}
                         onClick={() => {
                           if (!isLongPressActive) {
                             handleClick(prompt);
@@ -835,29 +770,94 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                           WebkitTapHighlightColor: 'transparent',
                           WebkitTouchCallout: 'none',
                           WebkitUserSelect: 'none',
-                          userSelect: 'none',
-                          // 롱프레스 상태일 때만 특별한 스타일 적용
-                          ...(isMobile && isLongPressActive && longPressIndex === index && {
-                            transform: 'scale(1.05)',
-                            boxShadow: '0 8px 32px rgba(0, 122, 255, 0.15), 0 4px 16px rgba(0, 122, 255, 0.1)',
-                            backgroundColor: '#007AFF',
-                            color: 'white',
-                            borderColor: 'transparent'
-                          })
+                          userSelect: 'none'
                         }}
                       >
                         {renderPromptWithLinks(prompt)}
                       </button>
                     </div>
                     
+                    {/* 모바일 롱프레스 버튼들 - 각 메시지 바로 아래에 표시 */}
+                    {isMobile && showMobileActions && longPressIndex === index && (
+                      <div className="flex items-center justify-end gap-2 w-full">
+                        <div className={`flex items-center gap-2 opacity-100 transition-all duration-200 ease-out ${
+                          isMobile && showMobileActions && longPressIndex === index 
+                            ? 'scale-105 transform' 
+                            : ''
+                        }`}>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleMobileEdit(index);
+                            }}
+                            className="imessage-control-btn"
+                            title="Edit prompt"
+                            style={{
+                              WebkitTapHighlightColor: 'transparent',
+                              WebkitTouchCallout: 'none',
+                              WebkitUserSelect: 'none',
+                              userSelect: 'none'
+                            }}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                          </button>
+                          {suggestedPrompts.length > 1 && (
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleMobileDelete(index);
+                              }}
+                              className="imessage-control-btn text-red-500 hover:text-red-700"
+                              title="Delete prompt"
+                              style={{
+                                WebkitTapHighlightColor: 'transparent',
+                                WebkitTouchCallout: 'none',
+                                WebkitUserSelect: 'none',
+                                userSelect: 'none'
+                              }}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3,6 5,6 21,6"/>
+                                <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
+                              </svg>
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleMobileCancel();
+                            }}
+                            className="imessage-control-btn text-gray-500 hover:text-gray-700"
+                            title="Cancel"
+                            style={{
+                              WebkitTapHighlightColor: 'transparent',
+                              WebkitTouchCallout: 'none',
+                              WebkitUserSelect: 'none',
+                              userSelect: 'none'
+                            }}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="18" y1="6" x2="6" y2="18"/>
+                              <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             ))}
 
-            {/* 새 프롬프트 추가 UI - 프롬프트가 0개일 때도 표시 */}
+            {/* 새 프롬프트 추가 UI */}
             {isAdding ? (
-              <div className="flex flex-col items-end gap-2 w-full animate-edit-in-view">
+              <div className="flex items-center justify-end gap-2 w-full">
                 <div className="relative w-full max-w-md">
                   <div className="imessage-edit-bubble">
                     <textarea
@@ -886,220 +886,52 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                         }
                       }}
                       className="imessage-edit-textarea scrollbar-thin"
-                      placeholder="Save your daily requests (e.g., Summarize today's news)"
+                      placeholder="Add new prompt..."
                       style={{ width: '100%', resize: 'none' }}
                     />
                   </div>
                 </div>
-                <div className="flex w-full items-center justify-between gap-2 mt-2 relative z-20">
-                  <div className="flex items-center gap-2">
-                    {/* 빈 공간 - 실제 채팅창과 동일한 레이아웃 */}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={handleAddPromptCancel} 
-                      className="imessage-edit-control-btn cancel" 
-                      title="Cancel"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                    </button>
-                    <button 
-                      onClick={handleAddPromptSave} 
-                      className="imessage-edit-control-btn save" 
-                      title="Add prompt"
-                      disabled={!newPromptContent.trim()}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="12" y1="5" x2="12" y2="19"/>
-                        <line x1="5" y1="12" x2="19" y2="12"/>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
+                <button 
+                  onClick={handleAddPromptCancel} 
+                  className="imessage-edit-control-btn cancel" 
+                  title="Cancel"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+                <button 
+                  onClick={handleAddPromptSave} 
+                  className="imessage-edit-control-btn save" 
+                  title="Add prompt"
+                  disabled={!newPromptContent.trim()}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                </button>
               </div>
             ) : (
-              /* 새 프롬프트 추가 버튼 - 편집 모드가 아닐 때만 표시 */
-              !isEditing && (
-                <div className="flex items-center justify-end gap-2 w-full">
-                  <div className={`flex items-center gap-2 transition-opacity duration-300 ${
-                    isMobile || suggestedPrompts.length === 0 ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                  }`}>
-                    <button
-                      onClick={handleAddPromptStart}
-                      className="imessage-control-btn text-green-500 hover:text-green-700 transition-all duration-200 ease-out hover:scale-110"
-                      title="Save your daily requests (e.g., Summarize today's news)"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="12" y1="5" x2="12" y2="19"/>
-                        <line x1="5" y1="12" x2="19" y2="12"/>
-                      </svg>
-                    </button>
-                  </div>
+              /* 새 프롬프트 추가 버튼 */
+              <div className="flex items-center justify-end gap-2 w-full">
+                <div className={`flex items-center gap-2 transition-opacity duration-300 ${
+                  isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                }`}>
+                  <button
+                    onClick={handleAddPromptStart}
+                    className="imessage-control-btn text-green-500 hover:text-green-700 transition-all duration-200 ease-out hover:scale-110"
+                    title="Add new prompt"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"/>
+                      <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                  </button>
                 </div>
-              )
+              </div>
             )}
           </div>
           )}
         </>
-      )}
-      
-      {/* 롱프레스 오버레이: 전체 화면 블러 + 포커스된 메시지 클론 */}
-      {isMobile && isLongPressActive && longPressIndex >= 0 && bubbleViewportRect && createPortal(
-        <div 
-          className="fixed inset-0 z-[9999]"
-          role="dialog"
-          aria-modal="true"
-          onClick={(e) => {
-            // 오버레이 배경을 클릭한 경우에만 취소
-            if (e.target === e.currentTarget) {
-              handleMobileCancel();
-            }
-          }}
-        >
-          {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
-          {/* <svg style={{ position: 'absolute', width: 0, height: 0 }}>
-            <defs>
-              <filter id="glass-distortion" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
-                <feTurbulence type="fractalNoise" baseFrequency="0.02 0.05" numOctaves="3" seed="7" result="noise" />
-                <feImage result="radialMask" preserveAspectRatio="none" x="0" y="0" width="100%" height="100%" xlinkHref="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><defs><radialGradient id='g' cx='50%25' cy='50%25' r='70%25'><stop offset='0%25' stop-color='black'/><stop offset='100%25' stop-color='white'/></radialGradient></defs><rect width='100%25' height='100%25' fill='url(%23g)'/></svg>" />
-                <feComposite in="noise" in2="radialMask" operator="arithmetic" k1="0" k2="0" k3="1" k4="0" result="modulatedNoise" />
-                <feGaussianBlur in="modulatedNoise" stdDeviation="0.3" edgeMode="duplicate" result="smoothNoise" />
-                <feDisplacementMap in="SourceGraphic" in2="smoothNoise" scale="18" xChannelSelector="R" yChannelSelector="G" />
-              </filter>
-            </defs>
-          </svg> */}
-          
-          {/* 반투명 오버레이 */}
-          <div 
-            className="absolute inset-0 bg-black/2"
-            onClick={handleMobileCancel}
-          />
-
-          {/* 도구 선택창 스타일의 액션 메뉴 - 메시지 길이에 따라 위치 조정 */}
-          <div 
-            className="absolute right-5"
-            style={{
-              // 메시지가 화면 하단 근처에 있거나 너무 길면 화면 하단에 고정, 아니면 메시지 바로 아래
-              ...((() => {
-                const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
-                const messageBottom = bubbleViewportRect.top + (bubbleViewportRect.height * 1.05);
-                const buttonHeight = 80; // 버튼 영역 높이
-                const padding = 20; // 하단 여백
-                
-                // 메시지 아래에 버튼을 놓을 공간이 충분한지 확인
-                if (messageBottom + buttonHeight + padding < viewportH) {
-                  // 공간이 충분하면 메시지 바로 아래
-                  return { top: `${messageBottom + 16}px` };
-                } else {
-                  // 공간이 부족하면 화면 하단에 고정
-                  return { bottom: '80px' };
-                }
-              })())
-            }}
-          >
-              <div 
-                className="rounded-2xl drop-shadow-sm backdrop-blur-sm overflow-hidden border min-w-[200px] chat-input-tooltip-backdrop"
-                // style={{ 
-                //   // 라이트모드 기본 스타일 (도구 선택창과 동일)
-                //   backgroundColor: 'rgba(255, 255, 255, 0.5)',
-                //   backdropFilter: 'blur(10px)',
-                //   WebkitBackdropFilter: 'blur(10px)',
-                //   border: '1px solid rgba(255, 255, 255, 0.2)',
-                //   boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
-                //   // 다크모드 전용 스타일
-                //   ...(typeof window !== 'undefined' && (
-                //     document.documentElement.getAttribute('data-theme') === 'dark' || 
-                //     (document.documentElement.getAttribute('data-theme') === 'system' && 
-                //      window.matchMedia('(prefers-color-scheme: dark)').matches)
-                //   ) ? {
-                //     backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                //     backdropFilter: 'url(#glass-distortion-dark) blur(24px)',
-                //     WebkitBackdropFilter: 'url(#glass-distortion-dark) blur(24px)',
-                //     border: '1px solid rgba(255, 255, 255, 0.1)',
-                //     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-                //   } : {})
-                // }}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-            >
-              <div className="flex flex-col gap-1 space-y-1">
-                {/* 편집 버튼 - 도구 선택창 배경 스타일만 적용 */}
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.nativeEvent.stopImmediatePropagation();
-                    handleMobileEdit(longPressIndex);
-                  }}
-                  onTouchEnd={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.nativeEvent.stopImmediatePropagation();
-                    handleMobileEdit(longPressIndex);
-                  }}
-                  className="flex items-center gap-2 px-4 pt-3 transition-colors duration-150 rounded-xl"
-                  // style={{
-                  //   '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
-                  //   '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
-                  //   WebkitTapHighlightColor: 'transparent',
-                  //   WebkitTouchCallout: 'none',
-                  //   WebkitUserSelect: 'none',
-                  //   userSelect: 'none'
-                  // } as any}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
-                  onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                >
-                  <div className="w-6 h-6 flex items-center justify-center">
-                    <SquarePencil className="w-5.5 h-5.5 text-[var(--foreground)]" />
-                  </div>
-                  <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Edit</span>
-                </button>
-
-                {/* 삭제 버튼 - 도구 선택창 배경 스타일만 적용 */}
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.nativeEvent.stopImmediatePropagation();
-                    handleMobileDelete(longPressIndex);
-                  }}
-                  onTouchEnd={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.nativeEvent.stopImmediatePropagation();
-                    handleMobileDelete(longPressIndex);
-                  }}
-                  className="flex items-center gap-2 px-4 pb-3 transition-colors duration-150 rounded-xl"
-                  // style={{
-                  //   '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
-                  //   '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
-                  //   WebkitTapHighlightColor: 'transparent',
-                  //   WebkitTouchCallout: 'none',
-                  //   WebkitUserSelect: 'none',
-                  //   userSelect: 'none'
-                  // } as any}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
-                  onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                >
-                  <div className="w-6 h-6 flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#FF3B30' }}>
-                      <polyline points="3,6 5,6 21,6"/>
-                      <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
-                    </svg>
-                  </div>
-                  <span className="text-sm font-medium" style={{ color: '#FF3B30' }}>Delete</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>,
-        typeof window !== 'undefined' ? document.body : (null as any)
       )}
     </div>
   );
