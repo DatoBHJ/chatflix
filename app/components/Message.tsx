@@ -1508,6 +1508,11 @@ const Message = memo(function MessageComponent({
           role="dialog"
           aria-modal="true"
           onClick={handleLongPressCancel}
+          onTouchEnd={(e) => {
+            if (e.target === e.currentTarget) {
+              handleLongPressCancel();
+            }
+          }}
         >
           {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
           <svg style={{ position: 'absolute', width: 0, height: 0 }}>
@@ -1533,7 +1538,7 @@ const Message = memo(function MessageComponent({
                 top: `${bubbleViewportRect.top}px`,
                 left: `${bubbleViewportRect.left}px`,
                 width: `${bubbleViewportRect.width}px`,
-                transform: longPressActive ? 'scale(1.05) translateY(-20px)' : 'scale(1) translateY(-2px)',
+                transform: longPressActive ? 'scale(1.05) translateY(-80px)' : 'scale(1) translateY(-2px)',
                 // transformOrigin: 'top left',
                 transition: 'transform 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
               }}
@@ -1561,8 +1566,8 @@ const Message = memo(function MessageComponent({
                 // 메시지가 화면 하단 근처에 있거나 너무 길면 화면 하단에 고정, 아니면 메시지 바로 아래
                 ...((() => {
                   const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
-                  // 메시지가 translateY(-20px)로 올라갔으므로 이를 고려한 위치 계산
-                  const messageBottom = bubbleViewportRect.top + (bubbleViewportRect.height * 1.05) - 20; // scaled + translateY offset
+                  // 메시지가 translateY(-80px)로 올라갔으므로 이를 고려한 위치 계산
+                  const messageBottom = bubbleViewportRect.top + (bubbleViewportRect.height * 1.05) - 80; // scaled + translateY offset
                   const buttonHeight = 80; // 버튼 영역 높이
                   const padding = 20; // 하단 여백
                   
@@ -1586,6 +1591,8 @@ const Message = memo(function MessageComponent({
                 WebkitBackdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
                 border: '1px solid rgba(255, 255, 255, 0.2)',
                 boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                // PWA 터치 영역 확장: 메시지가 위로 이동한 만큼 터치 영역을 위로 확장
+                position: 'relative',
                 // 다크모드 전용 스타일
                 ...(typeof window !== 'undefined' && (
                   document.documentElement.getAttribute('data-theme') === 'dark' || 
@@ -1603,7 +1610,28 @@ const Message = memo(function MessageComponent({
                 e.preventDefault();
                 e.stopPropagation();
               }}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
             >
+              {/* 보이지 않는 확장된 터치 영역 */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '-80px', // 메시지가 위로 이동한 만큼 터치 영역을 위로 확장
+                  left: '0',
+                  right: '0',
+                  height: '80px', // 확장된 터치 영역 높이
+                  // backgroundColor: 'rgba(255, 0, 0, 0.1)', // 디버깅용 (나중에 제거)
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+              />
               <div className="flex flex-col gap-1 space-y-1">
               {/* 편집 버튼 */}
                 <button
