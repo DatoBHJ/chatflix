@@ -906,6 +906,37 @@ const Message = memo(function MessageComponent({
     }
   }, [longPressActive]);
 
+  // PWA 환경에서 전역 터치 이벤트 처리
+  useEffect(() => {
+    const handleGlobalTouch = (e: TouchEvent) => {
+      if (isMobile && isPWA && longPressActive) {
+        // 롱프레스 메뉴 영역이 아닌 경우에만 취소
+        const target = e.target as HTMLElement;
+        const isContextMenu = target.closest('[role="dialog"]') || 
+                             target.closest('.chat-input-tooltip-backdrop') ||
+                             target.closest('button');
+        
+        if (!isContextMenu) {
+          setLongPressActive(false);
+          setIsLongPressActive(false);
+          setBubbleViewportRect(null);
+        }
+      }
+    };
+
+    if (isMobile && isPWA && longPressActive) {
+      // 약간의 지연을 두어 롱프레스가 완전히 활성화된 후에 이벤트 리스너 추가
+      const timer = setTimeout(() => {
+        document.addEventListener('touchstart', handleGlobalTouch, { passive: true });
+      }, 100);
+      
+      return () => {
+        clearTimeout(timer);
+        document.removeEventListener('touchstart', handleGlobalTouch);
+      };
+    }
+  }, [isMobile, isPWA, longPressActive]);
+
   // 터치 시작 핸들러
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!isMobile || !isUser) return;
@@ -940,8 +971,8 @@ const Message = memo(function MessageComponent({
     const touchDuration = touchEndTime - touchStartTime;
     
     // PWA에서는 롱프레스 메뉴가 활성화된 상태에서 터치 종료 시 메뉴를 유지
+    // 전역 터치 이벤트 리스너가 메뉴 취소를 처리함
     if (isPWA && isLongPressActive) {
-      // PWA에서는 롱프레스 메뉴가 활성화된 상태에서 터치를 떼어도 메뉴를 유지
       return;
     }
     
@@ -1628,6 +1659,14 @@ const Message = memo(function MessageComponent({
                     if (isPWA) {
                       e.preventDefault();
                       e.stopPropagation();
+                      e.nativeEvent.stopImmediatePropagation();
+                    }
+                  }}
+                  onTouchMove={(e) => {
+                    // PWA에서는 터치 이동 시에도 이벤트 전파 방지
+                    if (isPWA) {
+                      e.preventDefault();
+                      e.stopPropagation();
                     }
                   }}
                   className="flex items-center gap-2 px-4 pt-3 transition-colors duration-150 rounded-xl"
@@ -1669,6 +1708,14 @@ const Message = memo(function MessageComponent({
                   }}
                   onTouchStart={(e) => {
                     // PWA에서는 터치 시작 시에도 이벤트 전파 방지
+                    if (isPWA) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.nativeEvent.stopImmediatePropagation();
+                    }
+                  }}
+                  onTouchMove={(e) => {
+                    // PWA에서는 터치 이동 시에도 이벤트 전파 방지
                     if (isPWA) {
                       e.preventDefault();
                       e.stopPropagation();
