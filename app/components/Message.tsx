@@ -1544,12 +1544,12 @@ const Message = memo(function MessageComponent({
           </svg>
           
           <div 
-            className="absolute inset-0 backdrop-blur-md" 
-            style={{ 
-              backgroundColor: 'var(--background-overlay)',
-              opacity: isMenuVisible ? 1 : 0,
-              transition: 'opacity 0.2s ease-out'
-            }}
+            className="absolute inset-0 " 
+            // style={{ 
+            //   backgroundColor: 'var(--background-overlay)',
+            //   opacity: isMenuVisible ? 1 : 0,
+            //   transition: 'opacity 0.2s ease-out'
+            // }}
           />
 
           <div
@@ -1587,7 +1587,7 @@ const Message = memo(function MessageComponent({
             className="absolute right-4"
             style={{
               opacity: isMenuVisible ? 1 : 0,
-              transition: 'opacity 0.2s ease-out 0.05s',
+              // transition: 'opacity 0.2s ease-out 0.05s',
               // 메시지가 화면 하단 근처에 있거나 너무 길면 화면 하단에 고정, 아니면 메시지 바로 아래
               ...((() => {
                 const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
