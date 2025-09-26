@@ -958,7 +958,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
           }}
         >
           {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
-          <svg style={{ position: 'absolute', width: 0, height: 0 }}>
+          {/* <svg style={{ position: 'absolute', width: 0, height: 0 }}>
             <defs>
               <filter id="glass-distortion" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
                 <feTurbulence type="fractalNoise" baseFrequency="0.02 0.05" numOctaves="3" seed="7" result="noise" />
@@ -968,7 +968,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                 <feDisplacementMap in="SourceGraphic" in2="smoothNoise" scale="18" xChannelSelector="R" yChannelSelector="G" />
               </filter>
             </defs>
-          </svg>
+          </svg> */}
           
           {/* 반투명 오버레이 */}
           <div 
@@ -1000,26 +1000,26 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
           >
               <div 
                 className="rounded-2xl drop-shadow-sm backdrop-blur-sm overflow-hidden border min-w-[200px] chat-input-tooltip-backdrop"
-                style={{ 
-                  // 라이트모드 기본 스타일 (도구 선택창과 동일)
-                  backgroundColor: 'rgba(255, 255, 255, 0.5)',
-                  backdropFilter: 'url(#glass-distortion) blur(10px) saturate(180%)',
-                  WebkitBackdropFilter: 'url(#glass-distortion) blur(10px) saturate(180%)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
-                  // 다크모드 전용 스타일
-                  ...(typeof window !== 'undefined' && (
-                    document.documentElement.getAttribute('data-theme') === 'dark' || 
-                    (document.documentElement.getAttribute('data-theme') === 'system' && 
-                     window.matchMedia('(prefers-color-scheme: dark)').matches)
-                  ) ? {
-                    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                    backdropFilter: 'url(#glass-distortion-dark) blur(24px)',
-                    WebkitBackdropFilter: 'url(#glass-distortion-dark) blur(24px)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-                  } : {})
-                }}
+                // style={{ 
+                //   // 라이트모드 기본 스타일 (도구 선택창과 동일)
+                //   backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                //   backdropFilter: 'blur(10px)',
+                //   WebkitBackdropFilter: 'blur(10px)',
+                //   border: '1px solid rgba(255, 255, 255, 0.2)',
+                //   boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                //   // 다크모드 전용 스타일
+                //   ...(typeof window !== 'undefined' && (
+                //     document.documentElement.getAttribute('data-theme') === 'dark' || 
+                //     (document.documentElement.getAttribute('data-theme') === 'system' && 
+                //      window.matchMedia('(prefers-color-scheme: dark)').matches)
+                //   ) ? {
+                //     backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                //     backdropFilter: 'url(#glass-distortion-dark) blur(24px)',
+                //     WebkitBackdropFilter: 'url(#glass-distortion-dark) blur(24px)',
+                //     border: '1px solid rgba(255, 255, 255, 0.1)',
+                //     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                //   } : {})
+                // }}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1041,14 +1041,14 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                     handleMobileEdit(longPressIndex);
                   }}
                   className="flex items-center gap-2 px-4 pt-3 transition-colors duration-150 rounded-xl"
-                  style={{
-                    '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
-                    '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
-                    WebkitTapHighlightColor: 'transparent',
-                    WebkitTouchCallout: 'none',
-                    WebkitUserSelect: 'none',
-                    userSelect: 'none'
-                  } as any}
+                  // style={{
+                  //   '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
+                  //   '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
+                  //   WebkitTapHighlightColor: 'transparent',
+                  //   WebkitTouchCallout: 'none',
+                  //   WebkitUserSelect: 'none',
+                  //   userSelect: 'none'
+                  // } as any}
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                   onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
@@ -1075,14 +1075,14 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                     handleMobileDelete(longPressIndex);
                   }}
                   className="flex items-center gap-2 px-4 pb-3 transition-colors duration-150 rounded-xl"
-                  style={{
-                    '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
-                    '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
-                    WebkitTapHighlightColor: 'transparent',
-                    WebkitTouchCallout: 'none',
-                    WebkitUserSelect: 'none',
-                    userSelect: 'none'
-                  } as any}
+                  // style={{
+                  //   '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
+                  //   '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
+                  //   WebkitTapHighlightColor: 'transparent',
+                  //   WebkitTouchCallout: 'none',
+                  //   WebkitUserSelect: 'none',
+                  //   userSelect: 'none'
+                  // } as any}
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                   onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
