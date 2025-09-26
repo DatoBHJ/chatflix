@@ -816,27 +816,9 @@ const Message = memo(function MessageComponent({
 
   // 마지막 어시스턴트 메시지인지 확인
   const isLastAssistantMessage = isLastMessage && message.role === 'assistant';
-  
-  // 마지막 사용자 메시지인지 확인
-  const isLastUserMessage = useMemo(() => {
-    if (message.role !== 'user' || !allMessages) return false;
-    
-    const currentIndex = allMessages.findIndex((msg: any) => msg.id === message.id);
-    if (currentIndex === -1) return false;
-    
-    // 현재 메시지 이후에 사용자 메시지가 있는지 확인
-    const hasLaterUserMessage = allMessages
-      .slice(currentIndex + 1)
-      .some((msg: any) => msg.role === 'user');
-    
-    return !hasLaterUserMessage;
-  }, [message.id, message.role, allMessages]);
 
   // 모바일 여부 확인
   const [isMobile, setIsMobile] = useState(false);
-  
-  // PWA standalone 모드 감지
-  const [isPWA, setIsPWA] = useState(false);
   
   // 롱프레스 관련 상태 추가
   const [longPressActive, setLongPressActive] = useState(false);
@@ -851,15 +833,7 @@ const Message = memo(function MessageComponent({
       setIsMobile(window.innerWidth < 640); // sm breakpoint
     };
     
-    // PWA standalone 모드 감지
-    const checkPWA = () => {
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-      const isIOSPWA = (window.navigator as any).standalone === true;
-      setIsPWA(isStandalone || isIOSPWA);
-    };
-    
     checkIfMobile();
-    checkPWA();
     window.addEventListener('resize', checkIfMobile);
     return () => window.removeEventListener('resize', checkIfMobile);
   }, []);
@@ -906,64 +880,11 @@ const Message = memo(function MessageComponent({
     }
   }, [longPressActive]);
 
-  // PWA 환경에서 전역 터치 이벤트 처리
-  useEffect(() => {
-    const handleGlobalTouch = (e: TouchEvent) => {
-      if (isMobile && isPWA && longPressActive) {
-        // 롱프레스 메뉴 영역이 아닌 경우에만 취소
-        const target = e.target as HTMLElement;
-        const isContextMenu = target.closest('[role="dialog"]') || 
-                             target.closest('.chat-input-tooltip-backdrop') ||
-                             target.closest('button');
-        
-        if (!isContextMenu) {
-          setLongPressActive(false);
-          setIsLongPressActive(false);
-          setBubbleViewportRect(null);
-        }
-      }
-    };
-
-    const handleGlobalTouchEnd = (e: TouchEvent) => {
-      if (isMobile && isPWA && longPressActive) {
-        // 롱프레스 메뉴 영역이 아닌 경우에만 취소
-        const target = e.target as HTMLElement;
-        const isContextMenu = target.closest('[role="dialog"]') || 
-                             target.closest('.chat-input-tooltip-backdrop') ||
-                             target.closest('button');
-        
-        if (!isContextMenu) {
-          setLongPressActive(false);
-          setIsLongPressActive(false);
-          setBubbleViewportRect(null);
-        }
-      }
-    };
-
-    if (isMobile && isPWA && longPressActive) {
-      // PWA에서는 touchstart와 touchend 모두 감지
-      const timer = setTimeout(() => {
-        document.addEventListener('touchstart', handleGlobalTouch, { passive: true });
-        document.addEventListener('touchend', handleGlobalTouchEnd, { passive: true });
-      }, 100);
-      
-      return () => {
-        clearTimeout(timer);
-        document.removeEventListener('touchstart', handleGlobalTouch);
-        document.removeEventListener('touchend', handleGlobalTouchEnd);
-      };
-    }
-  }, [isMobile, isPWA, longPressActive]);
-
   // 터치 시작 핸들러
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!isMobile || !isUser) return;
     
-    // PWA에서는 preventDefault를 사용하지 않음
-    if (!isPWA) {
-      e.preventDefault();
-    }
-    
+    e.preventDefault();
     setTouchStartTime(Date.now());
     setTouchStartY(e.touches[0].clientY);
     setIsLongPressActive(false);
@@ -981,10 +902,7 @@ const Message = memo(function MessageComponent({
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (!isMobile || !isUser) return;
     
-    // PWA에서는 preventDefault를 사용하지 않음 - 이것이 문제의 원인
-    if (!isPWA) {
-      e.preventDefault();
-    }
+    e.preventDefault();
     
     // 타이머 정리
     if (longPressTimer) {
@@ -995,29 +913,19 @@ const Message = memo(function MessageComponent({
     const touchEndTime = Date.now();
     const touchDuration = touchEndTime - touchStartTime;
     
-    // PWA에서는 롱프레스 메뉴가 활성화된 상태에서 터치 종료 시 메뉴를 유지
-    // 전역 터치 이벤트 리스너가 메뉴 취소를 처리함
-    if (isPWA && isLongPressActive) {
-      // PWA에서는 아무것도 하지 않고 메뉴를 유지
+    // 롱프레스가 활성화된 상태에서는 일반 클릭 방지
+    if (isLongPressActive) {
       return;
     }
     
-    // 일반 웹에서는 기존 로직 유지
-    if (!isPWA) {
-      // 롱프레스가 활성화된 상태에서는 일반 클릭 방지
-      if (isLongPressActive) {
-        return;
-      }
-      
-      // 짧은 터치인 경우 일반 클릭으로 처리 (아무것도 하지 않음)
-      if (touchDuration < 500 && !longPressActive) {
-        // 일반 클릭은 아무것도 하지 않음
-      }
-      
-      // 일반 웹에서만 롱프레스 상태 초기화
-      setLongPressActive(false);
-      setIsLongPressActive(false);
+    // 짧은 터치인 경우 일반 클릭으로 처리 (아무것도 하지 않음)
+    if (touchDuration < 500 && !longPressActive) {
+      // 일반 클릭은 아무것도 하지 않음
     }
+    
+    // 롱프레스 상태 초기화 (touchStartY는 유지)
+    setLongPressActive(false);
+    setIsLongPressActive(false);
   };
 
   // 터치 이동 핸들러 (스크롤 방지)
@@ -1418,9 +1326,7 @@ const Message = memo(function MessageComponent({
                   })()}
                   {(hasTextContent) && (
                     <div 
-                    className={`imessage-send-bubble ${
-                      isMobile && longPressActive ? 'scale-105 shadow-xl' : ''
-                    }`}
+                      className="imessage-send-bubble" 
                       ref={bubbleRef}
                       onTouchStart={handleTouchStart}
                       onTouchEnd={handleTouchEnd}
@@ -1435,10 +1341,7 @@ const Message = memo(function MessageComponent({
                         WebkitTouchCallout: 'none',
                         WebkitUserSelect: 'none',
                         userSelect: 'none',
-                        cursor: !isMobile ? 'pointer' : 'default',
-                        transition: isMobile ? 'transform 0.2s ease-out, box-shadow 0.2s ease-out' : 'none',
-                        transform: isMobile && longPressActive ? 'scale(1.05)' : 'scale(1)',
-                        boxShadow: isMobile && longPressActive ? '0 8px 32px rgba(0, 122, 255, 0.1), 0 4px 16px rgba(0, 122, 255, 0.1)' : 'none'
+                        cursor: !isMobile ? 'pointer' : 'default'
                       }}
                     >
                       <UserMessageContent 
@@ -1451,10 +1354,84 @@ const Message = memo(function MessageComponent({
                       />
                     </div>
                   )}
-                  <div className="text-[10px] text-neutral-500 mt-1 pr-1 h-[14px]">
-                    {isLastUserMessage && formatMessageTime((message as any).createdAt || new Date())}
+                  <div className="text-[10px] text-neutral-500 mt-1 pr-1">
+                    {formatMessageTime((message as any).createdAt || new Date())}
                   </div>
-                </div>              
+                </div>
+                {/* 모바일에서만 롱프레스 버튼들 표시 */}
+                {isMobile && longPressActive && (
+                <div className="flex justify-end mt-2 gap-2 transition-opacity duration-300 opacity-100">
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleEditStartClick();
+                      handleLongPressCancel();
+                    }}
+                    className="imessage-control-btn"
+                    title="Edit message"
+                    style={{
+                      WebkitTapHighlightColor: 'transparent',
+                      WebkitTouchCallout: 'none',
+                      WebkitUserSelect: 'none',
+                      userSelect: 'none'
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onCopy(message);
+                      handleLongPressCancel();
+                    }}
+                    className={`imessage-control-btn ${isCopied ? 'copied' : ''}`}
+                    title={isCopied ? "Copied!" : "Copy message"}
+                    style={{
+                      WebkitTapHighlightColor: 'transparent',
+                      WebkitTouchCallout: 'none',
+                      WebkitUserSelect: 'none',
+                      userSelect: 'none'
+                    }}
+                  >
+                    {isCopied ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20,6 9,17 4,12"/>
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                      </svg>
+                    )}
+                  </button>
+                  {/* 취소 버튼 */}
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleLongPressCancel();
+                      }}
+                      className="imessage-control-btn text-gray-500 hover:text-gray-700"
+                      title="Cancel"
+                      style={{
+                        WebkitTapHighlightColor: 'transparent',
+                        WebkitTouchCallout: 'none',
+                        WebkitUserSelect: 'none',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </button>
+                </div>
+                )}
               </div>
             )}
           </div>
@@ -1581,52 +1558,47 @@ const Message = memo(function MessageComponent({
           </div>
         </div>
       )}
-      {/* 롱프레스 오버레이: 액션 메뉴만 표시 */}
+      {/* 롱프레스 오버레이: 전체 화면 블러 + 포커스된 메시지 클론 */}
       {longPressActive && bubbleViewportRect && createPortal(
         <div 
           className="fixed inset-0 z-[9999]"
           role="dialog"
           aria-modal="true"
           onClick={handleLongPressCancel}
-          onTouchStart={(e) => {
-            // PWA에서는 터치 시작에서 메뉴 취소
-            if (isPWA) {
-              const target = e.target as HTMLElement;
-              const isContextMenu = target.closest('[role="dialog"]') || 
-                                   target.closest('.chat-input-tooltip-backdrop') ||
-                                   target.closest('button');
-              
-              if (!isContextMenu) {
-                e.preventDefault();
-                e.stopPropagation();
-                handleLongPressCancel();
-              }
-            }
-          }}
-          onTouchEnd={(e) => {
-            // 일반 웹에서는 터치 종료에서 메뉴 취소
-            if (!isPWA) {
-              e.preventDefault();
-              e.stopPropagation();
-              handleLongPressCancel();
-            }
-          }}
         >
-          {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
-          <svg style={{ position: 'absolute', width: 0, height: 0 }}>
-            <defs>
-              <filter id="glass-distortion" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
-                <feTurbulence type="fractalNoise" baseFrequency="0.02 0.05" numOctaves="3" seed="7" result="noise" />
-                <feImage result="radialMask" preserveAspectRatio="none" x="0" y="0" width="100%" height="100%" xlinkHref="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><defs><radialGradient id='g' cx='50%25' cy='50%25' r='70%25'><stop offset='0%25' stop-color='black'/><stop offset='100%25' stop-color='white'/></radialGradient></defs><rect width='100%25' height='100%25' fill='url(%23g)'/></svg>" />
-                <feComposite in="noise" in2="radialMask" operator="arithmetic" k1="0" k2="0" k3="1" k4="0" result="modulatedNoise" />
-                <feGaussianBlur in="modulatedNoise" stdDeviation="0.3" edgeMode="duplicate" result="smoothNoise" />
-                <feDisplacementMap in="SourceGraphic" in2="smoothNoise" scale="18" xChannelSelector="R" yChannelSelector="G" />
-              </filter>
-            </defs>
-          </svg>
-          
-          {/* 반투명 오버레이 */}
-          <div className="absolute inset-0 bg-black/2" />
+          {/* 블러 레이어 (배경 전체) */}
+          <div 
+            className="absolute inset-0 backdrop-blur-md" 
+            style={{ backgroundColor: 'var(--background-overlay)' }}
+          />
+
+          {/* 포커스된 메시지 클론 (원래 위치에 살짝 확대) */}
+          <div
+            className="absolute"
+            style={{
+              top: `${bubbleViewportRect.top}px`,
+              left: `${bubbleViewportRect.left}px`,
+              width: `${bubbleViewportRect.width}px`,
+              transform: 'scale(1.05)',
+              transformOrigin: 'top left',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+              {/* 메시지 버블 복제 */}
+              <div 
+                className={`imessage-send-bubble long-press-scaled ${bubbleRef.current?.classList.contains('multi-line') ? 'multi-line' : ''}`}
+                // style={{ boxShadow: '0 12px 32px rgba(0,0,0,0.35)' }}
+              >
+              <UserMessageContent 
+                content={
+                  hasContent 
+                    ? processedContent 
+                    : (processedParts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n') || '')
+                }
+                searchTerm={searchTerm}
+              />
+            </div>
+          </div>
 
           {/* iMessage 스타일 액션 메뉴 - 메시지 길이에 따라 위치 조정 */}
           <div 
@@ -1635,13 +1607,13 @@ const Message = memo(function MessageComponent({
               // 메시지가 화면 하단 근처에 있거나 너무 길면 화면 하단에 고정, 아니면 메시지 바로 아래
               ...((() => {
                 const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
-                const messageBottom = bubbleViewportRect.top + bubbleViewportRect.height;
+                const messageBottom = bubbleViewportRect.top + (bubbleViewportRect.height * 1.05);
                 const buttonHeight = 80; // 버튼 영역 높이
                 const padding = 20; // 하단 여백
                 
                 // 메시지 아래에 버튼을 놓을 공간이 충분한지 확인
                 if (messageBottom + buttonHeight + padding < viewportH) {
-                  // 공간이 충분하면 메시지에서 더 멀리 떨어뜨림
+                  // 공간이 충분하면 메시지 바로 아래
                   return { top: `${messageBottom + 16}px` };
                 } else {
                   // 공간이 부족하면 화면 하단에 고정
@@ -1651,68 +1623,24 @@ const Message = memo(function MessageComponent({
             }}
           >
             <div 
-            className="rounded-2xl overflow-hidden border min-w-[200px] chat-input-tooltip-backdrop"
-               style={{ 
-                // 라이트모드 기본 스타일 (도구 선택창과 동일)
-                backgroundColor: 'rgba(255, 255, 255, 0.5)',
-                backdropFilter: 'url(#glass-distortion) blur(10px) saturate(180%)',
-                WebkitBackdropFilter: 'url(#glass-distortion) blur(10px) saturate(180%)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
-                // 다크모드 전용 스타일
-                ...(typeof window !== 'undefined' && (
-                  document.documentElement.getAttribute('data-theme') === 'dark' || 
-                  (document.documentElement.getAttribute('data-theme') === 'system' && 
-                   window.matchMedia('(prefers-color-scheme: dark)').matches)
-                ) ? {
-                  backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                  backdropFilter: 'url(#glass-distortion-dark) blur(24px)',
-                  WebkitBackdropFilter: 'url(#glass-distortion-dark) blur(24px)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-                } : {})
-              }}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
+              className="backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden border"
+              style={{ 
+                backgroundColor: 'var(--background-overlay)',
+                borderColor: 'var(--subtle-divider)'
               }}
             >
-              <div className="flex flex-col gap-1 space-y-1">
-              {/* 편집 버튼 */}
+              <div className="flex">
+                {/* 편집 버튼 */}
                 <button
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    e.nativeEvent.stopImmediatePropagation();
                     handleEditStartClick();
                     handleLongPressCancel();
                   }}
-                  // className="flex flex-col items-center justify-center px-8 py-4 transition-colors duration-150 border-r"
-                  onTouchEnd={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.nativeEvent.stopImmediatePropagation();
-                    handleEditStartClick();
-                    handleLongPressCancel();
-                  }}
-                  onTouchStart={(e) => {
-                    // PWA에서는 터치 시작 시에도 이벤트 전파 방지
-                    if (isPWA) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      e.nativeEvent.stopImmediatePropagation();
-                    }
-                  }}
-                  onTouchMove={(e) => {
-                    // PWA에서는 터치 이동 시에도 이벤트 전파 방지
-                    if (isPWA) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }
-                  }}
-                  className="flex items-center gap-2 px-4 pt-3 transition-colors duration-150 rounded-xl"
+                  className="flex flex-col items-center justify-center px-8 py-4 transition-colors duration-150 border-r"
                   style={{
-                    // borderColor: 'var(--subtle-divider)',
+                    borderColor: 'var(--subtle-divider)',
                     '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
                     '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
                     WebkitTapHighlightColor: 'transparent',
@@ -1724,45 +1652,22 @@ const Message = memo(function MessageComponent({
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                   onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
                   onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                > 
-                <div className="w-6 h-6 flex items-center justify-center">
-                    <IoCreateOutline size={20} style={{ color: 'var(--foreground)' }} />
+                >
+                  <div className="w-8 h-8 mb-1 flex items-center justify-center">
+                    <IoCreateOutline size={20} style={{ color: 'var(--chat-input-primary)' }} />
                   </div>
-                  <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Edit</span>
-                                  </button>
+                  <span className="text-xs font-medium" style={{ color: 'var(--foreground)' }}>Edit</span>
+                </button>
 
                 {/* 복사 버튼 */}
                 <button
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    e.nativeEvent.stopImmediatePropagation();
                     onCopy(message);
                     handleLongPressCancel();
                   }}
-                  onTouchEnd={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.nativeEvent.stopImmediatePropagation();
-                    onCopy(message);
-                    handleLongPressCancel();
-                  }}
-                  onTouchStart={(e) => {
-                    // PWA에서는 터치 시작 시에도 이벤트 전파 방지
-                    if (isPWA) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      e.nativeEvent.stopImmediatePropagation();
-                    }
-                  }}
-                  onTouchMove={(e) => {
-                    // PWA에서는 터치 이동 시에도 이벤트 전파 방지
-                    if (isPWA) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }
-                  }}
-                  className="flex items-center gap-2 px-4 pb-3 transition-colors duration-150 rounded-xl"
+                  className="flex flex-col items-center justify-center px-8 py-4 transition-colors duration-150"
                   style={{
                     '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
                     '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
@@ -1776,14 +1681,14 @@ const Message = memo(function MessageComponent({
                   onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
                   onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
                 >
-                  <div className="w-6 h-6 flex items-center justify-center">
-                  {isCopied ? (
+                  <div className="w-8 h-8 mb-1 flex items-center justify-center">
+                    {isCopied ? (
                       <IoCheckmarkOutline size={20} style={{ color: 'var(--status-text-complete)' }} />
                     ) : (
-                      <IoCopyOutline size={20} style={{ color: 'var(--foreground)' }} />
+                      <IoCopyOutline size={20} style={{ color: 'var(--chat-input-primary)' }} />
                     )}
                   </div>
-                  <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                  <span className="text-xs font-medium" style={{ color: 'var(--foreground)' }}>
                     {isCopied ? 'Copied' : 'Copy'}
                   </span>
                 </button>
