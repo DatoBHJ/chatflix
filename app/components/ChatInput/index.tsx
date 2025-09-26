@@ -995,6 +995,27 @@ export function ChatInput({
 
   return (
     <div className="relative">
+      {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
+      <svg style={{ position: 'absolute', width: 0, height: 0 }}>
+        <defs>
+          <filter id="glass-distortion" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+            <feTurbulence type="fractalNoise" baseFrequency="0.02 0.05" numOctaves="3" seed="7" result="noise" />
+            <feImage result="radialMask" preserveAspectRatio="none" x="0" y="0" width="100%" height="100%" xlinkHref="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><defs><radialGradient id='g' cx='50%25' cy='50%25' r='70%25'><stop offset='0%25' stop-color='black'/><stop offset='100%25' stop-color='white'/></radialGradient></defs><rect width='100%25' height='100%25' fill='url(%23g)'/></svg>" />
+            <feComposite in="noise" in2="radialMask" operator="arithmetic" k1="0" k2="0" k3="1" k4="0" result="modulatedNoise" />
+            <feGaussianBlur in="modulatedNoise" stdDeviation="0.3" edgeMode="duplicate" result="smoothNoise" />
+            <feDisplacementMap in="SourceGraphic" in2="smoothNoise" scale="18" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+          {/* 다크모드 전용 글라스 필터 */}
+          <filter id="glass-distortion-dark" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+            <feTurbulence type="fractalNoise" baseFrequency="0.015 0.03" numOctaves="4" seed="7" result="noise" />
+            <feImage result="radialMask" preserveAspectRatio="none" x="0" y="0" width="100%" height="100%" xlinkHref="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><defs><radialGradient id='g-dark' cx='50%25' cy='50%25' r='80%25'><stop offset='0%25' stop-color='white'/><stop offset='100%25' stop-color='black'/></radialGradient></defs><rect width='100%25' height='100%25' fill='url(%23g-dark)'/></svg>" />
+            <feComposite in="noise" in2="radialMask" operator="arithmetic" k1="0" k2="0" k3="0.8" k4="0" result="modulatedNoise" />
+            <feGaussianBlur in="modulatedNoise" stdDeviation="0.4" edgeMode="duplicate" result="smoothNoise" />
+            <feDisplacementMap in="SourceGraphic" in2="smoothNoise" scale="12" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </defs>
+      </svg>
+      
       <form 
         ref={formRef} 
         onSubmit={handleMessageSubmit} 
@@ -1074,15 +1095,44 @@ export function ChatInput({
                       });
                     }
                   }}
-                  className={`input-btn transition-all duration-300 flex items-center justify-center relative rounded-full w-8 h-8 cursor-pointer ${
-                    selectedTool ?
-                      'bg-[var(--chat-input-button-bg)] hover:bg-[var(--chat-input-button-hover-bg)] text-[var(--muted)]' :
-                      isAgentEnabled ?
-                        'bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)]' :
-                        user?.hasAgentModels === false && !isAgentEnabled ?
-                          'opacity-40 cursor-not-allowed bg-[var(--chat-input-button-bg)]' :
-                          'bg-[var(--chat-input-button-bg)] hover:bg-[var(--chat-input-button-hover-bg)] text-[var(--muted)]'
-                  }`}
+                  className={`input-btn transition-all duration-300 flex items-center justify-center relative rounded-full w-8 h-8 cursor-pointer`}
+                  style={{
+                    backgroundColor: selectedTool 
+                      ? 'rgba(255, 255, 255, 0.1)' 
+                      : isAgentEnabled 
+                        ? 'var(--chat-input-primary)' 
+                        : user?.hasAgentModels === false && !isAgentEnabled 
+                          ? 'rgba(255, 255, 255, 0.1)' 
+                          : 'rgba(255, 255, 255, 0.1)',
+                    backdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                    WebkitBackdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                    color: selectedTool 
+                      ? 'var(--foreground)' 
+                      : isAgentEnabled 
+                        ? 'var(--chat-input-primary-foreground)' 
+                        : user?.hasAgentModels === false && !isAgentEnabled 
+                          ? 'var(--foreground)' 
+                          : 'var(--foreground)',
+                    opacity: user?.hasAgentModels === false && !isAgentEnabled ? 0.4 : 1,
+                    // 다크모드 전용 스타일
+                    ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                        (document.documentElement.getAttribute('data-theme') === 'system' && 
+                         window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                      backgroundColor: selectedTool 
+                        ? 'rgba(0, 0, 0, 0.05)' 
+                        : isAgentEnabled 
+                          ? 'var(--chat-input-primary)' 
+                          : user?.hasAgentModels === false && !isAgentEnabled 
+                            ? 'rgba(0, 0, 0, 0.05)' 
+                            : 'rgba(0, 0, 0, 0.05)',
+                      backdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      WebkitBackdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                    } : {})
+                  }}
                   disabled={user?.hasAgentModels === false && !isAgentEnabled}
                   title={
                     user?.hasAgentModels === false && !isAgentEnabled 
@@ -1111,6 +1161,24 @@ export function ChatInput({
                 {showToolSelector && (
                   <div 
                     className="absolute top-0 -translate-y-full -mt-2 -left-1 w-56 chat-input-tooltip-backdrop rounded-2xl z-50 overflow-hidden tool-selector"
+                    style={{
+                      // 라이트모드 기본 스타일 (모델 선택창과 동일)
+                      backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                      backdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
+                      WebkitBackdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                      // 다크모드 전용 스타일
+                      ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                          (document.documentElement.getAttribute('data-theme') === 'system' && 
+                           window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                        backdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(24px)',
+                        WebkitBackdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(24px)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                      } : {})
+                    }}
                   >
                                   {/* Apple-style arrow removed */}
                     
@@ -1193,7 +1261,24 @@ export function ChatInput({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center justify-center w-8 h-8 rounded-full bg-[var(--chat-input-button-bg)] hover:bg-[var(--chat-input-button-hover-bg)] transition-colors flex-shrink-0 text-[var(--muted)] cursor-pointer"
+                className="flex items-center justify-center w-8 h-8 rounded-full transition-colors flex-shrink-0 text-[var(--foreground)] cursor-pointer"
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    backdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                    WebkitBackdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                  boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                  // 다크모드 전용 스타일
+                  ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                      (document.documentElement.getAttribute('data-theme') === 'system' && 
+                       window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                    backdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                    WebkitBackdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                  } : {})
+                }}
                 title={translations.uploadFile}
               >
                 <Plus className="h-4 w-4" strokeWidth={2} />
@@ -1222,9 +1307,23 @@ export function ChatInput({
                     lineHeight: '1.3',
                     resize: 'none',
                     caretColor: 'var(--chat-input-primary)',
-                    border: '1px solid var(--chat-input-border)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    backdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                    WebkitBackdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)', // Safari 지원
+                    boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
                     paddingLeft: '1rem', // CSS에서 paddingRight 처리
-                    ...(('caretWidth' in document.documentElement.style) && { caretWidth: '2px' })
+                    ...(('caretWidth' in document.documentElement.style) && { caretWidth: '2px' }),
+                    // 다크모드 전용 스타일
+                    ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                        (document.documentElement.getAttribute('data-theme') === 'system' && 
+                         window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                      backdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      WebkitBackdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                    } : {})
                   } as React.CSSProperties}
                 ></div>
                 

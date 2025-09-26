@@ -534,8 +534,8 @@ html, body {
   --subtle-divider-light: color-mix(in srgb, var(--foreground-light) 8%, transparent);
   --sidebar-divider-light: rgba(0, 0, 0, 0.15);
   /* Backdrop overlay colors for reliable iOS Safari blur */
-  --background-overlay-light: rgba(255, 255, 255, 0.8);
-  --background-overlay-dark: rgba(0, 0, 0, 0.55);
+  --background-overlay-light: rgba(0, 0, 0, 0.02);
+  --background-overlay-dark: rgba(0, 0, 0, 0.1);
 
   /* Dark theme variables */
   /* --background-dark: #161617; */
@@ -843,7 +843,7 @@ body {
 
 /* Message Container Styles */
 .messages-container {
-  @apply max-w-7xl mx-auto w-full pb-10 sm:pb-12 pt-[60px] md:pt-[52px] ;
+  @apply max-w-6xl mx-auto w-full pb-10 sm:pb-12 pt-[60px] md:pt-[52px] ;
   /* padding-top: 1rem; Add consistent top padding */
   overflow: visible; /* 기본적으로 visible 허용 */
 }
@@ -946,6 +946,32 @@ body {
 .message-content p code {
   @apply break-words whitespace-normal;
   max-width: 100%;
+}
+
+/* Fix pre tag overflow issues in message content */
+.message-content pre {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  /* 꼬리를 위해 부모 컨테이너는 visible 유지 */
+}
+
+.message-content pre span {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  max-width: 100% !important;
+}
+
+/* 메시지 세그먼트 내부의 pre 태그만 overflow 처리 */
+.message-segment .message-content pre {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
 }
 
 /* Syntax Highlighting Overrides for Light Mode */
@@ -1946,6 +1972,8 @@ p:has(.katex) {
   opacity: 1;
   margin: 2px 0;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  max-width: 100%;
+  overflow: visible; /* 꼬리를 위해 visible로 유지 */
 }
 
 /* Single line bullet points should look like regular single line messages */
