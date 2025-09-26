@@ -840,7 +840,7 @@ const Message = memo(function MessageComponent({
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
   const [touchStartTime, setTouchStartTime] = useState<number>(0);
   const [touchStartY, setTouchStartY] = useState<number>(0);
-  const longPressActivatedRef = useRef(false);
+  const [isLongPressActive, setIsLongPressActive] = useState(false);
   const [bubbleViewportRect, setBubbleViewportRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   
   useEffect(() => {
@@ -880,6 +880,7 @@ const Message = memo(function MessageComponent({
       document.body.style.overflow = 'hidden';
       const handleScrollCancel = () => {
         setLongPressActive(false);
+        setIsLongPressActive(false);
         setBubbleViewportRect(null);
       };
       window.addEventListener('scroll', handleScrollCancel, { passive: true });
@@ -901,12 +902,12 @@ const Message = memo(function MessageComponent({
     e.preventDefault();
     setTouchStartTime(Date.now());
     setTouchStartY(e.touches[0].clientY);
-    longPressActivatedRef.current = false;
+    setIsLongPressActive(false);
     
     // 롱프레스 타이머 시작 (500ms)
     const timer = setTimeout(() => {
-      longPressActivatedRef.current = true;
       setLongPressActive(true);
+      setIsLongPressActive(true);
     }, 500);
     
     setLongPressTimer(timer);
@@ -923,12 +924,23 @@ const Message = memo(function MessageComponent({
       clearTimeout(longPressTimer);
       setLongPressTimer(null);
     }
-
-    // long press가 활성화되지 않았다면, 짧은 터치이므로 메뉴를 닫습니다.
-    if (!longPressActivatedRef.current) {
-        setLongPressActive(false);
+    
+    const touchEndTime = Date.now();
+    const touchDuration = touchEndTime - touchStartTime;
+    
+    // 롱프레스가 활성화된 상태에서는 일반 클릭 방지
+    if (isLongPressActive) {
+      return;
     }
-    // long press가 활성화되었다면, 메뉴를 열린 상태로 둡니다.
+    
+    // 짧은 터치인 경우 일반 클릭으로 처리 (아무것도 하지 않음)
+    if (touchDuration < 500 && !longPressActive) {
+      // 일반 클릭은 아무것도 하지 않음
+    }
+    
+    // 롱프레스 상태 초기화 (touchStartY는 유지)
+    setLongPressActive(false);
+    setIsLongPressActive(false);
   };
 
   // 터치 이동 핸들러 (스크롤 방지)
@@ -945,12 +957,14 @@ const Message = memo(function MessageComponent({
         setLongPressTimer(null);
       }
       setLongPressActive(false);
+      setIsLongPressActive(false);
     }
   };
 
   // 롱프레스 취소 핸들러
   const handleLongPressCancel = () => {
     setLongPressActive(false);
+    setIsLongPressActive(false);
     setBubbleViewportRect(null);
   };
 
@@ -1344,7 +1358,7 @@ const Message = memo(function MessageComponent({
                         userSelect: 'none',
                         cursor: !isMobile ? 'pointer' : 'default',
                         opacity: longPressActive ? 0 : 1,
-                        transition: longPressActive ? 'none' : 'opacity 0.2s ease-out',
+                        transition: 'opacity 0.2s ease-out',
                       }}
                     >
                       <UserMessageContent 
@@ -1508,125 +1522,169 @@ const Message = memo(function MessageComponent({
             </defs>
           </svg>
           
-            <div 
-              className="absolute inset-0 " 
-              style={{ backgroundColor: 'var(--background-overlay)' }}
-            />
-           {(() => {
-             const MENU_HEIGHT = 88;
-             const MESSAGE_OFFSET = 8; // 메시지와 박스 사이 여백
-             return (
-               <>
-                 <div
-                   className="absolute"
-                   style={{
-                     top: `${bubbleViewportRect.top}px`,
-                     left: `${bubbleViewportRect.left}px`,
-                     width: `${bubbleViewportRect.width}px`,
-                     transform: longPressActive ? `scale(1.05) translateY(-${MENU_HEIGHT + MESSAGE_OFFSET}px)` : 'scale(1) translateY(0px)',
-                     transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
-                   }}
-                   onClick={(e) => e.stopPropagation()}
-                 >
-                  <div 
-                    className={`imessage-send-bubble shadow-lg long-press-scaled ${bubbleRef.current?.classList.contains('multi-line') ? 'multi-line' : ''}`}
-                  >
-                    <UserMessageContent 
-                      content={
-                        hasContent 
-                          ? processedContent 
-                          : (processedParts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n') || '')
-                      }
-                      searchTerm={searchTerm}
-                    />
-                  </div>
-                </div>
+          <div 
+            className="absolute inset-0 " 
+            // style={{ backgroundColor: 'var(--background-overlay)' }}
+          />
 
-                 <div 
-                   className="absolute right-6"
-                   style={{
-                     top: `${bubbleViewportRect.top + bubbleViewportRect.height}px`,
-                     height: longPressActive ? `${MENU_HEIGHT}px` : `0px`,
-                     transform: longPressActive ? `translateY(-${MENU_HEIGHT}px)` : 'translateY(0px)',
-                     transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), height 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease-out 0.05s',
-                     overflow: 'visible',
-                     opacity: longPressActive ? 1 : 0,
-                   }}
-                 >
-                  <div 
-                    className="rounded-2xl overflow-hidden border min-w-[200px] "
-                    style={{ 
-                      height: '100%',
-                      // 라이트모드 기본 스타일 (도구 선택창과 동일)
-                      backgroundColor: 'rgba(255, 255, 255, 0.5)',
-                      backdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
-                      WebkitBackdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
-                      border: '1px solid rgba(255, 255, 255, 0.2)',
-                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
-                      // 다크모드 전용 스타일
-                      ...(typeof window !== 'undefined' && (
-                        document.documentElement.getAttribute('data-theme') === 'dark' || 
-                        (document.documentElement.getAttribute('data-theme') === 'system' && 
-                        window.matchMedia('(prefers-color-scheme: dark)').matches)
-                      ) ? {
-                        backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                        backdropFilter: isMobile ? 'blur(24px)' : 'url(#glass-distortion-dark) blur(24px)',
-                        WebkitBackdropFilter: isMobile ? 'blur(24px)' : 'url(#glass-distortion-dark) blur(24px)',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-                      } : {})
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex flex-col justify-center h-full gap-1 space-y-1">
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation();
-                          handleEditStartClick();
-                          handleLongPressCancel();
-                        }}
-                        onTouchEnd={(e) => {
-                          e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation();
-                          handleEditStartClick();
-                          handleLongPressCancel();
-                        }}
-                        className="flex items-center gap-2 px-4 pt-3 transition-colors duration-150 rounded-xl"
-                        style={{ '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)', '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)', WebkitTapHighlightColor: 'transparent', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' } as any}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'} onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'} onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                      >
-                        <div className="w-6 h-6 flex items-center justify-center">
-                          <IoCreateOutline size={20} style={{ color: 'var(--foreground)' }} />
-                        </div>
-                        <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Edit</span>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation();
-                          onCopy(message);
-                          handleLongPressCancel();
-                        }}
-                        onTouchEnd={(e) => {
-                          e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation();
-                          onCopy(message);
-                          handleLongPressCancel();
-                        }}
-                        className="flex items-center gap-2 px-4 pb-3 transition-colors duration-150 rounded-xl"
-                        style={{ '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)', '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)', WebkitTapHighlightColor: 'transparent', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' } as any}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'} onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'} onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                      >
-                        <div className="w-6 h-6 flex items-center justify-center">
-                          {isCopied ? <IoCheckmarkOutline size={20} style={{ color: 'var(--status-text-complete)' }} /> : <IoCopyOutline size={20} style={{ color: 'var(--foreground)' }} />}
-                        </div>
-                        <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-                          {isCopied ? 'Copied' : 'Copy'}
-                        </span>
-                      </button>
-                    </div>
+            <div
+              className="absolute"
+              style={{
+                top: `${bubbleViewportRect.top}px`,
+                left: `${bubbleViewportRect.left}px`,
+                width: `${bubbleViewportRect.width}px`,
+                transform: longPressActive ? 'scale(1.05) translateY(-20px)' : 'scale(1) translateY(-2px)',
+                // transformOrigin: 'top left',
+                transition: 'transform 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+            <div 
+              className={`imessage-send-bubble long-press-scaled ${bubbleRef.current?.classList.contains('multi-line') ? 'multi-line' : ''}`}
+              // style={{ boxShadow: '0 12px 32px rgba(0,0,0,0.35)' }}
+            >
+              <UserMessageContent 
+                content={
+                  hasContent 
+                    ? processedContent 
+                    : (processedParts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n') || '')
+                }
+                searchTerm={searchTerm}
+              />
+            </div>
+          </div>
+
+          {/* iMessage 스타일 액션 메뉴 - 메시지 길이에 따라 위치 조정 */}
+          <div 
+            className="absolute right-4"
+              style={{
+                // 메시지가 화면 하단 근처에 있거나 너무 길면 화면 하단에 고정, 아니면 메시지 바로 아래
+                ...((() => {
+                  const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
+                  // 메시지가 translateY(-20px)로 올라갔으므로 이를 고려한 위치 계산
+                  const messageBottom = bubbleViewportRect.top + (bubbleViewportRect.height * 1.05) - 20; // scaled + translateY offset
+                  const buttonHeight = 80; // 버튼 영역 높이
+                  const padding = 20; // 하단 여백
+                  
+                  // 메시지 아래에 버튼을 놓을 공간이 충분한지 확인
+                  if (messageBottom + buttonHeight + padding < viewportH) {
+                    // 공간이 충분하면 메시지 바로 아래
+                    return { top: `${messageBottom + 8}px` };
+                  } else {
+                    // 공간이 부족하면 화면 하단에 고정
+                    return { bottom: '80px' };
+                  }
+                })())
+              }}
+          >
+            <div 
+            className="rounded-2xl overflow-hidden border min-w-[200px] chat-input-tooltip-backdrop"
+               style={{ 
+                // 라이트모드 기본 스타일 (도구 선택창과 동일)
+                backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                backdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
+                WebkitBackdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                // 다크모드 전용 스타일
+                ...(typeof window !== 'undefined' && (
+                  document.documentElement.getAttribute('data-theme') === 'dark' || 
+                  (document.documentElement.getAttribute('data-theme') === 'system' && 
+                   window.matchMedia('(prefers-color-scheme: dark)').matches)
+                ) ? {
+                  backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                  backdropFilter: isMobile ? 'blur(24px)' : 'url(#glass-distortion-dark) blur(24px)',
+                  WebkitBackdropFilter: isMobile ? 'blur(24px)' : 'url(#glass-distortion-dark) blur(24px)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                } : {})
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
+              <div className="flex flex-col gap-1 space-y-1">
+              {/* 편집 버튼 */}
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
+                    handleEditStartClick();
+                    handleLongPressCancel();
+                  }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
+                    handleEditStartClick();
+                    handleLongPressCancel();
+                  }}
+                  className="flex items-center gap-2 px-4 pt-3 transition-colors duration-150 rounded-xl"
+                  style={{
+                    '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
+                    '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
+                    WebkitTapHighlightColor: 'transparent',
+                    WebkitTouchCallout: 'none',
+                    WebkitUserSelect: 'none',
+                    userSelect: 'none'
+                  } as any}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
+                  onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                > 
+                <div className="w-6 h-6 flex items-center justify-center">
+                    <IoCreateOutline size={20} style={{ color: 'var(--foreground)' }} />
                   </div>
-                </div>
-              </>
-            )
-          })()}
+                  <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Edit</span>
+                                  </button>
+
+                {/* 복사 버튼 */}
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
+                    onCopy(message);
+                    handleLongPressCancel();
+                  }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
+                    onCopy(message);
+                    handleLongPressCancel();
+                  }}
+                  className="flex items-center gap-2 px-4 pb-3 transition-colors duration-150 rounded-xl"
+                  style={{
+                    '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
+                    '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
+                    WebkitTapHighlightColor: 'transparent',
+                    WebkitTouchCallout: 'none',
+                    WebkitUserSelect: 'none',
+                    userSelect: 'none'
+                  } as any}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
+                  onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                >
+                  <div className="w-6 h-6 flex items-center justify-center">
+                  {isCopied ? (
+                      <IoCheckmarkOutline size={20} style={{ color: 'var(--status-text-complete)' }} />
+                    ) : (
+                      <IoCopyOutline size={20} style={{ color: 'var(--foreground)' }} />
+                    )}
+                  </div>
+                  <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                    {isCopied ? 'Copied' : 'Copy'}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>,
         typeof window !== 'undefined' ? document.body : (null as any)
       )}
