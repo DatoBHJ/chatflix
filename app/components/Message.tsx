@@ -1581,8 +1581,8 @@ const Message = memo(function MessageComponent({
                style={{ 
                 // 라이트모드 기본 스타일 (도구 선택창과 동일)
                 backgroundColor: 'rgba(255, 255, 255, 0.5)',
-                backdropFilter: 'url(#glass-distortion) blur(10px) saturate(180%)',
-                WebkitBackdropFilter: 'url(#glass-distortion) blur(10px) saturate(180%)',
+                backdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
+                WebkitBackdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
                 border: '1px solid rgba(255, 255, 255, 0.2)',
                 boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
                 // 다크모드 전용 스타일
@@ -1592,8 +1592,8 @@ const Message = memo(function MessageComponent({
                    window.matchMedia('(prefers-color-scheme: dark)').matches)
                 ) ? {
                   backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                  backdropFilter: 'url(#glass-distortion-dark) blur(24px)',
-                  WebkitBackdropFilter: 'url(#glass-distortion-dark) blur(24px)',
+                  backdropFilter: isMobile ? 'blur(24px)' : 'url(#glass-distortion-dark) blur(24px)',
+                  WebkitBackdropFilter: isMobile ? 'blur(24px)' : 'url(#glass-distortion-dark) blur(24px)',
                   border: '1px solid rgba(255, 255, 255, 0.1)',
                   boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
                 } : {})
