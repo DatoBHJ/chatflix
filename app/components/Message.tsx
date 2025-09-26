@@ -816,6 +816,21 @@ const Message = memo(function MessageComponent({
 
   // 마지막 어시스턴트 메시지인지 확인
   const isLastAssistantMessage = isLastMessage && message.role === 'assistant';
+  
+  // 마지막 사용자 메시지인지 확인
+  const isLastUserMessage = useMemo(() => {
+    if (message.role !== 'user' || !allMessages) return false;
+    
+    const currentIndex = allMessages.findIndex((msg: any) => msg.id === message.id);
+    if (currentIndex === -1) return false;
+    
+    // 현재 메시지 이후에 사용자 메시지가 있는지 확인
+    const hasLaterUserMessage = allMessages
+      .slice(currentIndex + 1)
+      .some((msg: any) => msg.role === 'user');
+    
+    return !hasLaterUserMessage;
+  }, [message.id, message.role, allMessages]);
 
   // 모바일 여부 확인
   const [isMobile, setIsMobile] = useState(false);
@@ -1326,7 +1341,7 @@ const Message = memo(function MessageComponent({
                   })()}
                   {(hasTextContent) && (
                     <div 
-                      className="imessage-send-bubble" 
+                    className="imessage-send-bubble"
                       ref={bubbleRef}
                       onTouchStart={handleTouchStart}
                       onTouchEnd={handleTouchEnd}
@@ -1341,7 +1356,7 @@ const Message = memo(function MessageComponent({
                         WebkitTouchCallout: 'none',
                         WebkitUserSelect: 'none',
                         userSelect: 'none',
-                        cursor: !isMobile ? 'pointer' : 'default'
+                        cursor: !isMobile ? 'pointer' : 'default',
                       }}
                     >
                       <UserMessageContent 
@@ -1354,84 +1369,10 @@ const Message = memo(function MessageComponent({
                       />
                     </div>
                   )}
-                  <div className="text-[10px] text-neutral-500 mt-1 pr-1">
-                    {formatMessageTime((message as any).createdAt || new Date())}
+                  <div className="text-[10px] text-neutral-500 mt-1 pr-1 h-[14px]">
+                    {isLastUserMessage && formatMessageTime((message as any).createdAt || new Date())}
                   </div>
-                </div>
-                {/* 모바일에서만 롱프레스 버튼들 표시 */}
-                {isMobile && longPressActive && (
-                <div className="flex justify-end mt-2 gap-2 transition-opacity duration-300 opacity-100">
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleEditStartClick();
-                      handleLongPressCancel();
-                    }}
-                    className="imessage-control-btn"
-                    title="Edit message"
-                    style={{
-                      WebkitTapHighlightColor: 'transparent',
-                      WebkitTouchCallout: 'none',
-                      WebkitUserSelect: 'none',
-                      userSelect: 'none'
-                    }}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onCopy(message);
-                      handleLongPressCancel();
-                    }}
-                    className={`imessage-control-btn ${isCopied ? 'copied' : ''}`}
-                    title={isCopied ? "Copied!" : "Copy message"}
-                    style={{
-                      WebkitTapHighlightColor: 'transparent',
-                      WebkitTouchCallout: 'none',
-                      WebkitUserSelect: 'none',
-                      userSelect: 'none'
-                    }}
-                  >
-                    {isCopied ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20,6 9,17 4,12"/>
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                      </svg>
-                    )}
-                  </button>
-                  {/* 취소 버튼 */}
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleLongPressCancel();
-                      }}
-                      className="imessage-control-btn text-gray-500 hover:text-gray-700"
-                      title="Cancel"
-                      style={{
-                        WebkitTapHighlightColor: 'transparent',
-                        WebkitTouchCallout: 'none',
-                        WebkitUserSelect: 'none',
-                        userSelect: 'none'
-                      }}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                      </svg>
-                    </button>
-                </div>
-                )}
+                </div>              
               </div>
             )}
           </div>
@@ -1558,7 +1499,7 @@ const Message = memo(function MessageComponent({
           </div>
         </div>
       )}
-      {/* 롱프레스 오버레이: 전체 화면 블러 + 포커스된 메시지 클론 */}
+      {/* 롱프레스 오버레이: 액션 메뉴만 표시 */}
       {longPressActive && bubbleViewportRect && createPortal(
         <div 
           className="fixed inset-0 z-[9999]"
@@ -1566,13 +1507,24 @@ const Message = memo(function MessageComponent({
           aria-modal="true"
           onClick={handleLongPressCancel}
         >
-          {/* 블러 레이어 (배경 전체) */}
+          {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
+          <svg style={{ position: 'absolute', width: 0, height: 0 }}>
+            <defs>
+              <filter id="glass-distortion" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+                <feTurbulence type="fractalNoise" baseFrequency="0.02 0.05" numOctaves="3" seed="7" result="noise" />
+                <feImage result="radialMask" preserveAspectRatio="none" x="0" y="0" width="100%" height="100%" xlinkHref="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><defs><radialGradient id='g' cx='50%25' cy='50%25' r='70%25'><stop offset='0%25' stop-color='black'/><stop offset='100%25' stop-color='white'/></radialGradient></defs><rect width='100%25' height='100%25' fill='url(%23g)'/></svg>" />
+                <feComposite in="noise" in2="radialMask" operator="arithmetic" k1="0" k2="0" k3="1" k4="0" result="modulatedNoise" />
+                <feGaussianBlur in="modulatedNoise" stdDeviation="0.3" edgeMode="duplicate" result="smoothNoise" />
+                <feDisplacementMap in="SourceGraphic" in2="smoothNoise" scale="18" xChannelSelector="R" yChannelSelector="G" />
+              </filter>
+            </defs>
+          </svg>
+          
           <div 
             className="absolute inset-0 backdrop-blur-md" 
             style={{ backgroundColor: 'var(--background-overlay)' }}
           />
 
-          {/* 포커스된 메시지 클론 (원래 위치에 살짝 확대) */}
           <div
             className="absolute"
             style={{
@@ -1581,14 +1533,14 @@ const Message = memo(function MessageComponent({
               width: `${bubbleViewportRect.width}px`,
               transform: 'scale(1.05)',
               transformOrigin: 'top left',
+              transition: 'transform 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-              {/* 메시지 버블 복제 */}
-              <div 
-                className={`imessage-send-bubble long-press-scaled ${bubbleRef.current?.classList.contains('multi-line') ? 'multi-line' : ''}`}
-                // style={{ boxShadow: '0 12px 32px rgba(0,0,0,0.35)' }}
-              >
+            <div 
+              className={`imessage-send-bubble long-press-scaled ${bubbleRef.current?.classList.contains('multi-line') ? 'multi-line' : ''}`}
+              style={{ boxShadow: '0 12px 32px rgba(0,0,0,0.35)' }}
+            >
               <UserMessageContent 
                 content={
                   hasContent 
@@ -1607,13 +1559,13 @@ const Message = memo(function MessageComponent({
               // 메시지가 화면 하단 근처에 있거나 너무 길면 화면 하단에 고정, 아니면 메시지 바로 아래
               ...((() => {
                 const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
-                const messageBottom = bubbleViewportRect.top + (bubbleViewportRect.height * 1.05);
+                const messageBottom = bubbleViewportRect.top + (bubbleViewportRect.height * 1.05); // scaled
                 const buttonHeight = 80; // 버튼 영역 높이
                 const padding = 20; // 하단 여백
                 
                 // 메시지 아래에 버튼을 놓을 공간이 충분한지 확인
                 if (messageBottom + buttonHeight + padding < viewportH) {
-                  // 공간이 충분하면 메시지 바로 아래
+                  // 공간이 충분하면 메시지에서 더 멀리 떨어뜨림
                   return { top: `${messageBottom + 16}px` };
                 } else {
                   // 공간이 부족하면 화면 하단에 고정
@@ -1623,24 +1575,51 @@ const Message = memo(function MessageComponent({
             }}
           >
             <div 
-              className="backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden border"
-              style={{ 
-                backgroundColor: 'var(--background-overlay)',
-                borderColor: 'var(--subtle-divider)'
+            className="rounded-2xl overflow-hidden border min-w-[200px] chat-input-tooltip-backdrop"
+               style={{ 
+                // 라이트모드 기본 스타일 (도구 선택창과 동일)
+                backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                backdropFilter: 'url(#glass-distortion) blur(10px) saturate(180%)',
+                WebkitBackdropFilter: 'url(#glass-distortion) blur(10px) saturate(180%)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                // 다크모드 전용 스타일
+                ...(typeof window !== 'undefined' && (
+                  document.documentElement.getAttribute('data-theme') === 'dark' || 
+                  (document.documentElement.getAttribute('data-theme') === 'system' && 
+                   window.matchMedia('(prefers-color-scheme: dark)').matches)
+                ) ? {
+                  backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                  backdropFilter: 'url(#glass-distortion-dark) blur(24px)',
+                  WebkitBackdropFilter: 'url(#glass-distortion-dark) blur(24px)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                } : {})
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
               }}
             >
-              <div className="flex">
-                {/* 편집 버튼 */}
+              <div className="flex flex-col gap-1 space-y-1">
+              {/* 편집 버튼 */}
                 <button
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
                     handleEditStartClick();
                     handleLongPressCancel();
                   }}
-                  className="flex flex-col items-center justify-center px-8 py-4 transition-colors duration-150 border-r"
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
+                    handleEditStartClick();
+                    handleLongPressCancel();
+                  }}
+                  className="flex items-center gap-2 px-4 pt-3 transition-colors duration-150 rounded-xl"
                   style={{
-                    borderColor: 'var(--subtle-divider)',
                     '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
                     '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
                     WebkitTapHighlightColor: 'transparent',
@@ -1652,22 +1631,30 @@ const Message = memo(function MessageComponent({
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                   onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
                   onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                >
-                  <div className="w-8 h-8 mb-1 flex items-center justify-center">
-                    <IoCreateOutline size={20} style={{ color: 'var(--chat-input-primary)' }} />
+                > 
+                <div className="w-6 h-6 flex items-center justify-center">
+                    <IoCreateOutline size={20} style={{ color: 'var(--foreground)' }} />
                   </div>
-                  <span className="text-xs font-medium" style={{ color: 'var(--foreground)' }}>Edit</span>
-                </button>
+                  <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Edit</span>
+                                  </button>
 
                 {/* 복사 버튼 */}
                 <button
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
                     onCopy(message);
                     handleLongPressCancel();
                   }}
-                  className="flex flex-col items-center justify-center px-8 py-4 transition-colors duration-150"
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
+                    onCopy(message);
+                    handleLongPressCancel();
+                  }}
+                  className="flex items-center gap-2 px-4 pb-3 transition-colors duration-150 rounded-xl"
                   style={{
                     '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
                     '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
@@ -1681,14 +1668,14 @@ const Message = memo(function MessageComponent({
                   onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
                   onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
                 >
-                  <div className="w-8 h-8 mb-1 flex items-center justify-center">
-                    {isCopied ? (
+                  <div className="w-6 h-6 flex items-center justify-center">
+                  {isCopied ? (
                       <IoCheckmarkOutline size={20} style={{ color: 'var(--status-text-complete)' }} />
                     ) : (
-                      <IoCopyOutline size={20} style={{ color: 'var(--chat-input-primary)' }} />
+                      <IoCopyOutline size={20} style={{ color: 'var(--foreground)' }} />
                     )}
                   </div>
-                  <span className="text-xs font-medium" style={{ color: 'var(--foreground)' }}>
+                  <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                     {isCopied ? 'Copied' : 'Copy'}
                   </span>
                 </button>
