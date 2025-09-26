@@ -239,7 +239,7 @@ function ChatView({
         {/* 주 컨텐츠 영역 - Mobile/Desktop Responsive */}
         {/* Mobile Layout */}
         <div className="flex flex-col sm:hidden min-h-0 flex-1">
-          <div className="overflow-y-auto pb-20 flex-1 scrollbar-minimal" ref={messagesContainerRef}>
+          <div className="overflow-y-auto flex-1 scrollbar-minimal" ref={messagesContainerRef}>
             <Messages
               messages={messages}
               currentModel={currentModel}
@@ -278,7 +278,7 @@ function ChatView({
         {/* Desktop Layout */}
         <div className="hidden sm:flex min-h-0 flex-1">
           <div className="flex-1 flex flex-col">
-            <div className="overflow-y-auto pb-20 flex-1 scrollbar-minimal" ref={messagesContainerRef}>
+            <div className="overflow-y-auto flex-1 scrollbar-minimal" ref={messagesContainerRef}>
               <div className="w-full mx-auto">
                 <Messages
                   messages={messages}

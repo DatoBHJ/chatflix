@@ -843,7 +843,7 @@ body {
 
 /* Message Container Styles */
 .messages-container {
-  @apply max-w-6xl mx-auto w-full pb-10 sm:pb-12 pt-[60px] md:pt-[52px] ;
+  @apply max-w-6xl mx-auto w-full pb-30 sm:pb-32 pt-[60px] md:pt-[52px] ;
   /* padding-top: 1rem; Add consistent top padding */
   overflow: visible; /* 기본적으로 visible 허용 */
 }
