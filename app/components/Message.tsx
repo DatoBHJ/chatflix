@@ -1341,7 +1341,9 @@ const Message = memo(function MessageComponent({
                   })()}
                   {(hasTextContent) && (
                     <div 
-                    className="imessage-send-bubble"
+                    className={`imessage-send-bubble ${
+                      isMobile && longPressActive ? 'scale-105 shadow-xl' : ''
+                    }`}
                       ref={bubbleRef}
                       onTouchStart={handleTouchStart}
                       onTouchEnd={handleTouchEnd}
@@ -1357,6 +1359,9 @@ const Message = memo(function MessageComponent({
                         WebkitUserSelect: 'none',
                         userSelect: 'none',
                         cursor: !isMobile ? 'pointer' : 'default',
+                        transition: isMobile ? 'transform 0.2s ease-out, box-shadow 0.2s ease-out' : 'none',
+                        transform: isMobile && longPressActive ? 'scale(1.05)' : 'scale(1)',
+                        boxShadow: isMobile && longPressActive ? '0 8px 32px rgba(0, 122, 255, 0.1), 0 4px 16px rgba(0, 122, 255, 0.1)' : 'none'
                       }}
                     >
                       <UserMessageContent 
@@ -1521,36 +1526,10 @@ const Message = memo(function MessageComponent({
           </svg>
           
           <div 
-            className="absolute inset-0 backdrop-blur-md" 
-            style={{ backgroundColor: 'var(--background-overlay)' }}
+            className="absolute inset-0 bg-black/2" 
+            // style={{ backgroundColor: 'var(--background-overlay)' }}
           />
 
-          <div
-            className="absolute"
-            style={{
-              top: `${bubbleViewportRect.top}px`,
-              left: `${bubbleViewportRect.left}px`,
-              width: `${bubbleViewportRect.width}px`,
-              transform: 'scale(1.05)',
-              transformOrigin: 'top left',
-              transition: 'transform 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div 
-              className={`imessage-send-bubble long-press-scaled ${bubbleRef.current?.classList.contains('multi-line') ? 'multi-line' : ''}`}
-              style={{ boxShadow: '0 12px 32px rgba(0,0,0,0.35)' }}
-            >
-              <UserMessageContent 
-                content={
-                  hasContent 
-                    ? processedContent 
-                    : (processedParts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n') || '')
-                }
-                searchTerm={searchTerm}
-              />
-            </div>
-          </div>
 
           {/* iMessage 스타일 액션 메뉴 - 메시지 길이에 따라 위치 조정 */}
           <div 
@@ -1559,7 +1538,7 @@ const Message = memo(function MessageComponent({
               // 메시지가 화면 하단 근처에 있거나 너무 길면 화면 하단에 고정, 아니면 메시지 바로 아래
               ...((() => {
                 const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
-                const messageBottom = bubbleViewportRect.top + (bubbleViewportRect.height * 1.05); // scaled
+                const messageBottom = bubbleViewportRect.top + bubbleViewportRect.height;
                 const buttonHeight = 80; // 버튼 영역 높이
                 const padding = 20; // 하단 여백
                 
