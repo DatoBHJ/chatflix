@@ -835,6 +835,9 @@ const Message = memo(function MessageComponent({
   // 모바일 여부 확인
   const [isMobile, setIsMobile] = useState(false);
   
+  // PWA standalone 모드 감지
+  const [isPWA, setIsPWA] = useState(false);
+  
   // 롱프레스 관련 상태 추가
   const [longPressActive, setLongPressActive] = useState(false);
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
@@ -848,7 +851,15 @@ const Message = memo(function MessageComponent({
       setIsMobile(window.innerWidth < 640); // sm breakpoint
     };
     
+    // PWA standalone 모드 감지
+    const checkPWA = () => {
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+      const isIOSPWA = (window.navigator as any).standalone === true;
+      setIsPWA(isStandalone || isIOSPWA);
+    };
+    
     checkIfMobile();
+    checkPWA();
     window.addEventListener('resize', checkIfMobile);
     return () => window.removeEventListener('resize', checkIfMobile);
   }, []);
@@ -928,14 +939,23 @@ const Message = memo(function MessageComponent({
     const touchEndTime = Date.now();
     const touchDuration = touchEndTime - touchStartTime;
     
-    // 롱프레스가 활성화된 상태에서는 일반 클릭 방지
-    if (isLongPressActive) {
+    // PWA에서는 롱프레스 메뉴가 활성화된 상태에서 터치 종료 시 메뉴를 유지
+    if (isPWA && isLongPressActive) {
+      // PWA에서는 롱프레스 메뉴가 활성화된 상태에서 터치를 떼어도 메뉴를 유지
       return;
     }
     
-    // 짧은 터치인 경우 일반 클릭으로 처리 (아무것도 하지 않음)
-    if (touchDuration < 500 && !longPressActive) {
-      // 일반 클릭은 아무것도 하지 않음
+    // 일반 웹에서는 기존 로직 유지
+    if (!isPWA) {
+      // 롱프레스가 활성화된 상태에서는 일반 클릭 방지
+      if (isLongPressActive) {
+        return;
+      }
+      
+      // 짧은 터치인 경우 일반 클릭으로 처리 (아무것도 하지 않음)
+      if (touchDuration < 500 && !longPressActive) {
+        // 일반 클릭은 아무것도 하지 않음
+      }
     }
     
     // 롱프레스 상태 초기화 (touchStartY는 유지)
@@ -1511,6 +1531,14 @@ const Message = memo(function MessageComponent({
           role="dialog"
           aria-modal="true"
           onClick={handleLongPressCancel}
+          onTouchEnd={(e) => {
+            // PWA에서는 터치 이벤트도 처리
+            if (isPWA) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+            handleLongPressCancel();
+          }}
         >
           {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
           <svg style={{ position: 'absolute', width: 0, height: 0 }}>
@@ -1595,6 +1623,13 @@ const Message = memo(function MessageComponent({
                     handleEditStartClick();
                     handleLongPressCancel();
                   }}
+                  onTouchStart={(e) => {
+                    // PWA에서는 터치 시작 시에도 이벤트 전파 방지
+                    if (isPWA) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }
+                  }}
                   className="flex items-center gap-2 px-4 pt-3 transition-colors duration-150 rounded-xl"
                   style={{
                     // borderColor: 'var(--subtle-divider)',
@@ -1631,6 +1666,13 @@ const Message = memo(function MessageComponent({
                     e.nativeEvent.stopImmediatePropagation();
                     onCopy(message);
                     handleLongPressCancel();
+                  }}
+                  onTouchStart={(e) => {
+                    // PWA에서는 터치 시작 시에도 이벤트 전파 방지
+                    if (isPWA) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }
                   }}
                   className="flex items-center gap-2 px-4 pb-3 transition-colors duration-150 rounded-xl"
                   style={{
