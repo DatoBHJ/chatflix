@@ -310,7 +310,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
     <>
       <style>{shimmerStyles}</style>
       <div className="pl-0 mb-2">
-      <div className="pt-12 sm:pt-16 pb-2 sm:pb-2 pr-8 sm:pr-0">
+      <div className={`${shouldShowTitle ? 'pt-12 sm:pt-16' : ''} pb-2 sm:pb-2 pr-8 sm:pr-0`}>
         {shouldShowTitle && (
           <div className="flex items-center gap-3">
             <h2
