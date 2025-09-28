@@ -90,6 +90,7 @@
     "react-tooltip": "^5.28.0",
     "react-tweet": "^3.2.2",
     "react-virtualized-auto-sizer": "^1.0.26",
+    "react-virtuoso": "^4.14.1",
     "react-window": "^1.8.11",
     "recharts": "^2.15.3",
     "rehype-highlight": "^7.0.2",

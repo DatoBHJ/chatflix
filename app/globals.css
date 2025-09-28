@@ -41,6 +41,58 @@ html, body {
   background-color: var(--accent);
 }
 
+/* 🚀 LinkPreview 일관된 레이아웃 스타일 */
+.imessage-link-preview {
+  display: block;
+  width: 100%; /* 🚀 가로 길이 일관성 보장 */
+  min-width: 300px; /* 🚀 최소 너비 보장 */
+  max-width: 400px; /* 🚀 최대 너비 제한으로 일관성 유지 */
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  text-decoration: none;
+  color: inherit;
+  flex-shrink: 0; /* 🚀 축소 방지 */
+}
+
+/* 🚀 다크모드 지원 */
+.dark .imessage-link-preview {
+  border: 1px solid #404040;
+  background: #262626;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.imessage-link-preview:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+/* 🚀 다크모드 hover 상태 */
+.dark .imessage-link-preview:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transform: translateY(-1px);
+}
+
+.imessage-link-preview-fallback {
+  display: inline-block;
+  padding: 8px 12px;
+  background: #f3f4f6;
+  border-radius: 6px;
+  color: #374151;
+  text-decoration: none;
+  font-size: 14px;
+  border: 1px solid #d1d5db;
+  transition: all 0.2s ease;
+}
+
+.imessage-link-preview-fallback:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+
 /* Panel background overrides for dark mode */
 :root[data-theme="dark"] .panel-background,
 :root[data-theme="dark"] [style*="background-color: var(--accent)"] {
@@ -403,6 +455,131 @@ html, body {
   text-overflow: ellipsis;
 }
 
+/* LinkPreview 스켈레톤 UI */
+.imessage-link-preview-skeleton {
+  background-color: #f0f0f0;
+  border-radius: 18px;
+  max-width: 500px !important; /* 실제 링크 프리뷰와 비슷한 크기 */
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid #e0e0e0;
+  min-height: 140px; /* 실제 링크 프리뷰 높이에 맞춤 */
+  display: block;
+}
+
+.skeleton-thumbnail {
+  width: 100%;
+  height: 120px; /* 실제 썸네일 높이에 맞춤 */
+  background-color: #e8e8e8;
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1.91 / 1; /* 실제 링크 프리뷰와 동일한 비율 */
+}
+
+.skeleton-content {
+  padding: 12px; /* 실제 링크 프리뷰와 동일한 패딩 */
+}
+
+.skeleton-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px; /* 실제 링크 프리뷰와 동일한 마진 */
+}
+
+/* 파비콘 완전히 숨기기 */
+.skeleton-favicon {
+  display: none !important;
+}
+
+.skeleton-domain {
+  height: 12px; /* 실제 도메인 높이에 맞춤 */
+  width: 80px; /* 실제 도메인 너비에 맞춤 */
+  background-color: #e8e8e8;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-domain-text {
+  font-size: 12px; /* 실제 도메인 폰트 크기에 맞춤 */
+  color: #6d6d72;
+  font-weight: 400;
+}
+
+.skeleton-title {
+  height: 16px; /* 실제 제목 높이에 맞춤 */
+  width: 100%;
+  background-color: #e8e8e8;
+  border-radius: 4px;
+  margin-bottom: 8px; /* 실제 제목 마진에 맞춤 */
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-description {
+  display: flex;
+  flex-direction: column;
+  gap: 3px; /* 간격 줄임 */
+}
+
+.skeleton-description > div {
+  height: 10px; /* 높이 줄임 */
+  background-color: #e8e8e8;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-description > div:first-child {
+  width: 100%;
+}
+
+.skeleton-description > div:last-child {
+  width: 70%;
+}
+
+/* Shimmer 애니메이션 */
+.skeleton-shimmer {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* 다크모드 스켈레톤 */
+:root[data-theme="dark"] .imessage-link-preview-skeleton {
+  background-color: #39393a;
+  border-color: #4a4a4b;
+}
+
+:root[data-theme="dark"] .skeleton-thumbnail,
+:root[data-theme="dark"] .skeleton-domain,
+:root[data-theme="dark"] .skeleton-title,
+:root[data-theme="dark"] .skeleton-description > div {
+  background-color: #4a4a4b;
+}
+
+:root[data-theme="dark"] .skeleton-domain-text {
+  color: #8e8e93;
+}
+
 .imessage-link-preview-loading,
 .imessage-link-preview-fallback {
   background-color: #f0f0f0;
@@ -412,6 +589,10 @@ html, body {
   font-size: 14px;
   color: #007AFF;
   text-decoration: none;
+  /* min-height: 120px; 로딩 중에도 최소 높이 보장 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .imessage-link-preview-fallback:hover {
   text-decoration: underline;
@@ -841,28 +1022,23 @@ body {
   font-weight: 500;
 }
 
+/* Chatflix Header with responsive top padding */
+.chatflix-header {
+  padding-top: 60px !important;
+}
+
+@media (min-width: 768px) {
+  .chatflix-header {
+    padding-top: 52px !important;
+  }
+}
+
 /* Message Container Styles */
 .messages-container {
-  @apply max-w-6xl mx-auto w-full pb-30 sm:pb-32 pt-[60px] md:pt-[52px] ;
+  @apply  w-full  ;
   /* padding-top: 1rem; Add consistent top padding */
   overflow: visible; /* 기본적으로 visible 허용 */
-}
-
-/* 데스크탑에서 메시지 꼬리 여백 확보 */
-@media (min-width: 641px) {
-  .messages-container {
-    padding-left: 2rem; /* 32px - AI 메시지 꼬리용 */
-    padding-right: 2rem; /* 32px - 사용자 메시지 꼬리용 */
-  }
-}
-
-/* 모바일에서는 가로 스크롤 방지 및 적절한 패딩 유지 */
-@media (max-width: 640px) {
-  .messages-container {
-    padding-left: 1.5rem; /* 24px */
-    padding-right: 1.5rem; /* 24px */
-    overflow-x: hidden;
-  }
+  /* max-w-6xl mx-auto 제거하여 전체 화면 너비 사용 */
 }
 
 .message-group {

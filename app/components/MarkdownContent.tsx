@@ -14,6 +14,7 @@ import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight, ExternalLink, Play } from 'lucide-react';
 import { LinkPreview } from './LinkPreview';
 import { highlightSearchTerm, highlightSearchTermInChildren } from '@/app/utils/searchHighlight';
+import { Tweet } from 'react-tweet';
 
 // Dynamically import DynamicChart for client-side rendering
 const DynamicChart = dynamic(() => import('./charts/DynamicChart'), {
@@ -23,6 +24,101 @@ const DynamicChart = dynamic(() => import('./charts/DynamicChart'), {
       <p className="text-[var(--muted-foreground)]">Loading chart...</p>
     </div>
   ),
+});
+
+// Twitter URL detection and ID extraction
+const isTwitterUrl = (url: string): boolean => {
+  if (!url) return false;
+  const twitterRegex = /^(https?:\/\/)?(www\.)?(twitter\.com|x\.com)\/.+/i;
+  return twitterRegex.test(url);
+};
+
+const extractTwitterId = (url: string): string | null => {
+  const patterns = [
+    // Standard Twitter URL: https://twitter.com/username/status/1234567890
+    /(?:twitter\.com|x\.com)\/\w+\/status\/(\d+)/,
+    // Short Twitter URL: https://t.co/abc123
+    /t\.co\/([^\/\?]+)/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+  return null;
+};
+
+// Twitter Embed Component with fallback to LinkPreview
+export const TwitterEmbed = memo(function TwitterEmbedComponent({ 
+  tweetId, 
+  originalUrl 
+}: { 
+  tweetId: string; 
+  originalUrl?: string;
+}) {
+  const [hasError, setHasError] = useState(false);
+  const [useFallback, setUseFallback] = useState(false);
+  
+  // If error occurs, fallback to LinkPreview
+  if (useFallback && originalUrl) {
+    return (
+      <div className="my-4">
+        <LinkPreview url={originalUrl} />
+      </div>
+    );
+  }
+  
+  return (
+    <div className="my-6 w-full flex justify-center">
+      <div className="w-full max-w-[500px]">
+        {/* Error state */}
+        {hasError && (
+          <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 text-center">
+            <div className="w-12 h-12 mx-auto mb-2 bg-blue-500 rounded-full flex items-center justify-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+              </svg>
+            </div>
+            <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Twitter failed to load</p>
+            <p className="text-gray-500 dark:text-gray-500 text-xs mb-3">Falling back to link preview...</p>
+            {originalUrl && (
+              <button
+                onClick={() => setUseFallback(true)}
+                className="text-blue-500 hover:text-blue-400 text-xs underline mb-2 block"
+              >
+                Show as link preview
+              </button>
+            )}
+            {originalUrl && (
+              <a
+                href={originalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:text-blue-400 text-xs underline"
+              >
+                Open on Twitter
+              </a>
+            )}
+          </div>
+        )}
+        
+        {/* Twitter embed */}
+        {!hasError && (
+          <div 
+            className="w-full [&>div]:w-full [&>div]:mx-auto rounded-lg overflow-hidden [&_a]:!text-[color-mix(in_srgb,var(--foreground)_75%,transparent)] [&_a:hover]:!text-[color-mix(in_srgb,var(--foreground)_90%,transparent)] [&_.react-tweet-theme]:!bg-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] dark:[&_.react-tweet-theme]:!bg-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] [&_.react-tweet-border]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_hr]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_div[data-separator]]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_.react-tweet-header-border]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_.react-tweet-footer-border]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_*]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)]"
+            onError={() => {
+              console.warn('Twitter embed failed, falling back to LinkPreview');
+              setHasError(true);
+            }}
+          >
+            <Tweet id={tweetId} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
 });
 
 // 더 정교한 LaTeX 전처리 함수 추가
@@ -1792,6 +1888,21 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           );
         }
       }
+
+      // Check if this is a Twitter/X link
+      if (href && isTwitterUrl(href)) {
+        const tweetId = extractTwitterId(href);
+        const linkText = typeof children === 'string' ? children : extractText(children);
+        
+        if (tweetId) {
+          return (
+            <TwitterEmbed 
+              tweetId={tweetId} 
+              originalUrl={href}
+            />
+          );
+        }
+      }
       
       // Check if this is a pollinations.ai image link
       if (href && href.includes('image.pollinations.ai')) {
@@ -1828,7 +1939,11 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       // Regular link rendering with LinkPreview
       if (href && typeof href === 'string' && (href.startsWith('http://') || href.startsWith('https://'))) {
         return (
-          <div className="my-0.5">
+          <div className="my-0.5 w-full" style={{ 
+            maxWidth: '400px',
+            minWidth: '300px',
+            width: '100%'
+          }}>
             <LinkPreview url={href} thumbnailUrl={thumbnailUrl} searchApiTitle={searchApiTitle} />
           </div>
         );

@@ -11,6 +11,7 @@ import { Attachment } from '@/lib/types';
 import { useMessages } from '@/app/hooks/useMessages';
 import { getSystemDefaultModelId, MODEL_CONFIGS, RATE_LIMITS, isChatflixModel, getModelById } from '@/lib/models/config';
 import { Messages } from '@/app/components/Messages';
+import { VirtualizedMessages } from '@/app/components/VirtualizedMessages';
 import { SidePanel } from '@/app/components/SidePanel';
 import { ChatInputArea } from '@/app/components/ChatInputArea';
 import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getXSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGoogleSearchData } from '@/app/hooks/toolFunction';
@@ -73,11 +74,11 @@ function HomeView({
         {/* 주 컨텐츠 영역 - Mobile/Desktop Responsive */}
         {/* Mobile Layout */}
         <div className="flex flex-col sm:hidden min-h-0 flex-1">
-          <div className="overflow-y-auto  flex-1 scrollbar-minimal">
+          <div className="flex-1">
             <div className="messages-container mb-4 flex flex-col sm:px-4">
               <div className="flex-grow">
                 {/* Chatflix label - iMessage style */}
-                <div className="message-timestamp relative z-10" style={{ paddingBottom: '0', textTransform: 'none', color: '#737373' }}>
+                <div className="message-timestamp chatflix-header relative z-10" style={{ paddingBottom: '0', textTransform: 'none', color: '#737373' }}>
                   Chatflix
                 </div>
                 
@@ -109,12 +110,12 @@ function HomeView({
         
         {/* Desktop Layout */}
         <div className="hidden sm:flex min-h-0 flex-1">
-          <div className="overflow-y-auto flex-1 scrollbar-minimal">
+          <div className="flex-1">
             <div className="w-full mx-auto">
               <div className="messages-container mb-4 flex flex-col sm:px-4">
                 <div className="flex-grow">
                   {/* Chatflix label - iMessage style */}
-                  <div className="message-timestamp relative z-10" style={{ paddingBottom: '0', textTransform: 'none', color: '#737373' }}>
+                  <div className="message-timestamp chatflix-header relative z-10" style={{ paddingBottom: '0', textTransform: 'none', color: '#737373' }}>
                     Chatflix
                   </div>
                   
@@ -239,8 +240,9 @@ function ChatView({
         {/* 주 컨텐츠 영역 - Mobile/Desktop Responsive */}
         {/* Mobile Layout */}
         <div className="flex flex-col sm:hidden min-h-0 flex-1">
-          <div className="overflow-y-auto flex-1 scrollbar-minimal" ref={messagesContainerRef}>
-            <Messages
+          <div className="flex-1" ref={messagesContainerRef}>
+            {/* 🚀 VIRTUALIZATION: 기존 Messages 컴포넌트 주석처리 */}
+            {/* <Messages
               messages={messages}
               currentModel={currentModel}
               isRegenerating={isRegenerating}
@@ -252,6 +254,32 @@ function ChatView({
               onEditStart={handleEditStart}
               onEditCancel={handleEditCancel}
                                   onEditSave={(messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => handleEditSave(messageId, nextModel, messages, setMessages, reload, isAgentEnabled, files, remainingAttachments, selectedTool)}
+              setEditingContent={setEditingContent}
+              chatId={chatId}
+              isLoading={isLoading}
+              activePanelMessageId={activePanel?.messageId ?? null}
+              togglePanel={togglePanel}
+              user={user}
+              handleFollowUpQuestionClick={handleFollowUpQuestionClick}
+              hasCanvasData={hasCanvasData}
+              isWaitingForToolResults={isWaitingForToolResults}
+              messagesEndRef={messagesEndRef}
+              searchTerm={searchTerm} // 🚀 FEATURE: Pass search term for highlighting
+            /> */}
+            
+            {/* 🚀 VIRTUALIZATION: 새로운 VirtualizedMessages 컴포넌트 사용 */}
+            <VirtualizedMessages
+              messages={messages}
+              currentModel={currentModel}
+              isRegenerating={isRegenerating}
+              editingMessageId={editingMessageId}
+              editingContent={editingContent}
+              copiedMessageId={copiedMessageId}
+              onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, nextModel, reload, isAgentEnabled, selectedTool)}
+              onCopy={handleCopyMessage}
+              onEditStart={handleEditStart}
+              onEditCancel={handleEditCancel}
+              onEditSave={(messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => handleEditSave(messageId, nextModel, messages, setMessages, reload, isAgentEnabled, files, remainingAttachments, selectedTool)}
               setEditingContent={setEditingContent}
               chatId={chatId}
               isLoading={isLoading}
@@ -278,9 +306,37 @@ function ChatView({
         {/* Desktop Layout */}
         <div className="hidden sm:flex min-h-0 flex-1">
           <div className="flex-1 flex flex-col">
-            <div className="overflow-y-auto flex-1 scrollbar-minimal" ref={messagesContainerRef}>
+            <div className="flex-1" ref={messagesContainerRef}>
               <div className="w-full mx-auto">
-                <Messages
+                {/* 🚀 VIRTUALIZATION: 기존 Messages 컴포넌트 주석처리 */}
+                {/* <Messages
+                  messages={messages}
+                  currentModel={currentModel}
+                  isRegenerating={isRegenerating}
+                  editingMessageId={editingMessageId}
+                  editingContent={editingContent}
+                  copiedMessageId={copiedMessageId}
+                  onRegenerate={(messageId: string) => handleRegenerate(messageId, messages, setMessages, nextModel, reload, isAgentEnabled, selectedTool)}
+                  onCopy={handleCopyMessage}
+                  onEditStart={handleEditStart}
+                  onEditCancel={handleEditCancel}
+                  onEditSave={(messageId: string, files?: globalThis.File[], remainingAttachments?: any[]) => handleEditSave(messageId, nextModel, messages, setMessages, reload, isAgentEnabled, files, remainingAttachments, selectedTool)}
+                  setEditingContent={setEditingContent}
+                  chatId={chatId}
+                  isLoading={isLoading}
+                  activePanelMessageId={activePanel?.messageId ?? null}
+                  activePanel={activePanel}
+                  togglePanel={togglePanel}
+                  user={user}
+                  handleFollowUpQuestionClick={handleFollowUpQuestionClick}
+                  hasCanvasData={hasCanvasData}
+                  isWaitingForToolResults={isWaitingForToolResults}
+                  messagesEndRef={messagesEndRef}
+                  searchTerm={searchTerm} // 🚀 FEATURE: Pass search term for highlighting
+                /> */}
+                
+                {/* 🚀 VIRTUALIZATION: 새로운 VirtualizedMessages 컴포넌트 사용 */}
+                <VirtualizedMessages
                   messages={messages}
                   currentModel={currentModel}
                   isRegenerating={isRegenerating}
