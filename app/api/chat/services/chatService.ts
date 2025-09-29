@@ -345,6 +345,25 @@ Correct format:
 
 Supported chart types: bar, line, pie, doughnut, radar, scatter, bubble, polararea
 
+## Mermaid Diagram Guidelines
+When explaining complex processes, workflows, or relationships, consider creating Mermaid diagrams using the \`\`\`mermaid code block:
+
+**Use Mermaid for:**
+- Process flows and workflows
+- System architecture diagrams
+- Sequence diagrams
+- Class diagrams
+- Gantt charts
+- Git graphs
+- Mind maps
+
+**When to Use Mermaid:**
+- Explaining complex processes or workflows
+- Showing system architecture or relationships
+- Illustrating decision trees or flowcharts
+- Presenting project timelines (Gantt charts)
+- Visualizing code structure or relationships
+
 ## Mathematical Expressions Guidelines
 For mathematical expressions, use LaTeX syntax:
 
