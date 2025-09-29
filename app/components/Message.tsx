@@ -888,7 +888,7 @@ const Message = memo(function MessageComponent({
       if (dropdownPosition === 'bottom' && bubbleRef.current) {
         const rect = bubbleRef.current.getBoundingClientRect();
         const menuHeight = 120;
-        const margin = 8;
+        const margin = 16;
         const viewportHeight = window.innerHeight;
         
         const menuWouldGoOffscreen = rect.bottom + margin + menuHeight > viewportHeight;
@@ -1410,7 +1410,7 @@ const Message = memo(function MessageComponent({
                     cursor: !isMobile ? 'pointer' : 'default',
                     transform: bubbleTransform,
                     transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
-                    boxShadow: longPressActive ? '0 12px 32px rgba(0,0,0,0.35)' : 'none',
+                    boxShadow: 'none',
                     touchAction: longPressActive ? 'none' : 'auto',
                     overscrollBehavior: 'contain',
                   }}
@@ -1449,7 +1449,7 @@ const Message = memo(function MessageComponent({
                                 if (!bubbleRef.current) return { display: 'none' };
                                 const rect = bubbleRef.current.getBoundingClientRect();
                                 const dropdownHeight = 120;
-                                const margin = 8;
+                                const margin = 16;
                                 
                                 if (dropdownPosition === 'top') {
                                   return {
