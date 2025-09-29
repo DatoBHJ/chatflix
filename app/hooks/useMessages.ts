@@ -97,7 +97,8 @@ export function useMessages(chatId: string, userId: string) {
     }
   }
 
-  const generateMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  // 🚀 서버-측 ID 생성으로 변경: 클라이언트 ID 생성 함수 제거
+  // const generateMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
   const handleEditStart = (message: UIMessage) => {
     setEditingMessageId(message.id)

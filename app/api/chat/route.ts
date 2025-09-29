@@ -1,4 +1,4 @@
-import { streamText, createUIMessageStream, createUIMessageStreamResponse, streamObject, generateObject, UIMessage, type ModelMessage, stepCountIs, convertToModelMessages, smoothStream, NoSuchToolError } from 'ai';
+import { streamText, createUIMessageStream, createUIMessageStreamResponse, streamObject, generateObject, UIMessage, type ModelMessage, stepCountIs, convertToModelMessages, smoothStream, NoSuchToolError, generateId } from 'ai';
 import { createClient } from '@/utils/supabase/server';
 import { providers } from '@/lib/providers';
 import { getModelById} from '@/lib/models/config';
@@ -295,10 +295,21 @@ export async function POST(req: Request): Promise<Response> {
         // 🚀 AI 응답 즉시 시작 (세션 처리와 완전 분리)
         const processMessages = [...messages];
 
-        // v5 pattern: do not persist user/assistant mid-stream; save at onFinish only
-        const assistantMessageId = isRegeneration && existingMessageId 
-          ? existingMessageId 
-          : generateMessageId();
+        // 🚀 서버-측 ID 생성: 기본은 서버에서 생성, 재생성만 기존 ID 유지
+        let assistantMessageId: string;
+        if (isRegeneration && existingMessageId) {
+          // 재생성: 기존 메시지 ID 유지 (덮어쓰기)
+          assistantMessageId = existingMessageId;
+        } else {
+          // 새 메시지/편집 후 전송: 서버에서 새로 생성
+          assistantMessageId = generateId();
+        }
+
+        // 🚀 서버-측 ID를 스트림 start 이벤트에서 즉시 전송
+        writer.write({
+          type: 'start',
+          messageId: assistantMessageId,
+        });
 
         // Expose for onError/onFinish handlers
         // assistantMessageIdGlobal = assistantMessageId;
@@ -628,6 +639,7 @@ export async function POST(req: Request): Promise<Response> {
           textResponsePromise.consumeStream();
           writer.merge(textResponsePromise.toUIMessageStream({
             sendReasoning: true,
+            sendStart: false, // 🚀 서버-측 ID 사용을 위해 자체 start 이벤트 비활성화
           }));
         } else {
           // 일반 채팅 흐름 - 원래 코드 사용에 토큰 제한 최적화 추가
@@ -690,6 +702,7 @@ export async function POST(req: Request): Promise<Response> {
           });
           writer.merge(result.toUIMessageStream({
             sendReasoning: true,
+            sendStart: false, // 🚀 서버-측 ID 사용을 위해 자체 start 이벤트 비활성화
           }));
     }
     },
