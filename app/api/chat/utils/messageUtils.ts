@@ -389,7 +389,7 @@ export async function generateFollowUpQuestions(
     const contextInfo = 'The AI has provided a text response to the user.';
     
     const followUpResult = await generateObject({
-      model: providers.languageModel('gemini-2.0-flash'),
+      model: providers.languageModel('gemini-2.5-flash-lite'),
       prompt: `You are generating follow-up questions that a USER would naturally ask to continue the conversation with an AI assistant.
 
 **CRITICAL INSTRUCTION: ALWAYS generate very short and concise questions (under 15 words each) that are easy to read and click, regardless of memory data availability**

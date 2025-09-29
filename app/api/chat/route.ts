@@ -174,6 +174,12 @@ export async function POST(req: Request): Promise<Response> {
         const modelType = model as 'chatflix-ultimate' | 'chatflix-ultimate-pro';
         const { selectedModel } = await selectOptimalModel(messages, modelType);
         model = selectedModel;
+        
+        // 🆕 에이전트 모드에서만 Kimi K2를 DeepSeek V3.1로 대체
+        if (isAgentEnabled && model === 'moonshotai/kimi-k2-instruct-0905') {
+          model = 'deepseek-ai/DeepSeek-V3.1';
+          console.log('🔄 [MODEL_SELECTION] Replaced Kimi K2 with DeepSeek V3.1 for agent mode');
+        }
       } catch (error) {
         model = 'gemini-2.5-pro';
       }
