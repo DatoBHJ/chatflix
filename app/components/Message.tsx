@@ -866,6 +866,23 @@ const Message = memo(function MessageComponent({
   // 롱프레스 활성화 시 단순한 상태 관리 (스크롤 잠금 제거)
   useEffect(() => {
     if (longPressActive) {
+      // 강력한 스크롤 방지
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      document.body.style.height = '100%';
+      
+      // 터치 이벤트 전역 방지
+      const preventTouchMove = (e: TouchEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+      };
+      
+      const preventScroll = (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+      };
+      
       // iMessage와 유사한 하단 위치 조정 로직
       let newTransform = 'scale(1.05)'; 
       if (dropdownPosition === 'bottom' && bubbleRef.current) {
@@ -902,11 +919,24 @@ const Message = memo(function MessageComponent({
         }
       };
       
+      // 모든 스크롤 및 터치 이벤트 방지
+      document.addEventListener('touchmove', preventTouchMove, { passive: false });
+      document.addEventListener('scroll', preventScroll, { passive: false });
+      document.addEventListener('wheel', preventScroll, { passive: false });
       window.addEventListener('scroll', handleScrollCancel, { passive: true });
       window.addEventListener('resize', handleScrollCancel);
       document.addEventListener('click', handleClickOutside);
       
       return () => {
+        // 스크롤 복원
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.width = '';
+        document.body.style.height = '';
+        
+        document.removeEventListener('touchmove', preventTouchMove);
+        document.removeEventListener('scroll', preventScroll);
+        document.removeEventListener('wheel', preventScroll);
         window.removeEventListener('scroll', handleScrollCancel);
         window.removeEventListener('resize', handleScrollCancel);
         document.removeEventListener('click', handleClickOutside);
@@ -921,7 +951,10 @@ const Message = memo(function MessageComponent({
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!isMobile || !isUser) return;
     
-    // e.preventDefault();
+    // 스크롤 방지를 위한 preventDefault
+    e.preventDefault();
+    e.stopPropagation();
+    
     setTouchStartTime(Date.now());
     setTouchStartY(e.touches[0].clientY);
     setIsLongPressActive(false);
@@ -968,10 +1001,15 @@ const Message = memo(function MessageComponent({
     setIsLongPressActive(false);
   };
 
-  // 터치 이동 핸들러 (움직임 감지 제거)
+  // 터치 이동 핸들러 (스크롤 방지)
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isMobile || !isUser) return;
-    // 움직임 감지 로직 제거 - 롱프레스 유지
+    
+    // 롱프레스 활성화 시 스크롤 완전 방지
+    if (longPressActive || isLongPressActive) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
   };
 
   // 롱프레스 취소 핸들러 (단순화)
@@ -1364,16 +1402,18 @@ const Message = memo(function MessageComponent({
                           e.stopPropagation();
                           handleEditStartClick();
                         } : undefined}
-                        style={{
-                          WebkitTapHighlightColor: 'transparent',
-                          WebkitTouchCallout: 'none',
-                          WebkitUserSelect: 'none',
-                          userSelect: 'none',
-                          cursor: !isMobile ? 'pointer' : 'default',
-                          transform: bubbleTransform,
-                          transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
-                          boxShadow: longPressActive ? '0 12px 32px rgba(0,0,0,0.35)' : 'none',
-                        }}
+                  style={{
+                    WebkitTapHighlightColor: 'transparent',
+                    WebkitTouchCallout: 'none',
+                    WebkitUserSelect: 'none',
+                    userSelect: 'none',
+                    cursor: !isMobile ? 'pointer' : 'default',
+                    transform: bubbleTransform,
+                    transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
+                    boxShadow: longPressActive ? '0 12px 32px rgba(0,0,0,0.35)' : 'none',
+                    touchAction: longPressActive ? 'none' : 'auto',
+                    overscrollBehavior: 'contain',
+                  }}
                       >
                         <UserMessageContent 
                           content={
