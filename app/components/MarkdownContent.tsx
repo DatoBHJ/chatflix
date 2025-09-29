@@ -1233,6 +1233,9 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   const [imageGallery, setImageGallery] = useState<{ src: string; alt: string }[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isGalleryMode, setIsGalleryMode] = useState(false);
+  
+  // Mobile UI visibility state
+  const [showMobileUI, setShowMobileUI] = useState(false);
 
   // Check if we're in browser environment for portal rendering
   useEffect(() => {
@@ -1245,6 +1248,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     if (src && typeof src === 'string') {
       console.log('Opening image modal:', { src, alt, allImages, imageIndex });
       setSelectedImage({ src, alt });
+      setShowMobileUI(false); // Reset mobile UI visibility
       
       // If multiple images are provided, set up gallery mode
       if (allImages && allImages.length > 1) {
@@ -1266,6 +1270,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     setImageGallery([]);
     setCurrentImageIndex(0);
     setIsGalleryMode(false);
+    setShowMobileUI(false); // Reset mobile UI visibility
   }, []);
 
   // Gallery navigation functions
@@ -1286,6 +1291,13 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       setSelectedImage(imageGallery[prevIndex]);
     }
   }, [imageGallery, currentImageIndex]);
+
+  // Mobile touch handler to toggle UI visibility
+  const handleMobileTouch = useCallback(() => {
+    if (isMobile) {
+      setShowMobileUI(prev => !prev);
+    }
+  }, [isMobile]);
 
   // Handle keyboard navigation for image modal and gallery
   useEffect(() => {
@@ -2667,28 +2679,19 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           onClick={closeImageModal}
         >
           {/* Close button */}
-          <button 
-            className="absolute top-4 right-4 bg-black/40 hover:bg-black/60 p-2 rounded-full text-white transition-colors z-10"
-            onClick={closeImageModal}
-            aria-label="Close image viewer"
-          >
-            <X size={24} />
-          </button>
+          {(!isMobile || showMobileUI) && (
+            <button 
+              className="absolute top-4 right-4 bg-black/40 hover:bg-black/60 p-2 rounded-full text-white transition-colors z-10"
+              onClick={closeImageModal}
+              aria-label="Close image viewer"
+            >
+              <X size={24} />
+            </button>
+          )}
           
-          {/* View original button */}
-          <a
-            href={selectedImage.src}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="absolute top-4 left-4 bg-black/40 hover:bg-black/60 p-2 rounded-lg text-white transition-colors flex items-center gap-2 z-10"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ExternalLink size={16} />
-            <span className="hidden sm:inline">View Original</span>
-          </a>
 
           {/* Gallery navigation buttons */}
-          {isGalleryMode && imageGallery.length > 1 && (
+          {isGalleryMode && imageGallery.length > 1 && (!isMobile || showMobileUI) && (
             <>
               {/* Previous button */}
               <button
@@ -2717,7 +2720,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           )}
 
           {/* Gallery counter */}
-          {isGalleryMode && imageGallery.length > 1 && (
+          {isGalleryMode && imageGallery.length > 1 && (!isMobile || showMobileUI) && (
             <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/40 px-3 py-1 rounded-full text-white text-sm z-10">
               {currentImageIndex + 1} / {imageGallery.length}
             </div>
@@ -2727,7 +2730,11 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           <div 
             className="relative flex items-center justify-center bg-transparent rounded-lg overflow-hidden"
             onClick={(e) => e.stopPropagation()}
-            style={{ width: '90vw', height: '90vh' }}
+            onTouchEnd={handleMobileTouch}
+            style={{ 
+              width: '100vw', 
+              height: '100vh' 
+            }}
           >
             <div className="relative group cursor-pointer flex flex-col items-center">
               <div className="relative">
@@ -2737,7 +2744,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                   className="rounded-md shadow-xl"
                   style={{ 
                     maxWidth: '100%', 
-                    maxHeight: '75vh', 
+                    maxHeight: '100vh', 
                     objectFit: 'contain',
                     width: 'auto',
                     height: 'auto'
@@ -2745,43 +2752,6 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                   referrerPolicy="no-referrer"
                 />
                 
-                {/* Download button */}
-                <button
-                  className="absolute bottom-4 right-4 bg-black/40 hover:bg-black/60 p-2 rounded-full text-white transition-colors z-20"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Download image by first fetching it as a blob
-                    fetch(selectedImage.src)
-                      .then(response => response.blob())
-                      .then(blob => {
-                        // Create an object URL from the blob
-                        const blobUrl = URL.createObjectURL(blob);
-                        
-                        // Create and trigger download
-                        const link = document.createElement('a');
-                        link.href = blobUrl;
-                        link.download = `image-${Date.now()}.jpg`;
-                        document.body.appendChild(link);
-                        link.click();
-                        
-                        // Clean up
-                        setTimeout(() => {
-                          document.body.removeChild(link);
-                          URL.revokeObjectURL(blobUrl);
-                        }, 100);
-                      })
-                      .catch(error => {
-                        console.error('Download failed:', error);
-                      });
-                  }}
-                  aria-label="Download image"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                  </svg>
-                </button>
               </div>
               
               {/* Caption below the image - only for generated images */}
@@ -2797,7 +2767,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           </div>
 
           {/* Thumbnail indicators */}
-          {isGalleryMode && imageGallery.length > 1 && (
+          {isGalleryMode && imageGallery.length > 1 && (!isMobile || showMobileUI) && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
               {imageGallery.map((_, index) => (
                 <button

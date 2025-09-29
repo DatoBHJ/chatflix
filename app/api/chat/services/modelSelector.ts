@@ -687,7 +687,7 @@ function selectModelBasedOnAnalysis(
       } else {
         // 일반 버전: 복잡도에 따라 모델 선택
         if (analysis.complexity === 'simple') {
-          return 'gemini-2.5-flash';
+          return 'moonshotai/kimi-k2-instruct-0905';
         } else { // medium/complex
           return 'deepseek-chat';
         }
