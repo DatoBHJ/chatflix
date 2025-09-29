@@ -6,7 +6,6 @@ import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import rehypeHighlight from 'rehype-highlight';
-import mermaid from 'mermaid';
 import { MathJaxEquation } from './math/MathJaxEquation';
 import React from 'react';
 import dynamic from 'next/dynamic';
@@ -15,6 +14,16 @@ import { X, ChevronLeft, ChevronRight, ExternalLink, Play } from 'lucide-react';
 import { LinkPreview } from './LinkPreview';
 import { highlightSearchTerm, highlightSearchTermInChildren } from '@/app/utils/searchHighlight';
 import { Tweet } from 'react-tweet';
+
+// Dynamically import MermaidDiagram for client-side rendering
+const MermaidDiagram = dynamic(() => import('./Mermaid'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-[300px] w-full bg-[var(--accent)] rounded-lg shadow-md">
+      <p className="text-[var(--muted-foreground)]">Loading diagram...</p>
+    </div>
+  ),
+});
 
 // Dynamically import DynamicChart for client-side rendering
 const DynamicChart = dynamic(() => import('./charts/DynamicChart'), {
@@ -1234,6 +1243,9 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isGalleryMode, setIsGalleryMode] = useState(false);
   
+  // Mermaid modal state
+  const [selectedMermaid, setSelectedMermaid] = useState<{ chart: string; title?: string } | null>(null);
+  
   // Mobile UI visibility state
   const [showMobileUI, setShowMobileUI] = useState(false);
   
@@ -1274,6 +1286,18 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     setImageGallery([]);
     setCurrentImageIndex(0);
     setIsGalleryMode(false);
+    setShowMobileUI(false); // Reset mobile UI visibility
+  }, []);
+
+  // Mermaid modal functions
+  const openMermaidModal = useCallback((chart: string, title?: string) => {
+    console.log('Opening Mermaid modal:', { chart, title });
+    setSelectedMermaid({ chart, title });
+    setShowMobileUI(false); // Reset mobile UI visibility
+  }, []);
+
+  const closeMermaidModal = useCallback(() => {
+    setSelectedMermaid(null);
     setShowMobileUI(false); // Reset mobile UI visibility
   }, []);
 
@@ -1363,11 +1387,15 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
 
   // Handle keyboard navigation for image modal and gallery
   useEffect(() => {
-    if (!selectedImage && !isGalleryMode) return;
+    if (!selectedImage && !isGalleryMode && !selectedMermaid) return;
     
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        closeImageModal();
+        if (selectedMermaid) {
+          closeMermaidModal();
+        } else {
+          closeImageModal();
+        }
       } else if (isGalleryMode && imageGallery.length > 1) {
         if (e.key === 'ArrowLeft') {
           e.preventDefault();
@@ -1386,7 +1414,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       window.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
-  }, [selectedImage, isGalleryMode, imageGallery.length, navigateToNextImage, navigateToPreviousImage, closeImageModal]);
+  }, [selectedImage, isGalleryMode, imageGallery.length, selectedMermaid, navigateToNextImage, navigateToPreviousImage, closeImageModal, closeMermaidModal]);
 
   // Pre-process the content to handle LaTeX and escape currency dollar signs
   const processedContent = useMemo(() => {
@@ -2060,6 +2088,10 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
             <MathBlock content={codeText} />
           </div>
         );
+      }
+      
+      if (language === 'mermaid') {
+        return <MermaidDiagram chart={codeText} onMermaidClick={openMermaidModal} title="Mermaid Diagram" />;
       }
       
       if (language === 'diff') {
@@ -2842,6 +2874,45 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               ))}
             </div>
           )}
+        </div>,
+        document.body
+      )}
+
+      {/* Mermaid Modal */}
+      {isMounted && selectedMermaid && createPortal(
+        <div 
+          className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center" 
+          onClick={closeMermaidModal}
+        >
+          {/* Close button */}
+          {(!isMobile || showMobileUI) && (
+            <button 
+              className="absolute top-4 right-4 bg-black/40 hover:bg-black/60 p-2 rounded-full text-white transition-colors z-10"
+              onClick={closeMermaidModal}
+              aria-label="Close diagram viewer"
+            >
+              <X size={24} />
+            </button>
+          )}
+          
+          {/* Main diagram container */}
+          <div 
+            className="relative flex items-center justify-center bg-transparent rounded-lg overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            style={{ 
+              width: '100vw', 
+              height: '100vh' 
+            }}
+          >
+            <div className="relative group cursor-pointer flex flex-col items-center w-full h-full">
+              <div className="relative w-full h-full flex items-center justify-center bg-[var(--background)]">
+                <MermaidDiagram chart={selectedMermaid.chart} isModal={true} />
+              </div>
+            </div>
+          </div>
         </div>,
         document.body
       )}
