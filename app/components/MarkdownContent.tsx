@@ -1303,56 +1303,63 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     }
   }, [isMobile]);
 
-  // Mobile swipe handlers
+  // Mobile touch handlers - separate for UI toggle and swipe detection
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!isMobile || !isGalleryMode || imageGallery.length <= 1) return;
+    if (!isMobile) return;
     
     const touch = e.touches[0];
     setTouchStart({ x: touch.clientX, y: touch.clientY });
     setTouchEnd(null);
-  }, [isMobile, isGalleryMode, imageGallery.length]);
+  }, [isMobile]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isMobile || !isGalleryMode || imageGallery.length <= 1) return;
+    if (!isMobile) return;
     
     const touch = e.touches[0];
     setTouchEnd({ x: touch.clientX, y: touch.clientY });
-  }, [isMobile, isGalleryMode, imageGallery.length]);
+  }, [isMobile]);
 
   const handleTouchEnd = useCallback(() => {
-    if (!isMobile || !isGalleryMode || imageGallery.length <= 1 || !touchStart || !touchEnd) return;
+    if (!isMobile || !touchStart || !touchEnd) {
+      // If no proper touch sequence, just toggle UI
+      if (isMobile) {
+        handleMobileTouch();
+      }
+      return;
+    }
     
     const deltaX = touchEnd.x - touchStart.x;
     const deltaY = touchEnd.y - touchStart.y;
     const minSwipeDistance = 50;
     
-    // Process any swipe direction
-    if (Math.abs(deltaX) > minSwipeDistance || Math.abs(deltaY) > minSwipeDistance) {
-      // Determine primary direction
+    // Check if it's a swipe
+    const isSwipe = Math.abs(deltaX) > minSwipeDistance || Math.abs(deltaY) > minSwipeDistance;
+    
+    if (isSwipe && isGalleryMode && imageGallery.length > 1) {
+      // Process swipe navigation
       if (Math.abs(deltaX) > Math.abs(deltaY)) {
         // Horizontal swipe
         if (deltaX > 0) {
-          // Swipe right - go to previous image
           navigateToPreviousImage();
         } else {
-          // Swipe left - go to next image
           navigateToNextImage();
         }
       } else {
-        // Vertical swipe - also navigate
+        // Vertical swipe
         if (deltaY > 0) {
-          // Swipe down - go to previous image
           navigateToPreviousImage();
         } else {
-          // Swipe up - go to next image
           navigateToNextImage();
         }
       }
+    } else {
+      // Not a swipe or no gallery - toggle UI
+      handleMobileTouch();
     }
     
     setTouchStart(null);
     setTouchEnd(null);
-  }, [isMobile, isGalleryMode, imageGallery.length, touchStart, touchEnd, navigateToPreviousImage, navigateToNextImage]);
+  }, [isMobile, isGalleryMode, imageGallery.length, touchStart, touchEnd, navigateToPreviousImage, navigateToNextImage, handleMobileTouch]);
 
   // Handle keyboard navigation for image modal and gallery
   useEffect(() => {
@@ -2787,10 +2794,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
             onClick={(e) => e.stopPropagation()}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
-            onTouchEnd={(e) => {
-              handleTouchEnd();
-              handleMobileTouch();
-            }}
+            onTouchEnd={handleTouchEnd}
             style={{ 
               width: '100vw', 
               height: '100vh' 
