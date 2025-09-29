@@ -30,9 +30,9 @@ const TOOLS = [
   { id: 'web_search:general', icon: <Search strokeWidth={1.8} />, name: 'Advanced Search', description: 'AI-powered search for images, research, and specialized content' },
   // 뉴스는 Google Search로 통합 (Exa news 제거됨)
   // { id: 'web_search:news', icon: <Newspaper strokeWidth={1.8} />, name: 'News Search', description: 'Find latest news and articles' },
+  { id: 'link_reader', icon: <Link strokeWidth={1.8} />, name: 'Link Reader', description: 'Read web page content' },
   { id: 'youtube_search', icon: <Youtube strokeWidth={1.8} />, name: 'YouTube Search', description: 'Search YouTube videos' },
   { id: 'youtube_link_analyzer', icon: <Youtube strokeWidth={1.8} />, name: 'YouTube Analyzer', description: 'Analyze YouTube videos' },
-  { id: 'image_generator', icon: <Image strokeWidth={1.8} />, name: 'Image Generator', description: 'Generate images from text' },
   { id: 'web_search:github', icon: <Github strokeWidth={1.8} />, name: 'GitHub Search', description: 'Search GitHub repositories' },
   { id: 'web_search:personal site', icon: <User strokeWidth={1.8} />, name: 'Personal Sites', description: 'Find personal websites and blogs' },
   { id: 'web_search:linkedin profile', icon: <Briefcase strokeWidth={1.8} />, name: 'LinkedIn Profiles', description: 'Search LinkedIn profiles' },
@@ -41,7 +41,7 @@ const TOOLS = [
   { id: 'web_search:research paper', icon: <BookOpen strokeWidth={1.8} />, name: 'Academic Papers', description: 'Find academic research papers' },
   { id: 'web_search:pdf', icon: <FileText strokeWidth={1.8} />, name: 'PDF Search', description: 'Search PDF documents' },
   { id: 'calculator', icon: <Calculator strokeWidth={1.8} />, name: 'Calculator', description: 'Mathematical calculations' },
-  { id: 'link_reader', icon: <Link strokeWidth={1.8} />, name: 'Link Reader', description: 'Read web page content' },
+  { id: 'image_generator', icon: <Image strokeWidth={1.8} />, name: 'Image Generator', description: 'Generate images from text' },
 ];
 
 
@@ -210,7 +210,7 @@ export function ChatInput({
     ? (() => {        
         // Mobile placeholders (concise)
         const mobilePlaceholders: { [key: string]: string } = {
-          'web_search:general': 'Search for images or niche content',
+          'web_search:general': 'Search for niche content',
           // 'web_search:news': 'Search the news', // 제거됨 - Google Search로 대체
           'web_search:financial report': 'Search financial reports',
           'web_search:company': 'Search companies',
@@ -232,7 +232,7 @@ export function ChatInput({
 
         // Desktop placeholders (detailed examples)
         const desktopPlaceholders: { [key: string]: string } = {
-          'web_search:general': 'Search for images or niche content',
+          'web_search:general': 'Search for niche content',
           // 'web_search:news': 'Find breaking news about AI war', // 제거됨 - Google Search로 대체
           'web_search:financial report': 'Search Apple\'s revenue growth reports',
           'web_search:company': 'Find company making space travel cheaper',
