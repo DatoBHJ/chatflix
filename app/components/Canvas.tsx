@@ -253,6 +253,89 @@ export default function Canvas({
   
   // State for image viewer modal
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(-1);
+  
+  // Mobile detection and UI state
+  const [isMobile, setIsMobile] = useState(false);
+  const [showMobileUI, setShowMobileUI] = useState(false);
+  
+  // Mobile swipe state
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
+  const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
+
+  // Mobile detection
+  useEffect(() => {
+    const checkIfMobile = () => {
+      setIsMobile(window.innerWidth < 640); // sm breakpoint
+    };
+    
+    checkIfMobile();
+    window.addEventListener('resize', checkIfMobile);
+    return () => window.removeEventListener('resize', checkIfMobile);
+  }, []);
+
+  // Mobile touch handlers
+  const handleMobileTouch = () => {
+    if (isMobile) {
+      setShowMobileUI(prev => !prev);
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!isMobile) return;
+    
+    const touch = e.touches[0];
+    setTouchStart({ x: touch.clientX, y: touch.clientY });
+    setTouchEnd(null);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isMobile) return;
+    
+    const touch = e.touches[0];
+    setTouchEnd({ x: touch.clientX, y: touch.clientY });
+  };
+
+  const handleTouchEnd = () => {
+    if (!isMobile || !touchStart || !touchEnd) {
+      // If no proper touch sequence, just toggle UI
+      if (isMobile) {
+        handleMobileTouch();
+      }
+      return;
+    }
+    
+    const deltaX = touchEnd.x - touchStart.x;
+    const deltaY = touchEnd.y - touchStart.y;
+    const minSwipeDistance = 50;
+    
+    // Check if it's a swipe
+    const isSwipe = Math.abs(deltaX) > minSwipeDistance || Math.abs(deltaY) > minSwipeDistance;
+    
+    if (isSwipe && imageGeneratorData?.generatedImages && imageGeneratorData.generatedImages.length > 1) {
+      // Process swipe navigation
+      if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        // Horizontal swipe
+        if (deltaX > 0) {
+          navigateImage('prev');
+        } else {
+          navigateImage('next');
+        }
+      } else {
+        // Vertical swipe
+        if (deltaY > 0) {
+          navigateImage('prev');
+        } else {
+          navigateImage('next');
+        }
+      }
+    } else {
+      // Not a swipe or no gallery - toggle UI
+      handleMobileTouch();
+    }
+    
+    setTouchStart(null);
+    setTouchEnd(null);
+  };
 
   // Add keyboard navigation for image viewer
   useEffect(() => {
@@ -280,10 +363,12 @@ export default function Canvas({
   // Image viewer functions
   const openImageViewer = (index: number) => {
     setSelectedImageIndex(index);
+    setShowMobileUI(false); // Reset mobile UI visibility
   };
   
   const closeImageViewer = () => {
     setSelectedImageIndex(-1);
+    setShowMobileUI(false); // Reset mobile UI visibility
   };
   
   const navigateImage = (direction: 'prev' | 'next') => {
@@ -823,9 +908,10 @@ export default function Canvas({
         >
           {/* Close button */}
           <button 
-            className="absolute top-4 right-4 bg-black/40 hover:bg-black/60 p-2 rounded-full text-white transition-colors"
+            className="absolute top-4 right-4 bg-black/40 hover:bg-black/60 p-2 rounded-full text-white transition-colors z-10"
             onClick={closeImageViewer}
             aria-label="Close image viewer"
+            style={{ display: (!isMobile || showMobileUI) ? 'block' : 'none' }}
           >
             <X size={24} />
           </button>
@@ -834,7 +920,13 @@ export default function Canvas({
           <div 
             className="relative flex items-center justify-center bg-transparent rounded-lg overflow-hidden"
             onClick={(e) => e.stopPropagation()}
-            style={{ width: '90vw', height: '90vh' }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            style={{ 
+              width: '100vw', 
+              height: '100vh' 
+            }}
           >
             <div 
               className="relative group cursor-pointer flex flex-col items-center"
@@ -850,7 +942,7 @@ export default function Canvas({
                       className="rounded-md shadow-xl"
                       style={{ 
                         maxWidth: '100%', 
-                        maxHeight: '75vh', 
+                        maxHeight: '100vh', 
                         objectFit: 'contain',
                         width: 'auto',
                         height: 'auto'
@@ -869,45 +961,6 @@ export default function Canvas({
                   );
                 })()}
                 
-                {/* Download button */}
-                <button
-                  className="absolute bottom-4 right-4 bg-black/40 hover:bg-black/60 p-2 rounded-full text-white transition-colors z-20"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Download image by first fetching it as a blob
-                    const imageUrl = imageGeneratorData.generatedImages[selectedImageIndex].imageUrl;
-                    
-                    fetch(imageUrl)
-                      .then(response => response.blob())
-                      .then(blob => {
-                        // Create an object URL from the blob
-                        const blobUrl = URL.createObjectURL(blob);
-                        
-                        // Create and trigger download
-                        const link = document.createElement('a');
-                        link.href = blobUrl;
-                        link.download = `image-${Date.now()}.jpg`;
-                        document.body.appendChild(link);
-                        link.click();
-                        
-                        // Clean up
-                        setTimeout(() => {
-                          document.body.removeChild(link);
-                          URL.revokeObjectURL(blobUrl);
-                        }, 100);
-                      })
-                      .catch(error => {
-                        console.error('Download failed:', error);
-                      });
-                  }}
-                  aria-label="Download image"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                  </svg>
-                </button>
                 
                 {/* Image caption overlay - hidden by default, shown only on click */}
                 {(() => {
@@ -935,8 +988,8 @@ export default function Canvas({
             </div>
           </div>
           
-          {/* Navigation buttons */}
-          {imageGeneratorData.generatedImages.length > 1 && (
+          {/* Navigation buttons - hidden on mobile */}
+          {imageGeneratorData.generatedImages.length > 1 && !isMobile && (
             <>
               <button 
                 className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 p-3 rounded-full text-white transition-colors"

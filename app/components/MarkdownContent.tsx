@@ -2817,16 +2817,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                 />
                 
               </div>
-              
-              {/* Caption below the image - only for generated images */}
-              {selectedImage.alt && (
-                selectedImage.src.includes('image.pollinations.ai') || 
-                selectedImage.alt.includes('Generated image')
-              ) && (
-                <div className="text-center text-white text-sm mt-4 z-10 bg-black/30 py-2 px-4 rounded-md">
-                  {selectedImage.alt}
-                </div>
-              )}
+       
             </div>
           </div>
 
