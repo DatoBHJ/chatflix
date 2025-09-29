@@ -678,7 +678,7 @@ function selectModelBasedOnAnalysis(
       if (modelType === 'chatflix-ultimate-pro') {
         // Pro 버전: 복잡도에 따라 모델 선택
         if (analysis.complexity === 'simple') {
-          return 'deepseek-chat';
+          return 'deepseek-ai/DeepSeek-V3.1';
         } else if (analysis.complexity === 'medium') {
           return 'claude-sonnet-4-20250514';
         } else { // complex
@@ -689,7 +689,7 @@ function selectModelBasedOnAnalysis(
         if (analysis.complexity === 'simple') {
           return 'moonshotai/kimi-k2-instruct-0905';
         } else { // medium/complex
-          return 'deepseek-chat';
+          return 'deepseek-ai/DeepSeek-V3.1';
         }
       }
     }
