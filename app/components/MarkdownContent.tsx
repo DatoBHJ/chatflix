@@ -1236,6 +1236,10 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   
   // Mobile UI visibility state
   const [showMobileUI, setShowMobileUI] = useState(false);
+  
+  // Mobile swipe state
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
+  const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
 
   // Check if we're in browser environment for portal rendering
   useEffect(() => {
@@ -1298,6 +1302,57 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       setShowMobileUI(prev => !prev);
     }
   }, [isMobile]);
+
+  // Mobile swipe handlers
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isMobile || !isGalleryMode || imageGallery.length <= 1) return;
+    
+    const touch = e.touches[0];
+    setTouchStart({ x: touch.clientX, y: touch.clientY });
+    setTouchEnd(null);
+  }, [isMobile, isGalleryMode, imageGallery.length]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isMobile || !isGalleryMode || imageGallery.length <= 1) return;
+    
+    const touch = e.touches[0];
+    setTouchEnd({ x: touch.clientX, y: touch.clientY });
+  }, [isMobile, isGalleryMode, imageGallery.length]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!isMobile || !isGalleryMode || imageGallery.length <= 1 || !touchStart || !touchEnd) return;
+    
+    const deltaX = touchEnd.x - touchStart.x;
+    const deltaY = touchEnd.y - touchStart.y;
+    const minSwipeDistance = 50;
+    
+    // Process any swipe direction
+    if (Math.abs(deltaX) > minSwipeDistance || Math.abs(deltaY) > minSwipeDistance) {
+      // Determine primary direction
+      if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        // Horizontal swipe
+        if (deltaX > 0) {
+          // Swipe right - go to previous image
+          navigateToPreviousImage();
+        } else {
+          // Swipe left - go to next image
+          navigateToNextImage();
+        }
+      } else {
+        // Vertical swipe - also navigate
+        if (deltaY > 0) {
+          // Swipe down - go to previous image
+          navigateToPreviousImage();
+        } else {
+          // Swipe up - go to next image
+          navigateToNextImage();
+        }
+      }
+    }
+    
+    setTouchStart(null);
+    setTouchEnd(null);
+  }, [isMobile, isGalleryMode, imageGallery.length, touchStart, touchEnd, navigateToPreviousImage, navigateToNextImage]);
 
   // Handle keyboard navigation for image modal and gallery
   useEffect(() => {
@@ -2690,8 +2745,8 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           )}
           
 
-          {/* Gallery navigation buttons */}
-          {isGalleryMode && imageGallery.length > 1 && (!isMobile || showMobileUI) && (
+          {/* Gallery navigation buttons - hidden on mobile */}
+          {isGalleryMode && imageGallery.length > 1 && !isMobile && (
             <>
               {/* Previous button */}
               <button
@@ -2730,7 +2785,12 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           <div 
             className="relative flex items-center justify-center bg-transparent rounded-lg overflow-hidden"
             onClick={(e) => e.stopPropagation()}
-            onTouchEnd={handleMobileTouch}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={(e) => {
+              handleTouchEnd();
+              handleMobileTouch();
+            }}
             style={{ 
               width: '100vw', 
               height: '100vh' 
