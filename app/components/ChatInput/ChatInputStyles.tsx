@@ -118,16 +118,29 @@ export function useChatInputStyles() {
           }
         }
         
-        /* iOS Safari 전용 플레이스홀더 스타일 */
+        /* Safari 브라우저 감지 및 모바일과 동일한 스타일 적용 */
         @supports (-webkit-touch-callout: none) {
           .futuristic-input.empty:before {
-            color: color-mix(in srgb, var(--foreground) 55%, transparent);
+            color: color-mix(in srgb, var(--foreground) 50%, transparent);
             font-weight: 500;
-            -webkit-text-fill-color: color-mix(in srgb, var(--foreground) 55%, transparent);
+            letter-spacing: 0.02em;
+            filter: none;
+            -webkit-text-fill-color: color-mix(in srgb, var(--foreground) 50%, transparent);
             -webkit-opacity: 1;
             opacity: 1;
-            filter: none;
           }
+        }
+        
+        /* Safari 데스크탑 감지 - User Agent 기반으로는 CSS에서 직접 감지 불가하므로 
+           JavaScript에서 추가한 클래스를 사용 */
+        .safari-browser .futuristic-input.empty:before {
+          color: color-mix(in srgb, var(--foreground) 50%, transparent);
+          font-weight: 500;
+          letter-spacing: 0.02em;
+          filter: none;
+          -webkit-text-fill-color: color-mix(in srgb, var(--foreground) 50%, transparent);
+          -webkit-opacity: 1;
+          opacity: 1;
         }
         
         /* placeholder가 있을 때만 표시되도록 보장 */

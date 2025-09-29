@@ -41,6 +41,7 @@ export function ModelSelector({
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [isSafari, setIsSafari] = useState(false);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [modelFilter, setModelFilter] = useState<'all' | 'thinking' | 'regular'>('all');
   const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
@@ -132,7 +133,15 @@ export function ModelSelector({
       setIsMobile(window.innerWidth < 768 || 'ontouchstart' in window);
     };
     
+    // Safari 감지
+    const checkSafari = () => {
+      const userAgent = navigator.userAgent;
+      const isSafariBrowser = /^((?!chrome|android).)*safari/i.test(userAgent);
+      setIsSafari(isSafariBrowser);
+    };
+    
     checkMobile();
+    checkSafari();
     window.addEventListener('resize', checkMobile);
     
     return () => window.removeEventListener('resize', checkMobile);
@@ -770,8 +779,8 @@ export function ModelSelector({
                   className="flex items-center gap-2 px-2 py-1 rounded-full h-6"
                   style={{
                     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    backdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
-                    WebkitBackdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                    backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                    WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
                     border: '1px solid rgba(255, 255, 255, 0.2)',
                     boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
                     // 다크모드 전용 스타일
@@ -779,8 +788,8 @@ export function ModelSelector({
                         (document.documentElement.getAttribute('data-theme') === 'system' && 
                          window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
                       backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                      backdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
-                      WebkitBackdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
                       border: '1px solid rgba(255, 255, 255, 0.1)',
                       boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
                     } : {})
@@ -833,8 +842,8 @@ export function ModelSelector({
                     className="flex items-center gap-2 px-2 py-1 rounded-full h-6"
                     style={{
                       backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                      backdropFilter: 'url(#glass-distortion) blur(1px)',
-                      WebkitBackdropFilter: 'url(#glass-distortion) blur(1px)',
+                      backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                      WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
                       border: '1px solid rgba(255, 255, 255, 0.2)',
                       boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
                       // 다크모드 전용 스타일
@@ -842,8 +851,8 @@ export function ModelSelector({
                           (document.documentElement.getAttribute('data-theme') === 'system' && 
                            window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
                         backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                        backdropFilter: 'url(#glass-distortion-dark) blur(1px)',
-                        WebkitBackdropFilter: 'url(#glass-distortion-dark) blur(1px)',
+                        backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                        WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
                         border: '1px solid rgba(255, 255, 255, 0.1)',
                         boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
                       } : {})
@@ -1465,8 +1474,8 @@ export function ModelSelector({
                   style={{
                     maxHeight: `${maxModalHeight}px`,
                     backgroundColor: 'rgba(255, 255, 255, 0.5) ',
-                    backdropFilter: 'url(#glass-distortion) blur(24px) saturate(180%)',
-                    WebkitBackdropFilter: 'url(#glass-distortion) blur(24px) saturate(180%)',
+                    backdropFilter: (isMobile || isSafari) ? 'blur(24px) saturate(180%)' : 'url(#glass-distortion) blur(24px) saturate(180%)',
+                    WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(24px) saturate(180%)' : 'url(#glass-distortion) blur(24px) saturate(180%)',
                     border: '1px solid rgba(255, 255, 255, 0.2)',
                     boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
                     // 다크모드 전용 스타일
@@ -1474,8 +1483,8 @@ export function ModelSelector({
                         (document.documentElement.getAttribute('data-theme') === 'system' && 
                          window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
                       backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                      backdropFilter: 'url(#glass-distortion-dark) blur(24px)',
-                      WebkitBackdropFilter: 'url(#glass-distortion-dark) blur(24px)',
+                      backdropFilter: (isMobile || isSafari) ? 'blur(24px)' : 'url(#glass-distortion-dark) blur(24px)',
+                      WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(24px)' : 'url(#glass-distortion-dark) blur(24px)',
                       border: '1px solid rgba(255, 255, 255, 0.1)',
                       boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
                     } : {})

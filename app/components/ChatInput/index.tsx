@@ -179,13 +179,29 @@ export function ChatInput({
 
   // Device detection hook
   const [isMobile, setIsMobile] = useState(false);
+  const [isSafari, setIsSafari] = useState(false);
   
   useEffect(() => {
     const checkDevice = () => {
       setIsMobile(window.innerWidth <= 768);
     };
     
+    // Safari 감지
+    const checkSafari = () => {
+      const userAgent = navigator.userAgent;
+      const isSafariBrowser = /^((?!chrome|android).)*safari/i.test(userAgent);
+      setIsSafari(isSafariBrowser);
+      
+      // Safari 감지 시 body에 클래스 추가 (CSS에서 사용)
+      if (isSafariBrowser) {
+        document.body.classList.add('safari-browser');
+      } else {
+        document.body.classList.remove('safari-browser');
+      }
+    };
+    
     checkDevice();
+    checkSafari();
     window.addEventListener('resize', checkDevice);
     return () => window.removeEventListener('resize', checkDevice);
   }, []);
@@ -755,11 +771,14 @@ export function ChatInput({
 
 
 
-  // 언마운트 시 URL 정리
+  // 언마운트 시 URL 정리 및 Safari 클래스 정리
   useEffect(() => {
     return () => {
       // 모든 URL 정리
       fileMap.forEach(({ url }) => URL.revokeObjectURL(url));
+      
+      // Safari 클래스 정리
+      document.body.classList.remove('safari-browser');
     };
   }, []);
 
@@ -1104,8 +1123,8 @@ export function ChatInput({
                         : user?.hasAgentModels === false && !isAgentEnabled 
                           ? 'rgba(255, 255, 255, 0.1)' 
                           : 'rgba(255, 255, 255, 0.1)',
-                    backdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
-                    WebkitBackdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                    backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                    WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
                     border: '1px solid rgba(255, 255, 255, 0.2)',
                     boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
                     color: selectedTool 
@@ -1127,8 +1146,8 @@ export function ChatInput({
                           : user?.hasAgentModels === false && !isAgentEnabled 
                             ? 'rgba(0, 0, 0, 0.05)' 
                             : 'rgba(0, 0, 0, 0.05)',
-                      backdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
-                      WebkitBackdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
                       border: '1px solid rgba(255, 255, 255, 0.1)',
                       boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
                     } : {})
@@ -1164,8 +1183,8 @@ export function ChatInput({
                     style={{
                       // 라이트모드 기본 스타일 (모델 선택창과 동일)
                       backgroundColor: 'rgba(255, 255, 255, 0.5)',
-                      backdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
-                      WebkitBackdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
+                      backdropFilter: (isMobile || isSafari) ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
+                      WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
                       border: '1px solid rgba(255, 255, 255, 0.2)',
                       boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
                       // 다크모드 전용 스타일
@@ -1173,8 +1192,8 @@ export function ChatInput({
                           (document.documentElement.getAttribute('data-theme') === 'system' && 
                            window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
                         backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                        backdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(24px)',
-                        WebkitBackdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(24px)',
+                        backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(24px)',
+                        WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(24px)',
                         border: '1px solid rgba(255, 255, 255, 0.1)',
                         boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
                       } : {})
@@ -1264,8 +1283,8 @@ export function ChatInput({
                 className="flex items-center justify-center w-8 h-8 rounded-full transition-colors flex-shrink-0 text-[var(--foreground)] cursor-pointer"
                   style={{
                     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    backdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
-                    WebkitBackdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                    backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                    WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
                     border: '1px solid rgba(255, 255, 255, 0.2)',
                   boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
                   // 다크모드 전용 스타일
@@ -1273,8 +1292,8 @@ export function ChatInput({
                       (document.documentElement.getAttribute('data-theme') === 'system' && 
                        window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
                     backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                    backdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
-                    WebkitBackdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                    backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                    WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
                     boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
                   } : {})
@@ -1309,8 +1328,8 @@ export function ChatInput({
                     caretColor: 'var(--chat-input-primary)',
                     border: '1px solid rgba(255, 255, 255, 0.2)',
                     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    backdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
-                    WebkitBackdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)', // Safari 지원
+                    backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                    WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)', // Safari 지원
                     boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
                     paddingLeft: '1rem', // CSS에서 paddingRight 처리
                     ...(('caretWidth' in document.documentElement.style) && { caretWidth: '2px' }),
@@ -1320,8 +1339,8 @@ export function ChatInput({
                          window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
                       border: '1px solid rgba(255, 255, 255, 0.1)',
                       backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                      backdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
-                      WebkitBackdropFilter: isMobile ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
                       boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
                     } : {})
                   } as React.CSSProperties}
