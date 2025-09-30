@@ -115,12 +115,33 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
   const handleBookmarkToggle = useCallback(async (messageId: string, shouldBookmark: boolean) => {
     if (!user || !chatId || !messageId) return;
     
+    // 🚀 즉시 UI 반영 (낙관적 업데이트)
+    setBookmarkedMessageIds(prev => {
+      const newSet = new Set(prev);
+      if (shouldBookmark) {
+        newSet.add(messageId);
+      } else {
+        newSet.delete(messageId);
+      }
+      return newSet;
+    });
+    
     try {
       const supabase = createClient();
       const message = messages.find(m => m.id === messageId);
       if (!message) return;
       
       if (shouldBookmark) {
+        // 🚀 content 추출 로직
+        let messageContent = message.content;
+        if (!messageContent && message.parts) {
+          const textParts = message.parts.filter((p: any) => p.type === 'text');
+          messageContent = textParts.map((p: any) => p.text).join(' ');
+        }
+        if (!messageContent || messageContent.trim() === '') {
+          messageContent = '[Empty message]';
+        }
+        
         // Add bookmark
         const { error } = await supabase
           .from('message_bookmarks')
@@ -128,12 +149,20 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
             message_id: messageId,
             user_id: user.id,
             chat_session_id: chatId,
-            content: message.content,
+            content: messageContent,
             model: (message as any).model || currentModel,
             created_at: new Date().toISOString()
           });
           
-        if (error) throw error;
+        if (error) {
+          // 🚀 DB 실패 시 UI 롤백
+          setBookmarkedMessageIds(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(messageId);
+            return newSet;
+          });
+          throw error;
+        }
       } else {
         // Remove bookmark - message_id로 정확한 삭제
         const { error } = await supabase
@@ -143,15 +172,20 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
           .eq('user_id', user.id)
           .eq('chat_session_id', chatId);
           
-        if (error) throw error;
+        if (error) {
+          // 🚀 DB 실패 시 UI 롤백
+          setBookmarkedMessageIds(prev => {
+            const newSet = new Set(prev);
+            newSet.add(messageId);
+            return newSet;
+          });
+          throw error;
+        }
       }
-      
-      // Refresh bookmarks after toggle
-      fetchBookmarks(messages);
     } catch (error) {
       console.error('Error toggling bookmark:', error);
     }
-  }, [user, chatId, messages, currentModel, fetchBookmarks]);
+  }, [user, chatId, messages, currentModel]);
 
   // Function to determine if a separator should be shown
   const shouldShowTimestamp = (currentMessage: undefined, previousMessage?: undefined): boolean => {
