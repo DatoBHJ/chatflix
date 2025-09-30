@@ -10,7 +10,7 @@ import { convertMessage, uploadFile } from '@/app/chat/[id]/utils';
 import { Attachment } from '@/lib/types';
 import { useMessages } from '@/app/hooks/useMessages';
 import { getSystemDefaultModelId, MODEL_CONFIGS, RATE_LIMITS, isChatflixModel, getModelById } from '@/lib/models/config';
-import { Messages } from '@/app/components/Messages';
+// import { Messages } from '@/app/components/Messages';
 import { VirtualizedMessages } from '@/app/components/VirtualizedMessages';
 import { SidePanel } from '@/app/components/SidePanel';
 import { ChatInputArea } from '@/app/components/ChatInputArea';
