@@ -380,6 +380,7 @@ CRITICAL REMINDERS:
   - How-to queries: "how to cook pasta", "how to learn Spanish"
   - Product searches: "best laptops 2024", "iPhone 15 reviews"
   - Wikipedia-style knowledge: "machine learning history", "artificial intelligence overview"
+  - **GIF and animated content**: "funny cat gif", "reaction gif", "animated gif", "meme gif" - use Google Search for all GIF searches
 
   **LOCATION AND COUNTRY EXAMPLES:**
   - location: "New York" + gl: "us" → New York, USA results
