@@ -867,6 +867,35 @@ const Message = memo(function MessageComponent({
   // 롱프레스 활성화 시 단순한 상태 관리 (스크롤 잠금 제거)
   useEffect(() => {
     if (longPressActive) {
+      // 배경 오버레이 추가 - z-index를 더 낮게 설정하여 메시지가 위에 오도록
+      const overlay = document.createElement('div');
+      overlay.id = 'long-press-overlay';
+      overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        backdrop-filter: blur(2px);
+        -webkit-backdrop-filter: blur(2px);
+        z-index: 50;
+        pointer-events: none;
+        transition: backdrop-filter 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      `;
+      document.body.appendChild(overlay);
+      
+      // 배포 환경에서의 추가 보정: 메시지 버블의 stacking context 강화
+      if (bubbleRef.current) {
+        bubbleRef.current.style.zIndex = '99999';
+        bubbleRef.current.style.position = 'relative';
+        bubbleRef.current.style.isolation = 'isolate';
+      }
+      if (aiBubbleRef.current) {
+        aiBubbleRef.current.style.zIndex = '99999';
+        aiBubbleRef.current.style.position = 'relative';
+        aiBubbleRef.current.style.isolation = 'isolate';
+      }
+      
       // 강력한 스크롤 방지
       document.body.style.overflow = 'hidden';
       document.body.style.position = 'fixed';
@@ -991,6 +1020,24 @@ const Message = memo(function MessageComponent({
       document.addEventListener('click', handleClickOutside);
       
       return () => {
+        // 오버레이 제거
+        const overlay = document.getElementById('long-press-overlay');
+        if (overlay) {
+          overlay.remove();
+        }
+        
+        // 메시지 버블 스타일 복원
+        if (bubbleRef.current) {
+          bubbleRef.current.style.zIndex = '';
+          bubbleRef.current.style.position = '';
+          bubbleRef.current.style.isolation = '';
+        }
+        if (aiBubbleRef.current) {
+          aiBubbleRef.current.style.zIndex = '';
+          aiBubbleRef.current.style.position = '';
+          aiBubbleRef.current.style.isolation = '';
+        }
+        
         // 스크롤 복원
         document.body.style.overflow = '';
         document.body.style.position = '';
@@ -1344,7 +1391,14 @@ const Message = memo(function MessageComponent({
   }, [message]);
 
   return (
-    <div className={`message-group group animate-fade-in ${getMinHeight}`} id={message.id}>
+    <div 
+      className={`message-group group animate-fade-in ${getMinHeight}`} 
+      id={message.id}
+      style={{
+        position: longPressActive ? 'relative' : 'static',
+        zIndex: longPressActive ? 9999 : 'auto',
+      }}
+    >
       <UnifiedInfoPanel
         reasoningPart={reasoningPart}
         isAssistant={isAssistant}
@@ -1594,11 +1648,11 @@ const Message = memo(function MessageComponent({
                     userSelect: 'none',
                     cursor: !isMobile ? 'pointer' : 'default',
                     transform: bubbleTransform,
-                    transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
+                    transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxShadow: 'none',
                     touchAction: longPressActive ? 'none' : 'auto',
                     overscrollBehavior: 'contain',
-                    zIndex: longPressActive ? 10 : 'auto',
+                    zIndex: longPressActive ? 100 : 'auto',
                     position: longPressActive ? 'relative' : 'static',
                   }}
                       >
@@ -2042,11 +2096,11 @@ const Message = memo(function MessageComponent({
                   userSelect: 'none',
                   cursor: 'default',
                   transform: bubbleTransform,
-                  transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
+                  transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
                   boxShadow: 'none',
                   touchAction: longPressActive ? 'none' : 'auto',
                   overscrollBehavior: 'contain',
-                  zIndex: longPressActive ? 10 : 'auto',
+                  zIndex: longPressActive ? 100 : 'auto',
                   position: longPressActive ? 'relative' : 'static',
                 }}
                 onTouchStart={handleAITouchStart}
@@ -2402,7 +2456,10 @@ const Message = memo(function MessageComponent({
           className="follow-up-questions-section"
           style={{
             zIndex: longPressActive ? 1 : 'auto',
-            position: longPressActive ? 'relative' : 'static'
+            position: longPressActive ? 'relative' : 'static',
+            visibility: longPressActive ? 'hidden' : 'visible',
+            opacity: longPressActive ? 0 : 1,
+            transition: 'opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
           <FollowUpQuestions 
