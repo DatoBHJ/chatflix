@@ -835,6 +835,9 @@ const Message = memo(function MessageComponent({
   // 모바일 여부 확인
   const [isMobile, setIsMobile] = useState(false);
   
+  // PWA 환경 감지
+  const [isPWA, setIsPWA] = useState(false);
+  
   // 롱프레스 관련 상태 추가 (단순화)
   const [longPressActive, setLongPressActive] = useState(false);
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
@@ -850,7 +853,16 @@ const Message = memo(function MessageComponent({
       setIsMobile(window.innerWidth < 640); // sm breakpoint
     };
     
+    const checkIfPWA = () => {
+      // PWA 환경 감지: standalone 모드 또는 iOS Safari의 홈 화면 추가 모드
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+      const isIOSStandalone = (window.navigator as any).standalone === true;
+      const isPWA = isStandalone || isIOSStandalone;
+      setIsPWA(isPWA);
+    };
+    
     checkIfMobile();
+    checkIfPWA();
     window.addEventListener('resize', checkIfMobile);
     return () => window.removeEventListener('resize', checkIfMobile);
   }, []);
@@ -867,11 +879,41 @@ const Message = memo(function MessageComponent({
   // 롱프레스 활성화 시 단순한 상태 관리 (스크롤 잠금 제거)
   useEffect(() => {
     if (longPressActive) {
-      // 강력한 스크롤 방지
+      // 배경 오버레이 추가 - PWA 환경에서 더 높은 z-index 사용
+      const overlay = document.createElement('div');
+      overlay.id = 'long-press-overlay';
+      const overlayZIndex = isPWA ? 2147483646 : 9998;
+      overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        backdrop-filter: blur(2px);
+        -webkit-backdrop-filter: blur(2px);
+        z-index: ${overlayZIndex};
+        pointer-events: none;
+        transition: backdrop-filter 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      `;
+      document.body.appendChild(overlay);
+      
+      // 강력한 스크롤 방지 - PWA 환경에서 더 강력한 방지
       document.body.style.overflow = 'hidden';
       document.body.style.position = 'fixed';
       document.body.style.width = '100%';
       document.body.style.height = '100%';
+      
+      // PWA 환경에서 추가적인 스크롤 방지
+      if (isPWA) {
+        document.documentElement.style.overflow = 'hidden';
+        document.documentElement.style.position = 'fixed';
+        document.documentElement.style.width = '100%';
+        document.documentElement.style.height = '100%';
+        
+        // PWA 환경에서 CSS 클래스 추가
+        document.documentElement.classList.add('long-press-active');
+        document.body.classList.add('long-press-active');
+      }
       
       // 터치 이벤트 전역 방지
       const preventTouchMove = (e: TouchEvent) => {
@@ -991,11 +1033,29 @@ const Message = memo(function MessageComponent({
       document.addEventListener('click', handleClickOutside);
       
       return () => {
+        // 오버레이 제거
+        const overlay = document.getElementById('long-press-overlay');
+        if (overlay) {
+          overlay.remove();
+        }
+        
         // 스크롤 복원
         document.body.style.overflow = '';
         document.body.style.position = '';
         document.body.style.width = '';
         document.body.style.height = '';
+        
+        // PWA 환경에서 추가 복원
+        if (isPWA) {
+          document.documentElement.style.overflow = '';
+          document.documentElement.style.position = '';
+          document.documentElement.style.width = '';
+          document.documentElement.style.height = '';
+          
+          // PWA 환경에서 CSS 클래스 제거
+          document.documentElement.classList.remove('long-press-active');
+          document.body.classList.remove('long-press-active');
+        }
         
         document.removeEventListener('touchmove', preventTouchMove);
         document.removeEventListener('scroll', preventScroll);
@@ -1344,7 +1404,14 @@ const Message = memo(function MessageComponent({
   }, [message]);
 
   return (
-    <div className={`message-group group animate-fade-in ${getMinHeight}`} id={message.id}>
+    <div 
+      className={`message-group group animate-fade-in ${getMinHeight}`} 
+      id={message.id}
+      style={{
+        position: longPressActive ? 'relative' : 'static',
+        zIndex: longPressActive ? (isPWA ? 2147483645 : 9999) : 'auto',
+      }}
+    >
       <UnifiedInfoPanel
         reasoningPart={reasoningPart}
         isAssistant={isAssistant}
@@ -1594,7 +1661,7 @@ const Message = memo(function MessageComponent({
                     userSelect: 'none',
                     cursor: !isMobile ? 'pointer' : 'default',
                     transform: bubbleTransform,
-                    transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
+                    transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxShadow: 'none',
                     touchAction: longPressActive ? 'none' : 'auto',
                     overscrollBehavior: 'contain',
@@ -1629,8 +1696,9 @@ const Message = memo(function MessageComponent({
                           </svg>
                           
                           <div 
-                            className="fixed w-48 chat-input-tooltip-backdrop rounded-2xl z-[99999] overflow-hidden tool-selector"
-                style={{
+                            className="fixed w-48 chat-input-tooltip-backdrop rounded-2xl overflow-hidden tool-selector"
+                            style={{ 
+                              zIndex: isPWA ? 2147483647 : 99999,
                   // 하이브리드 접근: 메시지 근처 우선, 화면 벗어날 때만 하단 고정
                   ...(() => {
                     if (!bubbleRef.current) return { display: 'none' };
@@ -1802,8 +1870,9 @@ const Message = memo(function MessageComponent({
                       </svg>
                       
                       <div 
-                        className="fixed w-48 chat-input-tooltip-backdrop rounded-2xl z-[99999] overflow-hidden tool-selector"
-                        style={{
+                        className="fixed w-48 chat-input-tooltip-backdrop rounded-2xl overflow-hidden tool-selector"
+                        style={{ 
+                          zIndex: isPWA ? 2147483647 : 99999,
                           // 메시지 버블 위치 계산
                           ...(() => {
                             if (!aiBubbleRef.current) return { display: 'none' };
@@ -2042,7 +2111,7 @@ const Message = memo(function MessageComponent({
                   userSelect: 'none',
                   cursor: 'default',
                   transform: bubbleTransform,
-                  transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
+                  transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
                   boxShadow: 'none',
                   touchAction: longPressActive ? 'none' : 'auto',
                   overscrollBehavior: 'contain',
@@ -2105,8 +2174,9 @@ const Message = memo(function MessageComponent({
               </svg>
               
               <div 
-                className="fixed w-48 chat-input-tooltip-backdrop rounded-2xl z-[99999] overflow-hidden tool-selector"
-                style={{
+                className="fixed w-48 chat-input-tooltip-backdrop rounded-2xl overflow-hidden tool-selector"
+                style={{ 
+                  zIndex: isPWA ? 2147483647 : 99999,
                   // 미리 계산된 메뉴 위치 사용 (glitch 완전 방지)
                   ...(() => {
                     if (!aiBubbleRef.current) return { display: 'none' };
@@ -2402,7 +2472,10 @@ const Message = memo(function MessageComponent({
           className="follow-up-questions-section"
           style={{
             zIndex: longPressActive ? 1 : 'auto',
-            position: longPressActive ? 'relative' : 'static'
+            position: longPressActive ? 'relative' : 'static',
+            visibility: longPressActive ? 'hidden' : 'visible',
+            opacity: longPressActive ? 0 : 1,
+            transition: 'opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
           <FollowUpQuestions 
