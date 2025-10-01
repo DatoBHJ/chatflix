@@ -368,11 +368,11 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
 
   // 하단 스페이서 컴포넌트 - 적절한 여백 제공 (데스크탑: 300px, 모바일: 100px)
   const BottomSpacer = useCallback(() => (
-    <div ref={messagesEndRef} style={{ height: '300px', minHeight: '300px' }} />
-    // <div 
-    //   ref={messagesEndRef} 
-    //   className="h-[100px] min-h-[100px] md:h-[300px] md:min-h-[300px]"
-    // />
+    // <div ref={messagesEndRef} style={{ height: '300px', minHeight: '300px' }} />
+    <div 
+      ref={messagesEndRef} 
+      className="h-[100px] min-h-[100px] md:h-[300px] md:min-h-[300px]"
+    />
   ), [messagesEndRef]);
 
 
