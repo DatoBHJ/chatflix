@@ -2523,7 +2523,7 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   position: relative;
   margin-top: 1rem;
   min-height: 0;
-  contain: layout;
+  contain: layout style;
 }
 
 @media (min-width: 640px) {
@@ -2538,7 +2538,7 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   display: flex;
   justify-content: flex-end;
   margin-top: 2.5rem;
-  contain: layout;
+  contain: layout style;
 }
 
 .follow-up-questions-wrapper {
@@ -2548,7 +2548,7 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   align-items: flex-end;
   gap: 0.25rem;
   min-height: fit-content;
-  contain: layout;
+  contain: layout style;
 }
 
 /* Follow-up Question Interaction Styles */
