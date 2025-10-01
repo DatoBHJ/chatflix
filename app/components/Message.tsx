@@ -880,7 +880,7 @@ const Message = memo(function MessageComponent({
         -webkit-backdrop-filter: blur(2px);
         z-index: 9998;
         pointer-events: none;
-        transition: backdrop-filter 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: backdrop-filter 0.3s cubic-bezier(0.22, 1, 0.36, 1);
       `;
       document.body.appendChild(overlay);
       
@@ -1624,7 +1624,7 @@ const Message = memo(function MessageComponent({
                     userSelect: 'none',
                     cursor: !isMobile ? 'pointer' : 'default',
                     transform: bubbleTransform,
-                    transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                    transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
                     boxShadow: 'none',
                     touchAction: longPressActive ? 'none' : 'auto',
                     overscrollBehavior: 'contain',
@@ -2072,7 +2072,7 @@ const Message = memo(function MessageComponent({
                   userSelect: 'none',
                   cursor: 'default',
                   transform: bubbleTransform,
-                  transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                  transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
                   boxShadow: 'none',
                   touchAction: longPressActive ? 'none' : 'auto',
                   overscrollBehavior: 'contain',
@@ -2435,7 +2435,7 @@ const Message = memo(function MessageComponent({
             position: longPressActive ? 'relative' : 'static',
             visibility: longPressActive ? 'hidden' : 'visible',
             opacity: longPressActive ? 0 : 1,
-            transition: 'opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+            transition: 'opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1)'
           }}
         >
           <FollowUpQuestions 
