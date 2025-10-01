@@ -867,33 +867,6 @@ const Message = memo(function MessageComponent({
   // 롱프레스 활성화 시 단순한 상태 관리 (스크롤 잠금 제거)
   useEffect(() => {
     if (longPressActive) {
-      // 배경 오버레이 추가
-      const overlay = document.createElement('div');
-      overlay.id = 'long-press-overlay';
-      overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        backdrop-filter: blur(0px);
-        -webkit-backdrop-filter: blur(0px);
-        z-index: 1;
-        pointer-events: none;
-        transition: backdrop-filter 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        will-change: backdrop-filter;
-        transform: translateZ(0);
-      `;
-      document.body.appendChild(overlay);
-      
-      // 애니메이션을 위해 다음 프레임에서 블러 적용
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          overlay.style.backdropFilter = 'blur(4px)';
-          (overlay.style as any).webkitBackdropFilter = 'blur(4px)';
-        });
-      });
-      
       // 강력한 스크롤 방지
       document.body.style.overflow = 'hidden';
       document.body.style.position = 'fixed';
@@ -1018,12 +991,6 @@ const Message = memo(function MessageComponent({
       document.addEventListener('click', handleClickOutside);
       
       return () => {
-        // 오버레이 제거
-        const overlay = document.getElementById('long-press-overlay');
-        if (overlay) {
-          overlay.remove();
-        }
-        
         // 스크롤 복원
         document.body.style.overflow = '';
         document.body.style.position = '';
@@ -1377,17 +1344,7 @@ const Message = memo(function MessageComponent({
   }, [message]);
 
   return (
-    <div 
-      className={`message-group group animate-fade-in ${getMinHeight}`} 
-      id={message.id}
-      style={{
-        position: longPressActive ? 'relative' : 'static',
-        zIndex: longPressActive ? 100 : 'auto',
-        isolation: longPressActive ? 'isolate' : 'auto',
-        transform: longPressActive ? 'translateZ(0)' : 'none',
-        willChange: longPressActive ? 'transform' : 'auto',
-      }}
-    >
+    <div className={`message-group group animate-fade-in ${getMinHeight}`} id={message.id}>
       <UnifiedInfoPanel
         reasoningPart={reasoningPart}
         isAssistant={isAssistant}
@@ -1637,13 +1594,12 @@ const Message = memo(function MessageComponent({
                     userSelect: 'none',
                     cursor: !isMobile ? 'pointer' : 'default',
                     transform: bubbleTransform,
-                    transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                    transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
                     boxShadow: 'none',
                     touchAction: longPressActive ? 'none' : 'auto',
                     overscrollBehavior: 'contain',
+                    zIndex: longPressActive ? 10 : 'auto',
                     position: longPressActive ? 'relative' : 'static',
-                    zIndex: longPressActive ? 100 : 'auto',
-                    isolation: longPressActive ? 'isolate' : 'auto',
                   }}
                       >
                         <UserMessageContent 
@@ -2086,13 +2042,12 @@ const Message = memo(function MessageComponent({
                   userSelect: 'none',
                   cursor: 'default',
                   transform: bubbleTransform,
-                  transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                  transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
                   boxShadow: 'none',
                   touchAction: longPressActive ? 'none' : 'auto',
                   overscrollBehavior: 'contain',
+                  zIndex: longPressActive ? 10 : 'auto',
                   position: longPressActive ? 'relative' : 'static',
-                  zIndex: longPressActive ? 100 : 'auto',
-                  isolation: longPressActive ? 'isolate' : 'auto',
                 }}
                 onTouchStart={handleAITouchStart}
                 onTouchEnd={handleAITouchEnd}
@@ -2446,10 +2401,8 @@ const Message = memo(function MessageComponent({
         <div 
           className="follow-up-questions-section"
           style={{
-            position: 'relative',
-            visibility: longPressActive ? 'hidden' : 'visible',
-            opacity: longPressActive ? 0 : 1,
-            transition: 'opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+            zIndex: longPressActive ? 1 : 'auto',
+            position: longPressActive ? 'relative' : 'static'
           }}
         >
           <FollowUpQuestions 
