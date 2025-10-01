@@ -947,8 +947,8 @@ const Message = memo(function MessageComponent({
     }
   }, [longPressActive, dropdownPosition]);
 
-  // 터치 시작 핸들러
-  const handleTouchStart = (e: React.TouchEvent) => {
+  // 터치 시작 핸들러 (사용자 메시지용)
+  const handleUserTouchStart = (e: React.TouchEvent) => {
     if (!isMobile || !isUser) return;
     
     // 스크롤 방지를 위한 preventDefault
@@ -971,8 +971,38 @@ const Message = memo(function MessageComponent({
     setLongPressTimer(timer);
   };
 
-  // 터치 종료 핸들러
-  const handleTouchEnd = (e: React.TouchEvent) => {
+  // 터치 시작 핸들러 (AI 메시지용) - iOS Safari 호환성 개선
+  const handleAITouchStart = (e: React.TouchEvent) => {
+    if (!isMobile || !isAssistant) return;
+    
+    // iOS Safari: 하위 요소의 이벤트를 즉시 차단
+    e.stopPropagation();
+    
+    setTouchStartTime(Date.now());
+    setTouchStartY(e.touches[0].clientY);
+    setIsLongPressActive(false);
+    
+    // 항상 메뉴가 메시지 아래에 나오도록 설정
+    setDropdownPosition('bottom');
+    
+    // 롱프레스 타이머 시작 (500ms)
+    const timer = setTimeout(() => {
+      setLongPressActive(true);
+      setIsLongPressActive(true);
+      
+      // iOS Safari: 롱프레스 활성화 시 스크롤 방지
+      if (typeof window !== 'undefined' && navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome')) {
+        document.body.style.overflow = 'hidden';
+        document.body.style.position = 'fixed';
+        document.body.style.width = '100%';
+      }
+    }, 500);
+    
+    setLongPressTimer(timer);
+  };
+
+  // 터치 종료 핸들러 (사용자 메시지용)
+  const handleUserTouchEnd = (e: React.TouchEvent) => {
     if (!isMobile || !isUser) return;
     
     e.preventDefault();
@@ -1001,9 +1031,63 @@ const Message = memo(function MessageComponent({
     setIsLongPressActive(false);
   };
 
-  // 터치 이동 핸들러 (스크롤 방지)
-  const handleTouchMove = (e: React.TouchEvent) => {
+  // 터치 종료 핸들러 (AI 메시지용) - iOS Safari 호환성 개선
+  const handleAITouchEnd = (e: React.TouchEvent) => {
+    if (!isMobile || !isAssistant) return;
+    
+    e.stopPropagation();
+    
+    // 타이머 정리
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+    
+    const touchEndTime = Date.now();
+    const touchDuration = touchEndTime - touchStartTime;
+    
+    // 롱프레스가 활성화된 상태에서는 일반 클릭 방지
+    if (isLongPressActive) {
+      // iOS Safari: 스크롤 복원은 handleLongPressCancel에서 처리
+      return;
+    }
+    
+    // 짧은 터치인 경우 일반 클릭으로 처리 (아무것도 하지 않음)
+    if (touchDuration < 500 && !longPressActive) {
+      // 일반 클릭은 아무것도 하지 않음
+    }
+    
+    // 롱프레스 상태 초기화 (touchStartY는 유지)
+    setLongPressActive(false);
+    setIsLongPressActive(false);
+  };
+
+  // 터치 이동 핸들러 (스크롤 방지) - 사용자 메시지용
+  const handleUserTouchMove = (e: React.TouchEvent) => {
     if (!isMobile || !isUser) return;
+    
+    // 롱프레스 활성화 시 스크롤 완전 방지
+    if (longPressActive || isLongPressActive) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
+
+  // 터치 이동 핸들러 (스크롤 방지) - AI 메시지용
+  const handleAITouchMove = (e: React.TouchEvent) => {
+    if (!isMobile || !isAssistant) return;
+    
+    const currentY = e.touches[0].clientY;
+    const deltaY = Math.abs(currentY - touchStartY);
+    
+    // iOS Safari: 약간의 움직임이 있으면 롱프레스 취소 (10px 이상)
+    if (deltaY > 10 && !longPressActive) {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        setLongPressTimer(null);
+      }
+      return;
+    }
     
     // 롱프레스 활성화 시 스크롤 완전 방지
     if (longPressActive || isLongPressActive) {
@@ -1394,9 +1478,9 @@ const Message = memo(function MessageComponent({
                       <div 
                         className={`imessage-send-bubble ${longPressActive ? 'long-press-scaled' : ''}`}
                         ref={bubbleRef}
-                        onTouchStart={handleTouchStart}
-                        onTouchEnd={handleTouchEnd}
-                        onTouchMove={handleTouchMove}
+                        onTouchStart={handleUserTouchStart}
+                        onTouchEnd={handleUserTouchEnd}
+                        onTouchMove={handleUserTouchMove}
                         onClick={!isMobile ? (e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -1413,6 +1497,8 @@ const Message = memo(function MessageComponent({
                     boxShadow: 'none',
                     touchAction: longPressActive ? 'none' : 'auto',
                     overscrollBehavior: 'contain',
+                    zIndex: longPressActive ? 10 : 'auto',
+                    position: longPressActive ? 'relative' : 'static',
                   }}
                       >
                         <UserMessageContent 
@@ -1595,6 +1681,242 @@ const Message = memo(function MessageComponent({
                       )}
                     </div>
                   )}
+
+                  {/* AI 메시지용 롱프레스 드롭다운: Portal 사용으로 DOM 계층 분리 */}
+                  {longPressActive && isAssistant && createPortal(
+                    <>
+                      {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
+                      <svg style={{ position: 'absolute', width: 0, height: 0 }}>
+                        <defs>
+                          <filter id="glass-distortion-ai" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+                            <feTurbulence type="fractalNoise" baseFrequency="0.02 0.05" numOctaves="3" seed="7" result="noise" />
+                            <feImage result="radialMask" preserveAspectRatio="none" x="0" y="0" width="100%" height="100%" xlinkHref="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><defs><radialGradient id='g' cx='50%25' cy='50%25' r='70%25'><stop offset='0%25' stop-color='black'/><stop offset='100%25' stop-color='white'/></defs><rect width='100%25' height='100%25' fill='url(%23g)'/></svg>" />
+                            <feComposite in="noise" in2="radialMask" operator="arithmetic" k1="0" k2="0" k3="1" k4="0" result="modulatedNoise" />
+                            <feGaussianBlur in="modulatedNoise" stdDeviation="0.3" edgeMode="duplicate" result="smoothNoise" />
+                            <feDisplacementMap in="SourceGraphic" in2="smoothNoise" scale="18" xChannelSelector="R" yChannelSelector="G" />
+                          </filter>
+                        </defs>
+                      </svg>
+                      
+                      <div 
+                        className="fixed w-48 chat-input-tooltip-backdrop rounded-2xl z-[99999] overflow-hidden tool-selector"
+                        style={{
+                          // 메시지 버블 위치 계산
+                          ...(() => {
+                            if (!aiBubbleRef.current) return { display: 'none' };
+                            const rect = aiBubbleRef.current.getBoundingClientRect();
+                            const dropdownHeight = 120;
+                            const margin = 16;
+                            
+                            if (dropdownPosition === 'top') {
+                              return {
+                                top: `${rect.top - dropdownHeight - margin}px`,
+                                left: '16px', // 화면 좌측에서 16px 떨어진 고정 위치
+                                right: 'auto',
+                                display: 'block'
+                              };
+                            } else {
+                              const menuHeight = 120;
+                              const menuBottomMargin = 20;
+                              const viewportHeight = window.innerHeight;
+                              
+                              const menuWouldGoOffscreen = rect.bottom + margin + menuHeight > viewportHeight;
+
+                              if (menuWouldGoOffscreen) {
+                                // 메뉴가 화면을 벗어날 경우: 화면 하단에 고정
+                                const menuBottomMargin = 20;
+                                return {
+                                  top: `${viewportHeight - menuHeight - menuBottomMargin}px`,
+                                  left: '16px',
+                                  right: 'auto',
+                                  display: 'block'
+                                };
+                              } else {
+                                // 공간이 충분할 경우: 메시지 바로 아래에 위치
+                                return {
+                                  top: `${rect.bottom + margin}px`,
+                                  left: '16px',
+                                  right: 'auto',
+                                  display: 'block'
+                                };
+                              }
+                            }
+                          })(),
+                          // 기존 스타일 + 드롭다운
+                          backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                          backdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion-ai) blur(10px) saturate(180%)',
+                          WebkitBackdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion-ai) blur(10px) saturate(180%)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                          // 다크모드 전용 스타일
+                          ...(typeof window !== 'undefined' && (
+                            document.documentElement.getAttribute('data-theme') === 'dark' || 
+                            (document.documentElement.getAttribute('data-theme') === 'system' && 
+                             window.matchMedia('(prefers-color-scheme: dark)').matches)
+                          ) ? {
+                            backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                            backdropFilter: isMobile ? 'blur(24px)' : 'url(#glass-distortion-ai) blur(24px)',
+                            WebkitBackdropFilter: isMobile ? 'blur(24px)' : 'url(#glass-distortion-ai) blur(24px)',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                          } : {})
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          // 드롭다운 내부 클릭은 닫지 않음
+                        }}
+                      >
+                        <div className="flex flex-col gap-1 space-y-1">
+                          {/* 재생성 버튼 */}
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              e.nativeEvent.stopImmediatePropagation();
+                              onRegenerate(message.id)(e as any);
+                              handleLongPressCancel();
+                            }}
+                            onTouchEnd={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              e.nativeEvent.stopImmediatePropagation();
+                              onRegenerate(message.id)(e as any);
+                              handleLongPressCancel();
+                            }}
+                            disabled={isRegenerating}
+                            className="flex items-center gap-2 px-4 pt-3 transition-colors duration-150 rounded-xl tool-button"
+                            style={{
+                              '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
+                              '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
+                              WebkitTapHighlightColor: 'transparent',
+                              WebkitTouchCallout: 'none',
+                              WebkitUserSelect: 'none',
+                              userSelect: 'none',
+                              opacity: isRegenerating ? 0.5 : 1
+                            } as any}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
+                            onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                          > 
+                            <div className="w-6 h-6 flex items-center justify-center">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isRegenerating ? 'animate-spin' : ''}>
+                                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                                <path d="M21 3v5h-5"/>
+                                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                                <path d="M3 21v-5h5"/>
+                              </svg>
+                            </div>
+                            <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                              {isRegenerating ? 'Regenerating...' : 'Regenerate'}
+                            </span>
+                          </button>
+
+                          {/* 복사 버튼 */}
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              e.nativeEvent.stopImmediatePropagation();
+                              onCopy(message);
+                              handleLongPressCancel();
+                            }}
+                            onTouchEnd={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              e.nativeEvent.stopImmediatePropagation();
+                              onCopy(message);
+                              handleLongPressCancel();
+                            }}
+                            className="flex items-center gap-2 px-4 transition-colors duration-150 rounded-xl tool-button"
+                            style={{
+                              '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
+                              '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
+                              WebkitTapHighlightColor: 'transparent',
+                              WebkitTouchCallout: 'none',
+                              WebkitUserSelect: 'none',
+                              userSelect: 'none'
+                            } as any}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
+                            onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                          >
+                            <div className="w-6 h-6 flex items-center justify-center">
+                              {isCopied ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="20,6 9,17 4,12"/>
+                                </svg>
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                </svg>
+                              )}
+                            </div>
+                            <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                              {isCopied ? 'Copied' : 'Copy'}
+                            </span>
+                          </button>
+
+                          {/* 북마크 버튼 */}
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              e.nativeEvent.stopImmediatePropagation();
+                              toggleBookmark(e as any);
+                              handleLongPressCancel();
+                            }}
+                            onTouchEnd={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              e.nativeEvent.stopImmediatePropagation();
+                              toggleBookmark(e as any);
+                              handleLongPressCancel();
+                            }}
+                            disabled={isBookmarksLoading}
+                            className="flex items-center gap-2 px-4 pb-3 transition-colors duration-150 rounded-xl tool-button"
+                            style={{
+                              '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
+                              '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
+                              WebkitTapHighlightColor: 'transparent',
+                              WebkitTouchCallout: 'none',
+                              WebkitUserSelect: 'none',
+                              userSelect: 'none',
+                              opacity: isBookmarksLoading ? 0.5 : 1
+                            } as any}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
+                            onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                          >
+                            <div className="w-6 h-6 flex items-center justify-center">
+                              <svg 
+                                xmlns="http://www.w3.org/2000/svg" 
+                                width="20" 
+                                height="20" 
+                                viewBox="0 0 24 24" 
+                                fill={isBookmarked ? "currentColor" : "none"}
+                                stroke="currentColor" 
+                                strokeWidth="2" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round"
+                                className={isBookmarksLoading ? "animate-pulse" : ""}
+                              >
+                                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                              </svg>
+                            </div>
+                            <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                              {isBookmarked ? 'Remove bookmark' : 'Bookmark'}
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+                    </>,
+                    typeof window !== 'undefined' ? document.body : (null as any)
+                  )}
                   <div className="text-[10px] text-neutral-500 mt-1 pr-1 h-[14px]">
                     {isLastUserMessage && formatMessageTime((message as any).createdAt || new Date())}
                   </div>
@@ -1605,19 +1927,46 @@ const Message = memo(function MessageComponent({
         ) : (
           <>
           {(hasAnyRenderableContent || structuredDescription) && (
-            <div className="imessage-receive-bubble" ref={aiBubbleRef} style={{ overflow: 'visible' }}>
-              <div className="imessage-content-wrapper space-y-4">
-                {/* 기존 컨텐츠 렌더링 로직 */}
-              {hasAttachments && (allAttachments as any[])!.map((attachment: any, index: number) => (
-                <AttachmentPreview key={`${message.id}-att-${index}`} attachment={attachment} />
-              ))}
-            
-              {message.parts ? (
+            <div className="relative">
+              <div 
+                className={`imessage-receive-bubble ${longPressActive ? 'long-press-scaled' : ''}`} 
+                ref={aiBubbleRef} 
+                style={{ 
+                  overflow: 'visible',
+                  WebkitTapHighlightColor: 'transparent',
+                  WebkitTouchCallout: 'none',
+                  WebkitUserSelect: 'none',
+                  userSelect: 'none',
+                  cursor: 'default',
+                  transform: bubbleTransform,
+                  transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
+                  boxShadow: 'none',
+                  touchAction: longPressActive ? 'none' : 'auto',
+                  overscrollBehavior: 'contain',
+                  zIndex: longPressActive ? 10 : 'auto',
+                  position: longPressActive ? 'relative' : 'static',
+                }}
+                onTouchStart={handleAITouchStart}
+                onTouchEnd={handleAITouchEnd}
+                onTouchMove={handleAITouchMove}
+              >
+                <div 
+                  className="imessage-content-wrapper space-y-4"
+                  style={{
+                    pointerEvents: longPressActive && isMobile ? 'none' : 'auto',
+                  }}
+                >
+                  {/* 기존 컨텐츠 렌더링 로직 */}
+                  {hasAttachments && (allAttachments as any[])!.map((attachment: any, index: number) => (
+                    <AttachmentPreview key={`${message.id}-att-${index}`} attachment={attachment} />
+                  ))}
+                
+                  {message.parts ? (
                     processedParts?.map((part: any, index: number) => (
-                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile}/>
-                  ))
-                        ) : (
-                      (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile}/>
+                      part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile}/>
+                    ))
+                  ) : (
+                    (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile}/>
                   )}
                   
                   <FilesPreview
@@ -1626,13 +1975,250 @@ const Message = memo(function MessageComponent({
                     message={message}
                   />
 
-              {structuredDescription && (
+                  {structuredDescription && (
                     <div className="imessage-receive-bubble mt-2">
-                  <p>{structuredDescription}</p>
+                      <p>{structuredDescription}</p>
+                    </div>
+                  )}
                 </div>
-            )}
-          </div>
-          </div>
+              </div>
+            </div>
+          )}
+
+          {/* AI 메시지용 롱프레스 드롭다운: Portal 사용으로 DOM 계층 분리 */}
+          {longPressActive && isAssistant && createPortal(
+            <>
+              {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
+              <svg style={{ position: 'absolute', width: 0, height: 0 }}>
+                <defs>
+                  <filter id="glass-distortion-ai" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.02 0.05" numOctaves="3" seed="7" result="noise" />
+                    <feImage result="radialMask" preserveAspectRatio="none" x="0" y="0" width="100%" height="100%" xlinkHref="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><defs><radialGradient id='g' cx='50%25' cy='50%25' r='70%25'><stop offset='0%25' stop-color='black'/><stop offset='100%25' stop-color='white'/></defs><rect width='100%25' height='100%25' fill='url(%23g)'/></svg>" />
+                    <feComposite in="noise" in2="radialMask" operator="arithmetic" k1="0" k2="0" k3="1" k4="0" result="modulatedNoise" />
+                    <feGaussianBlur in="modulatedNoise" stdDeviation="0.3" edgeMode="duplicate" result="smoothNoise" />
+                    <feDisplacementMap in="SourceGraphic" in2="smoothNoise" scale="18" xChannelSelector="R" yChannelSelector="G" />
+                  </filter>
+                </defs>
+              </svg>
+              
+              <div 
+                className="fixed w-48 chat-input-tooltip-backdrop rounded-2xl z-[99999] overflow-hidden tool-selector"
+                style={{
+                  // 메시지 버블 위치 계산
+                  ...(() => {
+                    if (!aiBubbleRef.current) return { display: 'none' };
+                    const rect = aiBubbleRef.current.getBoundingClientRect();
+                    const dropdownHeight = 120;
+                    const margin = 16;
+                    
+                    if (dropdownPosition === 'top') {
+                      return {
+                        top: `${rect.top - dropdownHeight - margin}px`,
+                        left: '16px', // 화면 좌측에서 16px 떨어진 고정 위치
+                        right: 'auto',
+                        display: 'block'
+                      };
+                    } else {
+                      const menuHeight = 120;
+                      const menuBottomMargin = 20;
+                      const viewportHeight = window.innerHeight;
+                      
+                      const menuWouldGoOffscreen = rect.bottom + margin + menuHeight > viewportHeight;
+
+                      if (menuWouldGoOffscreen) {
+                        // 메뉴가 화면을 벗어날 경우: 화면 하단에 고정
+                        const menuBottomMargin = 20;
+                        return {
+                          top: `${viewportHeight - menuHeight - menuBottomMargin}px`,
+                          left: '16px',
+                          right: 'auto',
+                          display: 'block'
+                        };
+                      } else {
+                        // 공간이 충분할 경우: 메시지 바로 아래에 위치
+                        return {
+                          top: `${rect.bottom + margin}px`,
+                          left: '16px',
+                          right: 'auto',
+                          display: 'block'
+                        };
+                      }
+                    }
+                  })(),
+                  // 기존 스타일 + 드롭다운
+                  backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                  backdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion-ai) blur(10px) saturate(180%)',
+                  WebkitBackdropFilter: isMobile ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion-ai) blur(10px) saturate(180%)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                  // 다크모드 전용 스타일
+                  ...(typeof window !== 'undefined' && (
+                    document.documentElement.getAttribute('data-theme') === 'dark' || 
+                    (document.documentElement.getAttribute('data-theme') === 'system' && 
+                     window.matchMedia('(prefers-color-scheme: dark)').matches)
+                  ) ? {
+                    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                    backdropFilter: isMobile ? 'blur(24px)' : 'url(#glass-distortion-ai) blur(24px)',
+                    WebkitBackdropFilter: isMobile ? 'blur(24px)' : 'url(#glass-distortion-ai) blur(24px)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                  } : {})
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // 드롭다운 내부 클릭은 닫지 않음
+                }}
+              >
+                <div className="flex flex-col gap-1 space-y-1">
+                  {/* 재생성 버튼 */}
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.nativeEvent.stopImmediatePropagation();
+                      onRegenerate(message.id)(e as any);
+                      handleLongPressCancel();
+                    }}
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.nativeEvent.stopImmediatePropagation();
+                      onRegenerate(message.id)(e as any);
+                      handleLongPressCancel();
+                    }}
+                    disabled={isRegenerating}
+                    className="flex items-center gap-2 px-4 pt-3 transition-colors duration-150 rounded-xl tool-button"
+                    style={{
+                      '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
+                      '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
+                      WebkitTapHighlightColor: 'transparent',
+                      WebkitTouchCallout: 'none',
+                      WebkitUserSelect: 'none',
+                      userSelect: 'none',
+                      opacity: isRegenerating ? 0.5 : 1
+                    } as any}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
+                    onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                  > 
+                    <div className="w-6 h-6 flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isRegenerating ? 'animate-spin' : ''}>
+                        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                        <path d="M21 3v5h-5"/>
+                        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                        <path d="M3 21v-5h5"/>
+                      </svg>
+                    </div>
+                    <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                      {isRegenerating ? 'Regenerating...' : 'Regenerate'}
+                    </span>
+                  </button>
+
+                  {/* 복사 버튼 */}
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.nativeEvent.stopImmediatePropagation();
+                      onCopy(message);
+                      handleLongPressCancel();
+                    }}
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.nativeEvent.stopImmediatePropagation();
+                      onCopy(message);
+                      handleLongPressCancel();
+                    }}
+                    className="flex items-center gap-2 px-4 transition-colors duration-150 rounded-xl tool-button"
+                    style={{
+                      '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
+                      '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
+                      WebkitTapHighlightColor: 'transparent',
+                      WebkitTouchCallout: 'none',
+                      WebkitUserSelect: 'none',
+                      userSelect: 'none'
+                    } as any}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
+                    onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                  >
+                    <div className="w-6 h-6 flex items-center justify-center">
+                      {isCopied ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20,6 9,17 4,12"/>
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                      )}
+                    </div>
+                    <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                      {isCopied ? 'Copied' : 'Copy'}
+                    </span>
+                  </button>
+
+                  {/* 북마크 버튼 */}
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.nativeEvent.stopImmediatePropagation();
+                      toggleBookmark(e as any);
+                      handleLongPressCancel();
+                    }}
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.nativeEvent.stopImmediatePropagation();
+                      toggleBookmark(e as any);
+                      handleLongPressCancel();
+                    }}
+                    disabled={isBookmarksLoading}
+                    className="flex items-center gap-2 px-4 pb-3 transition-colors duration-150 rounded-xl tool-button"
+                    style={{
+                      '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
+                      '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
+                      WebkitTapHighlightColor: 'transparent',
+                      WebkitTouchCallout: 'none',
+                      WebkitUserSelect: 'none',
+                      userSelect: 'none',
+                      opacity: isBookmarksLoading ? 0.5 : 1
+                    } as any}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
+                    onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                  >
+                    <div className="w-6 h-6 flex items-center justify-center">
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        width="20" 
+                        height="20" 
+                        viewBox="0 0 24 24" 
+                        fill={isBookmarked ? "currentColor" : "none"}
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                        className={isBookmarksLoading ? "animate-pulse" : ""}
+                      >
+                        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                      </svg>
+                    </div>
+                    <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                      {isBookmarked ? 'Remove bookmark' : 'Bookmark'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </>,
+            typeof window !== 'undefined' ? document.body : (null as any)
           )}
         </>
       )}
@@ -1640,7 +2226,7 @@ const Message = memo(function MessageComponent({
       {isAssistant && !isStreaming && (
         <div className={`flex justify-start mt-2 mb-0 gap-2 items-center transition-opacity duration-300 ${
           isMobile 
-            ? 'opacity-100' 
+            ? 'hidden' 
             : 'opacity-0 md:group-hover:opacity-100'
         }`}>
           <button 
@@ -1700,7 +2286,13 @@ const Message = memo(function MessageComponent({
       )}
       {/* Add follow-up questions for the last assistant message */}
       {isAssistant && isLastMessage && !isGlobalLoading && !isStreaming && handleFollowUpQuestionClick && allMessages && chatId && (
-        <div className="follow-up-questions-section">
+        <div 
+          className="follow-up-questions-section"
+          style={{
+            zIndex: longPressActive ? 1 : 'auto',
+            position: longPressActive ? 'relative' : 'static'
+          }}
+        >
           <FollowUpQuestions 
             chatId={chatId} 
             userId={user?.id || 'anonymous'} 
