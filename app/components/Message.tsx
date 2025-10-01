@@ -878,9 +878,11 @@ const Message = memo(function MessageComponent({
         height: 100%;
         backdrop-filter: blur(0px);
         -webkit-backdrop-filter: blur(0px);
-        z-index: 9997;
+        z-index: 1;
         pointer-events: none;
         transition: backdrop-filter 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        will-change: backdrop-filter;
+        transform: translateZ(0);
       `;
       document.body.appendChild(overlay);
       
@@ -1380,8 +1382,9 @@ const Message = memo(function MessageComponent({
       id={message.id}
       style={{
         position: longPressActive ? 'relative' : 'static',
-        zIndex: longPressActive ? 99998 : 'auto',
+        zIndex: longPressActive ? 10 : 'auto',
         isolation: longPressActive ? 'isolate' : 'auto',
+        transform: longPressActive ? 'translateZ(0)' : 'none',
       }}
     >
       <UnifiedInfoPanel
@@ -2438,8 +2441,7 @@ const Message = memo(function MessageComponent({
         <div 
           className="follow-up-questions-section"
           style={{
-            zIndex: longPressActive ? 1 : 'auto',
-            position: longPressActive ? 'relative' : 'static',
+            position: 'relative',
             visibility: longPressActive ? 'hidden' : 'visible',
             opacity: longPressActive ? 0 : 1,
             transition: 'opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
