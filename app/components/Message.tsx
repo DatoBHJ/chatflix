@@ -955,14 +955,14 @@ const Message = memo(function MessageComponent({
             // 메시지를 메뉴 위로 이동 (겹치지 않도록)
             const targetBubbleBottom = menuTop - messageToMenuMargin;
             const translateY = targetBubbleBottom - messageBottom;
-            newTransform = `translateX(3px) translateY(${translateY - 3}px) scale(1.005)`;
+            newTransform = `translateX(3px) translateY(${translateY - 8}px) scale(1.005)`;
           } else {
             // 겹치지 않으면 단순 확대만
-            newTransform = 'translateX(3px) translateY(-3px) scale(1.005)';
+            newTransform = 'translateX(3px) translateY(-8px) scale(1.005)';
           }
         } else {
           // 4. 공간이 충분하면 메시지 근처에 메뉴 배치 (메시지 이동 없음)
-          newTransform = 'translateX(3px) translateY(-3px) scale(1.005)';
+          newTransform = 'translateX(3px) translateY(-8px) scale(1.005)';
         }
       }
       
