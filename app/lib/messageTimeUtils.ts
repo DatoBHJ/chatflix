@@ -67,25 +67,67 @@ export function formatMessageTime(createdAt: Date | string): string {
     return `${readText} ${time}`;
   }
   
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const messageDay = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
+  // Get user's locale and timezone
+  const locale = typeof navigator !== 'undefined' ? navigator.language : 'en-US';
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   
-  // 같은 날인 경우: 시간만 표시
-  if (messageDay.getTime() === today.getTime()) {
-    const time = messageDate.toLocaleTimeString(userLocale, { hour: 'numeric', minute: '2-digit' });
-    return `${readText} ${time}`;
+  // Format time
+  const timeFormat = new Intl.DateTimeFormat(locale, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone
+  }).format(messageDate);
+  
+  // Get dates in local timezone for accurate comparison
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  
+  const dateStr = messageDate.toDateString();
+  const todayStr = today.toDateString();
+  const yesterdayStr = yesterday.toDateString();
+  
+  // Today
+  if (dateStr === todayStr) {
+    // Use relative time formatter for "today"
+    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+    const todayText = rtf.format(0, 'day'); // This gives us "today" in local language
+    return `${readText} ${todayText.charAt(0).toUpperCase() + todayText.slice(1)} ${timeFormat}`;
   }
   
-  // 다른 날인 경우
-  const time = messageDate.toLocaleTimeString(userLocale, { hour: 'numeric', minute: '2-digit' });
-  
-  // 같은 년도: 월 이름 + 일 + 시간
-  if (messageDate.getFullYear() === now.getFullYear()) {
-    const monthDay = messageDate.toLocaleDateString(userLocale, { month: 'long', day: 'numeric' });
-    return `${readText} ${monthDay} ${time}`;
+  // Yesterday
+  if (dateStr === yesterdayStr) {
+    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+    const yesterdayText = rtf.format(-1, 'day'); // This gives us "yesterday" in local language
+    return `${readText} ${yesterdayText.charAt(0).toUpperCase() + yesterdayText.slice(1)} ${timeFormat}`;
   }
   
-  // 다른 년도: 월 이름 + 일 + 년도 + 시간
-  const monthDayYear = messageDate.toLocaleDateString(userLocale, { month: 'long', day: 'numeric', year: 'numeric' });
-  return `${readText} ${monthDayYear} ${time}`;
+  // Calculate days difference for this week check
+  const diffMs = now.getTime() - messageDate.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  // This week (within 7 days)
+  if (diffDays < 7) {
+    const dayFormat = new Intl.DateTimeFormat(locale, {
+      weekday: 'long',
+      timeZone
+    }).format(messageDate);
+    return `${readText} ${dayFormat} ${timeFormat}`;
+  }
+  
+  // More than a week ago
+  const fullDateFormat = new Intl.DateTimeFormat(locale, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone
+  }).format(messageDate);
+  
+  // Format to match "Mon, Jun 30 at 12:39 PM" style
+  const formattedDate = fullDateFormat.replace(/,\s*(\d+:\d+\s*[AP]M)/, ' at $1');
+  return `${readText} ${formattedDate}`;
 } 
