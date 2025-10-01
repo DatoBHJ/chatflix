@@ -927,6 +927,7 @@ const Message = memo(function MessageComponent({
       
       // AI 메시지: 하이브리드 접근 - 메시지 근처 우선, 화면 벗어날 때만 하단 고정
       if (dropdownPosition === 'bottom' && aiBubbleRef.current && isAssistant) {
+        // 확대 전 원본 위치를 기준으로 계산 (glitch 방지)
         const rect = aiBubbleRef.current.getBoundingClientRect();
         const menuHeight = 120;
         const margin = 16;
@@ -934,7 +935,7 @@ const Message = memo(function MessageComponent({
         const menuBottomMargin = 20;
         const messageToMenuMargin = 8;
         
-        // 1. 먼저 메시지 바로 아래에 메뉴를 배치해보기
+        // 1. 먼저 메시지 바로 아래에 메뉴를 배치해보기 (원본 위치 기준)
         const preferredMenuTop = rect.bottom + margin;
         const preferredMenuBottom = preferredMenuTop + menuHeight;
         
@@ -945,7 +946,7 @@ const Message = memo(function MessageComponent({
           // 3. 화면을 벗어나면 메뉴를 하단에 고정하고 메시지 조정
           const menuTop = viewportHeight - menuBottomMargin - menuHeight;
           
-          // 메시지가 메뉴와 겹치는지 확인
+          // 메시지가 메뉴와 겹치는지 확인 (원본 위치 기준)
           const messageBottom = rect.bottom;
           const messageWouldOverlap = messageBottom + messageToMenuMargin > menuTop;
           
@@ -2070,6 +2071,8 @@ const Message = memo(function MessageComponent({
                   // 하이브리드 접근: 메시지 근처 우선, 화면 벗어날 때만 하단 고정
                   ...(() => {
                     if (!aiBubbleRef.current) return { display: 'none' };
+                    
+                    // 확대 전 원본 위치를 기준으로 계산 (glitch 방지)
                     const rect = aiBubbleRef.current.getBoundingClientRect();
                     const menuHeight = 120;
                     const margin = 16;
@@ -2084,7 +2087,7 @@ const Message = memo(function MessageComponent({
                         display: 'block'
                       };
                     } else {
-                      // 1. 먼저 메시지 바로 아래에 메뉴를 배치해보기
+                      // 1. 먼저 메시지 바로 아래에 메뉴를 배치해보기 (원본 위치 기준)
                       const preferredMenuTop = rect.bottom + margin;
                       const preferredMenuBottom = preferredMenuTop + menuHeight;
                       
@@ -2100,9 +2103,9 @@ const Message = memo(function MessageComponent({
                           display: 'block'
                         };
                       } else {
-                        // 4. 공간이 충분하면 메시지 바로 아래에 배치
+                        // 4. 공간이 충분하면 메시지 바로 아래에 배치 (약간의 여유 공간 추가)
                         return {
-                          top: `${preferredMenuTop}px`,
+                          top: `${preferredMenuTop + 2}px`, // 2px 여유 공간 추가
                           left: '16px',
                           right: 'auto',
                           display: 'block'
