@@ -878,7 +878,7 @@ const Message = memo(function MessageComponent({
         height: 100%;
         backdrop-filter: blur(0px);
         -webkit-backdrop-filter: blur(0px);
-        z-index: 9998;
+        z-index: 9997;
         pointer-events: none;
         transition: backdrop-filter 0.5s cubic-bezier(0.4, 0, 0.2, 1);
       `;
@@ -1380,7 +1380,7 @@ const Message = memo(function MessageComponent({
       id={message.id}
       style={{
         position: longPressActive ? 'relative' : 'static',
-        zIndex: longPressActive ? 10001 : 'auto',
+        zIndex: longPressActive ? 99998 : 'auto',
         isolation: longPressActive ? 'isolate' : 'auto',
       }}
     >
