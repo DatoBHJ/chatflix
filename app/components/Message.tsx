@@ -886,42 +886,23 @@ const Message = memo(function MessageComponent({
       // iMessage와 유사한 하단 위치 조정 로직
       let newTransform = 'scale(1.05)'; 
       
-      // 사용자 메시지: 하이브리드 접근 - 메시지 근처 우선, 화면 벗어날 때만 하단 고정
+      // 사용자 메시지: bubbleRef 사용
       if (dropdownPosition === 'bottom' && bubbleRef.current && isUser) {
         const rect = bubbleRef.current.getBoundingClientRect();
         const menuHeight = 120;
         const margin = 16;
         const viewportHeight = window.innerHeight;
-        const menuBottomMargin = 20;
-        const messageToMenuMargin = 8;
         
-        // 1. 먼저 메시지 바로 아래에 메뉴를 배치해보기
-        const preferredMenuTop = rect.bottom + margin;
-        const preferredMenuBottom = preferredMenuTop + menuHeight;
-        
-        // 2. 메뉴가 화면을 벗어나는지 확인
-        const menuWouldGoOffscreen = preferredMenuBottom > viewportHeight - menuBottomMargin;
-        
+        const menuWouldGoOffscreen = rect.bottom + margin + menuHeight > viewportHeight;
+
         if (menuWouldGoOffscreen) {
-          // 3. 화면을 벗어나면 메뉴를 하단에 고정하고 메시지 조정
+          // 메뉴가 화면을 벗어날 경우: 메시지를 위로 이동
+          const menuBottomMargin = 20;
+          const messageToMenuMargin = 8;
           const menuTop = viewportHeight - menuBottomMargin - menuHeight;
-          
-          // 메시지가 메뉴와 겹치는지 확인
-          const messageBottom = rect.bottom;
-          const messageWouldOverlap = messageBottom + messageToMenuMargin > menuTop;
-          
-          if (messageWouldOverlap) {
-            // 메시지를 메뉴 위로 이동 (겹치지 않도록)
-            const targetBubbleBottom = menuTop - messageToMenuMargin;
-            const translateY = targetBubbleBottom - messageBottom;
-            newTransform = `translateY(${translateY}px) scale(1.05)`;
-          } else {
-            // 겹치지 않으면 단순 확대만
-            newTransform = 'scale(1.05)';
-          }
-        } else {
-          // 4. 공간이 충분하면 메시지 근처에 메뉴 배치 (메시지 이동 없음)
-          newTransform = 'scale(1.05)';
+          const targetBubbleBottom = menuTop - messageToMenuMargin;
+          const translateY = targetBubbleBottom - rect.bottom;
+          newTransform = `translateY(${translateY}px) scale(1.05)`;
         }
       }
       
@@ -1591,32 +1572,30 @@ const Message = memo(function MessageComponent({
                           <div 
                             className="fixed w-48 chat-input-tooltip-backdrop rounded-2xl z-[99999] overflow-hidden tool-selector"
                             style={{
-                              // 하이브리드 접근: 메시지 근처 우선, 화면 벗어날 때만 하단 고정
+                              // 메시지 버블 위치 계산
                               ...(() => {
                                 if (!bubbleRef.current) return { display: 'none' };
                                 const rect = bubbleRef.current.getBoundingClientRect();
-                                const menuHeight = 120;
+                                const dropdownHeight = 120;
                                 const margin = 16;
-                                const viewportHeight = window.innerHeight;
-                                const menuBottomMargin = 20;
                                 
                                 if (dropdownPosition === 'top') {
                                   return {
-                                    top: `${rect.top - menuHeight - margin}px`,
-                                    right: '16px',
+                                    top: `${rect.top - dropdownHeight - margin}px`,
+                                    right: '16px', // 화면 우측에서 16px 떨어진 고정 위치
                                     left: 'auto',
                                     display: 'block'
                                   };
                                 } else {
-                                  // 1. 먼저 메시지 바로 아래에 메뉴를 배치해보기
-                                  const preferredMenuTop = rect.bottom + margin;
-                                  const preferredMenuBottom = preferredMenuTop + menuHeight;
+                                  const menuHeight = 120;
+                                  const menuBottomMargin = 20;
+                                  const viewportHeight = window.innerHeight;
                                   
-                                  // 2. 메뉴가 화면을 벗어나는지 확인
-                                  const menuWouldGoOffscreen = preferredMenuBottom > viewportHeight - menuBottomMargin;
-                                  
+                                  const menuWouldGoOffscreen = rect.bottom + margin + menuHeight > viewportHeight;
+
                                   if (menuWouldGoOffscreen) {
-                                    // 3. 화면을 벗어나면 하단에 고정
+                                    // 메뉴가 화면을 벗어날 경우: 화면 하단에 고정
+                                    const menuBottomMargin = 20;
                                     return {
                                       top: `${viewportHeight - menuHeight - menuBottomMargin}px`,
                                       right: '16px',
@@ -1624,9 +1603,9 @@ const Message = memo(function MessageComponent({
                                       display: 'block'
                                     };
                                   } else {
-                                    // 4. 공간이 충분하면 메시지 바로 아래에 배치
+                                    // 공간이 충분할 경우: 메시지 바로 아래에 위치
                                     return {
-                                      top: `${preferredMenuTop}px`,
+                                      top: `${rect.bottom + margin}px`,
                                       right: '16px',
                                       left: 'auto',
                                       display: 'block'
