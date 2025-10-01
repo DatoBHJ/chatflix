@@ -1478,8 +1478,6 @@ const Message = memo(function MessageComponent({
                     boxShadow: 'none',
                     touchAction: longPressActive ? 'none' : 'auto',
                     overscrollBehavior: 'contain',
-                    zIndex: longPressActive ? 10 : 'auto',
-                    position: longPressActive ? 'relative' : 'static',
                   }}
                       >
                         <UserMessageContent 
@@ -1923,8 +1921,6 @@ const Message = memo(function MessageComponent({
                 boxShadow: 'none',
                 touchAction: longPressActive ? 'none' : 'auto',
                 overscrollBehavior: 'contain',
-                zIndex: longPressActive ? 10 : 'auto',
-                position: longPressActive ? 'relative' : 'static',
               }}
               onTouchStart={handleAITouchStart}
               onTouchEnd={handleAITouchEnd}
@@ -2260,13 +2256,7 @@ const Message = memo(function MessageComponent({
       )}
       {/* Add follow-up questions for the last assistant message */}
       {isAssistant && isLastMessage && !isGlobalLoading && !isStreaming && handleFollowUpQuestionClick && allMessages && chatId && (
-        <div 
-          className="follow-up-questions-section"
-          style={{
-            zIndex: longPressActive ? 1 : 'auto',
-            position: longPressActive ? 'relative' : 'static'
-          }}
-        >
+        <div className="follow-up-questions-section">
           <FollowUpQuestions 
             chatId={chatId} 
             userId={user?.id || 'anonymous'} 
