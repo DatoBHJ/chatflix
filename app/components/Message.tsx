@@ -1380,7 +1380,8 @@ const Message = memo(function MessageComponent({
       id={message.id}
       style={{
         position: longPressActive ? 'relative' : 'static',
-        zIndex: longPressActive ? 9999 : 'auto',
+        zIndex: longPressActive ? 10001 : 'auto',
+        isolation: longPressActive ? 'isolate' : 'auto',
       }}
     >
       <UnifiedInfoPanel
@@ -1636,7 +1637,6 @@ const Message = memo(function MessageComponent({
                     boxShadow: 'none',
                     touchAction: longPressActive ? 'none' : 'auto',
                     overscrollBehavior: 'contain',
-                    zIndex: longPressActive ? 10 : 'auto',
                     position: longPressActive ? 'relative' : 'static',
                   }}
                       >
@@ -2084,7 +2084,6 @@ const Message = memo(function MessageComponent({
                   boxShadow: 'none',
                   touchAction: longPressActive ? 'none' : 'auto',
                   overscrollBehavior: 'contain',
-                  zIndex: longPressActive ? 10 : 'auto',
                   position: longPressActive ? 'relative' : 'static',
                 }}
                 onTouchStart={handleAITouchStart}
