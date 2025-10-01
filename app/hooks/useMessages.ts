@@ -116,6 +116,28 @@ export function useMessages(chatId: string, userId: string) {
       alert('Please sign in to edit messages');
       return;
     }
+
+    // 🚀 비전 모델 검증: 편집 시에도 이미지가 있는데 비전 모델이 아닌 경우 에러 표시
+    const { detectImages } = await import('../api/chat/utils/messageUtils');
+    const { getModelById } = await import('../../lib/models/config');
+    const hasImages = messages.some(msg => detectImages(msg));
+    const modelConfig = getModelById(currentModel);
+    
+    if (hasImages && modelConfig && !modelConfig.supportsVision) {
+      // 비전 모델 에러 메시지를 사용자에게 표시
+      const errorMessageElement = document.createElement('div');
+        errorMessageElement.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 text-center max-w-md';
+      errorMessageElement.textContent = 'This conversation contains images. Please select a vision-enabled model to continue.';
+      document.body.appendChild(errorMessageElement);
+      
+      // 5초 후 에러 메시지 제거
+      setTimeout(() => {
+        if (errorMessageElement.parentNode) {
+          errorMessageElement.parentNode.removeChild(errorMessageElement);
+        }
+      }, 5000);
+      return;
+    }
     
     // console.log('Starting edit save operation:', { 
     //   currentModel,
@@ -415,6 +437,28 @@ export function useMessages(chatId: string, userId: string) {
       } as UIMessage;
       
       setMessages([...messages, signupPromptMessage]);
+      return;
+    }
+
+    // 🚀 비전 모델 검증: 재생성 시에도 이미지가 있는데 비전 모델이 아닌 경우 에러 표시
+    const { detectImages } = await import('../api/chat/utils/messageUtils');
+    const { getModelById } = await import('../../lib/models/config');
+    const hasImages = messages.some(msg => detectImages(msg));
+    const modelConfig = getModelById(currentModel);
+    
+    if (hasImages && modelConfig && !modelConfig.supportsVision) {
+      // 비전 모델 에러 메시지를 사용자에게 표시
+      const errorMessageElement = document.createElement('div');
+        errorMessageElement.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 text-center max-w-md';
+      errorMessageElement.textContent = 'This conversation contains images. Please select a vision-enabled model to continue.';
+      document.body.appendChild(errorMessageElement);
+      
+      // 5초 후 에러 메시지 제거
+      setTimeout(() => {
+        if (errorMessageElement.parentNode) {
+          errorMessageElement.parentNode.removeChild(errorMessageElement);
+        }
+      }, 5000);
       return;
     }
     

@@ -991,9 +991,9 @@ function ChatInterface({
 
       // 🚀 제목 생성 제거 - 사이드바에서 자체 처리하도록 단순화
       // 제목 생성은 불필요한 복잡성과 충돌을 야기하므로 제거
-    } catch (error) {
-      console.error('Message submission error:', error);
-    } finally {
+     } catch (error) {
+       console.error('Message submission error:', error);
+     } finally {
       setIsSubmitting(false);
     }
   }, [input, isSubmitting, user, chatId, nextModel, isAgentEnabled, selectedTool, sendMessage, setCurrentModel, setInput, initialChatId, uploadFile]);

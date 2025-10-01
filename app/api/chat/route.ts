@@ -144,6 +144,7 @@ export async function POST(req: Request): Promise<Response> {
       lastUserMessage.experimental_attachments = experimental_attachments;
     }
   }
+
   
   // 🚀 익명 사용자 지원: 일단 모든 기능 허용 (나중에 제한 추가 예정)
   // if (isAnonymousUser) {

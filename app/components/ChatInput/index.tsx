@@ -444,6 +444,41 @@ export function ChatInput({
   const submitMessage = useCallback(async () => {
     if (isSubmittingRef.current || isLoading || !inputRef.current) return;
 
+    // 🚀 비전 모델 검증: 전송 전에 이미지가 있는데 비전 모델이 아닌 경우 에러 표시
+    // 새로 업로드한 파일과 기존 메시지 모두 확인
+    const hasNewImages = files.some(file => file.type.startsWith('image/'));
+    const hasExistingImages = allMessages && allMessages.length > 0 ? allMessages.some(msg => {
+      // AI SDK v5: parts 배열 구조 체크
+      if (Array.isArray(msg.parts)) {
+        return msg.parts.some((part: any) => part.type === 'image');
+      }
+      // 기존 experimental_attachments도 체크 (하위 호환성)
+      if (msg.experimental_attachments && Array.isArray(msg.experimental_attachments)) {
+        return msg.experimental_attachments.some((attachment: any) => 
+          attachment.contentType?.startsWith('image/')
+        );
+      }
+      return false;
+    }) : false;
+    const hasImages = hasNewImages || hasExistingImages;
+    
+    
+    if (hasImages && !supportsVision) {
+      // 비전 모델 에러 메시지를 사용자에게 표시
+      const errorMessageElement = document.createElement('div');
+      errorMessageElement.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 text-center max-w-md';
+      errorMessageElement.textContent = 'This conversation contains images. Please select a vision-enabled model to continue.';
+      document.body.appendChild(errorMessageElement);
+      
+      // 5초 후 에러 메시지 제거
+      setTimeout(() => {
+        if (errorMessageElement.parentNode) {
+          errorMessageElement.parentNode.removeChild(errorMessageElement);
+        }
+      }, 5000);
+      return;
+    }
+
     isSubmittingRef.current = true;
     
     try {
@@ -499,7 +534,7 @@ export function ChatInput({
     } finally {
       isSubmittingRef.current = false;
     }
-  }, [handleInputChange, handleSubmit, files, fileMap, isLoading, selectedTool]);
+  }, [handleInputChange, handleSubmit, files, fileMap, isLoading, selectedTool, supportsVision, allMessages]);
 
   // 간단한 내용 확인 - input prop 기반으로 통일
   const hasContent = input.length > 0 || files.length > 0;
@@ -1385,6 +1420,8 @@ export function ChatInput({
     </div>
   );
   }
+
+
 
 
 
