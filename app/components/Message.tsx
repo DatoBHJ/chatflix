@@ -867,23 +867,6 @@ const Message = memo(function MessageComponent({
   // 롱프레스 활성화 시 단순한 상태 관리 (스크롤 잠금 제거)
   useEffect(() => {
     if (longPressActive) {
-      // 배경 오버레이 추가
-      const overlay = document.createElement('div');
-      overlay.id = 'long-press-overlay';
-      overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        backdrop-filter: blur(2px);
-        -webkit-backdrop-filter: blur(2px);
-        z-index: 9998;
-        pointer-events: none;
-        transition: backdrop-filter 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-      `;
-      document.body.appendChild(overlay);
-      
       // 강력한 스크롤 방지
       document.body.style.overflow = 'hidden';
       document.body.style.position = 'fixed';
@@ -1008,12 +991,6 @@ const Message = memo(function MessageComponent({
       document.addEventListener('click', handleClickOutside);
       
       return () => {
-        // 오버레이 제거
-        const overlay = document.getElementById('long-press-overlay');
-        if (overlay) {
-          overlay.remove();
-        }
-        
         // 스크롤 복원
         document.body.style.overflow = '';
         document.body.style.position = '';
@@ -1367,14 +1344,7 @@ const Message = memo(function MessageComponent({
   }, [message]);
 
   return (
-    <div 
-      className={`message-group group animate-fade-in ${getMinHeight}`} 
-      id={message.id}
-      style={{
-        position: longPressActive ? 'relative' : 'static',
-        zIndex: longPressActive ? 9999 : 'auto',
-      }}
-    >
+    <div className={`message-group group animate-fade-in ${getMinHeight}`} id={message.id}>
       <UnifiedInfoPanel
         reasoningPart={reasoningPart}
         isAssistant={isAssistant}
@@ -2432,10 +2402,7 @@ const Message = memo(function MessageComponent({
           className="follow-up-questions-section"
           style={{
             zIndex: longPressActive ? 1 : 'auto',
-            position: longPressActive ? 'relative' : 'static',
-            visibility: longPressActive ? 'hidden' : 'visible',
-            opacity: longPressActive ? 0 : 1,
-            transition: 'opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1)'
+            position: longPressActive ? 'relative' : 'static'
           }}
         >
           <FollowUpQuestions 
