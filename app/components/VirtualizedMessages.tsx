@@ -371,7 +371,7 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
     // <div ref={messagesEndRef} style={{ height: '300px', minHeight: '300px' }} />
     <div 
       ref={messagesEndRef} 
-      className="h-[200px] min-h-[200px] md:h-[300px] md:min-h-[300px]"
+      className="h-[100px] min-h-[100px] md:h-[300px] md:min-h-[300px]"
     />
   ), [messagesEndRef]);
 
