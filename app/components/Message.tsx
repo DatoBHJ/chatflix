@@ -3,7 +3,7 @@ import { ExtendedMessage } from '../chat/[id]/types'
 import { Attachment } from '@/lib/types'
 import React, { memo, useCallback, useState, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { IoCreateOutline, IoCopyOutline, IoCheckmarkOutline } from 'react-icons/io5'
+import { IoCreateOutline, IoCopyOutline, IoCheckmarkOutline, IoBookmarkOutline, IoBookmark } from 'react-icons/io5'
 
 import { AttachmentPreview } from './Attachment'
 import { DragDropOverlay } from './ChatInput/DragDropOverlay'; 
@@ -1699,7 +1699,7 @@ const Message = memo(function MessageComponent({
                               // 드롭다운 내부 클릭은 닫지 않음
                             }}
                           >
-                          <div className="flex flex-col gap-1 space-y-1">
+                          <div className="flex flex-col gap-2 space-y-2">
                             {/* 편집 버튼 */}
                             <button
                               onClick={(e) => {
@@ -1716,7 +1716,7 @@ const Message = memo(function MessageComponent({
                                 handleEditStartClick();
                                 handleLongPressCancel();
                               }}
-                              className="flex items-center gap-2 px-4 pt-3 transition-colors duration-150 rounded-xl tool-button"
+                              className="flex items-center gap-3 px-5 pt-4 transition-colors duration-150 rounded-xl tool-button"
                               style={{
                                 '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
                                 '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
@@ -1752,7 +1752,7 @@ const Message = memo(function MessageComponent({
                                 onCopy(message);
                                 handleLongPressCancel();
                               }}
-                              className="flex items-center gap-2 px-4 pb-3 transition-colors duration-150 rounded-xl tool-button"
+                              className="flex items-center gap-3 px-5 pb-4 transition-colors duration-150 rounded-xl tool-button"
                               style={{
                                 '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
                                 '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
@@ -1870,7 +1870,7 @@ const Message = memo(function MessageComponent({
                           // 드롭다운 내부 클릭은 닫지 않음
                         }}
                       >
-                        <div className="flex flex-col gap-1 space-y-1">
+                        <div className="flex flex-col gap-2 space-y-2">
                           {/* 재생성 버튼 */}
                           <button
                             onClick={(e) => {
@@ -1888,7 +1888,7 @@ const Message = memo(function MessageComponent({
                               handleLongPressCancel();
                             }}
                             disabled={isRegenerating}
-                            className="flex items-center gap-2 px-4 pt-3 transition-colors duration-150 rounded-xl tool-button"
+                            className="flex items-center gap-3 px-5 pt-4 transition-colors duration-150 rounded-xl tool-button"
                             style={{
                               '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
                               '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
@@ -1904,7 +1904,7 @@ const Message = memo(function MessageComponent({
                             onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
                           > 
                             <div className="w-6 h-6 flex items-center justify-center">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isRegenerating ? 'animate-spin' : ''}>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={isRegenerating ? 'animate-spin' : ''} style={{ color: 'var(--foreground)' }}>
                                 <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
                                 <path d="M21 3v5h-5"/>
                                 <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
@@ -1932,7 +1932,7 @@ const Message = memo(function MessageComponent({
                               onCopy(message);
                               handleLongPressCancel();
                             }}
-                            className="flex items-center gap-2 px-4 transition-colors duration-150 rounded-xl tool-button"
+                            className="flex items-center gap-3 px-5 transition-colors duration-150 rounded-xl tool-button"
                             style={{
                               '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
                               '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
@@ -1948,14 +1948,9 @@ const Message = memo(function MessageComponent({
                           >
                             <div className="w-6 h-6 flex items-center justify-center">
                               {isCopied ? (
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="20,6 9,17 4,12"/>
-                                </svg>
+                                <IoCheckmarkOutline size={20} style={{ color: 'var(--status-text-complete)' }} />
                               ) : (
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                                </svg>
+                                <IoCopyOutline size={20} style={{ color: 'var(--foreground)' }} />
                               )}
                             </div>
                             <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
@@ -1980,7 +1975,7 @@ const Message = memo(function MessageComponent({
                               handleLongPressCancel();
                             }}
                             disabled={isBookmarksLoading}
-                            className="flex items-center gap-2 px-4 pb-3 transition-colors duration-150 rounded-xl tool-button"
+                            className="flex items-center gap-3 px-5 pb-4 transition-colors duration-150 rounded-xl tool-button"
                             style={{
                               '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
                               '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
@@ -1996,20 +1991,11 @@ const Message = memo(function MessageComponent({
                             onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
                           >
                             <div className="w-6 h-6 flex items-center justify-center">
-                              <svg 
-                                xmlns="http://www.w3.org/2000/svg" 
-                                width="20" 
-                                height="20" 
-                                viewBox="0 0 24 24" 
-                                fill={isBookmarked ? "currentColor" : "none"}
-                                stroke="currentColor" 
-                                strokeWidth="2" 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round"
-                                className={isBookmarksLoading ? "animate-pulse" : ""}
-                              >
-                                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-                              </svg>
+                              {isBookmarked ? (
+                                <IoBookmark size={20} style={{ color: 'var(--foreground)' }} className={isBookmarksLoading ? "animate-pulse" : ""} />
+                              ) : (
+                                <IoBookmarkOutline size={20} style={{ color: 'var(--foreground)' }} className={isBookmarksLoading ? "animate-pulse" : ""} />
+                              )}
                             </div>
                             <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                               {isBookmarked ? 'Remove bookmark' : 'Bookmark'}
@@ -2182,7 +2168,7 @@ const Message = memo(function MessageComponent({
                   // 드롭다운 내부 클릭은 닫지 않음
                 }}
               >
-                <div className="flex flex-col gap-1 space-y-1">
+                <div className="flex flex-col gap-2 space-y-2">
                   {/* 재생성 버튼 */}
                   <button
                     onClick={(e) => {
@@ -2200,7 +2186,7 @@ const Message = memo(function MessageComponent({
                       handleLongPressCancel();
                     }}
                     disabled={isRegenerating}
-                    className="flex items-center gap-2 px-4 pt-3 transition-colors duration-150 rounded-xl tool-button"
+                    className="flex items-center gap-3 px-5 pt-4 transition-colors duration-150 rounded-xl tool-button"
                     style={{
                       '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
                       '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
@@ -2216,7 +2202,7 @@ const Message = memo(function MessageComponent({
                     onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
                   > 
                     <div className="w-6 h-6 flex items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isRegenerating ? 'animate-spin' : ''}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={isRegenerating ? 'animate-spin' : ''} style={{ color: 'var(--foreground)' }}>
                         <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
                         <path d="M21 3v5h-5"/>
                         <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
@@ -2244,7 +2230,7 @@ const Message = memo(function MessageComponent({
                       onCopy(message);
                       handleLongPressCancel();
                     }}
-                    className="flex items-center gap-2 px-4 transition-colors duration-150 rounded-xl tool-button"
+                    className="flex items-center gap-3 px-5 transition-colors duration-150 rounded-xl tool-button"
                     style={{
                       '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
                       '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
@@ -2260,14 +2246,9 @@ const Message = memo(function MessageComponent({
                   >
                     <div className="w-6 h-6 flex items-center justify-center">
                       {isCopied ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20,6 9,17 4,12"/>
-                        </svg>
+                        <IoCheckmarkOutline size={20} style={{ color: 'var(--status-text-complete)' }} />
                       ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                        </svg>
+                        <IoCopyOutline size={20} style={{ color: 'var(--foreground)' }} />
                       )}
                     </div>
                     <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
@@ -2292,7 +2273,7 @@ const Message = memo(function MessageComponent({
                       handleLongPressCancel();
                     }}
                     disabled={isBookmarksLoading}
-                    className="flex items-center gap-2 px-4 pb-3 transition-colors duration-150 rounded-xl tool-button"
+                    className="flex items-center gap-3 px-5 pb-4 transition-colors duration-150 rounded-xl tool-button"
                     style={{
                       '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
                       '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
@@ -2308,20 +2289,11 @@ const Message = memo(function MessageComponent({
                     onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
                   >
                     <div className="w-6 h-6 flex items-center justify-center">
-                      <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        width="20" 
-                        height="20" 
-                        viewBox="0 0 24 24" 
-                        fill={isBookmarked ? "currentColor" : "none"}
-                        stroke="currentColor" 
-                        strokeWidth="2" 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round"
-                        className={isBookmarksLoading ? "animate-pulse" : ""}
-                      >
-                        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-                      </svg>
+                      {isBookmarked ? (
+                        <IoBookmark size={20} style={{ color: 'var(--foreground)' }} className={isBookmarksLoading ? "animate-pulse" : ""} />
+                      ) : (
+                        <IoBookmarkOutline size={20} style={{ color: 'var(--foreground)' }} className={isBookmarksLoading ? "animate-pulse" : ""} />
+                      )}
                     </div>
                     <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                       {isBookmarked ? 'Remove bookmark' : 'Bookmark'}
