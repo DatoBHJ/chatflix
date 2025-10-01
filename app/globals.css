@@ -2523,7 +2523,7 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   position: relative;
   margin-top: 1rem;
   min-height: 0;
-  contain: layout style;
+  contain: layout;
 }
 
 @media (min-width: 640px) {
@@ -2538,7 +2538,7 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   display: flex;
   justify-content: flex-end;
   margin-top: 2.5rem;
-  contain: layout style;
+  contain: layout;
 }
 
 .follow-up-questions-wrapper {
@@ -2548,7 +2548,7 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   align-items: flex-end;
   gap: 0.25rem;
   min-height: fit-content;
-  contain: layout style;
+  contain: layout;
 }
 
 /* Follow-up Question Interaction Styles */
@@ -3173,44 +3173,5 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
 
 .message-segment.text-size-4xl:not(.multi-line) {
   padding: 16px 28px !important;
-}
-
-/* PWA 환경에서의 z-index 충돌 방지 */
-@media (display-mode: standalone) {
-  .imessage-send-bubble,
-  .imessage-receive-bubble {
-    isolation: isolate;
-  }
-  
-  /* PWA 환경에서 롱프레스 메뉴의 z-index 보장 */
-  .chat-input-tooltip-backdrop {
-    z-index: 2147483647 !important;
-    position: fixed !important;
-  }
-  
-  /* PWA 환경에서 메시지 그룹의 z-index 보장 */
-  .message-group {
-    isolation: isolate;
-  }
-  
-  /* PWA 환경에서 오버레이의 z-index 보장 */
-  #long-press-overlay {
-    z-index: 2147483646 !important;
-  }
-  
-  /* PWA 환경에서 스크롤 방지 강화 */
-  body.long-press-active {
-    overflow: hidden !important;
-    position: fixed !important;
-    width: 100% !important;
-    height: 100% !important;
-  }
-  
-  html.long-press-active {
-    overflow: hidden !important;
-    position: fixed !important;
-    width: 100% !important;
-    height: 100% !important;
-  }
 }
 
