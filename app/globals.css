@@ -2271,14 +2271,6 @@ p:has(.katex) {
   border-bottom-left-radius: 10.5px; /* 10px * 1.05 */
 }
 
-/* 롱프레스 시 메시지 버블이 오버레이 위에 오도록 강제 */
-.imessage-send-bubble.long-press-scaled,
-.imessage-receive-bubble.long-press-scaled {
-  z-index: 99999 !important;
-  position: relative !important;
-  isolation: isolate !important;
-}
-
 /* Hover effect removed for sidebar bubbles to prevent unwanted hover on selected items */
 
 /* Line clamp utilities for sidebar */
@@ -2531,7 +2523,7 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   position: relative;
   margin-top: 1rem;
   min-height: 0;
-  contain: layout style;
+  contain: layout;
 }
 
 @media (min-width: 640px) {
@@ -2546,7 +2538,7 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   display: flex;
   justify-content: flex-end;
   margin-top: 2.5rem;
-  contain: layout style;
+  contain: layout;
 }
 
 .follow-up-questions-wrapper {
@@ -2556,7 +2548,7 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   align-items: flex-end;
   gap: 0.25rem;
   min-height: fit-content;
-  contain: layout style;
+  contain: layout;
 }
 
 /* Follow-up Question Interaction Styles */
