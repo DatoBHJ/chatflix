@@ -971,14 +971,13 @@ const Message = memo(function MessageComponent({
     setLongPressTimer(timer);
   };
 
-  // 터치 시작 핸들러 (AI 메시지용) - iOS Safari 최적화
+  // 터치 시작 핸들러 (AI 메시지용)
   const handleAITouchStart = (e: React.TouchEvent) => {
     if (!isMobile || !isAssistant) return;
     
-    // iOS Safari에서 더 강력한 이벤트 제어
+    // 스크롤 방지를 위한 preventDefault
     e.preventDefault();
     e.stopPropagation();
-    e.nativeEvent.stopImmediatePropagation();
     
     setTouchStartTime(Date.now());
     setTouchStartY(e.touches[0].clientY);
@@ -1026,14 +1025,11 @@ const Message = memo(function MessageComponent({
     setIsLongPressActive(false);
   };
 
-  // 터치 종료 핸들러 (AI 메시지용) - iOS Safari 최적화
+  // 터치 종료 핸들러 (AI 메시지용)
   const handleAITouchEnd = (e: React.TouchEvent) => {
     if (!isMobile || !isAssistant) return;
     
-    // iOS Safari에서 더 강력한 이벤트 제어
     e.preventDefault();
-    e.stopPropagation();
-    e.nativeEvent.stopImmediatePropagation();
     
     // 타이머 정리
     if (longPressTimer) {
@@ -1070,18 +1066,14 @@ const Message = memo(function MessageComponent({
     }
   };
 
-  // 터치 이동 핸들러 (스크롤 방지) - AI 메시지용 - iOS Safari 최적화
+  // 터치 이동 핸들러 (스크롤 방지) - AI 메시지용
   const handleAITouchMove = (e: React.TouchEvent) => {
     if (!isMobile || !isAssistant) return;
     
-    // iOS Safari에서 더 강력한 이벤트 제어
-    e.preventDefault();
-    e.stopPropagation();
-    e.nativeEvent.stopImmediatePropagation();
-    
     // 롱프레스 활성화 시 스크롤 완전 방지
     if (longPressActive || isLongPressActive) {
-      return;
+      e.preventDefault();
+      e.stopPropagation();
     }
   };
 
@@ -1938,27 +1930,7 @@ const Message = memo(function MessageComponent({
               onTouchEnd={handleAITouchEnd}
               onTouchMove={handleAITouchMove}
             >
-              <div 
-                className="imessage-content-wrapper space-y-4"
-                style={{
-                  pointerEvents: longPressActive ? 'none' : 'auto',
-                  WebkitTouchCallout: 'none',
-                  WebkitUserSelect: 'none',
-                  userSelect: 'none',
-                }}
-                onTouchStart={(e) => {
-                  // iOS Safari에서 터치 이벤트 전파 방지
-                  e.stopPropagation();
-                }}
-                onTouchEnd={(e) => {
-                  // iOS Safari에서 터치 이벤트 전파 방지
-                  e.stopPropagation();
-                }}
-                onTouchMove={(e) => {
-                  // iOS Safari에서 터치 이벤트 전파 방지
-                  e.stopPropagation();
-                }}
-              >
+              <div className="imessage-content-wrapper space-y-4">
                 {/* 기존 컨텐츠 렌더링 로직 */}
                 {hasAttachments && (allAttachments as any[])!.map((attachment: any, index: number) => (
                   <AttachmentPreview key={`${message.id}-att-${index}`} attachment={attachment} />
@@ -1966,10 +1938,55 @@ const Message = memo(function MessageComponent({
               
                 {message.parts ? (
                   processedParts?.map((part: any, index: number) => (
-                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile}/>
+                    part.type === 'text' && (
+                      <div 
+                        key={index}
+                        style={{
+                          pointerEvents: longPressActive ? 'none' : 'auto',
+                          WebkitTouchCallout: 'none',
+                          WebkitUserSelect: 'none',
+                          userSelect: 'none',
+                        }}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchEnd={(e) => e.stopPropagation()}
+                        onTouchMove={(e) => e.stopPropagation()}
+                      >
+                        <MarkdownContent 
+                          content={part.text} 
+                          enableSegmentation={isAssistant} 
+                          searchTerm={searchTerm} 
+                          messageType={isAssistant ? 'assistant' : 'user'} 
+                          thumbnailMap={thumbnailMap} 
+                          titleMap={titleMap} 
+                          isMobile={isMobile}
+                        />
+                      </div>
+                    )
                   ))
                 ) : (
-                  (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile}/>
+                  (hasContent && !hasStructuredData) && (
+                    <div 
+                      style={{
+                        pointerEvents: longPressActive ? 'none' : 'auto',
+                        WebkitTouchCallout: 'none',
+                        WebkitUserSelect: 'none',
+                        userSelect: 'none',
+                      }}
+                      onTouchStart={(e) => e.stopPropagation()}
+                      onTouchEnd={(e) => e.stopPropagation()}
+                      onTouchMove={(e) => e.stopPropagation()}
+                    >
+                      <MarkdownContent 
+                        content={processedContent} 
+                        enableSegmentation={isAssistant} 
+                        searchTerm={searchTerm} 
+                        messageType={isAssistant ? 'assistant' : 'user'} 
+                        thumbnailMap={thumbnailMap} 
+                        titleMap={titleMap} 
+                        isMobile={isMobile}
+                      />
+                    </div>
+                  )
                 )}
                 
                 <FilesPreview
