@@ -407,7 +407,7 @@ const Message = memo(function MessageComponent({
 
   
   const handleEditStartClick = () => {
-    // 편집 모드에서는 최소 높이 설정하지 않음 - 자연스러운 크기로 조정
+    // 편집 모드에서는 자연스러운 크기로 조정
     setContainerMinHeight('auto');
     onEditStart(message);
   };
@@ -743,14 +743,10 @@ const Message = memo(function MessageComponent({
       const len = textarea.value.length;
       textarea.setSelectionRange(len, len);
 
-      // 편집 모드에서는 메시지가 자연스럽게 보이도록 스크롤 조정
+      // 메시지 그룹을 화면 중앙으로 스크롤
       setTimeout(() => {
-        const messageGroup = textarea.closest('.message-group');
-        if (messageGroup) {
-          // 편집 모드에서는 메시지가 화면에 잘 보이도록 스크롤
-          messageGroup.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-      }, 50); // DOM 업데이트 후 스크롤
+        textarea.closest('.message-group')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100); // DOM 업데이트 후 스크롤
     }
   }, [isEditing, textareaRef]);
 
