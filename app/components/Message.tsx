@@ -1010,7 +1010,7 @@ const Message = memo(function MessageComponent({
     }
   }, [longPressActive, dropdownPosition]);
 
-  // 터치 시작 핸들러 (사용자 메시지용)
+  // 터치 시작 핸들러 (사용자 메시지용) - AI 메시지와 동일한 방식
   const handleUserTouchStart = (e: React.TouchEvent) => {
     if (!isMobile || !isUser) return;
     
@@ -1024,6 +1024,43 @@ const Message = memo(function MessageComponent({
     
     // 항상 메뉴가 메시지 아래에 나오도록 설정
     setDropdownPosition('bottom');
+    
+      // 터치 시작 시점에 메뉴 위치 미리 계산 (glitch 방지) - 사용자 메시지는 우측
+      if (bubbleRef.current) {
+        const rect = bubbleRef.current.getBoundingClientRect();
+        const menuHeight = 120;
+        const margin = 16;
+        const viewportHeight = window.innerHeight;
+        const menuBottomMargin = 20;
+        
+        // 1. 먼저 메시지 바로 아래에 메뉴를 배치해보기 (원본 위치 기준)
+        const preferredMenuTop = rect.bottom + margin;
+        const preferredMenuBottom = preferredMenuTop + menuHeight;
+        
+        // 2. 메뉴가 화면을 벗어나는지 확인
+        const menuWouldGoOffscreen = preferredMenuBottom > viewportHeight - menuBottomMargin;
+        
+        let menuPosition;
+        if (menuWouldGoOffscreen) {
+          // 3. 화면을 벗어나면 하단에 고정
+          menuPosition = {
+            top: `${viewportHeight - menuHeight - menuBottomMargin}px`,
+            right: '16px',
+            left: 'auto',
+            display: 'block'
+          };
+        } else {
+        // 4. 공간이 충분하면 메시지 바로 아래에 배치
+        menuPosition = {
+          top: `${preferredMenuTop}px`,
+          right: '16px',
+          left: 'auto',
+          display: 'block'
+        };
+        }
+        
+        setPreCalculatedMenuPosition(menuPosition);
+      }
     
     // 롱프레스 타이머 시작 (500ms)
     const timer = setTimeout(() => {
@@ -1073,9 +1110,9 @@ const Message = memo(function MessageComponent({
           display: 'block'
         };
       } else {
-        // 4. 공간이 충분하면 메시지 바로 아래에 배치 (약간의 여유 공간 추가)
+        // 4. 공간이 충분하면 메시지 바로 아래에 배치
         menuPosition = {
-          top: `${preferredMenuTop + 2}px`, // 2px 여유 공간 추가
+          top: `${preferredMenuTop}px`,
           left: '16px',
           right: 'auto',
           display: 'block'
@@ -1631,9 +1668,16 @@ const Message = memo(function MessageComponent({
                           <div 
                             className="fixed w-48 chat-input-tooltip-backdrop rounded-2xl z-[99999] overflow-hidden tool-selector"
                 style={{
-                  // 하이브리드 접근: 메시지 근처 우선, 화면 벗어날 때만 하단 고정
+                  // AI 메시지와 동일한 위치 계산 로직
                   ...(() => {
                     if (!bubbleRef.current) return { display: 'none' };
+                    
+                    // 미리 계산된 위치가 있으면 사용, 없으면 실시간 계산
+                    if (preCalculatedMenuPosition) {
+                      return preCalculatedMenuPosition;
+                    }
+                    
+                    // fallback: 실시간 계산 - 사용자 메시지는 우측
                     const rect = bubbleRef.current.getBoundingClientRect();
                     const menuHeight = 120;
                     const margin = 16;
@@ -1648,7 +1692,7 @@ const Message = memo(function MessageComponent({
                         display: 'block'
                       };
                     } else {
-                      // 1. 먼저 메시지 바로 아래에 메뉴를 배치해보기
+                      // 1. 먼저 메시지 바로 아래에 메뉴를 배치해보기 (원본 위치 기준)
                       const preferredMenuTop = rect.bottom + margin;
                       const preferredMenuBottom = preferredMenuTop + menuHeight;
                       
@@ -2133,9 +2177,9 @@ const Message = memo(function MessageComponent({
                           display: 'block'
                         };
                       } else {
-                        // 4. 공간이 충분하면 메시지 바로 아래에 배치 (약간의 여유 공간 추가)
+                        // 4. 공간이 충분하면 메시지 바로 아래에 배치
                         return {
-                          top: `${preferredMenuTop + 2}px`, // 2px 여유 공간 추가
+                          top: `${preferredMenuTop}px`,
                           left: '16px',
                           right: 'auto',
                           display: 'block'
