@@ -329,7 +329,6 @@ interface MarkdownContentProps {
   thumbnailMap?: { [key: string]: string }; // 🚀 FEATURE: Thumbnail map for link previews
   titleMap?: { [key: string]: string }; // 🚀 FEATURE: Title map for link previews
   isMobile?: boolean;
-  noTail?: boolean; // 꼬리 제거 옵션
 }
 
 // 더 적극적으로 마크다운 구조를 분할하는 함수 - 구분선(---)을 기준으로 메시지 그룹 분할
@@ -1232,8 +1231,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   messageType = 'default',
   thumbnailMap = {},
   titleMap = {},
-  isMobile = false,
-  noTail = false
+  isMobile = false
 }: MarkdownContentProps) {
 
   // Image modal state
@@ -2601,7 +2599,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
 
         return (
           <div key={groupIndex} className={isReasoningSection ? '' : 'imessage-receive-bubble'}>
-            <div className={`${isReasoningSection ? 'markdown-segments' : 'message-segments'}${noTail ? ' no-tail' : ''}`}>
+            <div className={isReasoningSection ? 'markdown-segments' : 'message-segments'}>
               {segmentGroup.map((segment, index) => {
               // 이미지 세그먼트인지 확인
               const isImageSegment = /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segment);
