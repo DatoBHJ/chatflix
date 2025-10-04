@@ -1126,11 +1126,11 @@ const Message = memo(function MessageComponent({
     // 항상 메뉴가 메시지 아래에 나오도록 설정
     setDropdownPosition('bottom');
     
-    // 롱프레스 타이머 시작 (350ms)
+    // 롱프레스 타이머 시작 (500ms)
     const timer = setTimeout(() => {
       setLongPressActive(true);
       setIsLongPressActive(true);
-    }, 350);
+    }, 500);
     
     setLongPressTimer(timer);
   };
@@ -1236,7 +1236,7 @@ const Message = memo(function MessageComponent({
       setPreCalculatedMenuPosition(menuPosition);
     }
     
-    // 롱프레스 타이머 시작 (350ms)
+    // 롱프레스 타이머 시작 (500ms)
     const timer = setTimeout(() => {
       setLongPressActive(true);
       setIsLongPressActive(true);
@@ -1261,7 +1261,7 @@ const Message = memo(function MessageComponent({
         document.body.style.position = 'fixed';
         document.body.style.width = '100%';
       }
-    }, 350);
+    }, 500);
     
     setLongPressTimer(timer);
   };
@@ -1287,7 +1287,7 @@ const Message = memo(function MessageComponent({
     }
     
     // 짧은 터치인 경우 일반 클릭으로 처리 (아무것도 하지 않음)
-    if (touchDuration < 350 && !longPressActive) {
+    if (touchDuration < 500 && !longPressActive) {
       // 일반 클릭은 아무것도 하지 않음
     }
     
@@ -1318,7 +1318,7 @@ const Message = memo(function MessageComponent({
     }
     
     // 짧은 터치인 경우 일반 클릭으로 처리 (아무것도 하지 않음)
-    if (touchDuration < 350 && !longPressActive) {
+    if (touchDuration < 500 && !longPressActive) {
       // 일반 클릭은 아무것도 하지 않음
     }
     
