@@ -2279,9 +2279,9 @@ const Message = memo(function MessageComponent({
             <div
               className="fixed z-[99999]"
               style={{
-                top: `${overlayPhase === 'entering' ? overlayMetrics.originalRect.top : overlayPhase === 'exiting' ? overlayMetrics.originalRect.top : overlayMetrics.overlayPosition.top}px`,
-                left: `${overlayPhase === 'entering' ? overlayMetrics.originalRect.left : overlayPhase === 'exiting' ? overlayMetrics.originalRect.left : overlayMetrics.overlayPosition.left}px`,
-                transform: `scale(${overlayPhase === 'entering' ? 1 : overlayPhase === 'exiting' ? 1 : overlayMetrics.scale})`,
+                top: `${overlayPhase === 'entering' ? overlayMetrics.overlayPosition.top : overlayPhase === 'exiting' ? overlayMetrics.originalRect.top : overlayMetrics.overlayPosition.top}px`,
+                left: `${overlayPhase === 'entering' ? overlayMetrics.overlayPosition.left : overlayPhase === 'exiting' ? overlayMetrics.originalRect.left : overlayMetrics.overlayPosition.left}px`,
+                transform: `scale(${overlayPhase === 'entering' ? overlayMetrics.scale : overlayPhase === 'exiting' ? 1 : overlayMetrics.scale})`,
                 transformOrigin: 'top center',
                 width: `${overlayMetrics.originalRect.width}px`,
                 height: `${overlayMetrics.originalRect.height + 16}px`, // 하단 여유 공간 추가
