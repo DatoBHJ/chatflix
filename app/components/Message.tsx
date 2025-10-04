@@ -1181,11 +1181,12 @@ const Message = memo(function MessageComponent({
         // 축소된 높이
         const scaledHeight = rect.height * scale;
         
-        // 오버레이 위치 계산: 원본 위치에 최대한 가깝게 배치
+        // 오버레이 위치 계산: 메뉴 바로 위에 배치
         const targetBottom = viewportHeight - menuBottomMargin - menuHeight;
-        const overlayTop = Math.max(margin, Math.min(rect.top, targetBottom - scaledHeight));
+        const overlayTop = Math.max(margin, targetBottom - scaledHeight);
         
-        // 수평 위치: 원본 위치에 최대한 가깝게 배치
+        // 수평 중앙 정렬 (화면 너비 내에서)
+        const maxWidth = window.innerWidth - (margin * 2);
         const scaledWidth = rect.width * scale;
         const overlayLeft = Math.max(margin, Math.min(
           rect.left, 
@@ -2278,10 +2279,10 @@ const Message = memo(function MessageComponent({
             <div
               className="fixed z-[99999]"
               style={{
-                top: `${overlayPhase === 'entering' ? overlayMetrics.originalRect.top : overlayPhase === 'exiting' ? overlayMetrics.originalRect.top : overlayMetrics.overlayPosition.top}px`,
-                left: `${overlayPhase === 'entering' ? overlayMetrics.originalRect.left : overlayPhase === 'exiting' ? overlayMetrics.originalRect.left : overlayMetrics.overlayPosition.left}px`,
-                transform: `scale(${overlayPhase === 'entering' ? 1 : overlayPhase === 'exiting' ? 1 : overlayMetrics.scale})`,
-                transformOrigin: overlayMetrics.originalRect.top > window.innerHeight * 0.5 ? 'bottom center' : 'top center',
+                top: `${overlayPhase === 'entering' ? overlayMetrics.overlayPosition.top : overlayPhase === 'exiting' ? overlayMetrics.originalRect.top : overlayMetrics.overlayPosition.top}px`,
+                left: `${overlayPhase === 'entering' ? overlayMetrics.overlayPosition.left : overlayPhase === 'exiting' ? overlayMetrics.originalRect.left : overlayMetrics.overlayPosition.left}px`,
+                transform: `scale(${overlayPhase === 'entering' ? overlayMetrics.scale : overlayPhase === 'exiting' ? 1 : overlayMetrics.scale})`,
+                transformOrigin: 'top center',
                 width: `${overlayMetrics.originalRect.width}px`,
                 height: `${overlayMetrics.originalRect.height + 16}px`, // 하단 여유 공간 추가
                 opacity: overlayPhase === 'entering' ? 0 : overlayPhase === 'exiting' ? 0 : 1,
