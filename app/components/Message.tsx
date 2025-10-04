@@ -900,7 +900,7 @@ const Message = memo(function MessageComponent({
     // 1. 먼저 오버레이를 축소 상태로 유지하면서 원본 메시지를 다시 보이게 함
     setOverlayPhase('exiting');
     
-    // 2. 150ms 후 원본 메시지가 완전히 나타나면 오버레이 제거
+    // 2. 300ms 후 원본 메시지가 완전히 나타나면 오버레이 제거
     animationTimeoutRef.current = setTimeout(() => {
       setLongPressActive(false);
       setIsLongPressActive(false);
@@ -908,7 +908,7 @@ const Message = memo(function MessageComponent({
       setOverlayMetrics(null);
       setBubbleTransform('scale(1) translateY(0)');
       setOverlayPhase('idle');
-    }, 300); // 150ms (원본 메시지 페이드인) + 150ms (오버레이 페이드아웃)
+    }, 500); // 300ms (원본 메시지 페이드인) + 200ms (오버레이 페이드아웃)
   }, [clearAnimationTimeout, overlayMetrics]);
 
   useEffect(() => {
@@ -1253,7 +1253,7 @@ const Message = memo(function MessageComponent({
       setOverlayPhase('entering');
       animationTimeoutRef.current = setTimeout(() => {
         setOverlayPhase('active');
-      }, 150); // 150ms 후 active 상태로 전환
+      }, 300); // 300ms 후 active 상태로 전환 (더 천천히)
       
       // iOS Safari: 롱프레스 활성화 시 스크롤 방지
       if (typeof window !== 'undefined' && navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome')) {
@@ -2203,7 +2203,7 @@ const Message = memo(function MessageComponent({
                   userSelect: 'none',
                   cursor: 'default',
                   transform: bubbleTransform,
-                  transition: 'transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 150ms cubic-bezier(0.22, 1, 0.36, 1), visibility 150ms cubic-bezier(0.22, 1, 0.36, 1)',
+                  transition: 'transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 300ms cubic-bezier(0.22, 1, 0.36, 1), visibility 300ms cubic-bezier(0.22, 1, 0.36, 1)',
                   boxShadow: 'none',
                   touchAction: longPressActive ? 'none' : 'auto',
                   overscrollBehavior: 'contain',
@@ -2259,7 +2259,7 @@ const Message = memo(function MessageComponent({
               style={{
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)',
-                transition: 'backdrop-filter 150ms cubic-bezier(0.22, 1, 0.36, 1), opacity 150ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transition: 'backdrop-filter 300ms cubic-bezier(0.22, 1, 0.36, 1), opacity 300ms cubic-bezier(0.22, 1, 0.36, 1)',
                 opacity: (overlayPhase === 'entering' || overlayPhase === 'exiting') ? 0 : 1,
                 pointerEvents: 'auto', // 🚀 FIX: 클릭 이벤트를 받을 수 있도록 설정
                 cursor: 'pointer' // 🚀 FIX: 클릭 가능함을 시각적으로 표시
@@ -2286,7 +2286,7 @@ const Message = memo(function MessageComponent({
                 width: `${overlayMetrics.originalRect.width}px`,
                 height: `${overlayMetrics.originalRect.height + 16}px`, // 하단 여유 공간 추가
                 opacity: overlayPhase === 'entering' ? 0 : overlayPhase === 'exiting' ? 0 : 1,
-                transition: 'top 300ms cubic-bezier(0.22, 1, 0.36, 1), left 300ms cubic-bezier(0.22, 1, 0.36, 1), transform 300ms cubic-bezier(0.22, 1, 0.36, 1), opacity 150ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transition: 'top 500ms cubic-bezier(0.22, 1, 0.36, 1), left 500ms cubic-bezier(0.22, 1, 0.36, 1), transform 500ms cubic-bezier(0.22, 1, 0.36, 1), opacity 300ms cubic-bezier(0.22, 1, 0.36, 1)',
                 overflow: 'visible', // 잘림 방지
                 pointerEvents: 'auto', // 🚀 FIX: 클릭 이벤트를 받을 수 있도록 설정
               }}
@@ -2376,7 +2376,7 @@ const Message = memo(function MessageComponent({
                 style={{
                   transform: overlayPhase === 'entering' ? 'translateY(8px)' : overlayPhase === 'exiting' ? 'translateY(-4px)' : 'translateY(0)',
                   opacity: (overlayPhase === 'entering' || overlayPhase === 'exiting') ? 0 : 1,
-                  transition: 'transform 150ms cubic-bezier(0.22, 1, 0.36, 1), opacity 150ms cubic-bezier(0.22, 1, 0.36, 1)',
+                  transition: 'transform 300ms cubic-bezier(0.22, 1, 0.36, 1), opacity 300ms cubic-bezier(0.22, 1, 0.36, 1)',
                   // 미리 계산된 메뉴 위치 사용 (glitch 완전 방지)
                   ...(() => {
                     if (!aiBubbleRef.current) return { display: 'none' };
