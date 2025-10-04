@@ -1384,10 +1384,10 @@ const Message = memo(function MessageComponent({
     // 파일이 있는 경우
     if (hasAttachments) return true;
     
-    // 메시지가 긴 경우 (300자 이상) - AI SDK v5 호환
+    // 메시지가 긴 경우 (200자 이상) - AI SDK v5 호환
     if (hasContent) {
       // message.content가 있으면 확인
-      if (message.content && message.content.length > 300) return true;
+      if (message.content && message.content.length > 200) return true;
       
       // parts 배열에서 텍스트 길이 확인
       if (message.parts && Array.isArray(message.parts)) {
@@ -1395,7 +1395,7 @@ const Message = memo(function MessageComponent({
         const totalTextLength = textParts.reduce((total: number, part: any) => 
           total + (part.text ? part.text.length : 0), 0
         );
-        if (totalTextLength > 300) return true;
+        if (totalTextLength > 200) return true;
       }
     }
     
