@@ -229,14 +229,18 @@ html, body {
   }
 }
 
-/* 모바일에서는 여전히 선택 차단 (롱프레스 기능을 위해) */
+/* 모바일에서는 텍스트 선택 완전 차단 (롱프레스만 허용) */
 @media (max-width: 640px) {
   .imessage-send-bubble,
-  .imessage-receive-bubble {
+  .imessage-receive-bubble,
+  .message-segment,
+  .message-content {
     -webkit-user-select: none !important;
     -moz-user-select: none !important;
     -ms-user-select: none !important;
     user-select: none !important;
+    -webkit-touch-callout: none !important;
+    -webkit-tap-highlight-color: transparent !important;
   }
 }
 
