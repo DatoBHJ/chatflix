@@ -844,6 +844,51 @@ const Message = memo(function MessageComponent({
   const [dropdownPosition, setDropdownPosition] = useState<'top' | 'bottom'>('top');
   const [bubbleTransform, setBubbleTransform] = useState('scale(1) translateY(0)');
   const [preCalculatedMenuPosition, setPreCalculatedMenuPosition] = useState<{top: string, left: string, right: string, display: string} | null>(null);
+  
+  // 오버레이 메트릭스 상태 추가 (긴 메시지 축소용)
+  const [overlayMetrics, setOverlayMetrics] = useState<{
+    scale: number;
+    originalRect: DOMRect;
+    overlayPosition: { top: number; left: number };
+    needsScaling: boolean;
+  } | null>(null);
+  
+  // 애니메이션 상태 추가
+  const [overlayPhase, setOverlayPhase] = useState<'idle' | 'entering' | 'active' | 'exiting'>('idle');
+  const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // 애니메이션 타임아웃 정리 함수
+  const clearAnimationTimeout = useCallback(() => {
+    if (animationTimeoutRef.current) {
+      clearTimeout(animationTimeoutRef.current);
+      animationTimeoutRef.current = null;
+    }
+  }, []);
+  
+  // 컴포넌트 언마운트 시 정리
+  useEffect(() => {
+    return () => {
+      clearAnimationTimeout();
+    };
+  }, [clearAnimationTimeout]);
+
+  // 롱프레스 취소 핸들러 (UI 복귀 애니메이션 후 상태 초기화)
+  const handleLongPressCancel = useCallback(() => {
+    clearAnimationTimeout();
+    
+    // UI 복귀 애니메이션 시작
+    setOverlayPhase('exiting');
+    
+    // UI 복귀 완료 후 상태 리셋 (200ms 후)
+    setTimeout(() => {
+      setLongPressActive(false);
+      setIsLongPressActive(false);
+      setPreCalculatedMenuPosition(null);
+      setOverlayMetrics(null);
+      setBubbleTransform('scale(1) translateY(0)');
+      setOverlayPhase('idle');
+    }, 200); // UI 복귀 애니메이션 시간과 동일
+  }, [clearAnimationTimeout]);
 
   useEffect(() => {
     const checkIfMobile = () => {
@@ -854,6 +899,24 @@ const Message = memo(function MessageComponent({
     window.addEventListener('resize', checkIfMobile);
     return () => window.removeEventListener('resize', checkIfMobile);
   }, []);
+
+  // 화면 크기 변경 시 오버레이 메트릭스 재계산
+  useEffect(() => {
+    const handleResize = () => {
+      if (longPressActive && overlayMetrics?.needsScaling) {
+        // 화면 크기가 변경되면 롱프레스 취소
+        handleLongPressCancel();
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, [longPressActive, overlayMetrics, handleLongPressCancel]);
 
   // 롱프레스 타이머 정리
   useEffect(() => {
@@ -926,59 +989,62 @@ const Message = memo(function MessageComponent({
         }
       }
       
-      // AI 메시지: 하이브리드 접근 - 메시지 근처 우선, 화면 벗어날 때만 하단 고정
+      // AI 메시지: 메뉴 위치에 따라 메시지 위치 조정
       if (dropdownPosition === 'bottom' && aiBubbleRef.current && isAssistant) {
-        // 확대 전 원본 위치를 기준으로 계산 (glitch 방지)
-        const rect = aiBubbleRef.current.getBoundingClientRect();
-        const menuHeight = 120;
-        const margin = 16;
-        const viewportHeight = window.innerHeight;
-        const menuBottomMargin = 20;
-        const messageToMenuMargin = 8;
-        
-        // 1. 먼저 메시지 바로 아래에 메뉴를 배치해보기 (원본 위치 기준)
-        const preferredMenuTop = rect.bottom + margin;
-        const preferredMenuBottom = preferredMenuTop + menuHeight;
-        
-        // 2. 메뉴가 화면을 벗어나는지 확인
-        const menuWouldGoOffscreen = preferredMenuBottom > viewportHeight - menuBottomMargin;
-        
-        if (menuWouldGoOffscreen) {
-          // 3. 화면을 벗어나면 메뉴를 하단에 고정하고 메시지 조정
-          const menuTop = viewportHeight - menuBottomMargin - menuHeight;
+        if (overlayMetrics === null) {
+          // 일반 메시지: 메뉴가 하단에 고정될 때만 메시지 이동
+          const rect = aiBubbleRef.current.getBoundingClientRect();
+          const menuHeight = 120;
+          const margin = 16;
+          const viewportHeight = window.innerHeight;
+          const menuBottomMargin = 40;
+          const messageToMenuMargin = 8;
           
-          // 메시지가 메뉴와 겹치는지 확인 (원본 위치 기준)
-          const messageBottom = rect.bottom;
-          const messageWouldOverlap = messageBottom + messageToMenuMargin > menuTop;
+          // 메뉴가 화면을 벗어나는지 확인
+          const preferredMenuTop = rect.bottom + margin;
+          const preferredMenuBottom = preferredMenuTop + menuHeight;
+          const menuWouldGoOffscreen = preferredMenuBottom > viewportHeight - menuBottomMargin;
           
-          if (messageWouldOverlap) {
-            // 메시지를 메뉴 위로 이동 (겹치지 않도록)
-            const targetBubbleBottom = menuTop - messageToMenuMargin;
-            const translateY = targetBubbleBottom - messageBottom;
-            newTransform = `translateX(3px) translateY(${translateY - 8}px) scale(1.005)`;
+          if (menuWouldGoOffscreen) {
+            // 메뉴가 하단에 고정될 때 메시지를 메뉴 위로 이동
+            const menuTop = viewportHeight - menuBottomMargin - menuHeight;
+            const messageBottom = rect.bottom;
+            const messageWouldOverlap = messageBottom + messageToMenuMargin > menuTop;
+            
+            if (messageWouldOverlap) {
+              // 메시지를 메뉴 위로 이동 (겹치지 않도록)
+              const targetBubbleBottom = menuTop - messageToMenuMargin;
+              const translateY = targetBubbleBottom - messageBottom;
+              newTransform = `translateX(3px) translateY(${translateY - 8}px) scale(1.005)`;
+            } else {
+              // 겹치지 않으면 단순 확대만
+              newTransform = 'translateX(3px) translateY(-8px) scale(1.005)';
+            }
           } else {
-            // 겹치지 않으면 단순 확대만
-            newTransform = 'translateX(3px) translateY(-8px) scale(1.005)';
+            // 공간이 충분하면 위치 변화 없이 드롭다운만 표시
+            newTransform = 'scale(1) translateY(0)';
           }
-        } else {
-          // 4. 공간이 충분하면 메시지 근처에 메뉴 배치 (메시지 이동 없음)
+        } else if (!overlayMetrics?.needsScaling) {
           newTransform = 'translateX(3px) translateY(-8px) scale(1.005)';
         }
       }
       
-      setBubbleTransform(newTransform);
+      // 긴 메시지의 경우 오버레이를 사용하므로 원본 메시지 transform 제거
+      if (overlayMetrics?.needsScaling) {
+        setBubbleTransform('scale(1) translateY(0)');
+      } else {
+        setBubbleTransform(newTransform);
+      }
 
       const handleScrollCancel = () => {
-        setLongPressActive(false);
-        setIsLongPressActive(false);
+        handleLongPressCancel();
       };
       
       const handleClickOutside = (e: MouseEvent) => {
         const target = e.target as Element;
         // 메시지 버블이나 드롭다운 메뉴가 아닌 다른 곳을 클릭했을 때 닫기
         if (!target.closest('.imessage-send-bubble') && !target.closest('.chat-input-tooltip-backdrop')) {
-          setLongPressActive(false);
-          setIsLongPressActive(false);
+          handleLongPressCancel();
         }
       };
       
@@ -1054,10 +1120,50 @@ const Message = memo(function MessageComponent({
       const menuHeight = 120;
       const margin = 16;
       const viewportHeight = window.innerHeight;
-      const menuBottomMargin = 20;
+      const menuBottomMargin = 40;
       
-      // 1. 먼저 메시지 바로 아래에 메뉴를 배치해보기 (원본 위치 기준)
-      const preferredMenuTop = rect.bottom + margin;
+      // 긴 메시지 축소 로직 계산
+      const availableSpace = viewportHeight - menuBottomMargin - menuHeight - margin;
+      const needsScaling = rect.height > availableSpace;
+      
+      let scale = 1;
+      let overlayPosition = { top: rect.top, left: rect.left };
+      
+      if (needsScaling) {
+        // 축소 비율 계산 (최소 0.3, 최대 1.0)
+        scale = Math.max(0.3, Math.min(1.0, availableSpace / rect.height));
+        
+        // 축소된 높이
+        const scaledHeight = rect.height * scale;
+        
+        // 오버레이 위치 계산: 메뉴 바로 위에 배치
+        const targetBottom = viewportHeight - menuBottomMargin - menuHeight;
+        const overlayTop = Math.max(margin, targetBottom - scaledHeight);
+        
+        // 수평 중앙 정렬 (화면 너비 내에서)
+        const maxWidth = window.innerWidth - (margin * 2);
+        const scaledWidth = rect.width * scale;
+        const overlayLeft = Math.max(margin, Math.min(
+          rect.left, 
+          window.innerWidth - scaledWidth - margin
+        ));
+        
+        overlayPosition = { top: overlayTop, left: overlayLeft };
+        
+        // 오버레이 메트릭스 저장 (긴 메시지만)
+        setOverlayMetrics({
+          scale,
+          originalRect: rect,
+          overlayPosition,
+          needsScaling: true
+        });
+      } else {
+        // 일반 메시지는 오버레이 메트릭스를 설정하지 않음 (위치 변화 방지)
+        setOverlayMetrics(null);
+      }
+      
+      // 1. 먼저 메시지 바로 아래에 메뉴를 배치해보기 (일반 메시지는 원본 위치 기준)
+      const preferredMenuTop = needsScaling ? overlayPosition.top + (rect.height * scale) + margin : rect.bottom + margin;
       const preferredMenuBottom = preferredMenuTop + menuHeight;
       
       // 2. 메뉴가 화면을 벗어나는지 확인
@@ -1089,6 +1195,12 @@ const Message = memo(function MessageComponent({
     const timer = setTimeout(() => {
       setLongPressActive(true);
       setIsLongPressActive(true);
+      
+      // 모든 롱프레스에 애니메이션 시작 (축소 필요 여부와 관계없이)
+      setOverlayPhase('entering');
+      animationTimeoutRef.current = setTimeout(() => {
+        setOverlayPhase('active');
+      }, 150); // 150ms 후 active 상태로 전환
       
       // iOS Safari: 롱프레스 활성화 시 스크롤 방지
       if (typeof window !== 'undefined' && navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome')) {
@@ -1194,13 +1306,6 @@ const Message = memo(function MessageComponent({
       e.preventDefault();
       e.stopPropagation();
     }
-  };
-
-  // 롱프레스 취소 핸들러 (단순화)
-  const handleLongPressCancel = () => {
-    setLongPressActive(false);
-    setIsLongPressActive(false);
-    setPreCalculatedMenuPosition(null); // 미리 계산된 위치 초기화
   };
 
   // 메시지가 긴지 또는 파일이 있는지 확인
@@ -1820,14 +1925,13 @@ const Message = memo(function MessageComponent({
                               };
                             } else {
                               const menuHeight = 120;
-                              const menuBottomMargin = 20;
+                              const menuBottomMargin = 40;
                               const viewportHeight = window.innerHeight;
                               
-                              const menuWouldGoOffscreen = rect.bottom + margin + menuHeight > viewportHeight;
+                              const menuWouldGoOffscreen = rect.bottom + margin + menuHeight > viewportHeight - menuBottomMargin;
 
                               if (menuWouldGoOffscreen) {
                                 // 메뉴가 화면을 벗어날 경우: 화면 하단에 고정
-                                const menuBottomMargin = 20;
                                 return {
                                   top: `${viewportHeight - menuHeight - menuBottomMargin}px`,
                                   left: '16px',
@@ -2028,12 +2132,15 @@ const Message = memo(function MessageComponent({
                   userSelect: 'none',
                   cursor: 'default',
                   transform: bubbleTransform,
-                  transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
+                  transition: 'transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
                   boxShadow: 'none',
                   touchAction: longPressActive ? 'none' : 'auto',
                   overscrollBehavior: 'contain',
                   zIndex: longPressActive ? 10 : 'auto',
                   position: longPressActive ? 'relative' : 'static',
+                  // 긴 메시지에서 원본 버블 숨기기 (active 상태에서만)
+                  opacity: (overlayMetrics?.needsScaling && overlayPhase === 'active') ? 0 : 1,
+                  visibility: (overlayMetrics?.needsScaling && overlayPhase === 'active') ? 'hidden' : 'visible',
                 }}
                 onTouchStart={handleAITouchStart}
                 onTouchEnd={handleAITouchEnd}
@@ -2052,10 +2159,10 @@ const Message = memo(function MessageComponent({
                 
                   {message.parts ? (
                     processedParts?.map((part: any, index: number) => (
-                      part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile}/>
+                      part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling}/>
                     ))
                   ) : (
-                    (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile}/>
+                    (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling}/>
                   )}
                   
                   <FilesPreview
@@ -2074,8 +2181,77 @@ const Message = memo(function MessageComponent({
             </div>
           )}
 
+          {/* 배경 블러 오버레이: 긴 메시지만 적용 */}
+          {longPressActive && overlayMetrics?.needsScaling && isAssistant && (overlayPhase === 'entering' || overlayPhase === 'active' || overlayPhase === 'exiting') && createPortal(
+            <div
+              className="fixed inset-0 z-[99997] pointer-events-none "
+              style={{
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                transition: 'backdrop-filter 200ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms cubic-bezier(0.22, 1, 0.36, 1)',
+                opacity: (overlayPhase === 'entering' || overlayPhase === 'exiting') ? 0 : 1,
+              }}
+            />,
+            typeof window !== 'undefined' ? document.body : (null as any)
+          )}
+
+          {/* 오버레이 렌더링: 긴 메시지만 적용 */}
+          {longPressActive && overlayMetrics?.needsScaling && isAssistant && (overlayPhase === 'entering' || overlayPhase === 'active' || overlayPhase === 'exiting') && createPortal(
+            <div
+              className="fixed z-[99998] pointer-events-none"
+              style={{
+                top: `${overlayPhase === 'entering' ? overlayMetrics.originalRect.top : overlayPhase === 'exiting' ? overlayMetrics.originalRect.top : overlayMetrics.overlayPosition.top}px`,
+                left: `${overlayPhase === 'entering' ? overlayMetrics.originalRect.left : overlayPhase === 'exiting' ? overlayMetrics.originalRect.left : overlayMetrics.overlayPosition.left}px`,
+                transform: `scale(${overlayPhase === 'entering' ? 1 : overlayPhase === 'exiting' ? 1 : overlayMetrics.scale})`,
+                transformOrigin: 'top center',
+                width: `${overlayMetrics.originalRect.width}px`,
+                height: `${overlayMetrics.originalRect.height + 16}px`, // 하단 여유 공간 추가
+                opacity: overlayPhase === 'entering' ? 0 : overlayPhase === 'exiting' ? 0 : 1,
+                transition: 'top 300ms cubic-bezier(0.22, 1, 0.36, 1), left 300ms cubic-bezier(0.22, 1, 0.36, 1), transform 300ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms cubic-bezier(0.22, 1, 0.36, 1)',
+                overflow: 'visible', // 잘림 방지
+              }}
+            >
+              <div 
+                className="imessage-receive-bubble"
+                style={{ 
+                  width: '100%',
+                  height: '100%',
+                  overflow: 'visible', // 잘림 방지
+                  pointerEvents: 'none',
+                }}
+              >
+              <div className="imessage-content-wrapper space-y-4">
+                {hasAttachments && (allAttachments as any[])!.map((attachment: any, index: number) => (
+                  <AttachmentPreview key={`${message.id}-att-${index}`} attachment={attachment} />
+                ))}
+              
+                {message.parts ? (
+                  processedParts?.map((part: any, index: number) => (
+                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile} isLongPressActive={true} noTail={true}/>
+                  ))
+                ) : (
+                  (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile} isLongPressActive={true} noTail={true}/>
+                )}
+                  
+                  <FilesPreview
+                    messageId={message.id}
+                    togglePanel={togglePanel}
+                    message={message}
+                  />
+
+                  {structuredDescription && (
+                    <div className="imessage-receive-bubble mt-2">
+                      <p>{structuredDescription}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>,
+            typeof window !== 'undefined' ? document.body : (null as any)
+          )}
+
           {/* AI 메시지용 롱프레스 드롭다운: Portal 사용으로 DOM 계층 분리 */}
-          {longPressActive && isAssistant && createPortal(
+          {longPressActive && isAssistant && (overlayPhase === 'entering' || overlayPhase === 'active' || overlayPhase === 'exiting') && createPortal(
             <>
               {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
               <svg style={{ position: 'absolute', width: 0, height: 0 }}>
@@ -2093,6 +2269,9 @@ const Message = memo(function MessageComponent({
               <div 
                 className="fixed w-48 chat-input-tooltip-backdrop rounded-2xl z-[99999] overflow-hidden tool-selector"
                 style={{
+                  transform: overlayPhase === 'entering' ? 'translateY(8px)' : overlayPhase === 'exiting' ? 'translateY(-4px)' : 'translateY(0)',
+                  opacity: (overlayPhase === 'entering' || overlayPhase === 'exiting') ? 0 : 1,
+                  transition: 'transform 200ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms cubic-bezier(0.22, 1, 0.36, 1)',
                   // 미리 계산된 메뉴 위치 사용 (glitch 완전 방지)
                   ...(() => {
                     if (!aiBubbleRef.current) return { display: 'none' };
@@ -2107,7 +2286,7 @@ const Message = memo(function MessageComponent({
                     const menuHeight = 120;
                     const margin = 16;
                     const viewportHeight = window.innerHeight;
-                    const menuBottomMargin = 20;
+                    const menuBottomMargin = 40;
                     
                     if (dropdownPosition === 'top') {
                       return {
@@ -2117,6 +2296,19 @@ const Message = memo(function MessageComponent({
                         display: 'block'
                       };
                     } else {
+                      // 오버레이 기준으로 메뉴 위치 계산 (축소 여부와 관계없이)
+                      if (overlayMetrics) {
+                        const scaledHeight = overlayMetrics.originalRect.height * overlayMetrics.scale;
+                        const menuTop = overlayMetrics.overlayPosition.top + scaledHeight + margin;
+                        
+                        return {
+                          top: `${menuTop}px`,
+                          left: '16px',
+                          right: 'auto',
+                          display: 'block'
+                        };
+                      }
+                      
                       // 1. 먼저 메시지 바로 아래에 메뉴를 배치해보기 (원본 위치 기준)
                       const preferredMenuTop = rect.bottom + margin;
                       const preferredMenuBottom = preferredMenuTop + menuHeight;
@@ -2407,6 +2599,8 @@ const Message = memo(function MessageComponent({
 
 
 export { Message }; 
+
+
 
 
 
