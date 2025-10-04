@@ -329,6 +329,8 @@ interface MarkdownContentProps {
   thumbnailMap?: { [key: string]: string }; // 🚀 FEATURE: Thumbnail map for link previews
   titleMap?: { [key: string]: string }; // 🚀 FEATURE: Title map for link previews
   isMobile?: boolean;
+  noTail?: boolean; // 꼬리 제거 옵션
+  isLongPressActive?: boolean; // 🚀 FEATURE: Long press state for segment shadows
 }
 
 // 더 적극적으로 마크다운 구조를 분할하는 함수 - 구분선(---)을 기준으로 메시지 그룹 분할
@@ -1231,7 +1233,9 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   messageType = 'default',
   thumbnailMap = {},
   titleMap = {},
-  isMobile = false
+  isMobile = false,
+  noTail = false,
+  isLongPressActive = false
 }: MarkdownContentProps) {
 
   // Image modal state
@@ -2599,7 +2603,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
 
         return (
           <div key={groupIndex} className={isReasoningSection ? '' : 'imessage-receive-bubble'}>
-            <div className={isReasoningSection ? 'markdown-segments' : 'message-segments'}>
+            <div className={`${isReasoningSection ? 'markdown-segments' : 'message-segments'}${noTail ? ' no-tail' : ''}`}>
               {segmentGroup.map((segment, index) => {
               // 이미지 세그먼트인지 확인
               const isImageSegment = /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segment);
@@ -2715,7 +2719,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               return (
                 <div 
                   key={index} 
-                  className={`${isImageSegment ? (hasConsecutiveImages ? (isMobile ? 'max-w-[45%]' : 'max-w-[100%] md:max-w-[90%]') : (isMobile ? 'max-w-[55%]' : 'max-w-[100%] md:max-w-[70%]')) : ''} ${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isSingleLineBullet ? ' single-line-bullet' : ''}${isLastBubble ? ' last-bubble' : ''}${isTableSegment ? ' table-segment' : ''}${isHeaderSegment ? ' contains-header' : ''}${isH2HeaderSegment ? ' contains-h2-header' : ''}`}`}
+                  className={`${isImageSegment ? (hasConsecutiveImages ? (isMobile ? 'max-w-[45%]' : 'max-w-[100%] md:max-w-[90%]') : (isMobile ? 'max-w-[55%]' : 'max-w-[100%] md:max-w-[70%]')) : ''} ${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isSingleLineBullet ? ' single-line-bullet' : ''}${isLastBubble ? ' last-bubble' : ''}${isTableSegment ? ' table-segment' : ''}${isHeaderSegment ? ' contains-header' : ''}${isH2HeaderSegment ? ' contains-h2-header' : ''}${isLongPressActive && isLastBubble ? ' long-press-shadow' : ''}`}`}
                   style={{
                     ...getImageStyle(),
                     ...(isTableSegment && {
@@ -2736,6 +2740,12 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                       overflow: 'visible',
                       minWidth: 'fit-content',
                       width: 'auto'
+                    }),
+                    // 롱프레스 상태에서 세그먼트 그림자 효과 (noTail이 있어도 적용)
+                    ...(isLongPressActive && !(isImageSegment || isLinkSegment) && {
+                      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15), 0 4px 16px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05)',
+                      transform: 'translateY(-2px)',
+                      transition: 'all 0.3s cubic-bezier(0.22, 1, 0.36, 1)'
                     })
                   }}
                 >

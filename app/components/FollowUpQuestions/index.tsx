@@ -59,13 +59,28 @@ export function FollowUpQuestions({ chatId, userId, messages, onQuestionClick }:
     return null;
   }
 
+  // 롱프레스 상태 감지 및 클릭 핸들러
+  const handleQuestionClick = (question: string, e: React.MouseEvent) => {
+    // 롱프레스가 활성화된 상태에서 follow-up question 클릭 시 롱프레스 취소
+    const isLongPressActive = document.querySelector('.chat-input-tooltip-backdrop');
+    if (isLongPressActive) {
+      // 롱프레스 취소 이벤트 발생
+      const cancelEvent = new CustomEvent('longPressCancel');
+      window.dispatchEvent(cancelEvent);
+      return;
+    }
+    
+    // 일반적인 follow-up question 클릭 처리
+    onQuestionClick(question);
+  };
+
   return (
     <div className="follow-up-questions-container">
       <div className="follow-up-questions-wrapper">
         {followUpQuestions.slice(0, 3).map((question, index) => (
           <button
             key={index}
-            onClick={() => onQuestionClick(question)}
+            onClick={(e) => handleQuestionClick(question, e)}
             className="imessage-send-bubble follow-up-question"
           >
             {question}

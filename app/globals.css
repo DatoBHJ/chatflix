@@ -218,16 +218,6 @@ html, body {
   user-select: none !important;
 }
 
-.sidebar-toggle-btn::before,
-.sidebar-toggle-btn::after {
-  display: none !important;
-}
-
-.sidebar-toggle-btn::-moz-focus-inner {
-  border: 0 !important;
-  padding: 0 !important;
-}
-
 /* 메시지 버블에서 텍스트 선택 허용 */
 .imessage-send-bubble,
 .imessage-receive-bubble {
@@ -246,6 +236,16 @@ html, body {
     -ms-user-select: none !important;
     user-select: none !important;
   }
+}
+
+.sidebar-toggle-btn::before,
+.sidebar-toggle-btn::after {
+  display: none !important;
+}
+
+.sidebar-toggle-btn::-moz-focus-inner {
+  border: 0 !important;
+  padding: 0 !important;
 }
 
 /* iMessage bubble styles */
@@ -2250,6 +2250,41 @@ p:has(.katex) {
   border-bottom-right-radius: 10px;
 }
 
+/* 롱프레스 상태에서 AI 메시지 꼬리 완전히 숨기기 */
+.message-segment.last-bubble.long-press-shadow::before {
+  display: none !important;
+}
+
+.message-segment.last-bubble.long-press-shadow::after {
+  display: none !important;
+}
+
+/* 일반 AI 메시지 롱프레스 시 더 퍼진 그림자 효과 */
+.message-segment.long-press-shadow {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25), 0 4px 16px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 다크모드에서 일반 AI 메시지 롱프레스 그림자 */
+:root[data-theme="dark"] .message-segment.long-press-shadow {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .message-segment.long-press-shadow {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+}
+
+/* 긴 메시지 오버레이에서도 꼬리 숨기기 */
+.message-segment.last-bubble.no-tail::before {
+  display: none !important;
+}
+
+.message-segment.last-bubble.no-tail::after {
+  display: none !important;
+}
+
 :root[data-theme="dark"] .message-segment.last-bubble::after {
   background-color: var(--background-dark);
 }
@@ -3194,3 +3229,21 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
 .message-segment.text-size-4xl:not(.multi-line) {
   padding: 16px 28px !important;
 }
+
+/* 터치 시작 시 세그먼트 그림자 효과 */
+.message-segment.touch-start-shadow {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: box-shadow 0.2s ease-out;
+}
+
+/* 다크모드에서 터치 시작 시 세그먼트 그림자 효과 */
+:root[data-theme="dark"] .message-segment.touch-start-shadow {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .message-segment.touch-start-shadow {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
+}
+
