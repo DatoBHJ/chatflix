@@ -74,6 +74,9 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
 
   // 무한 스크롤 상태 관리
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  
+  // 🚀 FIX: 초기 로딩 상태로 깜빡임 방지
+  const [isInitialLoadComplete, setIsInitialLoadComplete] = useState(false);
 
   // Fetch bookmarks for current chat session
   const fetchBookmarks = useCallback(async (currentMessages: any[]) => {
@@ -386,8 +389,29 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
     ];
   }, [messages]);
 
-  // 🚀 FIX: initialTopMostItemIndex로 즉시 하단 표시하므로 스크롤 로직 제거
-  // Virtuoso의 initialTopMostItemIndex가 자동으로 하단을 보여줌
+  // 🚀 FIX: 초기 로딩 완료 후 하단 표시로 깜빡임 방지
+  useEffect(() => {
+    if (messages.length > 0 && !isInitialLoadComplete) {
+      // 메시지가 로드되고 아직 초기 로딩이 완료되지 않았을 때
+      const timer = setTimeout(() => {
+        setIsInitialLoadComplete(true);
+      }, 100); // 짧은 지연으로 안정적인 렌더링 보장
+      
+      return () => clearTimeout(timer);
+    }
+  }, [messages.length, isInitialLoadComplete]);
+
+  // 🚀 FIX: 로딩 완료 후 완전한 하단으로 스크롤
+  useEffect(() => {
+    if (isInitialLoadComplete && virtuosoRef.current && virtualizedData.length > 0) {
+      // 완전한 하단으로 스크롤 (align: 'end'로 마지막 아이템의 끝까지)
+      virtuosoRef.current.scrollToIndex({
+        index: virtualizedData.length - 1,
+        behavior: 'auto',
+        align: 'end' // 🚀 완전한 하단을 보여줌
+      });
+    }
+  }, [isInitialLoadComplete, virtualizedData.length]);
 
   // 가상화 아이템 렌더링 함수
   const renderVirtualizedItem = useCallback((index: number) => {
@@ -413,25 +437,30 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
   return (
     <div className="messages-container flex flex-col">
       <div className="flex-grow">
-        {/* Virtuoso 가상화 리스트 - Chatflix 레이블 포함 */}
-        <Virtuoso
-          ref={virtuosoRef}
-          data={virtualizedData}
-          itemContent={renderVirtualizedItem}
-          followOutput="auto"
-          startReached={handleStartReached}
-          initialTopMostItemIndex={virtualizedData.length - 1} // 🚀 즉시 하단부터 시작
-          components={{
-            Header: hasMore ? LoadingIndicator : undefined,
-            Footer: BottomSpacer
-          }}
-          style={{ 
-            height: '100vh', // 전체 화면 사용 - BottomSpacer가 여백 담당
-            width: '100%',
-            overflowX: 'hidden'
-          }}
-          className="virtuoso-messages"
-        />
+        {/* 🚀 FIX: 초기 로딩 중일 때는 빈 배경 표시 */}
+        {!isInitialLoadComplete && messages.length > 0 ? (
+          <div className="h-full w-full" />
+        ) : (
+          /* Virtuoso 가상화 리스트 - Chatflix 레이블 포함 */
+          <Virtuoso
+            ref={virtuosoRef}
+            data={virtualizedData}
+            itemContent={renderVirtualizedItem}
+            followOutput="auto"
+            startReached={handleStartReached}
+            initialTopMostItemIndex={0} // 🚀 처음부터 시작하고 로딩 완료 후 스크롤
+            components={{
+              Header: hasMore ? LoadingIndicator : undefined,
+              Footer: BottomSpacer
+            }}
+            style={{ 
+              height: '100vh', // 전체 화면 사용 - BottomSpacer가 여백 담당
+              width: '100%',
+              overflowX: 'hidden'
+            }}
+            className="virtuoso-messages"
+          />
+        )}
       </div>
     </div>
   )
