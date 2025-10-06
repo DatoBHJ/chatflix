@@ -386,48 +386,8 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
     ];
   }, [messages]);
 
-  // 새로고침 시 스크롤을 맨 아래로 이동시키는 효과
-  useEffect(() => {
-    if (messages.length > 0 && virtuosoRef.current) {
-      // 더 긴 지연을 두고 스크롤을 맨 아래로 이동
-      const timeoutId = setTimeout(() => {
-        virtuosoRef.current?.scrollToIndex({
-          index: virtualizedData.length - 1, // Chatflix 레이블 포함한 전체 길이
-          behavior: 'smooth',
-          align: 'end'
-        });
-      }, 300); // 지연 시간 증가
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [messages.length, virtualizedData.length]); // messages.length가 변경될 때마다 실행
-  
-  // 초기 로드 시 스크롤을 맨 아래로 이동 (새로고침 대응)
-  useEffect(() => {
-    if (messages.length > 0 && virtuosoRef.current) {
-      // 초기 로드 시에는 더 긴 지연 후 스크롤 (새로고침 대응)
-      const timeoutId = setTimeout(() => {
-        virtuosoRef.current?.scrollToIndex({
-          index: virtualizedData.length - 1, // Chatflix 레이블 포함한 전체 길이
-          behavior: 'auto',
-          align: 'end'
-        });
-        
-        // 추가 스크롤 보장을 위한 이중 스크롤
-        setTimeout(() => {
-          if (virtuosoRef.current) {
-            virtuosoRef.current.scrollToIndex({
-              index: virtualizedData.length - 1,
-              behavior: 'auto',
-              align: 'end'
-            });
-          }
-        }, 100);
-      }, 200); // 지연 시간 증가
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, []); // 컴포넌트 마운트 시에만 실행
+  // 🚀 FIX: initialTopMostItemIndex로 즉시 하단 표시하므로 스크롤 로직 제거
+  // Virtuoso의 initialTopMostItemIndex가 자동으로 하단을 보여줌
 
   // 가상화 아이템 렌더링 함수
   const renderVirtualizedItem = useCallback((index: number) => {
@@ -460,6 +420,7 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
           itemContent={renderVirtualizedItem}
           followOutput="auto"
           startReached={handleStartReached}
+          initialTopMostItemIndex={virtualizedData.length - 1} // 🚀 즉시 하단부터 시작
           components={{
             Header: hasMore ? LoadingIndicator : undefined,
             Footer: BottomSpacer
