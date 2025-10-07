@@ -1214,7 +1214,7 @@ export function ChatInput({
                 {/* Tool selector */}
                 {showToolSelector && (
                   <div 
-                    className="absolute top-0 -translate-y-full -mt-2 -left-1 w-56 chat-input-tooltip-backdrop rounded-2xl z-50 overflow-hidden tool-selector"
+                    className="absolute top-0 -translate-y-full -mt-2 -left-1 w-56  rounded-2xl z-50 overflow-hidden tool-selector"
                     style={{
                       // 라이트모드 기본 스타일 (모델 선택창과 동일)
                       backgroundColor: 'rgba(255, 255, 255, 0.5)',
