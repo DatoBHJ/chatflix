@@ -196,6 +196,12 @@ CRITICAL REMINDERS:
 - **Topic 1**: Content here [LINK_ID:exa_link_searchId_0_0] more content
 - **Topic 2**: Content continues
 
+**CRITICAL LINK_ID FORMATTING RULE:**
+- **NEVER use bold formatting around LINK_ID**: Do NOT wrap LINK_ID with ** or any markdown formatting
+- **PLAIN TEXT ONLY**: Always use LINK_ID in plain text format without any markdown styling
+- **CORRECT FORMAT**: [LINK_ID:exa_link_searchId_0_0] (no bold, no italics, no other formatting)
+- **WRONG FORMAT**: **[LINK_ID:exa_link_searchId_0_0]** or *[LINK_ID:exa_link_searchId_0_0]*
+
 **Link Source Requirements:**
 - **REAL LINKS ONLY**: Links must come from actual web search results, never imagined or generic
 - **SEARCH DEPENDENCY**: Only include source links when you actually perform a web search
@@ -416,6 +422,12 @@ CRITICAL REMINDERS:
   - **AUTOMATIC THUMBNAILS**: SearchAPI thumbnails are displayed automatically with link previews
   - **NO FULL URLS**: Never include full URLs like "https://example.com" - always use the link ID format
   - **SEARCH RESULT DEPENDENCY**: Link IDs are provided in Google search results - use them exclusively
+
+  **CRITICAL LINK_ID FORMATTING RULE:**
+  - **NEVER use bold formatting around LINK_ID**: Do NOT wrap LINK_ID with ** or any markdown formatting
+  - **PLAIN TEXT ONLY**: Always use LINK_ID in plain text format without any markdown styling
+  - **CORRECT FORMAT**: [LINK_ID:google_link_searchId_0_0] (no bold, no italics, no other formatting)
+  - **WRONG FORMAT**: **[LINK_ID:google_link_searchId_0_0]** or *[LINK_ID:google_link_searchId_0_0]*
 
   **CRITICAL SEARCH-LINK RULE:**
   - **IF YOU SEARCH = YOU MUST INCLUDE SOURCE LINKS**: Every single time you perform a Google search, you are REQUIRED to include source links from those search results in your response
