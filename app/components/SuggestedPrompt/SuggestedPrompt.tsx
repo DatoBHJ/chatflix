@@ -455,7 +455,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   }
 
   return (
-    <div className={`relative flex flex-col items-end ${className} group text-sm `}>
+    <div className={`relative flex flex-col items-end ${className} group text-sm sm:text-base `}>
           {userId === 'anonymous' ? (
             // 익명 사용자용 미니멀한 대화 흐름
             <>
