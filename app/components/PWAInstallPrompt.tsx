@@ -53,7 +53,15 @@ export function PWAInstallPrompt() {
                   </span>
                 ) 
                 : (
-                  <span>Add Chatflix to your home screen to use it as an app </span>
+                  <span className="flex items-center gap-2">
+                    Tap the menu
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                      </svg>
+                    </span>
+                    and then "Add to Home Screen"
+                  </span>
                 )
                 }
               </p>
