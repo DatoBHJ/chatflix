@@ -2471,6 +2471,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     ul: ({ children, ...props }) => {
       const ulRef = useRef<HTMLUListElement>(null);
       const [isNested, setIsNested] = useState(false);
+      const [isSafari, setIsSafari] = useState(false);
       
       useEffect(() => {
         if (ulRef.current) {
@@ -2478,13 +2479,18 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           const parentLi = ulRef.current.closest('li');
           setIsNested(!!parentLi);
         }
+        
+        // Detect Safari browser
+        const ua = navigator.userAgent;
+        const isSafariBrowser = /^((?!chrome|android).)*safari/i.test(ua);
+        setIsSafari(isSafariBrowser);
       }, []);
       
       return (
         <ul
           ref={ulRef}
           className={`my-4 list-disc list-outside ${
-            isNested ? 'pl-2' : 'pl-[1.3rem] md:pl-[0.9rem]'
+            isNested ? 'pl-2' : isSafari ? 'pl-[1.3rem] md:pl-[1.4rem]' : 'pl-[1.3rem] md:pl-[0.9rem]'
           }`}
           {...props}
         >
@@ -2495,6 +2501,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     ol: ({ children, ...props }) => {
       const olRef = useRef<HTMLOListElement>(null);
       const [isNested, setIsNested] = useState(false);
+      const [isSafari, setIsSafari] = useState(false);
       
       useEffect(() => {
         if (olRef.current) {
@@ -2502,13 +2509,18 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           const parentLi = olRef.current.closest('li');
           setIsNested(!!parentLi);
         }
+        
+        // Detect Safari browser
+        const ua = navigator.userAgent;
+        const isSafariBrowser = /^((?!chrome|android).)*safari/i.test(ua);
+        setIsSafari(isSafariBrowser);
       }, []);
       
       return (
         <ol 
           ref={olRef}
           className={`my-4 list-decimal list-outside ${
-            isNested ? 'pl-2' : 'pl-[1.5rem] md:pl-[1.1rem]'
+            isNested ? 'pl-2' : isSafari ? 'pl-[1.5rem] md:pl-[1.6rem]' : 'pl-[1.5rem] md:pl-[1.1rem]'
           }`}
           {...props}
         >

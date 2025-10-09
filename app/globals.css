@@ -1459,6 +1459,19 @@ body {
 .message-content ul li {
   padding-left: 0rem !important;
 }
+
+/* Safari desktop-specific fix for bullet point clipping */
+@media (min-width: 641px) {
+  @supports (-webkit-hyphens:none) {
+    .message-content ul {
+      padding-left: 1.4rem !important;
+    }
+    
+    .message-content ol {
+      padding-left: 1.6rem !important;
+    }
+  }
+}
 /* 
 @media (max-width: 768px) {
   .message-content ul li {
