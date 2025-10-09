@@ -283,7 +283,7 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
             {formatMessageGroupTimestamp((message as any).createdAt || new Date())}
           </div>
         )}
-        <div className={`${messageClasses} max-w-6xl mx-auto`}>
+        <div className={`${messageClasses} max-w-4xl mx-auto`}>
           <div className="relative">
             <MessageComponent
               message={message}

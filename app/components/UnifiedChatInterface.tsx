@@ -6,6 +6,7 @@ import { UIMessage } from 'ai';
 import { useState, useEffect, useRef, useCallback, useMemo, startTransition } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useAuth } from '@/app/lib/AuthContext';
+import { useSidebar } from '@/app/lib/SidebarContext';
 import { convertMessage, uploadFile } from '@/app/chat/[id]/utils';
 import { Attachment } from '@/lib/types';
 import { useMessages } from '@/app/hooks/useMessages';
@@ -54,6 +55,7 @@ function HomeView({
   editingMessageId
 }: any) {
   const isMouseIdle = useMouseIdleDetection(3000); // 3초 동안 마우스가 움직이지 않으면 idle로 간주
+  const { isPromptEditMode, setIsPromptEditMode } = useSidebar();
 
   return (
     <main 
@@ -75,7 +77,7 @@ function HomeView({
         {/* Mobile Layout */}
         <div className="flex flex-col sm:hidden min-h-0 flex-1">
           <div className="flex-1">
-            <div className="messages-container mb-4 flex flex-col sm:px-4">
+            <div className="messages-container  flex flex-col sm:px-4">
               <div className="flex-grow">
                 {/* Chatflix label - iMessage style */}
                 <div className="message-timestamp chatflix-header relative z-10" style={{ paddingBottom: '0', textTransform: 'none', color: '#737373' }}>
@@ -98,6 +100,8 @@ function HomeView({
                         userId={user?.id || 'anonymous'} 
                         onPromptClick={onSuggestedPromptClick}
                         isVisible={true}
+                        isEditMode={isPromptEditMode}
+                        onEditModeToggle={() => setIsPromptEditMode(p => !p)}
                       />
                       </div>
                     </div>
@@ -112,7 +116,7 @@ function HomeView({
         <div className="hidden sm:flex min-h-0 flex-1">
           <div className="flex-1">
             <div className="w-full mx-auto">
-              <div className="messages-container mb-4 flex flex-col sm:px-4">
+              <div className="messages-container flex flex-col sm:px-4">
                 <div className="flex-grow">
                   {/* Chatflix label - iMessage style */}
                   <div className="message-timestamp chatflix-header relative z-10" style={{ paddingBottom: '0', textTransform: 'none', color: '#737373' }}>
@@ -135,6 +139,8 @@ function HomeView({
                         userId={user?.id || 'anonymous'} 
                         onPromptClick={onSuggestedPromptClick}
                         isVisible={true}
+                        isEditMode={isPromptEditMode}
+                        onEditModeToggle={() => setIsPromptEditMode(p => !p)}
                       />
                         </div>
                       </div>
@@ -451,6 +457,22 @@ function ChatInterface({
       return generateAnonymousUserId();
     }
   }, [generateAnonymousUserId]);
+
+  // 🔄 첨부파일 URL 자동 갱신 (채팅 로드 시)
+  useEffect(() => {
+    const userId = user?.id || anonymousId;
+    if (chatId && userId) {
+      fetch('/api/chat/refresh-message-urls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId, userId })
+      })
+        .then(res => res.json())
+        .catch(() => {
+          // 조용히 실패 처리
+        });
+    }
+  }, [chatId, user?.id, anonymousId]);
   
   const [currentModel, setCurrentModel] = useState('');
   const [nextModel, setNextModel] = useState('');

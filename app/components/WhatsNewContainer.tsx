@@ -156,6 +156,26 @@ const WhatsNewContainer: React.FC<WhatsNewContainerProps> = ({ openPanel }) => {
 
     checkForNewUpdates();
   }, [lastSeenUpdateId, lastSeenTimestamp, isLoaded, updates, isLoading, hasEverBeenOpened]);
+
+  // Listen for whatsNewViewed events from other components
+  useEffect(() => {
+    const handleWhatsNewViewed = (event: CustomEvent) => {
+      const { updateId, timestamp } = event.detail;
+      
+      // Update local state to reflect that updates have been viewed
+      setHasNewUpdates(false);
+      setNewUpdatesCount(0);
+      setShowBadge(false);
+      
+      console.log('WhatsNewContainer: Received whatsNewViewed event', { updateId, timestamp });
+    };
+
+    window.addEventListener('whatsNewViewed', handleWhatsNewViewed as EventListener);
+    
+    return () => {
+      window.removeEventListener('whatsNewViewed', handleWhatsNewViewed as EventListener);
+    };
+  }, []);
   
   const handleOpen = () => {
     openPanel();
@@ -175,6 +195,11 @@ const WhatsNewContainer: React.FC<WhatsNewContainerProps> = ({ openPanel }) => {
       setHasNewUpdates(false);
       setNewUpdatesCount(0);
       setShowBadge(false);
+      
+      // Dispatch event to notify other components about the update
+      window.dispatchEvent(new CustomEvent('whatsNewViewed', {
+        detail: { updateId: newestUpdate.id, timestamp: newestUpdate.timestamp }
+      }));
     }
   };
   

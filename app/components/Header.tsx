@@ -3,8 +3,9 @@
 import { useRouter, usePathname } from 'next/navigation'
 import { ThemeToggle } from './ThemeToggle'
 import WhatsNewContainer from './WhatsNewContainer'
-import { AccountDialog, fetchUserName } from './AccountDialog'
+import { AccountDialog, fetchUserName, updateUserName } from './AccountDialog'
 import { SubscriptionDialog } from './SubscriptionDialog'
+import { ContactUsDialog } from './ContactUsDialog'
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link'
 import Image from 'next/image'
@@ -16,6 +17,7 @@ import { MarkdownContent } from './MarkdownContent'; // Import MarkdownContent f
 import { createClient } from '@/utils/supabase/client';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useLastSeenUpdate } from '../hooks/useLastSeenUpdate';
 
 export interface HeaderProps {
   isSidebarOpen: boolean;
@@ -36,6 +38,9 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
   // 🚀 익명 사용자 지원: 익명 사용자 식별
   const isAnonymousUser = user?.isAnonymous || user?.id === 'anonymous';
 
+  // Last seen update hook for notification sync
+  const { updateLastSeen } = useLastSeenUpdate();
+
     const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
     const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(true);
     const [batteryAnimationProgress, setBatteryAnimationProgress] = useState(0);
@@ -48,12 +53,27 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
   });
   const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
   const [isSubscriptionDialogOpen, setIsSubscriptionDialogOpen] = useState(false);
+  const [isContactUsDialogOpen, setIsContactUsDialogOpen] = useState(false);
   const [isAccountPanelOpen, setIsAccountPanelOpen] = useState(false);
   const [isAccountPanelVisible, setIsAccountPanelVisible] = useState(false);
   const [accountPanelElements, setAccountPanelElements] = useState({
     background: false,
     content: false
   });
+  
+  // Mobile hamburger menu states
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileMenuVisible, setIsMobileMenuVisible] = useState(false);
+  const [mobileMenuElements, setMobileMenuElements] = useState({
+    background: false,
+    content: false
+  });
+  
+  // Mobile menu navigation states
+  const [mobileMenuCurrentView, setMobileMenuCurrentView] = useState<'main' | 'account' | 'subscription' | 'updates' | 'theme' | 'support'>('main');
+  
+  // Theme state for mobile menu
+  const [currentTheme, setCurrentTheme] = useState<'light' | 'dark' | 'system'>('system');
   
   // Image modal state
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -74,6 +94,9 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
   // Get user name
   const [userName, setUserName] = useState('');
   const [isUserNameLoading, setIsUserNameLoading] = useState(true);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editingName, setEditingName] = useState('');
+  const [isUpdatingName, setIsUpdatingName] = useState(false);
   const batteryRef = useRef<HTMLDivElement>(null);
   const batteryRef2 = useRef<HTMLDivElement>(null);
   // Load user name when user changes
@@ -107,15 +130,26 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
     setIsMounted(true);
   }, []);
 
+  // Initialize theme state
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | 'system';
+    if (savedTheme) {
+      setCurrentTheme(savedTheme);
+    } else {
+      setCurrentTheme('system');
+    }
+  }, []);
+
   // Disable body scroll when panel is visible and add ESC listener
   useEffect(() => {
-    if (isBatteryPanelVisible || isAccountPanelVisible) {
+    if (isBatteryPanelVisible || isAccountPanelVisible || isMobileMenuVisible) {
       const originalOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
       const onKey = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
           setIsBatteryPanelOpen(false);
           setIsAccountPanelOpen(false);
+          setIsMobileMenuOpen(false);
         }
       };
       window.addEventListener('keydown', onKey);
@@ -124,7 +158,7 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
         window.removeEventListener('keydown', onKey);
       };
     }
-  }, [isBatteryPanelVisible, isAccountPanelVisible]);
+  }, [isBatteryPanelVisible, isAccountPanelVisible, isMobileMenuVisible]);
 
   // Image modal functions
   const handleImageClick = (imageUrl: string, images: string[], index: number) => {
@@ -236,6 +270,143 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
   const closeAccountPanel = () => {
     setIsAccountPanelOpen(false);
   };
+
+  // Mobile menu animation logic
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      setIsMobileMenuVisible(true);
+      
+      const timeouts = [
+        setTimeout(() => setMobileMenuElements(prev => ({ ...prev, background: true })), 20),
+        setTimeout(() => setMobileMenuElements(prev => ({ ...prev, content: true })), 300)
+      ];
+      
+      return () => {
+        timeouts.forEach(timeout => clearTimeout(timeout));
+      };
+    } else if (isMobileMenuVisible) {
+      setMobileMenuElements({ background: false, content: false });
+      const timeoutId = setTimeout(() => setIsMobileMenuVisible(false), 500);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isMobileMenuOpen, isMobileMenuVisible]);
+
+  const openMobileMenu = () => {
+    setIsMobileMenuVisible(true);
+    requestAnimationFrame(() => setIsMobileMenuOpen(true));
+  };
+
+  const closeMobileMenu = () => {
+    setIsMobileMenuOpen(false);
+    setMobileMenuCurrentView('main'); // Reset to main view when closing
+  };
+
+  const navigateToMobileView = (view: 'main' | 'account' | 'subscription' | 'updates' | 'theme' | 'support') => {
+    setMobileMenuCurrentView(view);
+    
+    // If navigating to updates view, fetch updates if not already loaded
+    if (view === 'updates') {
+      // Always fetch updates when navigating to updates view
+      const fetchUpdates = async () => {
+        setIsLoadingUpdates(true);
+        const supabase = createClient();
+        try {
+          const { data, error } = await supabase
+            .from('feature_updates')
+            .select('*')
+            .order('created_at', { ascending: false });
+          
+          if (error) {
+            console.error('Error fetching updates:', error);
+            return;
+          }
+
+          const formattedUpdates: FeatureUpdate[] = data.map((update: any) => ({
+            id: update.id,
+            title: update.title,
+            description: update.description,
+            date: new Date(update.created_at).toLocaleDateString('en-US', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric'
+            }),
+            timestamp: new Date(update.created_at).getTime(),
+            images: update.images || [],
+          }));
+          
+          setUpdates(formattedUpdates);
+          
+          // Auto-expand the latest update and update lastSeen
+          if (formattedUpdates.length > 0) {
+            const latestUpdate = formattedUpdates[0];
+            setExpandedUpdates(new Set([latestUpdate.id]));
+            
+            // Update lastSeen when user views updates in mobile menu
+            updateLastSeen(latestUpdate.id, latestUpdate.timestamp);
+            
+            // Dispatch event to notify other components about the update
+            window.dispatchEvent(new CustomEvent('whatsNewViewed', {
+              detail: { updateId: latestUpdate.id, timestamp: latestUpdate.timestamp }
+            }));
+          }
+        } catch (error) {
+          console.error('Error in fetchUpdates:', error);
+        } finally {
+          setIsLoadingUpdates(false);
+        }
+      };
+
+      fetchUpdates();
+    }
+  };
+
+  const goBackToMainMenu = () => {
+    setMobileMenuCurrentView('main');
+  };
+
+  // Name editing functions
+  const startEditingName = () => {
+    setEditingName(userName);
+    setIsEditingName(true);
+  };
+
+  const cancelEditingName = () => {
+    setEditingName('');
+    setIsEditingName(false);
+  };
+
+  const saveEditingName = async () => {
+    if (!user || isAnonymousUser) return;
+    
+    if (editingName.trim() === userName.trim()) {
+      setIsEditingName(false);
+      return;
+    }
+
+    setIsUpdatingName(true);
+    try {
+      const supabase = createClient();
+      await updateUserName(user.id, editingName.trim(), supabase);
+      setUserName(editingName.trim());
+      setIsEditingName(false);
+    } catch (error) {
+      console.error('Error updating user name:', error);
+      alert(`Error updating name: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsUpdatingName(false);
+    }
+  };
+
+  const handleNameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveEditingName();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelEditingName();
+    }
+  };
+
   
   // What's New Panel Animation Logic
   const openWhatsNewPanel = () => setIsWhatsNewPanelOpen(true);
@@ -326,10 +497,18 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
           
           setUpdates(formattedUpdates);
           
-          // Auto-expand the latest update
+          // Auto-expand the latest update and update lastSeen
           if (formattedUpdates.length > 0) {
             const latestUpdate = formattedUpdates[0]; // First item is the latest
             setExpandedUpdates(new Set([latestUpdate.id]));
+            
+            // Update lastSeen when user views updates in desktop panel
+            updateLastSeen(latestUpdate.id, latestUpdate.timestamp);
+            
+            // Dispatch event to notify other components about the update
+            window.dispatchEvent(new CustomEvent('whatsNewViewed', {
+              detail: { updateId: latestUpdate.id, timestamp: latestUpdate.timestamp }
+            }));
           }
         } catch (error) {
           console.error('Error in fetchUpdates:', error);
@@ -350,11 +529,12 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
         closeBatteryPanel();
         closeAccountPanel();
         closeWhatsNewPanel();
+        closeMobileMenu();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [closeBatteryPanel, closeAccountPanel, closeWhatsNewPanel]);
+  }, [closeBatteryPanel, closeAccountPanel, closeWhatsNewPanel, closeMobileMenu]);
   
   // 최적화를 위한 캐시 관련 상태
   const lastCheckTimeRef = useRef<number>(0);
@@ -547,16 +727,18 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
           ? 'bg-transparent' 
           // : 'bg-transparent'
           // : 'bg-[var(--accent)] dark:bg-[var(--sidebar-dark)]'
-          : 'backdrop-blur-xl bg-[var(--accent)]/60 dark:bg-[var(--sidebar-dark)]/90'
+          // : 'backdrop-blur-xl bg-[var(--accent)]/60 dark:bg-[var(--sidebar-dark)]/90'
+          : 'bg-transparent md:backdrop-blur-xl md:bg-[var(--accent)]/60 md:dark:bg-[var(--sidebar-dark)]/90'
+
       }`}
     >
-      <div className="flex justify-between items-center py-1.5 sm:py-1 md:py-0.5 pl-10 sm:pl-4 pr-5 h-10 md:h-8 relative">
-      {/* <div className="flex justify-between items-center py-1.5 sm:py-1 md:py-0.5 pl-10 sm:pl-4 pr-5 h-10 md:h-8 relative">
+      <div className="flex justify-between items-center py-1.5 sm:py-1 md:py-5.5 pl-10 sm:pl-4 pr-3 sm:pr-4 h-14 md:h-8 relative">
+      {/* <div className="flex justify-between items-center py-1.5 sm:py-1 md:py-5 pl-10 sm:pl-4 pr-3 sm:pr-4 h-14 md:h-8 relative">
         {!(isHovering || isSidebarOpen) && (
-          <div className="absolute inset-0 bg-gradient-to-b from-[var(--accent)] via-[var(--accent)]/60 to-transparent dark:from-[var(--sidebar-dark)] dark:via-[var(--sidebar-dark)]/60 -z-10" style={{ height: '200%', top: '-100%' }}></div>
+          <div className="absolute inset-0 bg-gradient-to-b from-[var(--background)] via-[var(--background)]/60 to-transparent dark:from-[var(--sidebar-dark)] dark:via-[var(--sidebar-dark)]/60 -z-10" style={{ height: '200%', top: '-100%' }}></div>
         )} */}
         <div className="flex items-center gap-2 md:gap-1.5 relative">
-          {showBackButton && (
+          {/* {showBackButton && (
             <button
               onClick={() => router.back()}
               className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
@@ -567,135 +749,200 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                 <path d="M12 19l-7-7 7-7" />
               </svg>
             </button>
-          )}
+          )} */}
           
           <div className={`flex items-center transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
             (isHovering || isSidebarOpen) ? 'ml-0 sm:ml-[80px]' : 'ml-1 sm:ml-4'
           }`}>
              {/* CHATFLIX 로고 - 홈으로 이동 */}
-             {/* <Link href="/" className="text-sm px-2 py-0.5 rounded-md bg-[var(--muted)]/10 text-[var(--muted)] font-base tracking-wide select-none hover:bg-[var(--muted)]/20 transition-colors">
+             {/* <Link href="/" className="text-sm px-2 py-0.5 rounded-md  text-[var(--muted)] font-base tracking-wide select-none">
               Chatflix
               </Link> */}
           </div>
         </div>
 
         <div className="flex items-center gap-1.5 md:gap-[0.6rem]">
-          {/* Sign In Button for Anonymous Users */}
-          
-          {/* Account Icon */}
-          <div 
-            className="flex items-center justify-center cursor-pointer"
-            onClick={openAccountPanel}
-          >
-            <svg className="w-6.5 h-6.5 md:w-5.5 md:h-5.5 text-[var(--foreground)]" viewBox="0 0 16 25" fill="none">
-                 <g id="person.crop.circle_compact">
-                   <rect id="box_" width="16" height="25" fill="none"></rect>
-                   <path id="art_" d="M15.09,12.5a7.1,7.1,0,1,1-7.1-7.1A7.1077,7.1077,0,0,1,15.09,12.5ZM7.99,6.6a5.89,5.89,0,0,0-4.4609,9.7471c.6069-.9658,2.48-1.6787,4.4609-1.6787s3.8545.7129,4.4615,1.6787A5.89,5.89,0,0,0,7.99,6.6ZM7.99,8.4A2.5425,2.5425,0,0,0,5.5151,11,2.5425,2.5425,0,0,0,7.99,13.6,2.5424,2.5424,0,0,0,10.4653,11,2.5424,2.5424,0,0,0,7.99,8.4Z" fill="currentColor"></path>
-                 </g>
-               </svg>
+          {/* Mobile Hamburger Menu - only visible on mobile */}
+          <div className="md:hidden -ml-8 -mt-0">
+            <button
+              onClick={openMobileMenu}
+              className="flex items-center justify-center w-9 h-9 rounded-full cursor-pointer"
+              style={{
+                // 다크모드 전용 스타일
+                ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                    (document.documentElement.getAttribute('data-theme') === 'system' && 
+                     window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                  background: 'transparent',
+                  backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                  WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                } : {
+                  background: 'transparent',
+                  backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                  WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                })
+              }}
+            >
+              <svg className="w-4 h-4 text-[var(--foreground)]" width="18" height="18" viewBox="0 0 18 18">
+                <polyline id="globalnav-menutrigger-bread-bottom" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" points="2 12, 16 12" className="globalnav-menutrigger-bread globalnav-menutrigger-bread-bottom">
+                  <animate id="globalnav-anim-menutrigger-bread-bottom-open" attributeName="points" keyTimes="0;0.5;1" dur="0.24s" begin="indefinite" fill="freeze" calcMode="spline" keySplines="0.42, 0, 1, 1;0, 0, 0.58, 1" values=" 2 12, 16 12; 2 9, 16 9; 3.5 15, 15 3.5"></animate>
+                  <animate id="globalnav-anim-menutrigger-bread-bottom-close" attributeName="points" keyTimes="0;0.5;1" dur="0.24s" begin="indefinite" fill="freeze" calcMode="spline" keySplines="0.42, 0, 1, 1;0, 0, 0.58, 1" values=" 3.5 15, 15 3.5; 2 9, 16 9; 2 12, 16 12"></animate>
+                </polyline>
+                <polyline id="globalnav-menutrigger-bread-top" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" points="2 5, 16 5" className="globalnav-menutrigger-bread globalnav-menutrigger-bread-top">
+                  <animate id="globalnav-anim-menutrigger-bread-top-open" attributeName="points" keyTimes="0;0.5;1" dur="0.24s" begin="indefinite" fill="freeze" calcMode="spline" keySplines="0.42, 0, 1, 1;0, 0, 0.58, 1" values=" 2 5, 16 5; 2 9, 16 9; 3.5 3.5, 15 15"></animate>
+                  <animate id="globalnav-anim-menutrigger-bread-top-close" attributeName="points" keyTimes="0;0.5;1" dur="0.24s" begin="indefinite" fill="freeze" calcMode="spline" keySplines="0.42, 0, 1, 1;0, 0, 0.58, 1" values=" 3.5 3.5, 15 15; 2 9, 16 9; 2 5, 16 5"></animate>
+                </polyline>
+              </svg>
+            </button>
           </div>
-          
-          {/* Pro/Free Status - moved next to notification */}
-          <div className="flex items-center justify-center">
-            <div className="flex items-center justify-center relative">
-              {isAnonymousUser ? (
-                <>
-                  {/* Decorative Battery for Anonymous Users */}
-                  <div 
-                    ref={batteryRef}
-                    className="flex items-center justify-center relative group cursor-pointer"
-                    onClick={openBatteryPanel}
-                  >
-                     <svg 
-                       className={`w-8 h-9 text-[var(--foreground)] transition-all duration-500 ease-out ${
-                         isBatteryAnimating ? 'scale-105 drop-shadow-lg' : 'scale-100'
-                       }`} 
-                       viewBox="0 0 35 30" 
-                       fill="none" 
-                     >
-                       {/* Battery Body */}
-                       <rect 
-                         x="9" 
-                         y="9" 
-                         width="22" 
-                         height="11" 
-                         rx="2.2" 
-                         fill="none" 
-                         stroke="currentColor" 
-                         strokeWidth="1.2"
-                       />
-                       {/* Battery Terminal */}
-                       <polygon 
-                         points="33,12.5 33.3,15 33,17.5" 
-                         fill="none" 
-                         stroke="currentColor" 
-                         strokeWidth="1.2"
-                       />
-                       <rect 
-                         x="10.5" 
-                         y="10.5" 
-                         rx="1.2" 
-                         height="8" 
-                         width={isSubscriptionLoading ? 0 : (isBatteryAnimating ? batteryAnimationProgress : 2.5)} 
-                         fill={isSubscriptionLoading ? "transparent" : "currentColor"}
-                         className="transition-all duration-75 ease-out"
-                       />
-                     </svg>
-                     
-                   </div>
-                </>
-              ) : (
-                <>
-                  {/* iPhone Battery Icon from react-ios-icons */}
-                  <div 
-                    ref={batteryRef2}
-                    className="relative flex items-center justify-center cursor-pointer group"
-                    onClick={openBatteryPanel}
-                  >
-                     <svg 
-                       className={`w-8 h-9 text-[var(--foreground)] transition-all duration-500 ease-out cursor-pointer ${
-                         isBatteryAnimating ? 'scale-105 drop-shadow-lg' : 'scale-100'
-                       }`}
-                       viewBox="0 0 35 30" 
-                       fill="none" 
-                     >
-                       {/* Battery Body */}
-                       <rect 
-                         x="9" 
-                         y="9" 
-                         width="22" 
-                         height="11" 
-                         rx="2.2" 
-                         fill="none" 
-                         stroke="currentColor" 
-                         strokeWidth="1.2"
-                       />
-                       {/* Battery Terminal */}
-                       <polygon 
-                         points="33,12.5 33.3,15 33,17.5" 
-                         fill="none" 
-                         stroke="currentColor" 
-                         strokeWidth="1.2"
-                       />
-                       <rect 
-                         x="10.5" 
-                         y="10.5" 
-                         rx="1.2" 
-                         height="8" 
-                         width={isSubscriptionLoading ? 0 : (isBatteryAnimating ? batteryAnimationProgress : (isSubscribed ? 19 : 7))} 
-                         fill={isSubscriptionLoading ? "transparent" : "currentColor"}
-                         className="transition-all duration-75 ease-out"
-                       />
-                     </svg>
-                     
-                   </div>
-                </>
-              )}
+
+          {/* Desktop Icons - hidden on mobile */}
+          <div className="hidden md:flex items-center gap-2">
+            {/* Account Icon */}
+            <div 
+              className="flex items-center justify-center cursor-pointer"
+              onClick={openAccountPanel}
+            >
+              <svg className="w-5.5 h-5.5 text-[var(--foreground)]" viewBox="0 0 16 25" fill="none">
+                   <g id="person.crop.circle_compact">
+                     <rect id="box_" width="16" height="25" fill="none"></rect>
+                     <path id="art_" d="M15.09,12.5a7.1,7.1,0,1,1-7.1-7.1A7.1077,7.1077,0,0,1,15.09,12.5ZM7.99,6.6a5.89,5.89,0,0,0-4.4609,9.7471c.6069-.9658,2.48-1.6787,4.4609-1.6787s3.8545.7129,4.4615,1.6787A5.89,5.89,0,0,0,7.99,6.6ZM7.99,8.4A2.5425,2.5425,0,0,0,5.5151,11,2.5425,2.5425,0,0,0,7.99,13.6,2.5424,2.5424,0,0,0,10.4653,11,2.5424,2.5424,0,0,0,7.99,8.4Z" fill="currentColor"></path>
+                   </g>
+                 </svg>
             </div>
+            
+            {/* Pro/Free Status */}
+            <div className="flex items-center justify-center">
+              <div className="flex items-center justify-center relative">
+                {isAnonymousUser ? (
+                  <>
+                    {/* Decorative Battery for Anonymous Users */}
+                    <div 
+                      ref={batteryRef}
+                      className="flex items-center justify-center relative group cursor-pointer"
+                      onClick={openBatteryPanel}
+                    >
+                       <svg 
+                         className={`w-8 h-9 text-[var(--foreground)] transition-all duration-500 ease-out ${
+                           isBatteryAnimating ? 'scale-105 drop-shadow-lg' : 'scale-100'
+                         }`} 
+                         viewBox="0 0 35 30" 
+                         fill="none" 
+                       >
+                         {/* Battery Body */}
+                         <rect 
+                           x="9" 
+                           y="9" 
+                           width="22" 
+                           height="11" 
+                           rx="2.2" 
+                           fill="none" 
+                           stroke="currentColor" 
+                           strokeWidth="1.2"
+                         />
+                         {/* Battery Terminal */}
+                         <polygon 
+                           points="33,12.5 33.3,15 33,17.5" 
+                           fill="none" 
+                           stroke="currentColor" 
+                           strokeWidth="1.2"
+                         />
+                         <rect 
+                           x="10.5" 
+                           y="10.5" 
+                           rx="1.2" 
+                           height="8" 
+                           width={isSubscriptionLoading ? 0 : (isBatteryAnimating ? batteryAnimationProgress : 2.5)} 
+                           fill={isSubscriptionLoading ? "transparent" : "currentColor"}
+                           className="transition-all duration-75 ease-out"
+                         />
+                       </svg>
+                       
+                     </div>
+                  </>
+                ) : (
+                  <>
+                    {/* iPhone Battery Icon from react-ios-icons */}
+                    <div 
+                      ref={batteryRef2}
+                      className="relative flex items-center justify-center cursor-pointer group"
+                      onClick={openBatteryPanel}
+                    >
+                       <svg 
+                         className={`w-8 h-9 text-[var(--foreground)] transition-all duration-500 ease-out cursor-pointer ${
+                           isBatteryAnimating ? 'scale-105 drop-shadow-lg' : 'scale-100'
+                         }`}
+                         viewBox="0 0 35 30" 
+                         fill="none" 
+                       >
+                         {/* Battery Body */}
+                         <rect 
+                           x="9" 
+                           y="9" 
+                           width="22" 
+                           height="11" 
+                           rx="2.2" 
+                           fill="none" 
+                           stroke="currentColor" 
+                           strokeWidth="1.2"
+                         />
+                         {/* Battery Terminal */}
+                         <polygon 
+                           points="33,12.5 33.3,15 33,17.5" 
+                           fill="none" 
+                           stroke="currentColor" 
+                           strokeWidth="1.2"
+                         />
+                         <rect 
+                           x="10.5" 
+                           y="10.5" 
+                           rx="1.2" 
+                           height="8" 
+                           width={isSubscriptionLoading ? 0 : (isBatteryAnimating ? batteryAnimationProgress : (isSubscribed ? 19 : 7))} 
+                           fill={isSubscriptionLoading ? "transparent" : "currentColor"}
+                           className="transition-all duration-75 ease-out"
+                         />
+                       </svg>
+                       
+                     </div>
+                  </>
+                )}
+              </div>
+            </div>
+            
+            <WhatsNewContainer openPanel={openWhatsNewPanel} />
+            
+            {/* Contact Us Icon */}
+            <div 
+              className="flex items-center justify-center cursor-pointer pr-2 pb-0.5 pl-0.5"
+              onClick={() => setIsContactUsDialogOpen(true)}
+            >
+              <svg className="w-4 h-4 text-[var(--foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+              </svg>
+            </div>
+            
+            <ThemeToggle 
+              currentTheme={currentTheme}
+              onThemeChange={(theme) => {
+                setCurrentTheme(theme);
+                localStorage.setItem('theme', theme);
+                document.documentElement.setAttribute('data-theme', theme);
+                // Apply system theme immediately if system is selected
+                if (theme === 'system') {
+                  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                  } else {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                  }
+                }
+              }}
+            />
           </div>
-          
-          <WhatsNewContainer openPanel={openWhatsNewPanel} />
-          <ThemeToggle />
         </div>
       </div>
     </header>
@@ -767,6 +1014,512 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
       </div>
     )}
     
+    {/* Mobile Menu Panel */}
+    {isMobileMenuVisible && (
+      <div className={`fixed inset-0 z-[70] text-[var(--foreground)] pointer-events-auto transition-all duration-500 ease-out ${
+        mobileMenuElements.background ? 'opacity-100' : 'opacity-0'
+      }`}
+        style={{ backgroundColor: 'var(--background)' }}
+      >
+        <div className="absolute inset-0" onClick={closeMobileMenu} />
+        <div 
+          className={`relative h-full w-full flex flex-col transform-gpu transition-all duration-400 ease-out ${
+            mobileMenuElements.content ? 'opacity-100 translate-y-0 scale-y-100' : 'opacity-0 -translate-y-4 scale-y-[0.95]'
+          }`} 
+          style={{ transformOrigin: 'top center' }}
+        >
+            <button
+              aria-label="Close"
+              className="absolute top-1 right-1 p-2 rounded-full z-10 cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                closeMobileMenu();
+              }}
+            >
+            <svg className="w-5.5 h-5.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+          <div className={`flex flex-col h-full px-12 sm:px-16 md:px-20 lg:px-28 pt-12 sm:pt-30 pb-8 transform-gpu transition-all duration-400 ease-out ${
+            mobileMenuElements.content ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-6'
+          }`}>
+            {/* Back button - only show when not on main view */}
+            {mobileMenuCurrentView !== 'main' && (
+              <button
+                onClick={goBackToMainMenu}
+                aria-label="Main menu"
+                className="absolute top-1 left-1 z-10 globalnav-menuback-button flex items-center justify-center w-10 h-10 rounded-full hover:bg-[var(--muted)]/20 transition-colors cursor-pointer"
+              >
+                <span className="globalnav-chevron-icon">
+                  <svg height="48" viewBox="0 0 9 48" width="9" xmlns="http://www.w3.org/2000/svg">
+                    <path d="m1.5618 24.0621 6.5581-6.4238c.2368-.2319.2407-.6118.0088-.8486-.2324-.2373-.6123-.2407-.8486-.0088l-7 6.8569c-.1157.1138-.1807.2695-.1802.4316.001.1621.0674.3174.1846.4297l7 6.7241c.1162.1118.2661.1675.4155.1675.1577 0 .3149-.062.4326-.1846.2295-.2388.2222-.6187-.0171-.8481z" fill="currentColor"></path>
+                  </svg>
+                </span>
+              </button>
+            )}
+
+            <div className={`flex-1 overflow-y-auto text-base text-[var(--muted)] transform-gpu transition-all duration-400 ease-out -mx-12 sm:-mx-16 md:-mx-20 lg:-mx-28 px-12 sm:px-16 md:px-20 lg:px-28 ${
+              mobileMenuElements.content ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
+            }`}>
+              {/* Main Menu */}
+              {mobileMenuCurrentView === 'main' && (
+                <div className="space-y-4 sm:space-y-6 pt-2">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigateToMobileView('account');
+                    }}
+                    className="flex items-center cursor-pointer w-full text-left"
+                  >
+                    <span className="text-2xl font-semibold text-[var(--foreground)]">Account</span>
+                  </button>
+
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigateToMobileView('subscription');
+                    }}
+                    className="flex items-center cursor-pointer w-full text-left"
+                  >
+                    <span className="text-2xl font-semibold text-[var(--foreground)]">Subscription</span>
+                  </button>
+
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigateToMobileView('updates');
+                    }}
+                    className="flex items-center cursor-pointer w-full text-left"
+                  >
+                    <span className="text-2xl font-semibold text-[var(--foreground)]">Changelog</span>
+                  </button>
+
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigateToMobileView('theme');
+                      }}
+                      className="flex items-center cursor-pointer w-full text-left"
+                    >
+                      <span className="text-2xl font-semibold text-[var(--foreground)]">Theme</span>
+                    </button>
+
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigateToMobileView('support');
+                      }}
+                      className="flex items-center cursor-pointer w-full text-left"
+                    >
+                      <span className="text-2xl font-semibold text-[var(--foreground)]">Support</span>
+                    </button>
+                </div>
+              )}
+
+                {/* Account View */}
+                {mobileMenuCurrentView === 'account' && (
+                  <div className="space-y-6 pt-2">
+                    <div className="flex items-center gap-2">
+                      {isEditingName ? (
+                        <div className="flex items-center gap-2 w-full">
+                          <input
+                            type="text"
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            onBlur={saveEditingName}
+                            onKeyDown={handleNameKeyDown}
+                            disabled={isUpdatingName}
+                            className="ml-1 sm:ml-0 text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight text-[var(--foreground)] bg-transparent focus:outline-none w-full h-auto leading-none py-0 px-0 m-0 border-0 border-b-2 border-[var(--accent)] disabled:opacity-50"
+                            maxLength={100}
+                            autoFocus
+                          />
+                          {isUpdatingName && (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[var(--accent)]"></div>
+                          )}
+                        </div>
+                      ) : (
+                        <>
+                          <h2 className="ml-1 sm:ml-0 text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight text-[var(--foreground)]">
+                            {!isUserNameLoading && userName}
+                          </h2>
+                          {!isAnonymousUser && (
+                            <button
+                              onClick={startEditingName}
+                              className="cursor-pointer pt-1"
+                              aria-label="Edit name"
+                            >
+                              <SquarePencil className="w-7 h-7 text-[var(--muted)]" />
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  {isAnonymousUser && (
+                    <p className="mt-6 text-sm text-[var(--muted)] pl-1">
+                      <button 
+                        onClick={() => router.push('/login')}
+                        className="text-blue-500 underline cursor-pointer"
+                      >
+                        Sign in
+                      </button> to access your bookmarks and account settings
+                    </p>
+                  )}
+                  <div className="mt-10 text-base text-[var(--muted)]">
+                    <div className="mb-5 text-base font-normal text-[var(--muted)] pl-1.5">My Profile</div>
+                    <div className="space-y-3">
+                      {isAnonymousUser ? (
+                        <>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push('/login');
+                              closeMobileMenu();
+                            }}
+                            className="flex items-center gap-3 cursor-pointer"
+                          >
+                            <Bookmark className="w-6 h-6" />
+                            <span className="text-base font-semibold text-[var(--foreground)]">Bookmarks</span>
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push('/login');
+                              closeMobileMenu();
+                            }}
+                            className="flex items-center gap-3 cursor-pointer"
+                          >
+                            <svg className="w-6 h-6" viewBox="0 0 16 25" fill="none">
+                              <g id="gear_compact">
+                                <rect id="box_" width="16" height="25" fill="none"></rect>
+                                <path id="art_" d="M15.6094,12.3252a.5142.5142,0,0,0-.2959-.2959l-.5972-.2324a6.6665,6.6665,0,0,0-.16-.917l.4809-.42a.5172.5172,0,0,0-.3291-.9073l-.6372-.0136c-.0654-.1377-.1343-.2784-.2139-.4151s-.1635-.2636-.2519-.3935l.3076-.5576a.517.517,0,0,0-.62-.7393l-.6035.2051a6.68,6.68,0,0,0-.7134-.5977l.0986-.6328a.5172.5172,0,0,0-.43-.5918.54.54,0,0,0-.4052.1084l-.5015.4033A6.911,6.911,0,0,0,9.87,6.01l-.124-.6328a.5178.5178,0,0,0-.9512-.167l-.333.5507a7.2576,7.2576,0,0,0-.92.0039L7.2056,5.207a.518.518,0,0,0-.9512.167l-.125.6377a6.6192,6.6192,0,0,0-.8652.31l-.501-.4063a.5176.5176,0,0,0-.8364.4834l.0991.6358a6.6073,6.6073,0,0,0-.7017.5947L2.71,7.417a.5173.5173,0,0,0-.6211.7392l.3134.5694a6.7192,6.7192,0,0,0-.4653.7959l-.6421.0117a.516.516,0,0,0-.5083.5264.52.52,0,0,0,.1763.38l.4849.4238a6.8261,6.8261,0,0,0-.16.9111l-.6006.23a.5176.5176,0,0,0-.001.9658l.5972.2324a6.6665,6.6665,0,0,0,.16.917l-.4809.419a.5184.5184,0,0,0-.05.7314.52.52,0,0,0,.3789.1758l.6367.0137c.063.1318.1333.2754.2144.416.0673.1172.143.2246.2163.3281l.04.0566-.312.5664a.5176.5176,0,0,0,.2036.7032.52.52,0,0,0,.416.0361l.5967-.2031a6.82,6.82,0,0,0,.7207.5937l-.0991.6348a.5153.5153,0,0,0,.0933.3857.5187.5187,0,0,0,.7421.0977l.5064-.4082a6.6137,6.6137,0,0,0,.8628.3193l.1245.6358a.5139.5139,0,0,0,.22.33.53.53,0,0,0,.3877.0782.5193.5193,0,0,0,.3433-.24l.3388-.56.0577.0049a4.8076,4.8076,0,0,0,.7871.0019l.0669-.0058.3383.5625a.518.518,0,0,0,.9512-.167l.1245-.6348a6.6152,6.6152,0,0,0,.8589-.3193l.5088.4131a.5176.5176,0,0,0,.8364-.4834l-.0991-.6358a6.6173,6.6173,0,0,0,.7017-.5947l.6142.2119a.5174.5174,0,0,0,.6211-.7392l-.3135-.5694a6.6548,6.6548,0,0,0,.4649-.7959l.6421-.0117a.5168.5168,0,0,0,.5088-.5264.5166.5166,0,0,0-.1768-.38l-.4849-.4238a6.6694,6.6694,0,0,0,.16-.9111l.6006-.2315a.5177.5177,0,0,0,.2969-.6689ZM6.4941,13.9043,4.7666,16.8926a5.4449,5.4449,0,0,1,.0044-8.792L6.5,11.0986A2.0525,2.0525,0,0,0,6.4941,13.9043Zm2.1646-1.7822a.7608.7608,0,1,1-.4609-.3555A.7543.7543,0,0,1,8.6587,12.1221ZM7.54,10.499,5.8154,7.5068A5.4579,5.4579,0,0,1,7.9907,7.041h.0239a5.4693,5.4693,0,0,1,5.4068,4.8633l-3.457-.0029a2.0363,2.0363,0,0,0-.18-.43A2.0586,2.0586,0,0,0,7.54,10.499Zm-.0058,4.0049a2.0556,2.0556,0,0,0,2.435-1.4023l3.4512.0029a5.4455,5.4455,0,0,1-7.6147,4.3877Z" fill="currentColor"></path>
+                              </g>
+                            </svg>
+                            <span className="text-base font-semibold text-[var(--foreground)]">Account</span>
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push('/login');
+                              closeMobileMenu();
+                            }}
+                            className="flex items-center gap-3 cursor-pointer"
+                          >
+                            <svg className="w-6 h-6" viewBox="0 0 16 25" fill="none">
+                              <g id="person.crop.circle_compact">
+                                <rect id="box_" width="16" height="25" fill="none"></rect>
+                                <path id="art_" d="M15.09,12.5a7.1,7.1,0,1,1-7.1-7.1A7.1077,7.1077,0,0,1,15.09,12.5ZM7.99,6.6a5.89,5.89,0,0,0-4.4609,9.7471c.6069-.9658,2.48-1.6787,4.4609-1.6787s3.8545.7129,4.4615,1.6787A5.89,5.89,0,0,0,7.99,6.6ZM7.99,8.4A2.5425,2.5425,0,0,0,5.5151,11,2.5425,2.5425,0,0,0,7.99,13.6,2.5424,2.5424,0,0,0,10.4653,11,2.5424,2.5424,0,0,0,7.99,8.4Z" fill="currentColor"></path>
+                              </g>
+                            </svg>
+                            <span className="text-base font-semibold text-[var(--foreground)]">Sign in</span>
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push('/bookmarks');
+                              closeMobileMenu();
+                            }}
+                            className="flex items-center gap-3 cursor-pointer"
+                          >
+                            <Bookmark className="w-6 h-6" />
+                            <span className="text-base font-semibold text-[var(--foreground)]">Bookmarks</span>
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIsAccountDialogOpen(true);
+                            }}
+                            className="flex items-center gap-3 cursor-pointer"
+                          >
+                            <svg className="w-6 h-6" viewBox="0 0 16 25" fill="none">
+                              <g id="gear_compact">
+                                <rect id="box_" width="16" height="25" fill="none"></rect>
+                                <path id="art_" d="M15.6094,12.3252a.5142.5142,0,0,0-.2959-.2959l-.5972-.2324a6.6665,6.6665,0,0,0-.16-.917l.4809-.42a.5172.5172,0,0,0-.3291-.9073l-.6372-.0136c-.0654-.1377-.1343-.2784-.2139-.4151s-.1635-.2636-.2519-.3935l.3076-.5576a.517.517,0,0,0-.62-.7393l-.6035.2051a6.68,6.68,0,0,0-.7134-.5977l.0986-.6328a.5172.5172,0,0,0-.43-.5918.54.54,0,0,0-.4052.1084l-.5015.4033A6.911,6.911,0,0,0,9.87,6.01l-.124-.6328a.5178.5178,0,0,0-.9512-.167l-.333.5507a7.2576,7.2576,0,0,0-.92.0039L7.2056,5.207a.518.518,0,0,0-.9512.167l-.125.6377a6.6192,6.6192,0,0,0-.8652.31l-.501-.4063a.5176.5176,0,0,0-.8364.4834l.0991.6358a6.6073,6.6073,0,0,0-.7017.5947L2.71,7.417a.5173.5173,0,0,0-.6211.7392l.3134.5694a6.7192,6.7192,0,0,0-.4653.7959l-.6421.0117a.516.516,0,0,0-.5083.5264.52.52,0,0,0,.1763.38l.4849.4238a6.8261,6.8261,0,0,0-.16.9111l-.6006.23a.5176.5176,0,0,0-.001.9658l.5972.2324a6.6665,6.6665,0,0,0,.16.917l-.4809.419a.5184.5184,0,0,0-.05.7314.52.52,0,0,0,.3789.1758l.6367.0137c.063.1318.1333.2754.2144.416.0673.1172.143.2246.2163.3281l.04.0566-.312.5664a.5176.5176,0,0,0,.2036.7032.52.52,0,0,0,.416.0361l.5967-.2031a6.82,6.82,0,0,0,.7207.5937l-.0991.6348a.5153.5153,0,0,0,.0933.3857.5187.5187,0,0,0,.7421.0977l.5064-.4082a6.6137,6.6137,0,0,0,.8628.3193l.1245.6358a.5139.5139,0,0,0,.22.33.53.53,0,0,0,.3877.0782.5193.5193,0,0,0,.3433-.24l.3388-.56.0577.0049a4.8076,4.8076,0,0,0,.7871.0019l.0669-.0058.3383.5625a.518.518,0,0,0,.9512-.167l.1245-.6348a6.6152,6.6152,0,0,0,.8589-.3193l.5088.4131a.5176.5176,0,0,0,.8364-.4834l-.0991-.6358a6.6173,6.6173,0,0,0,.7017-.5947l.6142.2119a.5174.5174,0,0,0,.6211-.7392l-.3135-.5694a6.6548,6.6548,0,0,0,.4649-.7959l.6421-.0117a.5168.5168,0,0,0,.5088-.5264.5166.5166,0,0,0-.1768-.38l-.4849-.4238a6.6694,6.6694,0,0,0,.16-.9111l.6006-.2315a.5177.5177,0,0,0,.2969-.6689ZM6.4941,13.9043,4.7666,16.8926a5.4449,5.4449,0,0,1,.0044-8.792L6.5,11.0986A2.0525,2.0525,0,0,0,6.4941,13.9043Zm2.1646-1.7822a.7608.7608,0,1,1-.4609-.3555A.7543.7543,0,0,1,8.6587,12.1221ZM7.54,10.499,5.8154,7.5068A5.4579,5.4579,0,0,1,7.9907,7.041h.0239a5.4693,5.4693,0,0,1,5.4068,4.8633l-3.457-.0029a2.0363,2.0363,0,0,0-.18-.43A2.0586,2.0586,0,0,0,7.54,10.499Zm-.0058,4.0049a2.0556,2.0556,0,0,0,2.435-1.4023l3.4512.0029a5.4455,5.4455,0,0,1-7.6147,4.3877Z" fill="currentColor"></path>
+                              </g>
+                            </svg>
+                            <span className="text-base font-semibold text-[var(--foreground)]">Account</span>
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // 로그아웃 기능
+                              if (typeof window !== 'undefined') {
+                                import('@/utils/supabase/client').then(({ createClient }) => {
+                                  const supabase = createClient();
+                                  supabase.auth.signOut().then(() => {
+                                    window.location.href = '/login';
+                                  });
+                                });
+                              }
+                            }}
+                            className="flex items-center gap-3 cursor-pointer"
+                          >
+                            <svg className="w-6 h-6" viewBox="0 0 16 25" fill="none">
+                              <g id="person.crop.circle_compact">
+                                <rect id="box_" width="16" height="25" fill="none"></rect>
+                                <path id="art_" d="M15.09,12.5a7.1,7.1,0,1,1-7.1-7.1A7.1077,7.1077,0,0,1,15.09,12.5ZM7.99,6.6a5.89,5.89,0,0,0-4.4609,9.7471c.6069-.9658,2.48-1.6787,4.4609-1.6787s3.8545.7129,4.4615,1.6787A5.89,5.89,0,0,0,7.99,6.6ZM7.99,8.4A2.5425,2.5425,0,0,0,5.5151,11,2.5425,2.5425,0,0,0,7.99,13.6,2.5424,2.5424,0,0,0,10.4653,11,2.5424,2.5424,0,0,0,7.99,8.4Z" fill="currentColor"></path>
+                              </g>
+                            </svg>
+                            <span className="text-base font-semibold text-[var(--foreground)]">Log Out</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Subscription View */}
+              {mobileMenuCurrentView === 'subscription' && (
+                <div className="space-y-6 pt-2">
+                  <h2 className="text-2xl font-semibold text-[var(--foreground)] mb-6">
+                    {isAnonymousUser ? 'Guest Mode' : isSubscribed ? 'Pro' : 'Free'}
+                  </h2>
+                  <div className="text-lg text-[var(--muted)] mb-4">
+                    Subscription
+                  </div>
+                  {isAnonymousUser && (
+                    <p className="text-sm text-[var(--muted)] mb-4">
+                      <button 
+                        onClick={() => router.push('/login')}
+                        className="text-blue-500 underline cursor-pointer"
+                      >
+                        Sign in
+                      </button> to view your subscription and billing details
+                    </p>
+                  )}
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsSubscriptionDialogOpen(true);
+                    }}
+                    className="flex items-center gap-2 cursor-pointer w-full text-left"
+                  >
+                    <svg className="w-6 h-6" viewBox="0 0 16 25" fill="none">
+                      <g id="creditcard_compact">
+                        <rect id="box_" width="16" height="25" fill="none"></rect>
+                        <path id="art_" d="M14.5,6.5h-13A1.5,1.5,0,0,0,0,8v9a1.5,1.5,0,0,0,1.5,1.5h13A1.5,1.5,0,0,0,16,17V8A1.5,1.5,0,0,0,14.5,6.5ZM1.5,8h13v2h-13Zm0,9V11.5h13V17Z" fill="currentColor"></path>
+                      </g>
+                    </svg>
+                    <span className="text-lg font-semibold text-[var(--foreground)]">{isSubscribed ? 'Your Plan' : 'Plan'}</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Updates View */}
+              {mobileMenuCurrentView === 'updates' && (
+                <div className="space-y-6 pt-2">
+                  <h2 className="text-2xl font-semibold text-[var(--foreground)] mb-6">Changelog</h2>
+                  {isLoadingUpdates ? (
+                    <div className="flex justify-center items-center h-32">
+                      <div className="w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  ) : updates.length === 0 ? (
+                    <div className="text-center text-[var(--muted)] py-8">
+                      <p>No updates available</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {updates.map((update, index) => {
+                        const isExpanded = expandedUpdates.has(update.id);
+                        return (
+                          <div key={update.id}>
+                            <button
+                              onClick={() => toggleUpdate(update.id)}
+                              className="w-full text-left py-3 group cursor-pointer"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                  <span className="text-lg font-semibold text-[var(--foreground)]">
+                                    {update.title}
+                                  </span>
+                                  <p className="text-xs text-[var(--muted)] font-light mt-0.5">
+                                    {update.date}
+                                  </p>
+                                </div>
+                              </div>
+                            </button>
+                            
+                            {/* Expanded Content */}
+                            <div className={`transition-all duration-500 ease-out ${
+                              isExpanded ? 'max-h-[1000px] opacity-100 overflow-visible' : 'max-h-0 opacity-0 overflow-hidden'
+                            }`}>
+                              <div className="pb-4 pt-2">
+                                {/* Images first */}
+                                {update.images && update.images.length > 0 && (
+                                  <div className="mb-4">
+                                    {update.images.length === 1 ? (
+                                      <div 
+                                        className="rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                                        onClick={() => handleImageClick(update.images![0], update.images!, 0)}
+                                      >
+                                        <Image 
+                                          src={update.images[0]}
+                                          alt={update.title}
+                                          width={800}
+                                          height={400}
+                                          className="w-full h-auto object-cover"
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        {update.images.map((img, i) => (
+                                          <div 
+                                            key={i} 
+                                            className="rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                                            onClick={() => handleImageClick(img, update.images!, i)}
+                                          >
+                                            <Image 
+                                              src={img}
+                                              alt={`${update.title} image ${i+1}`}
+                                              width={400}
+                                              height={300}
+                                              className="w-full h-auto object-cover"
+                                            />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                
+                                {/* Description with segmentation */}
+                                <div className="text-[var(--foreground)] pl-2">
+                                  <MarkdownContent 
+                                    content={update.description} 
+                                    enableSegmentation={true}
+                                    messageType="assistant"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Theme View */}
+              {mobileMenuCurrentView === 'theme' && (
+                <div className="space-y-6 pt-2">
+                  <h2 className="text-2xl font-semibold text-[var(--foreground)] mb-6">Theme</h2>
+                  
+                  {/* Theme Options */}
+                  <div className="space-y-3">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentTheme('light');
+                        localStorage.setItem('theme', 'light');
+                        document.documentElement.setAttribute('data-theme', 'light');
+                      }}
+                      className={`flex items-center gap-3 w-full text-left p-3 rounded-lg transition-colors ${
+                        currentTheme === 'light' ? 'bg-[var(--accent)]' : 'hover:bg-[var(--muted)]/10'
+                      }`}
+                    >
+                      <svg className="w-5 h-5 text-yellow-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <circle cx="12" cy="12" r="5" />
+                        <line x1="12" y1="1" x2="12" y2="3" />
+                        <line x1="12" y1="21" x2="12" y2="23" />
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                        <line x1="1" y1="12" x2="3" y2="12" />
+                        <line x1="21" y1="12" x2="23" y2="12" />
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                      </svg>
+                      <div>
+                        <div className="font-semibold text-[var(--foreground)]">Light Mode</div>
+                        <div className="text-sm text-[var(--muted)]">Always use light theme</div>
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentTheme('dark');
+                        localStorage.setItem('theme', 'dark');
+                        document.documentElement.setAttribute('data-theme', 'dark');
+                      }}
+                      className={`flex items-center gap-3 w-full text-left p-3 rounded-lg transition-colors ${
+                        currentTheme === 'dark' ? 'bg-[var(--accent)]' : 'hover:bg-[var(--muted)]/10'
+                      }`}
+                    >
+                      <svg className="w-5 h-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+                      </svg>
+                      <div>
+                        <div className="font-semibold text-[var(--foreground)]">Dark Mode</div>
+                        <div className="text-sm text-[var(--muted)]">Always use dark theme</div>
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentTheme('system');
+                        localStorage.removeItem('theme');
+                        document.documentElement.setAttribute('data-theme', 'system');
+                        // Apply system theme immediately
+                        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                          document.documentElement.setAttribute('data-theme', 'dark');
+                        } else {
+                          document.documentElement.setAttribute('data-theme', 'light');
+                        }
+                      }}
+                      className={`flex items-center gap-3 w-full text-left p-3 rounded-lg transition-colors ${
+                        currentTheme === 'system' ? 'bg-[var(--accent)]' : 'hover:bg-[var(--muted)]/10'
+                      }`}
+                    >
+                      <svg className="w-5 h-5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                        <line x1="8" y1="21" x2="16" y2="21" />
+                        <line x1="12" y1="17" x2="12" y2="21" />
+                      </svg>
+                      <div>
+                        <div className="font-semibold text-[var(--foreground)]">System</div>
+                        <div className="text-sm text-[var(--muted)]">Follow system preference</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Support View */}
+              {mobileMenuCurrentView === 'support' && (
+                <div className="space-y-6 pt-2">
+                  <h2 className="text-2xl font-semibold text-[var(--foreground)] mb-6">Support</h2>
+                  <div className="mt-10 text-base text-[var(--muted)]">
+                    <div className="mb-5 text-base font-normal text-[var(--muted)]">Get Help</div>
+                    <div className="space-y-3">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsContactUsDialogOpen(true);
+                        }}
+                        className="flex items-center gap-4 cursor-pointer pl-0.5"
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                          <polyline points="22,6 12,13 2,6"></polyline>
+                        </svg>
+                        <span className="text-lg font-semibold text-[var(--foreground)]">Contact Us</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    
     {/* Account Panel */}
     {isAccountPanelVisible && !isUserNameLoading && (
       <div className={`fixed inset-0 z-[70] text-[var(--foreground)] pointer-events-auto transition-all duration-500 ease-out ${
@@ -797,9 +1550,41 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
           <div className={`px-12 sm:px-16 md:px-20 lg:px-28 pt-12 sm:pt-30 pb-8 transform-gpu transition-all duration-400 ease-out ${
             accountPanelElements.content ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-6'
           }`}>
-            <h2 className="text-3xl sm:text-3xl md:text-4xl font-semibold tracking-tight">
-              {!isUserNameLoading && userName}
-            </h2>
+            <div className="flex items-center gap-2">
+              {isEditingName ? (
+                <div className="flex items-center gap-2 w-full">
+                  <input
+                    type="text"
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    onBlur={saveEditingName}
+                    onKeyDown={handleNameKeyDown}
+                    disabled={isUpdatingName}
+                    className="ml-1 sm:ml-0 text-3xl sm:text-3xl md:text-4xl font-semibold tracking-tight text-[var(--foreground)] bg-transparent focus:outline-none w-full h-auto leading-none py-0 px-0 m-0 border-0 border-b-2 border-[var(--accent)] disabled:opacity-50"
+                    maxLength={100}
+                    autoFocus
+                  />
+                  {isUpdatingName && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[var(--accent)]"></div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <h2 className="ml-1 sm:ml-0 text-3xl sm:text-3xl md:text-4xl font-semibold tracking-tight text-[var(--foreground)]">
+                    {!isUserNameLoading && userName}
+                  </h2>
+                  {!isAnonymousUser && (
+                    <button
+                      onClick={startEditingName}
+                      className="cursor-pointer pt-2"
+                      aria-label="Edit name"
+                    >
+                      <SquarePencil className="w-7 h-7 text-[var(--muted)]" />
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
             {isAnonymousUser && (
               <p className="mt-6 text-sm text-[var(--muted)] pl-1">
                 <button 
@@ -962,7 +1747,7 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
                 <>
                   {/* Section Header with Toggle Button */}
                   <div className="flex items-center justify-between mb-6">
-                    <div className="text-base font-normal text-[var(--muted)] pl-0">Latest Updates</div>
+                    <div className="text-base font-normal text-[var(--muted)] pl-0">Changelog</div>
                     {updates.length > 0 && (
                       <button
                         onClick={toggleAllUpdates}
@@ -1075,6 +1860,12 @@ export function Header({ isSidebarOpen, toggleSidebar, showBackButton, user, isH
       user={user}
       isOpen={isSubscriptionDialogOpen}
       onClose={() => setIsSubscriptionDialogOpen(false)}
+    />
+    
+    {/* Contact Us Dialog */}
+    <ContactUsDialog
+      isOpen={isContactUsDialogOpen}
+      onClose={() => setIsContactUsDialogOpen(false)}
     />
     
     {/* Image Modal */}

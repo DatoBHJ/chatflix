@@ -2,13 +2,17 @@
 
 import { createContext, useContext, ReactNode } from 'react'
 
-interface SidebarContextType {
+export interface SidebarContextType {
   isSidebarOpen: boolean
   toggleSidebar: () => void
   isAccountOpen: boolean
   setIsAccountOpen: (isOpen: boolean) => void
   isHovering: boolean
   isMobile: boolean
+  isSelectionMode: boolean
+  setIsSelectionMode: React.Dispatch<React.SetStateAction<boolean>>
+  isPromptEditMode: boolean
+  setIsPromptEditMode: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined)
@@ -22,7 +26,11 @@ export const useSidebar = () => {
       isAccountOpen: false,
       setIsAccountOpen: () => {},
       isHovering: false,
-      isMobile: false
+      isMobile: false,
+      isSelectionMode: false,
+      setIsSelectionMode: () => {},
+      isPromptEditMode: false,
+      setIsPromptEditMode: () => {}
     } // 기본값
   }
   return context

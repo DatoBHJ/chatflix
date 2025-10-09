@@ -233,6 +233,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+
   // Initialize modal height on mount
   useEffect(() => {
     if (isOpen && isMobile && modalRef.current) {
@@ -772,19 +773,6 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
             </svg>
           </button>
 
-          <button
-            onClick={() => setMobileView('appearance')}
-            className="w-full flex items-center justify-between p-4 hover:bg-[var(--accent)] rounded-lg transition-colors cursor-pointer"
-          >
-            <div className="flex items-center gap-3">
-              <PaintBucket size={20} />
-              <span className="text-base">{translations.appearance}</span>
-            </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 18l6-6-6-6" />
-            </svg>
-          </button>
-
 
 
 
@@ -821,17 +809,6 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
             </button>
           )}
 
-          <div className="my-6 h-[1px] bg-[var(--accent)]" />
-
-          <button
-            onClick={handleSignOut}
-            className="w-full flex items-center justify-between p-4 hover:bg-red-500/10 rounded-lg transition-colors text-red-500 cursor-pointer"
-          >
-            <div className="flex items-center gap-3">
-              <LogOut size={20} />
-              <span className="text-base">{translations.logOut}</span>
-            </div>
-          </button>
         </div>
       </div>
     );
@@ -902,81 +879,6 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
                   {translations.theNameChatflixWillCallYou}
                 </p>
               </div>
-            </div>
-          </div>
-        )
-      case 'appearance':
-        return (
-          <div className="p-6 sm:py-20 h-full flex flex-col">
-            <div className="space-y-6">
-              {/* Theme Card Section */}
-              <div className="grid grid-cols-3 gap-4">
-                <button 
-                  className="flex flex-col items-center justify-center p-6 bg-[var(--accent)] rounded-2xl border border-[var(--accent)]"
-                  onClick={() => {
-                    localStorage.setItem('theme', 'light');
-                    document.documentElement.setAttribute('data-theme', 'light');
-                  }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-2">
-                    <circle cx="12" cy="12" r="4"></circle>
-                    <path d="M12 2v2"></path>
-                    <path d="M12 20v2"></path>
-                    <path d="m4.93 4.93 1.41 1.41"></path>
-                    <path d="m17.66 17.66 1.41 1.41"></path>
-                    <path d="M2 12h2"></path>
-                    <path d="M20 12h2"></path>
-                    <path d="m6.34 17.66-1.41 1.41"></path>
-                    <path d="m19.07 4.93-1.41 1.41"></path>
-                  </svg>
-                  <span className="text-sm font-medium">{translations.light}</span>
-                </button>
-                
-                <button 
-                  className="flex flex-col items-center justify-center p-6 bg-[var(--accent)] rounded-2xl border border-[var(--accent)]"
-                  onClick={() => {
-                    localStorage.setItem('theme', 'dark');
-                    document.documentElement.setAttribute('data-theme', 'dark');
-                  }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-2">
-                    <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
-                  </svg>
-                  <span className="text-sm font-medium">{translations.dark}</span>
-                </button>
-                
-                <button 
-                  className="flex flex-col items-center justify-center p-6 bg-[var(--accent)] rounded-2xl border border-[var(--accent)]"
-                  onClick={() => {
-                    localStorage.removeItem('theme');
-                    document.documentElement.setAttribute('data-theme', 'system');
-                  }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-2">
-                    <rect width="20" height="14" x="2" y="3" rx="2"></rect>
-                    <line x1="8" x2="16" y1="21" y2="21"></line>
-                    <line x1="12" x2="12" y1="17" y2="21"></line>
-                  </svg>
-                  <span className="text-sm font-medium">{translations.system}</span>
-                </button>
-              </div>
-              
-              {/* 다크모드일 때만 별 효과 토글 표시 */}
-              {/* {isDarkMode && (
-                <div className="flex items-center justify-between mt-4">
-                  <span className="text-base">{translations.starryNightBackground}</span>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isStarryNightEnabled}
-                      onChange={toggleStarryNight}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-gray-200 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#007AFF] shadow-inner"></div>
-                  </label>
-                </div>
-              )} */}
-
             </div>
           </div>
         )
@@ -1224,9 +1126,6 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
                 <button onClick={() => setActiveTab('account')} className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm shrink-0 cursor-pointer ${activeTab === 'account' ? 'bg-[var(--accent)]' : 'hover:bg-[var(--accent)]'}`}>
                   <User size={16} /> <span className="hidden sm:inline">{translations.profile}</span>
                 </button>
-                <button onClick={() => setActiveTab('appearance')} className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm shrink-0 cursor-pointer ${activeTab === 'appearance' ? 'bg-[var(--accent)]' : 'hover:bg-[var(--accent)]'}`}>
-                  <PaintBucket size={16} /> <span className="hidden sm:inline">{translations.appearance}</span>
-                </button>
 
 
 
@@ -1248,9 +1147,6 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
                     )}
                   </button>
                 )}
-                <button onClick={handleSignOut} className="flex items-center gap-3 px-2 py-2 rounded-md text-sm w-full text-left text-red-500 hover:bg-red-500/10 cursor-pointer">
-                  <LogOut size={16} /> {translations.logOut}
-                </button>
               </div>
             </div>
             

@@ -3,6 +3,7 @@ import { memo, useEffect, useState } from "react";
 import { Download } from 'lucide-react';
 import { getIcon } from 'material-file-icons';
 import { fileHelpers } from './ChatInput/FileUpload';
+import { useUrlRefresh } from '../hooks/useUrlRefresh';
 
 interface AttachmentPreviewProps {
   attachment: Attachment;
@@ -20,21 +21,27 @@ export const AttachmentPreview = memo(function AttachmentPreviewComponent({
 }: AttachmentPreviewProps) {
   const isImage = attachment.contentType?.startsWith('image/') || false;
 
+  // URL 자동 갱신 훅 사용
+  const { refreshedUrl, isRefreshing, refreshError, refreshUrl } = useUrlRefresh({
+    url: attachment.url,
+    enabled: true
+  });
+
   // Derive file size if missing using HEAD request
   const [derivedSize, setDerivedSize] = useState<number | null>(null);
   useEffect(() => {
     let aborted = false;
-    if (!attachment.metadata?.fileSize && attachment.url) {
+    if (!attachment.metadata?.fileSize && refreshedUrl) {
       (async () => {
         try {
-          const res = await fetch(attachment.url, { method: 'HEAD' });
+          const res = await fetch(refreshedUrl, { method: 'HEAD' });
           const len = res.headers.get('content-length');
           if (!aborted && len) setDerivedSize(parseInt(len, 10));
         } catch {}
       })();
     }
     return () => { aborted = true; };
-  }, [attachment.metadata?.fileSize, attachment.url]);
+  }, [attachment.metadata?.fileSize, refreshedUrl]);
 
   // 클릭 핸들러 - 모든 파일을 사이드 패널에서 열기
   const handleClick = (e: React.MouseEvent) => {
@@ -44,8 +51,8 @@ export const AttachmentPreview = memo(function AttachmentPreviewComponent({
       e.stopPropagation();
       togglePanel(messageId, 'attachment', attachmentIndex, undefined, attachment.name);
     } else {
-      // togglePanel이 없으면 새 탭에서 열기
-      window.open(attachment.url, '_blank');
+      // togglePanel이 없으면 새 탭에서 열기 (갱신된 URL 사용)
+      window.open(refreshedUrl, '_blank');
     }
   };
 
@@ -54,9 +61,9 @@ export const AttachmentPreview = memo(function AttachmentPreviewComponent({
     e.preventDefault();
     e.stopPropagation();
     
-    // 파일 다운로드 링크 생성
+    // 파일 다운로드 링크 생성 (갱신된 URL 사용)
     const link = document.createElement('a');
-    link.href = attachment.url;
+    link.href = refreshedUrl;
     link.download = attachment.name || 'download';
     link.target = '_blank';
     
@@ -68,15 +75,17 @@ export const AttachmentPreview = memo(function AttachmentPreviewComponent({
 
   if (isImage) {
     return (
-      <img 
-        src={attachment.url} 
-        alt={attachment.name || 'Image Attachment'}
-        className="imessage-image-attachment"
-        onClick={handleClick}
-        style={{ 
-          cursor: togglePanel ? 'pointer' : 'default' 
-        }}
-      />
+      <div className="relative">
+        <img 
+          src={refreshedUrl} 
+          alt={attachment.name || 'Image Attachment'}
+          className="imessage-image-attachment"
+          onClick={handleClick}
+          style={{ 
+            cursor: togglePanel ? 'pointer' : 'default' 
+          }}
+        />
+      </div>
     );
   }
 

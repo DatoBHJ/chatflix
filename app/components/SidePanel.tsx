@@ -7,6 +7,8 @@ import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { AttachmentTextViewer } from './AttachmentTextViewer';
+import { AttachmentViewer } from './AttachmentViewer';
+import { useUrlRefresh } from '../hooks/useUrlRefresh';
 
 interface SidePanelProps {
   activePanel: { messageId: string; type: 'canvas' | 'structuredResponse' | 'attachment'; fileIndex?: number; toolType?: string; fileName?: string } | null;
@@ -440,66 +442,9 @@ export const SidePanel: React.FC<SidePanelProps> = ({
     }
 
     const attachment = attachments[nonNullPanelData.fileIndex];
-    const isImage = attachment.contentType?.startsWith('image/');
-    const isPDF = attachment.contentType === 'application/pdf' || attachment.name?.toLowerCase().endsWith('.pdf');
-    const isText = attachment.contentType?.startsWith('text/') || 
-                   attachment.contentType?.includes('json') ||
-                   attachment.contentType?.includes('xml') ||
-                   attachment.contentType?.includes('javascript') ||
-                   attachment.contentType?.includes('typescript') ||
-                   attachment.contentType?.includes('html') ||
-                   attachment.contentType?.includes('css') ||
-                   (attachment.name && /(\.txt|\.md|\.js|\.jsx|\.ts|\.tsx|\.html|\.css|\.json|\.xml|\.py|\.java|\.c|\.cpp|\.cs|\.go|\.rb|\.php|\.swift|\.kt|\.rs|\.sql|\.sh|\.yml|\.yaml|\.toml|\.ini|\.cfg|\.conf|\.log)$/i.test(attachment.name));
-
-    if (isImage) {
-      return (
-        <div className="flex justify-center">
-          <img 
-            src={attachment.url} 
-            alt={attachment.name || 'Attachment'} 
-            className="max-w-full h-auto rounded-lg"
-            style={{ maxHeight: '70vh' }}
-          />
-        </div>
-      );
-    } else if (isPDF) {
-      return (
-        <div className="w-full h-full">
-          <iframe
-            src={`${attachment.url}#toolbar=1&navpanes=1&scrollbar=1`}
-            className="w-full border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] rounded-lg"
-            style={{ height: '80vh', minHeight: '600px' }}
-            title={attachment.name || 'PDF Document'}
-          />
-          <div className="text-center mt-2 text-sm text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]">
-            <p>PDF preview - Use browser controls to navigate</p>
-          </div>
-        </div>
-      );
-    } else if (isText) {
-      return <AttachmentTextViewer attachment={attachment} />;
-    } else {
-      // 기타 파일의 경우
-      return (
-        <div className="space-y-4">
-          <div className="p-4 border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] rounded-lg">
-            <h4 className="font-medium text-sm mb-2">File Information</h4>
-            <div className="text-sm text-[var(--muted)] space-y-1">
-              <p><strong>Name:</strong> {attachment.name || 'Unknown'}</p>
-              <p><strong>Type:</strong> {attachment.contentType || 'Unknown'}</p>
-              {attachment.metadata?.fileSize && (
-                <p><strong>Size:</strong> {Math.round(attachment.metadata.fileSize / 1024)} KB</p>
-              )}
-            </div>
-          </div>
-          
-          <div className="text-center text-[var(--muted)]">
-            <p>Preview not available for this file type.</p>
-            <p className="text-sm mt-2">Click download to view the file.</p>
-          </div>
-        </div>
-      );
-    }
+    
+    // 새로운 AttachmentViewer 컴포넌트 사용 (URL 자동 갱신 포함)
+    return <AttachmentViewer attachment={attachment} />;
   };
 
   // 모든 경우에 Header 스타일의 애니메이션 패널 사용 (모바일과 데스크톱 동일)

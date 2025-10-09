@@ -6,12 +6,13 @@ import { MarkdownContent } from './MarkdownContent';
 
 interface AttachmentTextViewerProps {
   attachment: Attachment;
+  url?: string; // Optional refreshed URL prop
 }
 
 // 파일 내용 캐시 (메모리)
 const fileContentCache = new Map<string, string>();
 
-export function AttachmentTextViewer({ attachment }: AttachmentTextViewerProps) {
+export function AttachmentTextViewer({ attachment, url }: AttachmentTextViewerProps) {
   const [content, setContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +67,10 @@ export function AttachmentTextViewer({ attachment }: AttachmentTextViewerProps) 
         setError(null);
         setIsBinary(false);
         
-        const cacheKey = attachment.url;
+        // Use refreshed URL if provided, otherwise fall back to attachment.url
+        const fetchUrl = url || attachment.url;
+        
+        const cacheKey = fetchUrl;
         const cachedContent = fileContentCache.get(cacheKey);
         if (cachedContent) {
           setContent(cachedContent);
@@ -74,7 +78,7 @@ export function AttachmentTextViewer({ attachment }: AttachmentTextViewerProps) 
           return;
         }
         
-        const response = await fetch(attachment.url);
+        const response = await fetch(fetchUrl);
         if (!response.ok) {
           throw new Error(`Failed to fetch file: ${response.statusText}`);
         }
@@ -108,7 +112,7 @@ export function AttachmentTextViewer({ attachment }: AttachmentTextViewerProps) 
     };
  
     fetchFileContent();
-  }, [attachment.url, attachment.name, attachment.contentType]);
+  }, [url, attachment.url, attachment.name, attachment.contentType]);
  
   const language = getLanguageFromExtension(attachment.name);
  

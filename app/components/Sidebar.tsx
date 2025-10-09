@@ -4,7 +4,6 @@ import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { Chat } from '@/lib/types'
-import { AccountDialog, fetchUserName } from './AccountDialog'
 import { deleteChat } from '@/app/chat/[id]/utils'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -12,10 +11,8 @@ import Image from 'next/image'
 import { getModelById } from '@/lib/models/config'
 import { getProviderLogo, hasLogo } from '@/lib/models/logoUtils'
 import { getSidebarTranslations } from '../lib/sidebarTranslations'
-import { clearAllSubscriptionCache } from '@/lib/utils'
 import { useSidebar } from '@/app/lib/SidebarContext'
-import { handleDeleteAllChats as deleteAllChats } from '@/app/lib/chatUtils'
-import { Settings, LifeBuoy, Zap, LogOut, CreditCard } from 'lucide-react'
+import { LifeBuoy, Trash2, Edit } from 'lucide-react'
 import { SquarePencil } from 'react-ios-icons'
 import { ProblemReportDialog } from './ProblemReportDialog'
 import { SubscriptionDialog } from './SubscriptionDialog'
@@ -34,13 +31,10 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
   const [chats, setChats] = useState<Chat[]>([])
   const supabase = createClient()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const { isAccountOpen, setIsAccountOpen, isMobile } = useSidebar()
-  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
+  const { isMobile, isSelectionMode, setIsSelectionMode } = useSidebar()
+  const [selectedChatIds, setSelectedChatIds] = useState<string[]>([])
   const [isProblemReportOpen, setIsProblemReportOpen] = useState(false)
   const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(false)
-  const [profileImage, setProfileImage] = useState<string | null>(null)
-  const [userName, setUserName] = useState('')
-  const [isUserNameLoading, setIsUserNameLoading] = useState(true)
   const [isExpanded, setIsExpanded] = useState(true) // Always expanded - no toggle needed
   const [translations, setTranslations] = useState({
     home: 'Home',
@@ -50,8 +44,15 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
     settings: 'Settings',
     reportIssue: 'Report Issue',
     subscription: 'Subscription',
-    logOut: 'Log Out'
+    logOut: 'Log Out',
+    messages: 'Messages'
   });
+
+  useEffect(() => {
+    if (!isSelectionMode) {
+      setSelectedChatIds([])
+    }
+  }, [isSelectionMode])
 
   // State for infinite scroll
   const [currentPage, setCurrentPage] = useState(1)
@@ -64,8 +65,6 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
 
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const accountButtonRef = useRef<HTMLButtonElement>(null)
-  const accountMenuRef = useRef<HTMLDivElement>(null)
 
   // State for chat title editing
   const [editingChatId, setEditingChatId] = useState<string | null>(null)
@@ -94,180 +93,7 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
     setTranslations(getSidebarTranslations());
   }, []);
 
-  // Add function to fetch profile image
-  const fetchProfileImage = useCallback(async (userId: string) => {
-    if (!userId) {
-      console.log('No user ID provided for fetching profile image');
-      return;
-    }
 
-    let listData: any = null;
-    let lastError: Error | null = null;
-
-    // Attempt 1: List files from storage with a timeout
-    try {
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Storage request timed out')), 5000)
-      );
-      
-      const result = await Promise.race([
-        supabase.storage.from('profile-pics').list(`${userId}`),
-        timeoutPromise
-      ]) as { data: any, error?: any };
-
-      if (result.error) {
-        lastError = result.error;
-        console.warn('Initial attempt to list profile pics failed with Supabase error:', lastError);
-        
-        // Optional: Immediate retry if Supabase client itself returned an error (not a timeout)
-        if (typeof window !== 'undefined') {
-          console.log('Attempting immediate retry for profile image list (due to initial list error)...');
-          const newClient = createClient();
-          try {
-            const { data: directRetryData, error: directRetryError } = await newClient.storage.from('profile-pics').list(`${userId}`);
-            if (directRetryError) {
-              console.warn('Immediate retry for list also failed:', directRetryError);
-              // lastError remains the original Supabase error
-            } else {
-              console.log('Immediate retry for list successful.');
-              listData = directRetryData;
-              lastError = null; // Clear error as retry was successful
-            }
-          } catch (directRetryCatchError: any) {
-            console.warn('Exception during immediate list retry:', directRetryCatchError);
-            lastError = directRetryCatchError; // Update lastError to this new exception
-          }
-        }
-      } else {
-        listData = result.data;
-      }
-    } catch (e: any) { // This catch is primarily for the timeout from Promise.race
-      if (e.message === 'Storage request timed out') {
-        console.log('Profile image list: initial request timed out. Attempting retry...');
-        lastError = e; // Store the timeout error temporarily
-
-        if (typeof window !== 'undefined') {
-          const newClient = createClient();
-          try {
-            const { data: timeoutRetryData, error: timeoutRetryError } = await newClient.storage.from('profile-pics').list(`${userId}`);
-            if (timeoutRetryError) {
-              console.warn('Profile image list: retry after timeout failed:', timeoutRetryError);
-              // Augment lastError or replace, depending on desired logging
-              lastError = new Error(`Timeout followed by retry error: ${timeoutRetryError.message || timeoutRetryError}`);
-            } else {
-              console.log('Profile image list: retry after timeout successful.');
-              listData = timeoutRetryData;
-              lastError = null; // Clear error as retry was successful
-            }
-          } catch (timeoutRetryCatchError: any) {
-            console.warn('Profile image list: exception during retry after timeout:', timeoutRetryCatchError);
-            lastError = new Error(`Timeout followed by retry exception: ${timeoutRetryCatchError.message || timeoutRetryCatchError}`);
-          }
-        } else {
-          // No client-side retry possible for timeout (e.g. SSR), so timeout is the effective error.
-          // lastError is already set to the timeout error.
-          console.log('Profile image list: timed out (no client-side retry performed).');
-        }
-      } else {
-        // Other unexpected error from Promise.race
-        console.error('Critical error during initial profile pic list attempt (Promise.race):', e);
-        lastError = e;
-      }
-    }
-
-    // After all attempts, if listData is still not populated and an error occurred, log final error and return.
-    if (!listData && lastError) {
-      console.error('Failed to fetch profile image list after all attempts:', lastError.message || lastError);
-      if (lastError.message?.includes('<html>') || lastError.message?.includes('not valid JSON')) {
-        console.warn('Received HTML instead of JSON response - this might be a network issue or Supabase authentication problem');
-      }
-      return; 
-    }
-    
-    if (!listData || listData.length === 0) {
-      if (!lastError) { // Only log "No profile images" if there wasn't a preceding error that prevented listing
-        console.log('No profile images found for user.');
-      }
-      // If lastError exists, it means we failed to get the list, error already logged.
-      return; 
-    }
-
-    // Proceed to get public URL if listData is available
-    try {
-      const fileName = listData[0].name;
-      const filePath = `${userId}/${fileName}`;
-      
-      if (!fileName || typeof fileName !== 'string') {
-        console.error('Invalid file name returned from storage.');
-        return;
-      }
-      
-      const { data: urlInfo, error: urlError } = supabase.storage.from('profile-pics').getPublicUrl(filePath) as { data: { publicUrl: string } | null, error: Error | null };
-      
-      if (urlError) {
-        console.error('Error getting public URL for profile image:', urlError);
-        return;
-      }
-      
-      if (urlInfo && urlInfo.publicUrl && urlInfo.publicUrl.startsWith('http')) {
-        // 커스텀 도메인 사용 시 Storage URL을 수동으로 수정
-        let finalUrl = urlInfo.publicUrl;
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        
-        if (supabaseUrl && supabaseUrl !== 'https://jgkrhazygwcvbzkwkhnj.supabase.co') {
-          // 기본 Supabase 도메인을 커스텀 도메인으로 교체
-          finalUrl = urlInfo.publicUrl.replace(
-            'https://jgkrhazygwcvbzkwkhnj.supabase.co',
-            supabaseUrl
-          );
-          console.log('Storage URL updated for custom domain:', finalUrl);
-        }
-        
-        setProfileImage(finalUrl);
-      } else {
-        console.log('No valid public URL returned or URL is not properly formatted for profile image.');
-      }
-    } catch (processingError) {
-      console.error('Error processing profile data or getting public URL:', processingError);
-    }
-  }, [supabase]);
-
-  // Load user info when component mounts or user changes
-  useEffect(() => {
-    if (user) {
-      // Load user name from all_user table
-      const loadUserData = async () => {
-        try {
-          const name = await fetchUserName(user.id, supabase);
-          setUserName(name);
-        } catch (error) {
-          console.error('Error loading user name:', error);
-          setUserName('You');
-        } finally {
-          setIsUserNameLoading(false);
-        }
-        fetchProfileImage(user.id);
-      };
-      
-      loadUserData();
-    } else {
-      setIsUserNameLoading(false);
-    }
-  }, [user, supabase]); // ✅ P1 FIX: fetchProfileImage 의존성 제거로 안정성 증대
-
-  // Listen for user name updates from other components
-  useEffect(() => {
-    const handleUserNameUpdate = (event: CustomEvent) => {
-      const { newName } = event.detail;
-      setUserName(newName);
-    };
-
-    window.addEventListener('userNameUpdated', handleUserNameUpdate as EventListener);
-    
-    return () => {
-      window.removeEventListener('userNameUpdated', handleUserNameUpdate as EventListener);
-    };
-  }, []);
 
 
 
@@ -522,26 +348,39 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isMenuOpen]);
 
-  useEffect(() => {
-    function handleClickOutsideAccountMenu(event: MouseEvent) {
-      if (
-        accountMenuRef.current &&
-        !accountMenuRef.current.contains(event.target as Node) &&
-        accountButtonRef.current &&
-        !accountButtonRef.current.contains(event.target as Node)
-      ) {
-        setIsAccountMenuOpen(false);
+
+
+
+  const handleSelectChat = (chatId: string) => {
+    setSelectedChatIds(prev =>
+      prev.includes(chatId)
+        ? prev.filter(id => id !== chatId)
+        : [...prev, chatId]
+    )
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedChatIds.length === 0) return
+    if (
+      window.confirm(
+        `Are you sure you want to delete ${selectedChatIds.length} conversation(s)?`
+      )
+    ) {
+      try {
+        await Promise.all(selectedChatIds.map(id => deleteChat(id)))
+
+        if (selectedChatIds.some(id => pathname === `/chat/${id}`)) {
+          router.push('/')
+        }
+
+        setChats(prev => prev.filter(chat => !selectedChatIds.includes(chat.id)))
+        if(setIsSelectionMode) setIsSelectionMode(false) // This will also clear selectedChatIds via useEffect
+      } catch (error) {
+        console.error('Failed to delete selected chats:', error)
+        alert('Failed to delete selected chats.')
       }
     }
-    if (isAccountMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutsideAccountMenu);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutsideAccountMenu);
-    };
-  }, [isAccountMenuOpen]);
-
-
+  }
 
   const loadChats = useCallback(async (page = 1, append = false, forceRefresh = false) => {
     // 🚀 익명 사용자 지원: 익명 사용자는 채팅 히스토리 로드하지 않음
@@ -733,11 +572,6 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
     }
   }, [pathname, router, isAnonymousUser])
 
-  const handleDeleteAllChats = useCallback(async () => {
-    await deleteAllChats({ user, router, supabase })
-    // Reset local state after deleting chats
-    setChats([])
-  }, [user, router, supabase])
 
 
 
@@ -1258,104 +1092,78 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
     };
   }, [clearSearch]);
 
-  const handleSignOut = async () => {
-    try {
-      clearAllSubscriptionCache();
-      
-      await supabase.auth.signOut();
-      router.push('/login');
-    } catch (error) {
-      console.error('Error signing out:', error);
-      alert('Failed to sign out. Please try again.');
-    }
-  };
 
   if (!user) {
     return null;
   }
 
   return (
-    <div className="w-80 h-full bg-[var(--sidebar-light)] dark:bg-[var(--sidebar-dark)] flex flex-col items-center overflow-hidden relative ">
-      <div className="h-full flex flex-col w-full">
-        {/* Top Section with Home, Bookmarks and History icons */}
-        <div className="pt-4 px-[14px] sm:px-[14px] flex flex-col space-y-0">
+    <div className={`${isMobile ? 'w-full' : 'w-80'} h-full ${isMobile ? 'bg-background' : 'bg-[var(--sidebar-light)] dark:bg-[var(--sidebar-dark)]'} flex flex-col items-center overflow-hidden relative`}>
+      {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
+      <svg style={{ position: 'absolute', width: 0, height: 0 }}>
+        <defs>
+          <filter id="glass-distortion" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+            <feTurbulence type="fractalNoise" baseFrequency="0.02 0.05" numOctaves="3" seed="7" result="noise" />
+            <feImage result="radialMask" preserveAspectRatio="none" x="0" y="0" width="100%" height="100%" xlinkHref="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><defs><radialGradient id='g' cx='50%25' cy='50%25' r='70%25'><stop offset='0%25' stop-color='black'/><stop offset='100%25' stop-color='white'/></radialGradient></defs><rect width='100%25' height='100%25' fill='url(%23g)'/></svg>" />
+            <feComposite in="noise" in2="radialMask" operator="arithmetic" k1="0" k2="0" k3="1" k4="0" result="modulatedNoise" />
+            <feGaussianBlur in="modulatedNoise" stdDeviation="0.3" edgeMode="duplicate" result="smoothNoise" />
+            <feDisplacementMap in="SourceGraphic" in2="smoothNoise" scale="18" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+          {/* 다크모드 전용 글라스 필터 */}
+          <filter id="glass-distortion-dark" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+            <feTurbulence type="fractalNoise" baseFrequency="0.015 0.03" numOctaves="4" seed="7" result="noise" />
+            <feImage result="radialMask" preserveAspectRatio="none" x="0" y="0" width="100%" height="100%" xlinkHref="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><defs><radialGradient id='g-dark' cx='50%25' cy='50%25' r='80%25'><stop offset='0%25' stop-color='white'/><stop offset='100%25' stop-color='black'/></radialGradient></defs><rect width='100%25' height='100%25' fill='url(%23g-dark)'/></svg>" />
+            <feComposite in="noise" in2="radialMask" operator="arithmetic" k1="0" k2="0" k3="0.8" k4="0" result="modulatedNoise" />
+            <feGaussianBlur in="modulatedNoise" stdDeviation="0.4" edgeMode="duplicate" result="smoothNoise" />
+            <feDisplacementMap in="SourceGraphic" in2="smoothNoise" scale="12" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </defs>
+      </svg>
+      
+      <div className="h-full flex flex-col w-full overflow-x-hidden">
+        {/* Top Section with Problem Report */}
+        {/* <div className="pt-0 px-[14px] sm:px-[14px] flex flex-col space-y-0"> */}
           {/* Empty space for hamburger icon (maintained for UI consistency) */}
-          <div className="min-w-[40px] h-6 sm:h-10 ounded-lg flex items-center justify-start">
+          {/* <div className="min-w-[40px] h-6 sm:h-10 ounded-lg flex items-center justify-center">
             <div className="w-4 h-4"></div>
           </div>
-          
+           */}
 
-          
+          {/* Problem Report Button - Commented out */}
+          {/* {!isAnonymousUser && (
+            <button
+              onClick={() => {
+                setIsProblemReportOpen(true);
+                // 모바일에서만 사이드바 닫기
+                if (isMobile && toggleSidebar) {
+                  toggleSidebar();
+                }
+              }}
+              className="flex items-center group w-full text-left cursor-pointer"
+              type="button"
+            >
+              <div className="min-w-[40px] h-10 rounded-lg flex items-center justify-center">
+                <LifeBuoy size={16} className="text-[var(--muted)]" />
+              </div>
+              <span className="ml-3 text-sm font-medium whitespace-nowrap text-[var(--muted)]">
+                {translations.reportIssue}
+              </span>
+            </button>
+          )} */}
 
-        </div>
+        {/* </div> */}
 
         {/* Main Content Area */}
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto sidebar-scroll w-full mt-3 md:mt-0 px-4 md:px-3">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden sidebar-scroll w-full mt-0 md:mt-0 px-4 md:px-3 relative pb-24">
+          {/* Messages Title */}
+          <div className="px-2 py-2 pt-16 sm:pt-16">
+            <h2 className="font-bold text-2xl">{translations.messages}</h2>
+          </div>
+          
           {/* Chat History Section */}
           {useMemo(() => {
             return (
             <div className="space-y-3">
-              {/* Search Input */}
-              <div className="px-2">
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg 
-                      width="16" 
-                      height="16" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="2" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                      className="text-[var(--muted)]"
-                    >
-                      <circle cx="11" cy="11" r="8"></circle>
-                      <path d="m21 21-4.35-4.35"></path>
-                    </svg>
-                  </div>
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder={`${translations.searchConversations} (⌘K)`}
-                    className={`w-full pl-10 pr-4 py-2.5 bg-transparent text-sm rounded-lg placeholder-[var(--muted)] focus:outline-none focus:bg-transparent border-0 outline-none ring-0 focus:ring-0 focus:border-0 shadow-none focus:shadow-none transition-all ${
-                      isAnonymousUser ? 'opacity-60 cursor-not-allowed' : ''
-                    }`}
-                    style={{ 
-                      outline: 'none',
-                      border: 'none',
-                      boxShadow: 'none',
-                      WebkitAppearance: 'none'
-                    }}
-                    disabled={isAnonymousUser}
-                  />
-                  {isAnonymousUser && (
-                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--muted)] opacity-40">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                        <circle cx="12" cy="16" r="1"></circle>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                      </svg>
-                    </div>
-                  )}
-                  {searchTerm && !isAnonymousUser && (
-                    <button
-                      onClick={clearSearch}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-[var(--muted)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
-                      type="button"
-                      aria-label="Clear search"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              </div>
-              
               <div className="space-y-0.5">
               {/* 🚀 익명 사용자 지원: 익명 사용자는 채팅 히스토리 대신 로그인 안내 표시 */}
               {isAnonymousUser ? (
@@ -1454,24 +1262,25 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
                 </div>
               ) : (
                 <>
-                  {/* Show search loading state */}
-                  {isSearching && (
-                    <div className="flex flex-col items-center py-4 space-y-2">
-                      <div className="w-6 h-6 border-2 border-t-transparent border-[var(--foreground)] rounded-full animate-spin"></div>
-                      <span className="text-xs text-[var(--muted)]">Searching all conversations...</span>
-                    </div>
-                  )}
-                  
-                  {/* Show number of search results */}
-                  {searchTerm && !isSearching && displayChats.length > 0 && (
-                    <div className="px-2 py-1 text-xs text-[var(--muted)] text-center">
-                      Found {displayChats.length} conversation{displayChats.length !== 1 ? 's' : ''}
-                    </div>
-                  )}
-                  
-                  {!isSearching && displayChats.length > 0 ? (
-                    <>
-                        {displayChats.map((chat, index) => {
+                  <div className="px-0 py-0">
+                    {/* Show search loading state */}
+                    {isSearching && (
+                      <div className="flex flex-col items-center py-4 space-y-2">
+                        <div className="w-6 h-6 border-2 border-t-transparent border-[var(--foreground)] rounded-full animate-spin"></div>
+                        <span className="text-xs text-[var(--muted)]">Searching all conversations...</span>
+                      </div>
+                    )}
+                    
+                    {/* Show number of search results */}
+                    {searchTerm && !isSearching && displayChats.length > 0 && (
+                      <div className="px-2 py-1 text-xs text-[var(--muted)] text-center">
+                        Found {displayChats.length} conversation{displayChats.length !== 1 ? 's' : ''}
+                      </div>
+                    )}
+                    
+                    {!isSearching && displayChats.length > 0 ? (
+                      <>
+                          {displayChats.map((chat, index) => {
                           const isSelected = pathname === `/chat/${chat.id}`;
                           const getModelDisplayName = (model: string | null | undefined) => {
                             if (!model) return 'Unknown Model';
@@ -1493,23 +1302,40 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
                           };
                           
                           return (
-                            <div key={`${chat.id}-${index}`} className="last:border-b-0">
+                            <div key={`${chat.id}-${index}`} className={`last:border-b-0 flex items-center transition-all duration-200 ${isSelectionMode ? 'pl-2' : 'pl-0'} min-w-0 py-0`}>
+                              {isSelectionMode && (
+                                <div className="pr-3 cursor-pointer" onClick={() => handleSelectChat(chat.id)}>
+                                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${selectedChatIds.includes(chat.id) ? 'bg-[#007AFF] border-[#007AFF]' : 'border-[var(--muted)] opacity-50'}`}>
+                                    {selectedChatIds.includes(chat.id) && <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                                  </div>
+                                </div>
+                              )}
                               <Link
-                                href={editingChatId === chat.id ? '#' : `/chat/${chat.id}`}
-                                className={`group relative block transition-all p-3 rounded-lg ${ 
+                                href={editingChatId === chat.id || isSelectionMode ? '#' : `/chat/${chat.id}`}
+                                className={`group relative block transition-all px-3 rounded-lg flex-1 min-w-0 ${ 
                                   editingChatId === chat.id 
                                     ? 'cursor-default' 
-                                    : 'cursor-pointer'
+                                    : isSelectionMode ? 'cursor-pointer' : 'cursor-pointer'
                                 } ${ 
-                                  isSelected 
+                                  isSelected || (editingChatId === chat.id)
                                     ? 'bg-[#007AFF] text-white' 
                                     : 'hover:bg-[var(--accent)]'
                                 }`}
                                 onClick={(e) => {
+                                  if (isSelectionMode) {
+                                    e.preventDefault();
+                                    handleSelectChat(chat.id);
+                                    return;
+                                  }
                                   if (editingChatId === chat.id) {
                                     e.preventDefault()
                                     e.stopPropagation()
                                   } else {
+                                    // 🚀 모바일에서 채팅 클릭 시 사이드바 닫기
+                                    if (isMobile && toggleSidebar) {
+                                      toggleSidebar();
+                                    }
+                                    
                                     // 🚀 FEATURE: Reset auto-selection when user manually clicks
                                     setHasAutoSelected(true);
                                     
@@ -1552,7 +1378,7 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
                                   </div>
                                   
                                   {/* Content */}
-                                  <div className="flex-1 min-w-0">
+                                  <div className="flex-1 min-w-0 overflow-hidden border-b border-[var(--sidebar-divider)] pb-6 pt-3">
                                     {/* Top line: Title + Date */}
                                     <div className="flex justify-between items-baseline">
                                       {editingChatId === chat.id ? (
@@ -1573,7 +1399,7 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
                                         />
                                       ) : (
                                         <p 
-                                          className={`text-sm font-semibold truncate pr-2 ${ 
+                                          className={`text-sm font-semibold truncate pr-2 min-w-0 max-w-[180px] ${ 
                                             isSelected ? 'text-white' : 'text-[var(--foreground)]'
                                           }`}
                                           onDoubleClick={(e) => {
@@ -1609,7 +1435,7 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
                                     </div>
                                     {/* Bottom line: Preview + Buttons */}
                                     <div className="flex justify-between items-end">
-                                      <p className={`text-xs truncate pr-2 ${ 
+                                      <p className={`text-xs truncate pr-2 min-w-0 ${ 
                                         isSelected ? 'text-white/70' : 'text-[var(--muted)]'
                                       }`}>
                                         {searchTerm && chat.lastMessage 
@@ -1673,211 +1499,182 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
                       </div>
                     )
                   )}
+                  </div>
                 </>
               )}
               </div>
             </div>
             );
-          }, [displayChats, pathname, handleDeleteChat, hasMore, isLoadingMore, currentTime, editingChatId, editingTitle, handleEditChatTitle, handleSaveChatTitle, handleChatTitleKeyDown, searchTerm, isSearching])}
+          }, [displayChats, pathname, handleDeleteChat, hasMore, isLoadingMore, currentTime, editingChatId, editingTitle, handleEditChatTitle, handleSaveChatTitle, handleChatTitleKeyDown, searchTerm, isSearching, isSelectionMode, selectedChatIds, handleSelectChat])}
 
 
         </div>
 
-        {/* Bottom Section */}
-        <div className="mt-3 sm:mt-6 pb-5 md:pb-8 flex flex-col space-y-0 px-3 text-[var(--muted)]">
-
-          {/* 🚀 익명 사용자 지원: 익명 사용자는 하단 기능들 대신 미리보기 표시 */}
-          {isAnonymousUser ? (
-            <div className="space-y-2">
-              {/* 미리보기 북마크 */}
-              <div className="flex items-center group w-full text-left opacity-60">
-                <div className="min-w-[40px] h-10 rounded-lg flex items-center justify-center">
-                  <svg 
-                    width="16" 
-                    height="16" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    strokeWidth="2" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round"
-                    className="text-[var(--muted)]"
-                  >
-                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-                  </svg>
-                </div>
-                <span className="ml-3 text-sm font-medium whitespace-nowrap text-[var(--muted)]">
-                  Bookmarks
-                </span>
-                <div className="ml-auto opacity-40">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--muted)]">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                    <circle cx="12" cy="16" r="1"></circle>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                  </svg>
-                </div>
+        {/* Bottom Section - Search and New Chat - Floating over messages */}
+        <div className="absolute bottom-3 left-0 right-0 p-3 flex flex-col space-y-3 text-[var(--muted)] z-20 pointer-events-none">
+          {isSelectionMode ? (
+              <div className="flex items-center justify-around px-2 pointer-events-auto gap-3">
+                <button
+                    onClick={() => {
+                      if (selectedChatIds.length === 1) {
+                        const chatToEdit = displayChats.find(
+                          chat => chat.id === selectedChatIds[0]
+                        )
+                        if (chatToEdit) {
+                          handleEditChatTitle(chatToEdit.id, chatToEdit.title)
+                          if(setIsSelectionMode) setIsSelectionMode(false)
+                        }
+                      }
+                    }}
+                    disabled={selectedChatIds.length !== 1}
+                    className="flex items-center justify-center w-10 h-10 rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                    style={{
+                      // 다크모드 전용 스타일
+                      ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                          (document.documentElement.getAttribute('data-theme') === 'system' && 
+                           window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                        backgroundColor: window.innerWidth <= 768 ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.7)',
+                        backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                        WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                      } : {
+                        backgroundColor: window.innerWidth <= 768 ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                        backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                        WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                      })
+                    }}
+                    title="Edit Title"
+                >
+                    <Edit size={18} />
+                </button>
+                <button
+                    onClick={handleDeleteSelected}
+                    disabled={selectedChatIds.length === 0}
+                    className="flex items-center justify-center w-10 h-10 rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                    style={{
+                      // 다크모드 전용 스타일
+                      ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                          (document.documentElement.getAttribute('data-theme') === 'system' && 
+                           window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                        backgroundColor: window.innerWidth <= 768 ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.7)',
+                        backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                        WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                      } : {
+                        backgroundColor: window.innerWidth <= 768 ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                        backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                        WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                      })
+                    }}
+                    title="Delete"
+                >
+                    <Trash2 size={18} />
+                </button>
               </div>
-
-              {/* 미리보기 사용자 프로필 */}
-              <div className="flex items-center group w-full text-left opacity-60">
-                <div className="min-w-[40px] h-10 rounded-lg flex items-center justify-center">
-                  <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-[var(--accent)]/30 bg-[var(--accent)]/10 flex items-center justify-center">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--muted)]">
-                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                      <circle cx="12" cy="7" r="4"></circle>
-                    </svg>
-                  </div>
-                </div>
-                <span className="ml-3 text-sm font-medium whitespace-nowrap text-[var(--muted)]">
-                  Your Profile
-                </span>
-                <div className="ml-auto opacity-40">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--muted)]">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                    <circle cx="12" cy="16" r="1"></circle>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                  </svg>
-                </div>
-              </div>
-            </div>
           ) : (
-            <>
-              <Link 
-                href="/bookmarks" 
-                className="flex items-center group w-full text-left"
-                onClick={() => {
-                  // 모바일에서만 사이드바 닫기
-                  if (isMobile && toggleSidebar) {
-                    toggleSidebar();
-                  }
-                }}
-              >
-                <div className="min-w-[40px] h-10 rounded-lg flex items-center justify-center">
-                  <svg 
-                    width="16" 
-                    height="16" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke="#007AFF" 
-                    strokeWidth="2" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round"
-                  >
-                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-                  </svg>
-                </div>
-                <span className="ml-3 text-sm font-medium whitespace-nowrap text-[var(--muted)]">
-                  {translations.bookmarks}
-                </span>
-              </Link>
-
-              <button
-                ref={accountButtonRef}
-                onClick={() => {
-                  setIsAccountMenuOpen(prev => !prev);
-                }}
-                className="flex items-center group w-full text-left mt-2 cursor-pointer"
-                type="button"
-              >
-                <div className="min-w-[40px] h-10 rounded-lg flex items-center justify-center hover:bg-[var(--foreground)]/8 transition-all duration-200">
-                  <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-[var(--accent)] group-hover:border-[#007AFF] transition-colors">
-                    {profileImage ? (
-                      <Image 
-                        src={profileImage} 
-                        alt={userName} 
-                        width={32}
-                        height={32}
-                        className="object-cover w-full h-full"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-[var(--foreground)] text-[var(--background)]">
-                        {!isUserNameLoading && userName.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <span className="ml-3 text-sm font-medium whitespace-nowrap text-[var(--muted)]">
-                  {!isUserNameLoading && userName}
-                </span>
-              </button>
-            </>
+          <>
+          {/* Search Input with New Chat Button */}
+          <div className="px-2 pointer-events-auto">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder={`${translations.searchConversations}`}
+                  className={`w-full px-4 py-2.5 text-sm rounded-full placeholder-[var(--muted)] focus:outline-none transition-all ${
+                    isAnonymousUser ? 'opacity-60 cursor-not-allowed' : ''
+                  }`}
+                  style={{ 
+                    outline: 'none',
+                    WebkitAppearance: 'none',
+                    // 다크모드 전용 스타일
+                    ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                        (document.documentElement.getAttribute('data-theme') === 'system' && 
+                         window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                      backgroundColor: window.innerWidth <= 768 ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.8)',
+                      backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                    } : {
+                      backgroundColor: window.innerWidth <= 768 ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.9)',
+                      backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                      WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                    })
+                  }}
+                  disabled={isAnonymousUser}
+                />
+              </div>
+              
+              {/* New Chat Button */}
+              {!isAnonymousUser && (
+                <button
+                  onClick={() => {
+                    console.log('🚀 [NEW_CHAT_BUTTON] Clicked from sidebar:', pathname);
+                    
+                    // 🚀 모바일에서 새글 버튼 클릭 시 사이드바 닫기
+                    if (isMobile && toggleSidebar) {
+                      toggleSidebar();
+                    }
+                    
+                    if (pathname === '/') {
+                      // 홈에서는 즉시 새 채팅 이벤트 발생
+                      window.dispatchEvent(new CustomEvent('requestNewChat'));
+                    } else {
+                      // 채팅창에서는 홈으로 이동 후 새 채팅 이벤트 발생
+                      router.push('/');
+                      // 라우팅 후 새 채팅 이벤트 발생 (약간의 지연)
+                      setTimeout(() => {
+                        window.dispatchEvent(new CustomEvent('requestNewChat'));
+                      }, 50);
+                    }
+                  }}
+                  className="flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 cursor-pointer"
+                  style={{
+                    color: 'var(--foreground)',
+                    // 다크모드 전용 스타일
+                    ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                        (document.documentElement.getAttribute('data-theme') === 'system' && 
+                         window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                      backgroundColor: window.innerWidth <= 768 ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.7)',
+                      backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                    } : {
+                      backgroundColor: window.innerWidth <= 768 ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                      backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                      WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                    })
+                  }}
+                  title="New Chat"
+                  type="button"
+                  aria-label="New Chat"
+                >
+                  <SquarePencil className="w-8 h-8 pt-1 pl-0.5" />
+                </button>
+              )}
+            </div>
+          </div>
+          </>
           )}
         </div>
 
-        {/* Account Popover Menu */}
-        {isAccountMenuOpen && (
-          <div
-            ref={accountMenuRef}
-            className="absolute w-72 bg-background rounded-xl shadow-2xl p-2 z-50 border border-accent"
-            style={{
-              bottom: '80px',
-              left: '1rem'
-            }}
-          >
-            <div className="p-2">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-[var(--accent)]">
-                  {profileImage ? (
-                    <Image
-                      src={profileImage}
-                      alt={userName}
-                      width={40}
-                      height={40}
-                      className="object-cover w-full h-full"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-[var(--foreground)] text-[var(--background)]">
-                      {!isUserNameLoading && userName.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <div className="font-semibold text-sm text-[var(--foreground)]">
-                    {!isUserNameLoading && userName}
-                  </div>
-                  <div className="text-xs text-[var(--muted)]">{user.email}</div>
-                </div>
-              </div>
-            </div>
-            <div className="my-2 h-[1px] bg-[var(--accent)]" />
-            <div className="flex flex-col text-[var(--foreground)]">
-              <button onClick={() => { setIsAccountOpen(true); setIsAccountMenuOpen(false); }} className="flex items-center gap-3 text-left p-2 hover:bg-[var(--accent)] rounded-md text-sm cursor-pointer">
-                <Settings size={16} /> {translations.settings}
-              </button>
-              <button onClick={() => { setIsProblemReportOpen(true); setIsAccountMenuOpen(false); }} className="flex items-center gap-3 text-left p-2 hover:bg-[var(--accent)] rounded-md text-sm cursor-pointer">
-                <LifeBuoy size={16} /> {translations.reportIssue}
-              </button>
-              <button onClick={() => { setIsSubscriptionOpen(true); setIsAccountMenuOpen(false); }} className="flex items-center gap-3 text-left p-2 hover:bg-[var(--accent)] rounded-md text-sm cursor-pointer">
-                <CreditCard size={16} /> {translations.subscription}
-              </button>
-            </div>
-            <div className="my-2 h-[1px] bg-[var(--accent)]" />
-            <button onClick={handleSignOut} className="flex items-center gap-3 w-full text-left p-2 hover:bg-[var(--accent)] rounded-md text-sm text-[var(--foreground)] cursor-pointer">
-              <LogOut size={16} /> {translations.logOut}
-            </button>
-          </div>
-        )}
 
-        {/* Account Dialog (remains as a modal) */}
-        <AccountDialog
-          isOpen={isAccountOpen}
-          onClose={() => {
-            setIsAccountOpen(false);
-            // After closing the dialog, refresh user data in case it was updated
-            if (user) {
-              const refreshUserData = async () => {
-                const name = await fetchUserName(user.id, supabase);
-                setUserName(name);
-                fetchProfileImage(user.id);
-              };
-              refreshUserData();
-            }
-          }}
-          user={user}
-          profileImage={profileImage}
-          handleDeleteAllChats={handleDeleteAllChats}
-        />
       </div>
+
       <ProblemReportDialog
         isOpen={isProblemReportOpen}
         onClose={() => setIsProblemReportOpen(false)}

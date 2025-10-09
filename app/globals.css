@@ -205,8 +205,8 @@ html, body {
 .sidebar-toggle-btn:hover,
 .sidebar-toggle-btn:visited {
   outline: 0 !important;
-  border: 0 !important;
-  box-shadow: none !important;
+  /* border: 0 !important; */
+  /* box-shadow: none !important; */
   -webkit-appearance: none !important;
   -moz-appearance: none !important;
   appearance: none !important;
@@ -735,7 +735,7 @@ html, body {
   --inline-code-text-light: #374151;
   --overlay-light: rgba(0, 0, 0, 0.1);
   --subtle-divider-light: color-mix(in srgb, var(--foreground-light) 8%, transparent);
-  --sidebar-divider-light: rgba(0, 0, 0, 0.15);
+  --sidebar-divider-light: rgba(0, 0, 0, 0.05);
   /* Backdrop overlay colors for reliable iOS Safari blur */
   --background-overlay-light: rgba(0, 0, 0, 0.05);
   --background-overlay-dark: rgba(0, 0, 0, 0.55);

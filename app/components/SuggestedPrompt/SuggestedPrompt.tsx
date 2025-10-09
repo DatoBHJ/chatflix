@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { fetchUserName } from '../AccountDialog';
 import { formatMessageTime } from '@/app/lib/messageTimeUtils';
+import { Edit, Trash2 } from 'lucide-react';
 
 
 
@@ -9,7 +10,7 @@ import { formatMessageTime } from '@/app/lib/messageTimeUtils';
 export const DEFAULT_PROMPTS = [
   "tell me the latest news.",
   "send me funny cat gifs",
-  "what do u know about me"
+  // "what do u know about me"
 ];
 
 export interface SuggestedPromptProps {
@@ -17,9 +18,11 @@ export interface SuggestedPromptProps {
   onPromptClick: (prompt: string) => void;
   className?: string;
   isVisible?: boolean;
+  isEditMode?: boolean;
+  onEditModeToggle?: () => void;
 }
 
-export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisible = true }: SuggestedPromptProps) {
+export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisible = true, isEditMode: externalIsEditMode, onEditModeToggle }: SuggestedPromptProps) {
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>(DEFAULT_PROMPTS);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   
@@ -59,17 +62,12 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   const [isSaving, setIsSaving] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [newPromptContent, setNewPromptContent] = useState<string>('');
+  const [internalIsEditMode, setInternalIsEditMode] = useState(false);
+  const isEditMode = externalIsEditMode !== undefined ? externalIsEditMode : internalIsEditMode;
+  const [selectedPromptIds, setSelectedPromptIds] = useState<string[]>([]);
   const [userName, setUserName] = useState<string>('');
   const [isUserNameLoading, setIsUserNameLoading] = useState<boolean>(true);
   const [isMobile, setIsMobile] = useState(false);
-  
-  // 롱프레스 관련 상태
-  const [longPressIndex, setLongPressIndex] = useState<number>(-1);
-  const [showMobileActions, setShowMobileActions] = useState(false);
-  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
-  const [touchStartTime, setTouchStartTime] = useState<number>(0);
-  const [touchStartY, setTouchStartY] = useState<number>(0);
-  const [isLongPressActive, setIsLongPressActive] = useState(false);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const newPromptTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -127,7 +125,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     
     // 🔧 FIX: 캐시된 프롬프트 먼저 확인하여 즉시 로딩
     const cachedPrompts = getCachedPrompts(userId);
-    if (cachedPrompts && Array.isArray(cachedPrompts) && cachedPrompts.length > 0) {
+    if (cachedPrompts && Array.isArray(cachedPrompts)) {
       setSuggestedPrompts(cachedPrompts);
       setIsInitialLoading(false);
       console.log('⚡ Loaded prompts from cache');
@@ -157,11 +155,12 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
       
       const { data } = await Promise.race([queryPromise, timeoutPromise]) as any;
       
-      if (data?.prompts && Array.isArray(data.prompts) && data.prompts.length > 0) {
+      if (data?.prompts && Array.isArray(data.prompts)) {
         setSuggestedPrompts(data.prompts);
         setCachedPrompts(uid, data.prompts); // 캐시 업데이트
         console.log('✅ Custom prompts loaded from DB');
       } else {
+        // 데이터가 없거나 null인 경우에만 기본값 사용
         console.log('📝 No custom prompts found, using defaults');
         setSuggestedPrompts(DEFAULT_PROMPTS);
       }
@@ -178,7 +177,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
 
   // Supabase에 사용자 프롬프트 저장하기 (실패 시 조용히 무시)
   const saveUserPrompts = async (prompts: string[]) => {
-    if (!userId || prompts.length === 0) return;
+    if (!userId) return;
     
     try {
       setIsSaving(true);
@@ -257,106 +256,26 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     return () => window.removeEventListener('resize', checkIfMobile);
   }, []);
 
-  // 롱프레스 타이머 정리
-  useEffect(() => {
-    return () => {
-      if (longPressTimer) {
-        clearTimeout(longPressTimer);
-      }
-    };
-  }, [longPressTimer]);
 
-  // 터치 시작 핸들러
-  const handleTouchStart = (e: React.TouchEvent, promptIndex: number) => {
-    if (!isMobile) return;
-    
-    e.preventDefault();
-    setTouchStartTime(Date.now());
-    setTouchStartY(e.touches[0].clientY);
-    setIsLongPressActive(false);
-    
-    // 롱프레스 타이머 시작 (500ms)
-    const timer = setTimeout(() => {
-      setLongPressIndex(promptIndex);
-      setShowMobileActions(true);
-      setIsLongPressActive(true);
-    }, 500);
-    
-    setLongPressTimer(timer);
-  };
-
-  // 터치 종료 핸들러
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!isMobile) return;
-    
-    e.preventDefault();
-    
-    // 타이머 정리
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      setLongPressTimer(null);
-    }
-    
-    const touchEndTime = Date.now();
-    const touchDuration = touchEndTime - touchStartTime;
-    
-    // 롱프레스가 활성화된 상태에서는 일반 클릭 방지
-    if (isLongPressActive) {
+  // 편집 모드 토글
+  const handleEditModeToggle = () => {
+    // 🚀 익명 사용자 지원: 익명 사용자는 편집 불가
+    if (userId === 'anonymous') {
+      alert('Please sign in to edit prompts');
       return;
     }
     
-    // 짧은 터치인 경우 일반 클릭으로 처리
-    if (touchDuration < 500 && longPressIndex === -1) {
-      const promptIndex = parseInt(e.currentTarget.getAttribute('data-prompt-index') || '-1');
-      if (promptIndex >= 0) {
-        handleClick(suggestedPrompts[promptIndex]);
-      }
+    if (onEditModeToggle) {
+      onEditModeToggle();
+    } else {
+      setInternalIsEditMode(!internalIsEditMode);
     }
     
-    // 롱프레스 상태 초기화
-    setLongPressIndex(-1);
-    setShowMobileActions(false);
-    setIsLongPressActive(false);
-  };
-
-  // 터치 이동 핸들러 (스크롤 방지)
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isMobile) return;
-    
-    const currentY = e.touches[0].clientY;
-    const deltaY = Math.abs(currentY - touchStartY);
-    
-    // 수직 이동이 10px 이상이면 롱프레스 취소
-    if (deltaY > 10) {
-      if (longPressTimer) {
-        clearTimeout(longPressTimer);
-        setLongPressTimer(null);
-      }
-      setLongPressIndex(-1);
-      setShowMobileActions(false);
-      setIsLongPressActive(false);
+    if (isEditMode) {
+      setSelectedPromptIds([]);
+      setIsAdding(false);
+      setNewPromptContent('');
     }
-  };
-
-  // 모바일 액션 핸들러들
-  const handleMobileEdit = (promptIndex: number) => {
-    setShowMobileActions(false);
-    setLongPressIndex(-1);
-    setIsLongPressActive(false);
-    handleEditStart(promptIndex);
-  };
-
-  const handleMobileDelete = (promptIndex: number) => {
-    setShowMobileActions(false);
-    setLongPressIndex(-1);
-    setIsLongPressActive(false);
-    handleDeletePrompt(promptIndex);
-  };
-
-  const handleMobileCancel = () => {
-    setShowMobileActions(false);
-    setLongPressIndex(-1);
-    setIsLongPressActive(false);
   };
 
   // 편집 시작
@@ -396,26 +315,28 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
     await saveUserPrompts(updatedPrompts);
   };
 
-  // 프롬프트 삭제
-  const handleDeletePrompt = async (promptIndex: number) => {
-    // 🚀 익명 사용자 지원: 익명 사용자는 삭제 불가
-    if (userId === 'anonymous') {
-      alert('Please sign in to delete prompts');
-      return;
-    }
+  // 프롬프트 선택 토글
+  const handleSelectPrompt = (promptIndex: number) => {
+    const promptId = `prompt-${promptIndex}`;
+    setSelectedPromptIds(prev =>
+      prev.includes(promptId)
+        ? prev.filter(id => id !== promptId)
+        : [...prev, promptId]
+    );
+  };
+
+  // 선택된 프롬프트들 삭제
+  const handleDeleteSelected = async () => {
+    if (selectedPromptIds.length === 0) return;
     
-    if (suggestedPrompts.length <= 1) {
-      // 최소 1개는 유지
-      return;
-    }
-    
-    const updatedPrompts = suggestedPrompts.filter((_, index) => index !== promptIndex);
+    const indicesToDelete = selectedPromptIds.map(id => parseInt(id.split('-')[1]));
+    const updatedPrompts = suggestedPrompts.filter((_, index) => !indicesToDelete.includes(index));
     setSuggestedPrompts(updatedPrompts);
+    setSelectedPromptIds([]);
     
     // 백그라운드에서 저장
     await saveUserPrompts(updatedPrompts);
   };
-
   // 새 프롬프트 추가 시작
   const handleAddPromptStart = () => {
     // 🚀 익명 사용자 지원: 익명 사용자는 추가 불가
@@ -534,9 +455,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   }
 
   return (
-    <div className={`relative flex flex-col items-end ${className} group `}>
-      {suggestedPrompts.length > 0 && (
-        <>
+    <div className={`relative flex flex-col items-end ${className} group text-sm `}>
           {userId === 'anonymous' ? (
             // 익명 사용자용 미니멀한 대화 흐름
             <>
@@ -550,7 +469,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
               </div>
 
               {/* 사용자 메시지 - hey */}
-              <div className="flex justify-end w-full group mb-2">
+          <div className="flex justify-end w-full group mb-4">
                 <div className="max-w-[85%] md:max-w-[75%]">
                   <div className="flex flex-col items-end gap-0">
                     <div className="imessage-send-bubble">
@@ -565,22 +484,6 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
 
               {/* 익명 사용자용 예약 메시지들 */}
               <div className="flex flex-col items-end gap-1 w-full mb-2">
-                {/* <button
-                  onClick={() => handleClick("what makes chatflix better than chatgpt?")}
-                  className={`imessage-send-bubble follow-up-question max-w-md ${
-                    isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                  } transition-all duration-200 ease-out hover:scale-105 cursor-pointer`}
-                >
-                  <span>⚡ what makes chatflix better than chatgpt?</span>
-                </button> */}
-                {/* <button
-                  onClick={() => handleClick("how is chatflix different from other ai?")}
-                  className={`imessage-send-bubble follow-up-question max-w-md ${
-                    isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                  } transition-all duration-200 ease-out hover:scale-105 cursor-pointer`}
-                >
-                  <span>🚀 how is chatflix different from other platforms?</span>
-                </button> */}
                 <button
                   onClick={() => handleClick("tell me the latest news.")}
                   className="imessage-send-bubble follow-up-question max-w-md opacity-100 transition-all duration-200 ease-out hover:scale-105 cursor-pointer"
@@ -592,12 +495,6 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                   className="imessage-send-bubble follow-up-question max-w-md opacity-100 transition-all duration-200 ease-out hover:scale-105 cursor-pointer"
                 >
                   <span>send me funny cat gifs</span>
-                </button>
-                <button
-                  onClick={() => handleClick("what do u know about me")}
-                  className="imessage-send-bubble follow-up-question max-w-md opacity-100 transition-all duration-200 ease-out hover:scale-105 cursor-pointer"
-                >
-                  <span>what do u know about me</span>
                 </button>
               </div>
 
@@ -623,7 +520,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
               </div>
 
               {/* 사용자 메시지 - hey */}
-              <div className="flex justify-end w-full group mb-2">
+          <div className="flex justify-end w-full group mb-4">
                 <div className="max-w-[85%] md:max-w-[75%]">
                   <div className="flex flex-col items-end gap-0">
                     <div className="imessage-send-bubble">
@@ -636,19 +533,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                 </div>
               </div>
 
-              {/* AI 메시지 - 질문 */}
-              {/* <div className="flex justify-start w-full group mb-4">
-                <div className="max-w-[85%] md:max-w-[75%]">
-                  <div className="imessage-receive-bubble">
-                    <span>What's on your mind today?</span>
-                  </div>
-                </div>
-              </div> */}
-            </>
-          )}
-
           {/* 모든 프롬프트를 개별적으로 표시 - 로그인 사용자만 */}
-          {userId !== 'anonymous' && (
           <div className="flex flex-col items-end gap-1 w-full">
             {suggestedPrompts.map((prompt, index) => (
               <div 
@@ -658,8 +543,34 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                 onMouseLeave={handleMouseLeave}
               >
                 {isEditing && editingPromptIndex === index ? (
-                  <div className="flex items-center justify-end gap-2 w-full">
-                    <div className="relative w-full max-w-md">
+                  <div className="flex items-center gap-2 w-full">
+                    <button 
+                      onClick={handleEditCancel} 
+                      className="flex items-center justify-center w-10 h-10 rounded-full disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                      style={{
+                        // 다크모드 전용 스타일
+                        ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                            (document.documentElement.getAttribute('data-theme') === 'system' && 
+                             window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                          backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                          WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                        } : {
+                          backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                          backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                          WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                        })
+                      }}
+                      title="Cancel"
+                      disabled={isSaving}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                    <div className="relative flex-1">
                       <div className="imessage-edit-bubble">
                         <textarea
                           ref={textareaRef}
@@ -694,23 +605,33 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                       </div>
                     </div>
                     <button 
-                      onClick={handleEditCancel} 
-                      className="imessage-edit-control-btn cancel" 
-                      title="Cancel"
-                      disabled={isSaving}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                    </button>
-                    <button 
                       onClick={handleEditSave} 
-                      className="imessage-edit-control-btn save" 
+                      className="flex items-center justify-center w-10 h-10 rounded-full disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                      style={{
+                        // 다크모드 전용 스타일
+                        ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                            (document.documentElement.getAttribute('data-theme') === 'system' && 
+                             window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                          backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                          WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                        } : {
+                          backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                          backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                          WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                        })
+                      }}
                       title="Save"
                       disabled={isSaving || !editingContent.trim()}
                     >
                       {isSaving ? (
                         <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
                       ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
                           <polyline points="17 21 17 13 7 13 7 21"/>
                           <polyline points="7 3 7 8 15 8"/>
@@ -720,145 +641,190 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                   </div>
                 ) : (
                   <div className="flex flex-col items-end gap-2 w-full">
-                    <div className="flex items-center justify-end gap-2 w-full">
-                      {/* 데스크탑 호버 버튼들 - 좌측에 표시 */}
-                      {!isMobile && (
-                        <div className={`flex items-center gap-2 transition-opacity duration-300 ${
-                          hoveredPromptIndex === index ? 'opacity-100' : 'opacity-0'
-                        }`}>
+                    <div className="flex items-center justify-end gap-4 w-full">
                           <button
-                            onClick={() => handleEditStart(index)}
-                            className="imessage-control-btn"
-                            title="Edit prompt"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                            </svg>
-                          </button>
-                          {suggestedPrompts.length > 1 && (
-                            <button
-                              onClick={() => handleDeletePrompt(index)}
-                              className="imessage-control-btn text-red-500 hover:text-red-700"
-                              title="Delete prompt"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="3,6 5,6 21,6"/>
-                                <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
-                              </svg>
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      
-                      <button
-                        className={`imessage-send-bubble follow-up-question max-w-md opacity-100 ${isMobile ? 'touch-manipulation' : ''} ${
-                          isMobile && showMobileActions && longPressIndex === index 
-                            ? 'scale-105 shadow-lg transform transition-all duration-200 ease-out' 
-                            : 'transition-all duration-200 ease-out hover:scale-105 cursor-pointer'
-                        }`}
+                        className="imessage-send-bubble follow-up-question max-w-md opacity-100 transition-all duration-200 ease-out hover:scale-105 cursor-pointer"
                         onClick={() => {
-                          if (!isLongPressActive) {
+                          if (!isEditMode) {
                             handleClick(prompt);
                           }
                         }}
-                        onTouchStart={(e) => handleTouchStart(e, index)}
-                        onTouchEnd={handleTouchEnd}
-                        onTouchMove={handleTouchMove}
-                        data-prompt-index={index}
-                        style={{
-                          WebkitTapHighlightColor: 'transparent',
-                          WebkitTouchCallout: 'none',
-                          WebkitUserSelect: 'none',
-                          userSelect: 'none'
-                        }}
                       >
                         {renderPromptWithLinks(prompt)}
-                      </button>
-                    </div>
-                    
-                    {/* 모바일 롱프레스 버튼들 - 각 메시지 바로 아래에 표시 */}
-                    {isMobile && showMobileActions && longPressIndex === index && (
-                      <div className="flex items-center justify-end gap-2 w-full">
-                        <div className={`flex items-center gap-2 opacity-100 transition-all duration-200 ease-out ${
-                          isMobile && showMobileActions && longPressIndex === index 
-                            ? 'scale-105 transform' 
-                            : ''
-                        }`}>
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleMobileEdit(index);
-                            }}
-                            className="imessage-control-btn"
-                            title="Edit prompt"
-                            style={{
-                              WebkitTapHighlightColor: 'transparent',
-                              WebkitTouchCallout: 'none',
-                              WebkitUserSelect: 'none',
-                              userSelect: 'none'
-                            }}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                            </svg>
                           </button>
-                          {suggestedPrompts.length > 1 && (
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleMobileDelete(index);
-                              }}
-                              className="imessage-control-btn text-red-500 hover:text-red-700"
-                              title="Delete prompt"
-                              style={{
-                                WebkitTapHighlightColor: 'transparent',
-                                WebkitTouchCallout: 'none',
-                                WebkitUserSelect: 'none',
-                                userSelect: 'none'
-                              }}
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="3,6 5,6 21,6"/>
-                                <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
+                      
+                      {/* 편집 모드에서 선택 원 표시 - 메시지 우측에 배치 */}
+                      {isEditMode && (
+                        <div className="cursor-pointer" onClick={() => handleSelectPrompt(index)}>
+                           <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                             selectedPromptIds.includes(`prompt-${index}`) 
+                               ? 'bg-[#007AFF] border-[#007AFF]' 
+                               : 'border-[var(--muted)] opacity-50'
+                           }`}>
+                            {selectedPromptIds.includes(`prompt-${index}`) && (
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
                               </svg>
-                            </button>
                           )}
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleMobileCancel();
-                            }}
-                            className="imessage-control-btn text-gray-500 hover:text-gray-700"
-                            title="Cancel"
-                            style={{
-                              WebkitTapHighlightColor: 'transparent',
-                              WebkitTouchCallout: 'none',
-                              WebkitUserSelect: 'none',
-                              userSelect: 'none'
-                            }}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <line x1="18" y1="6" x2="6" y2="18"/>
-                              <line x1="6" y1="6" x2="18" y2="18"/>
-                            </svg>
-                          </button>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
             ))}
+                      
+            {/* 편집 모드 버튼들 */}
+            {isEditMode ? (
+              <div className="flex items-center justify-end gap-2 w-full mt-4">
+                <div className="flex items-center gap-2">
+                      <button
+                    onClick={handleAddPromptStart}
+                    className="flex items-center justify-center w-10 h-10 rounded-full disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    style={{
+                      // 다크모드 전용 스타일
+                      ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                          (document.documentElement.getAttribute('data-theme') === 'system' && 
+                           window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                        backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                        WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                      } : {
+                        backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                        backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                        WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                      })
+                    }}
+                    title="Add new prompt"
+                    type="button"
+                    aria-label="Add new prompt"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"/>
+                      <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                  </button>
+                  <button
+                        onClick={() => {
+                      if (selectedPromptIds.length === 1) {
+                        const promptIndex = parseInt(selectedPromptIds[0].split('-')[1]);
+                        handleEditStart(promptIndex);
+                        if (onEditModeToggle) {
+                          onEditModeToggle(); // 외부에서 편집 모드 종료
+                        } else {
+                          setInternalIsEditMode(false);
+                        }
+                      }
+                    }}
+                    disabled={selectedPromptIds.length !== 1}
+                    className="flex items-center justify-center w-10 h-10 rounded-full disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                        style={{
+                      // 다크모드 전용 스타일
+                      ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                          (document.documentElement.getAttribute('data-theme') === 'system' && 
+                           window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                        backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                        WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                      } : {
+                        backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                        backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                        WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                      })
+                    }}
+                    title="Edit selected"
+                    type="button"
+                    aria-label="Edit selected"
+                  >
+                    <Edit size={18} />
+                      </button>
+                          <button
+                    onClick={handleDeleteSelected}
+                    disabled={selectedPromptIds.length === 0}
+                    className="flex items-center justify-center w-10 h-10 rounded-full disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                            style={{
+                      // 다크모드 전용 스타일
+                      ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                          (document.documentElement.getAttribute('data-theme') === 'system' && 
+                           window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                        backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                        WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                      } : {
+                        backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                        backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                        WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                      })
+                    }}
+                    title="Delete selected"
+                    type="button"
+                    aria-label="Delete selected"
+                  >
+                    <Trash2 size={18} />
+                          </button>
+                            <button
+                    onClick={handleEditModeToggle}
+                    className="flex items-center justify-center w-10 h-10 rounded-full cursor-pointer"
+                              style={{
+                      color: 'white',
+                      backgroundColor: '#007AFF',
+                      border: '1px solid #007AFF',
+                      boxShadow: '0 8px 40px rgba(0, 122, 255, 0.3), 0 4px 20px rgba(0, 122, 255, 0.2), 0 2px 8px rgba(0, 122, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+                    }}
+                    title="Done editing"
+                    type="button"
+                    aria-label="Done editing"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                              </svg>
+                            </button>
+                </div>
+              </div>
+            ) : null}
 
             {/* 새 프롬프트 추가 UI */}
             {isAdding ? (
-              <div className="flex items-center justify-end gap-2 w-full">
-                <div className="relative w-full max-w-md">
+              <div className="flex items-center gap-2 w-full py-2">
+                <button 
+                  onClick={handleAddPromptCancel} 
+                  className="flex items-center justify-center w-10 h-10 rounded-full disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  style={{
+                    // 다크모드 전용 스타일
+                    ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                        (document.documentElement.getAttribute('data-theme') === 'system' && 
+                         window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                      backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                    } : {
+                      backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                      backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                      WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                    })
+                  }}
+                  title="Cancel"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+                <div className="relative flex-1">
                   <div className="imessage-edit-bubble">
                     <textarea
                       ref={newPromptTextareaRef}
@@ -892,45 +858,37 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                   </div>
                 </div>
                 <button 
-                  onClick={handleAddPromptCancel} 
-                  className="imessage-edit-control-btn cancel" 
-                  title="Cancel"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-                <button 
                   onClick={handleAddPromptSave} 
-                  className="imessage-edit-control-btn save" 
+                  className="flex items-center justify-center w-10 h-10 rounded-full disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  style={{
+                    // 다크모드 전용 스타일
+                    ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                        (document.documentElement.getAttribute('data-theme') === 'system' && 
+                         window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                      backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                    } : {
+                      backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                      backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                      WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                    })
+                  }}
                   title="Add prompt"
                   disabled={!newPromptContent.trim()}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19"/>
                     <line x1="5" y1="12" x2="19" y2="12"/>
                   </svg>
                 </button>
               </div>
-            ) : (
-              /* 새 프롬프트 추가 버튼 */
-              <div className="flex items-center justify-end gap-2 w-full">
-                <div className={`flex items-center gap-2 transition-opacity duration-300 ${
-                  isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                }`}>
-                  <button
-                    onClick={handleAddPromptStart}
-                    className="imessage-control-btn text-green-500 hover:text-green-700 transition-all duration-200 ease-out hover:scale-110"
-                    title="Add new prompt"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="12" y1="5" x2="12" y2="19"/>
-                      <line x1="5" y1="12" x2="19" y2="12"/>
-                    </svg>
-                  </button>
+            ) : null}
                 </div>
-              </div>
-            )}
-          </div>
-          )}
         </>
       )}
     </div>
