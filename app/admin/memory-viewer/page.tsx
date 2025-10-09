@@ -18,6 +18,8 @@ export default function MemoryViewerPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showMarkdown, setShowMarkdown] = useState(true);
+  const [isRefining, setIsRefining] = useState(false);
+  const [lastRefined, setLastRefined] = useState<string | null>(null);
 
   const fetchUserMemory = async () => {
     if (!userId.trim()) {
@@ -52,6 +54,36 @@ export default function MemoryViewerPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     fetchUserMemory();
+  };
+
+  const refineUserMemory = async () => {
+    if (!userId.trim()) {
+      toast.error('Please enter a user ID');
+      return;
+    }
+
+    setIsRefining(true);
+    try {
+      const response = await fetch(`/api/admin/memory-refine?mode=manual&user_id=${encodeURIComponent(userId.trim())}`, {
+        method: 'POST'
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        toast.success(`Memory refined successfully! Processed: ${result.processed}, Successful: ${result.successful}`);
+        setLastRefined(new Date().toLocaleString());
+        // Refresh memory data
+        await fetchUserMemory();
+      } else {
+        toast.error(`Refine failed: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error refining memory:', error);
+      toast.error('Failed to refine memory');
+    } finally {
+      setIsRefining(false);
+    }
   };
 
 
@@ -123,12 +155,15 @@ export default function MemoryViewerPage() {
             borderColor: 'var(--border)' 
           }}>
             <h3 className="text-lg font-semibold mb-2">User Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div>
                 <span className="font-medium">User ID:</span> {memoryData.user_id}
               </div>
               <div>
                 <span className="font-medium">Last Updated:</span> {new Date(memoryData.timestamp).toLocaleString()}
+              </div>
+              <div>
+                <span className="font-medium">Last Refined:</span> {lastRefined || 'Never'}
               </div>
             </div>
           </div>
@@ -137,18 +172,34 @@ export default function MemoryViewerPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-semibold">Memory Data (as sent to LLM)</h3>
-              <button
-                onClick={() => setShowMarkdown(!showMarkdown)}
-                className={`px-3 py-1 rounded text-sm border transition-colors flex items-center gap-2`}
-                style={{
-                  backgroundColor: showMarkdown ? 'var(--foreground)' : 'var(--background)',
-                  color: showMarkdown ? 'var(--background)' : 'var(--foreground)',
-                  borderColor: 'var(--border)'
-                }}
-              >
-                {showMarkdown ? <Eye className="w-4 h-4" /> : <Code className="w-4 h-4" />}
-                {showMarkdown ? 'Markdown View' : 'Raw Text'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={refineUserMemory}
+                  disabled={isRefining || !memoryData}
+                  className="px-3 py-1 rounded text-sm border transition-colors flex items-center gap-2"
+                  style={{
+                    backgroundColor: (isRefining || !memoryData) ? 'var(--muted)' : 'var(--accent)',
+                    color: 'var(--foreground)',
+                    borderColor: 'var(--border)',
+                    cursor: (isRefining || !memoryData) ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <Database className="w-4 h-4" />
+                  {isRefining ? 'Refining...' : 'Refine Memory'}
+                </button>
+                <button
+                  onClick={() => setShowMarkdown(!showMarkdown)}
+                  className={`px-3 py-1 rounded text-sm border transition-colors flex items-center gap-2`}
+                  style={{
+                    backgroundColor: showMarkdown ? 'var(--foreground)' : 'var(--background)',
+                    color: showMarkdown ? 'var(--background)' : 'var(--foreground)',
+                    borderColor: 'var(--border)'
+                  }}
+                >
+                  {showMarkdown ? <Eye className="w-4 h-4" /> : <Code className="w-4 h-4" />}
+                  {showMarkdown ? 'Markdown View' : 'Raw Text'}
+                </button>
+              </div>
             </div>
             
             {memoryData.memory_data ? (

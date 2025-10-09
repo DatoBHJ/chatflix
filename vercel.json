@@ -10,5 +10,11 @@
   "outputDirectory": ".next",
   "env": {
     "MAINTENANCE_MODE": "false"
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/admin/memory-refine",
+      "schedule": "0 3 * * *"
+    }
+  ]
 } 
