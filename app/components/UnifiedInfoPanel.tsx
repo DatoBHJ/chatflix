@@ -311,10 +311,10 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
       <style>{shimmerStyles}</style>
       <div className="pl-0 mb-2">
       <div className={`${shouldShowTitle ? 'pt-12 sm:pt-16' : ''} pb-2 sm:pb-2 pr-8 sm:pr-0`}>
-        {shouldShowTitle && (
+      {shouldShowTitle && (
           <div className="flex items-center gap-3">
             <h2
-              className={`text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight break-keep text-balance ${
+              className={`text-3xl sm:text-4xl md:text-4xl font-semibold tracking-tight break-keep text-balance ${
                 !messageTitle ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'
               } ${!(hasReasoning || hasCanvas) ? 'mb-8' : ''}`}
               style={{ wordBreak: 'keep-all' }}
@@ -323,6 +323,22 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
             </h2>
           </div>
         )}
+        {/* {shouldShowTitle && (
+          <div className="flex items-center md:max-w-[75%]">
+            <h2
+              className={`text-3xl sm:text-4xl md:text-4xl font-light tracking-[-0.02em] leading-tight text-balance ${
+                !messageTitle ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'
+              } ${!(hasReasoning || hasCanvas) ? 'mb-8' : ''}`}
+              style={{ 
+                wordBreak: 'keep-all',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif',
+                fontWeight: '300'
+              }}
+            >
+              {derivedTitle}
+            </h2>
+          </div>
+        )} */}
         
         {(hasReasoning || hasCanvas) && (
           <div className="mt-12  text-base text-[var(--muted)]">
