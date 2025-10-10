@@ -115,7 +115,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // Admin route protection (both pages and API)
-  if (request.nextUrl.pathname.startsWith('/admin') || request.nextUrl.pathname.startsWith('/api/admin')) {
+  // 예외: memory-refine API는 인증 우회 (cron job용)
+  if ((request.nextUrl.pathname.startsWith('/admin') || request.nextUrl.pathname.startsWith('/api/admin')) 
+      && !request.nextUrl.pathname.startsWith('/api/admin/memory-refine')) {
     try {
       // Create a Supabase client for the middleware
       const { createServerClient } = await import('@supabase/ssr')
