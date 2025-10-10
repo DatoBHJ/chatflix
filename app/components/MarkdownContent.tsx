@@ -331,6 +331,7 @@ interface MarkdownContentProps {
   isMobile?: boolean;
   noTail?: boolean; // 꼬리 제거 옵션
   isLongPressActive?: boolean; // 🚀 FEATURE: Long press state for segment shadows
+  isStreaming?: boolean; // 🚀 FEATURE: Streaming state for Mermaid diagrams
 }
 
 // 더 적극적으로 마크다운 구조를 분할하는 함수 - 구분선(---)을 기준으로 메시지 그룹 분할
@@ -1235,7 +1236,8 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   titleMap = {},
   isMobile = false,
   noTail = false,
-  isLongPressActive = false
+  isLongPressActive = false,
+  isStreaming = false
 }: MarkdownContentProps) {
 
   // Image modal state
@@ -2095,7 +2097,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       }
       
       if (language === 'mermaid') {
-        return <MermaidDiagram chart={codeText} onMermaidClick={openMermaidModal} title="Mermaid Diagram" />;
+        return <MermaidDiagram chart={codeText} onMermaidClick={openMermaidModal} title="Mermaid Diagram" isStreaming={isStreaming} />;
       }
       
       if (language === 'diff') {

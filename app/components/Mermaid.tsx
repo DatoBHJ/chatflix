@@ -13,14 +13,36 @@ const MermaidDiagram = ({ chart, onMermaidClick, title, isModal = false, isStrea
   const containerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
-  const [hasNonEnglishChars, setHasNonEnglishChars] = useState(false);
   const { theme } = useTheme();
 
-  // 다국어 문자 감지 함수
-  const hasNonEnglishCharacters = (text: string): boolean => {
-    // 영어, 숫자, 기본 특수문자만 허용하는 정규식
-    const englishOnlyRegex = /^[a-zA-Z0-9\s\-_.,;:!?()[\]{}'"`~@#$%^&*+=|\\/<>]+$/;
-    return !englishOnlyRegex.test(text);
+  // Mermaid 문법 검증 함수
+  const validateMermaidSyntax = (chart: string): { isValid: boolean; error?: string } => {
+    if (!chart.trim()) {
+      return { isValid: false, error: 'Empty diagram' };
+    }
+
+    // 기본 다이어그램 타입 확인
+    const diagramTypes = ['graph', 'flowchart', 'sequenceDiagram', 'classDiagram', 'stateDiagram', 'erDiagram', 'journey', 'gantt', 'pie', 'gitgraph', 'mindmap', 'timeline'];
+    const hasValidType = diagramTypes.some(type => chart.trim().startsWith(type));
+    
+    if (!hasValidType) {
+      return { isValid: false, error: 'Missing diagram type declaration' };
+    }
+
+    // 괄호 균형 확인
+    const openBrackets = (chart.match(/\[/g) || []).length;
+    const closeBrackets = (chart.match(/\]/g) || []).length;
+    const openParens = (chart.match(/\(/g) || []).length;
+    const closeParens = (chart.match(/\)/g) || []).length;
+
+    if (openBrackets !== closeBrackets) {
+      return { isValid: false, error: 'Unbalanced brackets []' };
+    }
+    if (openParens !== closeParens) {
+      return { isValid: false, error: 'Unbalanced parentheses ()' };
+    }
+
+    return { isValid: true };
   };
 
   useEffect(() => {
@@ -36,16 +58,16 @@ const MermaidDiagram = ({ chart, onMermaidClick, title, isModal = false, isStrea
         return;
       }
 
-      // 다국어 문자 감지
-      if (hasNonEnglishCharacters(chart)) {
-        setHasNonEnglishChars(true);
+      // 문법 검증
+      const validation = validateMermaidSyntax(chart);
+      if (!validation.isValid) {
+        setHasError(true);
         setIsLoading(false);
         return;
       }
 
       setIsLoading(true);
       setHasError(false);
-      setHasNonEnglishChars(false);
 
       try {
         const mermaid = (await import('mermaid')).default;
@@ -64,7 +86,7 @@ const MermaidDiagram = ({ chart, onMermaidClick, title, isModal = false, isStrea
             // Background and text colors only
             background: background,
             textColor: foreground,
-            fontFamily: fontFamily,
+            fontFamily: "Pretendard, 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
           }
         });
 
@@ -100,30 +122,19 @@ const MermaidDiagram = ({ chart, onMermaidClick, title, isModal = false, isStrea
     );
   }
 
-  // 다국어 문자 감지 시 표시
-  if (hasNonEnglishChars) {
-    return (
-      <div className="my-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-500/30 rounded-lg">
-        <p className="text-yellow-600 dark:text-yellow-400 font-semibold">⚠️ Language Warning</p>
-        <p className="text-yellow-500 dark:text-yellow-400 text-sm mt-1">
-          Mermaid diagrams may not render properly with non-English characters. Please use English text in the diagram.
-        </p>
-        <div className="mt-3 p-2 bg-yellow-500/10 rounded text-xs text-yellow-600 dark:text-yellow-400">
-          <p className="font-medium">Suggestion:</p>
-          <p>Use English labels in your Mermaid diagram to ensure proper rendering.</p>
-        </div>
-      </div>
-    );
-  }
 
   if (hasError) {
+    const validation = validateMermaidSyntax(chart);
     return (
       <div className="my-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 rounded-lg">
         <p className="text-red-600 dark:text-red-400 font-semibold">Mermaid Chart Error</p>
         <p className="text-red-500 dark:text-red-400 text-sm mt-1">
-          Failed to render Mermaid chart. Please check the syntax.
+          {validation.error ? `Syntax Error: ${validation.error}` : 'Failed to render Mermaid chart. Please check the syntax.'}
         </p>
-        <pre className="text-xs text-red-500 dark:text-red-400/80 mt-2 whitespace-pre-wrap bg-red-500/10 p-2 rounded">{chart}</pre>
+        <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded border">
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Original Mermaid Code:</p>
+          <pre className="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap bg-gray-100 dark:bg-gray-700 p-2 rounded overflow-x-auto">{chart}</pre>
+        </div>
       </div>
     );
   }

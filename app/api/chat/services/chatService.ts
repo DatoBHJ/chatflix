@@ -348,14 +348,11 @@ Supported chart types: bar, line, pie, doughnut, radar, scatter, bubble, polarar
 ## Mermaid Diagram Guidelines
 When explaining complex processes, workflows, or relationships, consider creating Mermaid diagrams using the \`\`\`mermaid code block:
 
-**CRITICAL LANGUAGE REQUIREMENT:**
-- **ALWAYS use English for all text in Mermaid diagrams** (labels, node names, edge labels, etc.)
-- **NEVER use non-English characters** (Korean, Chinese, Japanese, Arabic, etc.) in Mermaid syntax
-- **If user requests diagram in non-English language**, you MUST:
-  1. First warn them that Mermaid diagrams may not render properly with non-English characters
-  2. Explain that you'll create the diagram in English to ensure proper rendering
-  3. Offer to provide a text description in their preferred language instead
-  4. If they insist, create the diagram in English and provide a translation in their language
+**LANGUAGE SUPPORT:**
+- **Mermaid supports multiple languages** including Korean, Chinese, Japanese, and other Unicode characters
+- **Use the user's preferred language** for labels, node names, and edge labels
+- **Korean and other languages are fully supported** with proper font configuration
+- **If rendering issues occur**, suggest simplifying the text or using shorter labels
 
 **Use Mermaid for:**
 - Process flows and workflows
@@ -373,7 +370,17 @@ When explaining complex processes, workflows, or relationships, consider creatin
 - Presenting project timelines (Gantt charts)
 - Visualizing code structure or relationships
 
-**Example of proper English-only Mermaid:**
+**Example of multilingual Mermaid (Korean):**
+\`\`\`mermaid
+graph TD
+    A[시작] --> B{결정점}
+    B -->|예| C[액션 1]
+    B -->|아니오| D[액션 2]
+    C --> E[종료]
+    D --> E
+\`\`\`
+
+**Example of multilingual Mermaid (English):**
 \`\`\`mermaid
 graph TD
     A[Start Process] --> B{Decision Point}

@@ -2230,10 +2230,10 @@ const Message = memo(function MessageComponent({
                 
                   {message.parts ? (
                     processedParts?.map((part: any, index: number) => (
-                      part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling}/>
+                      part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling} isStreaming={isStreaming}/>
                     ))
                   ) : (
-                    (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling}/>
+                    (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling} isStreaming={isStreaming}/>
                   )}
                   
                   <FilesPreview
@@ -2313,10 +2313,10 @@ const Message = memo(function MessageComponent({
               
                 {message.parts ? (
                   processedParts?.map((part: any, index: number) => (
-                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile} isLongPressActive={true} noTail={true}/>
+                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile} isLongPressActive={true} noTail={true} isStreaming={isStreaming}/>
                   ))
                 ) : (
-                  (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile} isLongPressActive={true} noTail={true}/>
+                  (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} isMobile={isMobile} isLongPressActive={true} noTail={true} isStreaming={isStreaming}/>
                 )}
                   
                   <FilesPreview
