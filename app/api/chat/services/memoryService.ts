@@ -58,7 +58,7 @@ const fetchUserName = async (userId: string, supabase: SupabaseClient) => {
 
 // 메모리 뱅크 업데이트에 사용할 AI 모델 및 설정
 const MEMORY_UPDATE_MODEL = 'gpt-4.1-nano';
-const MEMORY_UPDATE_MAX_TOKENS = 1500;
+const MEMORY_UPDATE_MAX_TOKENS = 800;
 const MEMORY_UPDATE_TEMPERATURE = 0.3;
 
 // 🆕 Smart Trigger 관련 상수
@@ -156,23 +156,15 @@ CRITICAL RULES FOR MEMORY UPDATES:
 - ALWAYS update when user asks to remember specific preferences, styles, or instructions
 - HIGH priority: 
   * User explicitly requests memory updates ("remember this", "save this", "keep this in mind", etc.)
-  * Major personal info changes (name, occupation, location, age, family status)
-  * Lifestyle changes (dietary restrictions, health conditions, living situation)
-  * Learning style preferences or educational background changes
-  * Work schedule or career changes
+  * Major personal info changes (name, occupation, location)
   * Strong emotional responses or preferences that contradict existing data
   * Completely new topics/interests not mentioned before
   * New users with default memory (first few interactions)
   * Specific writing style preferences or communication instructions
-  * Health, fitness, or wellness preferences
-  * Travel or location-based preferences
 - MEDIUM priority:
   * New learning patterns or expertise level changes
   * Significant technical discussions on new subjects
   * Communication style preferences that differ from existing patterns
-  * Entertainment or hobby preferences
-  * Shopping or brand preferences
-  * Technology tool preferences
   * Regular updates for users with established profiles (every 24h)
 - LOW priority:
   * Minor clarifications or elaborations on existing topics
@@ -392,33 +384,21 @@ export async function updatePersonalInfo(
     const personalInfoPrompt = `Based on the conversation and available user information, extract or update the user's personal information.
 Create a comprehensive user profile in markdown format with the following sections:
 
-## Basic Demographics
+## Basic Details
 - Name: ${basicInfo.name || '[Extract from conversation if mentioned]'}
-- Age Range: [20s, 30s, 40s, 50s, 60s+ - infer from conversation context]
-- Gender: [Male, Female, Non-binary, Prefer not to say - extract from conversation if mentioned]
-- Location: [Country/Region - extract from conversation if mentioned]
-- Occupation: [Extract from conversation if mentioned]
-- Education: [Academic background if mentioned]
-- Family Status: [Marital status, children, family composition if mentioned]
-- Languages: [Primary language, additional languages if mentioned]
+- Member since: ${basicInfo.created_at ? new Date(basicInfo.created_at).toLocaleDateString() : 'Unknown'}
+- Last active: ${basicInfo.last_sign_in_at ? new Date(basicInfo.last_sign_in_at).toLocaleDateString() : 'Unknown'}
+- Language preference: [Extract from conversation]
 
 ## Professional Context
-- Expertise Level: [Beginner/Intermediate/Advanced - infer from conversation]
-- Fields: [Main professional/interest areas]
-- Industry: [Specific industry or sector if mentioned]
-- Career Stage: [Student, Early career, Mid-career, Senior, Retired]
-
-## Lifestyle Context
-- Time Zone: [Extract from conversation or usage patterns]
-- Life Stage: [Student, Working professional, Parent, Retiree, etc.]
-- Member Since: ${basicInfo.created_at ? new Date(basicInfo.created_at).toLocaleDateString() : 'Unknown'}
-- Last Active: ${basicInfo.last_sign_in_at ? new Date(basicInfo.last_sign_in_at).toLocaleDateString() : 'Unknown'}
+- Occupation: [Extract from conversation if mentioned]
+- Expertise level: [Beginner/Intermediate/Advanced - infer from conversation]
+- Fields: [Extract main professional/interest areas]
 
 ## Usage Patterns
-- Typical Activity: [Identify any patterns in usage]
-- Session Frequency: [How often they engage in conversations]
-- Preferred Models: [Which AI models they use most]
-- Active Hours: [When they typically use the service]
+- Typical activity: [Identify any patterns in usage]
+- Session frequency: [How often they engage in conversations]
+- Preferred models: [Which AI models they use most]
 
 Previous personal information:
 ${memoryData || "No previous personal information recorded."}
@@ -433,7 +413,6 @@ IMPORTANT GUIDELINES:
 4. If updating an existing profile, integrate new observations while preserving previous insights.
 5. Format as a structured markdown document with clear sections.
 6. Focus on creating a useful reference that helps understand the user's background and context.
-7. Pay special attention to demographic information that could affect personalization (age, location, occupation, family status).
 `;
     
     return await updateMemoryCategory(
@@ -466,37 +445,20 @@ export async function updatePreferences(
 Create a comprehensive preference profile in markdown format with the following sections:
 
 ## Communication Style
-- Preferred Response Length: [Concise/Detailed - analyze how they respond to different length answers]
-- Technical Detail Level: [Basic/Intermediate/Advanced - analyze their comfort with technical details]
-- Tone Preference: [Casual/Professional/Academic - infer from their language style]
-- Language Style: [Formal/Informal - analyze their writing style]
-- Interaction Style: [Direct/Conversational - how they prefer to communicate]
+- Preferred response length: [Concise/Detailed - analyze how they respond to different length answers]
+- Technical detail level: [Basic/Intermediate/Advanced - analyze their comfort with technical details]
+- Tone preference: [Casual/Professional/Academic - infer from their language style]
+- Language style: [Formal/Informal - analyze their writing style]
 
 ## Content Preferences
-- Code Examples: [Frequency of code-related questions, preference for examples]
-- Visual Elements: [Any mentions or requests for visual aids, diagrams, etc.]
-- Step-by-step Guides: [Do they prefer procedural explanations?]
-- References Inclusion: [Do they ask for sources or additional reading?]
-- Format Preferences: [Lists, tables, structured responses, or prose]
-
-## Lifestyle Preferences
-- Food & Diet: [Dietary restrictions, food preferences, meal timing if mentioned]
-- Entertainment: [Movies, music, books, games, sports preferences if mentioned]
-- Travel Style: [Travel preferences, accommodation types, activities if mentioned]
-- Shopping Habits: [Online/offline preferences, brand preferences if mentioned]
-- Health & Fitness: [Exercise preferences, health interests if mentioned]
-
-## Work & Learning Preferences
-- Working Style: [Independent/Collaborative, focused/multitasking]
-- Learning Preferences: [Visual/Auditory/Kinesthetic, structured/exploratory]
-- Productivity Tools: [Preferred apps, tools, methods if mentioned]
-- Goal Setting: [Short-term/Long-term focus, planning style]
-- Time Management: [Scheduling preferences, peak productivity times]
+- Code examples: [Frequency of code-related questions, preference for examples]
+- Visual elements: [Any mentions or requests for visual aids, diagrams, etc.]
+- Step-by-step guides: [Do they prefer procedural explanations?]
+- References inclusion: [Do they ask for sources or additional reading?]
 
 ## UI/UX Preferences
-- Response Format: [Do they prefer structured responses, bullet points, or prose?]
-- Follow-up Style: [Do they engage with follow-up questions?]
-- Interface Preferences: [Mobile/desktop usage patterns if mentioned]
+- Response format: [Do they prefer structured responses, bullet points, or prose?]
+- Follow-up style: [Do they engage with follow-up questions?]
 
 Previous preferences information:
 ${memoryData || "No previous preferences recorded."}
@@ -510,7 +472,6 @@ IMPORTANT GUIDELINES:
 3. Only include preferences that can be reliably inferred from the conversation.
 4. If certain preferences can't be determined, indicate "Not enough data" rather than guessing.
 5. Format as a structured markdown document with clear sections.
-6. Pay special attention to lifestyle preferences that could affect personalization (dietary restrictions, learning styles, work patterns).
 `;
     
     await updateMemoryCategory(
@@ -544,31 +505,15 @@ Create a comprehensive interest profile in markdown format with the following se
 ## Primary Interests
 - Identify 3-5 main topics the user frequently discusses or asks about
 - For each interest, note subtopics and engagement level (high/medium/low)
-- Include time investment and depth of involvement
-
-## Detailed Hobbies & Activities
-- Hobbies: [Specific activities with time investment levels]
-- Sports & Fitness: [Exercise routines, sports interests, fitness goals]
-- Creative Activities: [Art, music, writing, design, crafts]
-- Technology Interests: [Programming languages, tools, platforms, gadgets]
-- Current Projects: [Ongoing projects, challenges, goals]
-
-## Professional Interests
-- Industry Focus: [Specific sectors or fields of interest]
-- Skill Development: [Areas they're learning or want to improve]
-- Career Goals: [Professional aspirations and development areas]
-- Networking: [Communities, professional groups, collaboration interests]
-
-## Learning Journey
-- Current Focus: [Topics actively learning or exploring]
-- Progress Areas: [Topics showing increasing expertise]
-- Challenging Areas: [Topics needing more support]
-- Learning Style: [How they prefer to learn new things]
 
 ## Recent Topics
 - List 2-3 topics from recent conversations
 - Include when they were last discussed (if possible)
-- Note any new interests that have emerged
+
+## Learning Journey
+- Current focus: Topics the user is actively learning or exploring
+- Progress areas: Topics where the user shows increasing expertise
+- Challenging areas: Topics where the user seems to need more support
 
 Previous interests information:
 ${memoryData || "No previous interests recorded."}
@@ -583,8 +528,6 @@ IMPORTANT GUIDELINES:
 4. If updating an existing profile, integrate new observations while preserving previous insights.
 5. Format as a structured markdown document with clear sections.
 6. Be specific about topics rather than using generic categories.
-7. Pay attention to both personal and professional interests.
-8. Note the depth of engagement with each interest area.
 `;
     
     await updateMemoryCategory(

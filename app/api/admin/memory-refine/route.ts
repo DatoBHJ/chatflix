@@ -1,10 +1,9 @@
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdmin } from '@/lib/admin';
 
 // Refine에 사용할 AI 모델 설정
 const REFINE_MODEL = 'gpt-4.1-mini';
-const REFINE_MAX_TOKENS = 1000;
+const REFINE_MAX_TOKENS = 3000; // 50개 메시지 처리용 토큰 증가
 const REFINE_TEMPERATURE = 0.2;
 
 /**
@@ -33,8 +32,7 @@ async function callRefineAI(
     });
 
     if (!response.ok) {
-      console.error(`Refine AI call failed: ${response.status}`);
-      return null;
+      throw new Error(`OpenAI API error: ${response.status}`);
     }
 
     const data = await response.json();
@@ -60,50 +58,76 @@ async function refineUserMemory(userId: string, supabase: any) {
       .order('category');
 
     if (!memoryEntries || memoryEntries.length === 0) {
-      console.log(`⚠️ [REFINE] No memory data found for user ${userId}`);
-      return { success: false, reason: 'No memory data' };
+      return { success: false, error: 'No memory entries found' };
     }
 
-    const results = [];
-    
+    // 최신 대화 메시지 가져오기 (refine용으로 더 많은 메시지 사용)
+    const { data: recentMessages, error: messagesError } = await supabase
+      .from('messages')
+      .select('role, content, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50); // refine용으로 50개 메시지 사용
+
+    if (messagesError) {
+      console.warn(`⚠️ [REFINE] Could not fetch recent messages for user ${userId}:`, messagesError.message);
+    }
+
+    // 대화 메시지를 텍스트로 변환
+    const conversationText = recentMessages && recentMessages.length > 0 
+      ? recentMessages.map((msg: any) => `${msg.role}: ${msg.content}`).join('\n')
+      : 'No recent conversation data available';
+
+    console.log(`📝 [REFINE] Fetched ${recentMessages?.length || 0} recent messages for user ${userId}`);
+
+    let successCount = 0;
+    let errorCount = 0;
+
     // 각 카테고리별로 refine
     for (const entry of memoryEntries) {
       const systemPrompt = `You are a memory refinement specialist. Your task is to clean up and optimize user memory data for the ${entry.category} category ONLY.
 
 CRITICAL RULES FOR ${entry.category}:
-1. Remove ALL content that belongs to other categories (00-personal-info, 01-preferences, 02-interests, 03-interaction-history, 04-relationship)
-2. Keep ONLY content that is specific to ${entry.category}
-3. Remove placeholder text like "Not enough data", "To be determined", etc.
-4. Remove redundant explanations and verbose descriptions
-5. Use consistent markdown formatting
-6. Be concise but comprehensive
-7. Focus on actionable insights and concrete facts
-8. If no relevant content exists for this category, return a minimal placeholder
+- 00-personal-info: Basic user details, name, age range, location, occupation, family, languages, time zone ONLY
+- 01-preferences: Communication style, lifestyle preferences (food, entertainment, travel), work style, learning preferences ONLY  
+- 02-interests: Detailed hobbies with time investment, sports & fitness, creative activities, technology interests, current projects ONLY
+- 03-interaction-history: Chat patterns, response styles, engagement levels, communication preferences ONLY
+- 04-relationship: Relationship context, interaction history, personal connection details ONLY
 
-CATEGORY-SPECIFIC RULES:
-- 00-personal-info: Basic user details, name, member info, basic context ONLY
-- 01-preferences: Communication style, content preferences, UI/UX preferences ONLY  
-- 02-interests: Topics of interest, hobbies, professional interests ONLY
-- 03-interaction-history: Recent conversations, recurring questions, unresolved issues ONLY
-- 04-relationship: Communication quality, emotional patterns, personalization strategies ONLY`;
+STRICT REQUIREMENTS:
+- Remove ALL content that belongs to other categories
+- Keep ONLY content that is specific to ${entry.category}
+- Make content concise and well-organized
+- Remove duplicates and outdated information
+- Update outdated information based on recent conversations
+- Add new insights that weren't captured in the original memory
+- Ensure all information is accurate and up-to-date`;
 
-      const userPrompt = `Refine the following ${entry.category} memory data:
+      const userPrompt = `Refine the following ${entry.category} memory data using both the existing memory and recent conversation context:
 
+EXISTING MEMORY DATA:
 ${entry.content}
+
+RECENT CONVERSATION CONTEXT (last 50 messages):
+${conversationText}
 
 STRICT REQUIREMENTS:
 - Remove ALL content that belongs to other categories (00-personal-info, 01-preferences, 02-interests, 03-interaction-history, 04-relationship)
 - Keep ONLY content that is specific to ${entry.category}
-- Remove placeholder text and "Not enough data" entries
-- Use clean, consistent markdown formatting
-- Be concise but preserve important details
-- Maintain the category's specific purpose
-- If content is mostly from other categories, return minimal placeholder
+- Make content concise and well-organized
+- Remove duplicates and outdated information
+- Update outdated information based on recent conversations
+- Add new insights that weren't captured in the original memory
+- Ensure all information is accurate and up-to-date
 
 EXAMPLE OF WHAT TO REMOVE:
-- If this is 00-personal-info, remove all preferences, interests, interaction history, relationship data
-- If this is 01-preferences, remove all personal info, interests, interaction history, relationship data
-- Each category should be completely independent`;
+- If refining 00-personal-info: Remove any communication preferences, lifestyle choices, hobbies, or relationship details
+- If refining 01-preferences: Remove any personal demographics, specific interests, or relationship information
+- If refining 02-interests: Remove any personal info, preferences, or relationship details
+- If refining 03-interaction-history: Remove any personal demographics, preferences, or interests
+- If refining 04-relationship: Remove any personal info, preferences, or interests
+
+Return ONLY the refined content for ${entry.category} category.`;
 
       const refinedContent = await callRefineAI(systemPrompt, userPrompt);
       
@@ -111,28 +135,33 @@ EXAMPLE OF WHAT TO REMOVE:
         // 데이터베이스 업데이트
         const { error } = await supabase
           .from('memory_bank')
-          .update({
+          .update({ 
             content: refinedContent,
-            updated_at: new Date().toISOString(),
             last_refined_at: new Date().toISOString()
           })
           .eq('user_id', userId)
           .eq('category', entry.category);
 
         if (error) {
-          console.error(`❌ [REFINE] Failed to update ${entry.category}:`, error);
-          results.push({ category: entry.category, success: false, error: error.message });
+          console.error(`❌ [REFINE] Failed to update ${entry.category} for user ${userId}:`, error);
+          errorCount++;
         } else {
-          console.log(`✅ [REFINE] Successfully refined ${entry.category}`);
-          results.push({ category: entry.category, success: true });
+          console.log(`✅ [REFINE] Successfully refined ${entry.category} for user ${userId}`);
+          successCount++;
         }
       } else {
-        console.error(`❌ [REFINE] AI refinement failed for ${entry.category}`);
-        results.push({ category: entry.category, success: false, error: 'AI refinement failed' });
+        console.error(`❌ [REFINE] Failed to refine ${entry.category} for user ${userId}`);
+        errorCount++;
       }
     }
 
-    return { success: true, results };
+    return { 
+      success: successCount > 0, 
+      successCount, 
+      errorCount,
+      totalCategories: memoryEntries.length
+    };
+
   } catch (error) {
     console.error(`❌ [REFINE] Error refining memory for user ${userId}:`, error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
@@ -149,24 +178,7 @@ export async function POST(req: NextRequest) {
 
 async function handleRefineRequest(req: NextRequest) {
   try {
-    // Cron job 보안 검증
-    const authHeader = req.headers.get('Authorization');
-    const cronSecret = process.env.CRON_SECRET;
-    
-    if (authHeader && cronSecret) {
-      // Cron job에서 호출된 경우
-      if (authHeader !== `Bearer ${cronSecret}`) {
-        return NextResponse.json({ error: 'Unauthorized cron request' }, { status: 401 });
-      }
-    } else {
-      // 수동 호출인 경우 - mode=manual일 때는 인증 우회 (테스트용)
-      const { searchParams } = new URL(req.url);
-      const mode = searchParams.get('mode');
-      
-      if (mode !== 'manual') {
-        return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-      }
-    }
+    console.log('🔧 [REFINE] Starting memory refine request');
 
     const serviceSupabase = createServiceClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -180,33 +192,24 @@ async function handleRefineRequest(req: NextRequest) {
     let usersToProcess = [];
 
     if (mode === 'manual' && userId) {
-      // 수동 refine: 특정 사용자
+      // 수동 refine: 특정 사용자만 처리
       usersToProcess = [{ user_id: userId }];
+      console.log(`🔧 [REFINE] Manual mode: processing user ${userId}`);
     } else {
-      // 자동 refine: 우선순위 기반
-      const now = new Date();
-      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
-
-      // High Priority: 최근 7일 내 10+ 메시지, 30일 이상 refine 안된 유저
-      const { data: highPriorityUsers } = await serviceSupabase
+      // 자동 refine: 배치 처리 (하루 60명, 3번 실행)
+      // 1. 아직 refine되지 않은 사용자 (last_refined_at = null)
+      // 2. 24시간 이상 오래된 사용자
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      
+      const { data: users } = await serviceSupabase
         .from('memory_bank')
-        .select('user_id')
-        .is('last_refined_at', null)
-        .or(`last_refined_at.lt.${thirtyDaysAgo.toISOString()}`)
-        .limit(10);
+        .select('user_id, last_refined_at')
+        .or(`last_refined_at.is.null,last_refined_at.lt.${yesterday}`)
+        .order('last_refined_at', { ascending: true, nullsFirst: true })
+        .limit(20); // 배치당 20명 (하루 3번 = 60명)
 
-      // Medium Priority: 30일 이상 refine 안된 유저
-      const { data: mediumPriorityUsers } = await serviceSupabase
-        .from('memory_bank')
-        .select('user_id')
-        .or(`last_refined_at.lt.${sixtyDaysAgo.toISOString()}`)
-        .limit(10);
-
-      usersToProcess = [
-        ...(highPriorityUsers || []),
-        ...(mediumPriorityUsers || [])
-      ].slice(0, 20); // 최대 20명
+      usersToProcess = users || [];
+      console.log(`🔧 [REFINE] Priority mode: processing ${usersToProcess.length} users`);
     }
 
     if (usersToProcess.length === 0) {
