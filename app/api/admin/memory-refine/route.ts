@@ -196,20 +196,17 @@ async function handleRefineRequest(req: NextRequest) {
       usersToProcess = [{ user_id: userId }];
       console.log(`🔧 [REFINE] Manual mode: processing user ${userId}`);
     } else {
-      // 자동 refine: 배치 처리 (하루 60명, 3번 실행)
-      // 1. 아직 refine되지 않은 사용자 (last_refined_at = null)
-      // 2. 24시간 이상 오래된 사용자
-      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      
+      // 자동 refine: 하루에 5명씩 순차 처리 (성능 최적화)
+      // 아직 refine되지 않은 사용자들부터 처리
       const { data: users } = await serviceSupabase
         .from('memory_bank')
         .select('user_id, last_refined_at')
-        .or(`last_refined_at.is.null,last_refined_at.lt.${yesterday}`)
-        .order('last_refined_at', { ascending: true, nullsFirst: true })
-        .limit(20); // 배치당 20명 (하루 3번 = 60명)
+        .is('last_refined_at', null)
+        .order('created_at', { ascending: true })
+        .limit(10);
 
       usersToProcess = users || [];
-      console.log(`🔧 [REFINE] Priority mode: processing ${usersToProcess.length} users`);
+      console.log(`🔧 [REFINE] Daily batch: processing ${usersToProcess.length} users`);
     }
 
     if (usersToProcess.length === 0) {
