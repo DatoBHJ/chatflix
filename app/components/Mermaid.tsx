@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTheme } from 'next-themes';
-import { Download, FileDown } from 'lucide-react';
 
 interface MermaidProps {
   chart: string;
@@ -8,10 +7,9 @@ interface MermaidProps {
   title?: string;
   isModal?: boolean;
   isStreaming?: boolean; // 스트리밍 상태 추가
-  showMobileUI?: boolean; // 모바일 UI 표시 상태
 }
 
-const MermaidDiagram = ({ chart, onMermaidClick, title, isModal = false, isStreaming = false, showMobileUI = false }: MermaidProps) => {
+const MermaidDiagram = ({ chart, onMermaidClick, title, isModal = false, isStreaming = false }: MermaidProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
@@ -89,60 +87,6 @@ const MermaidDiagram = ({ chart, onMermaidClick, title, isModal = false, isStrea
     setDragStart(null);
   };
 
-  // Download functions
-  const downloadAsPNG = async () => {
-    const svg = containerRef.current?.querySelector('svg');
-    if (!svg) return;
-    
-    try {
-      // Convert SVG to PNG using canvas
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      
-      const svgData = new XMLSerializer().serializeToString(svg);
-      const img = new Image();
-      const blob = new Blob([svgData], { type: 'image/svg+xml' });
-      const url = URL.createObjectURL(blob);
-      
-      img.onload = () => {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-        canvas.toBlob((blob) => {
-          if (blob) {
-            const link = document.createElement('a');
-            link.download = `mermaid-diagram-${Date.now()}.png`;
-            link.href = URL.createObjectURL(blob);
-            link.click();
-            URL.revokeObjectURL(link.href);
-          }
-          URL.revokeObjectURL(url);
-        });
-      };
-      img.src = url;
-    } catch (error) {
-      console.error('Failed to download PNG:', error);
-    }
-  };
-
-  const downloadAsSVG = async () => {
-    const svg = containerRef.current?.querySelector('svg');
-    if (!svg) return;
-    
-    try {
-      const svgData = new XMLSerializer().serializeToString(svg);
-      const blob = new Blob([svgData], { type: 'image/svg+xml' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.download = `mermaid-diagram-${Date.now()}.svg`;
-      link.href = url;
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Failed to download SVG:', error);
-    }
-  };
 
   // Mermaid 문법 검증 함수
   const validateMermaidSyntax = (chart: string): { isValid: boolean; error?: string } => {
@@ -289,25 +233,6 @@ const MermaidDiagram = ({ chart, onMermaidClick, title, isModal = false, isStrea
         touchAction: isModal ? 'none' : undefined
       }}
     >
-      {/* Download buttons for modal view */}
-      {isModal && !isLoading && !hasError && showMobileUI && (
-        <div className="absolute bottom-4 right-4 flex gap-2 z-10">
-          <button
-            onClick={downloadAsPNG}
-            className="p-2 bg-black/40 hover:bg-black/60 rounded-full text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-            aria-label="Download as PNG"
-          >
-            <Download size={20} />
-          </button>
-          <button
-            onClick={downloadAsSVG}
-            className="p-2 bg-black/40 hover:bg-black/60 rounded-full text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-            aria-label="Download as SVG"
-          >
-            <FileDown size={20} />
-          </button>
-        </div>
-      )}
       {isLoading && (
         <div className={`absolute inset-0 flex items-center justify-center ${
           isModal ? 'bg-transparent' : 'bg-[var(--background)] rounded-lg'

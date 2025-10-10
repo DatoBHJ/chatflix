@@ -1258,9 +1258,6 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   // Mobile swipe state
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
   const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
-  
-  // Mermaid modal touch state
-  const [mermaidTouchStart, setMermaidTouchStart] = useState<{ x: number; y: number } | null>(null);
 
   // Check if we're in browser environment for portal rendering
   useEffect(() => {
@@ -2926,29 +2923,9 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           <div 
             className="relative flex items-center justify-center bg-transparent rounded-lg overflow-hidden"
             onClick={(e) => e.stopPropagation()}
-            onTouchStart={(e) => {
-              handleTouchStart(e);
-              if (isMobile && e.touches.length === 1) {
-                const touch = e.touches[0];
-                setMermaidTouchStart({ x: touch.clientX, y: touch.clientY });
-              }
-            }}
+            onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
-            onTouchEnd={(e) => {
-              handleTouchEnd();
-              if (isMobile && mermaidTouchStart) {
-                const touch = e.changedTouches[0];
-                const distance = Math.sqrt(
-                  Math.pow(touch.clientX - mermaidTouchStart.x, 2) + 
-                  Math.pow(touch.clientY - mermaidTouchStart.y, 2)
-                );
-                // 10px 이하로 움직였을 때만 UI 토글
-                if (distance < 10) {
-                  setShowMobileUI(!showMobileUI);
-                }
-                setMermaidTouchStart(null);
-              }
-            }}
+            onTouchEnd={handleTouchEnd}
             style={{ 
               width: '100vw', 
               height: '100vh' 
@@ -2956,7 +2933,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           >
             <div className="relative group cursor-pointer flex flex-col items-center w-full h-full">
               <div className="relative w-full h-full flex items-center justify-center bg-[var(--background)]">
-                <MermaidDiagram chart={selectedMermaid.chart} isModal={true} showMobileUI={showMobileUI} />
+                <MermaidDiagram chart={selectedMermaid.chart} isModal={true} />
               </div>
             </div>
           </div>
