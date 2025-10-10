@@ -27,7 +27,7 @@ const TOOLS = [
   { id: 'google_search', icon: <SiGoogle size={18} />, name: 'Google Search', description: 'Search Google for comprehensive results' },
   { id: 'google-images', icon: <SiGoogle size={18} />, name: 'Google Images', description: 'Search Google Images for visual content' },
   { id: 'google-videos', icon: <SiGoogle size={18} />, name: 'Google Videos', description: 'Search Google Videos for video content' },
-  { id: 'web_search:general', icon: <Search strokeWidth={1.8} />, name: 'Advanced Search', description: 'AI-powered search for images, research, and specialized content' },
+  { id: 'web_search:general', icon: <Search strokeWidth={1.8} />, name: 'Advanced Search', description: 'Neural search engine for specialized content' },
   // 뉴스는 Google Search로 통합 (Exa news 제거됨)
   // { id: 'web_search:news', icon: <Newspaper strokeWidth={1.8} />, name: 'News Search', description: 'Find latest news and articles' },
   { id: 'link_reader', icon: <Link strokeWidth={1.8} />, name: 'Link Reader', description: 'Read web page content' },
@@ -210,7 +210,7 @@ export function ChatInput({
     ? (() => {        
         // Mobile placeholders (concise)
         const mobilePlaceholders: { [key: string]: string } = {
-          'web_search:general': 'Search for niche content',
+          'web_search:general': 'Neural Search',
           // 'web_search:news': 'Search the news', // 제거됨 - Google Search로 대체
           'web_search:financial report': 'Search financial reports',
           'web_search:company': 'Search companies',
@@ -232,7 +232,7 @@ export function ChatInput({
 
         // Desktop placeholders (detailed examples)
         const desktopPlaceholders: { [key: string]: string } = {
-          'web_search:general': 'Search for niche content',
+          'web_search:general': 'Neural Search',
           // 'web_search:news': 'Find breaking news about AI war', // 제거됨 - Google Search로 대체
           'web_search:financial report': 'Search Apple\'s revenue growth reports',
           'web_search:company': 'Find company making space travel cheaper',
