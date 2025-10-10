@@ -4,7 +4,7 @@ import { isAdmin } from '@/lib/admin';
 
 // Refine에 사용할 AI 모델 설정
 const REFINE_MODEL = 'gpt-4.1-mini';
-const REFINE_MAX_TOKENS = 3000; // 50개 메시지 처리용 토큰 증가
+const REFINE_MAX_TOKENS = 1000;
 const REFINE_TEMPERATURE = 0.2;
 
 /**
@@ -59,39 +59,12 @@ async function refineUserMemory(userId: string, supabase: any) {
       .eq('user_id', userId)
       .order('category');
 
-    // 최신 대화 메시지 가져오기 (refine용으로 더 많은 메시지 사용)
-    const { data: recentMessages, error: messagesError } = await supabase
-      .from('messages')
-      .select('role, content, created_at')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(50); // refine용으로 50개 메시지 사용
-
-    if (messagesError) {
-      console.warn(`⚠️ [REFINE] Could not fetch recent messages for user ${userId}:`, messagesError.message);
-    }
-
-    // 메시지를 시간순으로 정렬
-    const sortedMessages = recentMessages ? recentMessages.reverse() : [];
-    console.log(`📝 [REFINE] Using ${sortedMessages.length} recent messages for context`);
-
     if (!memoryEntries || memoryEntries.length === 0) {
       console.log(`⚠️ [REFINE] No memory data found for user ${userId}`);
       return { success: false, reason: 'No memory data' };
     }
 
     const results = [];
-    
-    // 대화 메시지를 텍스트로 변환
-    const conversationText = sortedMessages.map((msg: any) => {
-      const role = msg.role.charAt(0).toUpperCase() + msg.role.slice(1);
-      const content = typeof msg.content === 'string' 
-        ? msg.content 
-        : Array.isArray(msg.content) 
-          ? msg.content.filter((part: any) => part.type === 'text').map((part: any) => part.text).join('\n')
-          : JSON.stringify(msg.content);
-      return `${role}: ${content}`;
-    }).join('\n\n');
     
     // 각 카테고리별로 refine
     for (const entry of memoryEntries) {
@@ -108,19 +81,15 @@ CRITICAL RULES FOR ${entry.category}:
 8. If no relevant content exists for this category, return a minimal placeholder
 
 CATEGORY-SPECIFIC RULES:
-- 00-personal-info: Basic user details, name, age range, location, occupation, family, languages, time zone, life stage, career stage ONLY
-- 01-preferences: Communication style, lifestyle preferences (food, entertainment, travel), work style, learning preferences, productivity tools, health & fitness preferences ONLY  
-- 02-interests: Detailed hobbies with time investment, sports & fitness, creative activities, technology interests, current projects, professional interests, learning journey ONLY
+- 00-personal-info: Basic user details, name, member info, basic context ONLY
+- 01-preferences: Communication style, content preferences, UI/UX preferences ONLY  
+- 02-interests: Topics of interest, hobbies, professional interests ONLY
 - 03-interaction-history: Recent conversations, recurring questions, unresolved issues ONLY
 - 04-relationship: Communication quality, emotional patterns, personalization strategies ONLY`;
 
-      const userPrompt = `Refine the following ${entry.category} memory data using both the existing memory and recent conversation context:
+      const userPrompt = `Refine the following ${entry.category} memory data:
 
-EXISTING MEMORY DATA:
 ${entry.content}
-
-RECENT CONVERSATION CONTEXT (last 50 messages):
-${conversationText}
 
 STRICT REQUIREMENTS:
 - Remove ALL content that belongs to other categories (00-personal-info, 01-preferences, 02-interests, 03-interaction-history, 04-relationship)
@@ -130,20 +99,11 @@ STRICT REQUIREMENTS:
 - Be concise but preserve important details
 - Maintain the category's specific purpose
 - If content is mostly from other categories, return minimal placeholder
-- Use the conversation context to enhance and validate the memory data
-- Add any new relevant information from recent conversations that belongs to this category
 
 EXAMPLE OF WHAT TO REMOVE:
-- If this is 00-personal-info, remove all preferences, interests, interaction history, relationship data, lifestyle details, work preferences
-- If this is 01-preferences, remove all personal info (demographics), interests, interaction history, relationship data, but keep lifestyle and work preferences
-- If this is 02-interests, remove all personal info, preferences, interaction history, relationship data, but keep detailed hobbies, sports, creative activities, technology interests
-- Each category should be completely independent and focused on its specific domain
-
-ENHANCEMENT GUIDELINES:
-- Use conversation context to fill in missing information
-- Update outdated information based on recent conversations
-- Add new insights that weren't captured in the original memory
-- Ensure all information is accurate and up-to-date`;
+- If this is 00-personal-info, remove all preferences, interests, interaction history, relationship data
+- If this is 01-preferences, remove all personal info, interests, interaction history, relationship data
+- Each category should be completely independent`;
 
       const refinedContent = await callRefineAI(systemPrompt, userPrompt);
       
@@ -179,7 +139,15 @@ ENHANCEMENT GUIDELINES:
   }
 }
 
+export async function GET(req: NextRequest) {
+  return handleRefineRequest(req);
+}
+
 export async function POST(req: NextRequest) {
+  return handleRefineRequest(req);
+}
+
+async function handleRefineRequest(req: NextRequest) {
   try {
     // Cron job 보안 검증
     const authHeader = req.headers.get('Authorization');
