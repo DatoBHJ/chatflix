@@ -1258,6 +1258,9 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   // Mobile swipe state
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
   const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
+  
+  // Mermaid modal touch state
+  const [mermaidTouchStart, setMermaidTouchStart] = useState<{ x: number; y: number } | null>(null);
 
   // Check if we're in browser environment for portal rendering
   useEffect(() => {
@@ -2925,12 +2928,27 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
             onClick={(e) => e.stopPropagation()}
             onTouchStart={(e) => {
               handleTouchStart(e);
-              if (isMobile) {
-                setShowMobileUI(!showMobileUI);
+              if (isMobile && e.touches.length === 1) {
+                const touch = e.touches[0];
+                setMermaidTouchStart({ x: touch.clientX, y: touch.clientY });
               }
             }}
             onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
+            onTouchEnd={(e) => {
+              handleTouchEnd();
+              if (isMobile && mermaidTouchStart) {
+                const touch = e.changedTouches[0];
+                const distance = Math.sqrt(
+                  Math.pow(touch.clientX - mermaidTouchStart.x, 2) + 
+                  Math.pow(touch.clientY - mermaidTouchStart.y, 2)
+                );
+                // 10px 이하로 움직였을 때만 UI 토글
+                if (distance < 10) {
+                  setShowMobileUI(!showMobileUI);
+                }
+                setMermaidTouchStart(null);
+              }
+            }}
             style={{ 
               width: '100vw', 
               height: '100vh' 
