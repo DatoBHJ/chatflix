@@ -324,24 +324,90 @@ async function handleRefineRequest(req: NextRequest) {
     const mode = searchParams.get('mode') || 'priority'; // 'priority' or 'manual'
     const userId = searchParams.get('user_id'); // 수동 refine용
 
-    let usersToProcess = [];
+    let usersToProcess: { user_id: string }[] = [];
 
     if (mode === 'manual' && userId) {
       // 수동 refine: 특정 사용자만 처리
       usersToProcess = [{ user_id: userId }];
       console.log(`🔧 [REFINE] Manual mode: processing user ${userId}`);
     } else {
-      // 자동 refine: 하루에 5명씩 순차 처리 (성능 최적화)
-      // 아직 refine되지 않은 사용자들부터 처리
-      const { data: users } = await serviceSupabase
-        .from('memory_bank')
-        .select('user_id, last_refined_at')
-        .is('last_refined_at', null)
-        .order('created_at', { ascending: true })
-        .limit(10);
+      // 하이브리드 균형 전략: 고정 비율 유지
+      const now = new Date();
+      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-      usersToProcess = users || [];
-      console.log(`🔧 [REFINE] Daily batch: processing ${usersToProcess.length} users`);
+      console.log('🔧 [REFINE] Selecting users with hybrid balance strategy (15 active : 5 inactive)...');
+
+      // Get all memory_bank rows to analyze
+      const { data: allRows } = await serviceSupabase
+        .from('memory_bank')
+        .select('user_id, updated_at, last_refined_at')
+        .order('user_id', { ascending: true });
+
+      if (!allRows || allRows.length === 0) {
+        usersToProcess = [];
+      } else {
+        // Group by user_id and get latest updated_at and last_refined_at
+        const userMap = new Map<string, { updated_at: string; last_refined_at: string | null }>();
+        
+        for (const row of allRows) {
+          const existing = userMap.get(row.user_id);
+          if (!existing || new Date(row.updated_at) > new Date(existing.updated_at)) {
+            userMap.set(row.user_id, {
+              updated_at: row.updated_at,
+              last_refined_at: row.last_refined_at
+            });
+          }
+        }
+
+        // Categorize users by priority tier
+        const tier1Users: string[] = []; // Critical active (daily)
+        const tier2Users: string[] = []; // Regular active (every 3 days)
+        const tier3Users: string[] = []; // Inactive (weekly)
+
+        for (const [userId, data] of userMap.entries()) {
+          const updatedAt = new Date(data.updated_at);
+          const lastRefinedAt = data.last_refined_at ? new Date(data.last_refined_at) : null;
+          
+          // Check if needs refinement
+          const needsRefinement = !lastRefinedAt || 
+            (lastRefinedAt < oneDayAgo && updatedAt > sevenDaysAgo) ||
+            (lastRefinedAt < threeDaysAgo && updatedAt > thirtyDaysAgo) ||
+            (lastRefinedAt < sevenDaysAgo && updatedAt <= thirtyDaysAgo);
+
+          if (!needsRefinement) continue;
+
+          // Categorize by tier
+          if (updatedAt > sevenDaysAgo && (!lastRefinedAt || lastRefinedAt < oneDayAgo)) {
+            tier1Users.push(userId);
+          } else if (updatedAt > thirtyDaysAgo && (!lastRefinedAt || lastRefinedAt < threeDaysAgo)) {
+            tier2Users.push(userId);
+          } else if (!lastRefinedAt || lastRefinedAt < sevenDaysAgo) {
+            tier3Users.push(userId);
+          }
+        }
+
+        // Fixed allocation: 12 Tier1 + 3 Tier2 + 5 Tier3 = 20 users
+        const selectedUsers = [
+          ...tier1Users.slice(0, 12),      // Critical Active: 12 users
+          ...tier2Users.slice(0, 3),        // Regular Active: 3 users
+          ...tier3Users.slice(0, 5)         // Inactive: 5 users
+        ];
+
+        usersToProcess = selectedUsers.map(user_id => ({ user_id }));
+        
+        console.log(`🔧 [REFINE] Priority breakdown (Hybrid Balance):`);
+        console.log(`   - Tier 1 (Critical Active): ${tier1Users.length} eligible, ${Math.min(tier1Users.length, 12)} selected`);
+        console.log(`   - Tier 2 (Regular Active): ${tier2Users.length} eligible, ${Math.min(tier2Users.length, 3)} selected`);
+        console.log(`   - Tier 3 (Inactive): ${tier3Users.length} eligible, ${Math.min(tier3Users.length, 5)} selected`);
+        console.log(`🔧 [REFINE] Total selected: ${usersToProcess.length} users (Target: 20, Ratio: 75% active / 25% inactive)`);
+        
+        if (usersToProcess.length > 0) {
+          console.log(`🔧 [REFINE] Selected users: ${usersToProcess.map(u => u.user_id.substring(0, 8)).join(', ')}`);
+        }
+      }
     }
 
     if (usersToProcess.length === 0) {
@@ -351,16 +417,46 @@ async function handleRefineRequest(req: NextRequest) {
       });
     }
 
-    console.log(`🔧 [REFINE] Processing ${usersToProcess.length} users`);
+    console.log(`🔧 [REFINE] Processing ${usersToProcess.length} users in parallel batches of 5`);
 
+    const startTime = Date.now();
+    const MAX_RUNTIME = 250000; // 250 seconds safety margin
+    const BATCH_SIZE = 5;
     const results = [];
-    for (const user of usersToProcess) {
-      const result = await refineUserMemory(user.user_id, serviceSupabase);
-      results.push({
-        user_id: user.user_id,
-        ...result
-      });
+
+    // Process in batches of 5 users in parallel
+    for (let i = 0; i < usersToProcess.length; i += BATCH_SIZE) {
+      const elapsedTime = Date.now() - startTime;
+      
+      // Stop if we're approaching timeout
+      if (elapsedTime > MAX_RUNTIME) {
+        console.log(`⏱️ [REFINE] Timeout approaching (${elapsedTime}ms), stopping early`);
+        break;
+      }
+      
+      const batch = usersToProcess.slice(i, i + BATCH_SIZE);
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+      console.log(`🔧 [REFINE] Processing batch ${batchNum}: ${batch.length} users`);
+      
+      // Process batch in parallel
+      const batchResults = await Promise.all(
+        batch.map(user => refineUserMemory(user.user_id, serviceSupabase))
+      );
+      
+      // Combine results
+      for (let j = 0; j < batch.length; j++) {
+        results.push({
+          user_id: batch[j].user_id,
+          ...batchResults[j]
+        });
+      }
+      
+      const batchTime = Date.now() - startTime - elapsedTime;
+      console.log(`✅ [REFINE] Batch ${batchNum} completed in ${(batchTime / 1000).toFixed(1)}s`);
     }
+
+    const totalTime = Date.now() - startTime;
+    console.log(`🎉 [REFINE] All batches completed in ${(totalTime / 1000).toFixed(1)}s`);
 
     const successCount = results.filter(r => r.success).length;
     const failureCount = results.length - successCount;

@@ -16,6 +16,7 @@ export default function AdminNavigation() {
   const navItems: NavItem[] = [
     { name: 'Dashboard', href: '/admin', icon: Home },
     { name: 'Analytics', href: '/admin/analytics', icon: BarChart },
+    { name: 'Refine Dashboard', href: '/admin/refine-dashboard', icon: BarChart },
     { name: 'What\'s New', href: '/admin/whats-new', icon: Sparkles },
     { name: 'Problem Reports', href: '/admin/problem-reports', icon: FileWarning },
     { name: 'Memory Viewer', href: '/admin/memory-viewer', icon: Database },
