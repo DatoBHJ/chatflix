@@ -58,7 +58,7 @@ const fetchUserName = async (userId: string, supabase: SupabaseClient) => {
 
 // 메모리 뱅크 업데이트에 사용할 AI 모델 및 설정
 const MEMORY_UPDATE_MODEL = 'gpt-4.1-nano';
-const MEMORY_UPDATE_MAX_TOKENS = 800;
+const MEMORY_UPDATE_MAX_TOKENS = 1500;
 const MEMORY_UPDATE_TEMPERATURE = 0.3;
 
 // 🆕 Smart Trigger 관련 상수
@@ -398,7 +398,6 @@ Create a comprehensive user profile in markdown format with the following sectio
 ## Usage Patterns
 - Typical activity: [Identify any patterns in usage]
 - Session frequency: [How often they engage in conversations]
-- Preferred models: [Which AI models they use most]
 
 Previous personal information:
 ${memoryData || "No previous personal information recorded."}

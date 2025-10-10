@@ -83,27 +83,32 @@ async function refineUserMemory(userId: string, supabase: any) {
     let successCount = 0;
     let errorCount = 0;
 
-    // 각 카테고리별로 refine
+    // 각 카테고리별로 refine - memoryService.ts 구조에 맞춘 카테고리별 프롬프트
     for (const entry of memoryEntries) {
-      const systemPrompt = `You are a memory refinement specialist. Your task is to clean up and optimize user memory data for the ${entry.category} category ONLY.
+      let systemPrompt = '';
+      let userPrompt = '';
 
-CRITICAL RULES FOR ${entry.category}:
-- 00-personal-info: Basic user details, name, age range, location, occupation, family, languages, time zone ONLY
-- 01-preferences: Communication style, lifestyle preferences (food, entertainment, travel), work style, learning preferences ONLY  
-- 02-interests: Detailed hobbies with time investment, sports & fitness, creative activities, technology interests, current projects ONLY
-- 03-interaction-history: Chat patterns, response styles, engagement levels, communication preferences ONLY
-- 04-relationship: Relationship context, interaction history, personal connection details ONLY
+      if (entry.category === '00-personal-info') {
+        systemPrompt = `You are a memory refinement specialist for personal information. Create a comprehensive user profile in markdown format with the following sections:
 
-STRICT REQUIREMENTS:
-- Remove ALL content that belongs to other categories
-- Keep ONLY content that is specific to ${entry.category}
-- Make content concise and well-organized
-- Remove duplicates and outdated information
-- Update outdated information based on recent conversations
-- Add new insights that weren't captured in the original memory
-- Ensure all information is accurate and up-to-date`;
+## Basic Details
+- Name, Member since, Last active, Language preference
 
-      const userPrompt = `Refine the following ${entry.category} memory data using both the existing memory and recent conversation context:
+## Professional Context  
+- Occupation, Expertise level, Fields
+
+## Usage Patterns
+- Typical activity, Session frequency
+
+IMPORTANT GUIDELINES:
+1. Only include information that can be reliably inferred from the conversation or provided user data.
+2. DO NOT make up information that wasn't mentioned or isn't provided.
+3. If information isn't available, keep the existing placeholder text in brackets.
+4. If updating an existing profile, integrate new observations while preserving previous insights.
+5. Format as a structured markdown document with clear sections.
+6. Focus on creating a useful reference that helps understand the user's background and context.`;
+
+        userPrompt = `Refine the following personal information using both existing memory and recent conversation context:
 
 EXISTING MEMORY DATA:
 ${entry.content}
@@ -111,23 +116,153 @@ ${entry.content}
 RECENT CONVERSATION CONTEXT (last 50 messages):
 ${conversationText}
 
-STRICT REQUIREMENTS:
-- Remove ALL content that belongs to other categories (00-personal-info, 01-preferences, 02-interests, 03-interaction-history, 04-relationship)
-- Keep ONLY content that is specific to ${entry.category}
-- Make content concise and well-organized
-- Remove duplicates and outdated information
-- Update outdated information based on recent conversations
-- Add new insights that weren't captured in the original memory
-- Ensure all information is accurate and up-to-date
+Create a comprehensive user profile with Basic Details, Professional Context, and Usage Patterns sections (excluding preferred models).`;
 
-EXAMPLE OF WHAT TO REMOVE:
-- If refining 00-personal-info: Remove any communication preferences, lifestyle choices, hobbies, or relationship details
-- If refining 01-preferences: Remove any personal demographics, specific interests, or relationship information
-- If refining 02-interests: Remove any personal info, preferences, or relationship details
-- If refining 03-interaction-history: Remove any personal demographics, preferences, or interests
-- If refining 04-relationship: Remove any personal info, preferences, or interests
+      } else if (entry.category === '01-preferences') {
+        systemPrompt = `You are a memory refinement specialist for user preferences. Create a comprehensive preference profile in markdown format with the following sections:
 
-Return ONLY the refined content for ${entry.category} category.`;
+## Communication Style
+- Preferred response length, Technical detail level, Tone preference, Language style
+
+## Content Preferences
+- Code examples, Visual elements, Step-by-step guides, References inclusion
+
+## UI/UX Preferences
+- Response format, Follow-up style
+
+IMPORTANT GUIDELINES:
+1. If this is the first time analyzing preferences, create a complete profile based on available information.
+2. If updating an existing profile, integrate new observations while preserving previous insights.
+3. Only include preferences that can be reliably inferred from the conversation.
+4. If certain preferences can't be determined, indicate "Not enough data" rather than guessing.
+5. Format as a structured markdown document with clear sections.`;
+
+        userPrompt = `Refine the following preferences using both existing memory and recent conversation context:
+
+EXISTING MEMORY DATA:
+${entry.content}
+
+RECENT CONVERSATION CONTEXT (last 50 messages):
+${conversationText}
+
+Create a comprehensive preference profile with Communication Style, Content Preferences, and UI/UX Preferences sections.`;
+
+      } else if (entry.category === '02-interests') {
+        systemPrompt = `You are a memory refinement specialist for user interests. Create a comprehensive interest profile in markdown format with the following sections:
+
+## Primary Interests
+- Identify 3-5 main topics the user frequently discusses or asks about
+- For each interest, note subtopics and engagement level (high/medium/low)
+
+## Recent Topics
+- List 2-3 topics from recent conversations
+- Include when they were last discussed (if possible)
+
+## Learning Journey
+- Current focus: Topics the user is actively learning or exploring
+- Progress areas: Topics where the user shows increasing expertise
+- Challenging areas: Topics where the user seems to need more support
+
+IMPORTANT GUIDELINES:
+1. Focus on identifying genuine interests, not just passing mentions.
+2. Look for patterns across multiple messages or sessions.
+3. Prioritize recurring topics that show sustained interest.
+4. If updating an existing profile, integrate new observations while preserving previous insights.
+5. Format as a structured markdown document with clear sections.
+6. Be specific about topics rather than using generic categories.`;
+
+        userPrompt = `Refine the following interests using both existing memory and recent conversation context:
+
+EXISTING MEMORY DATA:
+${entry.content}
+
+RECENT CONVERSATION CONTEXT (last 50 messages):
+${conversationText}
+
+Create a comprehensive interest profile with Primary Interests, Recent Topics, and Learning Journey sections.`;
+
+      } else if (entry.category === '03-interaction-history') {
+        systemPrompt = `You are a memory refinement specialist for interaction history. Create a comprehensive interaction history in markdown format with the following sections:
+
+## Recent Conversations
+- Today's conversation summary with main topics and any conclusions reached
+- Focus on capturing actionable information and important outcomes
+
+## Recurring Questions
+- Identify any questions or topics that seem to repeat across conversations
+- Note the frequency and context of these recurring patterns
+
+## Unresolved Issues
+- Note any questions or problems that weren't fully addressed
+- Include any tasks the user mentioned they wanted to complete
+
+IMPORTANT GUIDELINES:
+1. Prioritize information that will be useful for future interactions.
+2. Focus on factual summaries rather than interpretations.
+3. If updating existing history, place the new interaction at the top of the Recent Conversations section.
+4. Include dates wherever possible to maintain chronology.
+5. Format as a structured markdown document with clear sections.
+6. Keep the history concise but comprehensive.`;
+
+        userPrompt = `Refine the following interaction history using both existing memory and recent conversation context:
+
+EXISTING MEMORY DATA:
+${entry.content}
+
+RECENT CONVERSATION CONTEXT (last 50 messages):
+${conversationText}
+
+Create a comprehensive interaction history with Recent Conversations, Recurring Questions, and Unresolved Issues sections.`;
+
+      } else if (entry.category === '04-relationship') {
+        systemPrompt = `You are a memory refinement specialist for AI-user relationship. Create a comprehensive relationship profile in markdown format with the following sections:
+
+## Communication Quality
+- Trust level: How much does the user seem to trust the AI's responses?
+- Satisfaction indicators: Evidence of satisfaction or dissatisfaction
+- Engagement level: How detailed and engaged are their messages?
+
+## Emotional Patterns
+- Typical emotional tone: Neutral/Positive/Negative patterns in communication
+- Response to feedback: How they react when corrected or given new information
+- Frustration triggers: Topics or response styles that seem to cause frustration
+
+## Personalization Strategy
+- Effective approaches: Communication strategies that work well with this user
+- Approaches to avoid: Communication patterns that don't resonate with this user
+- Relationship goals: How to improve the interaction quality over time
+
+IMPORTANT GUIDELINES:
+1. Focus on objective observations rather than judgments.
+2. If updating existing data, integrate new observations while preserving previous insights.
+3. Be specific about observable communication patterns.
+4. Don't make assumptions about the user's actual feelings or thoughts.
+5. Format as a structured markdown document with clear sections.
+6. Focus on insights that will help improve future interactions.`;
+
+        userPrompt = `Refine the following relationship profile using both existing memory and recent conversation context:
+
+EXISTING MEMORY DATA:
+${entry.content}
+
+RECENT CONVERSATION CONTEXT (last 50 messages):
+${conversationText}
+
+Create a comprehensive relationship profile with Communication Quality, Emotional Patterns, and Personalization Strategy sections.`;
+
+      } else {
+        // Fallback for unknown categories
+        systemPrompt = `You are a memory refinement specialist. Clean up and optimize user memory data for the ${entry.category} category.`;
+        userPrompt = `Refine the following ${entry.category} memory data:
+
+EXISTING MEMORY DATA:
+${entry.content}
+
+RECENT CONVERSATION CONTEXT (last 50 messages):
+${conversationText}
+
+Make the content concise, well-organized, and up-to-date.`;
+      }
 
       const refinedContent = await callRefineAI(systemPrompt, userPrompt);
       
