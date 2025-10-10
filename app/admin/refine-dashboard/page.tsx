@@ -105,7 +105,7 @@ export default function RefineDashboard() {
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="mb-4">
             <h3 className="text-lg font-semibold">Tier 1: Critical Active</h3>
-            <p className="text-sm text-gray-500">Daily processing (< 7 days old)</p>
+            <p className="text-sm text-gray-500">Daily processing (&lt; 7 days old)</p>
           </div>
           <div className="space-y-2">
             <div className="flex justify-between">
@@ -128,7 +128,7 @@ export default function RefineDashboard() {
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="mb-4">
             <h3 className="text-lg font-semibold">Tier 2: Regular Active</h3>
-            <p className="text-sm text-gray-500">Every 3 days (< 30 days old)</p>
+            <p className="text-sm text-gray-500">Every 3 days (&lt; 30 days old)</p>
           </div>
           <div className="space-y-2">
             <div className="flex justify-between">
@@ -151,7 +151,7 @@ export default function RefineDashboard() {
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="mb-4">
             <h3 className="text-lg font-semibold">Tier 3: Inactive</h3>
-            <p className="text-sm text-gray-500">Weekly (> 30 days old)</p>
+            <p className="text-sm text-gray-500">Weekly (&gt; 30 days old)</p>
           </div>
           <div className="space-y-2">
             <div className="flex justify-between">
