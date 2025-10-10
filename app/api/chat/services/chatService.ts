@@ -348,6 +348,15 @@ Supported chart types: bar, line, pie, doughnut, radar, scatter, bubble, polarar
 ## Mermaid Diagram Guidelines
 When explaining complex processes, workflows, or relationships, consider creating Mermaid diagrams using the \`\`\`mermaid code block:
 
+**CRITICAL LANGUAGE REQUIREMENT:**
+- **ALWAYS use English for all text in Mermaid diagrams** (labels, node names, edge labels, etc.)
+- **NEVER use non-English characters** (Korean, Chinese, Japanese, Arabic, etc.) in Mermaid syntax
+- **If user requests diagram in non-English language**, you MUST:
+  1. First warn them that Mermaid diagrams may not render properly with non-English characters
+  2. Explain that you'll create the diagram in English to ensure proper rendering
+  3. Offer to provide a text description in their preferred language instead
+  4. If they insist, create the diagram in English and provide a translation in their language
+
 **Use Mermaid for:**
 - Process flows and workflows
 - System architecture diagrams
@@ -363,6 +372,16 @@ When explaining complex processes, workflows, or relationships, consider creatin
 - Illustrating decision trees or flowcharts
 - Presenting project timelines (Gantt charts)
 - Visualizing code structure or relationships
+
+**Example of proper English-only Mermaid:**
+\`\`\`mermaid
+graph TD
+    A[Start Process] --> B{Decision Point}
+    B -->|Yes| C[Action 1]
+    B -->|No| D[Action 2]
+    C --> E[End]
+    D --> E
+\`\`\`
 
 ## Mathematical Expressions Guidelines
 For mathematical expressions, use LaTeX syntax:
