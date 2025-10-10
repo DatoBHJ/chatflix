@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTheme } from 'next-themes';
+import { Download, FileDown } from 'lucide-react';
 
 interface MermaidProps {
   chart: string;
@@ -7,13 +8,141 @@ interface MermaidProps {
   title?: string;
   isModal?: boolean;
   isStreaming?: boolean; // 스트리밍 상태 추가
+  showMobileUI?: boolean; // 모바일 UI 표시 상태
 }
 
-const MermaidDiagram = ({ chart, onMermaidClick, title, isModal = false, isStreaming = false }: MermaidProps) => {
+const MermaidDiagram = ({ chart, onMermaidClick, title, isModal = false, isStreaming = false, showMobileUI = false }: MermaidProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const { theme } = useTheme();
+
+  // Pan state for modal view
+  const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+
+  // Mouse event handlers for pan functionality (modal only)
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!isModal) return;
+    
+    e.preventDefault();
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - panPosition.x, y: e.clientY - panPosition.y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isModal || !isDragging || !dragStart) return;
+    
+    e.preventDefault();
+    setPanPosition({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
+  };
+
+  const handleMouseUp = () => {
+    if (!isModal) return;
+    
+    setIsDragging(false);
+    setDragStart(null);
+  };
+
+  const handleMouseLeave = () => {
+    if (!isModal) return;
+    
+    setIsDragging(false);
+    setDragStart(null);
+  };
+
+  // Touch event handlers for mobile support
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!isModal || e.touches.length !== 1) return;
+    
+    const touch = e.touches[0];
+    setIsDragging(true);
+    setDragStart({ x: touch.clientX - panPosition.x, y: touch.clientY - panPosition.y });
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isModal || !isDragging || !dragStart || e.touches.length !== 1) return;
+    
+    e.preventDefault(); // Prevent scroll
+    const touch = e.touches[0];
+    setPanPosition({
+      x: touch.clientX - dragStart.x,
+      y: touch.clientY - dragStart.y
+    });
+  };
+
+  const handleTouchEnd = () => {
+    if (!isModal) return;
+    
+    setIsDragging(false);
+    setDragStart(null);
+  };
+
+  const handleTouchCancel = () => {
+    if (!isModal) return;
+    
+    setIsDragging(false);
+    setDragStart(null);
+  };
+
+  // Download functions
+  const downloadAsPNG = async () => {
+    const svg = containerRef.current?.querySelector('svg');
+    if (!svg) return;
+    
+    try {
+      // Convert SVG to PNG using canvas
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const img = new Image();
+      const blob = new Blob([svgData], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      
+      img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const link = document.createElement('a');
+            link.download = `mermaid-diagram-${Date.now()}.png`;
+            link.href = URL.createObjectURL(blob);
+            link.click();
+            URL.revokeObjectURL(link.href);
+          }
+          URL.revokeObjectURL(url);
+        });
+      };
+      img.src = url;
+    } catch (error) {
+      console.error('Failed to download PNG:', error);
+    }
+  };
+
+  const downloadAsSVG = async () => {
+    const svg = containerRef.current?.querySelector('svg');
+    if (!svg) return;
+    
+    try {
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const blob = new Blob([svgData], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.download = `mermaid-diagram-${Date.now()}.svg`;
+      link.href = url;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to download SVG:', error);
+    }
+  };
 
   // Mermaid 문법 검증 함수
   const validateMermaidSyntax = (chart: string): { isValid: boolean; error?: string } => {
@@ -143,11 +272,42 @@ const MermaidDiagram = ({ chart, onMermaidClick, title, isModal = false, isStrea
     <div 
       className={`mermaid-container ${
         isModal 
-          ? 'w-full h-full flex justify-center items-center' 
+          ? 'w-full h-full flex justify-center items-center overflow-hidden' 
           : 'my-6 p-4 bg-[var(--background)] border border-[var(--subtle-divider)] rounded-lg shadow-md flex justify-center items-center relative min-h-[100px] cursor-pointer hover:bg-[var(--accent)] transition-colors'
       }`}
-      onClick={() => onMermaidClick?.(chart, title)}
+      onClick={() => !isModal && onMermaidClick?.(chart, title)}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseLeave}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchCancel}
+      style={{
+        cursor: isModal ? (isDragging ? 'grabbing' : 'grab') : undefined,
+        touchAction: isModal ? 'none' : undefined
+      }}
     >
+      {/* Download buttons for modal view */}
+      {isModal && !isLoading && !hasError && showMobileUI && (
+        <div className="absolute bottom-4 right-4 flex gap-2 z-10">
+          <button
+            onClick={downloadAsPNG}
+            className="p-2 bg-black/40 hover:bg-black/60 rounded-full text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+            aria-label="Download as PNG"
+          >
+            <Download size={20} />
+          </button>
+          <button
+            onClick={downloadAsSVG}
+            className="p-2 bg-black/40 hover:bg-black/60 rounded-full text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+            aria-label="Download as SVG"
+          >
+            <FileDown size={20} />
+          </button>
+        </div>
+      )}
       {isLoading && (
         <div className={`absolute inset-0 flex items-center justify-center ${
           isModal ? 'bg-transparent' : 'bg-[var(--background)] rounded-lg'
@@ -157,7 +317,11 @@ const MermaidDiagram = ({ chart, onMermaidClick, title, isModal = false, isStrea
       )}
       <div 
         ref={containerRef} 
-        className={`mermaid ${isLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300 w-full flex justify-center`} 
+        className={`mermaid ${isLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300 w-full flex justify-center`}
+        style={isModal ? {
+          transform: `translate(${panPosition.x}px, ${panPosition.y}px)`,
+          transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+        } : undefined}
       />
     </div>
   );

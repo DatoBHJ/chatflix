@@ -2923,7 +2923,12 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           <div 
             className="relative flex items-center justify-center bg-transparent rounded-lg overflow-hidden"
             onClick={(e) => e.stopPropagation()}
-            onTouchStart={handleTouchStart}
+            onTouchStart={(e) => {
+              handleTouchStart(e);
+              if (isMobile) {
+                setShowMobileUI(!showMobileUI);
+              }
+            }}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             style={{ 
@@ -2933,7 +2938,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           >
             <div className="relative group cursor-pointer flex flex-col items-center w-full h-full">
               <div className="relative w-full h-full flex items-center justify-center bg-[var(--background)]">
-                <MermaidDiagram chart={selectedMermaid.chart} isModal={true} />
+                <MermaidDiagram chart={selectedMermaid.chart} isModal={true} showMobileUI={showMobileUI} />
               </div>
             </div>
           </div>

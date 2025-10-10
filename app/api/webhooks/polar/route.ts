@@ -123,10 +123,27 @@ export async function POST(request: NextRequest) {
     // Handle different event types
     switch (event.type) {
       case 'subscription.created':
-      case 'subscription.updated':
       case 'subscription.active':
         console.log('✅ Handling subscription activation')
         await handleSubscriptionActivated(supabase, customerExternalId, event)
+        break
+
+      case 'subscription.updated':
+        // Check the actual status to determine if active or inactive
+        const status = event.data.status
+        const activeStatuses = ['active', 'trialing']
+        const inactiveStatuses = ['past_due', 'incomplete', 'incomplete_expired', 'unpaid', 'canceled', 'paused', 'ended', 'revoked']
+        
+        if (status && activeStatuses.includes(status)) {
+          console.log('✅ Handling subscription activation (updated to active)')
+          await handleSubscriptionActivated(supabase, customerExternalId, event)
+        } else if (status && inactiveStatuses.includes(status)) {
+          console.log('❌ Handling subscription deactivation (updated to inactive)')
+          await handleSubscriptionDeactivated(supabase, customerExternalId, event)
+        } else {
+          console.log('⚠️ Unknown or missing status for subscription.updated:', status)
+          await storeWebhookEvent(supabase, customerExternalId, event)
+        }
         break
         
       case 'subscription.canceled':
@@ -384,7 +401,7 @@ function checkIfSubscriptionActuallyInactive(subscriptionData: any): boolean {
   const status = subscriptionData.status
   
   // Immediately mark these statuses as inactive regardless of period
-  const immediatelyInactiveStatuses = ['paused', 'ended', 'revoked']
+  const immediatelyInactiveStatuses = ['past_due', 'incomplete', 'incomplete_expired', 'unpaid', 'paused', 'ended', 'revoked']
   if (immediatelyInactiveStatuses.includes(status)) {
     console.log(`📅 Status "${status}" requires immediate deactivation`)
     return true
