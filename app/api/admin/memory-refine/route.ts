@@ -297,18 +297,6 @@ Make the content concise, well-organized, and up-to-date.`;
         if (error) {
           console.error(`❌ [REFINE] Failed to update ${entry.category} for user ${userId}:`, error);
           errorCount++;
-          
-          // 에러 추적을 위한 데이터베이스 로깅
-          await supabase
-            .from('refine_errors')
-            .insert({
-              user_id: userId,
-              category: entry.category,
-              error_message: error.message || 'Unknown error',
-              error_type: 'database_update',
-              created_at: new Date().toISOString()
-            })
-            .catch(console.error);
         } else {
           console.log(`✅ [REFINE] Successfully refined ${entry.category} for user ${userId}`);
           successCount++;
@@ -316,18 +304,6 @@ Make the content concise, well-organized, and up-to-date.`;
       } else {
         console.error(`❌ [REFINE] Failed to refine ${entry.category} for user ${userId}`);
         errorCount++;
-        
-        // AI 호출 실패 에러 로깅
-        await supabase
-          .from('refine_errors')
-          .insert({
-            user_id: userId,
-            category: entry.category,
-            error_message: 'AI refinement failed - no content returned',
-            error_type: 'ai_call_failed',
-            created_at: new Date().toISOString()
-          })
-          .catch(console.error);
       }
     }
 
@@ -340,19 +316,6 @@ Make the content concise, well-organized, and up-to-date.`;
 
   } catch (error) {
     console.error(`❌ [REFINE] Error refining memory for user ${userId}:`, error);
-    
-    // 전체 프로세스 실패 에러 로깅
-    await supabase
-      .from('refine_errors')
-      .insert({
-        user_id: userId,
-        category: 'all',
-        error_message: error instanceof Error ? error.message : 'Unknown error',
-        error_type: 'process_failed',
-        created_at: new Date().toISOString()
-      })
-      .catch(console.error);
-    
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
