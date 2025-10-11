@@ -117,13 +117,21 @@ async function refineUserMemory(userId: string, supabase: any) {
 ## Usage Patterns
 - Typical activity, Session frequency
 
+CRITICAL LANGUAGE REQUIREMENT:
+- Analyze the conversation to detect the user's preferred language (Korean, English, Japanese, etc.)
+- Store ALL content in the user's preferred language
+- If the user primarily communicates in Korean, write the entire profile in Korean
+- If the user primarily communicates in English, write the entire profile in English
+- Maintain consistency with the user's communication style and language preference
+
 IMPORTANT GUIDELINES:
 1. Only include information that can be reliably inferred from the conversation or provided user data.
 2. DO NOT make up information that wasn't mentioned or isn't provided.
 3. If information isn't available, keep the existing placeholder text in brackets.
 4. If updating an existing profile, integrate new observations while preserving previous insights.
 5. Format as a structured markdown document with clear sections.
-6. Focus on creating a useful reference that helps understand the user's background and context.`;
+6. Focus on creating a useful reference that helps understand the user's background and context.
+7. ALWAYS write in the user's preferred language as detected from their conversation patterns.`;
 
         userPrompt = `Refine the following personal information using both existing memory and recent conversation context:
 
@@ -147,12 +155,20 @@ Create a comprehensive user profile with Basic Details, Professional Context, an
 ## UI/UX Preferences
 - Response format, Follow-up style
 
+CRITICAL LANGUAGE REQUIREMENT:
+- Analyze the conversation to detect the user's preferred language (Korean, English, Japanese, etc.)
+- Store ALL content in the user's preferred language
+- If the user primarily communicates in Korean, write the entire profile in Korean
+- If the user primarily communicates in English, write the entire profile in English
+- Maintain consistency with the user's communication style and language preference
+
 IMPORTANT GUIDELINES:
 1. If this is the first time analyzing preferences, create a complete profile based on available information.
 2. If updating an existing profile, integrate new observations while preserving previous insights.
 3. Only include preferences that can be reliably inferred from the conversation.
 4. If certain preferences can't be determined, indicate "Not enough data" rather than guessing.
-5. Format as a structured markdown document with clear sections.`;
+5. Format as a structured markdown document with clear sections.
+6. ALWAYS write in the user's preferred language as detected from their conversation patterns.`;
 
         userPrompt = `Refine the following preferences using both existing memory and recent conversation context:
 
@@ -180,13 +196,21 @@ Create a comprehensive preference profile with Communication Style, Content Pref
 - Progress areas: Topics where the user shows increasing expertise
 - Challenging areas: Topics where the user seems to need more support
 
+CRITICAL LANGUAGE REQUIREMENT:
+- Analyze the conversation to detect the user's preferred language (Korean, English, Japanese, etc.)
+- Store ALL content in the user's preferred language
+- If the user primarily communicates in Korean, write the entire profile in Korean
+- If the user primarily communicates in English, write the entire profile in English
+- Maintain consistency with the user's communication style and language preference
+
 IMPORTANT GUIDELINES:
 1. Focus on identifying genuine interests, not just passing mentions.
 2. Look for patterns across multiple messages or sessions.
 3. Prioritize recurring topics that show sustained interest.
 4. If updating an existing profile, integrate new observations while preserving previous insights.
 5. Format as a structured markdown document with clear sections.
-6. Be specific about topics rather than using generic categories.`;
+6. Be specific about topics rather than using generic categories.
+7. ALWAYS write in the user's preferred language as detected from their conversation patterns.`;
 
         userPrompt = `Refine the following interests using both existing memory and recent conversation context:
 
@@ -213,13 +237,21 @@ Create a comprehensive interest profile with Primary Interests, Recent Topics, a
 - Note any questions or problems that weren't fully addressed
 - Include any tasks the user mentioned they wanted to complete
 
+CRITICAL LANGUAGE REQUIREMENT:
+- Analyze the conversation to detect the user's preferred language (Korean, English, Japanese, etc.)
+- Store ALL content in the user's preferred language
+- If the user primarily communicates in Korean, write the entire profile in Korean
+- If the user primarily communicates in English, write the entire profile in English
+- Maintain consistency with the user's communication style and language preference
+
 IMPORTANT GUIDELINES:
 1. Prioritize information that will be useful for future interactions.
 2. Focus on factual summaries rather than interpretations.
 3. If updating existing history, place the new interaction at the top of the Recent Conversations section.
 4. Include dates wherever possible to maintain chronology.
 5. Format as a structured markdown document with clear sections.
-6. Keep the history concise but comprehensive.`;
+6. Keep the history concise but comprehensive.
+7. ALWAYS write in the user's preferred language as detected from their conversation patterns.`;
 
         userPrompt = `Refine the following interaction history using both existing memory and recent conversation context:
 
@@ -249,13 +281,21 @@ Create a comprehensive interaction history with Recent Conversations, Recurring 
 - Approaches to avoid: Communication patterns that don't resonate with this user
 - Relationship goals: How to improve the interaction quality over time
 
+CRITICAL LANGUAGE REQUIREMENT:
+- Analyze the conversation to detect the user's preferred language (Korean, English, Japanese, etc.)
+- Store ALL content in the user's preferred language
+- If the user primarily communicates in Korean, write the entire profile in Korean
+- If the user primarily communicates in English, write the entire profile in English
+- Maintain consistency with the user's communication style and language preference
+
 IMPORTANT GUIDELINES:
 1. Focus on objective observations rather than judgments.
 2. If updating existing data, integrate new observations while preserving previous insights.
 3. Be specific about observable communication patterns.
 4. Don't make assumptions about the user's actual feelings or thoughts.
 5. Format as a structured markdown document with clear sections.
-6. Focus on insights that will help improve future interactions.`;
+6. Focus on insights that will help improve future interactions.
+7. ALWAYS write in the user's preferred language as detected from their conversation patterns.`;
 
         userPrompt = `Refine the following relationship profile using both existing memory and recent conversation context:
 

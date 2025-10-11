@@ -405,6 +405,13 @@ ${memoryData || "No previous personal information recorded."}
 Current conversation:
 ${recentConversationText}
 
+CRITICAL LANGUAGE REQUIREMENT:
+- Analyze the conversation to detect the user's preferred language (Korean, English, Japanese, etc.)
+- Store ALL content in the user's preferred language
+- If the user primarily communicates in Korean, write the entire profile in Korean
+- If the user primarily communicates in English, write the entire profile in English
+- Maintain consistency with the user's communication style and language preference
+
 IMPORTANT GUIDELINES:
 1. Only include information that can be reliably inferred from the conversation or the provided user data.
 2. DO NOT make up information that wasn't mentioned or isn't provided.
@@ -412,6 +419,7 @@ IMPORTANT GUIDELINES:
 4. If updating an existing profile, integrate new observations while preserving previous insights.
 5. Format as a structured markdown document with clear sections.
 6. Focus on creating a useful reference that helps understand the user's background and context.
+7. ALWAYS write in the user's preferred language as detected from their conversation patterns.
 `;
     
     return await updateMemoryCategory(
@@ -465,12 +473,20 @@ ${memoryData || "No previous preferences recorded."}
 Current conversation:
 ${conversationText}
 
+CRITICAL LANGUAGE REQUIREMENT:
+- Analyze the conversation to detect the user's preferred language (Korean, English, Japanese, etc.)
+- Store ALL content in the user's preferred language
+- If the user primarily communicates in Korean, write the entire profile in Korean
+- If the user primarily communicates in English, write the entire profile in English
+- Maintain consistency with the user's communication style and language preference
+
 IMPORTANT GUIDELINES:
 1. If this is the first time analyzing preferences, create a complete profile based on available information.
 2. If updating an existing profile, integrate new observations while preserving previous insights.
 3. Only include preferences that can be reliably inferred from the conversation.
 4. If certain preferences can't be determined, indicate "Not enough data" rather than guessing.
 5. Format as a structured markdown document with clear sections.
+6. ALWAYS write in the user's preferred language as detected from their conversation patterns.
 `;
     
     await updateMemoryCategory(
@@ -520,6 +536,13 @@ ${memoryData || "No previous interests recorded."}
 Current conversation:
 ${conversationText}
 
+CRITICAL LANGUAGE REQUIREMENT:
+- Analyze the conversation to detect the user's preferred language (Korean, English, Japanese, etc.)
+- Store ALL content in the user's preferred language
+- If the user primarily communicates in Korean, write the entire profile in Korean
+- If the user primarily communicates in English, write the entire profile in English
+- Maintain consistency with the user's communication style and language preference
+
 IMPORTANT GUIDELINES:
 1. Focus on identifying genuine interests, not just passing mentions.
 2. Look for patterns across multiple messages or sessions.
@@ -527,6 +550,7 @@ IMPORTANT GUIDELINES:
 4. If updating an existing profile, integrate new observations while preserving previous insights.
 5. Format as a structured markdown document with clear sections.
 6. Be specific about topics rather than using generic categories.
+7. ALWAYS write in the user's preferred language as detected from their conversation patterns.
 `;
     
     await updateMemoryCategory(
