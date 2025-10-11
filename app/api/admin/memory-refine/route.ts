@@ -11,8 +11,12 @@ const REFINE_TEMPERATURE = 0.2;
  */
 async function callRefineAI(
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  retryCount: number = 0
 ): Promise<string | null> {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 2000; // 2초
+
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -32,12 +36,25 @@ async function callRefineAI(
     });
 
     if (!response.ok) {
+      // 502, 503, 504 에러는 재시도 가능
+      if ((response.status === 502 || response.status === 503 || response.status === 504) && retryCount < MAX_RETRIES) {
+        console.log(`🔄 [REFINE] Retrying API call (attempt ${retryCount + 1}/${MAX_RETRIES}) after ${response.status} error`);
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (retryCount + 1)));
+        return callRefineAI(systemPrompt, userPrompt, retryCount + 1);
+      }
       throw new Error(`OpenAI API error: ${response.status}`);
     }
 
     const data = await response.json();
     return data.choices?.[0]?.message?.content || null;
   } catch (error) {
+    // 네트워크 에러나 기타 에러도 재시도
+    if (retryCount < MAX_RETRIES) {
+      console.log(`🔄 [REFINE] Retrying API call (attempt ${retryCount + 1}/${MAX_RETRIES}) after error:`, error instanceof Error ? error.message : 'Unknown error');
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (retryCount + 1)));
+      return callRefineAI(systemPrompt, userPrompt, retryCount + 1);
+    }
+    
     console.error('Error calling refine AI:', error);
     return null;
   }
@@ -280,6 +297,18 @@ Make the content concise, well-organized, and up-to-date.`;
         if (error) {
           console.error(`❌ [REFINE] Failed to update ${entry.category} for user ${userId}:`, error);
           errorCount++;
+          
+          // 에러 추적을 위한 데이터베이스 로깅
+          await supabase
+            .from('refine_errors')
+            .insert({
+              user_id: userId,
+              category: entry.category,
+              error_message: error.message || 'Unknown error',
+              error_type: 'database_update',
+              created_at: new Date().toISOString()
+            })
+            .catch(console.error);
         } else {
           console.log(`✅ [REFINE] Successfully refined ${entry.category} for user ${userId}`);
           successCount++;
@@ -287,6 +316,18 @@ Make the content concise, well-organized, and up-to-date.`;
       } else {
         console.error(`❌ [REFINE] Failed to refine ${entry.category} for user ${userId}`);
         errorCount++;
+        
+        // AI 호출 실패 에러 로깅
+        await supabase
+          .from('refine_errors')
+          .insert({
+            user_id: userId,
+            category: entry.category,
+            error_message: 'AI refinement failed - no content returned',
+            error_type: 'ai_call_failed',
+            created_at: new Date().toISOString()
+          })
+          .catch(console.error);
       }
     }
 
@@ -299,6 +340,19 @@ Make the content concise, well-organized, and up-to-date.`;
 
   } catch (error) {
     console.error(`❌ [REFINE] Error refining memory for user ${userId}:`, error);
+    
+    // 전체 프로세스 실패 에러 로깅
+    await supabase
+      .from('refine_errors')
+      .insert({
+        user_id: userId,
+        category: 'all',
+        error_message: error instanceof Error ? error.message : 'Unknown error',
+        error_type: 'process_failed',
+        created_at: new Date().toISOString()
+      })
+      .catch(console.error);
+    
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
