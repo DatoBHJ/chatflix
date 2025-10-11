@@ -8,8 +8,8 @@ import { Edit, Trash2 } from 'lucide-react';
 
 // 기본 프롬프트 배열 (3개)
 export const DEFAULT_PROMPTS = [
-  "tell me the latest news.",
-  "send me funny cat gifs",
+  "What is today's biggest global news?",
+  "Send me funny minions gifs",
   // "what do u know about me"
 ];
 
@@ -111,7 +111,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
   // Supabase에서 사용자 프롬프트 불러오기 (실패 시 조용히 기본값 사용)
   const loadUserPrompts = async () => {
     if (!userId) {
-      setSuggestedPrompts(DEFAULT_PROMPTS);
+      setSuggestedPrompts([]);
       setIsInitialLoading(false);
       return;
     }
@@ -160,14 +160,14 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
         setCachedPrompts(uid, data.prompts); // 캐시 업데이트
         console.log('✅ Custom prompts loaded from DB');
       } else {
-        // 데이터가 없거나 null인 경우에만 기본값 사용
-        console.log('📝 No custom prompts found, using defaults');
-        setSuggestedPrompts(DEFAULT_PROMPTS);
+        // 데이터가 없거나 null인 경우 빈 배열 사용 (가입한 사용자는 기본값 없음)
+        console.log('📝 No custom prompts found, using empty array');
+        setSuggestedPrompts([]);
       }
     } catch (err) {
-      // 에러 발생 시 조용히 기본값 사용
-      console.log('⚠️ Using default prompts due to load error:', err);
-      setSuggestedPrompts(DEFAULT_PROMPTS);
+      // 에러 발생 시 조용히 빈 배열 사용 (가입한 사용자는 기본값 없음)
+      console.log('⚠️ Using empty array due to load error:', err);
+      setSuggestedPrompts([]);
     } finally {
       if (updateLoading) {
         setIsInitialLoading(false);
@@ -485,16 +485,16 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
               {/* 익명 사용자용 예약 메시지들 */}
               <div className="flex flex-col items-end gap-1 w-full mb-2">
                 <button
-                  onClick={() => handleClick("tell me the latest news.")}
+                  onClick={() => handleClick("What is today's biggest global news?")}
                   className="imessage-send-bubble follow-up-question max-w-md opacity-100 transition-all duration-200 ease-out hover:scale-105 cursor-pointer"
                 >
-                  <span>tell me the latest news.</span>
+                  <span>What is today's biggest global news?</span>
                 </button>
                 <button
-                  onClick={() => handleClick("send me funny cat gifs")}
+                  onClick={() => handleClick("Send me funny minions gifs")}
                   className="imessage-send-bubble follow-up-question max-w-md opacity-100 transition-all duration-200 ease-out hover:scale-105 cursor-pointer"
                 >
-                  <span>send me funny cat gifs</span>
+                  <span>Send me funny minions gifs</span>
                 </button>
               </div>
 
@@ -534,8 +534,9 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
               </div>
 
           {/* 모든 프롬프트를 개별적으로 표시 - 로그인 사용자만 */}
-          <div className="flex flex-col items-end gap-1 w-full">
-            {suggestedPrompts.map((prompt, index) => (
+          {suggestedPrompts.length > 0 && (
+            <div className="flex flex-col items-end gap-1 w-full">
+              {suggestedPrompts.map((prompt, index) => (
               <div 
                 key={index} 
                 className="flex items-center justify-end gap-2 w-full group/prompt"
@@ -674,8 +675,10 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                 )}
               </div>
             ))}
+            </div>
+          )}
                       
-            {/* 편집 모드 버튼들 */}
+          {/* 편집 모드 버튼들 */}
             {isEditMode ? (
               <div className="flex items-center justify-end gap-2 w-full mt-4">
                 <div className="flex items-center gap-2">
@@ -700,9 +703,9 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                         boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
                       })
                     }}
-                    title="Add new prompt"
+                    title="Add frequently used prompts"
                     type="button"
-                    aria-label="Add new prompt"
+                    aria-label="Add frequently used prompts"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="12" y1="5" x2="12" y2="19"/>
@@ -852,7 +855,7 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                         }
                       }}
                       className="imessage-edit-textarea scrollbar-thin"
-                      placeholder="Add new prompt..."
+                      placeholder="Add frequently used prompt..."
                       style={{ width: '100%', resize: 'none' }}
                     />
                   </div>
@@ -888,7 +891,6 @@ export function SuggestedPrompt({ userId, onPromptClick, className = '', isVisib
                 </button>
               </div>
             ) : null}
-                </div>
         </>
       )}
     </div>
