@@ -1617,55 +1617,53 @@ export function Sidebar({ user, toggleSidebar }: SidebarProps) {
               </div>
               
               {/* New Chat Button */}
-              {!isAnonymousUser && (
-                <button
-                  onClick={() => {
-                    console.log('🚀 [NEW_CHAT_BUTTON] Clicked from sidebar:', pathname);
-                    
-                    // 🚀 모바일에서 새글 버튼 클릭 시 사이드바 닫기
-                    if (isMobile && toggleSidebar) {
-                      toggleSidebar();
-                    }
-                    
-                    if (pathname === '/') {
-                      // 홈에서는 즉시 새 채팅 이벤트 발생
+              <button
+                onClick={() => {
+                  console.log('🚀 [NEW_CHAT_BUTTON] Clicked from sidebar:', pathname);
+                  
+                  // 🚀 모바일에서 새글 버튼 클릭 시 사이드바 닫기
+                  if (isMobile && toggleSidebar) {
+                    toggleSidebar();
+                  }
+                  
+                  if (pathname === '/') {
+                    // 홈에서는 즉시 새 채팅 이벤트 발생
+                    window.dispatchEvent(new CustomEvent('requestNewChat'));
+                  } else {
+                    // 채팅창에서는 홈으로 이동 후 새 채팅 이벤트 발생
+                    router.push('/');
+                    // 라우팅 후 새 채팅 이벤트 발생 (약간의 지연)
+                    setTimeout(() => {
                       window.dispatchEvent(new CustomEvent('requestNewChat'));
-                    } else {
-                      // 채팅창에서는 홈으로 이동 후 새 채팅 이벤트 발생
-                      router.push('/');
-                      // 라우팅 후 새 채팅 이벤트 발생 (약간의 지연)
-                      setTimeout(() => {
-                        window.dispatchEvent(new CustomEvent('requestNewChat'));
-                      }, 50);
-                    }
-                  }}
-                  className="flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 cursor-pointer"
-                  style={{
-                    color: 'var(--foreground)',
-                    // 다크모드 전용 스타일
-                    ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
-                        (document.documentElement.getAttribute('data-theme') === 'system' && 
-                         window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
-                      backgroundColor: window.innerWidth <= 768 ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.7)',
-                      backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
-                      WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-                    } : {
-                      backgroundColor: window.innerWidth <= 768 ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.8)',
-                      backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
-                      WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
-                      border: '1px solid rgba(255, 255, 255, 0.2)',
-                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
-                    })
-                  }}
-                  title="New Chat"
-                  type="button"
-                  aria-label="New Chat"
-                >
-                  <SquarePencil className="w-8 h-8 pt-1 pl-0.5" />
-                </button>
-              )}
+                    }, 50);
+                  }
+                }}
+                className="flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 cursor-pointer"
+                style={{
+                  color: 'var(--foreground)',
+                  // 다크모드 전용 스타일
+                  ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
+                      (document.documentElement.getAttribute('data-theme') === 'system' && 
+                       window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
+                    backgroundColor: window.innerWidth <= 768 ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.7)',
+                    backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                    WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                  } : {
+                    backgroundColor: window.innerWidth <= 768 ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+                    backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                    WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                  })
+                }}
+                title="New Chat"
+                type="button"
+                aria-label="New Chat"
+              >
+                <SquarePencil className="w-8 h-8 pt-1 pl-0.5" />
+              </button>
             </div>
           </div>
           </>
