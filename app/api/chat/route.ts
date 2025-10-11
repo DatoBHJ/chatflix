@@ -176,11 +176,11 @@ export async function POST(req: Request): Promise<Response> {
         const { selectedModel } = await selectOptimalModel(messages, modelType);
         model = selectedModel;
         
-        // // 🆕 에이전트 모드에서만 Kimi K2를 DeepSeek V3.1로 대체
-        // if (isAgentEnabled && model === 'moonshotai/kimi-k2-instruct-0905') {
-        //   model = 'deepseek-ai/DeepSeek-V3.1';
-        //   console.log('🔄 [MODEL_SELECTION] Replaced Kimi K2 with DeepSeek V3.1 for agent mode');
-        // }
+        // 🆕 에이전트 모드에서만 Kimi K2를 gemini-2.5-flash로 대체
+        if (isAgentEnabled && model === 'moonshotai/kimi-k2-instruct-0905') {
+          model = 'gemini-2.5-flash';
+          console.log('🔄 [MODEL_SELECTION] Replaced Kimi K2 with gemini-2.5-flash for agent mode');
+        }
       } catch (error) {
         model = 'gemini-2.5-pro';
       }
