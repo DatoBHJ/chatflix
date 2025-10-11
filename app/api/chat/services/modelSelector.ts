@@ -572,7 +572,7 @@ function selectModelBasedOnAnalysis(
       if (hasImage || hasPDF) {
         // 멀티모달 + 코딩
         if (analysis.complexity === 'simple') {
-          return 'claude-sonnet-4-20250514'; // sonnet 4
+          return 'claude-sonnet-4-5-20250929'; // sonnet 4
         } else { // medium/complex
           return 'gemini-2.5-pro'; // gemini 2.5 pro
         }
@@ -581,9 +581,9 @@ function selectModelBasedOnAnalysis(
         if (analysis.complexity === 'simple') {
           return 'grok-code-fast-1'; // grok code fast for simple coding
         } else if (analysis.complexity === 'medium') {
-          return 'claude-sonnet-4-20250514'; // sonnet 4
+          return 'claude-sonnet-4-5-20250929'; // sonnet 4
         } else { // complex
-          return 'claude-sonnet-4-20250514-thinking'; // sonnet 4 thinking
+          return 'claude-sonnet-4-5-20250929-thinking'; // sonnet 4 thinking
         }
       }
     } else {
@@ -666,7 +666,7 @@ function selectModelBasedOnAnalysis(
         if (analysis.complexity === 'simple') {
           return 'gemini-2.5-flash';
         } else { // medium/complex
-          return 'claude-sonnet-4-20250514';
+          return 'claude-sonnet-4-5-20250929';
         }
       } else {
         // 일반 버전: 모든 복잡도 gemini-2.5-flash
@@ -680,9 +680,9 @@ function selectModelBasedOnAnalysis(
         if (analysis.complexity === 'simple') {
           return 'deepseek-ai/DeepSeek-V3.1';
         } else if (analysis.complexity === 'medium') {
-          return 'claude-sonnet-4-20250514';
+          return 'claude-sonnet-4-5-20250929';
         } else { // complex
-          return 'claude-sonnet-4-20250514-thinking';
+          return 'claude-sonnet-4-5-20250929-thinking';
         }
       } else {
         // 일반 버전: 복잡도에 따라 모델 선택
