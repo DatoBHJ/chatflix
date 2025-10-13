@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction, useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import React, { Dispatch, SetStateAction, useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getEnabledModels, getActivatedModels, getModelById, isChatflixModel } from '@/lib/models/config';
 import Image from 'next/image';
@@ -8,6 +8,7 @@ import { checkSubscriptionClient } from '@/lib/subscription-client';
 import { getMetricTranslationsForUser, Translations } from '@/app/lib/metricTranslations';
 import { getChatInputTranslations } from '@/app/lib/chatInputTranslations';
 import { Brain as BrainIOS } from 'react-ios-icons';
+import { TOOLS } from './ChatInput';
 
 
 
@@ -23,6 +24,7 @@ interface ModelSelectorProps {
   isAgentEnabled?: boolean;
   onAgentAvailabilityChange?: (hasAgentModels: boolean) => void;
   user?: any; // Add user prop
+  selectedTool?: string | null;
 }
 
 export function ModelSelector({ 
@@ -36,7 +38,8 @@ export function ModelSelector({
   disabledLevels = [],
   isAgentEnabled = false,
   onAgentAvailabilityChange,
-  user // Add user parameter
+  user, // Add user parameter
+  selectedTool
 }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -318,9 +321,7 @@ export function ModelSelector({
 
   // Get all models and filter based on web search enabled state and model filter
   const allModels = getEnabledModels();
-  const filteredModels = isAgentEnabled 
-    ? allModels.filter(model => model.isAgentEnabled === true) 
-    : allModels;
+  const filteredModels = allModels; // 모든 모델 표시 (필터링 하지 않음)
     
   // Apply thinking/regular filter, search filter, and sorting
   const MODEL_OPTIONS = (() => {
@@ -713,7 +714,7 @@ export function ModelSelector({
         }}
       >
         {children}
-        {hoveredTooltip === tooltipId && !(isProModel && isDisabled) && (
+        {hoveredTooltip === tooltipId && !(isProModel && isDisabled) && !isDisabled && (
           <div 
             className={`absolute z-50 ${isFirstModel ? 'top-full mt-2' : 'bottom-full mb-2'} left-0 w-56 bg-white dark:bg-black border border-black/10 dark:border-white/20 rounded-2xl p-4 shadow-2xl shadow-black/20 dark:shadow-black/60 animate-in fade-in duration-200 ${isFirstModel ? 'slide-in-from-top-2' : 'slide-in-from-bottom-2'} opacity-100`}
             onMouseEnter={handleTooltipMouseEnter}
@@ -1152,7 +1153,8 @@ export function ModelSelector({
                       const isModelDisabled = disabledModels.includes(option.id) || 
                                            (allDisabledLevels.length > 0 && allDisabledLevels.includes(option.rateLimit.level)) ||
                                            !option.isActivated ||
-                                           (option.pro && !(isSubscribed ?? false));
+                                           (option.pro && !(isSubscribed ?? false)) ||
+                                           (isAgentEnabled && !option.isAgentEnabled);
                       
                       const isSelected = option.id === nextModel;
                       
@@ -1212,12 +1214,14 @@ export function ModelSelector({
                             data-model-option
                             className={`group relative transition-all p-3 rounded-xl cursor-pointer
                                      ${isModelDisabled 
-                                       ? 'opacity-50 cursor-not-allowed disabled' 
+                                       ? 'opacity-50 cursor-not-allowed disabled pointer-events-none' 
                                        : ''}
                                      ${isSelected 
                                        ? 'bg-[#007AFF] text-white' 
                                        : isKeyboardSelected
                                        ? 'bg-black/5 dark:bg-white/5'
+                                       : isModelDisabled
+                                       ? ''
                                        : 'hover:bg-black/5 dark:hover:bg-white/5'}`}
                             onClick={() => {
                               if (!isModelDisabled) {
@@ -1262,7 +1266,7 @@ export function ModelSelector({
                             
                             <div className="flex items-center gap-3 w-full pr-0 sm:pr-20">
                               {/* Provider Logo - Large circular style like sidebar */}
-                              <div className="flex-shrink-0">
+                              <div className="flex-shrink-0 relative">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
                                   isSelected ? 'bg-white/25' : 'bg-[var(--accent)]'
                                 }`}>
@@ -1281,9 +1285,32 @@ export function ModelSelector({
                                       }`}>
                                         {option.provider ? option.provider.substring(0, 1).toUpperCase() : 'A'}
                                       </span>
-                  </div>
+                                    </div>
                                   )}
                                 </div>
+                                
+                                {/* Agent Mode Badge - Small brain icon overlay */}
+                                {option.isAgentEnabled && (
+                                  <div className={`absolute -bottom-0.5 -right-0.5 min-h-[20px] min-w-[20px] rounded-full flex items-center justify-center p-1 ${
+                                    (isAgentEnabled || selectedTool)
+                                      ? 'bg-[var(--chat-input-primary)] text-white'  // 활성화: 파란 배경 + 흰색 (테두리 없음)
+                                      : 'bg-[var(--accent)] text-[var(--foreground)] border-[1px] border-[var(--background)]'  // 비활성화: accent 배경 + 전경색 + background 테두리
+                                  }`}>
+                                    {/* Show selected tool icon if tool is selected, otherwise show brain icon */}
+                                    {selectedTool && isAgentEnabled ? (
+                                      (() => {
+                                        const tool = TOOLS.find(t => t.id === selectedTool);
+           return tool ? React.cloneElement(tool.icon, { 
+             className: "w-2.5 h-2.5",
+             strokeWidth: 2
+           }) : <BrainIOS className="w-2.5 h-2.5" />
+         })()
+       ) : (
+         <BrainIOS className="w-3 h-3" />
+       )}
+                                  </div>
+                                )}
+                                
                               </div>
                               
                               {/* Content */}
@@ -1449,6 +1476,17 @@ export function ModelSelector({
                                     </p>
                                   </div>
                                 )}
+                                
+                                {/* Add agent mode not supported message */}
+                                {/* {isAgentEnabled && !option.isAgentEnabled && (
+                                  <div>
+                                    <p className={`text-xs ${
+                                      isSelected ? 'text-white/70' : 'text-[var(--muted)]'
+                                    }`}>
+                                      Agent mode not supported
+                                    </p>
+                                  </div>
+                                )} */}
                               </div>
                             </div>
                           </div>
@@ -1637,7 +1675,8 @@ export function ModelSelector({
                       const isModelDisabled = disabledModels.includes(option.id) || 
                                            (allDisabledLevels.length > 0 && allDisabledLevels.includes(option.rateLimit.level)) ||
                                            !option.isActivated ||
-                                           (option.pro && !(isSubscribed ?? false));
+                                           (option.pro && !(isSubscribed ?? false)) ||
+                                           (isAgentEnabled && !option.isAgentEnabled);
                       
                       const isSelected = option.id === nextModel;
                       
@@ -1697,12 +1736,14 @@ export function ModelSelector({
                             data-model-option
                             className={`group relative transition-all p-3 rounded-xl cursor-pointer
                                      ${isModelDisabled 
-                                       ? 'opacity-50 cursor-not-allowed disabled' 
+                                       ? 'opacity-50 cursor-not-allowed disabled pointer-events-none' 
                                        : ''}
                                      ${isSelected 
                                        ? 'bg-[#007AFF] text-white' 
                                        : isKeyboardSelected
                                        ? 'bg-black/5 dark:bg-white/5'
+                                       : isModelDisabled
+                                       ? ''
                                        : 'hover:bg-black/5 dark:hover:bg-white/5'}`}
                             onClick={() => {
                               if (!isModelDisabled) {
@@ -1747,7 +1788,7 @@ export function ModelSelector({
                             
                             <div className="flex items-center gap-3 w-full pr-0 sm:pr-20">
                               {/* Provider Logo - Large circular style like sidebar */}
-                              <div className="flex-shrink-0">
+                              <div className="flex-shrink-0 relative">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
                                   isSelected ? 'bg-white/25' : 'bg-[var(--accent)]'
                                 }`}>
@@ -1769,6 +1810,29 @@ export function ModelSelector({
                                     </div>
                                   )}
                                 </div>
+                                
+                                {/* Agent Mode Badge - Small brain icon overlay */}
+                                {option.isAgentEnabled && (
+                                  <div className={`absolute -bottom-0.5 -right-0.5 min-h-[20px] min-w-[20px] rounded-full flex items-center justify-center p-1 ${
+                                    (isAgentEnabled || selectedTool)
+                                      ? 'bg-[var(--chat-input-primary)] text-white'  // 활성화: 파란 배경 + 흰색 (테두리 없음)
+                                      : 'bg-[var(--accent)] text-[var(--foreground)] border-[1px] border-[var(--background)]'  // 비활성화: accent 배경 + 전경색 + background 테두리
+                                  }`}>
+                                    {/* Show selected tool icon if tool is selected, otherwise show brain icon */}
+                                    {selectedTool && isAgentEnabled ? (
+                                      (() => {
+                                        const tool = TOOLS.find(t => t.id === selectedTool);
+           return tool ? React.cloneElement(tool.icon, { 
+             className: "w-2.5 h-2.5",
+             strokeWidth: 2
+           }) : <BrainIOS className="w-2.5 h-2.5" />
+         })()
+       ) : (
+         <BrainIOS className="w-3 h-3" />
+       )}
+                                  </div>
+                                )}
+                                
                               </div>
                               
                               {/* Content */}
@@ -1919,6 +1983,17 @@ export function ModelSelector({
                                     </p>
                                   </div>
                                 )}
+                                
+                                {/* Add agent mode not supported message */}
+                                {/* {isAgentEnabled && !option.isAgentEnabled && (
+                                  <div>
+                                    <p className={`text-xs ${
+                                      isSelected ? 'text-white/70' : 'text-[var(--muted)]'
+                                    }`}>
+                                      Agent mode not supported
+                                    </p>
+                                  </div>
+                                )} */}
                               </div>
                             </div>
                           </div>

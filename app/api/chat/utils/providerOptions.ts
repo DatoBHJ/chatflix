@@ -122,7 +122,19 @@ export function getProviderOptions(
       parallelToolCalls: true, // Enable parallel function calling (default: true)
       structuredOutputs: true, // Enable structured outputs for Groq
     };
-    providerOptions.groq = baseGroqOptions
+    
+    // Add reasoning options ONLY for GPT-OSS models that support it
+    if (model.includes('gpt-oss') && modelConfig.reasoning && modelConfig.reasoningEffort) {
+      baseGroqOptions.reasoningFormat = 'parsed';
+      baseGroqOptions.reasoningEffort = modelConfig.reasoningEffort;
+    }
+    // For other Groq reasoning models (like qwen/qwen3-32b), use default reasoning
+    else if (modelConfig.reasoning && !model.includes('gpt-oss')) {
+      // Only add reasoningFormat for models that support it, but not reasoningEffort
+      baseGroqOptions.reasoningFormat = 'parsed';
+    }
+    
+    providerOptions.groq = baseGroqOptions;
   }
 
   return providerOptions;

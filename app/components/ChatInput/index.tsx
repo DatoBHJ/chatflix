@@ -23,7 +23,7 @@ import { estimateTokenCount, estimateMultiModalTokens, estimateFileTokens, estim
 // 비구독자 컨텍스트 윈도우 제한 제거됨
 
 // 도구 정의 - Google Search가 일반 검색의 기본 도구, Exa는 특별한 콘텐츠용
-const TOOLS = [
+export const TOOLS = [
   { id: 'google_search', icon: <SiGoogle size={18} />, name: 'Google Search', description: 'Search Google for comprehensive results' },
   { id: 'google-images', icon: <SiGoogle size={18} />, name: 'Google Images', description: 'Search Google Images for visual content' },
   { id: 'google-videos', icon: <SiGoogle size={18} />, name: 'Google Videos', description: 'Search Google Videos for video content' },
@@ -1151,36 +1151,24 @@ export function ChatInput({
                   }}
                   className={`input-btn transition-all duration-300 flex items-center justify-center relative rounded-full w-8 h-8 cursor-pointer`}
                   style={{
-                    backgroundColor: selectedTool 
-                      ? 'rgba(255, 255, 255, 0.1)' 
-                      : isAgentEnabled 
-                        ? 'var(--chat-input-primary)' 
-                        : user?.hasAgentModels === false && !isAgentEnabled 
-                          ? 'rgba(255, 255, 255, 0.1)' 
-                          : 'rgba(255, 255, 255, 0.1)',
+                    backgroundColor: (isAgentEnabled || selectedTool)
+                      ? 'var(--chat-input-primary)'
+                      : 'rgba(255, 255, 255, 0.1)',
                     backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
                     WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
                     border: '1px solid rgba(255, 255, 255, 0.2)',
                     boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
-                    color: selectedTool 
-                      ? 'var(--foreground)' 
-                      : isAgentEnabled 
-                        ? 'var(--chat-input-primary-foreground)' 
-                        : user?.hasAgentModels === false && !isAgentEnabled 
-                          ? 'var(--foreground)' 
-                          : 'var(--foreground)',
+                    color: (isAgentEnabled || selectedTool)
+                      ? 'var(--chat-input-primary-foreground)'
+                      : 'var(--foreground)',
                     opacity: user?.hasAgentModels === false && !isAgentEnabled ? 0.4 : 1,
                     // 다크모드 전용 스타일
                     ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
                         (document.documentElement.getAttribute('data-theme') === 'system' && 
                          window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
-                      backgroundColor: selectedTool 
-                        ? 'rgba(0, 0, 0, 0.05)' 
-                        : isAgentEnabled 
-                          ? 'var(--chat-input-primary)' 
-                          : user?.hasAgentModels === false && !isAgentEnabled 
-                            ? 'rgba(0, 0, 0, 0.05)' 
-                            : 'rgba(0, 0, 0, 0.05)',
+                      backgroundColor: (isAgentEnabled || selectedTool)
+                        ? 'var(--chat-input-primary)'
+                        : 'rgba(0, 0, 0, 0.05)',
                       backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
                       WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
                       border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -1196,19 +1184,13 @@ export function ChatInput({
                 >
                   {selectedTool && selectedToolInfo?.icon ? (
                     React.cloneElement(selectedToolInfo.icon, { 
-                      className: "h-4 w-4 text-[var(--muted)] transition-transform duration-300",
+                      className: "h-4 w-4 transition-transform duration-300",
                       strokeWidth: 2
                     })
                   ) : (
                     <BrainIOS className="h-5 w-5 transition-transform duration-300" />
                   )}
                   {/* <Brain className="h-5 w-5 transition-transform duration-300" strokeWidth={1.2} /> */}
-                  {isAgentEnabled && !selectedTool && (
-                    <span className="absolute top-1 right-1 bg-white rounded-full w-1.5 h-1.5"></span>
-                  )}
-                  {selectedTool && (
-                    <span className="absolute top-1 right-1 bg-[var(--chat-input-primary)] rounded-full w-1.5 h-1.5"></span>
-                  )}
                 </button>
 
                 {/* Tool selector */}

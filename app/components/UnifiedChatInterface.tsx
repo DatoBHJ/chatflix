@@ -480,7 +480,7 @@ function ChatInterface({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isModelLoading, setIsModelLoading] = useState(true);
   const [rateLimitedLevels, setRateLimitedLevels] = useState<string[]>([]);
-  const [isAgentEnabled, setisAgentEnabled] = useState(false);
+  const [isAgentEnabled, setisAgentEnabled] = useState(true);
   const [hasAgentModels, setHasAgentModels] = useState(true);
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
 

@@ -139,6 +139,7 @@ export function ChatInputArea({
               isAgentEnabled={isAgentEnabled}
               onAgentAvailabilityChange={onAgentAvailabilityChange}
               user={user}
+              selectedTool={selectedTool}
             />
             <ChatInput
               input={input}

@@ -21,10 +21,18 @@ MODEL_CONFIGS.forEach(model => {
   try {
     let languageModel: any;
     
-    // For reasoning models, use the base model ID (without -thinking suffix)
-    const baseModelId = model.reasoning && model.id.endsWith('-thinking') 
-      ? model.id.replace('-thinking', '') 
-      : model.id;
+    // For reasoning models, use the base model ID (strip reasoning effort suffixes)
+    let baseModelId = model.id;
+    if (model.reasoning) {
+      // Handle -thinking suffix (existing logic)
+      if (model.id.endsWith('-thinking')) {
+        baseModelId = model.id.replace('-thinking', '');
+      }
+      // Handle reasoning effort suffixes (-low, -medium, -high)
+      else if (model.id.match(/-(?:low|medium|high)$/)) {
+        baseModelId = model.id.replace(/-(?:low|medium|high)$/, '');
+      }
+    }
     
     // Create base model instance
     switch (model.provider) {
