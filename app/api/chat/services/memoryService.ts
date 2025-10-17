@@ -57,12 +57,12 @@ const fetchUserName = async (userId: string, supabase: SupabaseClient) => {
 };
 
 // 메모리 뱅크 업데이트에 사용할 AI 모델 및 설정
-const MEMORY_UPDATE_MODEL = 'gpt-4.1-nano';
+const MEMORY_UPDATE_MODEL = 'gemini-2.5-flash';
 const MEMORY_UPDATE_MAX_TOKENS = 1500;
 const MEMORY_UPDATE_TEMPERATURE = 0.3;
 
 // 🆕 Smart Trigger 관련 상수
-const MEMORY_ANALYSIS_MODEL = 'gpt-4.1-nano'; // OpenAI API 호환 모델 사용
+const MEMORY_ANALYSIS_MODEL = 'gemini-2.5-flash'; // Gemini 2.5 Flash 모델 사용
 const MIN_MESSAGE_LENGTH = 20; // 최소 메시지 길이 
 const MAX_TIME_SINCE_LAST_UPDATE = 24 * 60 * 60 * 1000; // 최대 24시간
 
@@ -380,14 +380,53 @@ export async function updatePersonalInfo(
     // Extract conversation text from recent messages
     const recentConversationText = getRecentConversationText(messages);
     
-    // Create a context-rich prompt that includes the basic user info
-    const personalInfoPrompt = `Based on the conversation and available user information, extract or update the user's personal information.
-Create a comprehensive user profile in markdown format with the following sections:
+    // 메모리 유무에 따른 조건부 접근
+    const hasExistingMemory = memoryData && !memoryData.includes('No previous personal information recorded');
+    
+    const personalInfoPrompt = hasExistingMemory 
+      ? `Update the user's personal information based on new conversation data.
 
-## Basic Details
+EXISTING PERSONAL INFO:
+${memoryData}
+
+NEW CONVERSATION:
+${recentConversationText}
+
+CRITICAL FORMAT REQUIREMENTS:
+- MUST maintain the exact same markdown structure as the existing profile
+- MUST preserve all existing section headers (## Basic Details, ## Professional Context, ## Usage Patterns)
+- MUST maintain the same language as the existing profile
+- DELETE any content that doesn't fit the required format
+- If no new insights are available, return the existing profile unchanged
+
+Update the existing personal info profile by:
+1. Integrating new observations while preserving previous insights
+2. Only updating information that can be reliably inferred from the new conversation
+3. Maintaining the exact same language and format as the existing profile
+4. If no new personal info insights are available, keep the existing profile unchanged`
+      
+      : `Create a new user personal information profile based on conversation analysis.
+
+BASIC USER DATA:
 - Name: ${basicInfo.name || '[Extract from conversation if mentioned]'}
 - Member since: ${basicInfo.created_at ? new Date(basicInfo.created_at).toLocaleDateString() : 'Unknown'}
 - Last active: ${basicInfo.last_sign_in_at ? new Date(basicInfo.last_sign_in_at).toLocaleDateString() : 'Unknown'}
+
+CONVERSATION:
+${recentConversationText}
+
+CRITICAL FORMAT REQUIREMENTS:
+- MUST use exactly these section headers: ## Basic Details, ## Professional Context, ## Usage Patterns
+- MUST analyze conversation to detect user's preferred language and write entire profile in that language
+- MUST follow the exact structure shown below
+- DELETE any content that doesn't fit the required format
+
+Create a comprehensive user profile in markdown format with these EXACT sections:
+
+## Basic Details
+- Name: [Extract from conversation if mentioned, otherwise use provided name]
+- Member since: [Use provided date]
+- Last active: [Use provided date]
 - Language preference: [Extract from conversation]
 
 ## Professional Context
@@ -399,28 +438,11 @@ Create a comprehensive user profile in markdown format with the following sectio
 - Typical activity: [Identify any patterns in usage]
 - Session frequency: [How often they engage in conversations]
 
-Previous personal information:
-${memoryData || "No previous personal information recorded."}
-
-Current conversation:
-${recentConversationText}
-
-CRITICAL LANGUAGE REQUIREMENT:
-- Analyze the conversation to detect the user's preferred language (Korean, English, Japanese, etc.)
-- Store ALL content in the user's preferred language
-- If the user primarily communicates in Korean, write the entire profile in Korean
-- If the user primarily communicates in English, write the entire profile in English
-- Maintain consistency with the user's communication style and language preference
-
-IMPORTANT GUIDELINES:
-1. Only include information that can be reliably inferred from the conversation or the provided user data.
-2. DO NOT make up information that wasn't mentioned or isn't provided.
-3. If information isn't available, keep the existing placeholder text in brackets.
-4. If updating an existing profile, integrate new observations while preserving previous insights.
-5. Format as a structured markdown document with clear sections.
-6. Focus on creating a useful reference that helps understand the user's background and context.
-7. ALWAYS write in the user's preferred language as detected from their conversation patterns.
-`;
+GUIDELINES:
+1. Only include information that can be reliably inferred from the conversation or the provided user data
+2. DO NOT make up information that wasn't mentioned or isn't provided
+3. If information isn't available, keep the existing placeholder text in brackets
+4. Follow the exact format requirements above - no deviations allowed`;
     
     return await updateMemoryCategory(
       supabase,
@@ -448,8 +470,43 @@ export async function updatePreferences(
     const recentMessages = messages.slice(-EXTENDED_MESSAGES_COUNT);
     const conversationText = convertMessagesToText(recentMessages);
     
-    const preferencesPrompt = `Based on the conversation and user profile data, identify and update the user's preferences.
-Create a comprehensive preference profile in markdown format with the following sections:
+    // 메모리 유무에 따른 조건부 접근
+    const hasExistingMemory = memoryData && !memoryData.includes('No previous preferences recorded');
+    
+    const preferencesPrompt = hasExistingMemory 
+      ? `Update the user's preferences based on new conversation data.
+
+EXISTING PREFERENCES:
+${memoryData}
+
+NEW CONVERSATION:
+${conversationText}
+
+CRITICAL FORMAT REQUIREMENTS:
+- MUST maintain the exact same markdown structure as the existing profile
+- MUST preserve all existing section headers (## Communication Style, ## Content Preferences, ## Response Format Preferences)
+- MUST maintain the same language as the existing profile
+- DELETE any content that doesn't fit the required format
+- If no new insights are available, return the existing profile unchanged
+
+Update the existing preference profile by:
+1. Integrating new observations while preserving previous insights
+2. Only updating preferences that can be reliably inferred from the new conversation
+3. Maintaining the exact same language and format as the existing profile
+4. If no new preference insights are available, keep the existing profile unchanged`
+      
+      : `Create a new user preference profile based on conversation analysis.
+
+CONVERSATION:
+${conversationText}
+
+CRITICAL FORMAT REQUIREMENTS:
+- MUST use exactly these section headers: ## Communication Style, ## Content Preferences, ## Response Format Preferences
+- MUST analyze conversation to detect user's preferred language and write entire profile in that language
+- MUST follow the exact structure shown below
+- DELETE any content that doesn't fit the required format
+
+Create a comprehensive preference profile in markdown format with these EXACT sections:
 
 ## Communication Style
 - Preferred response length: [Concise/Detailed - analyze how they respond to different length answers]
@@ -463,31 +520,15 @@ Create a comprehensive preference profile in markdown format with the following 
 - Step-by-step guides: [Do they prefer procedural explanations?]
 - References inclusion: [Do they ask for sources or additional reading?]
 
-## UI/UX Preferences
-- Response format: [Do they prefer structured responses, bullet points, or prose?]
-- Follow-up style: [Do they engage with follow-up questions?]
+## Response Format Preferences
+- Structure preference: [Do they prefer structured responses, bullet points, or prose?]
+- Organization style: [Linear flow vs. hierarchical organization]
+- Detail presentation: [How they prefer information to be organized and presented]
 
-Previous preferences information:
-${memoryData || "No previous preferences recorded."}
-
-Current conversation:
-${conversationText}
-
-CRITICAL LANGUAGE REQUIREMENT:
-- Analyze the conversation to detect the user's preferred language (Korean, English, Japanese, etc.)
-- Store ALL content in the user's preferred language
-- If the user primarily communicates in Korean, write the entire profile in Korean
-- If the user primarily communicates in English, write the entire profile in English
-- Maintain consistency with the user's communication style and language preference
-
-IMPORTANT GUIDELINES:
-1. If this is the first time analyzing preferences, create a complete profile based on available information.
-2. If updating an existing profile, integrate new observations while preserving previous insights.
-3. Only include preferences that can be reliably inferred from the conversation.
-4. If certain preferences can't be determined, indicate "Not enough data" rather than guessing.
-5. Format as a structured markdown document with clear sections.
-6. ALWAYS write in the user's preferred language as detected from their conversation patterns.
-`;
+GUIDELINES:
+1. Only include preferences that can be reliably inferred from the conversation
+2. If certain preferences can't be determined, indicate "Not enough data" rather than guessing
+3. Follow the exact format requirements above - no deviations allowed`;
     
     await updateMemoryCategory(
       supabase,
@@ -514,8 +555,43 @@ export async function updateInterests(
     const recentMessages = messages.slice(-EXTENDED_MESSAGES_COUNT);
     const conversationText = convertMessagesToText(recentMessages);
     
-    const interestsPrompt = `Based on the conversation and user profile data, identify and update the user's interests and topics they care about.
-Create a comprehensive interest profile in markdown format with the following sections:
+    // 메모리 유무에 따른 조건부 접근
+    const hasExistingMemory = memoryData && !memoryData.includes('No previous interests recorded');
+    
+    const interestsPrompt = hasExistingMemory 
+      ? `Update the user's interests based on new conversation data.
+
+EXISTING INTERESTS:
+${memoryData}
+
+NEW CONVERSATION:
+${conversationText}
+
+CRITICAL FORMAT REQUIREMENTS:
+- MUST maintain the exact same markdown structure as the existing profile
+- MUST preserve all existing section headers (## Primary Interests, ## Recent Topics, ## Learning Journey)
+- MUST maintain the same language as the existing profile
+- DELETE any content that doesn't fit the required format
+- If no new insights are available, return the existing profile unchanged
+
+Update the existing interests profile by:
+1. Integrating new observations while preserving previous insights
+2. Only updating interests that can be reliably inferred from the new conversation
+3. Maintaining the exact same language and format as the existing profile
+4. If no new interest insights are available, keep the existing profile unchanged`
+      
+      : `Create a new user interests profile based on conversation analysis.
+
+CONVERSATION:
+${conversationText}
+
+CRITICAL FORMAT REQUIREMENTS:
+- MUST use exactly these section headers: ## Primary Interests, ## Recent Topics, ## Learning Journey
+- MUST analyze conversation to detect user's preferred language and write entire profile in that language
+- MUST follow the exact structure shown below
+- DELETE any content that doesn't fit the required format
+
+Create a comprehensive interest profile in markdown format with these EXACT sections:
 
 ## Primary Interests
 - Identify 3-5 main topics the user frequently discusses or asks about
@@ -530,28 +606,12 @@ Create a comprehensive interest profile in markdown format with the following se
 - Progress areas: Topics where the user shows increasing expertise
 - Challenging areas: Topics where the user seems to need more support
 
-Previous interests information:
-${memoryData || "No previous interests recorded."}
-
-Current conversation:
-${conversationText}
-
-CRITICAL LANGUAGE REQUIREMENT:
-- Analyze the conversation to detect the user's preferred language (Korean, English, Japanese, etc.)
-- Store ALL content in the user's preferred language
-- If the user primarily communicates in Korean, write the entire profile in Korean
-- If the user primarily communicates in English, write the entire profile in English
-- Maintain consistency with the user's communication style and language preference
-
-IMPORTANT GUIDELINES:
-1. Focus on identifying genuine interests, not just passing mentions.
-2. Look for patterns across multiple messages or sessions.
-3. Prioritize recurring topics that show sustained interest.
-4. If updating an existing profile, integrate new observations while preserving previous insights.
-5. Format as a structured markdown document with clear sections.
-6. Be specific about topics rather than using generic categories.
-7. ALWAYS write in the user's preferred language as detected from their conversation patterns.
-`;
+GUIDELINES:
+1. Focus on identifying genuine interests, not just passing mentions
+2. Look for patterns across multiple messages or sessions
+3. Prioritize recurring topics that show sustained interest
+4. Be specific about topics rather than using generic categories
+5. Follow the exact format requirements above - no deviations allowed`;
     
     await updateMemoryCategory(
       supabase,
@@ -581,8 +641,43 @@ export async function updateInteractionHistory(
     // 현재 날짜 정보 추가
     const currentDate = new Date().toLocaleDateString();
     
-    const historyPrompt = `Summarize and organize the key points of this conversation to maintain in the user's interaction history.
-Create a comprehensive interaction history in markdown format with the following sections:
+    // 메모리 유무에 따른 조건부 접근
+    const hasExistingMemory = memoryData && !memoryData.includes('No previous interaction history recorded');
+    
+    const historyPrompt = hasExistingMemory 
+      ? `Update the user's interaction history based on new conversation data.
+
+EXISTING INTERACTION HISTORY:
+${memoryData}
+
+NEW CONVERSATION (${currentDate}):
+${conversationText}
+
+CRITICAL FORMAT REQUIREMENTS:
+- MUST maintain the exact same markdown structure as the existing profile
+- MUST preserve all existing section headers (## Recent Conversations, ## Recurring Questions, ## Unresolved Issues)
+- MUST maintain the same language as the existing profile
+- DELETE any content that doesn't fit the required format
+- Place the new interaction at the top of the Recent Conversations section
+
+Update the existing interaction history by:
+1. Adding today's conversation summary to the top of Recent Conversations
+2. Integrating new observations while preserving previous insights
+3. Maintaining the exact same language and format as the existing profile
+4. If no new interaction insights are available, keep the existing profile unchanged`
+      
+      : `Create a new user interaction history based on conversation analysis.
+
+CONVERSATION (${currentDate}):
+${conversationText}
+
+CRITICAL FORMAT REQUIREMENTS:
+- MUST use exactly these section headers: ## Recent Conversations, ## Recurring Questions, ## Unresolved Issues
+- MUST analyze conversation to detect user's preferred language and write entire profile in that language
+- MUST follow the exact structure shown below
+- DELETE any content that doesn't fit the required format
+
+Create a comprehensive interaction history in markdown format with these EXACT sections:
 
 ## Recent Conversations
 - Today (${currentDate}): Summarize this conversation with main topics and any conclusions reached
@@ -596,20 +691,12 @@ Create a comprehensive interaction history in markdown format with the following
 - Note any questions or problems that weren't fully addressed
 - Include any tasks the user mentioned they wanted to complete
 
-Previous interaction history:
-${memoryData || "No previous interaction history recorded."}
-
-Current conversation:
-${conversationText}
-
-IMPORTANT GUIDELINES:
-1. Prioritize information that will be useful for future interactions.
-2. Focus on factual summaries rather than interpretations.
-3. If updating existing history, place the new interaction at the top of the Recent Conversations section.
-4. Include dates wherever possible to maintain chronology.
-5. Format as a structured markdown document with clear sections.
-6. Keep the history concise but comprehensive.
-`;
+GUIDELINES:
+1. Prioritize information that will be useful for future interactions
+2. Focus on factual summaries rather than interpretations
+3. Include dates wherever possible to maintain chronology
+4. Keep the history concise but comprehensive
+5. Follow the exact format requirements above - no deviations allowed`;
     
     await updateMemoryCategory(
       supabase,
@@ -638,8 +725,51 @@ export async function updateRelationship(
     // 최근 대화 분석을 통한 감정 상태와 소통 패턴 파악
     const recentConversation = getRecentConversationText(messages);
     
-    const relationshipPrompt = `Based on this conversation and comprehensive user profile data, update the AI-user relationship profile.
-Create a comprehensive relationship profile in markdown format with the following sections:
+    // 메모리 유무에 따른 조건부 접근
+    const hasExistingMemory = memoryData && !memoryData.includes('No previous relationship data recorded');
+    
+    const relationshipPrompt = hasExistingMemory 
+      ? `Update the AI-user relationship profile based on new conversation data.
+
+EXISTING RELATIONSHIP PROFILE:
+${memoryData}
+
+NEW CONVERSATION CONTEXT:
+${recentConversation}
+
+LATEST INTERACTION:
+User: ${userMessage}
+AI: ${aiMessage}
+
+CRITICAL FORMAT REQUIREMENTS:
+- MUST maintain the exact same markdown structure as the existing profile
+- MUST preserve all existing section headers (## Communication Quality, ## Emotional Patterns, ## Personalization Strategy)
+- MUST maintain the same language as the existing profile
+- DELETE any content that doesn't fit the required format
+- If no new insights are available, return the existing profile unchanged
+
+Update the existing relationship profile by:
+1. Integrating new observations while preserving previous insights
+2. Only updating relationship insights that can be reliably inferred from the new conversation
+3. Maintaining the exact same language and format as the existing profile
+4. If no new relationship insights are available, keep the existing profile unchanged`
+      
+      : `Create a new AI-user relationship profile based on conversation analysis.
+
+CONVERSATION CONTEXT:
+${recentConversation}
+
+LATEST INTERACTION:
+User: ${userMessage}
+AI: ${aiMessage}
+
+CRITICAL FORMAT REQUIREMENTS:
+- MUST use exactly these section headers: ## Communication Quality, ## Emotional Patterns, ## Personalization Strategy
+- MUST analyze conversation to detect user's preferred language and write entire profile in that language
+- MUST follow the exact structure shown below
+- DELETE any content that doesn't fit the required format
+
+Create a comprehensive relationship profile in markdown format with these EXACT sections:
 
 ## Communication Quality
 - Trust level: How much does the user seem to trust the AI's responses?
@@ -656,25 +786,12 @@ Create a comprehensive relationship profile in markdown format with the followin
 - Approaches to avoid: Communication patterns that don't resonate with this user
 - Relationship goals: How to improve the interaction quality over time
 
-Previous relationship information:
-${memoryData || "No previous relationship data recorded."}
-
-Recent conversation context:
-${recentConversation}
-
-Latest interaction:
-User: ${userMessage}
-AI: ${aiMessage}
-
-IMPORTANT GUIDELINES:
-1. Focus on objective observations rather than judgments.
-2. If updating existing data, integrate new observations while preserving previous insights.
-3. Be specific about observable communication patterns.
-4. Don't make assumptions about the user's actual feelings or thoughts.
-5. Format as a structured markdown document with clear sections.
-6. Focus on insights that will help improve future interactions.
-7. Use the user profile data to provide more personalized relationship analysis.
-`;
+GUIDELINES:
+1. Focus on objective observations rather than judgments
+2. Be specific about observable communication patterns
+3. Don't make assumptions about the user's actual feelings or thoughts
+4. Focus on insights that will help improve future interactions
+5. Follow the exact format requirements above - no deviations allowed`;
     
     await updateMemoryCategory(
       supabase,
