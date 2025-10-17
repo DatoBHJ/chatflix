@@ -1,6 +1,7 @@
 "use client";
 
-import { Brain, Search, Calculator, Link, Image, GraduationCap, Video, Sparkles, FileText, FileVideo, Library, Columns, TrendingUp, BatteryCharging, MapPin, Coffee, BookOpen, ChevronDown, ChevronRight, Palette, X, Download, Github, Building, BarChart3, FileText as FileTextIcon, User, Briefcase, BookOpen as BookOpenIcon, Newspaper, Zap, Target, Lightbulb } from 'lucide-react';
+import { Brain, Search, Calculator, Link, Image, GraduationCap, Video, Sparkles, FileText, FileVideo, Library, Columns, TrendingUp, BatteryCharging, MapPin, Coffee, BookOpen, ChevronDown, ChevronRight, Palette, X, Download, Github, Building, BarChart3, FileText as FileTextIcon, User, BookOpen as BookOpenIcon, Newspaper, Zap, Target, Lightbulb } from 'lucide-react';
+import { SiLinkedin } from 'react-icons/si';
 import { useEffect, useState } from 'react';
 import NextImage from 'next/image';
 import { getProviderLogo } from '../../lib/models/logoUtils';
@@ -60,7 +61,7 @@ const TOOLS = [
   },
   { 
     id: 'linkedin_search', 
-    icon: <Briefcase strokeWidth={1.5} />, 
+    icon: <SiLinkedin strokeWidth={0.5} className="h-3 w-3" />, 
     name: 'LinkedIn Profiles',
     description: 'Search LinkedIn profiles and professional information',
     examples: ['Find industry experts', 'Research career paths', 'Look up professional profiles']
@@ -99,6 +100,20 @@ const TOOLS = [
     name: 'Image Generator',
     description: 'Generate images from text descriptions',
     examples: ['Create logos', 'Generate illustrations', 'Design graphics']
+  },
+  { 
+    id: 'gemini_image_tool', 
+    icon: <Image strokeWidth={1.5} />, 
+    name: '🍌 Nano Banana',
+    description: 'Gemini 2.5 Flash image generation & editing',
+    examples: ['Generate images from text', 'Edit existing images', 'Create visual content']
+  },
+  { 
+    id: 'seedream_image_tool', 
+    icon: <Image strokeWidth={1.5} />, 
+    name: '🎨 Seedream 4.0',
+    description: 'ByteDance 4K image generation & editing via Replicate',
+    examples: ['Generate 4K images', 'Edit existing images', 'Create high-resolution content', 'Batch image generation']
   },
   { 
     id: 'calculator', 

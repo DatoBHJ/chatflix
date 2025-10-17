@@ -41,9 +41,9 @@ Basic structure maintained for future updates.
 }
 
 /**
- * Makes a call to the OpenAI API with the given prompts to update user memory
+ * Makes a call to the Google AI API with the given prompts to update user memory
  * 
- * @param model - The model to use (e.g., 'gpt-4.1-nano')
+ * @param model - The model to use (e.g., 'gemini-2.5-flash')
  * @param systemPrompt - The system prompt for context
  * @param userPrompt - The user prompt with the actual query
  * @param maxTokens - Maximum tokens to generate (default: 500)
@@ -58,30 +58,34 @@ export async function callMemoryBankUpdate(
   temperature: number = 0.3
 ): Promise<string | null> {
   try {
-    console.log(`🤖 [MEMORY AI] Calling OpenAI API with model: ${model}`);
+    console.log(`🤖 [MEMORY AI] Calling Google AI API with model: ${model}`);
     
     // Check if API key exists
-    if (!process.env.OPENAI_API_KEY) {
-      console.error("❌ [MEMORY AI] Missing OPENAI_API_KEY environment variable - memory update skipped");
+    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+      console.error("❌ [MEMORY AI] Missing GOOGLE_GENERATIVE_AI_API_KEY environment variable - memory update skipped");
       
       // 🆕 간단한 폴백 메커니즘 제공
       return generateFallbackMemoryContent(systemPrompt, userPrompt);
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GOOGLE_GENERATIVE_AI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        max_tokens: maxTokens,
-        temperature: temperature
+        contents: [{
+          parts: [{
+            text: `${systemPrompt}\n\n${userPrompt}`
+          }]
+        }],
+        generationConfig: {
+          maxOutputTokens: maxTokens,
+          temperature: temperature,
+          thinkingConfig: {
+            thinking_budget: 0
+          }
+        }
       })
     });
     
@@ -99,12 +103,12 @@ export async function callMemoryBankUpdate(
     }
     
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     
     if (content) {
       console.log(`✅ [MEMORY AI] Successfully generated memory content (${content.length} chars)`);
     } else {
-      console.error(`❌ [MEMORY AI] No content received from OpenAI API`);
+      console.error(`❌ [MEMORY AI] No content received from Google AI API`);
     }
     
     return content;

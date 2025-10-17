@@ -2,12 +2,12 @@ import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Refine에 사용할 AI 모델 설정
-const REFINE_MODEL = 'gpt-4.1-mini';
+const REFINE_MODEL = 'gemini-2.5-flash';
 const REFINE_MAX_TOKENS = 3000; // 50개 메시지 처리용 토큰 증가
 const REFINE_TEMPERATURE = 0.2;
 
 /**
- * 메모리 refine을 위한 AI 호출
+ * 메모리 refine을 위한 AI 호출 (Google AI API 사용)
  */
 async function callRefineAI(
   systemPrompt: string,
@@ -18,35 +18,42 @@ async function callRefineAI(
   const RETRY_DELAY = 2000; // 2초
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${REFINE_MODEL}:generateContent?key=${process.env.GOOGLE_GENERATIVE_AI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: REFINE_MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        max_tokens: REFINE_MAX_TOKENS,
-        temperature: REFINE_TEMPERATURE
+        contents: [{
+          parts: [{
+            text: `${systemPrompt}\n\n${userPrompt}`
+          }]
+        }],
+        generationConfig: {
+          maxOutputTokens: REFINE_MAX_TOKENS,
+          temperature: REFINE_TEMPERATURE,
+          thinkingConfig: {
+            thinking_budget: 0
+          }
+        }
       })
     });
 
     if (!response.ok) {
+      const errorData = await response.text();
+      console.error(`❌ [REFINE] API call failed with status ${response.status}: ${errorData}`);
+      
       // 502, 503, 504 에러는 재시도 가능
       if ((response.status === 502 || response.status === 503 || response.status === 504) && retryCount < MAX_RETRIES) {
         console.log(`🔄 [REFINE] Retrying API call (attempt ${retryCount + 1}/${MAX_RETRIES}) after ${response.status} error`);
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (retryCount + 1)));
         return callRefineAI(systemPrompt, userPrompt, retryCount + 1);
       }
-      throw new Error(`OpenAI API error: ${response.status}`);
+      throw new Error(`Google AI API error: ${response.status} - ${errorData}`);
     }
 
     const data = await response.json();
-    return data.choices?.[0]?.message?.content || null;
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
   } catch (error) {
     // 네트워크 에러나 기타 에러도 재시도
     if (retryCount < MAX_RETRIES) {
@@ -117,21 +124,17 @@ async function refineUserMemory(userId: string, supabase: any) {
 ## Usage Patterns
 - Typical activity, Session frequency
 
-CRITICAL LANGUAGE REQUIREMENT:
-- Analyze the conversation to detect the user's preferred language (Korean, English, Japanese, etc.)
-- Store ALL content in the user's preferred language
-- If the user primarily communicates in Korean, write the entire profile in Korean
-- If the user primarily communicates in English, write the entire profile in English
-- Maintain consistency with the user's communication style and language preference
+CRITICAL FORMAT REQUIREMENTS:
+- MUST preserve all existing section headers (## Basic Details, ## Professional Context, ## Usage Patterns)
+- MUST maintain the same language as the existing profile
+- DELETE any content that doesn't fit the required format
+- Content format within sections can be flexible (bullet points, paragraphs, numbered lists, etc.)
 
-IMPORTANT GUIDELINES:
-1. Only include information that can be reliably inferred from the conversation or provided user data.
-2. DO NOT make up information that wasn't mentioned or isn't provided.
-3. If information isn't available, keep the existing placeholder text in brackets.
-4. If updating an existing profile, integrate new observations while preserving previous insights.
-5. Format as a structured markdown document with clear sections.
-6. Focus on creating a useful reference that helps understand the user's background and context.
-7. ALWAYS write in the user's preferred language as detected from their conversation patterns.`;
+GUIDELINES:
+1. Only include information that can be reliably inferred from the conversation or provided user data
+2. DO NOT make up information that wasn't mentioned or isn't provided
+3. If information isn't available, keep the existing placeholder text in brackets
+4. Analyze conversation to detect user's preferred language and maintain consistency`;
 
         userPrompt = `Refine the following personal information using both existing memory and recent conversation context:
 
@@ -152,23 +155,20 @@ Create a comprehensive user profile with Basic Details, Professional Context, an
 ## Content Preferences
 - Code examples, Visual elements, Step-by-step guides, References inclusion
 
-## UI/UX Preferences
+## Response Format Preferences
 - Response format, Follow-up style
 
-CRITICAL LANGUAGE REQUIREMENT:
-- Analyze the conversation to detect the user's preferred language (Korean, English, Japanese, etc.)
-- Store ALL content in the user's preferred language
-- If the user primarily communicates in Korean, write the entire profile in Korean
-- If the user primarily communicates in English, write the entire profile in English
-- Maintain consistency with the user's communication style and language preference
+CRITICAL FORMAT REQUIREMENTS:
+- MUST preserve all existing section headers (## Communication Style, ## Content Preferences, ## Response Format Preferences)
+- MUST maintain the same language as the existing profile
+- DELETE any content that doesn't fit the required format
+- Content format within sections can be flexible (bullet points, paragraphs, numbered lists, etc.)
 
-IMPORTANT GUIDELINES:
-1. If this is the first time analyzing preferences, create a complete profile based on available information.
-2. If updating an existing profile, integrate new observations while preserving previous insights.
-3. Only include preferences that can be reliably inferred from the conversation.
-4. If certain preferences can't be determined, indicate "Not enough data" rather than guessing.
-5. Format as a structured markdown document with clear sections.
-6. ALWAYS write in the user's preferred language as detected from their conversation patterns.`;
+GUIDELINES:
+1. Only include preferences that can be reliably inferred from the conversation
+2. If certain preferences can't be determined, indicate "Not enough data" rather than guessing
+3. If updating an existing profile, integrate new observations while preserving previous insights
+4. Analyze conversation to detect user's preferred language and maintain consistency`;
 
         userPrompt = `Refine the following preferences using both existing memory and recent conversation context:
 
@@ -178,7 +178,7 @@ ${entry.content}
 RECENT CONVERSATION CONTEXT (last 50 messages):
 ${conversationText}
 
-Create a comprehensive preference profile with Communication Style, Content Preferences, and UI/UX Preferences sections.`;
+Create a comprehensive preference profile with Communication Style, Content Preferences, and Response Format Preferences sections.`;
 
       } else if (entry.category === '02-interests') {
         systemPrompt = `You are a memory refinement specialist for user interests. Create a comprehensive interest profile in markdown format with the following sections:
@@ -196,21 +196,17 @@ Create a comprehensive preference profile with Communication Style, Content Pref
 - Progress areas: Topics where the user shows increasing expertise
 - Challenging areas: Topics where the user seems to need more support
 
-CRITICAL LANGUAGE REQUIREMENT:
-- Analyze the conversation to detect the user's preferred language (Korean, English, Japanese, etc.)
-- Store ALL content in the user's preferred language
-- If the user primarily communicates in Korean, write the entire profile in Korean
-- If the user primarily communicates in English, write the entire profile in English
-- Maintain consistency with the user's communication style and language preference
+CRITICAL FORMAT REQUIREMENTS:
+- MUST preserve all existing section headers (## Primary Interests, ## Recent Topics, ## Learning Journey)
+- MUST maintain the same language as the existing profile
+- DELETE any content that doesn't fit the required format
+- Content format within sections can be flexible (bullet points, paragraphs, numbered lists, etc.)
 
-IMPORTANT GUIDELINES:
-1. Focus on identifying genuine interests, not just passing mentions.
-2. Look for patterns across multiple messages or sessions.
-3. Prioritize recurring topics that show sustained interest.
-4. If updating an existing profile, integrate new observations while preserving previous insights.
-5. Format as a structured markdown document with clear sections.
-6. Be specific about topics rather than using generic categories.
-7. ALWAYS write in the user's preferred language as detected from their conversation patterns.`;
+GUIDELINES:
+1. Focus on identifying genuine interests, not just passing mentions
+2. Look for patterns across multiple messages or sessions
+3. Prioritize recurring topics that show sustained interest
+4. Analyze conversation to detect user's preferred language and maintain consistency`;
 
         userPrompt = `Refine the following interests using both existing memory and recent conversation context:
 
@@ -237,21 +233,17 @@ Create a comprehensive interest profile with Primary Interests, Recent Topics, a
 - Note any questions or problems that weren't fully addressed
 - Include any tasks the user mentioned they wanted to complete
 
-CRITICAL LANGUAGE REQUIREMENT:
-- Analyze the conversation to detect the user's preferred language (Korean, English, Japanese, etc.)
-- Store ALL content in the user's preferred language
-- If the user primarily communicates in Korean, write the entire profile in Korean
-- If the user primarily communicates in English, write the entire profile in English
-- Maintain consistency with the user's communication style and language preference
+CRITICAL FORMAT REQUIREMENTS:
+- MUST preserve all existing section headers (## Recent Conversations, ## Recurring Questions, ## Unresolved Issues)
+- MUST maintain the same language as the existing profile
+- DELETE any content that doesn't fit the required format
+- Content format within sections can be flexible (bullet points, paragraphs, numbered lists, etc.)
 
-IMPORTANT GUIDELINES:
-1. Prioritize information that will be useful for future interactions.
-2. Focus on factual summaries rather than interpretations.
-3. If updating existing history, place the new interaction at the top of the Recent Conversations section.
-4. Include dates wherever possible to maintain chronology.
-5. Format as a structured markdown document with clear sections.
-6. Keep the history concise but comprehensive.
-7. ALWAYS write in the user's preferred language as detected from their conversation patterns.`;
+GUIDELINES:
+1. Prioritize information that will be useful for future interactions
+2. Focus on factual summaries rather than interpretations
+3. If updating existing history, place the new interaction at the top of the Recent Conversations section
+4. Analyze conversation to detect user's preferred language and maintain consistency`;
 
         userPrompt = `Refine the following interaction history using both existing memory and recent conversation context:
 
@@ -281,21 +273,17 @@ Create a comprehensive interaction history with Recent Conversations, Recurring 
 - Approaches to avoid: Communication patterns that don't resonate with this user
 - Relationship goals: How to improve the interaction quality over time
 
-CRITICAL LANGUAGE REQUIREMENT:
-- Analyze the conversation to detect the user's preferred language (Korean, English, Japanese, etc.)
-- Store ALL content in the user's preferred language
-- If the user primarily communicates in Korean, write the entire profile in Korean
-- If the user primarily communicates in English, write the entire profile in English
-- Maintain consistency with the user's communication style and language preference
+CRITICAL FORMAT REQUIREMENTS:
+- MUST preserve all existing section headers (## Communication Quality, ## Emotional Patterns, ## Personalization Strategy)
+- MUST maintain the same language as the existing profile
+- DELETE any content that doesn't fit the required format
+- Content format within sections can be flexible (bullet points, paragraphs, numbered lists, etc.)
 
-IMPORTANT GUIDELINES:
-1. Focus on objective observations rather than judgments.
-2. If updating existing data, integrate new observations while preserving previous insights.
-3. Be specific about observable communication patterns.
-4. Don't make assumptions about the user's actual feelings or thoughts.
-5. Format as a structured markdown document with clear sections.
-6. Focus on insights that will help improve future interactions.
-7. ALWAYS write in the user's preferred language as detected from their conversation patterns.`;
+GUIDELINES:
+1. Focus on objective observations rather than judgments
+2. Be specific about observable communication patterns
+3. Don't make assumptions about the user's actual feelings or thoughts
+4. Analyze conversation to detect user's preferred language and maintain consistency`;
 
         userPrompt = `Refine the following relationship profile using both existing memory and recent conversation context:
 
