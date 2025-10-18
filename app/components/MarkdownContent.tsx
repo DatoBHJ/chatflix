@@ -493,7 +493,12 @@ const segmentContent = (content: string): string[][] => {
   const urlRegex = /(https?:\/\/[^\s"'<>]+)/g;
   const finalContent = contentWithLinkSegments.replace(urlRegex, (match, url) => {
     // 이미 마크다운 링크로 처리된 URL이 아니고, 코드 블록 플레이스홀더 내부가 아닌 경우만 처리
-    if (!match.includes('[') && !match.includes(']') && !match.includes('<CODE_PLACEHOLDER_')) {
+    // 이미지 호스팅 URL은 제외 (이미지 렌더링 로직에서 처리하도록)
+    const isImageUrl = 
+      url.includes('/storage/v1/object/public/gemini-images/') ||
+      url.includes('image.pollinations.ai');
+    
+    if (!match.includes('[') && !match.includes(']') && !match.includes('<CODE_PLACEHOLDER_') && !isImageUrl) {
       linkSegments.push(match);
       return `\n\n<LINK_SEGMENT_${linkIndex++}>\n\n`;
     }
@@ -1460,6 +1465,20 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       });
     }
     
+    // Extract Supabase storage image URLs (both custom domain and default domain)
+    const supabaseImageRegex = /(https:\/\/[^\s/]+\/storage\/v1\/object\/public\/gemini-images\/[^\s)]+)/g;
+    while ((match = supabaseImageRegex.exec(processedContent)) !== null) {
+      const src = match[1];
+      // Avoid duplicates
+      if (!images.find(img => img.src === src)) {
+        images.push({ 
+          src, 
+          alt: `Generated image ${images.length + 1}`,
+          originalMatch: match[0]
+        });
+      }
+    }
+    
     console.log('Extracted images for gallery:', images);
     return images;
   }, [processedContent]);
@@ -2013,7 +2032,8 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       }
       
       // Check if this is a Supabase storage image link (Gemini images)
-      if (href && href.includes('.supabase.co/storage/v1/object/public/gemini-images/')) {
+      // Support both default Supabase domain and custom domain (auth.chatflix.app)
+      if (href && href.includes('/storage/v1/object/public/gemini-images/')) {
         const linkText = typeof children === 'string' ? children : extractText(children);
         
         return (
