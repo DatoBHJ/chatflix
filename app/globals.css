@@ -744,7 +744,8 @@ html, body {
   /* --background-dark: #161617; */
   --background-dark: #000000;
   --foreground-dark: #e5e5e5;
-  --accent-dark: #262626;
+  --accent-dark: #2C2C2E;
+  /* --accent-dark: #262626; most recent one*/ 
   /* --accent-dark: #181818;  */
   /* --sidebar-dark: #242424; literal imessage dark mode */
   --sidebar-dark: #131313;
@@ -2187,37 +2188,6 @@ p:has(.katex) {
   overflow: visible; /* 꼬리를 위해 visible로 유지 */
 }
 
-/* Single line bullet points should look like regular single line messages */
-.message-segment.single-line-bullet {
-  border-radius: 18px !important;
-  padding: 6px 12px !important;
-  margin: 2px 0 !important;
-  background-color: var(--accent) !important;
-  color: var(--foreground) !important;
-  max-width: fit-content !important;
-  display: inline-block !important;
-}
-
-/* Remove default list styling for single line bullets */
-.message-segment.single-line-bullet ul {
-  margin: 0 !important;
-  padding: 0 !important;
-  list-style: none !important;
-}
-
-.message-segment.single-line-bullet li {
-  margin: 0 !important;
-  padding: 0 !important;
-  list-style: none !important;
-  display: inline !important;
-}
-
-/* Add bullet point manually for single line bullets */
-.message-segment.single-line-bullet li::before {
-  content: "• " !important;
-  color: var(--foreground) !important;
-  font-weight: bold !important;
-}
 
 .message-segment.multi-line {
   border-radius: 18px;
@@ -3260,5 +3230,57 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   :root[data-theme="system"] .message-segment.touch-start-shadow {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
   }
+}
+
+/* Memory Bank Modal - Fix bubble tail background */
+.modal-content .message-segment.last-bubble::after {
+  background-color: var(--accent) !important;
+}
+
+/* Memory Bank Card Gallery Styles */
+.gallery-card {
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease;
+}
+
+/* Desktop arrow hover effects - Desktop only */
+@media (min-width: 641px) {
+  .hidden.sm\\:block button[class*="absolute"][class*="top-1/2"]:not(:disabled):hover {
+    transform: translateY(-50%) scale(1.08);
+  }
+
+  .hidden.sm\\:block button[class*="absolute"][class*="top-1/2"]:not(:disabled):active {
+    transform: translateY(-50%) scale(0.95);
+  }
+}
+
+/* Modal animation */
+.modal-overlay {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-content {
+  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Smooth page indicator transitions */
+.page-indicator-dot {
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+              background-color 0.3s ease;
 }
 

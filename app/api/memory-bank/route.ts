@@ -57,3 +57,52 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  try {
+    // Get authenticated user
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    const { category, content } = await req.json()
+
+    if (!category || !content) {
+      return NextResponse.json({ error: 'Category and content are required' }, { status: 400 })
+    }
+
+    // Update the specific category content
+    const { data: updatedCategory, error: updateError } = await supabase
+      .from('memory_bank')
+      .update({ 
+        content: content,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', user.id)
+      .eq('category', category)
+      .select('category, content, updated_at, last_refined_at')
+      .single()
+
+    if (updateError) {
+      console.error('Error updating category:', updateError)
+      return NextResponse.json({ error: 'Failed to update category' }, { status: 500 })
+    }
+
+    if (!updatedCategory) {
+      return NextResponse.json({ error: 'Category not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      success: true,
+      category: updatedCategory,
+      message: 'Category updated successfully'
+    })
+
+  } catch (error) {
+    console.error('Error updating memory bank category:', error)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  }
+}

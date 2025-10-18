@@ -1,6 +1,5 @@
 import React, { memo, useMemo, useState, useCallback, useEffect } from 'react'
 import { Calculator, Link2, ImageIcon, Youtube, Search } from 'lucide-react'
-import { SiGoogle } from 'react-icons/si'
 import { XLogo, YouTubeLogo } from '../CanvasFolder/CanvasLogo'
 import { getTopicIconComponent, getTopicName, getTopicIcon } from '../MultiSearch'
 
@@ -22,6 +21,8 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
   mathCalculationData,
   linkReaderData,
   imageGeneratorData,
+  geminiImageData,
+  seedreamImageData,
 
   xSearchData,
   youTubeSearchData,
@@ -36,6 +37,8 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
   mathCalculationData?: any;
   linkReaderData?: any;
   imageGeneratorData?: any;
+  geminiImageData?: any;
+  seedreamImageData?: any;
   academicSearchData?: any;
   xSearchData?: any;
   youTubeSearchData?: any;
@@ -340,7 +343,73 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
       });
     }
     
-
+    if (geminiImageData) {
+      const images = geminiImageData.generatedImages || [];
+      let displayText = '';
+      
+      if (images.length > 0) {
+        const firstImage = images[0];
+        const prompt = firstImage.prompt || '';
+        
+        if (prompt) {
+          displayText = prompt;
+        } else {
+          displayText = `${images.length} Gemini image${images.length > 1 ? 's' : ''} generated`;
+        }
+      } else {
+        displayText = 'Gemini image generation';
+      }
+      
+      let actualStatus = 'completed';
+      if (geminiImageData.status) {
+        actualStatus = geminiImageData.status;
+      } else if (images.length === 0) {
+        actualStatus = 'processing';
+      }
+      
+      activeTools.push({
+        id: 'gemini-image',
+        name: 'Nano Banana',
+        icon: <ImageIcon size={14} />,
+        status: actualStatus,
+        displayText,
+        count: images.length
+      });
+    }
+    
+    if (seedreamImageData) {
+      const images = seedreamImageData.generatedImages || [];
+      let displayText = '';
+      
+      if (images.length > 0) {
+        const firstImage = images[0];
+        const prompt = firstImage.prompt || '';
+        
+        if (prompt) {
+          displayText = prompt;
+        } else {
+          displayText = `${images.length} Seedream image${images.length > 1 ? 's' : ''} generated`;
+        }
+      } else {
+        displayText = 'Seedream 4.0 generation';
+      }
+      
+      let actualStatus = 'completed';
+      if (seedreamImageData.status) {
+        actualStatus = seedreamImageData.status;
+      } else if (images.length === 0) {
+        actualStatus = 'processing';
+      }
+      
+      activeTools.push({
+        id: 'seedream-image',
+        name: 'Seedream 4.0',
+        icon: <ImageIcon size={14} />,
+        status: actualStatus,
+        displayText,
+        count: images.length
+      });
+    }
     
     if (xSearchData) {
       const results = xSearchData.xResults || [];
@@ -463,7 +532,7 @@ export const CanvasToolsPreview = memo(function CanvasToolsPreview({
     
     
     return activeTools;
-  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData, googleSearchData]);
+  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, geminiImageData, seedreamImageData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData, googleSearchData]);
   
 
 

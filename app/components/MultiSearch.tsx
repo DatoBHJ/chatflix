@@ -24,12 +24,11 @@ import {
   BarChart3,
   FileText,
   Twitter,
-  Briefcase,
   BookOpen,
   Video,
   Play
 } from 'lucide-react';
-import { SiGoogle } from 'react-icons/si';
+import { SiGoogle, SiLinkedin } from 'react-icons/si';
 import { YouTubeEmbed, TikTokEmbed } from './MarkdownContent';
 import { LinkPreview } from './LinkPreview';
 
@@ -218,11 +217,11 @@ export const getTopicIconComponent = (topicIcon: string) => {
     case 'user':
       return <User {...iconProps} />;
     case 'briefcase':
-      return <Briefcase {...iconProps} />;
+      return <SiLinkedin {...iconProps} strokeWidth={0.5} className="h-3.5 w-3.5" />;
     case 'book-open':
       return <BookOpen {...iconProps} />;
     case 'google':
-      return <SiGoogle {...iconProps} />;
+      return <SiGoogle {...iconProps} strokeWidth={0.5} className="h-3.5 w-3.5" />;
     case 'google_images':
       return <Image {...iconProps} />;
     default:

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { tool } from 'ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { deduplicateResults, normalizeUrl, getPageTitle } from './utils/toolers';
 import * as mathjs from 'mathjs';
 import Exa from 'exa-js';
@@ -15,7 +16,8 @@ dotenv.config({
     TAVILY_API_KEY: process.env.TAVILY_API_KEY || '',
     EXA_API_KEY: process.env.EXA_API_KEY || '',
     WOLFRAM_ALPHA_APPID: process.env.WOLFRAM_ALPHA_APPID || '',
-    POLLINATIONAI_API_KEY: process.env.POLLINATIONAI_API_KEY || ''
+    POLLINATIONAI_API_KEY: process.env.POLLINATIONAI_API_KEY || '',
+    GOOGLE_GENERATIVE_AI_API_KEY: process.env.GOOGLE_GENERATIVE_AI_API_KEY || ''
   }
 });
 
@@ -1949,208 +1951,532 @@ export function createGoogleSearchTool(dataStream: any, forcedEngine?: string) {
   return Object.assign(googleSearchTool, { searchResults });
 }
 
-// 🆕 이전 도구 결과 참조 도구 생성 함수
-export function createPreviousToolResultsTool(dataStream: any, chatId?: string) {
-  // 이전 도구 결과를 저장할 배열
-  const previousToolResults: any[] = [];
+
+// Gemini 이미지 생성/편집 도구 생성 함수
+export function createGeminiImageTool(dataStream?: any, userId?: string, allMessages: any[] = []) {
+  // 생성된 이미지 추적
+  const generatedImages: Array<{
+    imageUrl: string;
+    prompt: string;
+    timestamp: string;
+    originalImageUrl?: string;
+    isEdit?: boolean;
+  }> = [];
+
+  // 🔥 대화 히스토리에서 사용자 업로드 이미지만 수집 및 인덱스 생성
+  const imageMap = new Map<string, string>();
+  let uploadedImageIndex = 1;
   
-  const previousToolResultsTool = tool({
-    description: 'Retrieve and provide access to previous tool results from the current conversation. This tool fetches the latest tool_results from the messages table to provide context for the AI.',
-    inputSchema: z.object({
-      chatId: z.string().optional().describe('The chat session ID to retrieve tool results from. If not provided, will use the current chat session.'),
-      limit: z.number().optional().describe('Maximum number of recent tool results to retrieve. Default is 5.')
-    }),
-    execute: async ({ chatId: inputChatId, limit = 5 }: { chatId?: string; limit?: number }) => {
-        // Supabase 클라이언트 생성
-        const { createClient } = await import('@/utils/supabase/server');
-        const supabase = await createClient();
+  console.log('[DEBUG-GEMINI] All messages:', allMessages);
+  for (const message of allMessages) {
+    // 업로드된 이미지 (experimental_attachments)
+    if (message.experimental_attachments && Array.isArray(message.experimental_attachments)) {
+      for (const attachment of message.experimental_attachments) {
+        if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
+          imageMap.set(`uploaded_image_${uploadedImageIndex}`, attachment.url);
+          uploadedImageIndex++;
+        }
+      }
+    }
+    
+    // 🔥 finalMessagesForExecution의 content 배열에서 이미지 파일 찾기
+    if (message.content && Array.isArray(message.content)) {
+      for (const contentItem of message.content) {
+        if (contentItem.type === 'file' && contentItem.mediaType?.startsWith('image/')) {
+          // data 필드에 URL이 있는 경우 (finalMessagesForExecution 형식)
+          if (contentItem.data && typeof contentItem.data === 'string') {
+            imageMap.set(`uploaded_image_${uploadedImageIndex}`, contentItem.data);
+            uploadedImageIndex++;
+          }
+        }
+      }
+    }
+  }
+  
+  console.log('[DEBUG-GEMINI] Image map created:', Array.from(imageMap.keys()));
+
+  // Supabase 업로드 헬퍼
+  async function uploadImageToSupabase(uint8Array: Uint8Array): Promise<string> {
+    const { createClient } = await import('@/utils/supabase/server');
+    const supabase = await createClient();
+    
+    const fileName = `gemini_${Date.now()}_${Math.random().toString(36).slice(2)}.png`;
+    const { data, error } = await supabase.storage
+      .from('gemini-images')
+      .upload(fileName, uint8Array, { contentType: 'image/png' });
+    
+    if (error) {
+      throw new Error(`Failed to upload image: ${error.message}`);
+    }
+    
+    const { data: { publicUrl } } = supabase.storage
+      .from('gemini-images')
+      .getPublicUrl(fileName);
+    
+    return publicUrl;
+  }
+
+  const geminiImageInputSchema = z.object({
+    prompt: z.string().describe('Text description for image generation or editing instructions'),
+    editImageUrl: z.union([
+      z.string(), 
+      z.array(z.string()),
+      z.null()
+    ]).optional().describe('Image reference(s): For user-uploaded images use "uploaded_image_N" (e.g., uploaded_image_1). For previously generated Gemini images, use the full Supabase public URL from the previous response. Can be a single string or array of up to 3 images.'),
+    aspectRatio: z.enum(['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9']).optional().describe('Image aspect ratio. AI should choose based on content type: 1:1 for social media/square, 16:9 for landscape/presentations, 9:16 for mobile/stories, 3:4 or 4:3 for portraits, 21:9 for cinematic. Default is 1:1.')
+  });
+
+  type GeminiImageInput = z.infer<typeof geminiImageInputSchema>;
+
+  const geminiImageTool = tool<GeminiImageInput, unknown>({
+    description: 'Generate and edit images using Google Gemini 2.5 Flash Image model with configurable aspect ratios. Can create new images from text prompts or edit existing images with natural language instructions. Supports various aspect ratios optimized for different use cases.',
+    inputSchema: geminiImageInputSchema,
+    execute: async ({ prompt, editImageUrl, aspectRatio }: GeminiImageInput) => {
+      try {
+        console.log('[DEBUG-GEMINI] Processing image request:', { prompt, editImageUrl });
+
+        // 이미지 생성/편집 시작 신호 전송
+        if (dataStream) {
+          dataStream.write({
+            type: 'data-gemini_image_started',
+            id: `ann-gemini-start-${Date.now()}`,
+            data: {
+              prompt,
+              editImageUrl,
+              started: true
+            }
+          });
+        }
+
+        // 🔥 이미지 참조를 실제 URL로 변환 (단일 또는 배열)
+        let actualEditImageUrls: string[] = [];
         
-        // 우선순위: 1) 함수 파라미터로 전달된 chatId, 2) 입력으로 받은 chatId, 3) 데이터베이스에서 추출
-        let targetChatId = chatId || inputChatId;
-        
-        if (!targetChatId) {
-          // 현재 사용자의 최신 채팅 세션에서 chatId 추출 시도
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            const { data: latestChat } = await supabase
-              .from('messages')
-              .select('chat_session_id')
-              .eq('user_id', user.id)
-              .not('chat_session_id', 'is', null)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .single();
-            
-            if (latestChat?.chat_session_id) {
-              targetChatId = latestChat.chat_session_id;
-              console.log('[Previous Tool Results] Extracted chatId from latest session:', targetChatId);
+        if (editImageUrl) {
+          const urlsToResolve = Array.isArray(editImageUrl) ? editImageUrl : [editImageUrl];
+          
+          for (const url of urlsToResolve) {
+            if (url.startsWith('uploaded_image_')) {
+              const resolvedUrl = imageMap.get(url);
+              if (resolvedUrl) {
+                actualEditImageUrls.push(resolvedUrl);
+                console.log(`[DEBUG-GEMINI] Resolved ${url} to:`, resolvedUrl);
+              } else {
+                throw new Error(`Image reference "${url}" not found in conversation history`);
+              }
+            } else {
+              actualEditImageUrls.push(url); // Direct URL (for generated images or external URLs)
             }
           }
         }
-        
-        // chatId가 여전히 없으면 에러 반환
-        if (!targetChatId) {
-          return {
-            error: 'chatId is required to retrieve previous tool results',
-            results: []
-          };
-        }
-        
-        console.log('[Previous Tool Results] Fetching tool results for chatId:', targetChatId);
-        
-        // 최신 tool_results가 있는 메시지들을 가져오기
-        const { data: messages, error } = await supabase
-          .from('messages')
-          .select('id, tool_results, created_at, role')
-          .eq('chat_session_id', targetChatId)
-          .not('tool_results', 'is', null)
-          .order('created_at', { ascending: false })
-          .limit(limit);
-        
-        if (error) {
-          console.error('[Previous Tool Results] Database error:', error);
-          return {
-            error: error.message,
-            results: []
-          };
-        }
-        
-        if (!messages || messages.length === 0) {
-          console.log('[Previous Tool Results] No tool results found for chatId:', targetChatId);
-          return {
-            message: 'No previous tool results found in this conversation',
-            results: []
-          };
-        }
-        
-        // tool_results 처리 및 정리
-        const processedResults = messages.map(msg => {
-          const toolResults = msg.tool_results as any;
-          
-          // 각 도구 결과 타입별로 정리
-          const result = {
-            messageId: msg.id,
-            createdAt: msg.created_at,
-            role: msg.role,
-            toolResults: {} as any
-          };
-          
-          // webSearchResults 처리
-          if (toolResults.webSearchResults) {
-            result.toolResults.webSearchResults = toolResults.webSearchResults.map((search: any) => ({
-              searchId: search.searchId,
-              searches: search.searches?.map((s: any) => ({
-                query: s.query,
-                topic: s.topic,
-                resultsCount: s.results?.length || 0,
-                imagesCount: s.images?.length || 0,
-                // 결과 요약 (첫 번째 결과만)
-                firstResult: s.results?.[0] ? {
-                  title: s.results[0].title,
-                  url: s.results[0].url,
-                  summary: s.results[0].summary
-                } : null
-              }))
-            }));
-          }
-          
-          // linkReaderAttempts 처리
-          if (toolResults.linkReaderAttempts) {
-            result.toolResults.linkReaderAttempts = toolResults.linkReaderAttempts.map((attempt: any) => ({
-              url: attempt.url,
-              status: attempt.status,
-              title: attempt.title,
-              contentLength: attempt.contentLength || 0
-            }));
-          }
-          
-          // calculationSteps 처리
-          if (toolResults.calculationSteps) {
-            result.toolResults.calculationSteps = toolResults.calculationSteps.map((step: any) => ({
-              step: step.step,
-              expression: step.expression,
-              result: step.result
-            }));
-          }
-          
-          // generatedImages 처리
-          if (toolResults.generatedImages) {
-            result.toolResults.generatedImages = toolResults.generatedImages.map((image: any) => ({
-              prompt: image.prompt,
-              model: image.model,
-              seed: image.seed,
-              timestamp: image.timestamp
-            }));
-          }
-          
 
-          
-          // youtubeSearchResults 처리
-          if (toolResults.youtubeSearchResults) {
-            result.toolResults.youtubeSearchResults = toolResults.youtubeSearchResults.map((search: any) => ({
-              query: search.query,
-              resultsCount: search.results?.length || 0,
-              firstResult: search.results?.[0] ? {
-                title: search.results[0].title,
-                channelName: search.results[0].channelName,
-                duration: search.results[0].duration
-              } : null
-            }));
-          }
-          
-          // youtubeLinkAnalysisResults 처리
-          if (toolResults.youtubeLinkAnalysisResults) {
-            result.toolResults.youtubeLinkAnalysisResults = toolResults.youtubeLinkAnalysisResults.map((analysis: any) => ({
-              url: analysis.url,
-              videoId: analysis.videoId,
-              details: analysis.details ? {
-                title: analysis.details.title,
-                author: analysis.details.author,
-                views: analysis.details.views
-              } : null,
-              hasTranscript: !!analysis.transcript
-            }));
-          }
-          
-          // structuredResponse 처리 (followup_questions)
-          if (toolResults.structuredResponse) {
-            result.toolResults.structuredResponse = {
-              followupQuestions: toolResults.structuredResponse.response?.followup_questions || []
-            };
-          }
-          
-          return result;
-        });
+        // Initialize Google Generative AI client
+        const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY!);
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image' });
+
+        let result;
         
-        // 결과를 내부 배열에 저장
-        previousToolResults.push(...processedResults);
+        if (actualEditImageUrls.length > 0) {
+          // 편집 모드: 기존 이미지 URL(들)에서 로드
+          console.log('[DEBUG-GEMINI] Editing/composing with images:', actualEditImageUrls);
+          
+          // Convert images to base64 inlineData format for official API
+          const imageParts = await Promise.all(
+            actualEditImageUrls.map(async (imageUrl) => {
+              const response = await fetch(imageUrl);
+              if (!response.ok) {
+                throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+              }
+              
+              const arrayBuffer = await response.arrayBuffer();
+              const base64 = Buffer.from(arrayBuffer).toString('base64');
+              
+              let mimeType = 'image/jpeg';
+              if (imageUrl.includes('.png')) mimeType = 'image/png';
+              else if (imageUrl.includes('.webp')) mimeType = 'image/webp';
+              
+              return {
+                inlineData: {
+                  data: base64,
+                  mimeType
+                }
+              };
+            })
+          );
+
+          const contentParts = [{ text: prompt }, ...imageParts];
+
+          const generationConfig: any = {};
+          if (aspectRatio) {
+            generationConfig.imageConfig = { aspectRatio };
+          }
+
+          result = await model.generateContent({
+            contents: [{ role: 'user', parts: contentParts }],
+            generationConfig
+          });
+        } else {
+          // 생성 모드: 새 이미지 생성
+          console.log('[DEBUG-GEMINI] Generating new image');
+          
+          const contentParts = [{ text: prompt }];
+
+          const generationConfig: any = {};
+          if (aspectRatio) {
+            generationConfig.imageConfig = { aspectRatio };
+          }
+
+          result = await model.generateContent({
+            contents: [{ role: 'user', parts: contentParts }],
+            generationConfig
+          });
+        }
+
+        console.log('[DEBUG-GEMINI] Result:', result);
+
+        // Extract image data and text response from official API response
+        let imageData: Uint8Array | null = null;
+        let textResponse = '';
+
+        if (result.response?.candidates?.[0]?.content?.parts) {
+          for (const part of result.response.candidates[0].content.parts) {
+            if (part.text) {
+              textResponse = part.text;
+            }
+            if (part.inlineData) {
+              imageData = Buffer.from(part.inlineData.data, 'base64');
+            }
+          }
+        }
+
+        // 이미지가 없으면 에러
+        if (!imageData) {
+          throw new Error('No image data returned from Gemini API. The model may have blocked the request or returned only text.');
+        }
+
         
-        console.log(`[Previous Tool Results] Retrieved ${processedResults.length} tool result sets`);
+        // Supabase에 업로드
+        const imageUrl = await uploadImageToSupabase(imageData);
         
-        // AI에게 반환할 요약 정보
-        const summary = {
-          totalMessages: processedResults.length,
-          availableToolTypes: Object.keys(processedResults.reduce((acc, msg) => {
-            Object.keys(msg.toolResults).forEach(key => acc[key] = true);
-            return acc;
-          }, {} as Record<string, boolean>)),
-          recentActivity: processedResults.slice(0, 3).map(msg => ({
-            role: msg.role,
-            createdAt: msg.createdAt,
-            toolTypes: Object.keys(msg.toolResults)
-          }))
+        // 도구 결과에 URL 저장
+        const imageResult = {
+          imageUrl,
+          prompt,
+          timestamp: new Date().toISOString(),
+          ...(actualEditImageUrls.length > 0 && { 
+            originalImageUrls: actualEditImageUrls, 
+            isEdit: true,
+            isComposition: actualEditImageUrls.length > 1
+          })
         };
+        
+        generatedImages.push(imageResult);
+
+        // 클라이언트에 완료 신호 전송
+        if (dataStream) {
+          dataStream.write({
+            type: 'data-gemini_image_complete',
+            id: `ann-gemini-complete-${Date.now()}`,
+            data: imageResult
+          });
+        }
+
+        return {
+          success: true,
+          imageUrl,
+          prompt,
+          textResponse, // Include text in AI context
+          isEdit: actualEditImageUrls.length > 0,
+          isComposition: actualEditImageUrls.length > 1,
+          originalImageUrls: actualEditImageUrls
+        };
+
+      } catch (error) {
+        console.error('[DEBUG-GEMINI] Error processing image:', error);
+        
+        // 에러 신호 전송
+        if (dataStream) {
+          dataStream.write({
+            type: 'data-gemini_image_error',
+            id: `ann-gemini-error-${Date.now()}`,
+            data: {
+              error: error instanceof Error ? error.message : 'Unknown error',
+              prompt,
+              editImageUrl: editImageUrl
+            }
+          });
+        }
         
         return {
-          summary,
-          detailedResults: processedResults,
-          message: `Retrieved ${processedResults.length} previous tool result sets from this conversation`
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error generating image',
+          prompt,
+          editImageUrl
         };
+      }
     }
   });
-  // 도구와 저장된 결과 배열을 함께 반환
-  return Object.assign(previousToolResultsTool, { previousToolResults });
+
+  // 도구와 생성된 이미지 리스트를 함께 반환
+  return Object.assign(geminiImageTool, { generatedImages });
 }
 
+// Seedream 4.0 이미지 생성/편집 도구 생성 함수
+export function createSeedreamImageTool(dataStream?: any, userId?: string, allMessages: any[] = []) {
+  
+  const generatedImages: Array<{
+    imageUrl: string;
+    prompt: string;
+    timestamp: string;
+    originalImageUrl?: string;
+    isEdit?: boolean;
+    size?: string;
+    aspectRatio?: string;
+  }> = [];
+
+  // 🔥 대화 히스토리에서 사용자 업로드 이미지만 수집 및 인덱스 생성
+  const imageMap = new Map<string, string>();
+  let uploadedImageIndex = 1;
+  
+  console.log('[DEBUG-SEEDREAM] All messages:', allMessages);
+  for (const message of allMessages) {
+    // 업로드된 이미지 (experimental_attachments)
+    if (message.experimental_attachments && Array.isArray(message.experimental_attachments)) {
+      for (const attachment of message.experimental_attachments) {
+        if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
+          imageMap.set(`uploaded_image_${uploadedImageIndex}`, attachment.url);
+          uploadedImageIndex++;
+        }
+      }
+    }
+    
+    // 🔥 finalMessagesForExecution의 content 배열에서 이미지 파일 찾기
+    if (message.content && Array.isArray(message.content)) {
+      for (const contentItem of message.content) {
+        if (contentItem.type === 'file' && contentItem.mediaType?.startsWith('image/')) {
+          // data 필드에 URL이 있는 경우 (finalMessagesForExecution 형식)
+          if (contentItem.data && typeof contentItem.data === 'string') {
+            imageMap.set(`uploaded_image_${uploadedImageIndex}`, contentItem.data);
+            uploadedImageIndex++;
+          }
+        }
+      }
+    }
+  }
+  
+  console.log('[DEBUG-SEEDREAM] Image map created:', Array.from(imageMap.keys()));
+
+  // Supabase 업로드 헬퍼
+  async function uploadImageToSupabase(uint8Array: Uint8Array): Promise<string> {
+    const { createClient } = await import('@/utils/supabase/server');
+    const supabase = await createClient();
+    
+    const fileName = `seedream_${Date.now()}_${Math.random().toString(36).slice(2)}.png`;
+    const { data, error } = await supabase.storage
+      .from('gemini-images')
+      .upload(fileName, uint8Array, { contentType: 'image/png' });
+    
+    if (error) {
+      throw new Error(`Failed to upload image: ${error.message}`);
+    }
+    
+    const { data: { publicUrl } } = supabase.storage
+      .from('gemini-images')
+      .getPublicUrl(fileName);
+    
+    return publicUrl;
+  }
+
+  // 이미지 다운로드 헬퍼
+  async function downloadImage(url: string): Promise<Uint8Array> {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to download image: ${response.statusText}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return new Uint8Array(arrayBuffer);
+  }
+
+  // 이미지를 base64 data URI로 변환하는 헬퍼
+  async function convertImageToDataUri(url: string): Promise<string> {
+    const uint8Array = await downloadImage(url);
+    const base64 = Buffer.from(uint8Array).toString('base64');
+    const contentType = 'image/png'; // Replicate expects PNG format
+    return `data:${contentType};base64,${base64}`;
+  }
+
+  const seedreamImageInputSchema = z.object({
+    prompt: z.string().describe('Text description for image generation or editing instructions'),
+    editImageUrl: z.union([
+      z.string(), 
+      z.array(z.string()),
+      z.null()
+    ]).optional().describe('Image reference(s): For user-uploaded images use "uploaded_image_N" (e.g., uploaded_image_1). For previously generated images, use the full Supabase public URL from the previous response. Can be a single string or array of up to 10 images.'),
+    size: z.enum(['1K', '2K', '4K', 'custom']).optional().describe('Image resolution: 1K (1024px), 2K (2048px), 4K (4096px), or custom dimensions'),
+    aspectRatio: z.string().optional().describe('Image aspect ratio (e.g., "1:1", "16:9", "4:3") or "match_input_image" to match input image aspect ratio'),
+    width: z.number().min(1024).max(4096).optional().describe('Custom image width (only used when size is "custom")'),
+    height: z.number().min(1024).max(4096).optional().describe('Custom image height (only used when size is "custom")'),
+    sequentialImageGeneration: z.enum(['disabled', 'auto']).optional().describe('Sequential image generation mode: "disabled" for single image, "auto" for multiple related images'),
+    maxImages: z.number().min(1).max(15).optional().describe('Maximum number of images to generate when sequentialImageGeneration is "auto"')
+  });
+
+  type SeedreamImageInput = z.infer<typeof seedreamImageInputSchema>;
+
+  const seedreamImageTool = tool<SeedreamImageInput, unknown>({
+    description: 'Generate and edit images using ByteDance Seedream 4.0 model via Replicate. Supports up to 4K resolution, batch generation, and multi-image composition.',
+    inputSchema: seedreamImageInputSchema,
+    execute: async ({ prompt, editImageUrl, size, aspectRatio, width, height, sequentialImageGeneration, maxImages }: SeedreamImageInput) => {
+      try {
+        console.log('[DEBUG-SEEDREAM] Processing image request:', { prompt, editImageUrl, size, aspectRatio, width, height, sequentialImageGeneration, maxImages });
+
+        // 이미지 생성/편집 시작 신호 전송
+        if (dataStream) {
+          dataStream.write({
+            type: 'data-seedream_image_started',
+            id: `ann-seedream-start-${Date.now()}`,
+            data: {
+              prompt,
+              editImageUrl,
+              size,
+              aspectRatio,
+              started: true
+            }
+          });
+        }
+
+        // 🔥 이미지 참조를 실제 URL로 변환 (단일 또는 배열)
+        let actualEditImageUrls: string[] = [];
+        
+        if (editImageUrl) {
+          const urlsToResolve = Array.isArray(editImageUrl) ? editImageUrl : [editImageUrl];
+          
+          for (const url of urlsToResolve) {
+            if (url.startsWith('uploaded_image_')) {
+              const resolvedUrl = imageMap.get(url);
+              if (resolvedUrl) {
+                actualEditImageUrls.push(resolvedUrl);
+                console.log(`[DEBUG-SEEDREAM] Resolved ${url} to:`, resolvedUrl);
+              } else {
+                throw new Error(`Image reference "${url}" not found in conversation history`);
+              }
+            } else {
+              actualEditImageUrls.push(url); // Direct URL (for generated images or external URLs)
+            }
+          }
+        }
+
+        // Replicate API 호출을 위한 입력 준비
+        const replicateInput: any = {
+          prompt,
+          size: size || '2K',
+          aspect_ratio: aspectRatio || 'match_input_image',
+          sequential_image_generation: sequentialImageGeneration || 'disabled',
+          max_images: maxImages || 1
+        };
+
+        // Custom size인 경우 width, height 추가
+        if (size === 'custom') {
+          replicateInput.width = width || 2048;
+          replicateInput.height = height || 2048;
+        }
+
+        // 편집 모드인 경우 이미지 입력 추가
+        if (actualEditImageUrls.length > 0) {
+          // 이미지를 base64 data URI로 변환
+          const imageInputs = await Promise.all(
+            actualEditImageUrls.map(url => convertImageToDataUri(url))
+          );
+          replicateInput.image_input = imageInputs;
+        }
+
+        console.log('[DEBUG-SEEDREAM] Calling Replicate API with input:', replicateInput);
+
+        // Replicate API 호출
+        const Replicate = (await import('replicate')).default;
+        const replicate = new Replicate({
+          auth: process.env.REPLICATE_API_TOKEN,
+        });
+
+        const output = await replicate.run("bytedance/seedream-4", { input: replicateInput });
+        
+        console.log('[DEBUG-SEEDREAM] Replicate output:', output);
+
+        if (!Array.isArray(output) || output.length === 0) {
+          throw new Error('No images generated by Replicate');
+        }
+
+        // 생성된 이미지들을 Supabase에 업로드
+        const uploadedImages = await Promise.all(
+          output.map(async (imageUrl: string, index: number) => {
+            try {
+              const imageData = await downloadImage(imageUrl);
+              const supabaseUrl = await uploadImageToSupabase(imageData);
+              
+              const imageResult = {
+                imageUrl: supabaseUrl,
+                prompt,
+                timestamp: new Date().toISOString(),
+                originalImageUrl: actualEditImageUrls.length > 0 ? actualEditImageUrls[0] : undefined,
+                isEdit: actualEditImageUrls.length > 0,
+                size,
+                aspectRatio
+              };
+
+              generatedImages.push(imageResult);
+
+              // 클라이언트에 이미지 생성 완료 신호 전송
+              if (dataStream) {
+                dataStream.write({
+                  type: 'data-seedream_image_complete',
+                  id: `ann-seedream-complete-${Date.now()}-${index}`,
+                  data: imageResult
+                });
+              }
+
+              return imageResult;
+            } catch (error) {
+              console.error(`[DEBUG-SEEDREAM] Error processing image ${index}:`, error);
+              throw error;
+            }
+          })
+        );
+
+        console.log('[DEBUG-SEEDREAM] Successfully processed', uploadedImages.length, 'images');
+
+        return {
+          success: true,
+          images: uploadedImages,
+          count: uploadedImages.length,
+          prompt,
+          size,
+          aspectRatio
+        };
+
+      } catch (error) {
+        console.error('[DEBUG-SEEDREAM] Error in seedream image tool:', error);
+        
+        // 에러 신호 전송
+        if (dataStream) {
+          dataStream.write({
+            type: 'data-seedream_image_error',
+            id: `ann-seedream-error-${Date.now()}`,
+            data: {
+              error: error instanceof Error ? error.message : 'Unknown error',
+              prompt
+            }
+          });
+        }
+
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error occurred',
+          prompt
+        };
+      }
+    }
+  });
+
+  // 도구와 생성된 이미지 리스트를 함께 반환
+  return Object.assign(seedreamImageTool, { generatedImages });
+}
 
 

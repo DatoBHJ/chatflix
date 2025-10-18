@@ -48,6 +48,7 @@ Basic structure maintained for future updates.
  * @param userPrompt - The user prompt with the actual query
  * @param maxTokens - Maximum tokens to generate (default: 500)
  * @param temperature - Temperature for generation (default: 0.3)
+ * @param responseSchema - Optional JSON schema for structured output (guarantees JSON response)
  * @returns The generated content or null if the request fails
  */
 export async function callMemoryBankUpdate(
@@ -55,7 +56,8 @@ export async function callMemoryBankUpdate(
   systemPrompt: string, 
   userPrompt: string, 
   maxTokens: number = 500, 
-  temperature: number = 0.3
+  temperature: number = 0.3,
+  responseSchema?: object
 ): Promise<string | null> {
   try {
     console.log(`🤖 [MEMORY AI] Calling Google AI API with model: ${model}`);
@@ -84,7 +86,11 @@ export async function callMemoryBankUpdate(
           temperature: temperature,
           thinkingConfig: {
             thinking_budget: 0
-          }
+          },
+          ...(responseSchema && {
+            responseMimeType: "application/json",
+            responseSchema: responseSchema
+          })
         }
       })
     });

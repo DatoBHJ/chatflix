@@ -1,12 +1,13 @@
 import { 
   createWebSearchTool, 
   createJinaLinkReaderTool, 
-  createImageGeneratorTool, 
+  // createImageGeneratorTool, // DISABLED: pollination.ai image generator
   createCalculatorTool, 
   createYouTubeSearchTool, 
   createYouTubeLinkAnalyzerTool, 
   createGoogleSearchTool,
-  createPreviousToolResultsTool, 
+  createGeminiImageTool,
+  createSeedreamImageTool,
 } from '../tools';
 
 // 🆕 도구 레지스트리 - 모든 도구를 중앙에서 관리
@@ -26,11 +27,11 @@ export const TOOL_REGISTRY = {
     resultKey: 'linkReaderAttempts',
     description: 'Reading and analyzing web page content'
   },
-  'image_generator': {
-    createFn: createImageGeneratorTool,
-    resultKey: 'generatedImages',
-    description: 'Creating visual content'
-  },
+  // 'image_generator': { // DISABLED: pollination.ai image generator
+  //   createFn: createImageGeneratorTool,
+  //   resultKey: 'generatedImages',
+  //   description: 'Creating visual content'
+  // },
 
   'youtube_search': {
     createFn: createYouTubeSearchTool,
@@ -47,10 +48,15 @@ export const TOOL_REGISTRY = {
     resultKey: 'googleSearchResults',
     description: 'Google search using SearchAPI for comprehensive web results'
   },
-  'previous_tool_results': {
-    createFn: createPreviousToolResultsTool,
-    resultKey: 'previousToolResults',
-    description: 'Access to previous tool results from conversation'
+  'gemini_image_tool': {
+    createFn: (dataStream: any, userId: string, messages: any[]) => createGeminiImageTool(dataStream, userId, messages),
+    resultKey: 'geminiImageResults',
+    description: 'Gemini 2.5 Flash image generation & editing'
+  },
+  'seedream_image_tool': {
+    createFn: (dataStream: any, userId: string, messages: any[]) => createSeedreamImageTool(dataStream, userId, messages),
+    resultKey: 'seedreamImageResults',
+    description: 'Seedream 4.0 image generation & editing via Replicate'
   }
   // 'x_search': {
   //   createFn: createXSearchTool,
@@ -62,13 +68,18 @@ export const TOOL_REGISTRY = {
 /**
  * AI SDK v5: 간소화된 도구 초기화 함수
  */
-export function initializeTool(type: string, dataStream: any) {
-  const toolConfig = TOOL_REGISTRY[type as keyof typeof TOOL_REGISTRY];
-  if (!toolConfig) {
-    throw new Error(`Unknown tool type: ${type}`);
-  }
-  return toolConfig.createFn(dataStream);
-}
+// export function initializeTool(type: string, dataStream: any, userId?: string, messages?: any[]) {
+//   const toolConfig = TOOL_REGISTRY[type as keyof typeof TOOL_REGISTRY];
+//   if (!toolConfig) {
+//     throw new Error(`Unknown tool type: ${type}`);
+//   }
+  
+//   if (type === 'gemini_image_tool' && userId && messages) {
+//     return toolConfig.createFn(dataStream, userId, messages);
+//   }
+  
+//   return (toolConfig.createFn as any)(dataStream);
+// }
 
 /**
  * AI SDK v5: 간소화된 도구 유틸리티 함수들
@@ -94,11 +105,12 @@ export function collectToolResults(tools: Record<string, any>, toolNames: string
       'calculator': 'calculationSteps',
       'web_search': 'searchResults', 
       'link_reader': 'linkAttempts',
-      'image_generator': 'generatedImages',
+      // 'image_generator': 'generatedImages', // DISABLED: pollination.ai image generator
       'youtube_search': 'searchResults',
       'youtube_link_analyzer': 'analysisResults',
       'google_search': 'searchResults',
-      'previous_tool_results': 'previousToolResults'
+      'gemini_image_tool': 'generatedImages',
+      'seedream_image_tool': 'generatedImages'
     };
     
     const resultKey = resultMap[toolName] || 'results';

@@ -5,24 +5,12 @@ import { getModelById} from '@/lib/models/config';
 // AI SDK v5 네이티브 타입만 사용
 // import { z } from 'zod';
 import { 
-  
-  // saveUserMessage,
-  // createOrUpdateAssistantMessage,
-  // handleStreamCompletion,
   saveCompletedMessages,
   buildSystemPrompt,
   getCachedUserMemory
 } from './services/chatService';
 import { 
-  generateMessageId, 
-  validateAndUpdateSession,
   getProviderFromModel,
-  // convertMultiModalToMessage,
-  // selectMessagesWithinTokenLimit,
-  // detectImages,
-  // detectPDFs,
-  // detectCodeAttachments,
-  // fetchFileContent,
   extractTextFromMessage,
   extractTextFromCompletion,
   generateMessageTitle,
@@ -31,13 +19,11 @@ import {
 } from './utils/messageUtils';
 import { 
   TOOL_REGISTRY,
-  // initializeTool,
   getAvailableTools,
   getToolDescriptions,
   collectToolResults
 } from './utils/toolUtils';
 import { handleRateLimiting, handleChatflixRateLimiting } from './utils/ratelimit';
-// import { toolPrompts } from './prompts/toolPrompts';
 import { checkSubscriptionFromDatabase } from '@/lib/subscription-db';
 import { getProviderOptionsWithTools } from './utils/providerOptions';
 
@@ -48,9 +34,6 @@ import { initializeMemoryBank, getAllMemoryBank, getUserPersonalInfo } from '@/u
 import { smartUpdateMemoryBanks } from './services/memoryService';
 import { selectOptimalModel } from './services/modelSelector';
 import { estimateMultiModalTokens } from '@/utils/context-manager';
-// import { 
-//   analyzeRequestAndDetermineRoute
-// } from './services/analysisService';
 // import { markdownJoinerTransform } from './markdown-transform';
 
 // 🚀 익명 사용자용 UUID 생성 함수
@@ -376,18 +359,6 @@ export async function POST(req: Request): Promise<Response> {
           // 🆕 사용자가 직접 도구를 선택한 경우 vs 자동 라우팅
           let selectedActiveTools: Array<keyof typeof TOOL_REGISTRY>;
           
-          // 🔧 FIX: 중복 제거 헬퍼 함수
-          const addToolsWithPreviousResults = (tools: string[]): Array<keyof typeof TOOL_REGISTRY> => {
-            const toolsWithoutPrevious = tools.filter(tool => tool !== 'previous_tool_results');
-            const finalTools = ['previous_tool_results', ...toolsWithoutPrevious] as Array<keyof typeof TOOL_REGISTRY>;
-            
-            // 중복 제거 로그
-            if (tools.includes('previous_tool_results')) {
-              console.log(`[TOOL_SELECTION] Removed duplicate previous_tool_results from: [${tools.join(', ')}] -> [${finalTools.join(', ')}]`);
-            }
-            
-            return finalTools;
-          };
           
           if (selectedTool && selectedTool !== 'file_upload') {
             // 사용자가 직접 도구를 선택한 경우
@@ -399,7 +370,7 @@ export async function POST(req: Request): Promise<Response> {
               console.log(`[TOOL_SELECTION] Web search with specific topic: ${topic}`);
               
               // 웹서치 도구에 특정 토픽을 강제로 설정
-              selectedActiveTools = addToolsWithPreviousResults(['web_search']);
+              selectedActiveTools = ['web_search'] as Array<keyof typeof TOOL_REGISTRY>;
               
               // 웹서치 도구 생성 시 사용할 토픽 정보를 저장
               (writer as any)._selectedWebSearchTopic = topic;
@@ -408,7 +379,7 @@ export async function POST(req: Request): Promise<Response> {
               console.log(`[TOOL_SELECTION] Google Images selected`);
               
               // Google Search 도구에 google_images 엔진을 강제로 설정
-              selectedActiveTools = addToolsWithPreviousResults(['google_search']);
+              selectedActiveTools = ['google_search'] as Array<keyof typeof TOOL_REGISTRY>;
               
               // Google Search 도구 생성 시 사용할 엔진 정보를 저장
               (writer as any)._selectedGoogleSearchEngine = 'google_images';
@@ -417,19 +388,19 @@ export async function POST(req: Request): Promise<Response> {
               console.log(`[TOOL_SELECTION] Google Videos selected`);
               
               // Google Search 도구에 google_videos 엔진을 강제로 설정
-              selectedActiveTools = addToolsWithPreviousResults(['google_search']);
+              selectedActiveTools = ['google_search'] as Array<keyof typeof TOOL_REGISTRY>;
               
               // Google Search 도구 생성 시 사용할 엔진 정보를 저장
               (writer as any)._selectedGoogleSearchEngine = 'google_videos';
             } else {
               // 일반 도구인 경우
-              selectedActiveTools = addToolsWithPreviousResults([selectedTool]);
+              selectedActiveTools = [selectedTool] as Array<keyof typeof TOOL_REGISTRY>;
             }
           } else {
             // 🚀 모든 도구 허용 (라우팅 분석 생략)
             console.log(`[TOOL_SELECTION] Using all available tools (routing analysis skipped)`);
             const allAvailableTools = getAvailableTools();
-            selectedActiveTools = addToolsWithPreviousResults(allAvailableTools);
+            selectedActiveTools = allAvailableTools as Array<keyof typeof TOOL_REGISTRY>;
             
             // 🔧 기존 라우팅 분석 코드 (주석 처리 - 필요시 복원 가능)
             /*
@@ -456,20 +427,6 @@ export async function POST(req: Request): Promise<Response> {
             */
           }
               
-          // 🆕 AI SDK v5: 전체 도구 세트 정의 + 활성 도구 제한
-          const allTools = Object.fromEntries(
-            Object.entries(TOOL_REGISTRY).map(([toolName, config]) => [
-              toolName,
-              toolName === 'previous_tool_results' 
-                ? (config.createFn as any)(writer, chatId) // previous_tool_results에만 chatId 전달
-                : toolName === 'web_search' && (writer as any)._selectedWebSearchTopic
-                ? config.createFn(writer, (writer as any)._selectedWebSearchTopic) // 웹서치에 강제 토픽 전달
-                : toolName === 'google_search' && (writer as any)._selectedGoogleSearchEngine
-                ? config.createFn(writer, (writer as any)._selectedGoogleSearchEngine) // Google Search에 강제 엔진 전달
-                : config.createFn(writer)
-            ])
-          );
-              
           // Provider options with tools
           const providerOptions = getProviderOptionsWithTools(
             model,
@@ -486,6 +443,22 @@ export async function POST(req: Request): Promise<Response> {
           // 🔧 AI SDK v5: 공통 메시지 처리 함수 사용 (도구 유무와 관계없이 동일)
           const finalMessagesForExecution = await processMessagesForAI(messagesWithTokens, model);
           console.log('finalMessagesForExecution', JSON.stringify(finalMessagesForExecution, null, 2));
+
+          // 🆕 AI SDK v5: 전체 도구 세트 정의 + 활성 도구 제한 (finalMessagesForExecution 이후에 생성)
+          const allTools = Object.fromEntries(
+            Object.entries(TOOL_REGISTRY).map(([toolName, config]) => [
+              toolName,
+              toolName === 'web_search' && (writer as any)._selectedWebSearchTopic
+                ? (config.createFn as any)(writer, (writer as any)._selectedWebSearchTopic) // 웹서치에 강제 토픽 전달
+                : toolName === 'google_search' && (writer as any)._selectedGoogleSearchEngine
+                ? (config.createFn as any)(writer, (writer as any)._selectedGoogleSearchEngine) // Google Search에 강제 엔진 전달
+                : toolName === 'gemini_image_tool'
+                ? (config.createFn as any)(writer, user?.id || anonymousUserId, finalMessagesForExecution) // gemini_image_tool에 finalMessagesForExecution 전달
+                : toolName === 'seedream_image_tool'
+                ? (config.createFn as any)(writer, user?.id || anonymousUserId, finalMessagesForExecution) // seedream_image_tool에 finalMessagesForExecution 전달
+                : (config.createFn as any)(writer)
+            ])
+          );
           // 시스템 프롬프트 설정 (캐시된 메모리 사용)
           const agentSystemPrompt = buildSystemPrompt(
             'agent', 
@@ -882,20 +855,13 @@ export async function POST(req: Request): Promise<Response> {
                   if (userMessage && aiMessage) {
                     console.log('🧠 [MEMORY] Starting smart memory update...');
                     
-                    // 기존 메모리 데이터 로드
-                    const { data: memoryData } = await getAllMemoryBank(
-                      supabase, 
-                      user?.id || anonymousUserId
-                    );
-                    
                     await smartUpdateMemoryBanks(
                           supabase, 
                           user?.id || anonymousUserId, 
                           chatId, 
                           originalMessages, 
                           userMessage, 
-                          aiMessage,
-                          memoryData // 기존 메모리 데이터 전달
+                          aiMessage
                         );
                     console.log('✅ [MEMORY] Smart memory update completed');
                   }

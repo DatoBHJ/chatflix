@@ -7,8 +7,8 @@ import { ChatInputProps } from './types';
 import { useChatInputStyles } from './ChatInputStyles';
 import { FileUploadButton, FilePreview, fileHelpers } from './FileUpload';
 import { ErrorToast } from './DragDropOverlay';
-import { Search, Calculator, Link, Image, Video, FileText, Plus, BarChart3, Building, BookOpen, Github, User, Briefcase, FileVideo, Paperclip, Youtube } from 'lucide-react';
-import { SiGoogle } from 'react-icons/si';
+import { Search, Calculator, Link, Image, Video, FileText, Plus, BarChart3, Building, BookOpen, Github, User, FileVideo, Paperclip, Youtube } from 'lucide-react';
+import { SiGoogle, SiLinkedin } from 'react-icons/si';
 import { Brain as BrainIOS } from 'react-ios-icons'; 
 import { FileMetadata } from '@/lib/types';
 import { 
@@ -24,9 +24,9 @@ import { estimateTokenCount, estimateMultiModalTokens, estimateFileTokens, estim
 
 // 도구 정의 - Google Search가 일반 검색의 기본 도구, Exa는 특별한 콘텐츠용
 export const TOOLS = [
-  { id: 'google_search', icon: <SiGoogle size={18} />, name: 'Google Search', description: 'Search Google for comprehensive results' },
-  { id: 'google-images', icon: <SiGoogle size={18} />, name: 'Google Images', description: 'Search Google Images for visual content' },
-  { id: 'google-videos', icon: <SiGoogle size={18} />, name: 'Google Videos', description: 'Search Google Videos for video content' },
+  { id: 'google_search', icon: <SiGoogle strokeWidth={0.5} className="h-2 w-2" />, name: 'Google Search', description: 'Search Google for comprehensive results' },
+  { id: 'google-images', icon: <SiGoogle strokeWidth={0.5} className="h-2 w-2" />, name: 'Google Images', description: 'Search Google Images for visual content' },
+  { id: 'google-videos', icon: <SiGoogle strokeWidth={0.5} className="h-2 w-2" />, name: 'Google Videos', description: 'Search Google Videos for video content' },
   { id: 'web_search:general', icon: <Search strokeWidth={1.8} />, name: 'Advanced Search', description: 'Neural search engine for specialized content' },
   // 뉴스는 Google Search로 통합 (Exa news 제거됨)
   // { id: 'web_search:news', icon: <Newspaper strokeWidth={1.8} />, name: 'News Search', description: 'Find latest news and articles' },
@@ -35,13 +35,20 @@ export const TOOLS = [
   { id: 'youtube_link_analyzer', icon: <Youtube strokeWidth={1.8} />, name: 'YouTube Analyzer', description: 'Analyze YouTube videos' },
   { id: 'web_search:github', icon: <Github strokeWidth={1.8} />, name: 'GitHub Search', description: 'Search GitHub repositories' },
   { id: 'web_search:personal site', icon: <User strokeWidth={1.8} />, name: 'Personal Sites', description: 'Find personal websites and blogs' },
-  { id: 'web_search:linkedin profile', icon: <Briefcase strokeWidth={1.8} />, name: 'LinkedIn Profiles', description: 'Search LinkedIn profiles' },
+  { id: 'web_search:linkedin profile', icon: <SiLinkedin strokeWidth={0.5} className="h-2 w-2" />, name: 'LinkedIn Profiles', description: 'Search LinkedIn profiles' },
   { id: 'web_search:company', icon: <Building strokeWidth={1.8} />, name: 'Company Search', description: 'Find company information' },
   { id: 'web_search:financial report', icon: <BarChart3 strokeWidth={1.8} />, name: 'Financial Reports', description: 'Search financial data and reports' },
   { id: 'web_search:research paper', icon: <BookOpen strokeWidth={1.8} />, name: 'Academic Papers', description: 'Find academic research papers' },
   { id: 'web_search:pdf', icon: <FileText strokeWidth={1.8} />, name: 'PDF Search', description: 'Search PDF documents' },
   { id: 'calculator', icon: <Calculator strokeWidth={1.8} />, name: 'Calculator', description: 'Mathematical calculations' },
-  { id: 'image_generator', icon: <Image strokeWidth={1.8} />, name: 'Image Generator', description: 'Generate images from text' },
+  // { id: 'image_generator', icon: <Image strokeWidth={1.8} />, name: 'Image Generator', description: 'Generate images from text' }, // DISABLED: pollination.ai image generator
+  { id: 'gemini_image_tool', icon: <Image strokeWidth={1.8} />, name: '🍌 Nano Banana', description: 'Gemini image generation & editing' },
+  { 
+    id: 'seedream_image_tool', 
+    icon: <Image strokeWidth={1.8} />, 
+    name: 'Seedream 4.0', 
+    description: 'ByteDance 4K image generation & editing' 
+  },
 ];
 
 
@@ -225,7 +232,9 @@ export function ChatInput({
           'google-videos': 'Search videos on Google',
           'calculator': 'Enter a calculation',
           'link_reader': 'Paste a URL to read',
-          'image_generator': 'Describe an image to generate',
+          // 'image_generator': 'Describe an image to generate', // DISABLED: pollination.ai image generator
+          'gemini_image_tool': 'Generate or edit images',
+          'seedream_image_tool': 'Generate or edit images in 4K',
           'youtube_search': 'Search YouTube videos',
           'youtube_link_analyzer': 'Paste YouTube URL to analyze'
         };
@@ -247,7 +256,9 @@ export function ChatInput({
           'google-videos': 'Search videos on Google',
           'calculator': 'Calculate mortgage payment 500k 30yr 4.5%',
           'link_reader': 'https://www.showstudio.com/projects/in_camera/kanye_west',
-          'image_generator': 'Draw a futuristic city skyline at sunset',
+          // 'image_generator': 'Draw a futuristic city skyline at sunset', // DISABLED: pollination.ai image generator
+          'gemini_image_tool': 'Generate or edit images',
+          'seedream_image_tool': 'Generate or edit images in 4K',
           'youtube_search': 'Search cooking tutorials for beginners',
           'youtube_link_analyzer': 'https://www.youtube.com/watch?v=60RFIF9y8fY'
         };
@@ -1248,8 +1259,7 @@ export function ChatInput({
                                 : 'text-[var(--muted)]'
                             }`}>
                               {React.cloneElement(tool.icon, { 
-                                className: "h-3.5 w-3.5",
-                                strokeWidth: 2
+                                className: "h-3.5 w-3.5"
                               })}
                             </div>
                             <span className={`text-sm font-medium ${

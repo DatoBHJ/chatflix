@@ -53,6 +53,8 @@ interface MessageProps {
   mathCalculationData?: any
   linkReaderData?: any
   imageGeneratorData?: any
+  geminiImageData?: any
+  seedreamImageData?: any
 
   xSearchData?: any
   youTubeSearchData?: any
@@ -165,6 +167,8 @@ const Message = memo(function MessageComponent({
   mathCalculationData,
   linkReaderData,
   imageGeneratorData,
+  geminiImageData,
+  seedreamImageData,
 
   xSearchData,
   youTubeSearchData,
@@ -782,6 +786,8 @@ const Message = memo(function MessageComponent({
       mathCalculationData ||
       linkReaderData ||
       imageGeneratorData ||
+      geminiImageData ||
+      seedreamImageData ||
       xSearchData ||
       youTubeSearchData ||
       youTubeLinkAnalysisData ||
@@ -792,6 +798,8 @@ const Message = memo(function MessageComponent({
     mathCalculationData,
     linkReaderData,
     imageGeneratorData,
+    geminiImageData,
+    seedreamImageData,
     xSearchData,
     youTubeSearchData,
     youTubeLinkAnalysisData,
@@ -1539,6 +1547,8 @@ const Message = memo(function MessageComponent({
         mathCalculationData={mathCalculationData}
         linkReaderData={linkReaderData}
         imageGeneratorData={imageGeneratorData}
+        geminiImageData={geminiImageData}
+        seedreamImageData={seedreamImageData}
         xSearchData={xSearchData}
         youTubeSearchData={youTubeSearchData}
         youTubeLinkAnalysisData={youTubeLinkAnalysisData}

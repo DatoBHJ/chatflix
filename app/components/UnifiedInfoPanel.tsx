@@ -34,6 +34,8 @@ interface UnifiedInfoPanelProps {
   mathCalculationData?: any;
   linkReaderData?: any;
   imageGeneratorData?: any;
+  geminiImageData?: any;
+  seedreamImageData?: any;
   xSearchData?: any;
   youTubeSearchData?: any;
   youTubeLinkAnalysisData?: any;
@@ -181,6 +183,13 @@ const isToolLoading = (toolData: any, toolType: string): boolean => {
       }
       return false;
 
+    case 'seedreamImage':
+      // Seedream Image: 이미지가 생성되면 로딩 해제
+      if (Array.isArray(toolData.generatedImages) && toolData.generatedImages.length > 0) return false;
+      if (toolData.generatedImages && toolData.generatedImages.length === 0) return true;
+      if (toolData.status === 'processing' || toolData.status === 'in_progress') return true;
+      return false;
+
     default:
       return false;
   }
@@ -204,6 +213,8 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
   mathCalculationData,
   linkReaderData,
   imageGeneratorData,
+  geminiImageData,
+  seedreamImageData,
   xSearchData,
   youTubeSearchData,
   youTubeLinkAnalysisData,
@@ -225,6 +236,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
       mathCalculation: isToolLoading(mathCalculationData, 'mathCalculation'),
       linkReader: isToolLoading(linkReaderData, 'linkReader'),
       imageGenerator: isToolLoading(imageGeneratorData, 'imageGenerator'),
+      geminiImage: isToolLoading(geminiImageData, 'geminiImage'),
       xSearch: isToolLoading(xSearchData, 'xSearch'),
       youTubeSearch: isToolLoading(youTubeSearchData, 'youTubeSearch'),
       youTubeAnalyzer: isToolLoading(youTubeLinkAnalysisData, 'youTubeAnalyzer'),
@@ -241,7 +253,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
       loadingTools,
       toolStates
     };
-  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData, googleSearchData]);
+  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, geminiImageData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData, googleSearchData]);
 
   // 제목이 도착하기 전까지 현재 상태를 간단히 표시
   const derivedTitle = useMemo(() => {
@@ -379,6 +391,8 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
                   mathCalculationData={mathCalculationData}
                   linkReaderData={linkReaderData}
                   imageGeneratorData={imageGeneratorData}
+                  geminiImageData={geminiImageData}
+                  seedreamImageData={seedreamImageData}
                   xSearchData={xSearchData}
                   youTubeSearchData={youTubeSearchData}
                   youTubeLinkAnalysisData={youTubeLinkAnalysisData}

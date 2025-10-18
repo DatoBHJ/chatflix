@@ -15,7 +15,7 @@ import { getSystemDefaultModelId, MODEL_CONFIGS, RATE_LIMITS, isChatflixModel, g
 import { VirtualizedMessages } from '@/app/components/VirtualizedMessages';
 import { SidePanel } from '@/app/components/SidePanel';
 import { ChatInputArea } from '@/app/components/ChatInputArea';
-import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getXSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGoogleSearchData } from '@/app/hooks/toolFunction';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getXSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getGoogleSearchData } from '@/app/hooks/toolFunction';
 import { Annotation } from '@/app/lib/messageUtils';
 import { nanoid } from 'nanoid';
 import { SuggestedPrompt } from '@/app/components/SuggestedPrompt/SuggestedPrompt';
@@ -1288,6 +1288,8 @@ function ChatInterface({
       getMathCalculationData(message) || 
       getLinkReaderData(message) || 
       getImageGeneratorData(message) || 
+      getGeminiImageData(message) ||
+      getSeedreamImageData(message) ||
       getYouTubeSearchData(message) || 
       getYouTubeLinkAnalysisData(message) || 
       getGoogleSearchData(message) ||

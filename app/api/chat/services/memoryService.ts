@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { updateMemoryBank, getLastMemoryUpdate } from '@/utils/memory-bank';
+import { updateMemoryBank, getLastMemoryUpdate, getMemoryBankEntry, getAllMemoryBank } from '@/utils/memory-bank';
 // import { MultiModalMessage } from '../types';
 import { callMemoryBankUpdate } from '@/app/api/chat/utils/callMemoryBankUpdate';
 import { getCachedUserName } from '@/lib/user-name-cache';
@@ -62,7 +62,7 @@ const MEMORY_UPDATE_MAX_TOKENS = 1500;
 const MEMORY_UPDATE_TEMPERATURE = 0.3;
 
 // 🆕 Smart Trigger 관련 상수
-const MEMORY_ANALYSIS_MODEL = 'gemini-2.5-flash'; // Gemini 2.5 Flash 모델 사용
+const MEMORY_ANALYSIS_MODEL = 'gemini-2.0-flash'; // Gemini 2.0 Flash 모델 사용
 const MIN_MESSAGE_LENGTH = 20; // 최소 메시지 길이 
 const MAX_TIME_SINCE_LAST_UPDATE = 24 * 60 * 60 * 1000; // 최대 24시간
 
@@ -129,6 +129,30 @@ export async function shouldUpdateMemory(
       typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
     ).join('\n');
     
+    // Define the analysis response schema for structured output
+    const analysisSchema = {
+      type: "object",
+      properties: {
+        shouldUpdate: { type: "boolean" },
+        categories: { 
+          type: "array", 
+          items: { type: "string" },
+          description: "Categories that need updating: personal-info, preferences, interests, interaction-history, relationship"
+        },
+        priority: { 
+          type: "string", 
+          enum: ["high", "medium", "low"],
+          description: "Priority level for the memory update"
+        },
+        reasons: { 
+          type: "array", 
+          items: { type: "string" },
+          description: "Brief reasons for the decision"
+        }
+      },
+      required: ["shouldUpdate", "categories", "priority", "reasons"]
+    };
+
     const analysisPrompt = `Analyze this conversation to determine if user memory should be updated.
     
 USER MESSAGE: "${userMessage}"
@@ -142,14 +166,6 @@ Determine:
 2. What categories need updating? (personal-info, preferences, interests, interaction-history, relationship)
 3. Priority level? (high/medium/low)
 4. Brief reasons
-
-Respond in JSON format:
-{
-  "shouldUpdate": boolean,
-  "categories": ["category1", "category2"],
-  "priority": "high|medium|low",
-  "reasons": ["reason1", "reason2"]
-}
 
 CRITICAL RULES FOR MEMORY UPDATES:
 - ALWAYS update when user EXPLICITLY requests to remember something (e.g., "remember this", "save this", "keep this in mind", "memorize this")
@@ -189,13 +205,14 @@ COMPARISON LOGIC:
 - Focus on capturing truly unique or changing aspects of the user's profile
 - EXCEPTION: Always update when user explicitly requests it`;
 
-    // AI 분석 호출 (경량 모델 사용)
+    // AI 분석 호출 (경량 모델 사용) - with structured output
     const analysisResult = await callMemoryBankUpdate(
       MEMORY_ANALYSIS_MODEL,
       'You are an AI assistant that analyzes conversations to determine memory update necessity.',
       analysisPrompt,
       200,
-      0.1
+      0.1,
+      analysisSchema
     );
     
     if (analysisResult) {
@@ -248,6 +265,23 @@ const MEMORY_CATEGORIES = {
   INTERACTION_HISTORY: '03-interaction-history',
   RELATIONSHIP: '04-relationship'
 };
+
+/**
+ * Map category name from AI analysis format to database format
+ * @param category - Category name from AI (e.g., 'personal-info')
+ * @returns Database category name (e.g., '00-personal-info')
+ */
+function mapCategoryToDb(category: string): string | null {
+  const mapping: Record<string, string> = {
+    'personal-info': MEMORY_CATEGORIES.PERSONAL_INFO,
+    'preferences': MEMORY_CATEGORIES.PREFERENCES,
+    'interests': MEMORY_CATEGORIES.INTERESTS,
+    'interaction-history': MEMORY_CATEGORIES.INTERACTION_HISTORY,
+    'relationship': MEMORY_CATEGORIES.RELATIONSHIP
+  };
+  
+  return mapping[category] || null;
+}
 
 
 /**
@@ -332,6 +366,11 @@ async function updateMemoryCategory(
 ): Promise<string | null> {
   try {
     console.log(`📝 [MEMORY CATEGORY] Updating ${category} for user ${userId}`);
+    // console.log('--------------------------------');
+    // console.log(`📝 [MEMORY CATEGORY] System prompt text:`, systemPromptText);
+    // console.log('--------------------------------');
+    // console.log(`📝 [MEMORY CATEGORY] Prompt content:`, promptContent);
+    // console.log('--------------------------------');
     
     const result = await callMemoryBankUpdate(
       MEMORY_UPDATE_MODEL,
@@ -343,6 +382,9 @@ async function updateMemoryCategory(
     
     if (result) {
       console.log(`💾 [MEMORY CATEGORY] Saving ${category} to database...`);
+      console.log('--------------------------------');
+      console.log(`📝 [MEMORY CATEGORY] Result:`, result);
+      console.log('--------------------------------');
       const dbResult = await updateMemoryBank(supabase, userId, category, result);
       
       if (dbResult.error) {
@@ -374,6 +416,17 @@ export async function updatePersonalInfo(
   memoryData?: string | null
 ): Promise<string | null> {
   try {
+    // 🆕 If memoryData is undefined (not explicitly passed), fetch it
+    let categoryMemory = memoryData;
+    if (categoryMemory === undefined) {
+      const { data } = await getMemoryBankEntry(
+        supabase, 
+        userId, 
+        MEMORY_CATEGORIES.PERSONAL_INFO
+      );
+      categoryMemory = data;
+    }
+    
     // Get basic user info from auth.users
     const basicInfo = await getUserBasicInfo(supabase, userId);
     
@@ -381,13 +434,13 @@ export async function updatePersonalInfo(
     const recentConversationText = getRecentConversationText(messages);
     
     // 메모리 유무에 따른 조건부 접근
-    const hasExistingMemory = memoryData && !memoryData.includes('No previous personal information recorded');
+    const hasExistingMemory = categoryMemory && !categoryMemory.includes('No previous personal information recorded');
     
     const personalInfoPrompt = hasExistingMemory 
       ? `Update the user's personal information based on new conversation data.
 
 EXISTING PERSONAL INFO:
-${memoryData}
+${categoryMemory}
 
 NEW CONVERSATION:
 ${recentConversationText}
@@ -467,17 +520,28 @@ export async function updatePreferences(
   memoryData?: string | null
 ): Promise<void> {
   try {
+    // 🆕 If memoryData is undefined (not explicitly passed), fetch it
+    let categoryMemory = memoryData;
+    if (categoryMemory === undefined) {
+      const { data } = await getMemoryBankEntry(
+        supabase, 
+        userId, 
+        MEMORY_CATEGORIES.PREFERENCES
+      );
+      categoryMemory = data;
+    }
+    
     const recentMessages = messages.slice(-EXTENDED_MESSAGES_COUNT);
     const conversationText = convertMessagesToText(recentMessages);
     
     // 메모리 유무에 따른 조건부 접근
-    const hasExistingMemory = memoryData && !memoryData.includes('No previous preferences recorded');
+    const hasExistingMemory = categoryMemory && !categoryMemory.includes('No previous preferences recorded');
     
     const preferencesPrompt = hasExistingMemory 
       ? `Update the user's preferences based on new conversation data.
 
 EXISTING PREFERENCES:
-${memoryData}
+${categoryMemory}
 
 NEW CONVERSATION:
 ${conversationText}
@@ -552,17 +616,28 @@ export async function updateInterests(
   memoryData?: string | null
 ): Promise<void> {
   try {
+    // 🆕 If memoryData is undefined (not explicitly passed), fetch it
+    let categoryMemory = memoryData;
+    if (categoryMemory === undefined) {
+      const { data } = await getMemoryBankEntry(
+        supabase, 
+        userId, 
+        MEMORY_CATEGORIES.INTERESTS
+      );
+      categoryMemory = data;
+    }
+    
     const recentMessages = messages.slice(-EXTENDED_MESSAGES_COUNT);
     const conversationText = convertMessagesToText(recentMessages);
     
     // 메모리 유무에 따른 조건부 접근
-    const hasExistingMemory = memoryData && !memoryData.includes('No previous interests recorded');
+    const hasExistingMemory = categoryMemory && !categoryMemory.includes('No previous interests recorded');
     
     const interestsPrompt = hasExistingMemory 
       ? `Update the user's interests based on new conversation data.
 
 EXISTING INTERESTS:
-${memoryData}
+${categoryMemory}
 
 NEW CONVERSATION:
 ${conversationText}
@@ -635,6 +710,17 @@ export async function updateInteractionHistory(
   memoryData?: string | null
 ): Promise<void> {
   try {
+    // 🆕 If memoryData is undefined (not explicitly passed), fetch it
+    let categoryMemory = memoryData;
+    if (categoryMemory === undefined) {
+      const { data } = await getMemoryBankEntry(
+        supabase, 
+        userId, 
+        MEMORY_CATEGORIES.INTERACTION_HISTORY
+      );
+      categoryMemory = data;
+    }
+    
     const recentMessages = messages.slice(-EXTENDED_MESSAGES_COUNT);
     const conversationText = convertMessagesToText(recentMessages);
     
@@ -642,13 +728,13 @@ export async function updateInteractionHistory(
     const currentDate = new Date().toLocaleDateString();
     
     // 메모리 유무에 따른 조건부 접근
-    const hasExistingMemory = memoryData && !memoryData.includes('No previous interaction history recorded');
+    const hasExistingMemory = categoryMemory && !categoryMemory.includes('No previous interaction history recorded');
     
     const historyPrompt = hasExistingMemory 
       ? `Update the user's interaction history based on new conversation data.
 
 EXISTING INTERACTION HISTORY:
-${memoryData}
+${categoryMemory}
 
 NEW CONVERSATION (${currentDate}):
 ${conversationText}
@@ -722,17 +808,28 @@ export async function updateRelationship(
   memoryData?: string | null
 ): Promise<void> {
   try {
+    // 🆕 If memoryData is undefined (not explicitly passed), fetch it
+    let categoryMemory = memoryData;
+    if (categoryMemory === undefined) {
+      const { data } = await getMemoryBankEntry(
+        supabase, 
+        userId, 
+        MEMORY_CATEGORIES.RELATIONSHIP
+      );
+      categoryMemory = data;
+    }
+    
     // 최근 대화 분석을 통한 감정 상태와 소통 패턴 파악
     const recentConversation = getRecentConversationText(messages);
     
     // 메모리 유무에 따른 조건부 접근
-    const hasExistingMemory = memoryData && !memoryData.includes('No previous relationship data recorded');
+    const hasExistingMemory = categoryMemory && !categoryMemory.includes('No previous relationship data recorded');
     
     const relationshipPrompt = hasExistingMemory 
       ? `Update the AI-user relationship profile based on new conversation data.
 
 EXISTING RELATIONSHIP PROFILE:
-${memoryData}
+${categoryMemory}
 
 NEW CONVERSATION CONTEXT:
 ${recentConversation}
@@ -816,8 +913,8 @@ export async function updateSelectiveMemoryBanks(
   userMessage: string,
   aiMessage: string,
   categories: string[],
-  priority: 'high' | 'medium' | 'low',
-  memoryData?: string | null
+  priority: 'high' | 'medium' | 'low'
+  // 🆕 REMOVE memoryData parameter - will be fetched per-category
 ): Promise<void> {
   try {
     const startTime = Date.now();
@@ -825,19 +922,44 @@ export async function updateSelectiveMemoryBanks(
     
     const updatePromises: Promise<any>[] = [];
     
-    // 카테고리별 업데이트 함수 매핑
+    // 🆕 Fetch category-specific memory data
+    const categoryDataMap: Record<string, string | null> = {};
+    
+    // Handle 'all' category specially
+    if (categories.includes('all')) {
+      // Fetch all categories
+      for (const [key, dbCategory] of Object.entries(MEMORY_CATEGORIES)) {
+        const { data } = await getMemoryBankEntry(supabase, userId, dbCategory);
+        // Map back to AI format for the map
+        const aiFormat = dbCategory.replace(/^\d+-/, ''); // Remove "00-", "01-", etc.
+        categoryDataMap[aiFormat] = data;
+      }
+    } else {
+      // Fetch only specified categories
+      for (const category of categories) {
+        const dbCategory = mapCategoryToDb(category);
+        if (dbCategory) {
+          const { data } = await getMemoryBankEntry(supabase, userId, dbCategory);
+          categoryDataMap[category] = data;
+        } else {
+          console.warn(`⚠️ [SELECTIVE UPDATE] Unknown category: ${category}`);
+        }
+      }
+    }
+    
+    // 카테고리별 업데이트 함수 매핑 (category-specific data)
     const updateFunctions = {
-      'personal-info': () => updatePersonalInfo(supabase, userId, messages, memoryData),
-      'preferences': () => updatePreferences(supabase, userId, messages, memoryData),
-      'interests': () => updateInterests(supabase, userId, messages, memoryData),
-      'interaction-history': () => updateInteractionHistory(supabase, userId, messages, memoryData),
-      'relationship': () => updateRelationship(supabase, userId, messages, userMessage, aiMessage, memoryData),
+      'personal-info': () => updatePersonalInfo(supabase, userId, messages, categoryDataMap['personal-info']),
+      'preferences': () => updatePreferences(supabase, userId, messages, categoryDataMap['preferences']),
+      'interests': () => updateInterests(supabase, userId, messages, categoryDataMap['interests']),
+      'interaction-history': () => updateInteractionHistory(supabase, userId, messages, categoryDataMap['interaction-history']),
+      'relationship': () => updateRelationship(supabase, userId, messages, userMessage, aiMessage, categoryDataMap['relationship']),
       'all': () => Promise.all([
-        updatePersonalInfo(supabase, userId, messages, memoryData),
-        updatePreferences(supabase, userId, messages, memoryData),
-        updateInterests(supabase, userId, messages, memoryData),
-        updateInteractionHistory(supabase, userId, messages, memoryData),
-        updateRelationship(supabase, userId, messages, userMessage, aiMessage, memoryData)
+        updatePersonalInfo(supabase, userId, messages, categoryDataMap['personal-info']),
+        updatePreferences(supabase, userId, messages, categoryDataMap['preferences']),
+        updateInterests(supabase, userId, messages, categoryDataMap['interests']),
+        updateInteractionHistory(supabase, userId, messages, categoryDataMap['interaction-history']),
+        updateRelationship(supabase, userId, messages, userMessage, aiMessage, categoryDataMap['relationship'])
       ])
     };
     
@@ -887,12 +1009,15 @@ export async function smartUpdateMemoryBanks(
   chatId: string,
   messages: any[],
   userMessage: string,
-  aiMessage: string,
-  memoryData?: string | null
+  aiMessage: string
+  // 🆕 REMOVE memoryData parameter
 ): Promise<void> {
   try {
+    // 🆕 Fetch all memory for analysis purposes ONLY
+    const { data: allMemoryData } = await getAllMemoryBank(supabase, userId);
+    
     // 1. 메모리 업데이트 필요성 분석
-    const analysis = await shouldUpdateMemory(supabase, userId, messages, userMessage, aiMessage, memoryData);
+    const analysis = await shouldUpdateMemory(supabase, userId, messages, userMessage, aiMessage, allMemoryData);
     
     console.log(`🧠 [SMART UPDATE] Analysis complete:`, {
       shouldUpdate: analysis.shouldUpdate,
@@ -908,29 +1033,27 @@ export async function smartUpdateMemoryBanks(
     }
     
     // 3. 우선순위에 따른 선택적 업데이트
+    // 🆕 Remove memoryData parameter from all calls
     if (analysis.priority === 'high') {
-      // 높은 우선순위: 즉시 업데이트
       console.log(`🔥 [SMART UPDATE] High priority - immediate update`);
       await updateSelectiveMemoryBanks(
         supabase, userId, chatId, messages, userMessage, aiMessage, 
-        analysis.categories, analysis.priority, memoryData
+        analysis.categories, analysis.priority
       );
     } else if (analysis.priority === 'medium') {
-      // 중간 우선순위: 3초 딜레이 후 업데이트
       console.log(`⏱️ [SMART UPDATE] Medium priority - delayed update (3s)`);
       setTimeout(async () => {
         await updateSelectiveMemoryBanks(
           supabase, userId, chatId, messages, userMessage, aiMessage, 
-          analysis.categories, analysis.priority, memoryData
+          analysis.categories, analysis.priority
         );
       }, 3000);
     } else {
-      // 낮은 우선순위: 30초 딜레이 후 업데이트 (배치 처리 가능)
       console.log(`🐌 [SMART UPDATE] Low priority - batch update (30s)`);
       setTimeout(async () => {
         await updateSelectiveMemoryBanks(
           supabase, userId, chatId, messages, userMessage, aiMessage, 
-          analysis.categories, analysis.priority, memoryData
+          analysis.categories, analysis.priority
         );
       }, 30000);
     }

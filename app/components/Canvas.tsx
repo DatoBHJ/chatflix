@@ -3,7 +3,6 @@ import MultiSearch from './MultiSearch';
 import MathCalculation from './MathCalculation';
 import LinkReader from './LinkReader';
 import { ChevronUp, ChevronDown, Brain, Link2, Image as ImageIcon, AlertTriangle, X, ChevronLeft, ChevronRight, ExternalLink, Search, Calculator, BookOpen, FileSearch, Youtube, Database, Video } from 'lucide-react';
-import { SiGoogle } from 'react-icons/si';
 import { createPortal } from 'react-dom';
 import { Tweet } from 'react-tweet';
 import { XLogo, YouTubeLogo } from './CanvasFolder/CanvasLogo';
@@ -41,6 +40,26 @@ type CanvasProps = {
       prompt: string;
       model?: string;
       timestamp?: string;
+    }[];
+  } | null;
+  geminiImageData?: {
+    generatedImages: {
+      imageUrl: string;
+      prompt: string;
+      timestamp: string;
+      originalImageUrl?: string;
+      isEdit?: boolean;
+    }[];
+  } | null;
+  seedreamImageData?: {
+    generatedImages: {
+      imageUrl: string;
+      prompt: string;
+      timestamp: string;
+      originalImageUrl?: string;
+      isEdit?: boolean;
+      size?: string;
+      aspectRatio?: string;
     }[];
   } | null;
 
@@ -136,8 +155,10 @@ export default function Canvas({
   mathCalculationData, 
   linkReaderData, 
   imageGeneratorData, 
- 
-  xSearchData, 
+  geminiImageData,
+  seedreamImageData,
+
+  xSearchData,
   youTubeSearchData, 
   youTubeLinkAnalysisData,
   googleSearchData,
@@ -209,7 +230,7 @@ export default function Canvas({
   }, [webSearchData, googleSearchData]);
 
   // Don't render if there's no data to display
-  if (!mergedSearchData && !mathCalculationData && !linkReaderData && !imageGeneratorData && !xSearchData && !youTubeSearchData && !youTubeLinkAnalysisData) return null;
+  if (!mergedSearchData && !mathCalculationData && !linkReaderData && !imageGeneratorData && !geminiImageData && !seedreamImageData && !xSearchData && !youTubeSearchData && !youTubeLinkAnalysisData) return null;
 
   // Simplified state management - all sections are initially open
   // Only track if data is in "generation complete" state
@@ -217,6 +238,7 @@ export default function Canvas({
   const [mathCalcExpanded, setMathCalcExpanded] = useState(true);
   const [linkReaderExpanded, setLinkReaderExpanded] = useState(true);
   const [imageGenExpanded, setImageGenExpanded] = useState(true);
+  const [seedreamExpanded, setSeedreamExpanded] = useState(true);
 
   const [xSearchExpanded, setXSearchExpanded] = useState(true);
   const [youTubeSearchExpanded, setYouTubeSearchExpanded] = useState(true);
@@ -227,6 +249,7 @@ export default function Canvas({
   const mathCalcContentRef = useRef<HTMLDivElement>(null);
   const linkReaderContentRef = useRef<HTMLDivElement>(null);
   const imageGenContentRef = useRef<HTMLDivElement>(null);
+  const seedreamContentRef = useRef<HTMLDivElement>(null);
 
   const xSearchContentRef = useRef<HTMLDivElement>(null);
   const youTubeSearchContentRef = useRef<HTMLDivElement>(null);
@@ -246,6 +269,7 @@ export default function Canvas({
   const toggleMathCalc = () => setMathCalcExpanded(!mathCalcExpanded);
   const toggleLinkReader = () => setLinkReaderExpanded(!linkReaderExpanded);
   const toggleImageGen = () => setImageGenExpanded(!imageGenExpanded);
+  const toggleSeedreamImages = () => setSeedreamExpanded(!seedreamExpanded);
 
   const toggleXSearch = () => setXSearchExpanded(!xSearchExpanded);
   const toggleYouTubeSearch = () => setYouTubeSearchExpanded(!youTubeSearchExpanded);
@@ -311,7 +335,12 @@ export default function Canvas({
     // Check if it's a swipe
     const isSwipe = Math.abs(deltaX) > minSwipeDistance || Math.abs(deltaY) > minSwipeDistance;
     
-    if (isSwipe && imageGeneratorData?.generatedImages && imageGeneratorData.generatedImages.length > 1) {
+    const allImages = [
+      ...(imageGeneratorData?.generatedImages || []),
+      ...(geminiImageData?.generatedImages || [])
+    ];
+    
+    if (isSwipe && allImages.length > 1) {
       // Process swipe navigation
       if (Math.abs(deltaX) > Math.abs(deltaY)) {
         // Horizontal swipe
@@ -358,7 +387,7 @@ export default function Canvas({
       window.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
-  }, [selectedImageIndex, imageGeneratorData]);
+  }, [selectedImageIndex, imageGeneratorData, geminiImageData]);
 
   // Image viewer functions
   const openImageViewer = (index: number) => {
@@ -372,9 +401,14 @@ export default function Canvas({
   };
   
   const navigateImage = (direction: 'prev' | 'next') => {
-    if (!imageGeneratorData?.generatedImages || imageGeneratorData.generatedImages.length === 0) return;
+    const allImages = [
+      ...(imageGeneratorData?.generatedImages || []),
+      ...(geminiImageData?.generatedImages || [])
+    ];
     
-    const count = imageGeneratorData.generatedImages.length;
+    if (allImages.length === 0) return;
+    
+    const count = allImages.length;
     const newIndex = direction === 'next' 
       ? (selectedImageIndex + 1) % count 
       : (selectedImageIndex - 1 + count) % count;
@@ -899,9 +933,184 @@ export default function Canvas({
         </div>
       )}
 
+      {/* Gemini Image Results */}
+      {(!selectedTool || selectedTool === 'gemini-image') && geminiImageData && geminiImageData.generatedImages && geminiImageData.generatedImages.length > 0 && (
+        <div className="">
+          {!selectedTool && (
+          <div 
+            className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
+            onClick={toggleImageGen}
+          >
+            <div className="flex items-center gap-2.5">
+              <ImageIcon className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
+              <h2 className="font-medium text-left tracking-tight">Gemini Images</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="rounded-full p-1 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors">
+                {imageGenExpanded ? 
+                  <ChevronUp size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" /> : 
+                  <ChevronDown size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" />
+                }
+              </div>
+            </div>
+          </div>
+          )}
+          <div 
+            className={selectedTool ? '' : 'overflow-hidden transition-all duration-200 ease-in-out'}
+            style={selectedTool ? {} : { 
+              maxHeight: imageGenExpanded ? maxContentHeight : '0px',
+            }}
+          >
+            <div
+              ref={imageGenContentRef}
+              className={selectedTool ? 'p-1' : 'transition-opacity duration-200 ease-in-out p-1'}
+              style={selectedTool ? {} : {
+                opacity: imageGenExpanded ? 1 : 0,
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none'
+              }}
+            >
+              <style jsx>{`
+                div::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
+              <div className={`grid gap-5 ${
+                geminiImageData.generatedImages.length === 1 
+                  ? 'grid-cols-1' 
+                  : 'grid-cols-1 sm:grid-cols-2'
+              }`}>
+                {geminiImageData.generatedImages.map((image, index) => (
+                  <div 
+                    key={index} 
+                    className="border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:scale-[1.02] hover:border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] transition-all duration-200 cursor-pointer bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)]"
+                    onClick={() => openImageViewer(index)}
+                  >
+                    <div className="relative">
+                      <ImageWithLoading
+                        src={image.imageUrl}
+                        alt={image.prompt}
+                        className="w-full h-auto object-cover"
+                        style={{ aspectRatio: '1/1' }}
+                      />
+                      {image.isEdit && image.originalImageUrl && (
+                        <div className="absolute top-2 left-2 bg-blue-500/80 text-white text-xs px-2 py-1 rounded-full">
+                          Edited
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <p className="text-sm text-[color-mix(in_srgb,var(--foreground)_70%,transparent)] line-clamp-2">
+                        {image.prompt}
+                      </p>
+                      <div className="mt-2 text-xs text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]">
+                        {new Date(image.timestamp).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Seedream 4.0 Results */}
+      {(!selectedTool || selectedTool === 'seedream-image') && seedreamImageData && 
+        seedreamImageData.generatedImages && seedreamImageData.generatedImages.length > 0 && (
+        <div className="">
+          {!selectedTool && (
+            <div 
+              className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
+              onClick={toggleSeedreamImages}
+            >
+              <div className="flex items-center gap-2.5">
+                <ImageIcon className="h-4 w-4 text-[var(--foreground)]" strokeWidth={1.5} />
+                <h2 className="font-medium text-left tracking-tight">Seedream 4.0</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="rounded-full p-1 hover:bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-colors">
+                  {seedreamExpanded ? 
+                    <ChevronUp size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" /> : 
+                    <ChevronDown size={16} className="text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]" />
+                  }
+                </div>
+              </div>
+            </div>
+          )}
+          <div 
+            className={selectedTool ? '' : 'overflow-hidden transition-all duration-200 ease-in-out'}
+            style={selectedTool ? {} : { 
+              maxHeight: seedreamExpanded ? maxContentHeight : '0px',
+            }}
+          >
+            <div
+              ref={seedreamContentRef}
+              className={selectedTool ? 'p-1' : 'transition-opacity duration-200 ease-in-out p-1'}
+              style={selectedTool ? {} : {
+                opacity: seedreamExpanded ? 1 : 0,
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none'
+              }}
+            >
+              <style jsx>{`
+                div::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
+              <div className={`grid gap-5 ${
+                seedreamImageData.generatedImages.length === 1 
+                  ? 'grid-cols-1' 
+                  : 'grid-cols-1 sm:grid-cols-2'
+              }`}>
+                {seedreamImageData.generatedImages.map((image, index) => {
+                  // Calculate global index for image viewer
+                  const globalIndex = (imageGeneratorData?.generatedImages?.length || 0) + 
+                                    (geminiImageData?.generatedImages?.length || 0) + 
+                                    index;
+                  return (
+                  <div 
+                    key={index} 
+                    className="border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:scale-[1.02] hover:border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] transition-all duration-200 cursor-pointer bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)]"
+                    onClick={() => openImageViewer(globalIndex)}
+                  >
+                    <div className="relative">
+                      <ImageWithLoading
+                        src={image.imageUrl}
+                        alt={image.prompt}
+                        className="w-full h-auto object-cover"
+                        style={{ aspectRatio: '1/1' }}
+                      />
+                      {image.isEdit && image.originalImageUrl && (
+                        <div className="absolute top-2 left-2 bg-blue-500/80 text-white text-xs px-2 py-1 rounded-full">
+                          Edited
+                        </div>
+                      )}
+                      {image.size && (
+                        <div className="absolute top-2 right-2 bg-green-500/80 text-white text-xs px-2 py-1 rounded-full">
+                          {image.size}
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <p className="text-sm text-[color-mix(in_srgb,var(--foreground)_70%,transparent)] line-clamp-2">
+                        {image.prompt}
+                      </p>
+                      <div className="mt-2 text-xs text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]">
+                        {new Date(image.timestamp).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Image viewer modal - portal to body to avoid z-index issues */}
-      {isMounted && selectedImageIndex >= 0 && imageGeneratorData?.generatedImages && createPortal(
+      {isMounted && selectedImageIndex >= 0 && (imageGeneratorData?.generatedImages || geminiImageData?.generatedImages || seedreamImageData?.generatedImages) && createPortal(
         <div 
           className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center" 
           onClick={() => setSelectedImageIndex(-1)}
@@ -934,7 +1143,12 @@ export default function Canvas({
               <div className="relative">
                 {/* Use a variable to simplify code */}
                 {(() => {
-                  const selectedImage = imageGeneratorData.generatedImages[selectedImageIndex];
+                  const allImages = [
+                    ...(imageGeneratorData?.generatedImages || []),
+                    ...(geminiImageData?.generatedImages || []),
+                    ...(seedreamImageData?.generatedImages || [])
+                  ];
+                  const selectedImage = allImages[selectedImageIndex];
                   return (
                     <ImageWithLoading
                       src={selectedImage.imageUrl}
@@ -964,11 +1178,16 @@ export default function Canvas({
                 
                 {/* Image caption overlay - hidden by default, shown only on click */}
                 {(() => {
-                  const selectedImage = imageGeneratorData.generatedImages[selectedImageIndex];
+                  const allImages = [
+                    ...(imageGeneratorData?.generatedImages || []),
+                    ...(geminiImageData?.generatedImages || []),
+                    ...(seedreamImageData?.generatedImages || [])
+                  ];
+                  const selectedImage = allImages[selectedImageIndex];
                   return selectedImage.prompt && (
                     <div className="prompt-overlay absolute inset-0 bg-black/75 backdrop-blur-md text-white rounded-md p-6 flex flex-col justify-center items-center text-center opacity-0 transition-opacity duration-300 overflow-auto pointer-events-none">
                       <p className="text-base md:text-lg font-medium">{selectedImage.prompt}</p>
-                      {selectedImage.model && (
+                      {'model' in selectedImage && selectedImage.model && (
                         <p className="text-xs text-gray-300 mt-3">Model: {selectedImage.model}</p>
                       )}
                     </div>
@@ -989,7 +1208,14 @@ export default function Canvas({
           </div>
           
           {/* Navigation buttons - hidden on mobile */}
-          {imageGeneratorData.generatedImages.length > 1 && !isMobile && (
+          {(() => {
+            const allImages = [
+              ...(imageGeneratorData?.generatedImages || []),
+              ...(geminiImageData?.generatedImages || []),
+              ...(seedreamImageData?.generatedImages || [])
+            ];
+            return allImages.length > 1 && !isMobile;
+          })() && (
             <>
               <button 
                 className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 p-3 rounded-full text-white transition-colors"

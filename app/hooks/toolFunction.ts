@@ -764,6 +764,112 @@ export const getLinkReaderData = (message: UIMessage) => {
   return null;
 };
 
+// Extract Gemini image data from message tool_results
+export const getGeminiImageData = (message: UIMessage) => {
+    // Check if there are stored Gemini images in tool_results
+    if ((message as any).tool_results?.geminiImageResults) {
+      const generatedImages = (message as any).tool_results.geminiImageResults;
+      if (Array.isArray(generatedImages) && generatedImages.length > 0) {
+        return { generatedImages };
+      }
+    }
+    
+    // Check for streaming Gemini image annotations
+    let imageAnnotations: any[] = [];
+    let imageStarted = false;
+    
+    // Check annotations array (legacy format)
+    if ((message as any).annotations) {
+      imageAnnotations = (((message as any).annotations) as any[])
+        .filter(a => a && typeof a === 'object' && a.type === 'gemini_image_complete')
+        .map(a => a.data)
+        .filter(Boolean);
+      
+      const startAnnotations = (((message as any).annotations) as any[])
+        .filter(a => a && typeof a === 'object' && a.type === 'gemini_image_started');
+      
+      imageStarted = startAnnotations.length > 0;
+    }
+    
+    // Check parts array for streaming annotations (AI SDK 5 format)
+    if ((message as any).parts && Array.isArray((message as any).parts)) {
+      const imageParts = ((message as any).parts as any[])
+        .filter(p => p?.type === 'data-gemini_image_complete');
+      
+      const imageStartParts = ((message as any).parts as any[])
+        .filter(p => p?.type === 'data-gemini_image_started');
+      
+      imageAnnotations = [
+        ...imageAnnotations,
+        ...imageParts.map(p => p.data).filter(Boolean)
+      ];
+      imageStarted = imageStarted || imageStartParts.length > 0;
+    }
+    
+    // Return streaming data if available
+    if (imageStarted || imageAnnotations.length > 0) {
+      return { 
+        generatedImages: imageAnnotations,
+        status: imageAnnotations.length > 0 ? 'completed' : 'processing'
+      };
+    }
+    
+    return null;
+};
+
+// Extract Seedream image data from message tool_results
+export const getSeedreamImageData = (message: UIMessage) => {
+    // Check if there are stored Seedream images in tool_results
+    if ((message as any).tool_results?.seedreamImageResults) {
+      const generatedImages = (message as any).tool_results.seedreamImageResults;
+      if (Array.isArray(generatedImages) && generatedImages.length > 0) {
+        return { generatedImages };
+      }
+    }
+    
+    // Check for streaming Seedream image annotations
+    let imageAnnotations: any[] = [];
+    let imageStarted = false;
+    
+    // Check annotations array (legacy format)
+    if ((message as any).annotations) {
+      imageAnnotations = (((message as any).annotations) as any[])
+        .filter(a => a && typeof a === 'object' && a.type === 'seedream_image_complete')
+        .map(a => a.data)
+        .filter(Boolean);
+      
+      const startAnnotations = (((message as any).annotations) as any[])
+        .filter(a => a && typeof a === 'object' && a.type === 'seedream_image_started');
+      
+      imageStarted = startAnnotations.length > 0;
+    }
+    
+    // Check parts array for streaming annotations (AI SDK 5 format)
+    if ((message as any).parts && Array.isArray((message as any).parts)) {
+      const imageParts = ((message as any).parts as any[])
+        .filter(p => p?.type === 'data-seedream_image_complete');
+      
+      const imageStartParts = ((message as any).parts as any[])
+        .filter(p => p?.type === 'data-seedream_image_started');
+      
+      imageAnnotations = [
+        ...imageAnnotations,
+        ...imageParts.map(p => p.data).filter(Boolean)
+      ];
+      imageStarted = imageStarted || imageStartParts.length > 0;
+    }
+    
+    // Return streaming data if available
+    if (imageStarted || imageAnnotations.length > 0) {
+      return { 
+        generatedImages: imageAnnotations,
+        status: imageAnnotations.length > 0 ? 'completed' : 'processing'
+      };
+    }
+    
+    return null;
+};
+
 // Extract image generator data from message annotations and tool_results
 export const getImageGeneratorData = (message: UIMessage) => {
     // Check if there are stored generated images in tool_results

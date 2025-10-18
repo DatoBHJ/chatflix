@@ -523,27 +523,6 @@ Chatflix Agent mode is a more advanced mode that enables powerful tools, includi
 ## Agent Mode Introduction
 You are now operating in Chatflix Agent mode.
 
-## Extended Capabilities
-You have extended capabilities beyond regular chat mode:
-- **Specialized Web Search:** Access a wide range of information with targeted search tools. You can search for:
-  - Academic research papers
-  - Financial reports and company information
-  - GitHub repositories
-  - Personal websites and LinkedIn profiles
-  - Images and visual content
-  - General web content (when Google Search is insufficient)
-  - Note: Google Search is preferred for general information and news
-- **Link Reader:** Extract and analyze content from web pages.
-- **YouTube Search:** Find relevant videos on specific topics.
-- **YouTube Link Analyzer:** Extract detailed information and transcripts from YouTube videos.
-- **Image Generator:** Create custom images from text descriptions.
-- **Calculator:** Perform mathematical calculations.
-
-**SEARCH TOOL SELECTION GUIDELINES:
-- PREFER Google Search for general information, news, current events, images, GIFs, and most web content
-- Use Web Search (Exa) when you need its specialized strengths: academic papers, GitHub repositories, LinkedIn profiles, company information, niche content, etc.
-- STRATEGY: Start with Google Search for most queries, use Web Search when you need Exa's specialized capabilities or when Google results are insufficient**
-
 ## Agent Mode Core Instructions:
 - **Announce Tool Use Naturally**: When you need to use a tool, let the user know what you're doing in a conversational way.
 - **Break Up Text with Source Links**: Use source links strategically to separate and organize your response content for better readability.
@@ -567,21 +546,10 @@ You have extended capabilities beyond regular chat mode:
 - **Rich Previews**: Links automatically render as rich previews with thumbnails, serving as visual separators.
 - **Images Only When Requested or Searched**: Include images ONLY when the user explicitly asks for them or when you perform a specific image search to find visual content. For all other cases, prefer using source links for visual separation.
 
-**CRITICAL LINK FORMAT DIFFERENCES:**
-- **Google Search Links**: MUST use [LINK_ID:google_link_searchId_index_resultIndex] format - NEVER use full URLs
-- **Web Search Links (Exa)**: MUST use [LINK_ID:exa_link_searchId_index_resultIndex] format - NEVER use full URLs
-- **Link ID Benefits**: Link IDs provide better performance and automatic thumbnail rendering
-- **Format Enforcement**: Each search tool has its own link format requirement - follow the specific format for each tool
-
 **Formatting Guidelines:**
 - Use markdown naturally (bold, italic) for clear structure
 - **NEVER use markdown code blocks (\`\`\`markdown)** - just write it out
 - Only use code blocks for actual code (\`\`\`python, \`\`\`javascript, etc.)
-- **Links**: 
-  - **Google Search**: Use [LINK_ID:google_link_searchId_index_resultIndex] format exclusively
-  - **Web Search (Exa)**: Use [LINK_ID:exa_link_searchId_index_resultIndex] format exclusively
-  - **Placement**: Always place links on separate lines for automatic rich preview rendering
-- **Images**: [LINK_ID:unique_id] format for search images (system will replace with actual image)
 
 **Handling User Dissatisfaction:**
 IMPORTANT: If the user expresses dissatisfaction with your results or process, suggest trying different models or tools:
@@ -607,11 +575,12 @@ IMPORTANT: If the user expresses dissatisfaction with your results or process, s
         'web_search': 'webSearch',
         // 'calculator': 'calculator',
         // 'link_reader': 'linkReader',
-        'image_generator': 'imageGenerator',
+        // 'image_generator': 'imageGenerator', // DISABLED: pollination.ai image generator
+        'gemini_image_tool': 'geminiImageTool',
+        'seedream_image_tool': 'seedreamImageTool',
         'google_search': 'googleSearch',
-        'youtube_search': 'youtubeSearch',
+        'youtube_search': 'youtubeSearch'
         // 'youtube_link_analyzer': 'youtubeLinkAnalyzer',
-        'previous_tool_results': 'previousToolResults'
       };
       
       return toolMapping[toolName] || null;
@@ -624,6 +593,39 @@ IMPORTANT: If the user expresses dissatisfaction with your results or process, s
       }
     });
     
+    // Add image tool priority guidance when both image tools are selected
+    const hasGeminiImage = options.selectedTools.includes('gemini_image_tool');
+    const hasSeedreamImage = options.selectedTools.includes('seedream_image_tool');
+
+    if (hasGeminiImage && hasSeedreamImage) {
+      toolSpecificPrompts.push(`
+## IMAGE GENERATION TOOL PRIORITY
+
+**DEFAULT CHOICE: Use seedream_image_tool as your PRIMARY image generation tool**
+
+**Seedream advantages:**
+- Higher resolution (up to 4K) for studio-grade work
+- Superior text rendering for UI mockups, packaging, signboards
+- Better for structured outputs and multi-image tasks
+- Excellent photorealism and cinematic scenes
+- Lower rework rate with stable, consistent results
+
+**ONLY use gemini_image_tool in these specific cases:**
+1. User explicitly requests "Gemini" or "Google image generation"
+2. User specifically needs 1K resolution illustrations (Gemini's sweet spot)
+3. Request requires Google-specific geographical knowledge (Maps, Street View, real-world locations)
+4. User has repeatedly expressed dissatisfaction with Seedream results
+5. Character consistency across series is paramount and user struggles with Seedream
+
+**When in doubt, use Seedream** - community consensus shows it's the leading image model for most tasks.
+
+**Known limitations:**
+- Gemini: Text rendering weakness, context window issues (malfunctions at 25-33%), tendency to repeat same image
+- Seedream: Slightly higher latency for 4K images
+      `);
+      console.log('[TOOL_PROMPTS] Added image tool priority guidance (both tools available)');
+    }
+    
     if (toolSpecificPrompts.length > 0) {
       prompt += `\n\n## SELECTED TOOLS GUIDELINES\n${toolSpecificPrompts.join('\n\n')}`;
       console.log(`[TOOL_PROMPTS] Applied prompts for tools: ${options.selectedTools.join(', ')}`);
@@ -634,228 +636,8 @@ IMPORTANT: If the user expresses dissatisfaction with your results or process, s
 };
 
 
-export const saveUserMessage = async (
-  supabase: any,
-  chatId: string | undefined,
-  userId: string,
-  userMessage: any,
-  attachments: any[] = []
-) => {
-  // AI SDK 5: parts 배열을 experimental_attachments로 변환
-  let experimentalAttachments = attachments;
-  
-  // parts 배열이 있는 경우 experimental_attachments로 변환
-  if (userMessage.parts && Array.isArray(userMessage.parts)) {
-    experimentalAttachments = userMessage.parts
-      .filter((part: any) => part.type === 'image' || part.type === 'file')
-      .map((part: any) => {
-        if (part.type === 'image') {
-          return {
-            name: 'image',
-            contentType: 'image/jpeg', // 기본값
-            url: part.image,
-            fileType: 'image' as const
-          };
-        } else if (part.type === 'file') {
-          return {
-            name: part.filename || 'file',
-            contentType: part.mediaType || 'application/octet-stream',
-            url: part.url,
-            fileType: 'file' as const
-          };
-        }
-        return null;
-      })
-      .filter(Boolean);
-  }
 
-  const { data: currentMax } = await supabase
-    .from('messages')
-    .select('sequence_number')
-    .eq('chat_session_id', chatId)
-    .eq('user_id', userId)
-    .order('sequence_number', { ascending: false })
-    .limit(1)
-    .maybeSingle();
 
-  const sequence = (currentMax?.sequence_number || 0) + 1;
-
-  const messageData = {
-    id: userMessage.id,
-    role: 'user',
-    content: userMessage.content || '',
-    created_at: new Date().toISOString(),
-    host: 'user',
-    chat_session_id: chatId,
-    user_id: userId,
-    sequence_number: sequence,
-    experimental_attachments: experimentalAttachments
-  };
-
-  const { error } = await supabase.from('messages').insert([messageData]);
-
-  if (error) {
-    // console.error('[Debug] Error saving message:', error);
-  }
-
-  return sequence;
-};
-
-export const createOrUpdateAssistantMessage = async (
-  supabase: any,
-  chatId: string | undefined,
-  userId: string,
-  model: string,
-  provider: string,
-  isRegeneration: boolean | undefined,
-  messageId: string
-) => {
-  if (isRegeneration) {
-    await supabase
-      .from('messages')
-      .update({
-        content: '',
-        reasoning: '',
-        model,
-        host: provider,
-        created_at: new Date().toISOString()
-      })
-      .eq('id', messageId)
-      .eq('user_id', userId);
-    return;
-  }
-
-  const { data: currentMax } = await supabase
-    .from('messages')
-    .select('sequence_number')
-    .eq('chat_session_id', chatId)
-    .eq('user_id', userId)
-    .order('sequence_number', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const sequence = (currentMax?.sequence_number || 0) + 1;
-
-  await supabase.from('messages').insert([{
-    id: messageId,
-    role: 'assistant',
-    content: '',
-    reasoning: '',
-    created_at: new Date().toISOString(),
-    model,
-    host: provider,
-    chat_session_id: chatId,
-    user_id: userId,
-    sequence_number: sequence
-  }]);
-};
-
-export const handleStreamCompletion = async (
-  supabase: any,
-  messageId: string,
-  userId: string,
-  model: string,
-  provider: string,
-  completion: CompletionResult,
-  isRegeneration: boolean = false,
-  extraData: any = {}
-) => {
-  // finalContent 결정 - 우선순위: full_text > steps > parts > text
-  let finalContent = '';
-  let finalReasoning = '';
-  
-  if (extraData.full_text) {
-    finalContent = extraData.full_text;
-    
-    // extraData.full_text가 있더라도 reasoning을 추출하도록 수정
-    // completion에서 reasoning 추출 시도
-    if (completion.steps && completion.steps.length > 0) {
-      finalReasoning = completion.steps
-        .filter(step => step.reasoningText)
-        .map(step => step.reasoningText)
-        .join('\n\n');
-    } else if (completion.parts) {
-      // 추론 파트 추출
-      const reasoningParts = completion.parts.filter(part => part.type === 'reasoning') as any[];
-      if (reasoningParts.length > 0) {
-        finalReasoning = reasoningParts.map(part => (part.reasoningText || part.text) as string).join('\n');
-      }
-    }
-    
-
-  } else if (completion.steps && completion.steps.length > 0) {
-    finalContent = completion.steps.map(step => step.text || '').join('\n\n');
-    finalReasoning = completion.steps
-      .filter(step => step.reasoningText)
-      .map(step => step.reasoningText)
-      .join('\n\n');
-  } else if (completion.parts) {
-    // 텍스트 파트 추출
-    finalContent = completion.parts
-      .filter(part => part.type === 'text')
-      .map(part => part.text)
-      .join('\n');
-    
-    // 추론 파트 추출
-    const reasoningParts = completion.parts.filter(part => part.type === 'reasoning') as any[];
-    if (reasoningParts.length > 0) {
-      finalReasoning = reasoningParts.map(part => (part.reasoningText || part.text) as string).join('\n');
-    }
-  } else {
-    finalContent = completion.text || '';
-  }
-
-  // Check if model is the original chatflix-ultimate
-  const originalModel = extraData.original_model || model;
-
-  // 🆕 토큰 사용량과 도구 결과 분리 처리
-  let toolResults = extraData.tool_results ? { ...extraData.tool_results } : {};
-  let tokenUsage = null;
-  
-  // 토큰 사용량이 있으면 별도 처리 및 tool_results에서 제거
-  if (extraData.token_usage) {
-    tokenUsage = extraData.token_usage;
-    
-    // tool_results에서 token_usage 제거 (중복 저장 방지)
-    if (toolResults.token_usage) {
-      delete toolResults.token_usage;
-    }
-    
-    // 로그 출력
-    // console.log('💾 [DATABASE] Saving token usage to dedicated column:', {
-    //   messageId: messageId.substring(0, 8),
-    //   promptTokens: tokenUsage.promptTokens,
-    //   completionTokens: tokenUsage.completionTokens,
-    //   totalTokens: tokenUsage.totalTokens,
-    //   model: originalModel
-    // });
-  }
-
-  // 업데이트할 데이터 객체 구성
-  const updateData: any = {
-    content: finalContent,
-    reasoning: finalReasoning && finalReasoning.trim() && finalReasoning !== finalContent ? finalReasoning : null,
-    model: originalModel,
-    host: provider,
-    created_at: new Date().toISOString(),
-    tool_results: Object.keys(toolResults).length > 0 ? toolResults : null
-  };
-
-  // 토큰 사용량이 있으면 새 칼럼에 추가
-  if (tokenUsage) {
-    updateData.token_usage = tokenUsage;
-  }
-
-  console.log('🔍 messageId:', messageId);
-  console.log('🔍 updateData:', updateData);
-
-  // 데이터베이스 업데이트
-  await supabase
-    .from('messages')
-    .update(updateData)
-    .eq('id', messageId)
-    .eq('user_id', userId);
-};
 
 // v5 스타일: 완료된 메시지들을 직접 삽입하는 함수
 export const saveCompletedMessages = async (

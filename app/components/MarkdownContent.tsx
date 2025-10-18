@@ -2012,6 +2012,33 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
         }
       }
       
+      // Check if this is a Supabase storage image link (Gemini images)
+      if (href && href.includes('.supabase.co/storage/v1/object/public/gemini-images/')) {
+        const linkText = typeof children === 'string' ? children : extractText(children);
+        
+        return (
+          <div className="my-4">
+            <div className="block cursor-pointer">
+              <ImageWithLoading 
+                src={href} 
+                alt={linkText || "Generated image"} 
+                className="w-auto max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md " 
+                style={{ borderRadius: '32px' }}
+                onImageClick={() => {
+                  const imageIndex = allImages.findIndex(img => 
+                    img.src === href ||
+                    img.originalMatch === `![](${href})` ||
+                    img.originalMatch === `![${linkText || "Generated image"}](${href})` ||
+                    (img.originalMatch && img.originalMatch.includes(href))
+                  );
+                  openImageModal(href, linkText || "Generated image", allImages, imageIndex >= 0 ? imageIndex : 0);
+                }}
+              />
+            </div>
+          </div>
+        );
+      }
+      
       // Check if this is a pollinations.ai image link
       if (href && href.includes('image.pollinations.ai')) {
         const urlWithNoLogo = ensureNoLogo(href);
@@ -2625,23 +2652,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               // 링크 세그먼트인지 확인
               const isLinkSegment = /\[.*\]\(https?:\/\/[^)]+\)|https?:\/\/[^\s"'<>]+/.test(segment);
               
-              // 단일 줄 불릿 포인트인지 확인
-              const isSingleLineBullet = /^[-*+]\s/.test(segment.trim()) && !segment.includes('\n');
-              
-              // 볼드가 바로 옆에 있는 bullet point인지 확인 (연속/단일 상관없이)
-              const hasBoldNextToBullet = /^[-*+]\s+\*\*/.test(segment.trim()) || 
-                                          /\n\s*[-*+]\s+\*\*/.test(segment);
-              
-              // bullet point에서 bullet 제거한 텍스트
-              let processedSegment = segment;
-              
-              if (isSingleLineBullet) {
-                // 단일 줄 bullet point는 bullet 제거
-                processedSegment = segment.replace(/^[-*+]\s/, '').trim();
-              } else if (hasBoldNextToBullet) {
-                // 볼드가 바로 옆에 있는 bullet point들은 모든 줄에서 bullet만 제거
-                processedSegment = segment.replace(/^(\s*)[-*+]\s+/gm, '$1');
-              }
+              const processedSegment = segment;
               
               // 테이블 세그먼트인지 확인 (마크다운 표 패턴: 헤더 행 + 구분 행 존재)
               const isTableSegment = /(^|\n)\s*\|.*\|\s*(\n|$)/.test(segment) && /(^|\n)\s*\|?\s*[:\-]+\s*(\|\s*[:\-]+\s*)+\|?\s*(\n|$)/.test(segment);
@@ -2733,7 +2744,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               return (
                 <div 
                   key={index} 
-                  className={`${isImageSegment ? (hasConsecutiveImages ? (isMobile ? 'max-w-[45%]' : 'max-w-[100%] md:max-w-[90%]') : (isMobile ? 'max-w-[55%]' : 'max-w-[100%] md:max-w-[70%]')) : ''} ${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isSingleLineBullet ? ' single-line-bullet' : ''}${isLastBubble ? ' last-bubble' : ''}${isTableSegment ? ' table-segment' : ''}${isHeaderSegment ? ' contains-header' : ''}${isH2HeaderSegment ? ' contains-h2-header' : ''}${isLongPressActive && isLastBubble ? ' long-press-shadow' : ''}`}`}
+                  className={`${isImageSegment ? (hasConsecutiveImages ? (isMobile ? 'max-w-[45%]' : 'max-w-[100%] md:max-w-[90%]') : (isMobile ? 'max-w-[55%]' : 'max-w-[100%] md:max-w-[70%]')) : ''} ${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isLastBubble ? ' last-bubble' : ''}${isTableSegment ? ' table-segment' : ''}${isHeaderSegment ? ' contains-header' : ''}${isH2HeaderSegment ? ' contains-h2-header' : ''}${isLongPressActive && isLastBubble ? ' long-press-shadow' : ''}`}`}
                   style={{
                     ...getImageStyle(),
                     ...(isTableSegment && {

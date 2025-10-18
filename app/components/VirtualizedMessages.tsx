@@ -5,7 +5,7 @@ import { User } from '@supabase/supabase-js'
 import React, { useState, useEffect, useCallback, memo, useRef, useMemo } from 'react'
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
 import { Message as MessageComponent } from '@/app/components/Message'
-import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGoogleSearchData } from '@/app/hooks/toolFunction';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getGoogleSearchData } from '@/app/hooks/toolFunction';
 import { formatMessageGroupTimestamp } from '@/app/lib/messageGroupTimeUtils';
 import { createClient } from '@/utils/supabase/client';
 
@@ -240,6 +240,8 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
     
     const webSearchData = getWebSearchResults(message);
     const imageGeneratorData = getImageGeneratorData(message);
+    const geminiImageData = getGeminiImageData(message);
+    const seedreamImageData = getSeedreamImageData(message);
     const googleSearchData = getGoogleSearchData(message);
     
     // Combine web search images and generated images into imageMap
@@ -249,6 +251,14 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
       ...(imageGeneratorData?.generatedImages?.reduce((acc: any, image: any, index: number) => {
         // Create a unique key for generated images
         const imageKey = `generated_image_${image.seed || index}`;
+        acc[imageKey] = image.imageUrl;
+        return acc;
+      }, {}) || {}),
+      ...(geminiImageData?.generatedImages?.reduce((acc: any, image: any, index: number) => {
+        // Extract image ID from Supabase URL (filename without extension)
+        const urlParts = image.imageUrl.split('/');
+        const fileName = urlParts[urlParts.length - 1];
+        const imageKey = fileName.replace(/\.[^/.]+$/, ''); // Remove extension
         acc[imageKey] = image.imageUrl;
         return acc;
       }, {}) || {})
@@ -310,6 +320,8 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
               mathCalculationData={mathCalculationData}
               linkReaderData={linkReaderData}
               imageGeneratorData={imageGeneratorData}
+              geminiImageData={geminiImageData}
+              seedreamImageData={seedreamImageData}
               youTubeSearchData={youTubeSearchData}
               youTubeLinkAnalysisData={youTubeLinkAnalysisData}
               googleSearchData={googleSearchData}
