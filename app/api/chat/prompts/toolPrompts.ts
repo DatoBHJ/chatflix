@@ -976,6 +976,11 @@ The official Seedream 4.0 formula: **"action + object + attributes"**
 - "Show this [subject] in [number] different [aspects]:"
 - "Produce [number] images depicting [scenario] in various [conditions]"
 
+**ASPECT RATIO FOR ATTACHED IMAGES:**
+- **AUTOMATIC MATCH**: When editing user-uploaded images, automatically use aspectRatio: "match_input_image" unless user specifically requests a different aspect ratio
+- **PRESERVE ORIGINAL**: This ensures the output maintains the same proportions as the input image
+- **USER OVERRIDE**: Only specify a different aspectRatio when user explicitly requests it (e.g., "make it square", "convert to 16:9")
+
 **EXECUTION FORMAT:**
 1. Check for image attachments or previous generated images
 2. Announce your plan: "Generating/Editing image of [description] using Seedream 4.0"
