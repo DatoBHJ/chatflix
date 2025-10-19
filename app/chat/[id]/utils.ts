@@ -609,31 +609,19 @@ export const convertMessage = (msg: DatabaseMessage): ExtendedMessage => {
 };
 
 export const deleteChat = async (chatId: string) => {
-  const supabase = createClient();
-
   try {
-    // 1. Delete all messages for this chat
-    const { error: deleteMessagesError } = await supabase
-      .from('messages')
-      .delete()
-      .eq('chat_session_id', chatId);
-
-    if (deleteMessagesError) {
-      console.error('Error deleting messages:', deleteMessagesError);
-      throw deleteMessagesError;
+    const response = await fetch(`/api/chat/delete/${chatId}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to delete chat');
     }
-
-    // 2. Delete the chat session
-    const { error: deleteChatError } = await supabase
-      .from('chat_sessions')
-      .delete()
-      .eq('id', chatId);
-
-    if (deleteChatError) {
-      console.error('Error deleting chat session:', deleteChatError);
-      throw deleteChatError;
-    }
-
+    
+    const result = await response.json();
+    console.log('✅ [DELETE_CHAT] Chat deleted successfully:', result);
+    
     return true;
   } catch (error) {
     console.error('Error in deleteChat:', error);
