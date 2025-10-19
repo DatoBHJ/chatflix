@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { MODEL_CONFIGS } from '@/lib/models/config'
 import { enrichAttachmentsWithMetadata } from '@/app/chat/[id]/utils'
 import { uploadFile } from '@/app/chat/[id]/utils'
+import { getWebSearchResults, getGoogleSearchData } from './toolFunction'
 
 export function useMessages(chatId: string, userId: string) {
   const [isRegenerating, setIsRegenerating] = useState(false)
@@ -59,6 +60,56 @@ export function useMessages(chatId: string, userId: string) {
     try {
       // Aggregate message text from parts with legacy fallback
       let textToCopy = getMessageText(message);
+
+      // Extract linkMap and imageMap from message data (same as VirtualizedMessages.tsx)
+      const webSearchData = getWebSearchResults(message);
+      const googleSearchData = getGoogleSearchData(message);
+      
+      // Combine link maps and image maps from both sources
+      const linkMap = {
+        ...(webSearchData?.linkMap || {}),
+        ...(googleSearchData?.linkMap || {})
+      };
+      
+      const imageMap = {
+        ...(webSearchData?.imageMap || {}),
+        ...(googleSearchData?.imageMap || {})
+      };
+
+      // Process placeholders if they exist in the text
+      if (textToCopy.includes('[LINK_ID:') || textToCopy.includes('[IMAGE_ID:')) {
+        // Pre-compiled regex for better performance (same as Message.tsx)
+        const IMAGE_ID_REGEX = /\[IMAGE_ID:([^\]]+)\]/g;
+        const LINK_ID_REGEX = /\[LINK_ID:([^\]]+)\]/g;
+        
+        // Process image placeholders
+        if (textToCopy.includes('[IMAGE_ID:')) {
+          textToCopy = textToCopy.replace(IMAGE_ID_REGEX, (match: string, imageId: string) => {
+            if (imageMap && Object.keys(imageMap).length > 0) {
+              const imageUrl = imageMap[imageId];
+              if (imageUrl) {
+                return imageUrl;
+              }
+            }
+            // Remove placeholder if no matching URL exists
+            return '';
+          });
+        }
+        
+        // Process link placeholders
+        if (textToCopy.includes('[LINK_ID:')) {
+          textToCopy = textToCopy.replace(LINK_ID_REGEX, (match: string, linkId: string) => {
+            if (linkMap && Object.keys(linkMap).length > 0) {
+              const linkUrl = linkMap[linkId];
+              if (linkUrl) {
+                return linkUrl;
+              }
+            }
+            // Remove placeholder if no matching URL exists
+            return '';
+          });
+        }
+      }
 
       // If the message has a structured response with description, include it
       const annotations = ((message as any).annotations || []) as any[];
