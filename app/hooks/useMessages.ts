@@ -56,6 +56,48 @@ export function useMessages(chatId: string, userId: string) {
     return (message as any).content || '';
   };
 
+  // Helper function to remove consecutive duplicate links
+  const removeConsecutiveDuplicateLinks = (content: string, linkMap: { [key: string]: string }) => {
+    if (!content.includes('[LINK_ID:')) return content;
+    
+    // Find consecutive LINK_ID groups (one or more LINK_IDs in a row)
+    const consecutiveLinkRegex = /(\[LINK_ID:[^\]]+\](?:\s*\[LINK_ID:[^\]]+\])*)/g;
+    let processedContent = content;
+    
+    let match;
+    while ((match = consecutiveLinkRegex.exec(content)) !== null) {
+      const linkGroup = match[1];
+      const linkIds = linkGroup.match(/\[LINK_ID:([^\]]+)\]/g);
+      
+      if (linkIds && linkIds.length > 1) {
+        const seenUrls = new Set<string>();
+        const uniqueLinks: string[] = [];
+        
+        for (const linkIdMatch of linkIds) {
+          const linkId = linkIdMatch.match(/\[LINK_ID:([^\]]+)\]/)?.[1];
+          if (linkId && linkMap[linkId]) {
+            const url = linkMap[linkId];
+            if (!seenUrls.has(url)) {
+              seenUrls.add(url);
+              uniqueLinks.push(linkIdMatch);
+            }
+          } else {
+            // Keep links that don't have URLs in linkMap
+            uniqueLinks.push(linkIdMatch);
+          }
+        }
+        
+        // Replace the original group with deduplicated links
+        if (uniqueLinks.length !== linkIds.length) {
+          const deduplicatedGroup = uniqueLinks.join('\n');
+          processedContent = processedContent.replace(linkGroup, deduplicatedGroup);
+        }
+      }
+    }
+    
+    return processedContent;
+  };
+
   const handleCopyMessage = async (message: UIMessage) => {
     try {
       // Aggregate message text from parts with legacy fallback
@@ -75,6 +117,11 @@ export function useMessages(chatId: string, userId: string) {
         ...(webSearchData?.imageMap || {}),
         ...(googleSearchData?.imageMap || {})
       };
+
+      // Remove consecutive duplicate links before processing placeholders
+      if (textToCopy.includes('[LINK_ID:')) {
+        textToCopy = removeConsecutiveDuplicateLinks(textToCopy, linkMap);
+      }
 
       // Process placeholders if they exist in the text
       if (textToCopy.includes('[LINK_ID:') || textToCopy.includes('[IMAGE_ID:')) {

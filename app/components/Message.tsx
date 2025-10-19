@@ -191,6 +191,48 @@ const Message = memo(function MessageComponent({
   // Pre-compiled regex for better performance
   const IMAGE_ID_REGEX = useMemo(() => /\[IMAGE_ID:([^\]]+)\]/g, []);
   const LINK_ID_REGEX = useMemo(() => /\[LINK_ID:([^\]]+)\]/g, []);
+  
+  // Helper function to remove consecutive duplicate links
+  const removeConsecutiveDuplicateLinks = useCallback((content: string, linkMap: { [key: string]: string }) => {
+    if (!content.includes('[LINK_ID:')) return content;
+    
+    // Find consecutive LINK_ID groups (one or more LINK_IDs in a row)
+    const consecutiveLinkRegex = /(\[LINK_ID:[^\]]+\](?:\s*\[LINK_ID:[^\]]+\])*)/g;
+    let processedContent = content;
+    
+    let match;
+    while ((match = consecutiveLinkRegex.exec(content)) !== null) {
+      const linkGroup = match[1];
+      const linkIds = linkGroup.match(/\[LINK_ID:([^\]]+)\]/g);
+      
+      if (linkIds && linkIds.length > 1) {
+        const seenUrls = new Set<string>();
+        const uniqueLinks: string[] = [];
+        
+        for (const linkIdMatch of linkIds) {
+          const linkId = linkIdMatch.match(/\[LINK_ID:([^\]]+)\]/)?.[1];
+          if (linkId && linkMap[linkId]) {
+            const url = linkMap[linkId];
+            if (!seenUrls.has(url)) {
+              seenUrls.add(url);
+              uniqueLinks.push(linkIdMatch);
+            }
+          } else {
+            // Keep links that don't have URLs in linkMap
+            uniqueLinks.push(linkIdMatch);
+          }
+        }
+        
+        // Replace the original group with deduplicated links
+        if (uniqueLinks.length !== linkIds.length) {
+          const deduplicatedGroup = uniqueLinks.join('\n');
+          processedContent = processedContent.replace(linkGroup, deduplicatedGroup);
+        }
+      }
+    }
+    
+    return processedContent;
+  }, []);
 
   // Memoized function to replace image placeholders with actual URLs - AI SDK v5 호환
   const processedContent = useMemo(() => {
@@ -212,6 +254,11 @@ const Message = memo(function MessageComponent({
     
     // Process placeholders only when necessary
     let processedContent = content;
+    
+    // Remove consecutive duplicate links before processing placeholders
+    if (content.includes('[LINK_ID:')) {
+      processedContent = removeConsecutiveDuplicateLinks(processedContent, linkMap);
+    }
     
     // Process image placeholders
     if (content.includes('[IMAGE_ID:')) {
@@ -248,7 +295,7 @@ const Message = memo(function MessageComponent({
     }
     
     return processedContent;
-  }, [message.content, message.parts, imageMap, linkMap, IMAGE_ID_REGEX, LINK_ID_REGEX]);
+  }, [message.content, message.parts, imageMap, linkMap, IMAGE_ID_REGEX, LINK_ID_REGEX, removeConsecutiveDuplicateLinks]);
 
   // Memoized function for parts processing
   const processedParts = useMemo(() => {
@@ -262,6 +309,11 @@ const Message = memo(function MessageComponent({
         }
         
         let processedText = part.text;
+        
+        // Remove consecutive duplicate links first
+        if (processedText.includes('[LINK_ID:')) {
+          processedText = removeConsecutiveDuplicateLinks(processedText, linkMap);
+        }
         
         // Process image placeholders
         if (part.text.includes('[IMAGE_ID:')) {
@@ -297,7 +349,7 @@ const Message = memo(function MessageComponent({
       }
       return part;
     });
-  }, [message.parts, imageMap, linkMap, IMAGE_ID_REGEX, LINK_ID_REGEX]);
+  }, [message.parts, imageMap, linkMap, IMAGE_ID_REGEX, LINK_ID_REGEX, removeConsecutiveDuplicateLinks]);
 
   const bubbleRef = useRef<HTMLDivElement>(null);
   const aiBubbleRef = useRef<HTMLDivElement>(null);
