@@ -4,6 +4,65 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { deleteCustomer, checkSubscription, getCustomerPortalUrl } from '@/lib/polar'
 
+// Storage URL에서 파일 경로 추출
+function extractStoragePath(url: string, bucketName: string): string | null {
+  if (!url || !url.includes(bucketName)) return null;
+  
+  try {
+    // URL 패턴: .../bucketName/FILE_PATH?token=... 또는 .../bucketName/FILE_PATH
+    const path = url.split(`${bucketName}/`)[1]?.split('?')[0];
+    return path || null;
+  } catch (error) {
+    console.error(`Error extracting path from URL: ${url}`, error);
+    return null;
+  }
+}
+
+// 메시지에서 모든 Storage 파일 경로 수집
+function collectStorageFiles(messages: any[]): {
+  chatAttachments: string[];
+  geminiImages: string[];
+} {
+  const chatAttachments: string[] = [];
+  const geminiImages: string[] = [];
+
+  for (const message of messages) {
+    // 1. experimental_attachments에서 chat_attachments 파일 수집
+    if (message.experimental_attachments && Array.isArray(message.experimental_attachments)) {
+      for (const attachment of message.experimental_attachments) {
+        if (attachment.path) {
+          // path 필드가 있으면 직접 사용
+          chatAttachments.push(attachment.path);
+        } else if (attachment.url) {
+          // path가 없으면 URL에서 추출
+          const path = extractStoragePath(attachment.url, 'chat_attachments');
+          if (path) chatAttachments.push(path);
+        }
+      }
+    }
+
+    // 2. tool_results에서 gemini-images URL 수집 (재귀 검색)
+    if (message.tool_results && typeof message.tool_results === 'object') {
+      // tool_results는 복잡한 구조일 수 있으므로 재귀적으로 검색
+      const searchForImageUrls = (obj: any): void => {
+        if (typeof obj === 'string' && obj.includes('gemini-images')) {
+          const path = extractStoragePath(obj, 'gemini-images');
+          if (path) geminiImages.push(path);
+        } else if (typeof obj === 'object' && obj !== null) {
+          Object.values(obj).forEach(value => searchForImageUrls(value));
+        }
+      };
+      searchForImageUrls(message.tool_results);
+    }
+  }
+
+  // 중복 제거
+  return {
+    chatAttachments: [...new Set(chatAttachments)],
+    geminiImages: [...new Set(geminiImages)]
+  };
+}
+
 export async function POST() {
   try {
     const cookieStore = cookies()
@@ -81,6 +140,73 @@ export async function POST() {
         
         // If no active subscription, we can continue but log the issue
         console.warn('Continuing with account deletion despite Polar deletion failure (no active subscription)');
+      }
+
+      // Step 2.5: Delete all storage files before DB deletion
+      try {
+        console.log('Starting storage cleanup for user:', user.id);
+        
+        // 1. 모든 chat_sessions 조회
+        const { data: sessions } = await serviceClient
+          .from('chat_sessions')
+          .select('id')
+          .eq('user_id', user.id);
+
+        if (sessions && sessions.length > 0) {
+          // 2. 각 세션의 메시지에서 파일 경로 수집
+          const chatAttachmentPaths: string[] = [];
+          const geminiImagePaths: string[] = [];
+          
+          for (const session of sessions) {
+            const { data: messages } = await serviceClient
+              .from('messages')
+              .select('experimental_attachments, tool_results')
+              .eq('chat_session_id', session.id)
+              .eq('user_id', user.id);
+            
+            if (messages) {
+              // collectStorageFiles 로직 적용
+              const { chatAttachments, geminiImages } = collectStorageFiles(messages);
+              chatAttachmentPaths.push(...chatAttachments);
+              geminiImagePaths.push(...geminiImages);
+            }
+          }
+          
+          // 3. Storage 파일 삭제
+          if (chatAttachmentPaths.length > 0) {
+            const { error: chatAttachmentsError } = await serviceClient.storage
+              .from('chat_attachments')
+              .remove(chatAttachmentPaths);
+            
+            if (chatAttachmentsError) {
+              console.warn('Failed to delete chat attachments:', chatAttachmentsError);
+            } else {
+              console.log(`Successfully deleted ${chatAttachmentPaths.length} chat attachments`);
+            }
+          }
+          
+          if (geminiImagePaths.length > 0) {
+            const { error: geminiImagesError } = await serviceClient.storage
+              .from('gemini-images')
+              .remove(geminiImagePaths);
+            
+            if (geminiImagesError) {
+              console.warn('Failed to delete gemini images:', geminiImagesError);
+            } else {
+              console.log(`Successfully deleted ${geminiImagePaths.length} gemini images`);
+            }
+          }
+          
+          console.log('Storage cleanup completed:', {
+            chatAttachments: chatAttachmentPaths.length,
+            geminiImages: geminiImagePaths.length
+          });
+        } else {
+          console.log('No chat sessions found for user, skipping storage cleanup');
+        }
+      } catch (storageError) {
+        console.warn('Failed to delete storage files:', storageError);
+        // Continue with account deletion even if storage deletion fails
       }
 
       // Step 3: Delete all user data using the security definer function
