@@ -726,8 +726,8 @@ html, body {
   /* Light theme variables */
   --background-light: #ffffff;
   --foreground-light: #111111;
-  /* --accent-light: #f5f5f5; */
-  --accent-light: #E9E9EB; /* literal imessage light mode */
+  --accent-light: #f5f5f5;
+  /* --accent-light: #E9E9EB; literal imessage light mode */
   /* --sidebar-light: #E9E9EB; literal imessage light mode */
   --sidebar-light: #f5f5f5; 
   --muted-light: #666666;
