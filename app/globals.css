@@ -1463,6 +1463,12 @@ body {
   padding-left: 0rem !important;
 }
 
+/* Increase line spacing within bullet points */
+.message-content ul li,
+.message-content ol li {
+  line-height: 1.8; /* 기본값 1.5보다 증가 */
+}
+
 /* Safari desktop-specific fix for bullet point clipping */
 @media (min-width: 641px) {
   @supports (-webkit-hyphens:none) {
