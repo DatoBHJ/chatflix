@@ -63,7 +63,6 @@ const MEMORY_UPDATE_TEMPERATURE = 0.3;
 
 // 🆕 Smart Trigger 관련 상수
 const MEMORY_ANALYSIS_MODEL = 'gemini-2.0-flash'; // Gemini 2.0 Flash 모델 사용
-const MIN_MESSAGE_LENGTH = 20; // 최소 메시지 길이 
 const MAX_TIME_SINCE_LAST_UPDATE = 24 * 60 * 60 * 1000; // 최대 24시간
 
 /**
@@ -114,17 +113,8 @@ export async function shouldUpdateMemory(
       };
     }
     
-    // 3. 메시지 길이 확인 (더 엄격한 조건)
-    if (userMessage.length < MIN_MESSAGE_LENGTH) {
-      return {
-        shouldUpdate: false,
-        reasons: ['Messages too short for meaningful analysis'],
-        categories: [],
-        priority: 'low'
-      };
-    }
     
-    // 4. AI 분석을 통한 컨텍스트 중요도 판단
+    // 3. AI 분석을 통한 컨텍스트 중요도 판단
     const recentConversation = messages.slice(-3).map(msg => 
       typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
     ).join('\n');
