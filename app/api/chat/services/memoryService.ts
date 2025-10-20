@@ -79,7 +79,6 @@ export async function shouldUpdateMemory(
   shouldUpdate: boolean;
   reasons: string[];
   categories: string[];
-  priority: 'high' | 'medium' | 'low';
 }> {
   try {
     // 1. 기본 조건 확인
@@ -98,8 +97,7 @@ export async function shouldUpdateMemory(
       return {
         shouldUpdate: true,
         reasons: ['First memory update'],
-        categories: ['all'],
-        priority: 'high'
+        categories: ['all']
       };
     }
     
@@ -108,8 +106,7 @@ export async function shouldUpdateMemory(
       return {
         shouldUpdate: true,
         reasons: ['Maximum time threshold reached'],
-        categories: ['all'],
-        priority: 'medium'
+        categories: ['all']
       };
     }
     
@@ -129,18 +126,13 @@ export async function shouldUpdateMemory(
           items: { type: "string" },
           description: "Categories that need updating: personal-info, preferences, interests, interaction-history, relationship"
         },
-        priority: { 
-          type: "string", 
-          enum: ["high", "medium", "low"],
-          description: "Priority level for the memory update"
-        },
         reasons: { 
           type: "array", 
           items: { type: "string" },
           description: "Brief reasons for the decision"
         }
       },
-      required: ["shouldUpdate", "categories", "priority", "reasons"]
+      required: ["shouldUpdate", "categories", "reasons"]
     };
 
     const analysisPrompt = `Analyze this conversation to determine if user memory should be updated.
@@ -154,34 +146,31 @@ ${isDefaultMemory ? 'NOTE: User has default/initial memory data - prioritize upd
 Determine:
 1. Should memory be updated? (yes/no)
 2. What categories need updating? (personal-info, preferences, interests, interaction-history, relationship)
-3. Priority level? (high/medium/low)
-4. Brief reasons
+3. Brief reasons
 
 CRITICAL RULES FOR MEMORY UPDATES:
 - ALWAYS update when user EXPLICITLY requests to remember something (e.g., "remember this", "save this", "keep this in mind", "memorize this")
 - ALWAYS update when user asks to remember specific preferences, styles, or instructions
-- HIGH priority: 
+- UPDATE for:
   * User explicitly requests memory updates ("remember this", "save this", "keep this in mind", etc.)
   * Major personal info changes (name, occupation, location)
   * Strong emotional responses or preferences that contradict existing data
   * Completely new topics/interests not mentioned before
   * New users with default memory (first few interactions)
   * Specific writing style preferences or communication instructions
-- MEDIUM priority:
   * New learning patterns or expertise level changes
   * Significant technical discussions on new subjects
   * Communication style preferences that differ from existing patterns
   * Regular updates for users with established profiles (every 24h)
-- LOW priority:
-  * Minor clarifications or elaborations on existing topics
-  * Simple questions or greetings
-  * Information already present in memory
 - SKIP update for:
   * Very short exchanges (< 50 characters total)
   * Purely factual Q&A without personal context
   * Information already well-documented in memory
   * Routine conversations without new insights
   * Repeated topics or preferences already recorded
+  * Minor clarifications or elaborations on existing topics
+  * Simple questions or greetings
+  * Information already present in memory
 
 EXPLICIT MEMORY REQUESTS:
 - Look for phrases like: "remember this", "save this", "keep this in mind", "memorize this", "remember that", "save that"
@@ -212,8 +201,7 @@ COMPARISON LOGIC:
         return {
           shouldUpdate: analysis.shouldUpdate || false,
           reasons: analysis.reasons || [],
-          categories: analysis.categories || [],
-          priority: analysis.priority || 'low'
+          categories: analysis.categories || []
         };
       } catch (parseError) {
         console.error('❌ [SMART TRIGGER] Failed to parse analysis result:', parseError);
@@ -225,8 +213,7 @@ COMPARISON LOGIC:
     return {
       shouldUpdate: false,
       reasons: ['AI analysis failed'],
-      categories: [],
-      priority: 'low'
+      categories: []
     };
     
   } catch (error) {
@@ -235,8 +222,7 @@ COMPARISON LOGIC:
     return {
       shouldUpdate: false,
       reasons: ['Analysis failed'],
-      categories: [],
-      priority: 'low'
+      categories: []
     };
   }
 }
@@ -902,13 +888,12 @@ export async function updateSelectiveMemoryBanks(
   messages: any[],
   userMessage: string,
   aiMessage: string,
-  categories: string[],
-  priority: 'high' | 'medium' | 'low'
+  categories: string[]
   // 🆕 REMOVE memoryData parameter - will be fetched per-category
 ): Promise<void> {
   try {
     const startTime = Date.now();
-    console.log(`🎯 [SELECTIVE UPDATE] Updating categories: ${categories.join(', ')} with ${priority} priority`);
+    console.log(`🎯 [SELECTIVE UPDATE] Updating categories: ${categories.join(', ')}`);
     
     const updatePromises: Promise<any>[] = [];
     
@@ -1011,7 +996,6 @@ export async function smartUpdateMemoryBanks(
     
     console.log(`🧠 [SMART UPDATE] Analysis complete:`, {
       shouldUpdate: analysis.shouldUpdate,
-      priority: analysis.priority,
       categories: analysis.categories,
       reasons: analysis.reasons
     });
@@ -1022,31 +1006,12 @@ export async function smartUpdateMemoryBanks(
       return;
     }
     
-    // 3. 우선순위에 따른 선택적 업데이트
-    // 🆕 Remove memoryData parameter from all calls
-    if (analysis.priority === 'high') {
-      console.log(`🔥 [SMART UPDATE] High priority - immediate update`);
-      await updateSelectiveMemoryBanks(
-        supabase, userId, chatId, messages, userMessage, aiMessage, 
-        analysis.categories, analysis.priority
-      );
-    } else if (analysis.priority === 'medium') {
-      console.log(`⏱️ [SMART UPDATE] Medium priority - delayed update (3s)`);
-      setTimeout(async () => {
-        await updateSelectiveMemoryBanks(
-          supabase, userId, chatId, messages, userMessage, aiMessage, 
-          analysis.categories, analysis.priority
-        );
-      }, 3000);
-    } else {
-      console.log(`🐌 [SMART UPDATE] Low priority - batch update (30s)`);
-      setTimeout(async () => {
-        await updateSelectiveMemoryBanks(
-          supabase, userId, chatId, messages, userMessage, aiMessage, 
-          analysis.categories, analysis.priority
-        );
-      }, 30000);
-    }
+    // 3. 선택적 업데이트 실행
+    console.log(`🚀 [SMART UPDATE] Executing memory update`);
+    await updateSelectiveMemoryBanks(
+      supabase, userId, chatId, messages, userMessage, aiMessage, 
+      analysis.categories
+    );
     
   } catch (error) {
     console.error("❌ [SMART UPDATE] Smart memory update failed:", error);

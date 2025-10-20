@@ -100,13 +100,13 @@ export default function MemoryModals({
                   <div>
                     <h4 className="text-white font-semibold mb-2">Explicit Commands</h4>
                     <p>
-                      You can also directly control what gets remembered by saying "remember this" or "save this preference," which triggers an immediate high-priority update.
+                      You can also directly control what gets remembered by saying "remember this" or "save this preference," which triggers an immediate update.
                     </p>
                   </div>
                   <div>
-                    <h4 className="text-white font-semibold mb-2">Priority System</h4>
+                    <h4 className="text-white font-semibold mb-2">Smart Updates</h4>
                     <p>
-                      Updates are prioritized based on importance: high priority updates happen immediately, medium priority after 3 seconds, and low priority are batched for efficiency.
+                      The system intelligently determines when updates are needed based on conversation content and automatically processes them in the background for optimal performance.
                     </p>
                   </div>
                 </div>
