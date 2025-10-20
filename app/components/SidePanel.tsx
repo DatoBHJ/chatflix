@@ -277,6 +277,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           case 'calculator': return 'Calculator';
           case 'link-reader': return 'Link Reader';
           case 'image-generator': return 'Image Generator';
+          case 'gemini-image': return '🍌 Nano Banana';
+          case 'seedream-image': return 'Seedream 4.0';
           case 'youtube-search': return 'YouTube Search';
           case 'youtube-analyzer': return 'YouTube Analyzer';
           case 'x-search': return 'X Search';
