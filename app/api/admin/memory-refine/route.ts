@@ -116,7 +116,7 @@ async function refineUserMemory(userId: string, supabase: any) {
         systemPrompt = `You are a memory refinement specialist for personal information. Create a comprehensive user profile in markdown format with the following sections:
 
 ## Basic Details
-- Name, Member since, Last active, Language preference
+- Name, Member since, Language preference
 
 ## Professional Context  
 - Occupation, Expertise level, Fields

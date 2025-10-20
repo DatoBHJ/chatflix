@@ -504,7 +504,6 @@ Update the existing personal info profile by:
 BASIC USER DATA:
 - Name: ${basicInfo.name || '[Extract from conversation if mentioned]'}
 - Member since: ${basicInfo.created_at ? new Date(basicInfo.created_at).toLocaleDateString() : 'Unknown'}
-- Last active: ${basicInfo.last_sign_in_at ? new Date(basicInfo.last_sign_in_at).toLocaleDateString() : 'Unknown'}
 
 CONVERSATION:
 ${recentConversationText}
@@ -520,7 +519,6 @@ Create a comprehensive user profile in markdown format with these EXACT sections
 ## Basic Details
 - Name: [Extract from conversation if mentioned, otherwise use provided name]
 - Member since: [Use provided date]
-- Last active: [Use provided date]
 - Language preference: [Extract from conversation]
 
 ## Professional Context
