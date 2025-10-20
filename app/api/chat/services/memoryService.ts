@@ -79,6 +79,11 @@ export async function shouldUpdateMemory(
   shouldUpdate: boolean;
   reasons: string[];
   categories: string[];
+  edits?: Array<{
+    category: string;
+    editIntent: 'add' | 'delete' | 'modify';
+    targetContent: string;
+  }>;
 }> {
   try {
     // 1. 기본 조건 확인
@@ -128,6 +133,25 @@ export async function shouldUpdateMemory(
           type: "array", 
           items: { type: "string" },
           description: "Brief reasons for the decision"
+        },
+        edits: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              category: { 
+                type: "string",
+                description: "Category to apply this edit to: personal-info, preferences, interests, interaction-history, relationship"
+              },
+              editIntent: { 
+                type: "string",
+                enum: ["add", "delete", "modify"]
+              },
+              targetContent: { type: "string" }
+            },
+            required: ["category", "editIntent", "targetContent"]
+          },
+          description: "Array of specific edit operations requested by user (only set if user explicitly requests edit operations)"
         }
       },
       required: ["shouldUpdate", "categories", "reasons"]
@@ -145,6 +169,7 @@ Determine:
 1. Should memory be updated? (yes/no)
 2. What categories need updating? (personal-info, preferences, interests, interaction-history, relationship)
 3. Brief reasons
+4. If user explicitly requests an edit operation, set editIntent and targetContent
 
 CRITICAL RULES FOR MEMORY UPDATES:
 - ALWAYS update when user EXPLICITLY requests to remember something (e.g., "remember this", "save this", "keep this in mind", "memorize this")
@@ -174,6 +199,14 @@ EXPLICIT MEMORY REQUESTS:
 - When user asks to remember something specific, ALWAYS update memory regardless of other factors
 - This includes style preferences, writing instructions, communication preferences, etc.
 
+EDIT INTENT DETECTION:
+- DELETION keywords: "delete", "remove", "forget", "erase", "clear", "eliminate"
+- MODIFICATION keywords: "modify", "change", "update", "edit", "revise", "alter"
+- ADDITION keywords: "add", "save", "remember", "store", "keep", "record"
+- When these keywords are detected, create an edits array with each operation
+- Each edit must specify: category, editIntent, and targetContent
+- Support multiple operations in one request (e.g., "delete X and add Y")
+
 COMPARISON LOGIC:
 - Compare new information with existing memory data
 - Only update if the new information is substantially different or adds significant value
@@ -198,7 +231,8 @@ COMPARISON LOGIC:
         return {
           shouldUpdate: analysis.shouldUpdate || false,
           reasons: analysis.reasons || [],
-          categories: analysis.categories || []
+          categories: analysis.categories || [],
+          edits: analysis.edits
         };
       } catch (parseError) {
         console.error('❌ [SMART TRIGGER] Failed to parse analysis result:', parseError);
@@ -401,7 +435,11 @@ export async function updatePersonalInfo(
   supabase: SupabaseClient,
   userId: string,
   messages: any[],
-  memoryData?: string | null
+  memoryData?: string | null,
+  edits?: Array<{
+    editIntent: 'add' | 'delete' | 'modify';
+    targetContent: string;
+  }>
 ): Promise<string | null> {
   try {
     // 🆕 If memoryData is undefined (not explicitly passed), fetch it
@@ -433,6 +471,18 @@ ${categoryMemory}
 NEW CONVERSATION:
 ${recentConversationText}
 
+${edits && edits.length > 0 ? `
+EDIT OPERATIONS REQUESTED:
+${edits.map((edit, index) => `
+${index + 1}. ${edit.editIntent.toUpperCase()}: "${edit.targetContent}"
+${edit.editIntent === 'delete' ? '   - Remove all mentions while preserving other content' : ''}
+${edit.editIntent === 'modify' ? '   - Update/change this content based on new information' : ''}
+${edit.editIntent === 'add' ? '   - Add this new information while preserving existing content' : ''}
+`).join('\n')}
+
+Apply ALL edit operations above in sequence.
+` : ''}
+
 CRITICAL FORMAT REQUIREMENTS:
 - MUST maintain the exact same markdown structure as the existing profile
 - MUST preserve all existing section headers (## Basic Details, ## Professional Context, ## Usage Patterns)
@@ -444,7 +494,7 @@ CRITICAL FORMAT REQUIREMENTS:
 - If no updates needed, return ONLY the existing profile in pure markdown format
 
 Update the existing personal info profile by:
-1. Integrating new observations while preserving previous insights
+1. ${edits && edits.length > 0 ? 'Following the specific edit operations listed above' : 'Integrating new observations while preserving previous insights'}
 2. Only updating information that can be reliably inferred from the new conversation
 3. Maintaining the exact same language and format as the existing profile
 4. If no new personal info insights are available, return ONLY the existing profile in pure markdown format without any explanatory text`
@@ -508,7 +558,11 @@ export async function updatePreferences(
   supabase: SupabaseClient,
   userId: string,
   messages: any[],
-  memoryData?: string | null
+  memoryData?: string | null,
+  edits?: Array<{
+    editIntent: 'add' | 'delete' | 'modify';
+    targetContent: string;
+  }>
 ): Promise<void> {
   try {
     // 🆕 If memoryData is undefined (not explicitly passed), fetch it
@@ -537,6 +591,18 @@ ${categoryMemory}
 NEW CONVERSATION:
 ${conversationText}
 
+${edits && edits.length > 0 ? `
+EDIT OPERATIONS REQUESTED:
+${edits.map((edit, index) => `
+${index + 1}. ${edit.editIntent.toUpperCase()}: "${edit.targetContent}"
+${edit.editIntent === 'delete' ? '   - Remove all mentions while preserving other content' : ''}
+${edit.editIntent === 'modify' ? '   - Update/change this content based on new information' : ''}
+${edit.editIntent === 'add' ? '   - Add this new information while preserving existing content' : ''}
+`).join('\n')}
+
+Apply ALL edit operations above in sequence.
+` : ''}
+
 CRITICAL FORMAT REQUIREMENTS:
 - MUST maintain the exact same markdown structure as the existing profile
 - MUST preserve all existing section headers (## Communication Style, ## Content Preferences, ## Response Format Preferences)
@@ -548,7 +614,7 @@ CRITICAL FORMAT REQUIREMENTS:
 - If no updates needed, return ONLY the existing profile in pure markdown format
 
 Update the existing preference profile by:
-1. Integrating new observations while preserving previous insights
+1. ${edits && edits.length > 0 ? 'Following the specific edit operations listed above' : 'Integrating new observations while preserving previous insights'}
 2. Only updating preferences that can be reliably inferred from the new conversation
 3. Maintaining the exact same language and format as the existing profile
 4. If no new preference insights are available, return ONLY the existing profile in pure markdown format without any explanatory text`
@@ -607,7 +673,11 @@ export async function updateInterests(
   supabase: SupabaseClient,
   userId: string,
   messages: any[],
-  memoryData?: string | null
+  memoryData?: string | null,
+  edits?: Array<{
+    editIntent: 'add' | 'delete' | 'modify';
+    targetContent: string;
+  }>
 ): Promise<void> {
   try {
     // 🆕 If memoryData is undefined (not explicitly passed), fetch it
@@ -636,6 +706,18 @@ ${categoryMemory}
 NEW CONVERSATION:
 ${conversationText}
 
+${edits && edits.length > 0 ? `
+EDIT OPERATIONS REQUESTED:
+${edits.map((edit, index) => `
+${index + 1}. ${edit.editIntent.toUpperCase()}: "${edit.targetContent}"
+${edit.editIntent === 'delete' ? '   - Remove all mentions while preserving other content' : ''}
+${edit.editIntent === 'modify' ? '   - Update/change this content based on new information' : ''}
+${edit.editIntent === 'add' ? '   - Add this new information while preserving existing content' : ''}
+`).join('\n')}
+
+Apply ALL edit operations above in sequence.
+` : ''}
+
 CRITICAL FORMAT REQUIREMENTS:
 - MUST maintain the exact same markdown structure as the existing profile
 - MUST preserve all existing section headers (## Primary Interests, ## Recent Topics, ## Learning Journey)
@@ -647,7 +729,7 @@ CRITICAL FORMAT REQUIREMENTS:
 - If no updates needed, return ONLY the existing profile in pure markdown format
 
 Update the existing interests profile by:
-1. Integrating new observations while preserving previous insights
+1. ${edits && edits.length > 0 ? 'Following the specific edit operations listed above' : 'Integrating new observations while preserving previous insights'}
 2. Only updating interests that can be reliably inferred from the new conversation
 3. Maintaining the exact same language and format as the existing profile
 4. If no new interest insights are available, return ONLY the existing profile in pure markdown format without any explanatory text`
@@ -704,7 +786,11 @@ export async function updateInteractionHistory(
   supabase: SupabaseClient,
   userId: string,
   messages: any[],
-  memoryData?: string | null
+  memoryData?: string | null,
+  edits?: Array<{
+    editIntent: 'add' | 'delete' | 'modify';
+    targetContent: string;
+  }>
 ): Promise<void> {
   try {
     // 🆕 If memoryData is undefined (not explicitly passed), fetch it
@@ -736,6 +822,18 @@ ${categoryMemory}
 NEW CONVERSATION (${currentDate}):
 ${conversationText}
 
+${edits && edits.length > 0 ? `
+EDIT OPERATIONS REQUESTED:
+${edits.map((edit, index) => `
+${index + 1}. ${edit.editIntent.toUpperCase()}: "${edit.targetContent}"
+${edit.editIntent === 'delete' ? '   - Remove all mentions while preserving other content' : ''}
+${edit.editIntent === 'modify' ? '   - Update/change this content based on new information' : ''}
+${edit.editIntent === 'add' ? '   - Add this new information while preserving existing content' : ''}
+`).join('\n')}
+
+Apply ALL edit operations above in sequence.
+` : ''}
+
 CRITICAL FORMAT REQUIREMENTS:
 - MUST maintain the exact same markdown structure as the existing profile
 - MUST preserve all existing section headers (## Recent Conversations, ## Recurring Questions, ## Unresolved Issues)
@@ -748,8 +846,8 @@ CRITICAL FORMAT REQUIREMENTS:
 - If no updates needed, return ONLY the existing profile in pure markdown format
 
 Update the existing interaction history by:
-1. Adding today's conversation summary to the top of Recent Conversations
-2. Integrating new observations while preserving previous insights
+1. ${edits && edits.length > 0 ? 'Following the specific edit operations listed above' : 'Adding today\'s conversation summary to the top of Recent Conversations'}
+2. ${edits && edits.length > 0 ? 'Following the specific edit operations listed above' : 'Integrating new observations while preserving previous insights'}
 3. Maintaining the exact same language and format as the existing profile
 4. If no new interaction insights are available, return ONLY the existing profile in pure markdown format without any explanatory text`
       
@@ -806,7 +904,11 @@ export async function updateRelationship(
   messages: any[],
   userMessage: string,
   aiMessage: string,
-  memoryData?: string | null
+  memoryData?: string | null,
+  edits?: Array<{
+    editIntent: 'add' | 'delete' | 'modify';
+    targetContent: string;
+  }>
 ): Promise<void> {
   try {
     // 🆕 If memoryData is undefined (not explicitly passed), fetch it
@@ -839,6 +941,18 @@ LATEST INTERACTION:
 User: ${userMessage}
 AI: ${aiMessage}
 
+${edits && edits.length > 0 ? `
+EDIT OPERATIONS REQUESTED:
+${edits.map((edit, index) => `
+${index + 1}. ${edit.editIntent.toUpperCase()}: "${edit.targetContent}"
+${edit.editIntent === 'delete' ? '   - Remove all mentions while preserving other content' : ''}
+${edit.editIntent === 'modify' ? '   - Update/change this content based on new information' : ''}
+${edit.editIntent === 'add' ? '   - Add this new information while preserving existing content' : ''}
+`).join('\n')}
+
+Apply ALL edit operations above in sequence.
+` : ''}
+
 CRITICAL FORMAT REQUIREMENTS:
 - MUST maintain the exact same markdown structure as the existing profile
 - MUST preserve all existing section headers (## Communication Quality, ## Emotional Patterns, ## Personalization Strategy)
@@ -850,7 +964,7 @@ CRITICAL FORMAT REQUIREMENTS:
 - If no updates needed, return ONLY the existing profile in pure markdown format
 
 Update the existing relationship profile by:
-1. Integrating new observations while preserving previous insights
+1. ${edits && edits.length > 0 ? 'Following the specific edit operations listed above' : 'Integrating new observations while preserving previous insights'}
 2. Only updating relationship insights that can be reliably inferred from the new conversation
 3. Maintaining the exact same language and format as the existing profile
 4. If no new relationship insights are available, return ONLY the existing profile in pure markdown format without any explanatory text`
@@ -916,7 +1030,12 @@ export async function updateSelectiveMemoryBanks(
   messages: any[],
   userMessage: string,
   aiMessage: string,
-  categories: string[]
+  categories: string[],
+  edits?: Array<{
+    category: string;
+    editIntent: 'add' | 'delete' | 'modify';
+    targetContent: string;
+  }>
   // 🆕 REMOVE memoryData parameter - will be fetched per-category
 ): Promise<void> {
   try {
@@ -950,19 +1069,33 @@ export async function updateSelectiveMemoryBanks(
       }
     }
     
+    // Group edits by category
+    const editsByCategory: Record<string, Array<{editIntent: 'add' | 'delete' | 'modify', targetContent: string}>> = {};
+    if (edits) {
+      edits.forEach(edit => {
+        if (!editsByCategory[edit.category]) {
+          editsByCategory[edit.category] = [];
+        }
+        editsByCategory[edit.category].push({
+          editIntent: edit.editIntent,
+          targetContent: edit.targetContent
+        });
+      });
+    }
+
     // 카테고리별 업데이트 함수 매핑 (category-specific data)
     const updateFunctions = {
-      'personal-info': () => updatePersonalInfo(supabase, userId, messages, categoryDataMap['personal-info']),
-      'preferences': () => updatePreferences(supabase, userId, messages, categoryDataMap['preferences']),
-      'interests': () => updateInterests(supabase, userId, messages, categoryDataMap['interests']),
-      'interaction-history': () => updateInteractionHistory(supabase, userId, messages, categoryDataMap['interaction-history']),
-      'relationship': () => updateRelationship(supabase, userId, messages, userMessage, aiMessage, categoryDataMap['relationship']),
+      'personal-info': () => updatePersonalInfo(supabase, userId, messages, categoryDataMap['personal-info'], editsByCategory['personal-info']),
+      'preferences': () => updatePreferences(supabase, userId, messages, categoryDataMap['preferences'], editsByCategory['preferences']),
+      'interests': () => updateInterests(supabase, userId, messages, categoryDataMap['interests'], editsByCategory['interests']),
+      'interaction-history': () => updateInteractionHistory(supabase, userId, messages, categoryDataMap['interaction-history'], editsByCategory['interaction-history']),
+      'relationship': () => updateRelationship(supabase, userId, messages, userMessage, aiMessage, categoryDataMap['relationship'], editsByCategory['relationship']),
       'all': () => Promise.all([
-        updatePersonalInfo(supabase, userId, messages, categoryDataMap['personal-info']),
-        updatePreferences(supabase, userId, messages, categoryDataMap['preferences']),
-        updateInterests(supabase, userId, messages, categoryDataMap['interests']),
-        updateInteractionHistory(supabase, userId, messages, categoryDataMap['interaction-history']),
-        updateRelationship(supabase, userId, messages, userMessage, aiMessage, categoryDataMap['relationship'])
+        updatePersonalInfo(supabase, userId, messages, categoryDataMap['personal-info'], editsByCategory['personal-info']),
+        updatePreferences(supabase, userId, messages, categoryDataMap['preferences'], editsByCategory['preferences']),
+        updateInterests(supabase, userId, messages, categoryDataMap['interests'], editsByCategory['interests']),
+        updateInteractionHistory(supabase, userId, messages, categoryDataMap['interaction-history'], editsByCategory['interaction-history']),
+        updateRelationship(supabase, userId, messages, userMessage, aiMessage, categoryDataMap['relationship'], editsByCategory['relationship'])
       ])
     };
     
@@ -1038,7 +1171,8 @@ export async function smartUpdateMemoryBanks(
     console.log(`🚀 [SMART UPDATE] Executing memory update`);
     await updateSelectiveMemoryBanks(
       supabase, userId, chatId, messages, userMessage, aiMessage, 
-      analysis.categories
+      analysis.categories,
+      analysis.edits
     );
     
   } catch (error) {

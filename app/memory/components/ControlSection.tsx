@@ -57,7 +57,7 @@ export default function ControlSection() {
             </div>
             <h3 className="text-2xl font-semibold mb-4 text-[var(--foreground)]">Immediate User Input</h3>
             <p className="text-lg text-[var(--muted)]">
-              You can explicitly tell Chatflix to remember specific information by saying things like "Remember that I prefer concise responses" or "Save this as my preference." These updates are immediately reflected in your Memory Bank.
+              You can explicitly tell Chatflix to remember specific information by saying things like "Remember that I prefer concise responses" or "Save this as my preference." You can also perform multiple operations in one request like "Delete my soccer interest and add piano to my interests." These updates are immediately reflected in your Memory Bank.
             </p>
           </div>
           
@@ -65,7 +65,7 @@ export default function ControlSection() {
           <div className="hidden lg:block">
             <h3 className="text-2xl font-semibold mb-4 text-[var(--foreground)]">Immediate User Input</h3>
             <p className="text-lg text-[var(--muted)]">
-              You can explicitly tell Chatflix to remember specific information by saying things like "Remember that I prefer concise responses" or "Save this as my preference." These updates are immediately reflected in your Memory Bank.
+              You can explicitly tell Chatflix to remember specific information by saying things like "Remember that I prefer concise responses" or "Save this as my preference." You can also perform multiple operations in one request like "Delete my soccer interest and add piano to my interests." These updates are immediately reflected in your Memory Bank.
             </p>
           </div>
           
