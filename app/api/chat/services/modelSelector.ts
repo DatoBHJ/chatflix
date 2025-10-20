@@ -609,8 +609,8 @@ function selectModelBasedOnAnalysis(
   // 2단계: 멀티모달 요소 처리
   else if (hasImage) {
     if (analysis.category === 'technical' || analysis.category === 'math') {
-      // 이미지 + 기술/수학은 무조건 gemini 2.5 pro
-      return 'gemini-2.5-pro';
+      // 이미지 + 기술/수학: Pro는 gpt-5, 일반은 gemini 2.5 pro
+      return modelType === 'chatflix-ultimate-pro' ? 'gpt-5' : 'gemini-2.5-pro';
           } else {
         // 이미지 + 기타 카테고리
         if (modelType === 'chatflix-ultimate-pro') {
@@ -656,8 +656,8 @@ function selectModelBasedOnAnalysis(
   // 3단계: 텍스트만 있는 경우 (비멀티모달) - 🆕 2025-07-15 업데이트
   else {
     if (analysis.category === 'math') {
-      // 수학 카테고리 - 모든 복잡도에서 grok-4-0709 사용
-      return 'grok-4-0709';
+      // 수학 카테고리 - 비멀티모달: Ultimate는 openai/gpt-oss-120b-high, Pro는 gpt-5 사용
+      return modelType === 'chatflix-ultimate-pro' ? 'gpt-5' : 'openai/gpt-oss-120b-high';
     }
     else if (analysis.category === 'technical') {
       // 기술 카테고리
