@@ -163,7 +163,6 @@ CRITICAL RULES FOR MEMORY UPDATES:
   * Communication style preferences that differ from existing patterns
   * Regular updates for users with established profiles (every 24h)
 - SKIP update for:
-  * Very short exchanges (< 50 characters total)
   * Purely factual Q&A without personal context
   * Information already well-documented in memory
   * Routine conversations without new insights
@@ -230,8 +229,6 @@ COMPARISON LOGIC:
 // 최근 메시지 추출을 위한 상수
 // 가장 최근 메시지 5개만 고려 - 현재 대화의 직접적인 컨텍스트를 캡처하기 위함
 const RECENT_MESSAGES_COUNT = 5;
-// 조금 더 넓은 컨텍스트를 위해 7개의 메시지 사용 - 선호도, 관심사 등 패턴 파악에 유용
-const EXTENDED_MESSAGES_COUNT = 7;
 
 // 메모리 뱅크 카테고리 상수
 const MEMORY_CATEGORIES = {
@@ -507,7 +504,7 @@ export async function updatePreferences(
       categoryMemory = data;
     }
     
-    const recentMessages = messages.slice(-EXTENDED_MESSAGES_COUNT);
+    const recentMessages = messages.slice(-RECENT_MESSAGES_COUNT);
     const conversationText = convertMessagesToText(recentMessages);
     
     // 메모리 유무에 따른 조건부 접근
@@ -603,7 +600,7 @@ export async function updateInterests(
       categoryMemory = data;
     }
     
-    const recentMessages = messages.slice(-EXTENDED_MESSAGES_COUNT);
+    const recentMessages = messages.slice(-RECENT_MESSAGES_COUNT);
     const conversationText = convertMessagesToText(recentMessages);
     
     // 메모리 유무에 따른 조건부 접근
@@ -697,7 +694,7 @@ export async function updateInteractionHistory(
       categoryMemory = data;
     }
     
-    const recentMessages = messages.slice(-EXTENDED_MESSAGES_COUNT);
+    const recentMessages = messages.slice(-RECENT_MESSAGES_COUNT);
     const conversationText = convertMessagesToText(recentMessages);
     
     // 현재 날짜 정보 추가
