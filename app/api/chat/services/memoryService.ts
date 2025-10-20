@@ -423,13 +423,16 @@ CRITICAL FORMAT REQUIREMENTS:
 - MUST preserve all existing section headers (## Basic Details, ## Professional Context, ## Usage Patterns)
 - MUST maintain the same language as the existing profile
 - DELETE any content that doesn't fit the required format
-- If no new insights are available, return the existing profile unchanged
+- NEVER include explanatory text, meta-comments, or reasoning
+- Output ONLY the markdown profile content
+- NO sentences like 'No new X can be inferred...' or 'The existing profile will be returned unchanged'
+- If no updates needed, return ONLY the existing profile in pure markdown format
 
 Update the existing personal info profile by:
 1. Integrating new observations while preserving previous insights
 2. Only updating information that can be reliably inferred from the new conversation
 3. Maintaining the exact same language and format as the existing profile
-4. If no new personal info insights are available, keep the existing profile unchanged`
+4. If no new personal info insights are available, return ONLY the existing profile in pure markdown format without any explanatory text`
       
       : `Create a new user personal information profile based on conversation analysis.
 
@@ -524,13 +527,16 @@ CRITICAL FORMAT REQUIREMENTS:
 - MUST preserve all existing section headers (## Communication Style, ## Content Preferences, ## Response Format Preferences)
 - MUST maintain the same language as the existing profile
 - DELETE any content that doesn't fit the required format
-- If no new insights are available, return the existing profile unchanged
+- NEVER include explanatory text, meta-comments, or reasoning
+- Output ONLY the markdown profile content
+- NO sentences like 'No new X can be inferred...' or 'The existing profile will be returned unchanged'
+- If no updates needed, return ONLY the existing profile in pure markdown format
 
 Update the existing preference profile by:
 1. Integrating new observations while preserving previous insights
 2. Only updating preferences that can be reliably inferred from the new conversation
 3. Maintaining the exact same language and format as the existing profile
-4. If no new preference insights are available, keep the existing profile unchanged`
+4. If no new preference insights are available, return ONLY the existing profile in pure markdown format without any explanatory text`
       
       : `Create a new user preference profile based on conversation analysis.
 
@@ -620,13 +626,16 @@ CRITICAL FORMAT REQUIREMENTS:
 - MUST preserve all existing section headers (## Primary Interests, ## Recent Topics, ## Learning Journey)
 - MUST maintain the same language as the existing profile
 - DELETE any content that doesn't fit the required format
-- If no new insights are available, return the existing profile unchanged
+- NEVER include explanatory text, meta-comments, or reasoning
+- Output ONLY the markdown profile content
+- NO sentences like 'No new X can be inferred...' or 'The existing profile will be returned unchanged'
+- If no updates needed, return ONLY the existing profile in pure markdown format
 
 Update the existing interests profile by:
 1. Integrating new observations while preserving previous insights
 2. Only updating interests that can be reliably inferred from the new conversation
 3. Maintaining the exact same language and format as the existing profile
-4. If no new interest insights are available, keep the existing profile unchanged`
+4. If no new interest insights are available, return ONLY the existing profile in pure markdown format without any explanatory text`
       
       : `Create a new user interests profile based on conversation analysis.
 
@@ -718,12 +727,16 @@ CRITICAL FORMAT REQUIREMENTS:
 - MUST maintain the same language as the existing profile
 - DELETE any content that doesn't fit the required format
 - Place the new interaction at the top of the Recent Conversations section
+- NEVER include explanatory text, meta-comments, or reasoning
+- Output ONLY the markdown profile content
+- NO sentences like 'No new X can be inferred...' or 'The existing profile will be returned unchanged'
+- If no updates needed, return ONLY the existing profile in pure markdown format
 
 Update the existing interaction history by:
 1. Adding today's conversation summary to the top of Recent Conversations
 2. Integrating new observations while preserving previous insights
 3. Maintaining the exact same language and format as the existing profile
-4. If no new interaction insights are available, keep the existing profile unchanged`
+4. If no new interaction insights are available, return ONLY the existing profile in pure markdown format without any explanatory text`
       
       : `Create a new user interaction history based on conversation analysis.
 
@@ -816,13 +829,16 @@ CRITICAL FORMAT REQUIREMENTS:
 - MUST preserve all existing section headers (## Communication Quality, ## Emotional Patterns, ## Personalization Strategy)
 - MUST maintain the same language as the existing profile
 - DELETE any content that doesn't fit the required format
-- If no new insights are available, return the existing profile unchanged
+- NEVER include explanatory text, meta-comments, or reasoning
+- Output ONLY the markdown profile content
+- NO sentences like 'No new X can be inferred...' or 'The existing profile will be returned unchanged'
+- If no updates needed, return ONLY the existing profile in pure markdown format
 
 Update the existing relationship profile by:
 1. Integrating new observations while preserving previous insights
 2. Only updating relationship insights that can be reliably inferred from the new conversation
 3. Maintaining the exact same language and format as the existing profile
-4. If no new relationship insights are available, keep the existing profile unchanged`
+4. If no new relationship insights are available, return ONLY the existing profile in pure markdown format without any explanatory text`
       
       : `Create a new AI-user relationship profile based on conversation analysis.
 
