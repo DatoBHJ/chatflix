@@ -112,9 +112,7 @@ export async function shouldUpdateMemory(
     
     
     // 3. AI 분석을 통한 컨텍스트 중요도 판단
-    const recentConversation = messages.slice(-3).map(msg => 
-      typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
-    ).join('\n');
+    const recentConversation = convertMessagesToText(messages.slice(-3));
     
     // Define the analysis response schema for structured output
     const analysisSchema = {
@@ -263,11 +261,28 @@ function mapCategoryToDb(category: string): string | null {
 function convertMessagesToText(messages: any[]): string {
   return messages.map(msg => {
     const role = msg.role.charAt(0).toUpperCase() + msg.role.slice(1);
-    const content = typeof msg.content === 'string' 
-      ? msg.content 
-      : Array.isArray(msg.content) 
-        ? msg.content.filter((part: any) => part.type === 'text').map((part: any) => part.text).join('\n')
-        : JSON.stringify(msg.content);
+    
+    // Handle different message structures
+    let content = '';
+    
+    if (typeof msg.content === 'string') {
+      content = msg.content;
+    } else if (Array.isArray(msg.content)) {
+      // Handle content array (AI SDK v4 style)
+      content = msg.content
+        .filter((part: any) => part.type === 'text')
+        .map((part: any) => part.text)
+        .join('\n');
+    } else if (Array.isArray(msg.parts)) {
+      // Handle parts array (AI SDK v5 style)
+      content = msg.parts
+        .filter((part: any) => part.type === 'text')
+        .map((part: any) => part.text)
+        .join('\n');
+    } else {
+      content = JSON.stringify(msg.content);
+    }
+    
     return `${role}: ${content}`;
   }).join('\n\n');
 }
