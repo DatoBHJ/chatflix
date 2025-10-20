@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, memo, useRef } from 'react';
 import MultiSearch from './MultiSearch';
 import MathCalculation from './MathCalculation';
 import LinkReader from './LinkReader';
-import { ChevronUp, ChevronDown, Brain, Link2, Image as ImageIcon, AlertTriangle, X, ChevronLeft, ChevronRight, ExternalLink, Search, Calculator, BookOpen, FileSearch, Youtube, Database, Video } from 'lucide-react';
+import { ChevronUp, ChevronDown, Brain, Link2, Image as ImageIcon, AlertTriangle, X, ChevronLeft, ChevronRight, ExternalLink, Search, Calculator, BookOpen, FileSearch, Youtube, Database, Video, Copy, Check } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { Tweet } from 'react-tweet';
 import { XLogo, YouTubeLogo } from './CanvasFolder/CanvasLogo';
@@ -277,6 +277,7 @@ export default function Canvas({
   
   // State for image viewer modal
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(-1);
+  const [copySuccess, setCopySuccess] = useState(false);
   
   // Mobile detection and UI state
   const [isMobile, setIsMobile] = useState(false);
@@ -414,6 +415,21 @@ export default function Canvas({
       : (selectedImageIndex - 1 + count) % count;
     
     setSelectedImageIndex(newIndex);
+  };
+
+  const copyPromptToClipboard = () => {
+    const allImages = [
+      ...(imageGeneratorData?.generatedImages || []),
+      ...(geminiImageData?.generatedImages || []),
+      ...(seedreamImageData?.generatedImages || [])
+    ];
+    const selectedImage = allImages[selectedImageIndex];
+    if (selectedImage?.prompt) {
+      navigator.clipboard.writeText(selectedImage.prompt).then(() => {
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+      });
+    }
   };
 
   // Helper function to determine if data is still being generated
@@ -1156,7 +1172,7 @@ export default function Canvas({
                       className="rounded-md shadow-xl"
                       style={{ 
                         maxWidth: '100%', 
-                        maxHeight: '100vh', 
+                        maxHeight: 'calc(100vh - 80px)', 
                         objectFit: 'contain',
                         width: 'auto',
                         height: 'auto'
@@ -1195,14 +1211,28 @@ export default function Canvas({
                 })()}
               </div>
               
-              {/* Instruction text below the image (not overlaying) */}
-              <div className="text-center text-white text-sm mt-4 z-10 bg-black/30 py-2 px-4 rounded-md flex items-center gap-2 justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <line x1="12" y1="16" x2="12" y2="12"></line>
-                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                </svg>
-                Click image to view prompt
+              {/* Instruction text below the image with copy button */}
+              <div className="text-center text-white text-sm mt-4 z-10 bg-black/30 py-2 px-4 rounded-md flex items-center gap-3 justify-center">
+                <div className="flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                  </svg>
+                  Click image to view prompt
+                </div>
+                <div className="h-4 w-px bg-white/30"></div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    copyPromptToClipboard();
+                  }}
+                  className="flex items-center gap-1.5 hover:text-blue-300 transition-colors"
+                  aria-label="Copy prompt"
+                >
+                  {copySuccess ? <Check size={16} /> : <Copy size={16} />}
+                  {copySuccess ? 'Copied!' : 'Copy prompt'}
+                </button>
               </div>
             </div>
           </div>
