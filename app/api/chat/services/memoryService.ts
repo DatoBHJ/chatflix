@@ -194,6 +194,35 @@ CRITICAL RULES FOR MEMORY UPDATES:
   * Simple questions or greetings
   * Information already present in memory
 
+SPECIAL RULES FOR INTERACTION-HISTORY CATEGORY:
+⚠️ INTERACTION-HISTORY IS THE MOST SELECTIVE CATEGORY - USE HIGHEST STANDARDS ⚠️
+
+NEVER update interaction-history for:
+- Simple greetings: "hi", "hello", "hey", "good morning", "good afternoon"
+- Single-word responses: "ok", "thanks", "sure", "yes", "no", "maybe"
+- Basic acknowledgments: "got it", "understood", "alright", "cool"
+- Small talk without substance: "how are you?", "what's up?", "how's it going?"
+- Routine questions without personal context: "what time is it?", "what's the weather?"
+- Short follow-up questions: "and?", "really?", "why?", "how?"
+- Simple requests for information without personal relevance
+- Conversations under 3 meaningful exchanges
+
+ONLY update interaction-history when:
+- User shares significant life events, achievements, or major life changes
+- User discusses ongoing projects, goals, or challenges they're working on
+- User has substantive multi-turn conversations (3+ meaningful exchanges) about topics that would provide valuable context for future interactions
+- User shares personal struggles, successes, or important decisions
+- User discusses relationships, family, work situations that are meaningful
+- User has in-depth technical discussions that show their expertise level or learning journey
+- User shares preferences about communication style that would be useful to remember
+- User discusses problems they're trying to solve that might come up again
+
+EXAMPLES:
+❌ DON'T record: "hi" → "Hello! How can I help you?" → "thanks"
+❌ DON'T record: "what's 2+2?" → "4" → "ok"
+✅ DO record: "I'm working on a React project and struggling with state management" → [substantive discussion about their coding challenges]
+✅ DO record: "I just got promoted at work and I'm excited but nervous about the new responsibilities" → [discussion about their career development]
+
 EXPLICIT MEMORY REQUESTS:
 - Look for phrases like: "remember this", "save this", "keep this in mind", "memorize this", "remember that", "save that"
 - When user asks to remember something specific, ALWAYS update memory regardless of other factors
