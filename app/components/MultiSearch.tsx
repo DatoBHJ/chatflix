@@ -100,6 +100,7 @@ const extractTikTokVideoId = (url: string): string | null => {
 type SearchImage = {
   url: string;
   description: string;
+  sourceLink?: string;
 };
 
 type SearchResult = {
@@ -507,7 +508,7 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
       </div>
       
       <a 
-        href={selectedImage.url}
+        href={selectedImage.sourceLink || selectedImage.url}
         target="_blank"
         rel="noopener noreferrer"
         className="view-original-button"
