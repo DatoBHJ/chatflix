@@ -58,7 +58,7 @@ const fetchUserName = async (userId: string, supabase: SupabaseClient) => {
 
 // 메모리 뱅크 업데이트에 사용할 AI 모델 및 설정
 const MEMORY_UPDATE_MODEL = 'gemini-2.5-flash';
-const MEMORY_UPDATE_MAX_TOKENS = 1500;
+const MEMORY_UPDATE_MAX_TOKENS = 4000;
 const MEMORY_UPDATE_TEMPERATURE = 0.3;
 
 // 🆕 Smart Trigger 관련 상수

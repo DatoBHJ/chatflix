@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Refine에 사용할 AI 모델 설정
 const REFINE_MODEL = 'gemini-2.5-flash';
-const REFINE_MAX_TOKENS = 3000; // 50개 메시지 처리용 토큰 증가
+const REFINE_MAX_TOKENS = 4000; // 50개 메시지 처리용 토큰 증가
 const REFINE_TEMPERATURE = 0.2;
 
 /**
