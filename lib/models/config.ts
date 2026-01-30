@@ -44,7 +44,7 @@ export interface ModelConfig {
 }
 
 // Default model configuration
-export const DEFAULT_MODEL_ID = 'chatflix-ultimate-pro'; 
+export const DEFAULT_MODEL_ID = 'chatflix-ultimate'; 
 
 export const RATE_LIMITS = {
   level0: {
