@@ -468,7 +468,6 @@ function SortableWidgetItem({
   const longPressHandlers = !isEditMode ? {
     ...(isTouchDevice ? {
       onTouchStart: () => handleLongPressStart(widget.id),
-      onTouchMove: () => handleLongPressEnd(), // 스크롤 시 long press 취소
       onTouchEnd: () => handleLongPressEnd(),
     } : {}),
     // 데스크탑에서는 onMouseDown, onMouseUp, onMouseLeave 제거
@@ -1037,7 +1036,6 @@ function SortableAppItem({
   const longPressHandlers = !isEditMode ? {
     ...(isTouchDevice ? {
       onTouchStart: handleLongPressStart,
-      onTouchMove: handleLongPressEnd, // 스크롤 시 long press 취소
       onTouchEnd: handleLongPressEnd,
     } : {}),
     // 데스크탑에서는 onMouseDown, onMouseUp, onMouseLeave 제거
