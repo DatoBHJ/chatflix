@@ -391,7 +391,7 @@ interface SortableWidgetItemProps {
   isRemoving: boolean;
   onDeleteWidget: (widgetId: string) => void;
   handleContextMenu: (e: React.MouseEvent) => void;
-  handleLongPressStart: (widgetId?: string) => void;
+  handleLongPressStart: (widgetId?: string, position?: { x: number; y: number }) => void;
   handleLongPressEnd: () => void;
   renderWidgetContent: (widget: App, hasBackgroundImage: boolean) => React.ReactNode;
   widgetSize: { width: number; height: number };
@@ -467,13 +467,13 @@ function SortableWidgetItem({
   // 데스크탑에서는 마우스 이벤트 제거 (우클릭만 허용)
   const longPressHandlers = !isEditMode ? {
     ...(isTouchDevice ? {
-      onTouchStart: () => handleLongPressStart(widget.id),
+      onTouchStart: (e: React.TouchEvent) => handleLongPressStart(widget.id, { x: e.touches[0].clientX, y: e.touches[0].clientY }),
       onTouchEnd: () => handleLongPressEnd(),
     } : {}),
     // 데스크탑에서는 onMouseDown, onMouseUp, onMouseLeave 제거
     // 터치 디바이스에서만 마우스 이벤트 허용 (하이브리드 디바이스 대응)
     ...(isTouchDevice ? {
-      onMouseDown: () => handleLongPressStart(widget.id),
+      onMouseDown: (e: React.MouseEvent) => handleLongPressStart(widget.id, { x: e.clientX, y: e.clientY }),
       onMouseUp: () => handleLongPressEnd(),
       onMouseLeave: () => handleLongPressEnd(),
     } : {}),
@@ -978,7 +978,7 @@ interface SortableAppItemProps {
   newUpdatesCount: number;
   onAppClick: (app: App) => void;
   onDeleteApp: (appId: string) => void;
-  handleLongPressStart: () => void;
+  handleLongPressStart: (widgetId?: string, position?: { x: number; y: number }) => void;
   handleLongPressEnd: () => void;
   getButtonStyle: (hasBackgroundImage: boolean) => React.CSSProperties;
   getTextStyle: (hasBackgroundImage: boolean) => React.CSSProperties;
@@ -1035,13 +1035,13 @@ function SortableAppItem({
   // 데스크탑에서는 마우스 이벤트 제거 (우클릭만 허용)
   const longPressHandlers = !isEditMode ? {
     ...(isTouchDevice ? {
-      onTouchStart: handleLongPressStart,
+      onTouchStart: (e: React.TouchEvent) => handleLongPressStart(undefined, { x: e.touches[0].clientX, y: e.touches[0].clientY }),
       onTouchEnd: handleLongPressEnd,
     } : {}),
     // 데스크탑에서는 onMouseDown, onMouseUp, onMouseLeave 제거
     // 터치 디바이스에서만 마우스 이벤트 허용 (하이브리드 디바이스 대응)
     ...(isTouchDevice ? {
-      onMouseDown: handleLongPressStart,
+      onMouseDown: (e: React.MouseEvent) => handleLongPressStart(undefined, { x: e.clientX, y: e.clientY }),
       onMouseUp: handleLongPressEnd,
       onMouseLeave: handleLongPressEnd,
     } : {}),
@@ -1684,7 +1684,10 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
   
   // Long press detection
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
-  const longPressDelay = 500;
+  const longPressDelay = 900;
+  const LONG_PRESS_MOVE_THRESHOLD = 15;
+  const longPressStartPosition = useRef<{ x: number; y: number } | null>(null);
+  const longPressMoveCleanup = useRef<(() => void) | null>(null);
   
   // Widget long press tracking (for Safari touchEnd -> click prevention)
   const justEnteredEditModeFromWidget = useRef(false);
@@ -3142,14 +3145,47 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
     }
   };
 
-  const handleLongPressStart = (widgetId?: string) => {
+  const handleLongPressStart = (widgetId?: string, position?: { x: number; y: number }) => {
     // 위젯인 경우 위젯 ID 저장
     if (widgetId) {
       longPressWidgetId.current = widgetId;
     }
-    
+    if (position) {
+      longPressStartPosition.current = position;
+    }
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
+    }
+    if (longPressMoveCleanup.current) {
+      longPressMoveCleanup.current();
+      longPressMoveCleanup.current = null;
+    }
+    if (position) {
+      const checkMove = (current: { x: number; y: number }) => {
+        const start = longPressStartPosition.current;
+        if (!start) return;
+        const dx = current.x - start.x;
+        const dy = current.y - start.y;
+        if (Math.sqrt(dx * dx + dy * dy) > LONG_PRESS_MOVE_THRESHOLD) {
+          handleLongPressEnd();
+        }
+      };
+      const onTouchMove = (e: TouchEvent) => {
+        if (e.touches[0]) {
+          checkMove({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+        }
+      };
+      const onMouseMove = (e: MouseEvent) => {
+        checkMove({ x: e.clientX, y: e.clientY });
+      };
+      window.addEventListener('touchmove', onTouchMove, { passive: true });
+      window.addEventListener('mousemove', onMouseMove);
+      longPressMoveCleanup.current = () => {
+        window.removeEventListener('touchmove', onTouchMove);
+        window.removeEventListener('mousemove', onMouseMove);
+        longPressStartPosition.current = null;
+        longPressMoveCleanup.current = null;
+      };
     }
     longPressTimer.current = setTimeout(() => {
       if (!isEditMode) {
@@ -3171,6 +3207,11 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
+    if (longPressMoveCleanup.current) {
+      longPressMoveCleanup.current();
+      longPressMoveCleanup.current = null;
+    }
+    longPressStartPosition.current = null;
     // 위젯 long press 종료 시 위젯 ID 초기화 (타이머가 완료되지 않은 경우)
     longPressWidgetId.current = null;
   };
@@ -5166,11 +5207,14 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
     setActiveWidgetId(null);
   };
 
-  // Cleanup long press timer
+  // Cleanup long press timer and move listeners
   useEffect(() => {
     return () => {
       if (longPressTimer.current) {
         clearTimeout(longPressTimer.current);
+      }
+      if (longPressMoveCleanup.current) {
+        longPressMoveCleanup.current();
       }
     };
   }, []);
