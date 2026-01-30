@@ -452,6 +452,8 @@ function SortableWidgetItem({
   // SortableWidgetItem is always on home view which has background image
   const hasBackgroundImage = true;
   const widgetRef = useRef<HTMLDivElement>(null);
+  // 터치 탭 감지: DnD TouchSensor가 합성 click을 막는 문제 회피 (모바일에서 한 번 탭으로 위젯 확대)
+  const widgetTapTouchStart = useRef<{ time: number; x: number; y: number } | null>(null);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -877,6 +879,33 @@ function SortableWidgetItem({
             };
           })(),
         }}
+        {...(isTouchDevice && !isEditMode && onWidgetActivate ? {
+          onTouchStart: (e: React.TouchEvent) => {
+            if (e.touches.length > 0) {
+              widgetTapTouchStart.current = {
+                time: Date.now(),
+                x: e.touches[0].clientX,
+                y: e.touches[0].clientY,
+              };
+            }
+          },
+          onTouchEnd: (e: React.TouchEvent) => {
+            const t = widgetTapTouchStart.current;
+            widgetTapTouchStart.current = null;
+            if (!t || !onWidgetActivate || isEditMode || isDragging || isResizing) return;
+            const duration = Date.now() - t.time;
+            const touch = e.changedTouches?.[0];
+            const moved = touch
+              ? Math.abs(touch.clientX - t.x) > 10 || Math.abs(touch.clientY - t.y) > 10
+              : false;
+            if (duration >= 250 || moved) return;
+            const el = touch ? document.elementFromPoint(touch.clientX, touch.clientY) : null;
+            if (el?.closest('button, a, input, textarea, select, [role="button"]')) return;
+            e.preventDefault(); // 합성 click 방지 (한 번만 확대되도록)
+            const originRect = widgetRef.current?.getBoundingClientRect();
+            onWidgetActivate(widget, originRect ?? undefined);
+          },
+        } : {})}
         onClick={(e) => {
           if (isEditMode) {
             // 편집 모드: 클릭한 요소가 인터랙티브한지 확인
