@@ -3638,23 +3638,6 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   user-select: none;
 }
 
-/* 편집 모드에서도 버튼·링크·위젯 콘텐츠는 탭/스크롤 허용 */
-.quick-access-edit-mode button,
-.quick-access-edit-mode a,
-.quick-access-edit-mode input,
-.quick-access-edit-mode textarea,
-.quick-access-edit-mode select,
-.quick-access-edit-mode [role="button"],
-.quick-access-edit-mode .quick-access-delete-btn,
-.quick-access-edit-mode .widget-content-wrapper,
-.quick-access-edit-mode .widget-content-wrapper * {
-  touch-action: auto;
-  -webkit-user-select: auto;
-  -moz-user-select: auto;
-  -ms-user-select: auto;
-  user-select: auto;
-}
-
 /* 드래그 중인 아이템의 커서 스타일 */
 [data-dnd-kit-dragging="true"] {
   cursor: grabbing !important;

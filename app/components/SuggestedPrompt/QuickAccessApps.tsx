@@ -464,16 +464,22 @@ function SortableWidgetItem({
 
   // 편집 모드가 아닐 때만 long press 이벤트 핸들러 적용
   // 위젯 ID를 포함한 래퍼 함수 생성 (Safari touchEnd -> click 방지용)
-  // 데스크탑에서는 마우스 이벤트 제거 (우클릭만 허용)
+  // 버튼/링크 등 인터랙티브 요소 위에서는 롱 프레스 시작 안 함 → 합성 click이 버튼에 전달되도록
   const longPressHandlers = !isEditMode ? {
     ...(isTouchDevice ? {
-      onTouchStart: (e: React.TouchEvent) => handleLongPressStart(widget.id, { x: e.touches[0].clientX, y: e.touches[0].clientY }),
+      onTouchStart: (e: React.TouchEvent) => {
+        if ((e.target as HTMLElement).closest('button, a, input, textarea, select, [role="button"]')) return;
+        handleLongPressStart(widget.id, { x: e.touches[0].clientX, y: e.touches[0].clientY });
+      },
       onTouchEnd: () => handleLongPressEnd(),
     } : {}),
     // 데스크탑에서는 onMouseDown, onMouseUp, onMouseLeave 제거
     // 터치 디바이스에서만 마우스 이벤트 허용 (하이브리드 디바이스 대응)
     ...(isTouchDevice ? {
-      onMouseDown: (e: React.MouseEvent) => handleLongPressStart(widget.id, { x: e.clientX, y: e.clientY }),
+      onMouseDown: (e: React.MouseEvent) => {
+        if ((e.target as HTMLElement).closest('button, a, input, textarea, select, [role="button"]')) return;
+        handleLongPressStart(widget.id, { x: e.clientX, y: e.clientY });
+      },
       onMouseUp: () => handleLongPressEnd(),
       onMouseLeave: () => handleLongPressEnd(),
     } : {}),
@@ -1033,15 +1039,22 @@ function SortableAppItem({
 
   // 편집 모드가 아닐 때만 long press 이벤트 핸들러 적용
   // 데스크탑에서는 마우스 이벤트 제거 (우클릭만 허용)
+  // 버튼/링크 등 인터랙티브 요소 위에서는 롱 프레스 시작 안 함 → 합성 click이 버튼에 전달되도록
   const longPressHandlers = !isEditMode ? {
     ...(isTouchDevice ? {
-      onTouchStart: (e: React.TouchEvent) => handleLongPressStart(undefined, { x: e.touches[0].clientX, y: e.touches[0].clientY }),
+      onTouchStart: (e: React.TouchEvent) => {
+        if ((e.target as HTMLElement).closest('button, a, input, textarea, select, [role="button"]')) return;
+        handleLongPressStart(undefined, { x: e.touches[0].clientX, y: e.touches[0].clientY });
+      },
       onTouchEnd: handleLongPressEnd,
     } : {}),
     // 데스크탑에서는 onMouseDown, onMouseUp, onMouseLeave 제거
     // 터치 디바이스에서만 마우스 이벤트 허용 (하이브리드 디바이스 대응)
     ...(isTouchDevice ? {
-      onMouseDown: (e: React.MouseEvent) => handleLongPressStart(undefined, { x: e.clientX, y: e.clientY }),
+      onMouseDown: (e: React.MouseEvent) => {
+        if ((e.target as HTMLElement).closest('button, a, input, textarea, select, [role="button"]')) return;
+        handleLongPressStart(undefined, { x: e.clientX, y: e.clientY });
+      },
       onMouseUp: handleLongPressEnd,
       onMouseLeave: handleLongPressEnd,
     } : {}),
@@ -1599,8 +1612,11 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
       return;
     }
     
-    // 위젯 컨테이너에서 발생한 클릭이고, 방금 위젯 long press로 편집 모드에 진입한 경우 무시
     const target = e.target as HTMLElement;
+    // 클릭이 버튼/링크 등 인터랙티브 요소 위에서 발생한 경우 편집 모드 유지 (버튼 동작 보장)
+    if (target.closest('button, a, input, textarea, select, [role="button"]')) return;
+    
+    // 위젯 컨테이너에서 발생한 클릭이고, 방금 위젯 long press로 편집 모드에 진입한 경우 무시
     const isWidgetContainer = target.closest('[data-widget-container]');
     if (isWidgetContainer && justEnteredEditModeFromWidget.current) {
       // Safari의 touchEnd -> click 자동 이벤트 무시
