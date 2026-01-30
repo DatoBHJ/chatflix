@@ -1,0 +1,5778 @@
+[
+  {
+    "geo_id": "AL",
+    "geo_description": "Albania"
+  },
+  {
+    "geo_id": "DZ",
+    "geo_description": "Algeria"
+  },
+  {
+    "geo_id": "AO",
+    "geo_description": "Angola"
+  },
+  {
+    "geo_id": "AR",
+    "geo_description": "Argentina"
+  },
+  {
+    "geo_id": "AR-C",
+    "geo_description": "Autonomous City of Buenos Aires"
+  },
+  {
+    "geo_id": "AR-B",
+    "geo_description": "Buenos Aires Province"
+  },
+  {
+    "geo_id": "AR-K",
+    "geo_description": "Catamarca Province"
+  },
+  {
+    "geo_id": "AR-H",
+    "geo_description": "Chaco Province"
+  },
+  {
+    "geo_id": "AR-U",
+    "geo_description": "Chubut Province"
+  },
+  {
+    "geo_id": "AR-X",
+    "geo_description": "Cordoba"
+  },
+  {
+    "geo_id": "AR-W",
+    "geo_description": "Corrientes Province"
+  },
+  {
+    "geo_id": "AR-E",
+    "geo_description": "Entre Rios"
+  },
+  {
+    "geo_id": "AR-P",
+    "geo_description": "Formosa Province"
+  },
+  {
+    "geo_id": "AR-Y",
+    "geo_description": "Jujuy"
+  },
+  {
+    "geo_id": "AR-L",
+    "geo_description": "La Pampa Province"
+  },
+  {
+    "geo_id": "AR-F",
+    "geo_description": "La Rioja Province"
+  },
+  {
+    "geo_id": "AR-M",
+    "geo_description": "Mendoza Province"
+  },
+  {
+    "geo_id": "AR-N",
+    "geo_description": "Misiones Province"
+  },
+  {
+    "geo_id": "AR-Q",
+    "geo_description": "Neuquen"
+  },
+  {
+    "geo_id": "AR-R",
+    "geo_description": "Río Negro"
+  },
+  {
+    "geo_id": "AR-A",
+    "geo_description": "Salta Province"
+  },
+  {
+    "geo_id": "AR-J",
+    "geo_description": "San Juan Province"
+  },
+  {
+    "geo_id": "AR-D",
+    "geo_description": "San Luis Province"
+  },
+  {
+    "geo_id": "AR-Z",
+    "geo_description": "Santa Cruz Province"
+  },
+  {
+    "geo_id": "AR-S",
+    "geo_description": "Santa Fe Province"
+  },
+  {
+    "geo_id": "AR-G",
+    "geo_description": "Santiago del Estero Province"
+  },
+  {
+    "geo_id": "AR-V",
+    "geo_description": "Tierra del Fuego Province"
+  },
+  {
+    "geo_id": "AR-T",
+    "geo_description": "Tucumán"
+  },
+  {
+    "geo_id": "AM",
+    "geo_description": "Armenia"
+  },
+  {
+    "geo_id": "AU",
+    "geo_description": "Australia"
+  },
+  {
+    "geo_id": "AU-ACT",
+    "geo_description": "Australian Capital Territory"
+  },
+  {
+    "geo_id": "AU-NSW",
+    "geo_description": "New South Wales"
+  },
+  {
+    "geo_id": "AU-NT",
+    "geo_description": "Northern Territory"
+  },
+  {
+    "geo_id": "AU-QLD",
+    "geo_description": "Queensland"
+  },
+  {
+    "geo_id": "AU-SA",
+    "geo_description": "South Australia"
+  },
+  {
+    "geo_id": "AU-TAS",
+    "geo_description": "Tasmania"
+  },
+  {
+    "geo_id": "AU-VIC",
+    "geo_description": "Victoria"
+  },
+  {
+    "geo_id": "AU-WA",
+    "geo_description": "Western Australia"
+  },
+  {
+    "geo_id": "AT",
+    "geo_description": "Austria"
+  },
+  {
+    "geo_id": "AT-1",
+    "geo_description": "Burgenland"
+  },
+  {
+    "geo_id": "AT-2",
+    "geo_description": "Carinthia"
+  },
+  {
+    "geo_id": "AT-3",
+    "geo_description": "Lower Austria"
+  },
+  {
+    "geo_id": "AT-5",
+    "geo_description": "Salzburg"
+  },
+  {
+    "geo_id": "AT-6",
+    "geo_description": "Styria"
+  },
+  {
+    "geo_id": "AT-7",
+    "geo_description": "Tyrol"
+  },
+  {
+    "geo_id": "AT-4",
+    "geo_description": "Upper Austria"
+  },
+  {
+    "geo_id": "AT-9",
+    "geo_description": "Vienna"
+  },
+  {
+    "geo_id": "AT-8",
+    "geo_description": "Vorarlberg"
+  },
+  {
+    "geo_id": "AZ",
+    "geo_description": "Azerbaijan"
+  },
+  {
+    "geo_id": "BH",
+    "geo_description": "Bahrain"
+  },
+  {
+    "geo_id": "BD",
+    "geo_description": "Bangladesh"
+  },
+  {
+    "geo_id": "BY",
+    "geo_description": "Belarus"
+  },
+  {
+    "geo_id": "BE",
+    "geo_description": "Belgium"
+  },
+  {
+    "geo_id": "BE-BRU",
+    "geo_description": "Brussels"
+  },
+  {
+    "geo_id": "BE-VLG",
+    "geo_description": "Flanders"
+  },
+  {
+    "geo_id": "BE-WAL",
+    "geo_description": "Walloon Region"
+  },
+  {
+    "geo_id": "BJ",
+    "geo_description": "Benin"
+  },
+  {
+    "geo_id": "BO",
+    "geo_description": "Bolivia"
+  },
+  {
+    "geo_id": "BA",
+    "geo_description": "Bosnia & Herzegovina"
+  },
+  {
+    "geo_id": "BR",
+    "geo_description": "Brazil"
+  },
+  {
+    "geo_id": "BR-DF",
+    "geo_description": "Federal District"
+  },
+  {
+    "geo_id": "BR-AC",
+    "geo_description": "State of Acre"
+  },
+  {
+    "geo_id": "BR-AL",
+    "geo_description": "State of Alagoas"
+  },
+  {
+    "geo_id": "BR-AP",
+    "geo_description": "State of Amapá"
+  },
+  {
+    "geo_id": "BR-AM",
+    "geo_description": "State of Amazonas"
+  },
+  {
+    "geo_id": "BR-BA",
+    "geo_description": "State of Bahia"
+  },
+  {
+    "geo_id": "BR-CE",
+    "geo_description": "State of Ceará"
+  },
+  {
+    "geo_id": "BR-ES",
+    "geo_description": "State of Espírito Santo"
+  },
+  {
+    "geo_id": "BR-GO",
+    "geo_description": "State of Goiás"
+  },
+  {
+    "geo_id": "BR-MA",
+    "geo_description": "State of Maranhão"
+  },
+  {
+    "geo_id": "BR-MT",
+    "geo_description": "State of Mato Grosso"
+  },
+  {
+    "geo_id": "BR-MS",
+    "geo_description": "State of Mato Grosso do Sul"
+  },
+  {
+    "geo_id": "BR-MG",
+    "geo_description": "State of Minas Gerais"
+  },
+  {
+    "geo_id": "BR-PA",
+    "geo_description": "State of Pará"
+  },
+  {
+    "geo_id": "BR-PB",
+    "geo_description": "State of Paraíba"
+  },
+  {
+    "geo_id": "BR-PR",
+    "geo_description": "State of Paraná"
+  },
+  {
+    "geo_id": "BR-PE",
+    "geo_description": "State of Pernambuco"
+  },
+  {
+    "geo_id": "BR-PI",
+    "geo_description": "State of Piauí"
+  },
+  {
+    "geo_id": "BR-RJ",
+    "geo_description": "State of Rio de Janeiro"
+  },
+  {
+    "geo_id": "BR-RN",
+    "geo_description": "State of Rio Grande do Norte"
+  },
+  {
+    "geo_id": "BR-RS",
+    "geo_description": "State of Rio Grande do Sul"
+  },
+  {
+    "geo_id": "BR-RO",
+    "geo_description": "State of Rondônia"
+  },
+  {
+    "geo_id": "BR-RR",
+    "geo_description": "State of Roraima"
+  },
+  {
+    "geo_id": "BR-SC",
+    "geo_description": "State of Santa Catarina"
+  },
+  {
+    "geo_id": "BR-SP",
+    "geo_description": "State of São Paulo"
+  },
+  {
+    "geo_id": "BR-SE",
+    "geo_description": "State of Sergipe"
+  },
+  {
+    "geo_id": "BR-TO",
+    "geo_description": "State of Tocantins"
+  },
+  {
+    "geo_id": "BG",
+    "geo_description": "Bulgaria"
+  },
+  {
+    "geo_id": "BF",
+    "geo_description": "Burkina Faso"
+  },
+  {
+    "geo_id": "KH",
+    "geo_description": "Cambodia"
+  },
+  {
+    "geo_id": "CM",
+    "geo_description": "Cameroon"
+  },
+  {
+    "geo_id": "CA",
+    "geo_description": "Canada"
+  },
+  {
+    "geo_id": "CA-AB",
+    "geo_description": "Alberta"
+  },
+  {
+    "geo_id": "CA-BC",
+    "geo_description": "British Columbia"
+  },
+  {
+    "geo_id": "CA-MB",
+    "geo_description": "Manitoba"
+  },
+  {
+    "geo_id": "CA-NB",
+    "geo_description": "New Brunswick"
+  },
+  {
+    "geo_id": "CA-NL",
+    "geo_description": "Newfoundland and Labrador"
+  },
+  {
+    "geo_id": "CA-NT",
+    "geo_description": "Northwest Territories"
+  },
+  {
+    "geo_id": "CA-NS",
+    "geo_description": "Nova Scotia"
+  },
+  {
+    "geo_id": "CA-NU",
+    "geo_description": "Nunavut"
+  },
+  {
+    "geo_id": "CA-ON",
+    "geo_description": "Ontario"
+  },
+  {
+    "geo_id": "CA-PE",
+    "geo_description": "Prince Edward Island"
+  },
+  {
+    "geo_id": "CA-QC",
+    "geo_description": "Québec"
+  },
+  {
+    "geo_id": "CA-SK",
+    "geo_description": "Saskatchewan"
+  },
+  {
+    "geo_id": "CA-YT",
+    "geo_description": "Yukon Territory"
+  },
+  {
+    "geo_id": "CL",
+    "geo_description": "Chile"
+  },
+  {
+    "geo_id": "CL-AN",
+    "geo_description": "Antofagasta Region"
+  },
+  {
+    "geo_id": "CL-AR",
+    "geo_description": "Araucania"
+  },
+  {
+    "geo_id": "CL-AP",
+    "geo_description": "Arica y Parinacota Region"
+  },
+  {
+    "geo_id": "CL-AT",
+    "geo_description": "Atacama Region"
+  },
+  {
+    "geo_id": "CL-BI",
+    "geo_description": "Bío Bío Region"
+  },
+  {
+    "geo_id": "CL-CO",
+    "geo_description": "Coquimbo Region"
+  },
+  {
+    "geo_id": "CL-LL",
+    "geo_description": "Los Lagos Region"
+  },
+  {
+    "geo_id": "CL-LR",
+    "geo_description": "Los Ríos Region"
+  },
+  {
+    "geo_id": "CL-MA",
+    "geo_description": "Magallanes y la Antártica Chilena Region"
+  },
+  {
+    "geo_id": "CL-ML",
+    "geo_description": "Maule Region"
+  },
+  {
+    "geo_id": "CL-LI",
+    "geo_description": "O'Higgins Region"
+  },
+  {
+    "geo_id": "CL-RM",
+    "geo_description": "Santiago Metropolitan Region"
+  },
+  {
+    "geo_id": "CL-TA",
+    "geo_description": "Tarapacá Region"
+  },
+  {
+    "geo_id": "CL-VS",
+    "geo_description": "Valparaiso Region"
+  },
+  {
+    "geo_id": "CL-AI",
+    "geo_description": "XI Región"
+  },
+  {
+    "geo_id": "CO",
+    "geo_description": "Colombia"
+  },
+  {
+    "geo_id": "CO-AMA",
+    "geo_description": "Amazonas Department"
+  },
+  {
+    "geo_id": "CO-ANT",
+    "geo_description": "Antioquia"
+  },
+  {
+    "geo_id": "CO-ARA",
+    "geo_description": "Arauca"
+  },
+  {
+    "geo_id": "CO-ATL",
+    "geo_description": "Atlantico"
+  },
+  {
+    "geo_id": "CO-DC",
+    "geo_description": "Bogota"
+  },
+  {
+    "geo_id": "CO-BOL",
+    "geo_description": "Bolivar"
+  },
+  {
+    "geo_id": "CO-BOY",
+    "geo_description": "Boyaca"
+  },
+  {
+    "geo_id": "CO-CAL",
+    "geo_description": "Caldas"
+  },
+  {
+    "geo_id": "CO-CAQ",
+    "geo_description": "Caquetá"
+  },
+  {
+    "geo_id": "CO-CAS",
+    "geo_description": "Casanare"
+  },
+  {
+    "geo_id": "CO-CAU",
+    "geo_description": "Cauca Department"
+  },
+  {
+    "geo_id": "CO-CES",
+    "geo_description": "Cesar"
+  },
+  {
+    "geo_id": "CO-CHO",
+    "geo_description": "Choco"
+  },
+  {
+    "geo_id": "CO-COR",
+    "geo_description": "Cordoba"
+  },
+  {
+    "geo_id": "CO-CUN",
+    "geo_description": "Cundinamarca"
+  },
+  {
+    "geo_id": "CO-GUA",
+    "geo_description": "Guainia"
+  },
+  {
+    "geo_id": "CO-GUV",
+    "geo_description": "Guaviare"
+  },
+  {
+    "geo_id": "CO-HUI",
+    "geo_description": "Huila"
+  },
+  {
+    "geo_id": "CO-LAG",
+    "geo_description": "La Guajira"
+  },
+  {
+    "geo_id": "CO-MAG",
+    "geo_description": "Magdalena"
+  },
+  {
+    "geo_id": "CO-MET",
+    "geo_description": "Meta"
+  },
+  {
+    "geo_id": "CO-NAR",
+    "geo_description": "Narino"
+  },
+  {
+    "geo_id": "CO-NSA",
+    "geo_description": "North Santander"
+  },
+  {
+    "geo_id": "CO-PUT",
+    "geo_description": "Putumayo"
+  },
+  {
+    "geo_id": "CO-QUI",
+    "geo_description": "Quindio"
+  },
+  {
+    "geo_id": "CO-RIS",
+    "geo_description": "Risaralda"
+  },
+  {
+    "geo_id": "CO-SAP",
+    "geo_description": "San Andrés and Providencia"
+  },
+  {
+    "geo_id": "CO-SAN",
+    "geo_description": "Santander Department"
+  },
+  {
+    "geo_id": "CO-SUC",
+    "geo_description": "Sucre"
+  },
+  {
+    "geo_id": "CO-TOL",
+    "geo_description": "Tolima"
+  },
+  {
+    "geo_id": "CO-VAC",
+    "geo_description": "Valle del Cauca"
+  },
+  {
+    "geo_id": "CO-VAU",
+    "geo_description": "Vaupes"
+  },
+  {
+    "geo_id": "CO-VID",
+    "geo_description": "Vichada"
+  },
+  {
+    "geo_id": "CD",
+    "geo_description": "Congo - Kinshasa"
+  },
+  {
+    "geo_id": "CR",
+    "geo_description": "Costa Rica"
+  },
+  {
+    "geo_id": "CI",
+    "geo_description": "Côte d’Ivoire"
+  },
+  {
+    "geo_id": "HR",
+    "geo_description": "Croatia"
+  },
+  {
+    "geo_id": "CU",
+    "geo_description": "Cuba"
+  },
+  {
+    "geo_id": "CY",
+    "geo_description": "Cyprus"
+  },
+  {
+    "geo_id": "CZ",
+    "geo_description": "Czechia"
+  },
+  {
+    "geo_id": "DK",
+    "geo_description": "Denmark"
+  },
+  {
+    "geo_id": "DK-84",
+    "geo_description": "Capital Region of Denmark"
+  },
+  {
+    "geo_id": "DK-82",
+    "geo_description": "Central Denmark Region"
+  },
+  {
+    "geo_id": "DK-81",
+    "geo_description": "North Denmark Region"
+  },
+  {
+    "geo_id": "DK-83",
+    "geo_description": "Region Syddanmark"
+  },
+  {
+    "geo_id": "DK-85",
+    "geo_description": "Region Zealand"
+  },
+  {
+    "geo_id": "DO",
+    "geo_description": "Dominican Republic"
+  },
+  {
+    "geo_id": "EC",
+    "geo_description": "Ecuador"
+  },
+  {
+    "geo_id": "EC-A",
+    "geo_description": "Azuay"
+  },
+  {
+    "geo_id": "EC-B",
+    "geo_description": "Bolívar Province"
+  },
+  {
+    "geo_id": "EC-F",
+    "geo_description": "Cañar Province"
+  },
+  {
+    "geo_id": "EC-C",
+    "geo_description": "Carchi Province"
+  },
+  {
+    "geo_id": "EC-H",
+    "geo_description": "Chimborazo Province"
+  },
+  {
+    "geo_id": "EC-X",
+    "geo_description": "Cotopaxi Province"
+  },
+  {
+    "geo_id": "EC-O",
+    "geo_description": "El Oro"
+  },
+  {
+    "geo_id": "EC-E",
+    "geo_description": "Esmeraldas Province"
+  },
+  {
+    "geo_id": "EC-W",
+    "geo_description": "Galápagos Islands"
+  },
+  {
+    "geo_id": "EC-G",
+    "geo_description": "Guayas"
+  },
+  {
+    "geo_id": "EC-I",
+    "geo_description": "Imbabura Province"
+  },
+  {
+    "geo_id": "EC-L",
+    "geo_description": "Loja"
+  },
+  {
+    "geo_id": "EC-R",
+    "geo_description": "Los Ríos Province"
+  },
+  {
+    "geo_id": "EC-M",
+    "geo_description": "Manabí Province"
+  },
+  {
+    "geo_id": "EC-S",
+    "geo_description": "Morona-Santiago Province"
+  },
+  {
+    "geo_id": "EC-D",
+    "geo_description": "Orellana Province"
+  },
+  {
+    "geo_id": "EC-Y",
+    "geo_description": "Pastaza Province"
+  },
+  {
+    "geo_id": "EC-P",
+    "geo_description": "Pichincha"
+  },
+  {
+    "geo_id": "EC-N",
+    "geo_description": "Provincia de Napo"
+  },
+  {
+    "geo_id": "EC-SE",
+    "geo_description": "Santa Elena Province"
+  },
+  {
+    "geo_id": "EC-SD",
+    "geo_description": "Santo Domingo de los Tsáchilas Province"
+  },
+  {
+    "geo_id": "EC-U",
+    "geo_description": "Sucumbíos Province"
+  },
+  {
+    "geo_id": "EC-T",
+    "geo_description": "Tungurahua"
+  },
+  {
+    "geo_id": "EC-Z",
+    "geo_description": "Zamora-Chinchipe Province"
+  },
+  {
+    "geo_id": "EG",
+    "geo_description": "Egypt"
+  },
+  {
+    "geo_id": "EG-KB",
+    "geo_description": "Al Qalyubia Governorate"
+  },
+  {
+    "geo_id": "EG-ALX",
+    "geo_description": "Alexandria Governorate"
+  },
+  {
+    "geo_id": "EG-SHR",
+    "geo_description": "Ash Sharqia Governorate"
+  },
+  {
+    "geo_id": "EG-AST",
+    "geo_description": "Assiut Governorate"
+  },
+  {
+    "geo_id": "EG-ASN",
+    "geo_description": "Aswan Governorate"
+  },
+  {
+    "geo_id": "EG-BNS",
+    "geo_description": "Beni Suef Governorate"
+  },
+  {
+    "geo_id": "EG-C",
+    "geo_description": "Cairo Governorate"
+  },
+  {
+    "geo_id": "EG-DK",
+    "geo_description": "Dakahlia Governorate"
+  },
+  {
+    "geo_id": "EG-DT",
+    "geo_description": "Damietta Governorate"
+  },
+  {
+    "geo_id": "EG-BH",
+    "geo_description": "El Beheira Governorate"
+  },
+  {
+    "geo_id": "EG-FYM",
+    "geo_description": "Faiyum Governorate"
+  },
+  {
+    "geo_id": "EG-GH",
+    "geo_description": "Gharbia Governorate"
+  },
+  {
+    "geo_id": "EG-GZ",
+    "geo_description": "Giza Governorate"
+  },
+  {
+    "geo_id": "EG-IS",
+    "geo_description": "Ismailia Governorate"
+  },
+  {
+    "geo_id": "EG-KFS",
+    "geo_description": "Kafr El Sheikh Governorate"
+  },
+  {
+    "geo_id": "EG-LX",
+    "geo_description": "Luxor Governorate"
+  },
+  {
+    "geo_id": "EG-MT",
+    "geo_description": "Matrouh Governorate"
+  },
+  {
+    "geo_id": "EG-MN",
+    "geo_description": "Menia Governorate"
+  },
+  {
+    "geo_id": "EG-MNF",
+    "geo_description": "Menofia Governorate"
+  },
+  {
+    "geo_id": "EG-WAD",
+    "geo_description": "New Valley Governorate"
+  },
+  {
+    "geo_id": "EG-SIN",
+    "geo_description": "North Sinai Governorate"
+  },
+  {
+    "geo_id": "EG-PTS",
+    "geo_description": "Port Said Governorate"
+  },
+  {
+    "geo_id": "EG-KN",
+    "geo_description": "Qena Governorate"
+  },
+  {
+    "geo_id": "EG-BA",
+    "geo_description": "Red Sea Governorate"
+  },
+  {
+    "geo_id": "EG-SHG",
+    "geo_description": "Sohag Governorate"
+  },
+  {
+    "geo_id": "EG-JS",
+    "geo_description": "South Sinai Governorate"
+  },
+  {
+    "geo_id": "EG-SUZ",
+    "geo_description": "Suez Governorate"
+  },
+  {
+    "geo_id": "SV",
+    "geo_description": "El Salvador"
+  },
+  {
+    "geo_id": "EE",
+    "geo_description": "Estonia"
+  },
+  {
+    "geo_id": "ET",
+    "geo_description": "Ethiopia"
+  },
+  {
+    "geo_id": "FI",
+    "geo_description": "Finland"
+  },
+  {
+    "geo_id": "FR",
+    "geo_description": "France"
+  },
+  {
+    "geo_id": "FR-A",
+    "geo_description": "Alsace"
+  },
+  {
+    "geo_id": "FR-B",
+    "geo_description": "Aquitaine"
+  },
+  {
+    "geo_id": "FR-C",
+    "geo_description": "Auvergne"
+  },
+  {
+    "geo_id": "FR-E",
+    "geo_description": "Brittany"
+  },
+  {
+    "geo_id": "FR-D",
+    "geo_description": "Burgundy"
+  },
+  {
+    "geo_id": "FR-F",
+    "geo_description": "Centre-Val de Loire"
+  },
+  {
+    "geo_id": "FR-G",
+    "geo_description": "Champagne-Ardenne"
+  },
+  {
+    "geo_id": "FR-H",
+    "geo_description": "Corsica"
+  },
+  {
+    "geo_id": "FR-I",
+    "geo_description": "Franche-Comté"
+  },
+  {
+    "geo_id": "FR-J",
+    "geo_description": "Île-de-France"
+  },
+  {
+    "geo_id": "FR-K",
+    "geo_description": "Languedoc-Roussillon"
+  },
+  {
+    "geo_id": "FR-L",
+    "geo_description": "Limousin"
+  },
+  {
+    "geo_id": "FR-M",
+    "geo_description": "Lorraine"
+  },
+  {
+    "geo_id": "FR-P",
+    "geo_description": "Lower Normandy"
+  },
+  {
+    "geo_id": "FR-N",
+    "geo_description": "Midi-Pyrénées"
+  },
+  {
+    "geo_id": "FR-O",
+    "geo_description": "Nord-Pas-de-Calais"
+  },
+  {
+    "geo_id": "FR-R",
+    "geo_description": "Pays de la Loire"
+  },
+  {
+    "geo_id": "FR-S",
+    "geo_description": "Picardy"
+  },
+  {
+    "geo_id": "FR-T",
+    "geo_description": "Poitou-Charentes"
+  },
+  {
+    "geo_id": "FR-U",
+    "geo_description": "Provence-Alpes-Côte d'Azur"
+  },
+  {
+    "geo_id": "FR-V",
+    "geo_description": "Rhone-Alpes"
+  },
+  {
+    "geo_id": "FR-Q",
+    "geo_description": "Upper Normandy"
+  },
+  {
+    "geo_id": "FR-01",
+    "geo_description": "Ain"
+  },
+  {
+    "geo_id": "FR-02",
+    "geo_description": "Aisne"
+  },
+  {
+    "geo_id": "FR-03",
+    "geo_description": "Allier"
+  },
+  {
+    "geo_id": "FR-06",
+    "geo_description": "Alpes-Maritimes"
+  },
+  {
+    "geo_id": "FR-04",
+    "geo_description": "Alpes-de-Haute-Provence"
+  },
+  {
+    "geo_id": "FR-07",
+    "geo_description": "Ardeche"
+  },
+  {
+    "geo_id": "FR-08",
+    "geo_description": "Ardennes"
+  },
+  {
+    "geo_id": "FR-09",
+    "geo_description": "Ariege"
+  },
+  {
+    "geo_id": "FR-10",
+    "geo_description": "Aube"
+  },
+  {
+    "geo_id": "FR-11",
+    "geo_description": "Aude"
+  },
+  {
+    "geo_id": "FR-12",
+    "geo_description": "Aveyron"
+  },
+  {
+    "geo_id": "FR-67",
+    "geo_description": "Bas-Rhin"
+  },
+  {
+    "geo_id": "FR-13",
+    "geo_description": "Bouches-du-Rhone"
+  },
+  {
+    "geo_id": "FR-14",
+    "geo_description": "Calvados"
+  },
+  {
+    "geo_id": "FR-15",
+    "geo_description": "Cantal"
+  },
+  {
+    "geo_id": "FR-16",
+    "geo_description": "Charente"
+  },
+  {
+    "geo_id": "FR-17",
+    "geo_description": "Charente-Maritime"
+  },
+  {
+    "geo_id": "FR-18",
+    "geo_description": "Cher"
+  },
+  {
+    "geo_id": "FR-19",
+    "geo_description": "Correze"
+  },
+  {
+    "geo_id": "FR-2A",
+    "geo_description": "Corse-du-Sud"
+  },
+  {
+    "geo_id": "FR-22",
+    "geo_description": "Cotes-d'Armor"
+  },
+  {
+    "geo_id": "FR-23",
+    "geo_description": "Creuse"
+  },
+  {
+    "geo_id": "FR-21",
+    "geo_description": "Côte-d'Or"
+  },
+  {
+    "geo_id": "FR-79",
+    "geo_description": "Deux-Sevres"
+  },
+  {
+    "geo_id": "FR-24",
+    "geo_description": "Dordogne"
+  },
+  {
+    "geo_id": "FR-25",
+    "geo_description": "Doubs"
+  },
+  {
+    "geo_id": "FR-26",
+    "geo_description": "Drôme"
+  },
+  {
+    "geo_id": "FR-91",
+    "geo_description": "Essonne"
+  },
+  {
+    "geo_id": "FR-27",
+    "geo_description": "Eure"
+  },
+  {
+    "geo_id": "FR-28",
+    "geo_description": "Eure-et-Loir"
+  },
+  {
+    "geo_id": "FR-29",
+    "geo_description": "Finistere"
+  },
+  {
+    "geo_id": "FR-30",
+    "geo_description": "Gard"
+  },
+  {
+    "geo_id": "FR-32",
+    "geo_description": "Gers"
+  },
+  {
+    "geo_id": "FR-33",
+    "geo_description": "Gironde"
+  },
+  {
+    "geo_id": "FR-68",
+    "geo_description": "Haut-Rhin"
+  },
+  {
+    "geo_id": "FR-2B",
+    "geo_description": "Haute-Corse"
+  },
+  {
+    "geo_id": "FR-31",
+    "geo_description": "Haute-Garonne"
+  },
+  {
+    "geo_id": "FR-43",
+    "geo_description": "Haute-Loire"
+  },
+  {
+    "geo_id": "FR-52",
+    "geo_description": "Haute-Marne"
+  },
+  {
+    "geo_id": "FR-74",
+    "geo_description": "Haute-Savoie"
+  },
+  {
+    "geo_id": "FR-70",
+    "geo_description": "Haute-Saône"
+  },
+  {
+    "geo_id": "FR-87",
+    "geo_description": "Haute-Vienne"
+  },
+  {
+    "geo_id": "FR-05",
+    "geo_description": "Hautes-Alpes"
+  },
+  {
+    "geo_id": "FR-65",
+    "geo_description": "Hautes-Pyrénées"
+  },
+  {
+    "geo_id": "FR-92",
+    "geo_description": "Hauts-de-Seine"
+  },
+  {
+    "geo_id": "FR-34",
+    "geo_description": "Hérault"
+  },
+  {
+    "geo_id": "FR-35",
+    "geo_description": "Ille-et-Vilaine"
+  },
+  {
+    "geo_id": "FR-36",
+    "geo_description": "Indre"
+  },
+  {
+    "geo_id": "FR-37",
+    "geo_description": "Indre-et-Loire"
+  },
+  {
+    "geo_id": "FR-38",
+    "geo_description": "Isere"
+  },
+  {
+    "geo_id": "FR-39",
+    "geo_description": "Jura"
+  },
+  {
+    "geo_id": "FR-40",
+    "geo_description": "Landes"
+  },
+  {
+    "geo_id": "FR-41",
+    "geo_description": "Loir-et-Cher"
+  },
+  {
+    "geo_id": "FR-42",
+    "geo_description": "Loire"
+  },
+  {
+    "geo_id": "FR-44",
+    "geo_description": "Loire-Atlantique"
+  },
+  {
+    "geo_id": "FR-45",
+    "geo_description": "Loiret"
+  },
+  {
+    "geo_id": "FR-46",
+    "geo_description": "Lot"
+  },
+  {
+    "geo_id": "FR-47",
+    "geo_description": "Lot-et-Garonne"
+  },
+  {
+    "geo_id": "FR-48",
+    "geo_description": "Lozère"
+  },
+  {
+    "geo_id": "FR-49",
+    "geo_description": "Maine-et-Loire"
+  },
+  {
+    "geo_id": "FR-50",
+    "geo_description": "Manche"
+  },
+  {
+    "geo_id": "FR-51",
+    "geo_description": "Marne"
+  },
+  {
+    "geo_id": "FR-53",
+    "geo_description": "Mayenne"
+  },
+  {
+    "geo_id": "FR-54",
+    "geo_description": "Meurthe-et-Moselle"
+  },
+  {
+    "geo_id": "FR-55",
+    "geo_description": "Meuse"
+  },
+  {
+    "geo_id": "FR-56",
+    "geo_description": "Morbihan"
+  },
+  {
+    "geo_id": "FR-57",
+    "geo_description": "Moselle"
+  },
+  {
+    "geo_id": "FR-58",
+    "geo_description": "Nievre"
+  },
+  {
+    "geo_id": "FR-59",
+    "geo_description": "Nord"
+  },
+  {
+    "geo_id": "FR-60",
+    "geo_description": "Oise"
+  },
+  {
+    "geo_id": "FR-61",
+    "geo_description": "Orne"
+  },
+  {
+    "geo_id": "FR-75",
+    "geo_description": "Paris"
+  },
+  {
+    "geo_id": "FR-62",
+    "geo_description": "Pas-de-Calais"
+  },
+  {
+    "geo_id": "FR-63",
+    "geo_description": "Puy-de-Dome"
+  },
+  {
+    "geo_id": "FR-64",
+    "geo_description": "Pyrénées-Atlantiques"
+  },
+  {
+    "geo_id": "FR-66",
+    "geo_description": "Pyrénées-Orientales"
+  },
+  {
+    "geo_id": "FR-69",
+    "geo_description": "Rhône"
+  },
+  {
+    "geo_id": "FR-72",
+    "geo_description": "Sarthe"
+  },
+  {
+    "geo_id": "FR-73",
+    "geo_description": "Savoie"
+  },
+  {
+    "geo_id": "FR-71",
+    "geo_description": "Saône-et-Loire"
+  },
+  {
+    "geo_id": "FR-76",
+    "geo_description": "Seine-Maritime"
+  },
+  {
+    "geo_id": "FR-93",
+    "geo_description": "Seine-Saint-Denis"
+  },
+  {
+    "geo_id": "FR-77",
+    "geo_description": "Seine-et-Marne"
+  },
+  {
+    "geo_id": "FR-80",
+    "geo_description": "Somme"
+  },
+  {
+    "geo_id": "FR-81",
+    "geo_description": "Tarn"
+  },
+  {
+    "geo_id": "FR-82",
+    "geo_description": "Tarn-et-Garonne"
+  },
+  {
+    "geo_id": "FR-90",
+    "geo_description": "Territoire de Belfort"
+  },
+  {
+    "geo_id": "FR-95",
+    "geo_description": "Val-d'Oise"
+  },
+  {
+    "geo_id": "FR-94",
+    "geo_description": "Val-de-Marne"
+  },
+  {
+    "geo_id": "FR-83",
+    "geo_description": "Var"
+  },
+  {
+    "geo_id": "FR-84",
+    "geo_description": "Vaucluse"
+  },
+  {
+    "geo_id": "FR-85",
+    "geo_description": "Vendee"
+  },
+  {
+    "geo_id": "FR-86",
+    "geo_description": "Vienne"
+  },
+  {
+    "geo_id": "FR-88",
+    "geo_description": "Vosges"
+  },
+  {
+    "geo_id": "FR-89",
+    "geo_description": "Yonne"
+  },
+  {
+    "geo_id": "FR-78",
+    "geo_description": "Yvelines"
+  },
+  {
+    "geo_id": "GE",
+    "geo_description": "Georgia"
+  },
+  {
+    "geo_id": "DE",
+    "geo_description": "Germany"
+  },
+  {
+    "geo_id": "DE-BW",
+    "geo_description": "Baden-Württemberg"
+  },
+  {
+    "geo_id": "DE-BY",
+    "geo_description": "Bavaria"
+  },
+  {
+    "geo_id": "DE-BE",
+    "geo_description": "Berlin"
+  },
+  {
+    "geo_id": "DE-BB",
+    "geo_description": "Brandenburg"
+  },
+  {
+    "geo_id": "DE-HB",
+    "geo_description": "Bremen"
+  },
+  {
+    "geo_id": "DE-HH",
+    "geo_description": "Hamburg"
+  },
+  {
+    "geo_id": "DE-HE",
+    "geo_description": "Hesse"
+  },
+  {
+    "geo_id": "DE-NI",
+    "geo_description": "Lower Saxony"
+  },
+  {
+    "geo_id": "DE-MV",
+    "geo_description": "Mecklenburg-Vorpommern"
+  },
+  {
+    "geo_id": "DE-NW",
+    "geo_description": "North Rhine-Westphalia"
+  },
+  {
+    "geo_id": "DE-RP",
+    "geo_description": "Rhineland-Palatinate"
+  },
+  {
+    "geo_id": "DE-SL",
+    "geo_description": "Saarland"
+  },
+  {
+    "geo_id": "DE-SN",
+    "geo_description": "Saxony"
+  },
+  {
+    "geo_id": "DE-ST",
+    "geo_description": "Saxony-Anhalt"
+  },
+  {
+    "geo_id": "DE-SH",
+    "geo_description": "Schleswig-Holstein"
+  },
+  {
+    "geo_id": "DE-TH",
+    "geo_description": "Thuringia"
+  },
+  {
+    "geo_id": "GH",
+    "geo_description": "Ghana"
+  },
+  {
+    "geo_id": "GR",
+    "geo_description": "Greece"
+  },
+  {
+    "geo_id": "GT",
+    "geo_description": "Guatemala"
+  },
+  {
+    "geo_id": "HT",
+    "geo_description": "Haiti"
+  },
+  {
+    "geo_id": "HN",
+    "geo_description": "Honduras"
+  },
+  {
+    "geo_id": "HK",
+    "geo_description": "Hong Kong"
+  },
+  {
+    "geo_id": "HU",
+    "geo_description": "Hungary"
+  },
+  {
+    "geo_id": "IN",
+    "geo_description": "India"
+  },
+  {
+    "geo_id": "IN-AN",
+    "geo_description": "Andaman and Nicobar Islands"
+  },
+  {
+    "geo_id": "IN-AP",
+    "geo_description": "Andhra Pradesh"
+  },
+  {
+    "geo_id": "IN-AR",
+    "geo_description": "Arunachal Pradesh"
+  },
+  {
+    "geo_id": "IN-AS",
+    "geo_description": "Assam"
+  },
+  {
+    "geo_id": "IN-BR",
+    "geo_description": "Bihar"
+  },
+  {
+    "geo_id": "IN-CH",
+    "geo_description": "Chandigarh"
+  },
+  {
+    "geo_id": "IN-CT",
+    "geo_description": "Chhattisgarh"
+  },
+  {
+    "geo_id": "IN-DN",
+    "geo_description": "Dadra and Nagar Haveli"
+  },
+  {
+    "geo_id": "IN-DD",
+    "geo_description": "Daman and Diu"
+  },
+  {
+    "geo_id": "IN-DL",
+    "geo_description": "Delhi"
+  },
+  {
+    "geo_id": "IN-GA",
+    "geo_description": "Goa"
+  },
+  {
+    "geo_id": "IN-GJ",
+    "geo_description": "Gujarat"
+  },
+  {
+    "geo_id": "IN-HR",
+    "geo_description": "Haryana"
+  },
+  {
+    "geo_id": "IN-HP",
+    "geo_description": "Himachal Pradesh"
+  },
+  {
+    "geo_id": "IN-JK",
+    "geo_description": "Jammu and Kashmir"
+  },
+  {
+    "geo_id": "IN-JH",
+    "geo_description": "Jharkhand"
+  },
+  {
+    "geo_id": "IN-KA",
+    "geo_description": "Karnataka"
+  },
+  {
+    "geo_id": "IN-KL",
+    "geo_description": "Kerala"
+  },
+  {
+    "geo_id": "IN-LD",
+    "geo_description": "Lakshadweep"
+  },
+  {
+    "geo_id": "IN-MP",
+    "geo_description": "Madhya Pradesh"
+  },
+  {
+    "geo_id": "IN-MH",
+    "geo_description": "Maharashtra"
+  },
+  {
+    "geo_id": "IN-MN",
+    "geo_description": "Manipur"
+  },
+  {
+    "geo_id": "IN-ML",
+    "geo_description": "Meghalaya"
+  },
+  {
+    "geo_id": "IN-MZ",
+    "geo_description": "Mizoram"
+  },
+  {
+    "geo_id": "IN-NL",
+    "geo_description": "Nagaland"
+  },
+  {
+    "geo_id": "IN-OR",
+    "geo_description": "Odisha"
+  },
+  {
+    "geo_id": "IN-PY",
+    "geo_description": "Puducherry"
+  },
+  {
+    "geo_id": "IN-PB",
+    "geo_description": "Punjab"
+  },
+  {
+    "geo_id": "IN-RJ",
+    "geo_description": "Rajasthan"
+  },
+  {
+    "geo_id": "IN-SK",
+    "geo_description": "Sikkim"
+  },
+  {
+    "geo_id": "IN-TN",
+    "geo_description": "Tamil Nadu"
+  },
+  {
+    "geo_id": "IN-TG",
+    "geo_description": "Telangana"
+  },
+  {
+    "geo_id": "IN-TR",
+    "geo_description": "Tripura"
+  },
+  {
+    "geo_id": "IN-UP",
+    "geo_description": "Uttar Pradesh"
+  },
+  {
+    "geo_id": "IN-UT",
+    "geo_description": "Uttarakhand"
+  },
+  {
+    "geo_id": "IN-WB",
+    "geo_description": "West Bengal"
+  },
+  {
+    "geo_id": "ID",
+    "geo_description": "Indonesia"
+  },
+  {
+    "geo_id": "ID-AC",
+    "geo_description": "Aceh"
+  },
+  {
+    "geo_id": "ID-BA",
+    "geo_description": "Bali"
+  },
+  {
+    "geo_id": "ID-BB",
+    "geo_description": "Bangka Belitung Islands"
+  },
+  {
+    "geo_id": "ID-BT",
+    "geo_description": "Banten"
+  },
+  {
+    "geo_id": "ID-BE",
+    "geo_description": "Bengkulu"
+  },
+  {
+    "geo_id": "ID-JT",
+    "geo_description": "Central Java"
+  },
+  {
+    "geo_id": "ID-KT",
+    "geo_description": "Central Kalimantan"
+  },
+  {
+    "geo_id": "ID-ST",
+    "geo_description": "Central Sulawesi"
+  },
+  {
+    "geo_id": "ID-JI",
+    "geo_description": "East Java"
+  },
+  {
+    "geo_id": "ID-KI",
+    "geo_description": "East Kalimantan"
+  },
+  {
+    "geo_id": "ID-NT",
+    "geo_description": "East Nusa Tenggara"
+  },
+  {
+    "geo_id": "ID-GO",
+    "geo_description": "Gorontalo"
+  },
+  {
+    "geo_id": "ID-JA",
+    "geo_description": "Jambi"
+  },
+  {
+    "geo_id": "ID-LA",
+    "geo_description": "Lampung"
+  },
+  {
+    "geo_id": "ID-MA",
+    "geo_description": "Maluku"
+  },
+  {
+    "geo_id": "ID-KU",
+    "geo_description": "North Kalimantan"
+  },
+  {
+    "geo_id": "ID-MU",
+    "geo_description": "North Maluku"
+  },
+  {
+    "geo_id": "ID-SA",
+    "geo_description": "North Sulawesi"
+  },
+  {
+    "geo_id": "ID-SU",
+    "geo_description": "North Sumatra"
+  },
+  {
+    "geo_id": "ID-PA",
+    "geo_description": "Papua"
+  },
+  {
+    "geo_id": "ID-RI",
+    "geo_description": "Riau"
+  },
+  {
+    "geo_id": "ID-KR",
+    "geo_description": "Riau Islands"
+  },
+  {
+    "geo_id": "ID-SG",
+    "geo_description": "South East Sulawesi"
+  },
+  {
+    "geo_id": "ID-KS",
+    "geo_description": "South Kalimantan"
+  },
+  {
+    "geo_id": "ID-SN",
+    "geo_description": "South Sulawesi"
+  },
+  {
+    "geo_id": "ID-SS",
+    "geo_description": "South Sumatra"
+  },
+  {
+    "geo_id": "ID-JK",
+    "geo_description": "Special Capital Region of Jakarta"
+  },
+  {
+    "geo_id": "ID-YO",
+    "geo_description": "Special Region of Yogyakarta"
+  },
+  {
+    "geo_id": "ID-JB",
+    "geo_description": "West Java"
+  },
+  {
+    "geo_id": "ID-KB",
+    "geo_description": "West Kalimantan"
+  },
+  {
+    "geo_id": "ID-NB",
+    "geo_description": "West Nusa Tenggara"
+  },
+  {
+    "geo_id": "ID-PB",
+    "geo_description": "West Papua"
+  },
+  {
+    "geo_id": "ID-SR",
+    "geo_description": "West Sulawesi"
+  },
+  {
+    "geo_id": "ID-SB",
+    "geo_description": "West Sumatra"
+  },
+  {
+    "geo_id": "IR",
+    "geo_description": "Iran"
+  },
+  {
+    "geo_id": "IQ",
+    "geo_description": "Iraq"
+  },
+  {
+    "geo_id": "IE",
+    "geo_description": "Ireland"
+  },
+  {
+    "geo_id": "IL",
+    "geo_description": "Israel"
+  },
+  {
+    "geo_id": "IL-M",
+    "geo_description": "Center District"
+  },
+  {
+    "geo_id": "IL-HA",
+    "geo_description": "Haifa District"
+  },
+  {
+    "geo_id": "IL-JM",
+    "geo_description": "Jerusalem District"
+  },
+  {
+    "geo_id": "IL-Z",
+    "geo_description": "North District"
+  },
+  {
+    "geo_id": "IL-D",
+    "geo_description": "South District"
+  },
+  {
+    "geo_id": "IL-TA",
+    "geo_description": "Tel Aviv District"
+  },
+  {
+    "geo_id": "IT",
+    "geo_description": "Italy"
+  },
+  {
+    "geo_id": "IT-65",
+    "geo_description": "Abruzzo"
+  },
+  {
+    "geo_id": "IT-23",
+    "geo_description": "Aosta"
+  },
+  {
+    "geo_id": "IT-75",
+    "geo_description": "Apulia"
+  },
+  {
+    "geo_id": "IT-77",
+    "geo_description": "Basilicata"
+  },
+  {
+    "geo_id": "IT-78",
+    "geo_description": "Calabria"
+  },
+  {
+    "geo_id": "IT-72",
+    "geo_description": "Campania"
+  },
+  {
+    "geo_id": "IT-45",
+    "geo_description": "Emilia-Romagna"
+  },
+  {
+    "geo_id": "IT-36",
+    "geo_description": "Friuli-Venezia Giulia"
+  },
+  {
+    "geo_id": "IT-62",
+    "geo_description": "Lazio"
+  },
+  {
+    "geo_id": "IT-42",
+    "geo_description": "Liguria"
+  },
+  {
+    "geo_id": "IT-25",
+    "geo_description": "Lombardy"
+  },
+  {
+    "geo_id": "IT-57",
+    "geo_description": "Marche"
+  },
+  {
+    "geo_id": "IT-67",
+    "geo_description": "Molise"
+  },
+  {
+    "geo_id": "IT-21",
+    "geo_description": "Piedmont"
+  },
+  {
+    "geo_id": "IT-88",
+    "geo_description": "Sardinia"
+  },
+  {
+    "geo_id": "IT-82",
+    "geo_description": "Sicily"
+  },
+  {
+    "geo_id": "IT-32",
+    "geo_description": "Trentino-Alto Adige/South Tyrol"
+  },
+  {
+    "geo_id": "IT-52",
+    "geo_description": "Tuscany"
+  },
+  {
+    "geo_id": "IT-55",
+    "geo_description": "Umbria"
+  },
+  {
+    "geo_id": "IT-34",
+    "geo_description": "Veneto"
+  },
+  {
+    "geo_id": "JM",
+    "geo_description": "Jamaica"
+  },
+  {
+    "geo_id": "JP",
+    "geo_description": "Japan"
+  },
+  {
+    "geo_id": "JP-23",
+    "geo_description": "Aichi Prefecture"
+  },
+  {
+    "geo_id": "JP-05",
+    "geo_description": "Akita Prefecture"
+  },
+  {
+    "geo_id": "JP-02",
+    "geo_description": "Aomori Prefecture"
+  },
+  {
+    "geo_id": "JP-12",
+    "geo_description": "Chiba Prefecture"
+  },
+  {
+    "geo_id": "JP-38",
+    "geo_description": "Ehime Prefecture"
+  },
+  {
+    "geo_id": "JP-18",
+    "geo_description": "Fukui Prefecture"
+  },
+  {
+    "geo_id": "JP-40",
+    "geo_description": "Fukuoka Prefecture"
+  },
+  {
+    "geo_id": "JP-07",
+    "geo_description": "Fukushima Prefecture"
+  },
+  {
+    "geo_id": "JP-21",
+    "geo_description": "Gifu Prefecture"
+  },
+  {
+    "geo_id": "JP-10",
+    "geo_description": "Gunma Prefecture"
+  },
+  {
+    "geo_id": "JP-34",
+    "geo_description": "Hiroshima Prefecture"
+  },
+  {
+    "geo_id": "JP-01",
+    "geo_description": "Hokkaido Prefecture"
+  },
+  {
+    "geo_id": "JP-28",
+    "geo_description": "Hyogo Prefecture"
+  },
+  {
+    "geo_id": "JP-08",
+    "geo_description": "Ibaraki Prefecture"
+  },
+  {
+    "geo_id": "JP-17",
+    "geo_description": "Ishikawa Prefecture"
+  },
+  {
+    "geo_id": "JP-03",
+    "geo_description": "Iwate Prefecture"
+  },
+  {
+    "geo_id": "JP-37",
+    "geo_description": "Kagawa Prefecture"
+  },
+  {
+    "geo_id": "JP-46",
+    "geo_description": "Kagoshima Prefecture"
+  },
+  {
+    "geo_id": "JP-14",
+    "geo_description": "Kanagawa Prefecture"
+  },
+  {
+    "geo_id": "JP-39",
+    "geo_description": "Kochi Prefecture"
+  },
+  {
+    "geo_id": "JP-43",
+    "geo_description": "Kumamoto Prefecture"
+  },
+  {
+    "geo_id": "JP-26",
+    "geo_description": "Kyoto Prefecture"
+  },
+  {
+    "geo_id": "JP-24",
+    "geo_description": "Mie Prefecture"
+  },
+  {
+    "geo_id": "JP-04",
+    "geo_description": "Miyagi Prefecture"
+  },
+  {
+    "geo_id": "JP-45",
+    "geo_description": "Miyazaki Prefecture"
+  },
+  {
+    "geo_id": "JP-20",
+    "geo_description": "Nagano Prefecture"
+  },
+  {
+    "geo_id": "JP-42",
+    "geo_description": "Nagasaki Prefecture"
+  },
+  {
+    "geo_id": "JP-29",
+    "geo_description": "Nara Prefecture"
+  },
+  {
+    "geo_id": "JP-15",
+    "geo_description": "Niigata Prefecture"
+  },
+  {
+    "geo_id": "JP-44",
+    "geo_description": "Oita Prefecture"
+  },
+  {
+    "geo_id": "JP-33",
+    "geo_description": "Okayama Prefecture"
+  },
+  {
+    "geo_id": "JP-47",
+    "geo_description": "Okinawa Prefecture"
+  },
+  {
+    "geo_id": "JP-27",
+    "geo_description": "Osaka Prefecture"
+  },
+  {
+    "geo_id": "JP-41",
+    "geo_description": "Saga Prefecture"
+  },
+  {
+    "geo_id": "JP-11",
+    "geo_description": "Saitama Prefecture"
+  },
+  {
+    "geo_id": "JP-25",
+    "geo_description": "Shiga Prefecture"
+  },
+  {
+    "geo_id": "JP-32",
+    "geo_description": "Shimane Prefecture"
+  },
+  {
+    "geo_id": "JP-22",
+    "geo_description": "Shizuoka Prefecture"
+  },
+  {
+    "geo_id": "JP-09",
+    "geo_description": "Tochigi Prefecture"
+  },
+  {
+    "geo_id": "JP-36",
+    "geo_description": "Tokushima Prefecture"
+  },
+  {
+    "geo_id": "JP-13",
+    "geo_description": "Tokyo"
+  },
+  {
+    "geo_id": "JP-31",
+    "geo_description": "Tottori Prefecture"
+  },
+  {
+    "geo_id": "JP-16",
+    "geo_description": "Toyama Prefecture"
+  },
+  {
+    "geo_id": "JP-30",
+    "geo_description": "Wakayama Prefecture"
+  },
+  {
+    "geo_id": "JP-06",
+    "geo_description": "Yamagata Prefecture"
+  },
+  {
+    "geo_id": "JP-35",
+    "geo_description": "Yamaguchi Prefecture"
+  },
+  {
+    "geo_id": "JP-19",
+    "geo_description": "Yamanashi Prefecture"
+  },
+  {
+    "geo_id": "JO",
+    "geo_description": "Jordan"
+  },
+  {
+    "geo_id": "KZ",
+    "geo_description": "Kazakhstan"
+  },
+  {
+    "geo_id": "KE",
+    "geo_description": "Kenya"
+  },
+  {
+    "geo_id": "KW",
+    "geo_description": "Kuwait"
+  },
+  {
+    "geo_id": "KG",
+    "geo_description": "Kyrgyzstan"
+  },
+  {
+    "geo_id": "LV",
+    "geo_description": "Latvia"
+  },
+  {
+    "geo_id": "LB",
+    "geo_description": "Lebanon"
+  },
+  {
+    "geo_id": "LY",
+    "geo_description": "Libya"
+  },
+  {
+    "geo_id": "LT",
+    "geo_description": "Lithuania"
+  },
+  {
+    "geo_id": "MY",
+    "geo_description": "Malaysia"
+  },
+  {
+    "geo_id": "MY-14",
+    "geo_description": "Federal Territory of Kuala Lumpur"
+  },
+  {
+    "geo_id": "MY-01",
+    "geo_description": "Johor"
+  },
+  {
+    "geo_id": "MY-02",
+    "geo_description": "Kedah"
+  },
+  {
+    "geo_id": "MY-03",
+    "geo_description": "Kelantan"
+  },
+  {
+    "geo_id": "MY-15",
+    "geo_description": "Labuan Federal Territory"
+  },
+  {
+    "geo_id": "MY-04",
+    "geo_description": "Malacca"
+  },
+  {
+    "geo_id": "MY-05",
+    "geo_description": "Negeri Sembilan"
+  },
+  {
+    "geo_id": "MY-06",
+    "geo_description": "Pahang"
+  },
+  {
+    "geo_id": "MY-07",
+    "geo_description": "Penang"
+  },
+  {
+    "geo_id": "MY-08",
+    "geo_description": "Perak"
+  },
+  {
+    "geo_id": "MY-09",
+    "geo_description": "Perlis"
+  },
+  {
+    "geo_id": "MY-16",
+    "geo_description": "Putrajaya"
+  },
+  {
+    "geo_id": "MY-12",
+    "geo_description": "Sabah"
+  },
+  {
+    "geo_id": "MY-13",
+    "geo_description": "Sarawak"
+  },
+  {
+    "geo_id": "MY-10",
+    "geo_description": "Selangor"
+  },
+  {
+    "geo_id": "MY-11",
+    "geo_description": "Terengganu"
+  },
+  {
+    "geo_id": "ML",
+    "geo_description": "Mali"
+  },
+  {
+    "geo_id": "MX",
+    "geo_description": "Mexico"
+  },
+  {
+    "geo_id": "MX-AGU",
+    "geo_description": "Aguascalientes"
+  },
+  {
+    "geo_id": "MX-BCN",
+    "geo_description": "Baja California"
+  },
+  {
+    "geo_id": "MX-BCS",
+    "geo_description": "Baja California Sur"
+  },
+  {
+    "geo_id": "MX-CAM",
+    "geo_description": "Campeche"
+  },
+  {
+    "geo_id": "MX-CHP",
+    "geo_description": "Chiapas"
+  },
+  {
+    "geo_id": "MX-CHH",
+    "geo_description": "Chihuahua"
+  },
+  {
+    "geo_id": "MX-COA",
+    "geo_description": "Coahuila"
+  },
+  {
+    "geo_id": "MX-COL",
+    "geo_description": "Colima"
+  },
+  {
+    "geo_id": "MX-DUR",
+    "geo_description": "Durango"
+  },
+  {
+    "geo_id": "MX-GUA",
+    "geo_description": "Guanajuato"
+  },
+  {
+    "geo_id": "MX-GRO",
+    "geo_description": "Guerrero"
+  },
+  {
+    "geo_id": "MX-HID",
+    "geo_description": "Hidalgo"
+  },
+  {
+    "geo_id": "MX-JAL",
+    "geo_description": "Jalisco"
+  },
+  {
+    "geo_id": "MX-DIF",
+    "geo_description": "Mexico City"
+  },
+  {
+    "geo_id": "MX-MIC",
+    "geo_description": "Michoacán"
+  },
+  {
+    "geo_id": "MX-MOR",
+    "geo_description": "Morelos"
+  },
+  {
+    "geo_id": "MX-NAY",
+    "geo_description": "Nayarit"
+  },
+  {
+    "geo_id": "MX-NLE",
+    "geo_description": "Nuevo Leon"
+  },
+  {
+    "geo_id": "MX-OAX",
+    "geo_description": "Oaxaca"
+  },
+  {
+    "geo_id": "MX-PUE",
+    "geo_description": "Puebla"
+  },
+  {
+    "geo_id": "MX-QUE",
+    "geo_description": "Querétaro"
+  },
+  {
+    "geo_id": "MX-ROO",
+    "geo_description": "Quintana Roo"
+  },
+  {
+    "geo_id": "MX-SLP",
+    "geo_description": "San Luis Potosi"
+  },
+  {
+    "geo_id": "MX-SIN",
+    "geo_description": "Sinaloa"
+  },
+  {
+    "geo_id": "MX-SON",
+    "geo_description": "Sonora"
+  },
+  {
+    "geo_id": "MX-MEX",
+    "geo_description": "State of Mexico"
+  },
+  {
+    "geo_id": "MX-TAB",
+    "geo_description": "Tabasco"
+  },
+  {
+    "geo_id": "MX-TAM",
+    "geo_description": "Tamaulipas"
+  },
+  {
+    "geo_id": "MX-TLA",
+    "geo_description": "Tlaxcala"
+  },
+  {
+    "geo_id": "MX-VER",
+    "geo_description": "Veracruz"
+  },
+  {
+    "geo_id": "MX-YUC",
+    "geo_description": "Yucatan"
+  },
+  {
+    "geo_id": "MX-ZAC",
+    "geo_description": "Zacatecas"
+  },
+  {
+    "geo_id": "MD",
+    "geo_description": "Moldova"
+  },
+  {
+    "geo_id": "MA",
+    "geo_description": "Morocco"
+  },
+  {
+    "geo_id": "MZ",
+    "geo_description": "Mozambique"
+  },
+  {
+    "geo_id": "MM",
+    "geo_description": "Myanmar (Burma)"
+  },
+  {
+    "geo_id": "NP",
+    "geo_description": "Nepal"
+  },
+  {
+    "geo_id": "NL",
+    "geo_description": "Netherlands"
+  },
+  {
+    "geo_id": "NL-DR",
+    "geo_description": "Drenthe"
+  },
+  {
+    "geo_id": "NL-FL",
+    "geo_description": "Flevoland"
+  },
+  {
+    "geo_id": "NL-FR",
+    "geo_description": "Friesland"
+  },
+  {
+    "geo_id": "NL-GE",
+    "geo_description": "Gelderland"
+  },
+  {
+    "geo_id": "NL-GR",
+    "geo_description": "Groningen"
+  },
+  {
+    "geo_id": "NL-LI",
+    "geo_description": "Limburg"
+  },
+  {
+    "geo_id": "NL-NB",
+    "geo_description": "North Brabant"
+  },
+  {
+    "geo_id": "NL-NH",
+    "geo_description": "North Holland"
+  },
+  {
+    "geo_id": "NL-OV",
+    "geo_description": "Overijssel"
+  },
+  {
+    "geo_id": "NL-ZH",
+    "geo_description": "South Holland"
+  },
+  {
+    "geo_id": "NL-UT",
+    "geo_description": "Utrecht"
+  },
+  {
+    "geo_id": "NL-ZE",
+    "geo_description": "Zeeland"
+  },
+  {
+    "geo_id": "NZ",
+    "geo_description": "New Zealand"
+  },
+  {
+    "geo_id": "NZ-AUK",
+    "geo_description": "Auckland"
+  },
+  {
+    "geo_id": "NZ-BOP",
+    "geo_description": "Bay Of Plenty"
+  },
+  {
+    "geo_id": "NZ-CAN",
+    "geo_description": "Canterbury"
+  },
+  {
+    "geo_id": "NZ-GIS",
+    "geo_description": "Gisborne"
+  },
+  {
+    "geo_id": "NZ-HKB",
+    "geo_description": "Hawke's Bay"
+  },
+  {
+    "geo_id": "NZ-MWT",
+    "geo_description": "Manawatu-Wanganui"
+  },
+  {
+    "geo_id": "NZ-MBH",
+    "geo_description": "Marlborough"
+  },
+  {
+    "geo_id": "NZ-NSN",
+    "geo_description": "Nelson"
+  },
+  {
+    "geo_id": "NZ-NTL",
+    "geo_description": "Northland"
+  },
+  {
+    "geo_id": "NZ-OTA",
+    "geo_description": "Otago"
+  },
+  {
+    "geo_id": "NZ-STL",
+    "geo_description": "Southland"
+  },
+  {
+    "geo_id": "NZ-TKI",
+    "geo_description": "Taranaki"
+  },
+  {
+    "geo_id": "NZ-TAS",
+    "geo_description": "Tasman"
+  },
+  {
+    "geo_id": "NZ-WKO",
+    "geo_description": "Waikato"
+  },
+  {
+    "geo_id": "NZ-WGN",
+    "geo_description": "Wellington"
+  },
+  {
+    "geo_id": "NZ-WTC",
+    "geo_description": "West Coast"
+  },
+  {
+    "geo_id": "NI",
+    "geo_description": "Nicaragua"
+  },
+  {
+    "geo_id": "NG",
+    "geo_description": "Nigeria"
+  },
+  {
+    "geo_id": "NG-AB",
+    "geo_description": "Abia"
+  },
+  {
+    "geo_id": "NG-AD",
+    "geo_description": "Adamawa"
+  },
+  {
+    "geo_id": "NG-AK",
+    "geo_description": "Akwa Ibom"
+  },
+  {
+    "geo_id": "NG-AN",
+    "geo_description": "Anambra"
+  },
+  {
+    "geo_id": "NG-BA",
+    "geo_description": "Bauchi"
+  },
+  {
+    "geo_id": "NG-BY",
+    "geo_description": "Bayelsa"
+  },
+  {
+    "geo_id": "NG-BE",
+    "geo_description": "Benue"
+  },
+  {
+    "geo_id": "NG-BO",
+    "geo_description": "Borno"
+  },
+  {
+    "geo_id": "NG-CR",
+    "geo_description": "Cross River"
+  },
+  {
+    "geo_id": "NG-DE",
+    "geo_description": "Delta"
+  },
+  {
+    "geo_id": "NG-EB",
+    "geo_description": "Ebonyi"
+  },
+  {
+    "geo_id": "NG-ED",
+    "geo_description": "Edo"
+  },
+  {
+    "geo_id": "NG-EK",
+    "geo_description": "Ekiti"
+  },
+  {
+    "geo_id": "NG-EN",
+    "geo_description": "Enugu"
+  },
+  {
+    "geo_id": "NG-FC",
+    "geo_description": "Federal Capital Territory"
+  },
+  {
+    "geo_id": "NG-GO",
+    "geo_description": "Gombe"
+  },
+  {
+    "geo_id": "NG-IM",
+    "geo_description": "Imo"
+  },
+  {
+    "geo_id": "NG-JI",
+    "geo_description": "Jigawa"
+  },
+  {
+    "geo_id": "NG-KD",
+    "geo_description": "Kaduna"
+  },
+  {
+    "geo_id": "NG-KN",
+    "geo_description": "Kano"
+  },
+  {
+    "geo_id": "NG-KT",
+    "geo_description": "Katsina"
+  },
+  {
+    "geo_id": "NG-KE",
+    "geo_description": "Kebbi"
+  },
+  {
+    "geo_id": "NG-KO",
+    "geo_description": "Kogi"
+  },
+  {
+    "geo_id": "NG-KW",
+    "geo_description": "Kwara"
+  },
+  {
+    "geo_id": "NG-LA",
+    "geo_description": "Lagos"
+  },
+  {
+    "geo_id": "NG-NA",
+    "geo_description": "Nasarawa"
+  },
+  {
+    "geo_id": "NG-NI",
+    "geo_description": "Niger"
+  },
+  {
+    "geo_id": "NG-OG",
+    "geo_description": "Ogun State"
+  },
+  {
+    "geo_id": "NG-ON",
+    "geo_description": "Ondo"
+  },
+  {
+    "geo_id": "NG-OS",
+    "geo_description": "Osun"
+  },
+  {
+    "geo_id": "NG-OY",
+    "geo_description": "Oyo"
+  },
+  {
+    "geo_id": "NG-PL",
+    "geo_description": "Plateau"
+  },
+  {
+    "geo_id": "NG-RI",
+    "geo_description": "Rivers"
+  },
+  {
+    "geo_id": "NG-SO",
+    "geo_description": "Sokoto"
+  },
+  {
+    "geo_id": "NG-TA",
+    "geo_description": "Taraba"
+  },
+  {
+    "geo_id": "NG-YO",
+    "geo_description": "Yobe"
+  },
+  {
+    "geo_id": "NG-ZA",
+    "geo_description": "Zamfara"
+  },
+  {
+    "geo_id": "MK",
+    "geo_description": "North Macedonia"
+  },
+  {
+    "geo_id": "NO",
+    "geo_description": "Norway"
+  },
+  {
+    "geo_id": "OM",
+    "geo_description": "Oman"
+  },
+  {
+    "geo_id": "PK",
+    "geo_description": "Pakistan"
+  },
+  {
+    "geo_id": "PK-JK",
+    "geo_description": "Azad Jammu and Kashmir"
+  },
+  {
+    "geo_id": "PK-BA",
+    "geo_description": "Balochistan"
+  },
+  {
+    "geo_id": "PK-TA",
+    "geo_description": "Federally Administered Tribal Areas"
+  },
+  {
+    "geo_id": "PK-GB",
+    "geo_description": "Gilgit-Baltistan"
+  },
+  {
+    "geo_id": "PK-IS",
+    "geo_description": "Islamabad Capital Territory"
+  },
+  {
+    "geo_id": "PK-KP",
+    "geo_description": "Khyber Pakhtunkhwa"
+  },
+  {
+    "geo_id": "PK-PB",
+    "geo_description": "Punjab"
+  },
+  {
+    "geo_id": "PK-SD",
+    "geo_description": "Sindh"
+  },
+  {
+    "geo_id": "PS",
+    "geo_description": "Palestine"
+  },
+  {
+    "geo_id": "PA",
+    "geo_description": "Panama"
+  },
+  {
+    "geo_id": "PY",
+    "geo_description": "Paraguay"
+  },
+  {
+    "geo_id": "PE",
+    "geo_description": "Peru"
+  },
+  {
+    "geo_id": "PE-AMA",
+    "geo_description": "Amazonas"
+  },
+  {
+    "geo_id": "PE-ANC",
+    "geo_description": "Ancash"
+  },
+  {
+    "geo_id": "PE-APU",
+    "geo_description": "Apurimac"
+  },
+  {
+    "geo_id": "PE-ARE",
+    "geo_description": "Arequipa"
+  },
+  {
+    "geo_id": "PE-AYA",
+    "geo_description": "Ayacucho"
+  },
+  {
+    "geo_id": "PE-CAJ",
+    "geo_description": "Cajamarca"
+  },
+  {
+    "geo_id": "PE-CAL",
+    "geo_description": "Callao"
+  },
+  {
+    "geo_id": "PE-CUS",
+    "geo_description": "Cusco"
+  },
+  {
+    "geo_id": "PE-HUV",
+    "geo_description": "Huancavelica"
+  },
+  {
+    "geo_id": "PE-HUC",
+    "geo_description": "Huanuco"
+  },
+  {
+    "geo_id": "PE-ICA",
+    "geo_description": "Ica"
+  },
+  {
+    "geo_id": "PE-JUN",
+    "geo_description": "Junin"
+  },
+  {
+    "geo_id": "PE-LAL",
+    "geo_description": "La Libertad"
+  },
+  {
+    "geo_id": "PE-LAM",
+    "geo_description": "Lambayeque"
+  },
+  {
+    "geo_id": "PE-LIM",
+    "geo_description": "Lima Region"
+  },
+  {
+    "geo_id": "PE-LOR",
+    "geo_description": "Loreto"
+  },
+  {
+    "geo_id": "PE-MDD",
+    "geo_description": "Madre de Dios"
+  },
+  {
+    "geo_id": "PE-MOQ",
+    "geo_description": "Moquegua"
+  },
+  {
+    "geo_id": "PE-PAS",
+    "geo_description": "Pasco"
+  },
+  {
+    "geo_id": "PE-PIU",
+    "geo_description": "Piura"
+  },
+  {
+    "geo_id": "PE-PUN",
+    "geo_description": "Puno"
+  },
+  {
+    "geo_id": "PE-SAM",
+    "geo_description": "San Martin"
+  },
+  {
+    "geo_id": "PE-TAC",
+    "geo_description": "Tacna"
+  },
+  {
+    "geo_id": "PE-TUM",
+    "geo_description": "Tumbes"
+  },
+  {
+    "geo_id": "PE-UCA",
+    "geo_description": "Ucayali"
+  },
+  {
+    "geo_id": "PH",
+    "geo_description": "Philippines"
+  },
+  {
+    "geo_id": "PH-14",
+    "geo_description": "Autonomous Region in Muslim Mindanao"
+  },
+  {
+    "geo_id": "PH-05",
+    "geo_description": "Bicol"
+  },
+  {
+    "geo_id": "PH-02",
+    "geo_description": "Cagayan Valley"
+  },
+  {
+    "geo_id": "PH-40",
+    "geo_description": "Calabarzon"
+  },
+  {
+    "geo_id": "PH-13",
+    "geo_description": "Caraga"
+  },
+  {
+    "geo_id": "PH-03",
+    "geo_description": "Central Luzon"
+  },
+  {
+    "geo_id": "PH-07",
+    "geo_description": "Central Visayas"
+  },
+  {
+    "geo_id": "PH-15",
+    "geo_description": "Cordillera Administrative Region"
+  },
+  {
+    "geo_id": "PH-11",
+    "geo_description": "Davao Region"
+  },
+  {
+    "geo_id": "PH-08",
+    "geo_description": "Eastern Visayas"
+  },
+  {
+    "geo_id": "PH-01",
+    "geo_description": "Ilocos Region"
+  },
+  {
+    "geo_id": "PH-00",
+    "geo_description": "Metro Manila"
+  },
+  {
+    "geo_id": "PH-41",
+    "geo_description": "MIMAROPA"
+  },
+  {
+    "geo_id": "PH-10",
+    "geo_description": "Northern Mindanao"
+  },
+  {
+    "geo_id": "PH-12",
+    "geo_description": "Region XII"
+  },
+  {
+    "geo_id": "PH-06",
+    "geo_description": "Western Visayas"
+  },
+  {
+    "geo_id": "PH-09",
+    "geo_description": "Zamboanga Peninsula"
+  },
+  {
+    "geo_id": "PL",
+    "geo_description": "Poland"
+  },
+  {
+    "geo_id": "PL-WP",
+    "geo_description": "Greater Poland Voivodeship"
+  },
+  {
+    "geo_id": "PL-KP",
+    "geo_description": "Kuyavian-Pomeranian Voivodeship"
+  },
+  {
+    "geo_id": "PL-MA",
+    "geo_description": "Lesser Poland Voivodeship"
+  },
+  {
+    "geo_id": "PL-LD",
+    "geo_description": "Łódź Voivodeship"
+  },
+  {
+    "geo_id": "PL-DS",
+    "geo_description": "Lower Silesian Voivodeship"
+  },
+  {
+    "geo_id": "PL-LU",
+    "geo_description": "Lublin Voivodeship"
+  },
+  {
+    "geo_id": "PL-LB",
+    "geo_description": "Lubusz Voivodeship"
+  },
+  {
+    "geo_id": "PL-MZ",
+    "geo_description": "Masovian Voivodeship"
+  },
+  {
+    "geo_id": "PL-OP",
+    "geo_description": "Opole Voivodeship"
+  },
+  {
+    "geo_id": "PL-PK",
+    "geo_description": "Podkarpackie Voivodeship"
+  },
+  {
+    "geo_id": "PL-PD",
+    "geo_description": "Podlaskie Voivodeship"
+  },
+  {
+    "geo_id": "PL-PM",
+    "geo_description": "Pomeranian Voivodeship"
+  },
+  {
+    "geo_id": "PL-SL",
+    "geo_description": "Silesian Voivodeship"
+  },
+  {
+    "geo_id": "PL-SK",
+    "geo_description": "Swietokrzyskie"
+  },
+  {
+    "geo_id": "PL-WN",
+    "geo_description": "Warmian-Masurian Voivodeship"
+  },
+  {
+    "geo_id": "PL-ZP",
+    "geo_description": "West Pomeranian Voivodeship"
+  },
+  {
+    "geo_id": "PT",
+    "geo_description": "Portugal"
+  },
+  {
+    "geo_id": "PT-01",
+    "geo_description": "Aveiro District"
+  },
+  {
+    "geo_id": "PT-20",
+    "geo_description": "Azores"
+  },
+  {
+    "geo_id": "PT-02",
+    "geo_description": "Beja District"
+  },
+  {
+    "geo_id": "PT-03",
+    "geo_description": "Braga"
+  },
+  {
+    "geo_id": "PT-04",
+    "geo_description": "Bragança District"
+  },
+  {
+    "geo_id": "PT-05",
+    "geo_description": "Castelo Branco District"
+  },
+  {
+    "geo_id": "PT-06",
+    "geo_description": "Coimbra District"
+  },
+  {
+    "geo_id": "PT-07",
+    "geo_description": "Évora District"
+  },
+  {
+    "geo_id": "PT-08",
+    "geo_description": "Faro District"
+  },
+  {
+    "geo_id": "PT-09",
+    "geo_description": "Guarda District"
+  },
+  {
+    "geo_id": "PT-10",
+    "geo_description": "Leiria District"
+  },
+  {
+    "geo_id": "PT-11",
+    "geo_description": "Lisbon"
+  },
+  {
+    "geo_id": "PT-30",
+    "geo_description": "Madeira"
+  },
+  {
+    "geo_id": "PT-12",
+    "geo_description": "Portalegre District"
+  },
+  {
+    "geo_id": "PT-13",
+    "geo_description": "Porto District"
+  },
+  {
+    "geo_id": "PT-14",
+    "geo_description": "Santarém District"
+  },
+  {
+    "geo_id": "PT-15",
+    "geo_description": "Setubal"
+  },
+  {
+    "geo_id": "PT-16",
+    "geo_description": "Viana do Castelo District"
+  },
+  {
+    "geo_id": "PT-17",
+    "geo_description": "Vila Real District"
+  },
+  {
+    "geo_id": "PT-18",
+    "geo_description": "Viseu District"
+  },
+  {
+    "geo_id": "PR",
+    "geo_description": "Puerto Rico"
+  },
+  {
+    "geo_id": "QA",
+    "geo_description": "Qatar"
+  },
+  {
+    "geo_id": "RO",
+    "geo_description": "Romania"
+  },
+  {
+    "geo_id": "RU",
+    "geo_description": "Russia"
+  },
+  {
+    "geo_id": "RU-AD",
+    "geo_description": "Adygea"
+  },
+  {
+    "geo_id": "RU-ALT",
+    "geo_description": "Altai Krai"
+  },
+  {
+    "geo_id": "RU-AL",
+    "geo_description": "Altai Republic"
+  },
+  {
+    "geo_id": "RU-AMU",
+    "geo_description": "Amur Oblast"
+  },
+  {
+    "geo_id": "RU-ARK",
+    "geo_description": "Arkhangelsk Oblast"
+  },
+  {
+    "geo_id": "RU-AST",
+    "geo_description": "Astrakhan Oblast"
+  },
+  {
+    "geo_id": "RU-BEL",
+    "geo_description": "Belgorod Oblast"
+  },
+  {
+    "geo_id": "RU-BRY",
+    "geo_description": "Bryansk Oblast"
+  },
+  {
+    "geo_id": "RU-BU",
+    "geo_description": "Buryatia"
+  },
+  {
+    "geo_id": "RU-CE",
+    "geo_description": "Chechnya"
+  },
+  {
+    "geo_id": "RU-CHE",
+    "geo_description": "Chelyabinsk Oblast"
+  },
+  {
+    "geo_id": "RU-CHU",
+    "geo_description": "Chukotka Autonomous Okrug"
+  },
+  {
+    "geo_id": "RU-CU",
+    "geo_description": "Chuvashia Republic"
+  },
+  {
+    "geo_id": "RU-DA",
+    "geo_description": "Dagestan Republic"
+  },
+  {
+    "geo_id": "RU-IN",
+    "geo_description": "Ingushetia"
+  },
+  {
+    "geo_id": "RU-IRK",
+    "geo_description": "Irkutsk Oblast"
+  },
+  {
+    "geo_id": "RU-IVA",
+    "geo_description": "Ivanovo Oblast"
+  },
+  {
+    "geo_id": "RU-YEV",
+    "geo_description": "Jewish Autonomous Oblast"
+  },
+  {
+    "geo_id": "RU-KB",
+    "geo_description": "Kabardino-Balkaria"
+  },
+  {
+    "geo_id": "RU-KGD",
+    "geo_description": "Kaliningrad Oblast"
+  },
+  {
+    "geo_id": "RU-KL",
+    "geo_description": "Kalmykia"
+  },
+  {
+    "geo_id": "RU-KLU",
+    "geo_description": "Kaluga Oblast"
+  },
+  {
+    "geo_id": "RU-KAM",
+    "geo_description": "Kamchatka Krai"
+  },
+  {
+    "geo_id": "RU-KC",
+    "geo_description": "Karachay-Cherkessia"
+  },
+  {
+    "geo_id": "RU-KEM",
+    "geo_description": "Kemerovo Oblast"
+  },
+  {
+    "geo_id": "RU-KHA",
+    "geo_description": "Khabarovsk Krai"
+  },
+  {
+    "geo_id": "RU-KHM",
+    "geo_description": "Khanty-Mansi Autonomous Okrug"
+  },
+  {
+    "geo_id": "RU-KIR",
+    "geo_description": "Kirov Oblast"
+  },
+  {
+    "geo_id": "RU-KO",
+    "geo_description": "Komi Republic"
+  },
+  {
+    "geo_id": "RU-KOS",
+    "geo_description": "Kostroma Oblast"
+  },
+  {
+    "geo_id": "RU-KDA",
+    "geo_description": "Krasnodar Krai"
+  },
+  {
+    "geo_id": "RU-KYA",
+    "geo_description": "Krasnoyarsk Krai"
+  },
+  {
+    "geo_id": "RU-KGN",
+    "geo_description": "Kurgan Oblast"
+  },
+  {
+    "geo_id": "RU-KRS",
+    "geo_description": "Kursk Oblast"
+  },
+  {
+    "geo_id": "RU-LEN",
+    "geo_description": "Leningrad Oblast"
+  },
+  {
+    "geo_id": "RU-LIP",
+    "geo_description": "Lipetsk Oblast"
+  },
+  {
+    "geo_id": "RU-MAG",
+    "geo_description": "Magadan Oblast"
+  },
+  {
+    "geo_id": "RU-ME",
+    "geo_description": "Mari El Republic"
+  },
+  {
+    "geo_id": "RU-MO",
+    "geo_description": "Mordovia"
+  },
+  {
+    "geo_id": "RU-MOW",
+    "geo_description": "Moscow"
+  },
+  {
+    "geo_id": "RU-MOS",
+    "geo_description": "Moscow Oblast"
+  },
+  {
+    "geo_id": "RU-MUR",
+    "geo_description": "Murmansk Oblast"
+  },
+  {
+    "geo_id": "RU-NEN",
+    "geo_description": "Nenets Autonomous Okrug"
+  },
+  {
+    "geo_id": "RU-NIZ",
+    "geo_description": "Nizhny Novgorod Oblast"
+  },
+  {
+    "geo_id": "RU-SE",
+    "geo_description": "North Ossetia–Alania"
+  },
+  {
+    "geo_id": "RU-NGR",
+    "geo_description": "Novgorod Oblast"
+  },
+  {
+    "geo_id": "RU-NVS",
+    "geo_description": "Novosibirsk Oblast"
+  },
+  {
+    "geo_id": "RU-OMS",
+    "geo_description": "Omsk Oblast"
+  },
+  {
+    "geo_id": "RU-ORE",
+    "geo_description": "Orenburg Oblast"
+  },
+  {
+    "geo_id": "RU-ORL",
+    "geo_description": "Oryol Oblast"
+  },
+  {
+    "geo_id": "RU-PNZ",
+    "geo_description": "Penza Oblast"
+  },
+  {
+    "geo_id": "RU-PER",
+    "geo_description": "Perm Krai"
+  },
+  {
+    "geo_id": "RU-PRI",
+    "geo_description": "Primorsky Krai"
+  },
+  {
+    "geo_id": "RU-PSK",
+    "geo_description": "Pskov Oblast"
+  },
+  {
+    "geo_id": "RU-BA",
+    "geo_description": "Republic of Bashkortostan"
+  },
+  {
+    "geo_id": "RU-KR",
+    "geo_description": "Republic of Karelia"
+  },
+  {
+    "geo_id": "RU-KK",
+    "geo_description": "Republic of Khakassia"
+  },
+  {
+    "geo_id": "RU-ROS",
+    "geo_description": "Rostov Oblast"
+  },
+  {
+    "geo_id": "RU-RYA",
+    "geo_description": "Ryazan Oblast"
+  },
+  {
+    "geo_id": "RU-SPE",
+    "geo_description": "Saint Petersburg"
+  },
+  {
+    "geo_id": "RU-SA",
+    "geo_description": "Sakha Republic"
+  },
+  {
+    "geo_id": "RU-SAK",
+    "geo_description": "Sakhalin Oblast"
+  },
+  {
+    "geo_id": "RU-SAM",
+    "geo_description": "Samara Oblast"
+  },
+  {
+    "geo_id": "RU-SAR",
+    "geo_description": "Saratov Oblast"
+  },
+  {
+    "geo_id": "RU-SMO",
+    "geo_description": "Smolensk Oblast"
+  },
+  {
+    "geo_id": "RU-STA",
+    "geo_description": "Stavropol Krai"
+  },
+  {
+    "geo_id": "RU-SVE",
+    "geo_description": "Sverdlovsk Oblast"
+  },
+  {
+    "geo_id": "RU-TAM",
+    "geo_description": "Tambov Oblast"
+  },
+  {
+    "geo_id": "RU-TA",
+    "geo_description": "Tatarstan"
+  },
+  {
+    "geo_id": "RU-TOM",
+    "geo_description": "Tomsk Oblast"
+  },
+  {
+    "geo_id": "RU-TUL",
+    "geo_description": "Tula Oblast"
+  },
+  {
+    "geo_id": "RU-TY",
+    "geo_description": "Tuva"
+  },
+  {
+    "geo_id": "RU-TVE",
+    "geo_description": "Tver Oblast"
+  },
+  {
+    "geo_id": "RU-TYU",
+    "geo_description": "Tyumen Oblast"
+  },
+  {
+    "geo_id": "RU-UD",
+    "geo_description": "Udmurt Republic"
+  },
+  {
+    "geo_id": "RU-ULY",
+    "geo_description": "Ulyanovsk Oblast"
+  },
+  {
+    "geo_id": "RU-VLA",
+    "geo_description": "Vladimir Oblast"
+  },
+  {
+    "geo_id": "RU-VGG",
+    "geo_description": "Volgograd Oblast"
+  },
+  {
+    "geo_id": "RU-VLG",
+    "geo_description": "Vologda Oblast"
+  },
+  {
+    "geo_id": "RU-VOR",
+    "geo_description": "Voronezh Oblast"
+  },
+  {
+    "geo_id": "RU-YAN",
+    "geo_description": "Yamalo-Nenets Autonomous Okrug"
+  },
+  {
+    "geo_id": "RU-YAR",
+    "geo_description": "Yaroslavl Oblast"
+  },
+  {
+    "geo_id": "RU-ZAB",
+    "geo_description": "Zabaykalsky Krai"
+  },
+  {
+    "geo_id": "SA",
+    "geo_description": "Saudi Arabia"
+  },
+  {
+    "geo_id": "SA-11",
+    "geo_description": "Al Bahah Province"
+  },
+  {
+    "geo_id": "SA-12",
+    "geo_description": "Al Jowf"
+  },
+  {
+    "geo_id": "SA-03",
+    "geo_description": "Al Madinah Province"
+  },
+  {
+    "geo_id": "SA-05",
+    "geo_description": "Al Qassim"
+  },
+  {
+    "geo_id": "SA-14",
+    "geo_description": "Aseer Province"
+  },
+  {
+    "geo_id": "SA-04",
+    "geo_description": "Eastern Province"
+  },
+  {
+    "geo_id": "SA-06",
+    "geo_description": "Hail Province"
+  },
+  {
+    "geo_id": "SA-09",
+    "geo_description": "Jazan"
+  },
+  {
+    "geo_id": "SA-02",
+    "geo_description": "Makkah Province"
+  },
+  {
+    "geo_id": "SA-10",
+    "geo_description": "Najran"
+  },
+  {
+    "geo_id": "SA-08",
+    "geo_description": "Northern Borders Province"
+  },
+  {
+    "geo_id": "SA-01",
+    "geo_description": "Riyadh Province"
+  },
+  {
+    "geo_id": "SA-07",
+    "geo_description": "Tabuk Province"
+  },
+  {
+    "geo_id": "SN",
+    "geo_description": "Senegal"
+  },
+  {
+    "geo_id": "RS",
+    "geo_description": "Serbia"
+  },
+  {
+    "geo_id": "SG",
+    "geo_description": "Singapore"
+  },
+  {
+    "geo_id": "SK",
+    "geo_description": "Slovakia"
+  },
+  {
+    "geo_id": "SI",
+    "geo_description": "Slovenia"
+  },
+  {
+    "geo_id": "ZA",
+    "geo_description": "South Africa"
+  },
+  {
+    "geo_id": "ZA-EC",
+    "geo_description": "Eastern Cape"
+  },
+  {
+    "geo_id": "ZA-FS",
+    "geo_description": "Free State"
+  },
+  {
+    "geo_id": "ZA-GT",
+    "geo_description": "Gauteng"
+  },
+  {
+    "geo_id": "ZA-NL",
+    "geo_description": "KwaZulu-Natal"
+  },
+  {
+    "geo_id": "ZA-LP",
+    "geo_description": "Limpopo"
+  },
+  {
+    "geo_id": "ZA-MP",
+    "geo_description": "Mpumalanga"
+  },
+  {
+    "geo_id": "ZA-NW",
+    "geo_description": "North West"
+  },
+  {
+    "geo_id": "ZA-NC",
+    "geo_description": "Northern Cape"
+  },
+  {
+    "geo_id": "ZA-WC",
+    "geo_description": "Western Cape"
+  },
+  {
+    "geo_id": "KR",
+    "geo_description": "South Korea"
+  },
+  {
+    "geo_id": "KR-26",
+    "geo_description": "Busan"
+  },
+  {
+    "geo_id": "KR-43",
+    "geo_description": "Chungcheongbuk-do"
+  },
+  {
+    "geo_id": "KR-44",
+    "geo_description": "Chungcheongnam-do"
+  },
+  {
+    "geo_id": "KR-27",
+    "geo_description": "Daegu"
+  },
+  {
+    "geo_id": "KR-30",
+    "geo_description": "Daejeon"
+  },
+  {
+    "geo_id": "KR-42",
+    "geo_description": "Gangwon-do"
+  },
+  {
+    "geo_id": "KR-29",
+    "geo_description": "Gwangju"
+  },
+  {
+    "geo_id": "KR-41",
+    "geo_description": "Gyeonggi-do"
+  },
+  {
+    "geo_id": "KR-47",
+    "geo_description": "Gyeongsangbuk-do"
+  },
+  {
+    "geo_id": "KR-48",
+    "geo_description": "Gyeongsangnam-do"
+  },
+  {
+    "geo_id": "KR-28",
+    "geo_description": "Incheon"
+  },
+  {
+    "geo_id": "KR-49",
+    "geo_description": "Jeju-do"
+  },
+  {
+    "geo_id": "KR-45",
+    "geo_description": "Jeollabuk-do"
+  },
+  {
+    "geo_id": "KR-46",
+    "geo_description": "Jeollanam-do"
+  },
+  {
+    "geo_id": "KR-11",
+    "geo_description": "Seoul"
+  },
+  {
+    "geo_id": "KR-31",
+    "geo_description": "Ulsan"
+  },
+  {
+    "geo_id": "ES",
+    "geo_description": "Spain"
+  },
+  {
+    "geo_id": "ES-AN",
+    "geo_description": "Andalusia"
+  },
+  {
+    "geo_id": "ES-AR",
+    "geo_description": "Aragon"
+  },
+  {
+    "geo_id": "ES-AS",
+    "geo_description": "Asturias"
+  },
+  {
+    "geo_id": "ES-IB",
+    "geo_description": "Balearic Islands"
+  },
+  {
+    "geo_id": "ES-PV",
+    "geo_description": "Basque Country"
+  },
+  {
+    "geo_id": "ES-CN",
+    "geo_description": "Canary Islands"
+  },
+  {
+    "geo_id": "ES-CB",
+    "geo_description": "Cantabria"
+  },
+  {
+    "geo_id": "ES-CL",
+    "geo_description": "Castile and León"
+  },
+  {
+    "geo_id": "ES-CM",
+    "geo_description": "Castile-La Mancha"
+  },
+  {
+    "geo_id": "ES-CT",
+    "geo_description": "Catalonia"
+  },
+  {
+    "geo_id": "ES-CE",
+    "geo_description": "Ceuta"
+  },
+  {
+    "geo_id": "ES-MD",
+    "geo_description": "Community of Madrid"
+  },
+  {
+    "geo_id": "ES-EX",
+    "geo_description": "Extremadura"
+  },
+  {
+    "geo_id": "ES-GA",
+    "geo_description": "Galicia"
+  },
+  {
+    "geo_id": "ES-RI",
+    "geo_description": "La Rioja"
+  },
+  {
+    "geo_id": "ES-ML",
+    "geo_description": "Melilla"
+  },
+  {
+    "geo_id": "ES-NC",
+    "geo_description": "Navarre"
+  },
+  {
+    "geo_id": "ES-MC",
+    "geo_description": "Region of Murcia"
+  },
+  {
+    "geo_id": "ES-VC",
+    "geo_description": "Valencian Community"
+  },
+  {
+    "geo_id": "LK",
+    "geo_description": "Sri Lanka"
+  },
+  {
+    "geo_id": "SE",
+    "geo_description": "Sweden"
+  },
+  {
+    "geo_id": "SE-K",
+    "geo_description": "Blekinge County"
+  },
+  {
+    "geo_id": "SE-W",
+    "geo_description": "Dalarna County"
+  },
+  {
+    "geo_id": "SE-X",
+    "geo_description": "Gavleborg County"
+  },
+  {
+    "geo_id": "SE-I",
+    "geo_description": "Gotland County"
+  },
+  {
+    "geo_id": "SE-N",
+    "geo_description": "Halland County"
+  },
+  {
+    "geo_id": "SE-Z",
+    "geo_description": "Jamtland County"
+  },
+  {
+    "geo_id": "SE-F",
+    "geo_description": "Jonkoping County"
+  },
+  {
+    "geo_id": "SE-H",
+    "geo_description": "Kalmar County"
+  },
+  {
+    "geo_id": "SE-G",
+    "geo_description": "Kronoberg County"
+  },
+  {
+    "geo_id": "SE-BD",
+    "geo_description": "Norrbotten County"
+  },
+  {
+    "geo_id": "SE-T",
+    "geo_description": "Örebro County"
+  },
+  {
+    "geo_id": "SE-E",
+    "geo_description": "Östergötland County"
+  },
+  {
+    "geo_id": "SE-M",
+    "geo_description": "Skåne County"
+  },
+  {
+    "geo_id": "SE-D",
+    "geo_description": "Södermanland County"
+  },
+  {
+    "geo_id": "SE-AB",
+    "geo_description": "Stockholm County"
+  },
+  {
+    "geo_id": "SE-C",
+    "geo_description": "Uppsala County"
+  },
+  {
+    "geo_id": "SE-S",
+    "geo_description": "Varmland County"
+  },
+  {
+    "geo_id": "SE-AC",
+    "geo_description": "Västerbotten County"
+  },
+  {
+    "geo_id": "SE-Y",
+    "geo_description": "Västernorrland County"
+  },
+  {
+    "geo_id": "SE-U",
+    "geo_description": "Västmanland County"
+  },
+  {
+    "geo_id": "SE-O",
+    "geo_description": "Västra Götaland County"
+  },
+  {
+    "geo_id": "CH",
+    "geo_description": "Switzerland"
+  },
+  {
+    "geo_id": "CH-AG",
+    "geo_description": "Aargau"
+  },
+  {
+    "geo_id": "CH-AI",
+    "geo_description": "Appenzell Innerrhoden"
+  },
+  {
+    "geo_id": "CH-AR",
+    "geo_description": "Appenzell Outer Rhodes"
+  },
+  {
+    "geo_id": "CH-BL",
+    "geo_description": "Basel-Landschaft"
+  },
+  {
+    "geo_id": "CH-BS",
+    "geo_description": "Basel-Stadt"
+  },
+  {
+    "geo_id": "CH-BE",
+    "geo_description": "Canton of Bern"
+  },
+  {
+    "geo_id": "CH-FR",
+    "geo_description": "Canton of Fribourg"
+  },
+  {
+    "geo_id": "CH-GL",
+    "geo_description": "Canton of Glarus"
+  },
+  {
+    "geo_id": "CH-JU",
+    "geo_description": "Canton of Jura"
+  },
+  {
+    "geo_id": "CH-NE",
+    "geo_description": "Canton of Neuchâtel"
+  },
+  {
+    "geo_id": "CH-OW",
+    "geo_description": "Canton of Obwalden"
+  },
+  {
+    "geo_id": "CH-SH",
+    "geo_description": "Canton of Schaffhausen"
+  },
+  {
+    "geo_id": "CH-SZ",
+    "geo_description": "Canton of Schwyz"
+  },
+  {
+    "geo_id": "CH-SO",
+    "geo_description": "Canton of Solothurn"
+  },
+  {
+    "geo_id": "CH-UR",
+    "geo_description": "Canton of Uri"
+  },
+  {
+    "geo_id": "CH-ZG",
+    "geo_description": "Canton of Zug"
+  },
+  {
+    "geo_id": "CH-GE",
+    "geo_description": "Geneva"
+  },
+  {
+    "geo_id": "CH-GR",
+    "geo_description": "Grisons"
+  },
+  {
+    "geo_id": "CH-LU",
+    "geo_description": "Lucerne"
+  },
+  {
+    "geo_id": "CH-NW",
+    "geo_description": "Nidwalden"
+  },
+  {
+    "geo_id": "CH-SG",
+    "geo_description": "St. Gallen"
+  },
+  {
+    "geo_id": "CH-TG",
+    "geo_description": "Thurgau"
+  },
+  {
+    "geo_id": "CH-TI",
+    "geo_description": "Ticino"
+  },
+  {
+    "geo_id": "CH-VS",
+    "geo_description": "Valais"
+  },
+  {
+    "geo_id": "CH-VD",
+    "geo_description": "Vaud"
+  },
+  {
+    "geo_id": "CH-ZH",
+    "geo_description": "Zurich"
+  },
+  {
+    "geo_id": "SY",
+    "geo_description": "Syria"
+  },
+  {
+    "geo_id": "TW",
+    "geo_description": "Taiwan"
+  },
+  {
+    "geo_id": "TW-KHH",
+    "geo_description": "Kaohsiung City"
+  },
+  {
+    "geo_id": "TW-TPQ",
+    "geo_description": "New Taipei City"
+  },
+  {
+    "geo_id": "TW-TXG",
+    "geo_description": "Taichung City"
+  },
+  {
+    "geo_id": "TW-TNN",
+    "geo_description": "Tainan City"
+  },
+  {
+    "geo_id": "TW-TPE",
+    "geo_description": "Taipei City"
+  },
+  {
+    "geo_id": "TW-TAO",
+    "geo_description": "Taoyuan City"
+  },
+  {
+    "geo_id": "TZ",
+    "geo_description": "Tanzania"
+  },
+  {
+    "geo_id": "TH",
+    "geo_description": "Thailand"
+  },
+  {
+    "geo_id": "TT",
+    "geo_description": "Trinidad & Tobago"
+  },
+  {
+    "geo_id": "TN",
+    "geo_description": "Tunisia"
+  },
+  {
+    "geo_id": "TR",
+    "geo_description": "Turkiye"
+  },
+  {
+    "geo_id": "TR-01",
+    "geo_description": "Adana"
+  },
+  {
+    "geo_id": "TR-02",
+    "geo_description": "Adıyaman Province"
+  },
+  {
+    "geo_id": "TR-03",
+    "geo_description": "Afyonkarahisar Province"
+  },
+  {
+    "geo_id": "TR-04",
+    "geo_description": "Ağrı"
+  },
+  {
+    "geo_id": "TR-68",
+    "geo_description": "Aksaray"
+  },
+  {
+    "geo_id": "TR-05",
+    "geo_description": "Amasya Province"
+  },
+  {
+    "geo_id": "TR-06",
+    "geo_description": "Ankara"
+  },
+  {
+    "geo_id": "TR-07",
+    "geo_description": "Antalya"
+  },
+  {
+    "geo_id": "TR-75",
+    "geo_description": "Ardahan Province"
+  },
+  {
+    "geo_id": "TR-08",
+    "geo_description": "Artvin"
+  },
+  {
+    "geo_id": "TR-09",
+    "geo_description": "Aydın Province"
+  },
+  {
+    "geo_id": "TR-10",
+    "geo_description": "Balıkesir Province"
+  },
+  {
+    "geo_id": "TR-74",
+    "geo_description": "Bartın Province"
+  },
+  {
+    "geo_id": "TR-72",
+    "geo_description": "Batman"
+  },
+  {
+    "geo_id": "TR-69",
+    "geo_description": "Bayburt"
+  },
+  {
+    "geo_id": "TR-11",
+    "geo_description": "Bilecik"
+  },
+  {
+    "geo_id": "TR-12",
+    "geo_description": "Bingöl Province"
+  },
+  {
+    "geo_id": "TR-13",
+    "geo_description": "Bitlis"
+  },
+  {
+    "geo_id": "TR-14",
+    "geo_description": "Bolu"
+  },
+  {
+    "geo_id": "TR-15",
+    "geo_description": "Burdur Province"
+  },
+  {
+    "geo_id": "TR-16",
+    "geo_description": "Bursa"
+  },
+  {
+    "geo_id": "TR-17",
+    "geo_description": "Çanakkale Province"
+  },
+  {
+    "geo_id": "TR-18",
+    "geo_description": "Çankırı"
+  },
+  {
+    "geo_id": "TR-19",
+    "geo_description": "Çorum Province"
+  },
+  {
+    "geo_id": "TR-20",
+    "geo_description": "Denizli"
+  },
+  {
+    "geo_id": "TR-21",
+    "geo_description": "Diyarbakır"
+  },
+  {
+    "geo_id": "TR-81",
+    "geo_description": "Düzce Province"
+  },
+  {
+    "geo_id": "TR-22",
+    "geo_description": "Edirne"
+  },
+  {
+    "geo_id": "TR-23",
+    "geo_description": "Elazığ"
+  },
+  {
+    "geo_id": "TR-24",
+    "geo_description": "Erzincan"
+  },
+  {
+    "geo_id": "TR-25",
+    "geo_description": "Erzurum"
+  },
+  {
+    "geo_id": "TR-26",
+    "geo_description": "Eskişehir Province"
+  },
+  {
+    "geo_id": "TR-27",
+    "geo_description": "Gaziantep"
+  },
+  {
+    "geo_id": "TR-28",
+    "geo_description": "Giresun"
+  },
+  {
+    "geo_id": "TR-29",
+    "geo_description": "Gümüşhane"
+  },
+  {
+    "geo_id": "TR-30",
+    "geo_description": "Hakkâri"
+  },
+  {
+    "geo_id": "TR-31",
+    "geo_description": "Hatay"
+  },
+  {
+    "geo_id": "TR-76",
+    "geo_description": "Iğdır"
+  },
+  {
+    "geo_id": "TR-32",
+    "geo_description": "Isparta Province"
+  },
+  {
+    "geo_id": "TR-34",
+    "geo_description": "İstanbul"
+  },
+  {
+    "geo_id": "TR-35",
+    "geo_description": "İzmir"
+  },
+  {
+    "geo_id": "TR-46",
+    "geo_description": "Kahramanmaraş Province"
+  },
+  {
+    "geo_id": "TR-78",
+    "geo_description": "Karabük"
+  },
+  {
+    "geo_id": "TR-70",
+    "geo_description": "Karaman"
+  },
+  {
+    "geo_id": "TR-36",
+    "geo_description": "Kars"
+  },
+  {
+    "geo_id": "TR-37",
+    "geo_description": "Kastamonu"
+  },
+  {
+    "geo_id": "TR-38",
+    "geo_description": "Kayseri Province"
+  },
+  {
+    "geo_id": "TR-79",
+    "geo_description": "Kilis"
+  },
+  {
+    "geo_id": "TR-71",
+    "geo_description": "Kırıkkale"
+  },
+  {
+    "geo_id": "TR-39",
+    "geo_description": "Kırklareli"
+  },
+  {
+    "geo_id": "TR-40",
+    "geo_description": "Kırşehir"
+  },
+  {
+    "geo_id": "TR-41",
+    "geo_description": "Kocaeli"
+  },
+  {
+    "geo_id": "TR-42",
+    "geo_description": "Konya"
+  },
+  {
+    "geo_id": "TR-43",
+    "geo_description": "Kütahya"
+  },
+  {
+    "geo_id": "TR-44",
+    "geo_description": "Malatya"
+  },
+  {
+    "geo_id": "TR-45",
+    "geo_description": "Manisa"
+  },
+  {
+    "geo_id": "TR-47",
+    "geo_description": "Mardin"
+  },
+  {
+    "geo_id": "TR-33",
+    "geo_description": "Mersin Province"
+  },
+  {
+    "geo_id": "TR-48",
+    "geo_description": "Muğla Province"
+  },
+  {
+    "geo_id": "TR-49",
+    "geo_description": "Muş"
+  },
+  {
+    "geo_id": "TR-50",
+    "geo_description": "Nevşehir"
+  },
+  {
+    "geo_id": "TR-51",
+    "geo_description": "Niğde"
+  },
+  {
+    "geo_id": "TR-52",
+    "geo_description": "Ordu"
+  },
+  {
+    "geo_id": "TR-80",
+    "geo_description": "Osmaniye"
+  },
+  {
+    "geo_id": "TR-53",
+    "geo_description": "Rize"
+  },
+  {
+    "geo_id": "TR-54",
+    "geo_description": "Sakarya"
+  },
+  {
+    "geo_id": "TR-55",
+    "geo_description": "Samsun"
+  },
+  {
+    "geo_id": "TR-63",
+    "geo_description": "Şanlıurfa Province"
+  },
+  {
+    "geo_id": "TR-56",
+    "geo_description": "Siirt Province"
+  },
+  {
+    "geo_id": "TR-57",
+    "geo_description": "Sinop Province"
+  },
+  {
+    "geo_id": "TR-58",
+    "geo_description": "Sivas"
+  },
+  {
+    "geo_id": "TR-73",
+    "geo_description": "Şırnak"
+  },
+  {
+    "geo_id": "TR-59",
+    "geo_description": "Tekirdağ"
+  },
+  {
+    "geo_id": "TR-60",
+    "geo_description": "Tokat"
+  },
+  {
+    "geo_id": "TR-61",
+    "geo_description": "Trabzon"
+  },
+  {
+    "geo_id": "TR-62",
+    "geo_description": "Tunceli"
+  },
+  {
+    "geo_id": "TR-64",
+    "geo_description": "Uşak"
+  },
+  {
+    "geo_id": "TR-65",
+    "geo_description": "Van"
+  },
+  {
+    "geo_id": "TR-77",
+    "geo_description": "Yalova Province"
+  },
+  {
+    "geo_id": "TR-66",
+    "geo_description": "Yozgat"
+  },
+  {
+    "geo_id": "TR-67",
+    "geo_description": "Zonguldak"
+  },
+  {
+    "geo_id": "TM",
+    "geo_description": "Turkmenistan"
+  },
+  {
+    "geo_id": "UG",
+    "geo_description": "Uganda"
+  },
+  {
+    "geo_id": "UA",
+    "geo_description": "Ukraine"
+  },
+  {
+    "geo_id": "UA-71",
+    "geo_description": "Cherkas'ka oblast"
+  },
+  {
+    "geo_id": "UA-74",
+    "geo_description": "Chernihivs'ka oblast"
+  },
+  {
+    "geo_id": "UA-77",
+    "geo_description": "Chernivets'ka oblast"
+  },
+  {
+    "geo_id": "UA-43",
+    "geo_description": "Crimea"
+  },
+  {
+    "geo_id": "UA-12",
+    "geo_description": "Dnipropetrovsk Oblast"
+  },
+  {
+    "geo_id": "UA-14",
+    "geo_description": "Donetsk Oblast"
+  },
+  {
+    "geo_id": "UA-26",
+    "geo_description": "Ivano-Frankivs'ka oblast"
+  },
+  {
+    "geo_id": "UA-63",
+    "geo_description": "Kharkiv Oblast"
+  },
+  {
+    "geo_id": "UA-65",
+    "geo_description": "Khersons'ka oblast"
+  },
+  {
+    "geo_id": "UA-68",
+    "geo_description": "Khmel'nyts'ka oblast"
+  },
+  {
+    "geo_id": "UA-35",
+    "geo_description": "Kirovohrads'ka oblast"
+  },
+  {
+    "geo_id": "UA-30",
+    "geo_description": "Kyiv city"
+  },
+  {
+    "geo_id": "UA-32",
+    "geo_description": "Kyivs'ka oblast"
+  },
+  {
+    "geo_id": "UA-09",
+    "geo_description": "Luhans'ka oblast"
+  },
+  {
+    "geo_id": "UA-46",
+    "geo_description": "Lviv Oblast"
+  },
+  {
+    "geo_id": "UA-48",
+    "geo_description": "Mykolaivs'ka oblast"
+  },
+  {
+    "geo_id": "UA-51",
+    "geo_description": "Odessa Oblast"
+  },
+  {
+    "geo_id": "UA-53",
+    "geo_description": "Poltavs'ka oblast"
+  },
+  {
+    "geo_id": "UA-56",
+    "geo_description": "Rivnens'ka oblast"
+  },
+  {
+    "geo_id": "UA-40",
+    "geo_description": "Sevastopol' city"
+  },
+  {
+    "geo_id": "UA-59",
+    "geo_description": "Sums'ka oblast"
+  },
+  {
+    "geo_id": "UA-61",
+    "geo_description": "Ternopil's'ka oblast"
+  },
+  {
+    "geo_id": "UA-05",
+    "geo_description": "Vinnyts'ka oblast"
+  },
+  {
+    "geo_id": "UA-07",
+    "geo_description": "Volyns'ka oblast"
+  },
+  {
+    "geo_id": "UA-21",
+    "geo_description": "Zakarpats'ka oblast"
+  },
+  {
+    "geo_id": "UA-23",
+    "geo_description": "Zaporiz'ka oblast"
+  },
+  {
+    "geo_id": "UA-18",
+    "geo_description": "Zhytomyrs'ka oblast"
+  },
+  {
+    "geo_id": "AE",
+    "geo_description": "United Arab Emirates"
+  },
+  {
+    "geo_id": "AE-AZ",
+    "geo_description": "Abu Dhabi"
+  },
+  {
+    "geo_id": "AE-AJ",
+    "geo_description": "Ajman"
+  },
+  {
+    "geo_id": "AE-DU",
+    "geo_description": "Dubai"
+  },
+  {
+    "geo_id": "AE-FU",
+    "geo_description": "Fujairah"
+  },
+  {
+    "geo_id": "AE-RK",
+    "geo_description": "Ras al Khaimah"
+  },
+  {
+    "geo_id": "AE-SH",
+    "geo_description": "Sharjah"
+  },
+  {
+    "geo_id": "AE-UQ",
+    "geo_description": "Umm Al Quwain"
+  },
+  {
+    "geo_id": "GB",
+    "geo_description": "United Kingdom"
+  },
+  {
+    "geo_id": "GB-ENG",
+    "geo_description": "England"
+  },
+  {
+    "geo_id": "GB-NIR",
+    "geo_description": "Northern Ireland"
+  },
+  {
+    "geo_id": "GB-SCT",
+    "geo_description": "Scotland"
+  },
+  {
+    "geo_id": "GB-WLS",
+    "geo_description": "Wales"
+  },
+  {
+    "geo_id": "US",
+    "geo_description": "United States"
+  },
+  {
+    "geo_id": "US-AL",
+    "geo_description": "Alabama"
+  },
+  {
+    "geo_id": "US-AK",
+    "geo_description": "Alaska"
+  },
+  {
+    "geo_id": "US-AZ",
+    "geo_description": "Arizona"
+  },
+  {
+    "geo_id": "US-AR",
+    "geo_description": "Arkansas"
+  },
+  {
+    "geo_id": "US-CA",
+    "geo_description": "California"
+  },
+  {
+    "geo_id": "US-CO",
+    "geo_description": "Colorado"
+  },
+  {
+    "geo_id": "US-CT",
+    "geo_description": "Connecticut"
+  },
+  {
+    "geo_id": "US-DE",
+    "geo_description": "Delaware"
+  },
+  {
+    "geo_id": "US-DC",
+    "geo_description": "District of Columbia"
+  },
+  {
+    "geo_id": "US-FL",
+    "geo_description": "Florida"
+  },
+  {
+    "geo_id": "US-GA",
+    "geo_description": "Georgia"
+  },
+  {
+    "geo_id": "US-HI",
+    "geo_description": "Hawaii"
+  },
+  {
+    "geo_id": "US-ID",
+    "geo_description": "Idaho"
+  },
+  {
+    "geo_id": "US-IL",
+    "geo_description": "Illinois"
+  },
+  {
+    "geo_id": "US-IN",
+    "geo_description": "Indiana"
+  },
+  {
+    "geo_id": "US-IA",
+    "geo_description": "Iowa"
+  },
+  {
+    "geo_id": "US-KS",
+    "geo_description": "Kansas"
+  },
+  {
+    "geo_id": "US-KY",
+    "geo_description": "Kentucky"
+  },
+  {
+    "geo_id": "US-LA",
+    "geo_description": "Louisiana"
+  },
+  {
+    "geo_id": "US-ME",
+    "geo_description": "Maine"
+  },
+  {
+    "geo_id": "US-MD",
+    "geo_description": "Maryland"
+  },
+  {
+    "geo_id": "US-MA",
+    "geo_description": "Massachusetts"
+  },
+  {
+    "geo_id": "US-MI",
+    "geo_description": "Michigan"
+  },
+  {
+    "geo_id": "US-MN",
+    "geo_description": "Minnesota"
+  },
+  {
+    "geo_id": "US-MS",
+    "geo_description": "Mississippi"
+  },
+  {
+    "geo_id": "US-MO",
+    "geo_description": "Missouri"
+  },
+  {
+    "geo_id": "US-MT",
+    "geo_description": "Montana"
+  },
+  {
+    "geo_id": "US-NE",
+    "geo_description": "Nebraska"
+  },
+  {
+    "geo_id": "US-NV",
+    "geo_description": "Nevada"
+  },
+  {
+    "geo_id": "US-NH",
+    "geo_description": "New Hampshire"
+  },
+  {
+    "geo_id": "US-NJ",
+    "geo_description": "New Jersey"
+  },
+  {
+    "geo_id": "US-NM",
+    "geo_description": "New Mexico"
+  },
+  {
+    "geo_id": "US-NY",
+    "geo_description": "New York"
+  },
+  {
+    "geo_id": "US-NC",
+    "geo_description": "North Carolina"
+  },
+  {
+    "geo_id": "US-ND",
+    "geo_description": "North Dakota"
+  },
+  {
+    "geo_id": "US-OH",
+    "geo_description": "Ohio"
+  },
+  {
+    "geo_id": "US-OK",
+    "geo_description": "Oklahoma"
+  },
+  {
+    "geo_id": "US-OR",
+    "geo_description": "Oregon"
+  },
+  {
+    "geo_id": "US-PA",
+    "geo_description": "Pennsylvania"
+  },
+  {
+    "geo_id": "US-RI",
+    "geo_description": "Rhode Island"
+  },
+  {
+    "geo_id": "US-SC",
+    "geo_description": "South Carolina"
+  },
+  {
+    "geo_id": "US-SD",
+    "geo_description": "South Dakota"
+  },
+  {
+    "geo_id": "US-TN",
+    "geo_description": "Tennessee"
+  },
+  {
+    "geo_id": "US-TX",
+    "geo_description": "Texas"
+  },
+  {
+    "geo_id": "US-UT",
+    "geo_description": "Utah"
+  },
+  {
+    "geo_id": "US-VT",
+    "geo_description": "Vermont"
+  },
+  {
+    "geo_id": "US-VA",
+    "geo_description": "Virginia"
+  },
+  {
+    "geo_id": "US-WA",
+    "geo_description": "Washington"
+  },
+  {
+    "geo_id": "US-WV",
+    "geo_description": "West Virginia"
+  },
+  {
+    "geo_id": "US-WI",
+    "geo_description": "Wisconsin"
+  },
+  {
+    "geo_id": "US-WY",
+    "geo_description": "Wyoming"
+  },
+  {
+    "geo_id": "662",
+    "geo_description": "Abilene-Sweetwater TX"
+  },
+  {
+    "geo_id": "525",
+    "geo_description": "Albany GA"
+  },
+  {
+    "geo_id": "532",
+    "geo_description": "Albany-Schenectady-Troy NY"
+  },
+  {
+    "geo_id": "790",
+    "geo_description": "Albuquerque-Santa Fe NM"
+  },
+  {
+    "geo_id": "644",
+    "geo_description": "Alexandria LA"
+  },
+  {
+    "geo_id": "583",
+    "geo_description": "Alpena MI"
+  },
+  {
+    "geo_id": "634",
+    "geo_description": "Amarillo TX"
+  },
+  {
+    "geo_id": "743",
+    "geo_description": "Anchorage AK"
+  },
+  {
+    "geo_id": "524",
+    "geo_description": "Atlanta GA"
+  },
+  {
+    "geo_id": "520",
+    "geo_description": "Augusta GA"
+  },
+  {
+    "geo_id": "635",
+    "geo_description": "Austin TX"
+  },
+  {
+    "geo_id": "800",
+    "geo_description": "Bakersfield CA"
+  },
+  {
+    "geo_id": "512",
+    "geo_description": "Baltimore MD"
+  },
+  {
+    "geo_id": "537",
+    "geo_description": "Bangor ME"
+  },
+  {
+    "geo_id": "716",
+    "geo_description": "Baton Rouge LA"
+  },
+  {
+    "geo_id": "692",
+    "geo_description": "Beaumont-Port Arthur TX"
+  },
+  {
+    "geo_id": "821",
+    "geo_description": "Bend OR"
+  },
+  {
+    "geo_id": "756",
+    "geo_description": "Billings, MT"
+  },
+  {
+    "geo_id": "746",
+    "geo_description": "Biloxi-Gulfport MS"
+  },
+  {
+    "geo_id": "502",
+    "geo_description": "Binghamton NY"
+  },
+  {
+    "geo_id": "630",
+    "geo_description": "Birmingham AL"
+  },
+  {
+    "geo_id": "559",
+    "geo_description": "Bluefield-Beckley-Oak Hill WV"
+  },
+  {
+    "geo_id": "757",
+    "geo_description": "Boise ID"
+  },
+  {
+    "geo_id": "506",
+    "geo_description": "Boston MA-Manchester NH"
+  },
+  {
+    "geo_id": "736",
+    "geo_description": "Bowling Green KY"
+  },
+  {
+    "geo_id": "514",
+    "geo_description": "Buffalo NY"
+  },
+  {
+    "geo_id": "523",
+    "geo_description": "Burlington VT-Plattsburgh NY"
+  },
+  {
+    "geo_id": "754",
+    "geo_description": "Butte-Bozeman MT"
+  },
+  {
+    "geo_id": "767",
+    "geo_description": "Casper-Riverton WY"
+  },
+  {
+    "geo_id": "637",
+    "geo_description": "Cedar Rapids-Waterloo-Iowa City & Dubuque IA"
+  },
+  {
+    "geo_id": "648",
+    "geo_description": "Champaign & Springfield-Decatur IL"
+  },
+  {
+    "geo_id": "519",
+    "geo_description": "Charleston SC"
+  },
+  {
+    "geo_id": "564",
+    "geo_description": "Charleston-Huntington WV"
+  },
+  {
+    "geo_id": "517",
+    "geo_description": "Charlotte NC"
+  },
+  {
+    "geo_id": "584",
+    "geo_description": "Charlottesville VA"
+  },
+  {
+    "geo_id": "575",
+    "geo_description": "Chattanooga TN"
+  },
+  {
+    "geo_id": "759",
+    "geo_description": "Cheyenne WY-Scottsbluff NE"
+  },
+  {
+    "geo_id": "602",
+    "geo_description": "Chicago IL"
+  },
+  {
+    "geo_id": "868",
+    "geo_description": "Chico-Redding CA"
+  },
+  {
+    "geo_id": "515",
+    "geo_description": "Cincinnati OH"
+  },
+  {
+    "geo_id": "598",
+    "geo_description": "Clarksburg-Weston WV"
+  },
+  {
+    "geo_id": "510",
+    "geo_description": "Cleveland-Akron (Canton) OH"
+  },
+  {
+    "geo_id": "752",
+    "geo_description": "Colorado Springs-Pueblo CO"
+  },
+  {
+    "geo_id": "546",
+    "geo_description": "Columbia SC"
+  },
+  {
+    "geo_id": "604",
+    "geo_description": "Columbia-Jefferson City MO"
+  },
+  {
+    "geo_id": "522",
+    "geo_description": "Columbus GA"
+  },
+  {
+    "geo_id": "535",
+    "geo_description": "Columbus OH"
+  },
+  {
+    "geo_id": "673",
+    "geo_description": "Columbus-Tupelo-West Point MS"
+  },
+  {
+    "geo_id": "600",
+    "geo_description": "Corpus Christi TX"
+  },
+  {
+    "geo_id": "623",
+    "geo_description": "Dallas-Ft. Worth TX"
+  },
+  {
+    "geo_id": "682",
+    "geo_description": "Davenport IA-Rock Island-Moline IL"
+  },
+  {
+    "geo_id": "542",
+    "geo_description": "Dayton OH"
+  },
+  {
+    "geo_id": "751",
+    "geo_description": "Denver CO"
+  },
+  {
+    "geo_id": "679",
+    "geo_description": "Des Moines-Ames IA"
+  },
+  {
+    "geo_id": "505",
+    "geo_description": "Detroit MI"
+  },
+  {
+    "geo_id": "606",
+    "geo_description": "Dothan AL"
+  },
+  {
+    "geo_id": "676",
+    "geo_description": "Duluth MN-Superior WI"
+  },
+  {
+    "geo_id": "765",
+    "geo_description": "El Paso TX"
+  },
+  {
+    "geo_id": "565",
+    "geo_description": "Elmira NY"
+  },
+  {
+    "geo_id": "516",
+    "geo_description": "Erie PA"
+  },
+  {
+    "geo_id": "801",
+    "geo_description": "Eugene OR"
+  },
+  {
+    "geo_id": "802",
+    "geo_description": "Eureka CA"
+  },
+  {
+    "geo_id": "649",
+    "geo_description": "Evansville IN"
+  },
+  {
+    "geo_id": "745",
+    "geo_description": "Fairbanks AK"
+  },
+  {
+    "geo_id": "724",
+    "geo_description": "Fargo-Valley City ND"
+  },
+  {
+    "geo_id": "513",
+    "geo_description": "Flint-Saginaw-Bay City MI"
+  },
+  {
+    "geo_id": "570",
+    "geo_description": "Florence-Myrtle Beach SC"
+  },
+  {
+    "geo_id": "866",
+    "geo_description": "Fresno-Visalia CA"
+  },
+  {
+    "geo_id": "571",
+    "geo_description": "Ft. Myers-Naples FL"
+  },
+  {
+    "geo_id": "670",
+    "geo_description": "Ft. Smith-Fayetteville-Springdale-Rogers AR"
+  },
+  {
+    "geo_id": "509",
+    "geo_description": "Ft. Wayne IN"
+  },
+  {
+    "geo_id": "592",
+    "geo_description": "Gainesville FL"
+  },
+  {
+    "geo_id": "798",
+    "geo_description": "Glendive MT"
+  },
+  {
+    "geo_id": "773",
+    "geo_description": "Grand Junction-Montrose CO"
+  },
+  {
+    "geo_id": "563",
+    "geo_description": "Grand Rapids-Kalamazoo-Battle Creek MI"
+  },
+  {
+    "geo_id": "755",
+    "geo_description": "Great Falls MT"
+  },
+  {
+    "geo_id": "658",
+    "geo_description": "Green Bay-Appleton WI"
+  },
+  {
+    "geo_id": "518",
+    "geo_description": "Greensboro-High Point-Winston Salem NC"
+  },
+  {
+    "geo_id": "545",
+    "geo_description": "Greenville-New Bern-Washington NC"
+  },
+  {
+    "geo_id": "567",
+    "geo_description": "Greenville-Spartanburg SC-Asheville NC-Anderson SC"
+  },
+  {
+    "geo_id": "647",
+    "geo_description": "Greenwood-Greenville MS"
+  },
+  {
+    "geo_id": "636",
+    "geo_description": "Harlingen-Weslaco-Brownsville-McAllen TX"
+  },
+  {
+    "geo_id": "566",
+    "geo_description": "Harrisburg-Lancaster-Lebanon-York PA"
+  },
+  {
+    "geo_id": "569",
+    "geo_description": "Harrisonburg VA"
+  },
+  {
+    "geo_id": "533",
+    "geo_description": "Hartford & New Haven CT"
+  },
+  {
+    "geo_id": "710",
+    "geo_description": "Hattiesburg-Laurel MS"
+  },
+  {
+    "geo_id": "766",
+    "geo_description": "Helena MT"
+  },
+  {
+    "geo_id": "744",
+    "geo_description": "Honolulu HI"
+  },
+  {
+    "geo_id": "618",
+    "geo_description": "Houston TX"
+  },
+  {
+    "geo_id": "691",
+    "geo_description": "Huntsville-Decatur (Florence) AL"
+  },
+  {
+    "geo_id": "758",
+    "geo_description": "Idaho Falls-Pocatello ID"
+  },
+  {
+    "geo_id": "527",
+    "geo_description": "Indianapolis IN"
+  },
+  {
+    "geo_id": "718",
+    "geo_description": "Jackson MS"
+  },
+  {
+    "geo_id": "639",
+    "geo_description": "Jackson TN"
+  },
+  {
+    "geo_id": "561",
+    "geo_description": "Jacksonville FL"
+  },
+  {
+    "geo_id": "574",
+    "geo_description": "Johnstown-Altoona PA"
+  },
+  {
+    "geo_id": "734",
+    "geo_description": "Jonesboro AR"
+  },
+  {
+    "geo_id": "603",
+    "geo_description": "Joplin MO-Pittsburg KS"
+  },
+  {
+    "geo_id": "747",
+    "geo_description": "Juneau AK"
+  },
+  {
+    "geo_id": "616",
+    "geo_description": "Kansas City MO"
+  },
+  {
+    "geo_id": "557",
+    "geo_description": "Knoxville TN"
+  },
+  {
+    "geo_id": "702",
+    "geo_description": "La Crosse-Eau Claire WI"
+  },
+  {
+    "geo_id": "582",
+    "geo_description": "Lafayette IN"
+  },
+  {
+    "geo_id": "642",
+    "geo_description": "Lafayette LA"
+  },
+  {
+    "geo_id": "643",
+    "geo_description": "Lake Charles LA"
+  },
+  {
+    "geo_id": "551",
+    "geo_description": "Lansing MI"
+  },
+  {
+    "geo_id": "749",
+    "geo_description": "Laredo TX"
+  },
+  {
+    "geo_id": "839",
+    "geo_description": "Las Vegas NV"
+  },
+  {
+    "geo_id": "541",
+    "geo_description": "Lexington KY"
+  },
+  {
+    "geo_id": "558",
+    "geo_description": "Lima OH"
+  },
+  {
+    "geo_id": "722",
+    "geo_description": "Lincoln & Hastings-Kearney NE"
+  },
+  {
+    "geo_id": "693",
+    "geo_description": "Little Rock-Pine Bluff AR"
+  },
+  {
+    "geo_id": "803",
+    "geo_description": "Los Angeles CA"
+  },
+  {
+    "geo_id": "529",
+    "geo_description": "Louisville KY"
+  },
+  {
+    "geo_id": "651",
+    "geo_description": "Lubbock TX"
+  },
+  {
+    "geo_id": "503",
+    "geo_description": "Macon GA"
+  },
+  {
+    "geo_id": "669",
+    "geo_description": "Madison WI"
+  },
+  {
+    "geo_id": "737",
+    "geo_description": "Mankato MN"
+  },
+  {
+    "geo_id": "553",
+    "geo_description": "Marquette MI"
+  },
+  {
+    "geo_id": "813",
+    "geo_description": "Medford-Klamath Falls OR"
+  },
+  {
+    "geo_id": "640",
+    "geo_description": "Memphis TN"
+  },
+  {
+    "geo_id": "711",
+    "geo_description": "Meridian MS"
+  },
+  {
+    "geo_id": "528",
+    "geo_description": "Miami-Ft. Lauderdale FL"
+  },
+  {
+    "geo_id": "617",
+    "geo_description": "Milwaukee WI"
+  },
+  {
+    "geo_id": "613",
+    "geo_description": "Minneapolis-St. Paul MN"
+  },
+  {
+    "geo_id": "687",
+    "geo_description": "Minot-Bismarck-Dickinson(Williston) ND"
+  },
+  {
+    "geo_id": "762",
+    "geo_description": "Missoula MT"
+  },
+  {
+    "geo_id": "686",
+    "geo_description": "Mobile AL-Pensacola (Ft. Walton Beach) FL"
+  },
+  {
+    "geo_id": "628",
+    "geo_description": "Monroe LA-El Dorado AR"
+  },
+  {
+    "geo_id": "828",
+    "geo_description": "Monterey-Salinas CA"
+  },
+  {
+    "geo_id": "698",
+    "geo_description": "Montgomery (Selma) AL"
+  },
+  {
+    "geo_id": "659",
+    "geo_description": "Nashville TN"
+  },
+  {
+    "geo_id": "622",
+    "geo_description": "New Orleans LA"
+  },
+  {
+    "geo_id": "501",
+    "geo_description": "New York NY"
+  },
+  {
+    "geo_id": "544",
+    "geo_description": "Norfolk-Portsmouth-Newport News VA"
+  },
+  {
+    "geo_id": "740",
+    "geo_description": "North Platte NE"
+  },
+  {
+    "geo_id": "633",
+    "geo_description": "Odessa-Midland TX"
+  },
+  {
+    "geo_id": "650",
+    "geo_description": "Oklahoma City OK"
+  },
+  {
+    "geo_id": "652",
+    "geo_description": "Omaha NE"
+  },
+  {
+    "geo_id": "534",
+    "geo_description": "Orlando-Daytona Beach-Melbourne FL"
+  },
+  {
+    "geo_id": "631",
+    "geo_description": "Ottumwa IA-Kirksville MO"
+  },
+  {
+    "geo_id": "632",
+    "geo_description": "Paducah KY-Cape Girardeau MO-Harrisburg-Mount Vernon IL"
+  },
+  {
+    "geo_id": "804",
+    "geo_description": "Palm Springs CA"
+  },
+  {
+    "geo_id": "656",
+    "geo_description": "Panama City FL"
+  },
+  {
+    "geo_id": "597",
+    "geo_description": "Parkersburg WV"
+  },
+  {
+    "geo_id": "675",
+    "geo_description": "Peoria-Bloomington IL"
+  },
+  {
+    "geo_id": "504",
+    "geo_description": "Philadelphia PA"
+  },
+  {
+    "geo_id": "753",
+    "geo_description": "Phoenix AZ"
+  },
+  {
+    "geo_id": "508",
+    "geo_description": "Pittsburgh PA"
+  },
+  {
+    "geo_id": "820",
+    "geo_description": "Portland OR"
+  },
+  {
+    "geo_id": "500",
+    "geo_description": "Portland-Auburn ME"
+  },
+  {
+    "geo_id": "552",
+    "geo_description": "Presque Isle ME"
+  },
+  {
+    "geo_id": "521",
+    "geo_description": "Providence RI-New Bedford MA"
+  },
+  {
+    "geo_id": "717",
+    "geo_description": "Quincy IL-Hannibal MO-Keokuk IA"
+  },
+  {
+    "geo_id": "560",
+    "geo_description": "Raleigh-Durham (Fayetteville) NC"
+  },
+  {
+    "geo_id": "764",
+    "geo_description": "Rapid City SD"
+  },
+  {
+    "geo_id": "811",
+    "geo_description": "Reno NV"
+  },
+  {
+    "geo_id": "556",
+    "geo_description": "Richmond-Petersburg VA"
+  },
+  {
+    "geo_id": "573",
+    "geo_description": "Roanoke-Lynchburg VA"
+  },
+  {
+    "geo_id": "611",
+    "geo_description": "Rochester MN-Mason City IA-Austin MN"
+  },
+  {
+    "geo_id": "538",
+    "geo_description": "Rochester NY"
+  },
+  {
+    "geo_id": "610",
+    "geo_description": "Rockford IL"
+  },
+  {
+    "geo_id": "862",
+    "geo_description": "Sacramento-Stockton-Modesto CA"
+  },
+  {
+    "geo_id": "576",
+    "geo_description": "Salisbury MD"
+  },
+  {
+    "geo_id": "770",
+    "geo_description": "Salt Lake City UT"
+  },
+  {
+    "geo_id": "661",
+    "geo_description": "San Angelo TX"
+  },
+  {
+    "geo_id": "641",
+    "geo_description": "San Antonio TX"
+  },
+  {
+    "geo_id": "825",
+    "geo_description": "San Diego CA"
+  },
+  {
+    "geo_id": "807",
+    "geo_description": "San Francisco-Oakland-San Jose CA"
+  },
+  {
+    "geo_id": "855",
+    "geo_description": "Santa Barbara-Santa Maria-San Luis Obispo CA"
+  },
+  {
+    "geo_id": "507",
+    "geo_description": "Savannah GA"
+  },
+  {
+    "geo_id": "819",
+    "geo_description": "Seattle-Tacoma WA"
+  },
+  {
+    "geo_id": "657",
+    "geo_description": "Sherman TX-Ada OK"
+  },
+  {
+    "geo_id": "612",
+    "geo_description": "Shreveport LA"
+  },
+  {
+    "geo_id": "624",
+    "geo_description": "Sioux City IA"
+  },
+  {
+    "geo_id": "725",
+    "geo_description": "Sioux Falls(Mitchell) SD"
+  },
+  {
+    "geo_id": "588",
+    "geo_description": "South Bend-Elkhart IN"
+  },
+  {
+    "geo_id": "881",
+    "geo_description": "Spokane WA"
+  },
+  {
+    "geo_id": "619",
+    "geo_description": "Springfield MO"
+  },
+  {
+    "geo_id": "543",
+    "geo_description": "Springfield-Holyoke MA"
+  },
+  {
+    "geo_id": "638",
+    "geo_description": "St. Joseph MO"
+  },
+  {
+    "geo_id": "609",
+    "geo_description": "St. Louis MO"
+  },
+  {
+    "geo_id": "555",
+    "geo_description": "Syracuse NY"
+  },
+  {
+    "geo_id": "530",
+    "geo_description": "Tallahassee FL-Thomasville GA"
+  },
+  {
+    "geo_id": "539",
+    "geo_description": "Tampa-St. Petersburg (Sarasota) FL"
+  },
+  {
+    "geo_id": "581",
+    "geo_description": "Terre Haute IN"
+  },
+  {
+    "geo_id": "547",
+    "geo_description": "Toledo OH"
+  },
+  {
+    "geo_id": "605",
+    "geo_description": "Topeka KS"
+  },
+  {
+    "geo_id": "540",
+    "geo_description": "Traverse City-Cadillac MI"
+  },
+  {
+    "geo_id": "531",
+    "geo_description": "Tri-Cities TN-VA"
+  },
+  {
+    "geo_id": "789",
+    "geo_description": "Tucson (Sierra Vista) AZ"
+  },
+  {
+    "geo_id": "671",
+    "geo_description": "Tulsa OK"
+  },
+  {
+    "geo_id": "760",
+    "geo_description": "Twin Falls ID"
+  },
+  {
+    "geo_id": "709",
+    "geo_description": "Tyler-Longview(Lufkin & Nacogdoches) TX"
+  },
+  {
+    "geo_id": "526",
+    "geo_description": "Utica NY"
+  },
+  {
+    "geo_id": "626",
+    "geo_description": "Victoria TX"
+  },
+  {
+    "geo_id": "625",
+    "geo_description": "Waco-Temple-Bryan TX"
+  },
+  {
+    "geo_id": "511",
+    "geo_description": "Washington DC (Hagerstown MD)"
+  },
+  {
+    "geo_id": "549",
+    "geo_description": "Watertown NY"
+  },
+  {
+    "geo_id": "705",
+    "geo_description": "Wausau-Rhinelander WI"
+  },
+  {
+    "geo_id": "548",
+    "geo_description": "West Palm Beach-Ft. Pierce FL"
+  },
+  {
+    "geo_id": "554",
+    "geo_description": "Wheeling WV-Steubenville OH"
+  },
+  {
+    "geo_id": "627",
+    "geo_description": "Wichita Falls TX & Lawton OK"
+  },
+  {
+    "geo_id": "678",
+    "geo_description": "Wichita-Hutchinson KS"
+  },
+  {
+    "geo_id": "577",
+    "geo_description": "Wilkes Barre-Scranton PA"
+  },
+  {
+    "geo_id": "550",
+    "geo_description": "Wilmington NC"
+  },
+  {
+    "geo_id": "810",
+    "geo_description": "Yakima-Pasco-Richland-Kennewick WA"
+  },
+  {
+    "geo_id": "536",
+    "geo_description": "Youngstown OH"
+  },
+  {
+    "geo_id": "771",
+    "geo_description": "Yuma AZ-El Centro CA"
+  },
+  {
+    "geo_id": "596",
+    "geo_description": "Zanesville OH"
+  },
+  {
+    "geo_id": "UY",
+    "geo_description": "Uruguay"
+  },
+  {
+    "geo_id": "UY-AR",
+    "geo_description": "Artigas Department"
+  },
+  {
+    "geo_id": "UY-CA",
+    "geo_description": "Canelones Department"
+  },
+  {
+    "geo_id": "UY-CL",
+    "geo_description": "Cerro Largo Department"
+  },
+  {
+    "geo_id": "UY-CO",
+    "geo_description": "Colonia"
+  },
+  {
+    "geo_id": "UY-DU",
+    "geo_description": "Durazno Department"
+  },
+  {
+    "geo_id": "UY-FS",
+    "geo_description": "Flores Department"
+  },
+  {
+    "geo_id": "UY-FD",
+    "geo_description": "Florida Department"
+  },
+  {
+    "geo_id": "UY-LA",
+    "geo_description": "Lavalleja Department"
+  },
+  {
+    "geo_id": "UY-MA",
+    "geo_description": "Maldonado Department"
+  },
+  {
+    "geo_id": "UY-MO",
+    "geo_description": "Montevideo Department"
+  },
+  {
+    "geo_id": "UY-PA",
+    "geo_description": "Paysandú Department"
+  },
+  {
+    "geo_id": "UY-RN",
+    "geo_description": "Río Negro Department"
+  },
+  {
+    "geo_id": "UY-RV",
+    "geo_description": "Rivera Department"
+  },
+  {
+    "geo_id": "UY-RO",
+    "geo_description": "Rocha Department"
+  },
+  {
+    "geo_id": "UY-SA",
+    "geo_description": "Salto"
+  },
+  {
+    "geo_id": "UY-SJ",
+    "geo_description": "San José Department"
+  },
+  {
+    "geo_id": "UY-SO",
+    "geo_description": "Soriano Department"
+  },
+  {
+    "geo_id": "UY-TA",
+    "geo_description": "Tacuarembó Department"
+  },
+  {
+    "geo_id": "UY-TT",
+    "geo_description": "Treinta y Tres Department"
+  },
+  {
+    "geo_id": "UZ",
+    "geo_description": "Uzbekistan"
+  },
+  {
+    "geo_id": "VE",
+    "geo_description": "Venezuela"
+  },
+  {
+    "geo_id": "VN",
+    "geo_description": "Vietnam"
+  },
+  {
+    "geo_id": "VN-44",
+    "geo_description": "An Giang Province"
+  },
+  {
+    "geo_id": "VN-43",
+    "geo_description": "Ba Ria - Vung Tau"
+  },
+  {
+    "geo_id": "VN-54",
+    "geo_description": "Bac Giang"
+  },
+  {
+    "geo_id": "VN-53",
+    "geo_description": "Bắc Kạn Province"
+  },
+  {
+    "geo_id": "VN-55",
+    "geo_description": "Bac Lieu"
+  },
+  {
+    "geo_id": "VN-56",
+    "geo_description": "Bac Ninh Province"
+  },
+  {
+    "geo_id": "VN-50",
+    "geo_description": "Ben Tre"
+  },
+  {
+    "geo_id": "VN-31",
+    "geo_description": "Binh Dinh Province"
+  },
+  {
+    "geo_id": "VN-57",
+    "geo_description": "Binh Duong"
+  },
+  {
+    "geo_id": "VN-58",
+    "geo_description": "Binh Phuoc"
+  },
+  {
+    "geo_id": "VN-40",
+    "geo_description": "Binh Thuan"
+  },
+  {
+    "geo_id": "VN-59",
+    "geo_description": "Ca Mau"
+  },
+  {
+    "geo_id": "VN-CT",
+    "geo_description": "Can Tho"
+  },
+  {
+    "geo_id": "VN-04",
+    "geo_description": "Cao Bang"
+  },
+  {
+    "geo_id": "VN-DN",
+    "geo_description": "Da Nang"
+  },
+  {
+    "geo_id": "VN-33",
+    "geo_description": "Đắk Lắk Province"
+  },
+  {
+    "geo_id": "VN-72",
+    "geo_description": "Dak Nong"
+  },
+  {
+    "geo_id": "VN-71",
+    "geo_description": "Dien Bien"
+  },
+  {
+    "geo_id": "VN-39",
+    "geo_description": "Dong Nai"
+  },
+  {
+    "geo_id": "VN-45",
+    "geo_description": "Đồng Tháp Province"
+  },
+  {
+    "geo_id": "VN-30",
+    "geo_description": "Gia Lai Province"
+  },
+  {
+    "geo_id": "VN-03",
+    "geo_description": "Ha Giang"
+  },
+  {
+    "geo_id": "VN-63",
+    "geo_description": "Hà Nam Province"
+  },
+  {
+    "geo_id": "VN-23",
+    "geo_description": "Ha Tinh Province"
+  },
+  {
+    "geo_id": "VN-61",
+    "geo_description": "Hai Duong"
+  },
+  {
+    "geo_id": "VN-HP",
+    "geo_description": "Haiphong"
+  },
+  {
+    "geo_id": "VN-HN",
+    "geo_description": "Hanoi"
+  },
+  {
+    "geo_id": "VN-73",
+    "geo_description": "Hau Giang"
+  },
+  {
+    "geo_id": "VN-SG",
+    "geo_description": "Ho Chi Minh"
+  },
+  {
+    "geo_id": "VN-14",
+    "geo_description": "Hoa Binh"
+  },
+  {
+    "geo_id": "VN-66",
+    "geo_description": "Hung Yen Province"
+  },
+  {
+    "geo_id": "VN-34",
+    "geo_description": "Khanh Hoa Province"
+  },
+  {
+    "geo_id": "VN-47",
+    "geo_description": "Kien Giang"
+  },
+  {
+    "geo_id": "VN-28",
+    "geo_description": "Kon Tum Province"
+  },
+  {
+    "geo_id": "VN-01",
+    "geo_description": "Lai Chau"
+  },
+  {
+    "geo_id": "VN-35",
+    "geo_description": "Lâm Đồng"
+  },
+  {
+    "geo_id": "VN-09",
+    "geo_description": "Lang Son Province"
+  },
+  {
+    "geo_id": "VN-02",
+    "geo_description": "Lao Cai"
+  },
+  {
+    "geo_id": "VN-41",
+    "geo_description": "Long An Province"
+  },
+  {
+    "geo_id": "VN-67",
+    "geo_description": "Nam Dinh"
+  },
+  {
+    "geo_id": "VN-22",
+    "geo_description": "Nghe An"
+  },
+  {
+    "geo_id": "VN-18",
+    "geo_description": "Ninh Bình Province"
+  },
+  {
+    "geo_id": "VN-36",
+    "geo_description": "Ninh Thuan Province"
+  },
+  {
+    "geo_id": "VN-68",
+    "geo_description": "Phu Tho Province"
+  },
+  {
+    "geo_id": "VN-32",
+    "geo_description": "Phú Yên Province"
+  },
+  {
+    "geo_id": "VN-24",
+    "geo_description": "Quang Binh Province"
+  },
+  {
+    "geo_id": "VN-27",
+    "geo_description": "Quang Nam Province"
+  },
+  {
+    "geo_id": "VN-29",
+    "geo_description": "Quang Ngai"
+  },
+  {
+    "geo_id": "VN-13",
+    "geo_description": "Quảng Ninh Province"
+  },
+  {
+    "geo_id": "VN-25",
+    "geo_description": "Quảng Trị Province"
+  },
+  {
+    "geo_id": "VN-52",
+    "geo_description": "Soc Trang"
+  },
+  {
+    "geo_id": "VN-05",
+    "geo_description": "Son La"
+  },
+  {
+    "geo_id": "VN-37",
+    "geo_description": "Tây Ninh Province"
+  },
+  {
+    "geo_id": "VN-20",
+    "geo_description": "Thai Binh"
+  },
+  {
+    "geo_id": "VN-69",
+    "geo_description": "Thai Nguyen"
+  },
+  {
+    "geo_id": "VN-21",
+    "geo_description": "Thanh Hoa"
+  },
+  {
+    "geo_id": "VN-26",
+    "geo_description": "Thua Thien Hue"
+  },
+  {
+    "geo_id": "VN-46",
+    "geo_description": "Tien Giang"
+  },
+  {
+    "geo_id": "VN-51",
+    "geo_description": "Tra Vinh"
+  },
+  {
+    "geo_id": "VN-07",
+    "geo_description": "Tuyên Quang Province"
+  },
+  {
+    "geo_id": "VN-49",
+    "geo_description": "Vinh Long"
+  },
+  {
+    "geo_id": "VN-70",
+    "geo_description": "Vinh Phuc Province"
+  },
+  {
+    "geo_id": "VN-06",
+    "geo_description": "Yen Bai Province"
+  },
+  {
+    "geo_id": "YE",
+    "geo_description": "Yemen"
+  },
+  {
+    "geo_id": "ZM",
+    "geo_description": "Zambia"
+  },
+  {
+    "geo_id": "ZW",
+    "geo_description": "Zimbabwe"
+  }
+]

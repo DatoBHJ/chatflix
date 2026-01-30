@@ -1,5 +1,5 @@
-import path from 'path'
-import { promises as fs } from 'fs'
+// JSON 파일을 직접 import하여 Vercel 서버리스 환경에서도 동작하도록 함
+import geoData from './data/geo-options.json'
 
 export type GeoOption = {
   geo_id: string
@@ -20,11 +20,6 @@ export type CountryWithRegions = {
 let cachedGeoOptions: GeoOption[] | null = null
 let cachedCountryGroups: CountryWithRegions[] | null = null
 
-const GEO_FILE_PATH = path.join(
-  process.cwd(),
-  'docs/searchapi/Google Trending/google-trends-trending-now-geo.json',
-)
-
 export const TIME_RANGE_OPTIONS = [
   { id: 'past_4_hours', label: 'Past 4 hours' },
   { id: 'past_24_hours', label: 'Past 24 hours' },
@@ -37,8 +32,7 @@ export async function getGeoOptions(): Promise<GeoOption[]> {
     return cachedGeoOptions
   }
 
-  const raw = await fs.readFile(GEO_FILE_PATH, 'utf-8')
-  const parsed: Array<{ geo_id: string; geo_description: string }> = JSON.parse(raw)
+  const parsed: Array<{ geo_id: string; geo_description: string }> = geoData
 
   cachedGeoOptions = parsed.map((option) => {
     const parts = option.geo_id.split('-')
