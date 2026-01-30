@@ -655,7 +655,7 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleCopyPrompt();
+                    handleCopyPrompt(e);
                   }}
                   className="px-4 py-2.5 rounded-full text-white transition-colors cursor-pointer flex items-center gap-2"
                   style={getAdaptiveGlassStyleBlur()}
