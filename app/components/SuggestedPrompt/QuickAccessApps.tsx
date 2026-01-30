@@ -3177,7 +3177,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
         if (!pos || !e.touches[0]) return;
         const dx = e.touches[0].clientX - pos.x;
         const dy = e.touches[0].clientY - pos.y;
-        if (Math.sqrt(dx * dx + dy * dy) > 10) {
+        if (Math.sqrt(dx * dx + dy * dy) > 5) {
           handleLongPressEnd();
         }
       };
