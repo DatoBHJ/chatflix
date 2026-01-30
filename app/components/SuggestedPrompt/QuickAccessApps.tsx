@@ -467,12 +467,11 @@ function SortableWidgetItem({
 
   // 편집 모드가 아닐 때만 long press 이벤트 핸들러 적용
   // 위젯 ID를 포함한 래퍼 함수 생성 (Safari touchEnd -> click 방지용)
-  // 스크롤 영역 터치 시 타이머 미시작 + onTouchMoveCapture로 이동 시 타이머 취소
+  // onTouchMoveCapture로 이동 시에만 타이머 취소 (스크롤 vs 꾹 누르기 구분)
   // 데스크탑에서는 마우스 이벤트 제거 (우클릭만 허용)
   const longPressHandlers = !isEditMode ? {
     ...(isTouchDevice ? {
       onTouchStart: (e: React.TouchEvent) => {
-        if ((e.target as HTMLElement).closest('[data-widget-scrollable]')) return;
         if (e.touches[0]) {
           longPressTouchStartRef.current = {
             x: e.touches[0].clientX,
