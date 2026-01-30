@@ -1907,26 +1907,18 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
   }, []);
 
   // 위젯의 기본 크기 가져오기
-  // 모바일/태블릿: 최소 4x2 보장, 데스크탑: 예전 로직 (1x1 허용)
+  // 모바일/태블릿: 항상 4x2 고정 (저장값 무시, 리사이즈 없음). 데스크탑: 예전 로직 (1x1 허용)
   const getWidgetSize = useCallback((widget: App): { width: number; height: number } => {
-    const size = widget.size;
     const deviceType = getDeviceType();
     const isMobileOrTablet = deviceType !== 'desktop';
-    
-    if (size) {
-      if (isMobileOrTablet) {
-        // 모바일/태블릿: 최소 크기 4x2 보장
-        return { 
-          width: Math.max(4, size.width), 
-          height: Math.max(2, size.height) 
-        };
-      } else {
-        // 데스크탑: 예전 로직 (1x1 허용)
-        return { width: size.width, height: size.height };
-      }
+    if (isMobileOrTablet) {
+      return { width: 4, height: 2 };
     }
-    // 기본값: 모바일/태블릿은 4x2(가로 전체 폭), 데스크탑은 1x1
-    return isMobileOrTablet ? { width: 4, height: 2 } : { width: 1, height: 1 };
+    const size = widget.size;
+    if (size) {
+      return { width: size.width, height: size.height };
+    }
+    return { width: 1, height: 1 };
   }, []);
 
   // 모바일 그리드 재배치 유틸 (앱/위젯 혼합, 좌→우, 상→하, 페이지 순)
@@ -3837,13 +3829,14 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
     }];
   }, [visibleApps, getWidgetSize]);
 
-  // 위젯 리사이즈 시작 핸들러 (드래그 기반)
+  // 위젯 리사이즈 시작 핸들러 (드래그 기반) — 모바일/태블릿에서는 리사이즈 비활성화
   const handleResizeStart = useCallback((
     widgetId: string,
     direction: 'nw' | 'n' | 'ne' | 'w' | 'e' | 'sw' | 's' | 'se',
     startPosition: { x: number; y: number },
     startSize: { width: number; height: number }
   ) => {
+    if (getDeviceType() !== 'desktop') return;
     // 리사이즈 시작 시 활성 위젯 드래그 상태 해제 (TouchSensor 충돌 방지)
     if (activeWidgetId === widgetId) {
       setActiveWidgetId(null);
@@ -5556,7 +5549,37 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                               }
 
                               if (item.isWidget) {
-                                const size = isResizingThis && resizeStartSize ? resizeStartSize : getWidgetSize(item);
+                                const size = isMobileOrTablet
+                                  ? { width: 4, height: 2 }
+                                  : (isResizingThis && resizeStartSize ? resizeStartSize : getWidgetSize(item));
+                                const resizeProps = isMobileOrTablet
+                                  ? {
+                                      onResizeStart: undefined,
+                                      onResizeMove: undefined,
+                                      onResizeEnd: undefined,
+                                      isResizing: false,
+                                      hasResizeMovement: false,
+                                      resizeStyles: undefined,
+                                    }
+                                  : {
+                                      onResizeStart: handleResizeStart,
+                                      onResizeMove: handleResizeMove,
+                                      onResizeEnd: handleResizeEnd,
+                                      isResizing: isResizingThis,
+                                      hasResizeMovement: hasResizeMovement,
+                                      resizeStyles: isResizingThis && resizePreview && hasResizeMovement
+                                        ? {
+                                            width: (resizeDirection?.includes('w') || resizeDirection?.includes('e'))
+                                              ? resizePreview.pixelWidth
+                                              : undefined,
+                                            height: (resizeDirection?.includes('n') || resizeDirection?.includes('s'))
+                                              ? resizePreview.pixelHeight
+                                              : undefined,
+                                            transform: '',
+                                            ...getResizeAlignment(resizeDirection),
+                                          }
+                                        : undefined,
+                                    };
                               return (
                                 <SortableWidgetItem
                                     key={item.id}
@@ -5578,25 +5601,12 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                                   renderWidgetContent={renderWidgetContent}
                                   widgetSize={size}
                                   widgetGridColumns={columns}
-                                  onResizeStart={handleResizeStart}
-                                  onResizeMove={handleResizeMove}
-                                  onResizeEnd={handleResizeEnd}
-                                  isResizing={isResizingThis}
-                                  hasResizeMovement={hasResizeMovement}
-                                  resizeStyles={
-                                    isResizingThis && resizePreview && hasResizeMovement
-                                      ? {
-                                          width: (resizeDirection?.includes('w') || resizeDirection?.includes('e')) 
-                                            ? resizePreview.pixelWidth 
-                                            : undefined,
-                                          height: (resizeDirection?.includes('n') || resizeDirection?.includes('s')) 
-                                            ? resizePreview.pixelHeight 
-                                            : undefined,
-                                            transform: '',
-                                          ...getResizeAlignment(resizeDirection)
-                                        }
-                                      : undefined
-                                  }
+                                  onResizeStart={resizeProps.onResizeStart}
+                                  onResizeMove={resizeProps.onResizeMove}
+                                  onResizeEnd={resizeProps.onResizeEnd}
+                                  isResizing={resizeProps.isResizing}
+                                  hasResizeMovement={resizeProps.hasResizeMovement}
+                                  resizeStyles={resizeProps.resizeStyles}
                                   justEnteredEditModeFromWidget={() => justEnteredEditModeFromWidget.current}
                                   isTouchDevice={isTouchDevice}
                                   onWidgetActivate={handleVisionWidgetActivate}
