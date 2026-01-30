@@ -2162,7 +2162,6 @@ export function GlassTrendsWidget({
         onTouchEnd={handleTouchEnd}
       >
         {renderNavigationArrows()}
-        {renderDotIndicators()}
         <div className="absolute inset-0 z-0 bg-black" style={{ 
           left: '-1px',
           right: '-1px',
@@ -2185,17 +2184,20 @@ export function GlassTrendsWidget({
           />
         </div> */}
 
-        <div className="relative z-10 flex-1 overflow-hidden">
+        <div className={`flex-1 flex flex-col min-h-0 relative ${isFullscreen ? 'max-w-3xl mx-auto w-full' : 'w-full'}`}>
+        {renderDotIndicators()}
+        <div className="relative z-10 flex-1 min-h-0 overflow-hidden">
           {/* Trend Content */}
           <div
             className={`
               absolute inset-0 overflow-y-auto flex flex-col px-6
-              ${isFullscreen ? (isMobile ? 'justify-start py-24' : 'justify-center') : ''}
+              ${isFullscreen ? 'justify-start pt-24 pb-12' : ''}
               transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]
               ${isFilterExpanded || isSummaryExpanded ? 'opacity-0 scale-[0.98] translate-y-4 pointer-events-none' : 'opacity-100 scale-100 translate-y-0'}
             `}
           >
-          <div className="flex items-center gap-4 mt-4">
+          <div className={isFullscreen ? 'max-w-3xl mx-auto w-full' : 'w-full'}>
+          <div className={`flex items-center gap-4 ${isFullscreen ? 'mt-0' : 'mt-4'}`}>
             <span className="text-6xl sm:text-7xl font-black tracking-tight text-white leading-none">
               {selectedCategory ? currentTrendIndex + 1 : currentTrend.position}
             </span>
@@ -2368,13 +2370,14 @@ export function GlassTrendsWidget({
             </div>
           </div>
           </div>
+          </div>
           {/* Filter View - iOS Settings Style (Cross-fade) */}
           {renderFilterView('top-0')}
           {/* Summary View - iOS Settings Style (Cross-fade) */}
           {renderSummaryView('top-0')}
         </div>
 
-        {/* Send Button - Fixed bottom right */}
+        {/* Send Button - bottom-right of content (same position as before zoom) */}
         {!isFilterExpanded && !isSummaryExpanded && currentTrend && !isSingleRow && (
           <button
             onClick={handleGenerateSummary}
@@ -2398,6 +2401,7 @@ export function GlassTrendsWidget({
         )}
 
         <div className="absolute bottom-0 left-0 right-0 p-6 pt-0 bg-gradient-to-t from-black via-black/90 to-transparent z-30 flex justify-center" />
+        </div>
         
         {/* Onboarding Tooltip */}
         <OnboardingRenderer

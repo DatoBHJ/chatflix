@@ -118,87 +118,11 @@ function VisionWidgetOverlay({
 }: VisionWidgetOverlayProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
-  // tablet도 모바일 스타일 UI 사용 (iOS 스타일)
-  const [isMobileOrTablet, setIsMobileOrTablet] = useState(() => getEnvironmentDeviceType() !== 'desktop');
   // VisionWidgetOverlay is always on home view which has background image
   const hasBackgroundImage = true;
   const safeAreaTop = 'env(safe-area-inset-top, 0px)';
   const safeAreaBottom = 'env(safe-area-inset-bottom, 0px)';
-  
-  // 그리드 크기 계산: 3칸 가로 x 3칸 세로 (실제 그리드 시스템 사용)
-  const [gridSize, setGridSize] = useState(() => {
-    if (typeof window === 'undefined') {
-      return { width: 860, height: 774 }; // 기본값 (3칸 가로, 세로에 150px 추가)
-    }
-    
-    const width = window.innerWidth;
-    const deviceType = getEnvironmentDeviceType();
-    const isMobileOrTablet = deviceType !== 'desktop';
-    
-    // 그리드 설정 계산
-    // 모바일/태블릿: 앱 그리드 기준 (APP_CELL_HEIGHT)
-    // 데스크탑: 예전 로직 (rowHeight = 180)
-    const gap = isMobileOrTablet ? 4 : 16;
-    const minWidgetWidth = 260;
-    const rowHeight = isMobileOrTablet ? 86 : 180; // 모바일/태블릿: APP_CELL_HEIGHT, 데스크탑: 예전 로직
-    const horizontalPadding = isMobileOrTablet ? 48 : 96;
-    
-    const availableWidth = width - horizontalPadding;
-    // 열 수 계산: Math.floor((availableWidth + gap) / (minWidgetWidth + gap))
-    const columns = Math.max(1, Math.floor((availableWidth + gap) / (minWidgetWidth + gap)));
-    
-    // 실제 셀 크기 계산
-    const cellWidth = (availableWidth - (columns - 1) * gap) / columns;
-    const cellHeight = rowHeight;
-    
-    // 3칸 x 3칸 크기 계산 (세로에 추가 높이 적용)
-    const gridWidth = 3 * cellWidth + 2 * gap; // 3칸 + 2개 간격
-    const additionalHeight = isMobileOrTablet ? 120 : 150; // 모바일/태블릿: 120px 추가, 데스크탑: 150px 추가
-    const gridHeight = 3 * cellHeight + 2 * gap + additionalHeight; // 3칸 + 2개 간격 + 추가 높이
-    
-    return { width: gridWidth, height: gridHeight };
-  });
 
-  useEffect(() => {
-    const updateGridSize = () => {
-      const width = window.innerWidth;
-      const deviceType = getEnvironmentDeviceType();
-      const isMobileOrTablet = deviceType !== 'desktop';
-      
-      // 모바일/태블릿: 앱 그리드 기준 (APP_CELL_HEIGHT)
-      // 데스크탑: 예전 로직 (rowHeight = 180)
-      const gap = isMobileOrTablet ? 4 : 16;
-      const minWidgetWidth = 260;
-      const rowHeight = isMobileOrTablet ? 86 : 180; // 모바일/태블릿: APP_CELL_HEIGHT, 데스크탑: 예전 로직
-      const horizontalPadding = isMobileOrTablet ? 48 : 96;
-      
-      const availableWidth = width - horizontalPadding;
-      const columns = Math.max(1, Math.floor((availableWidth + gap) / (minWidgetWidth + gap)));
-      
-      const cellWidth = (availableWidth - (columns - 1) * gap) / columns;
-      const cellHeight = rowHeight;
-      
-      const gridWidth = 3 * cellWidth + 2 * gap; // 3칸 + 2개 간격
-      const additionalHeight = isMobileOrTablet ? 120 : 150; // 모바일/태블릿: 120px 추가, 데스크탑: 150px 추가
-      const gridHeight = 3 * cellHeight + 2 * gap + additionalHeight; // 3칸 + 2개 간격 + 추가 높이
-      
-      setGridSize({ width: gridWidth, height: gridHeight });
-    };
-
-    updateGridSize();
-    window.addEventListener('resize', updateGridSize);
-    return () => window.removeEventListener('resize', updateGridSize);
-  }, []);
-  
-  useEffect(() => {
-    const updateDeviceType = () => {
-      setIsMobileOrTablet(getEnvironmentDeviceType() !== 'desktop');
-    };
-    updateDeviceType();
-    window.addEventListener('resize', updateDeviceType);
-    return () => window.removeEventListener('resize', updateDeviceType);
-  }, []);
-  
   const widgetShellStyle = useMemo<CSSProperties>(() => {
     const glassStyle = getAdaptiveGlassStyleBlur();
     const boxShadow = glassStyle.boxShadow;
@@ -249,68 +173,50 @@ function VisionWidgetOverlay({
         onClick={onClose}
       />
       <div
-        className={`relative z-210 flex min-h-screen ${
-          isMobileOrTablet ? 'items-stretch justify-center p-0' : 'items-center justify-center p-4 sm:p-12'
-        } overflow-hidden`}
-        style={
-          isMobileOrTablet
-            ? {
-                minHeight: '100dvh',
-                height: '100dvh',
-              }
-            : undefined
-        }
+        className="relative z-210 flex items-stretch justify-center p-0 overflow-hidden"
+        style={{
+          minHeight: '100dvh',
+          height: '100dvh',
+        }}
         onClick={onClose}
       >
         <div
           className={`relative transition-all duration-500 ease-out ${
             isVisible
-              ? `opacity-100 scale-100 ${isMobileOrTablet ? '' : '-translate-y-6'}`
-              : `opacity-0 scale-[0.96] ${isMobileOrTablet ? '' : 'translate-y-4'}`
+              ? 'opacity-100 scale-100'
+              : 'opacity-0 scale-[0.96] translate-y-4'
           }`}
           style={{
             perspective: '2000px',
-            width: isMobileOrTablet ? '100%' : `${gridSize.width}px`,
+            width: '100%',
             maxWidth: '100%',
-            ...(isMobileOrTablet
-              ? { height: '100dvh', maxHeight: '100dvh', minHeight: '100dvh' }
-              : {}),
+            height: '100dvh',
+            maxHeight: '100dvh',
+            minHeight: '100dvh',
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="relative mx-auto w-full">
+          <div className="relative mx-auto w-full h-full">
             <div
-              className={`w-full widget-content-wrapper ${
-                isMobileOrTablet ? 'rounded-none' : 'rounded-[24px]'
-              } overflow-visible`}
+              className="w-full h-full widget-content-wrapper rounded-none overflow-visible"
               style={{
                 ...widgetShellStyle,
-                height: isMobileOrTablet ? '100dvh' : `${gridSize.height}px`,
-                ...(isMobileOrTablet
-                  ? {
-                      minHeight: '100dvh',
-                      maxHeight: '100dvh',
-                      paddingTop: safeAreaTop,
-                      paddingBottom: safeAreaBottom,
-                    }
-                  : {}),
+                height: '100dvh',
+                minHeight: '100dvh',
+                maxHeight: '100dvh',
+                paddingTop: safeAreaTop,
+                paddingBottom: safeAreaBottom,
               }}
             >
               <div
                 ref={cardRef}
-                className={`w-full h-full overflow-hidden ${
-                  isMobileOrTablet ? '' : 'rounded-[24px]'
-                }`}
+                className="w-full h-full overflow-hidden"
                 style={{
                   width: '100%',
                   height: '100%',
                   overflowY: 'auto',
-                  ...(isMobileOrTablet
-                    ? {
-                        paddingBottom: safeAreaBottom,
-                        paddingTop: safeAreaTop,
-                      }
-                    : {}),
+                  paddingBottom: safeAreaBottom,
+                  paddingTop: safeAreaTop,
                 }}
               >
                 {renderWidgetContent(widget, hasBackgroundImage, true)}

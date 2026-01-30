@@ -986,7 +986,6 @@ export function OnThisDayWidget({ widgetId, onPromptClick, isFullscreen = false,
       onTouchEnd={handleTouchEnd}
     >
       {renderNavigationArrows()}
-      {renderDotIndicators()}
       <div className="absolute inset-0 z-0 bg-black" style={{ 
           left: '-1px',
           right: '-1px',
@@ -1035,17 +1034,20 @@ export function OnThisDayWidget({ widgetId, onPromptClick, isFullscreen = false,
         />
       </div> */}
 
-      <div className="relative z-10 flex-1 overflow-hidden">
+      <div className={`flex-1 flex flex-col min-h-0 relative ${isFullscreen ? 'max-w-3xl mx-auto w-full' : 'w-full'}`}>
+      {renderDotIndicators()}
+      <div className="relative z-10 flex-1 min-h-0 overflow-hidden">
         {/* Slide Content */}
         <div
           className={`
             absolute inset-0 overflow-y-auto flex flex-col px-6
-            ${isFullscreen ? (isMobile ? 'justify-start py-24' : 'justify-center') : ''}
+            ${isFullscreen ? 'justify-start pt-24 pb-12' : ''}
             transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]
             ${isSummaryExpanded ? 'opacity-0 scale-[0.98] translate-y-4 pointer-events-none' : 'opacity-100 scale-100 translate-y-0'}
           `}
         >
-          <div className="flex items-end gap-4 mt-4">
+          <div className={isFullscreen ? 'max-w-3xl mx-auto w-full' : 'w-full'}>
+          <div className={`flex items-end gap-4 ${isFullscreen ? 'mt-0' : 'mt-4'}`}>
             <span className="text-6xl sm:text-7xl font-black tracking-tight text-white leading-none">
               {currentSlide.year}
             </span>
@@ -1054,7 +1056,7 @@ export function OnThisDayWidget({ widgetId, onPromptClick, isFullscreen = false,
           <h1 className="text-4xl sm:text-4xl font-black tracking-tight leading-[1.05] mt-6">
             {currentSlide.headline}
           </h1>
-          <p className="text-base text-white/80 max-w-3xl leading-relaxed mt-4">{currentSlide.summary}</p>
+          <p className="text-base text-white/80 leading-relaxed mt-4">{currentSlide.summary}</p>
           {currentSlide.articleUrl && (
             <a
               href={currentSlide.articleUrl}
@@ -1066,12 +1068,13 @@ export function OnThisDayWidget({ widgetId, onPromptClick, isFullscreen = false,
               Read on Wikipedia
             </a>
           )}
+          </div>
         </div>
         {/* Summary View - iOS Settings Style (Cross-fade) */}
         {renderSummaryView('top-0')}
       </div>
 
-      {/* Send Button - Fixed bottom right */}
+      {/* Send Button - bottom-right of content (same position as before zoom) */}
       {!isSummaryExpanded && currentSlide && !isSingleRow && (
         <button
           onClick={handleGenerateSummary}
@@ -1094,6 +1097,7 @@ export function OnThisDayWidget({ widgetId, onPromptClick, isFullscreen = false,
       )}
 
       <div className="absolute bottom-0 left-0 right-0 p-6 pt-0 bg-gradient-to-t from-black via-black/90 to-transparent z-30 flex justify-center" />
+      </div>
     </div>
   )
 }

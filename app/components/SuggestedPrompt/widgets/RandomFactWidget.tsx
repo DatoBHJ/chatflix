@@ -187,7 +187,7 @@ export function RandomFactWidget({
       style={getWidgetContainerStyle()}
     >
       {/* Header */}
-      {isFullscreen && isMobile ? (
+      {isFullscreen ? (
         <div className="pt-20 px-4 pb-0">
           <div className="mb-2 flex-shrink-0 text-center">
             <WidgetHeader
@@ -218,7 +218,7 @@ export function RandomFactWidget({
         />
       )}
 
-      <div className={`flex-1 flex flex-col px-4 pb-4 ${isFullscreen && isMobile ? 'mt-4' : ''}`}>
+      <div className={`flex-1 flex flex-col px-4 pb-4 ${isFullscreen ? 'mt-4' : ''}`}>
         {/* Content */}
         <div ref={contentRef} className="flex-1 min-h-0 overflow-y-auto flex items-start justify-center">
           {isLoading ? (
