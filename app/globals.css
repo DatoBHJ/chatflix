@@ -3638,6 +3638,13 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   user-select: none;
 }
 
+/* 버튼·링크: 터치 시 클릭이 정상 전달되도록 콜아웃만 기본값으로 */
+.quick-access-no-callout button,
+.quick-access-no-callout a,
+.quick-access-no-callout [role="button"] {
+  -webkit-touch-callout: default;
+}
+
 /* input/textarea에서는 선택·복사 가능 유지 */
 .quick-access-no-callout input,
 .quick-access-no-callout textarea,

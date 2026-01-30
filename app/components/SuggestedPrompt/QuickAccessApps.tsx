@@ -3277,25 +3277,16 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
 
   const handleDeleteApp = (appId: string) => {
     if (appId === 'add-app') return; // Prevent deletion of Add button
-    setRemovingAppId(appId);
-    setTimeout(() => {
-      setVisibleApps(prev => prev.filter(app => app.id !== appId));
-      setRemovingAppId(null);
-    }, 200);
+    setVisibleApps(prev => prev.filter(app => app.id !== appId));
+    setRemovingAppId(null);
   };
 
   const handleRemoveMultipleApps = (appIds: string[]) => {
     const validIds = appIds.filter(id => id !== 'add-app');
     if (validIds.length === 0) return;
     
-    validIds.forEach(appId => {
-      setRemovingAppId(appId);
-    });
-    
-    setTimeout(() => {
-      setVisibleApps(prev => prev.filter(app => !validIds.includes(app.id)));
-      setRemovingAppId(null);
-    }, 200);
+    setVisibleApps(prev => prev.filter(app => !validIds.includes(app.id)));
+    setRemovingAppId(null);
   };
 
   const handleAddMultipleApps = (appIds: string[]) => {
@@ -5569,11 +5560,8 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                                   isDarkMode={isDarkMode}
                                     isRemoving={removingAppId === item.id}
                                   onDeleteWidget={(widgetId) => {
-                                    setRemovingAppId(widgetId);
-                                    setTimeout(() => {
-                                      setVisibleApps(prev => prev.filter(app => app.id !== widgetId));
-                                      setRemovingAppId(null);
-                                    }, 200);
+                                    setVisibleApps(prev => prev.filter(app => app.id !== widgetId));
+                                    setRemovingAppId(null);
                                   }}
                                   handleContextMenu={handleContextMenu}
                                   handleLongPressStart={handleLongPressStart}
