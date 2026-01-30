@@ -98,7 +98,7 @@ export function getAdaptiveGlassStyle(options: AdaptiveGlassStyleOptions) {
   //   };
   // }
 
-  const blurValue = useSimpleBlur ? 'blur(10px) saturate(140%) url(#glass-distortion-dark)' : 'url(#glass-distortion-dark) blur(6px) saturate(140%)';
+  const blurValue = useSimpleBlur ? 'blur(10px) saturate(140%)' : 'url(#glass-distortion-dark) blur(6px) saturate(140%)';
 
   return {
     // background shorthand 대신 backgroundImage + backgroundColor 분리

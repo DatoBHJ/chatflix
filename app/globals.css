@@ -1227,6 +1227,7 @@ html {
   background: var(--background);
   min-height: 100%;
   overscroll-behavior-y: none; /* Prevent rubber-band scroll effect */
+  color-scheme: light dark;
 }
 
 body {
