@@ -391,7 +391,8 @@ interface SortableWidgetItemProps {
   isRemoving: boolean;
   onDeleteWidget: (widgetId: string) => void;
   handleContextMenu: (e: React.MouseEvent) => void;
-  handleLongPressStart: (widgetId?: string) => void;
+  handleLongPressStart: (widgetId?: string, e?: React.TouchEvent | React.MouseEvent) => void;
+  handleLongPressMove: (e: React.TouchEvent) => void;
   handleLongPressEnd: () => void;
   renderWidgetContent: (widget: App, hasBackgroundImage: boolean) => React.ReactNode;
   widgetSize: { width: number; height: number };
@@ -422,6 +423,7 @@ function SortableWidgetItem({
   onDeleteWidget,
   handleContextMenu,
   handleLongPressStart,
+  handleLongPressMove,
   handleLongPressEnd,
   renderWidgetContent,
   widgetSize,
@@ -454,9 +456,6 @@ function SortableWidgetItem({
   const widgetRef = useRef<HTMLDivElement>(null);
   // 터치 탭 감지: DnD TouchSensor가 합성 click을 막는 문제 회피 (모바일에서 한 번 탭으로 위젯 확대)
   const widgetTapTouchStart = useRef<{ time: number; x: number; y: number } | null>(null);
-  // 롱프레스 취소용: 스크롤 등 이동 시 편집 모드 진입 방지
-  const longPressTouchStart = useRef<{ x: number; y: number } | null>(null);
-  const LONG_PRESS_MOVE_THRESHOLD_PX = 10;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -467,34 +466,17 @@ function SortableWidgetItem({
 
   // 편집 모드가 아닐 때만 long press 이벤트 핸들러 적용
   // 위젯 ID를 포함한 래퍼 함수 생성 (Safari touchEnd -> click 방지용)
-  // 스크롤 시 touchMove로 롱프레스 취소 (꾹 누른 걸로 오인 방지)
+  // 데스크탑에서는 마우스 이벤트 제거 (우클릭만 허용)
   const longPressHandlers = !isEditMode ? {
     ...(isTouchDevice ? {
-      onTouchStart: (e: React.TouchEvent) => {
-        if (e.touches[0]) {
-          longPressTouchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        }
-        handleLongPressStart(widget.id);
-      },
-      onTouchMove: (e: React.TouchEvent) => {
-        const start = longPressTouchStart.current;
-        if (!start || !e.touches[0]) return;
-        const dx = e.touches[0].clientX - start.x;
-        const dy = e.touches[0].clientY - start.y;
-        if (Math.sqrt(dx * dx + dy * dy) > LONG_PRESS_MOVE_THRESHOLD_PX) {
-          longPressTouchStart.current = null;
-          handleLongPressEnd();
-        }
-      },
-      onTouchEnd: () => {
-        longPressTouchStart.current = null;
-        handleLongPressEnd();
-      },
+      onTouchStart: (e: React.TouchEvent) => handleLongPressStart(widget.id, e),
+      onTouchMove: (e: React.TouchEvent) => handleLongPressMove(e),
+      onTouchEnd: () => handleLongPressEnd(),
     } : {}),
     // 데스크탑에서는 onMouseDown, onMouseUp, onMouseLeave 제거
     // 터치 디바이스에서만 마우스 이벤트 허용 (하이브리드 디바이스 대응)
     ...(isTouchDevice ? {
-      onMouseDown: () => handleLongPressStart(widget.id),
+      onMouseDown: (e: React.MouseEvent) => handleLongPressStart(widget.id, e),
       onMouseUp: () => handleLongPressEnd(),
       onMouseLeave: () => handleLongPressEnd(),
     } : {}),
@@ -999,7 +981,8 @@ interface SortableAppItemProps {
   newUpdatesCount: number;
   onAppClick: (app: App) => void;
   onDeleteApp: (appId: string) => void;
-  handleLongPressStart: () => void;
+  handleLongPressStart: (e?: React.TouchEvent | React.MouseEvent) => void;
+  handleLongPressMove: (e: React.TouchEvent) => void;
   handleLongPressEnd: () => void;
   getButtonStyle: (hasBackgroundImage: boolean) => React.CSSProperties;
   getTextStyle: (hasBackgroundImage: boolean) => React.CSSProperties;
@@ -1020,6 +1003,7 @@ function SortableAppItem({
   onAppClick,
   onDeleteApp,
   handleLongPressStart,
+  handleLongPressMove,
   handleLongPressEnd,
   getButtonStyle,
   getTextStyle,
@@ -1042,8 +1026,6 @@ function SortableAppItem({
   const hasBackgroundImage = true;
   const iconBoxRef = useRef<HTMLButtonElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
-  const longPressTouchStart = useRef<{ x: number; y: number } | null>(null);
-  const LONG_PRESS_MOVE_THRESHOLD_PX = 10;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -1055,34 +1037,17 @@ function SortableAppItem({
   const isAddButton = app.id === 'add-app';
 
   // 편집 모드가 아닐 때만 long press 이벤트 핸들러 적용
-  // 스크롤 시 touchMove로 롱프레스 취소 (꾹 누른 걸로 오인 방지)
+  // 데스크탑에서는 마우스 이벤트 제거 (우클릭만 허용)
   const longPressHandlers = !isEditMode ? {
     ...(isTouchDevice ? {
-      onTouchStart: (e: React.TouchEvent) => {
-        if (e.touches[0]) {
-          longPressTouchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        }
-        handleLongPressStart();
-      },
-      onTouchMove: (e: React.TouchEvent) => {
-        const start = longPressTouchStart.current;
-        if (!start || !e.touches[0]) return;
-        const dx = e.touches[0].clientX - start.x;
-        const dy = e.touches[0].clientY - start.y;
-        if (Math.sqrt(dx * dx + dy * dy) > LONG_PRESS_MOVE_THRESHOLD_PX) {
-          longPressTouchStart.current = null;
-          handleLongPressEnd();
-        }
-      },
-      onTouchEnd: () => {
-        longPressTouchStart.current = null;
-        handleLongPressEnd();
-      },
+      onTouchStart: (e: React.TouchEvent) => handleLongPressStart(e),
+      onTouchMove: (e: React.TouchEvent) => handleLongPressMove(e),
+      onTouchEnd: handleLongPressEnd,
     } : {}),
     // 데스크탑에서는 onMouseDown, onMouseUp, onMouseLeave 제거
     // 터치 디바이스에서만 마우스 이벤트 허용 (하이브리드 디바이스 대응)
     ...(isTouchDevice ? {
-      onMouseDown: handleLongPressStart,
+      onMouseDown: (e: React.MouseEvent) => handleLongPressStart(e),
       onMouseUp: handleLongPressEnd,
       onMouseLeave: handleLongPressEnd,
     } : {}),
@@ -1726,10 +1691,12 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
   // Long press detection
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const longPressDelay = 500;
+  const longPressMoveTolerance = 10;
   
   // Widget long press tracking (for Safari touchEnd -> click prevention)
   const justEnteredEditModeFromWidget = useRef(false);
   const longPressWidgetId = useRef<string | null>(null);
+  const longPressStartPoint = useRef<{ x: number; y: number } | null>(null);
   
   // Prevent edit mode cancellation immediately after resize/drag operations
   const justFinishedResize = useRef(false);
@@ -3183,10 +3150,18 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
     }
   };
 
-  const handleLongPressStart = (widgetId?: string) => {
+  const handleLongPressStart = (widgetId?: string, e?: React.TouchEvent | React.MouseEvent) => {
     // 위젯인 경우 위젯 ID 저장
     if (widgetId) {
       longPressWidgetId.current = widgetId;
+    }
+    if (e && 'touches' in e && e.touches.length > 0) {
+      longPressStartPoint.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+      };
+    } else {
+      longPressStartPoint.current = null;
     }
     
     if (longPressTimer.current) {
@@ -3207,6 +3182,21 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
     }, longPressDelay);
   };
 
+  const handleLongPressMove = (e: React.TouchEvent) => {
+    if (!longPressTimer.current || !longPressStartPoint.current) return;
+    if (e.touches.length === 0) return;
+    const touch = e.touches[0];
+    const moved =
+      Math.abs(touch.clientX - longPressStartPoint.current.x) > longPressMoveTolerance ||
+      Math.abs(touch.clientY - longPressStartPoint.current.y) > longPressMoveTolerance;
+    if (moved) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+      longPressWidgetId.current = null;
+      longPressStartPoint.current = null;
+    }
+  };
+
   const handleLongPressEnd = () => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
@@ -3214,6 +3204,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
     }
     // 위젯 long press 종료 시 위젯 ID 초기화 (타이머가 완료되지 않은 경우)
     longPressWidgetId.current = null;
+    longPressStartPoint.current = null;
   };
 
   const handleAppClick = (app: App) => {
@@ -5502,6 +5493,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                                     onDeleteWidget={() => {}}
                                     handleContextMenu={handleContextMenu}
                                     handleLongPressStart={handleLongPressStart}
+                                    handleLongPressMove={handleLongPressMove}
                                     handleLongPressEnd={handleLongPressEnd}
                                     renderWidgetContent={renderWidgetContent}
                                     widgetSize={size}
@@ -5527,7 +5519,8 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                                     newUpdatesCount={newUpdatesCount}
                                     onAppClick={handleAppClick}
                                     onDeleteApp={handleDeleteApp}
-                                    handleLongPressStart={handleLongPressStart}
+                                    handleLongPressStart={(e) => handleLongPressStart(undefined, e)}
+                                    handleLongPressMove={handleLongPressMove}
                                     handleLongPressEnd={handleLongPressEnd}
                                     getButtonStyle={getButtonStyle}
                                     getTextStyle={getTextStyle}
@@ -5558,6 +5551,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                                   }}
                                   handleContextMenu={handleContextMenu}
                                   handleLongPressStart={handleLongPressStart}
+                                  handleLongPressMove={handleLongPressMove}
                                   handleLongPressEnd={handleLongPressEnd}
                                   renderWidgetContent={renderWidgetContent}
                                   widgetSize={size}
@@ -5600,7 +5594,8 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                                   newUpdatesCount={newUpdatesCount}
                                   onAppClick={handleAppClick}
                                   onDeleteApp={handleDeleteApp}
-                                  handleLongPressStart={handleLongPressStart}
+                                  handleLongPressStart={(e) => handleLongPressStart(undefined, e)}
+                                  handleLongPressMove={handleLongPressMove}
                                   handleLongPressEnd={handleLongPressEnd}
                                   getButtonStyle={getButtonStyle}
                                   getTextStyle={getTextStyle}
@@ -5676,7 +5671,8 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                                 newUpdatesCount={newUpdatesCount}
                                 onAppClick={handleAppClick}
                                 onDeleteApp={handleDeleteApp}
-                                handleLongPressStart={handleLongPressStart}
+                                handleLongPressStart={(e) => handleLongPressStart(undefined, e)}
+                                handleLongPressMove={handleLongPressMove}
                                 handleLongPressEnd={handleLongPressEnd}
                                 getButtonStyle={getButtonStyle}
                                 getTextStyle={getTextStyle}
@@ -5874,7 +5870,8 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                             newUpdatesCount={newUpdatesCount}
                             onAppClick={handleAppClick}
                             onDeleteApp={handleDeleteApp}
-                            handleLongPressStart={handleLongPressStart}
+                            handleLongPressStart={(e) => handleLongPressStart(undefined, e)}
+                            handleLongPressMove={handleLongPressMove}
                             handleLongPressEnd={handleLongPressEnd}
                             getButtonStyle={getButtonStyle}
                             getTextStyle={getTextStyle}
@@ -5941,7 +5938,8 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                           newUpdatesCount={newUpdatesCount}
                           onAppClick={handleAppClick}
                           onDeleteApp={handleDeleteApp}
-                          handleLongPressStart={handleLongPressStart}
+                          handleLongPressStart={(e) => handleLongPressStart(undefined, e)}
+                          handleLongPressMove={handleLongPressMove}
                           handleLongPressEnd={handleLongPressEnd}
                           getButtonStyle={getButtonStyle}
                           getTextStyle={getTextStyle}
