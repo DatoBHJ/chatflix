@@ -24,10 +24,9 @@ export const DEFAULT_QUICK_ACCESS_APPS_MOBILE: StoredApp[] = [
   { id: 'messages', dockIndex: 1 },
   { id: 'photos', dockIndex: 2 },
   { id: 'settings', dockIndex: 3 },
-
-// 위젯/그리드 영역 기본: 화면 최대 크기로 위젯 하나
-// 모바일 기본 위젯을 가로 4칸(전체 폭), 세로 5칸으로 배치
-  { id: 'glass-trends-widget', size: { width: 4, height: 5 }, slotIndex: 0 },
+  // 위젯/그리드 영역: 트렌딩 위젯 + 농담 위젯 두 개
+  { id: 'glass-trends-widget', size: { width: 4, height: 2 }, slotIndex: 0 },
+  { id: 'daily-joke-widget', size: { width: 4, height: 2 }, slotIndex: 1 },
 ];
 
 export const DEFAULT_QUICK_ACCESS_APPS_TABLET: StoredApp[] = [
