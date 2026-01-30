@@ -3629,6 +3629,26 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   transition: transform 0.2s ease;
 }
 
+/* QuickAccess 영역: 꾹 누르면 나오는 네이티브 복사/붙여넣기 콜아웃·텍스트 선택 비활성화 */
+.quick-access-no-callout {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* input/textarea에서는 선택·복사 가능 유지 */
+.quick-access-no-callout input,
+.quick-access-no-callout textarea,
+.quick-access-no-callout [contenteditable="true"] {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
 /* 모바일 터치 드래그 개선 */
 .quick-access-edit-mode * {
   touch-action: none;

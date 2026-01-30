@@ -5320,7 +5320,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
         />
       )}
       
-      <div className="w-full h-full mx-auto relative z-15 px-4 sm:px-8 flex flex-col" onClick={handleBackgroundClick}>
+      <div className="quick-access-no-callout w-full h-full mx-auto relative z-15 px-4 sm:px-8 flex flex-col" onClick={handleBackgroundClick}>
         {/* Widgets Section - 반응형 그리드 */}
         {onPromptClick && (getDeviceType() !== 'desktop' || visibleApps.filter(app => app.isWidget).length > 0) && (() => {
     const widgetsList = visibleApps.filter(app => app.isWidget || app.dockIndex === undefined);
