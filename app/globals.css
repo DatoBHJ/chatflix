@@ -3669,6 +3669,13 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   user-select: none;
 }
 
+/* 편집 모드에서도 버튼/링크는 탭으로 클릭 가능하도록 */
+.quick-access-edit-mode button,
+.quick-access-edit-mode a,
+.quick-access-edit-mode [role="button"] {
+  touch-action: auto;
+}
+
 /* 드래그 중인 아이템의 커서 스타일 */
 [data-dnd-kit-dragging="true"] {
   cursor: grabbing !important;
