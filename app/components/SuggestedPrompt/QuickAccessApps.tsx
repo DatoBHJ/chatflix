@@ -453,7 +453,7 @@ function SortableWidgetItem({
   const hasBackgroundImage = true;
   const widgetRef = useRef<HTMLDivElement>(null);
   // 터치 탭 감지: DnD TouchSensor가 합성 click을 막는 문제 회피 (모바일에서 한 번 탭으로 위젯 확대)
-  const widgetTapTouchStart = useRef<{ time: number; x: number; y: number; target: EventTarget | null } | null>(null);
+  const widgetTapTouchStart = useRef<{ time: number; x: number; y: number } | null>(null);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -892,7 +892,6 @@ function SortableWidgetItem({
                 time: Date.now(),
                 x: e.touches[0].clientX,
                 y: e.touches[0].clientY,
-                target: e.target,
               };
             }
           },
@@ -906,7 +905,8 @@ function SortableWidgetItem({
               ? Math.abs(touch.clientX - t.x) > 10 || Math.abs(touch.clientY - t.y) > 10
               : false;
             if (duration >= 250 || moved) return;
-            if (t.target && (t.target as HTMLElement).closest?.('button, a, input, textarea, select, [role="button"]')) return;
+            const el = touch ? document.elementFromPoint(touch.clientX, touch.clientY) : null;
+            if (el?.closest('button, a, input, textarea, select, [role="button"]')) return;
             e.preventDefault(); // 합성 click 방지 (한 번만 확대되도록)
             const originRect = widgetRef.current?.getBoundingClientRect();
             onWidgetActivate(widget, originRect ?? undefined);
@@ -5320,7 +5320,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
         />
       )}
       
-      <div className="quick-access-no-callout w-full h-full mx-auto relative z-15 px-4 sm:px-8 flex flex-col" onClick={handleBackgroundClick}>
+      <div className="w-full h-full mx-auto relative z-15 px-4 sm:px-8 flex flex-col" onClick={handleBackgroundClick}>
         {/* Widgets Section - 반응형 그리드 */}
         {onPromptClick && (getDeviceType() !== 'desktop' || visibleApps.filter(app => app.isWidget).length > 0) && (() => {
     const widgetsList = visibleApps.filter(app => app.isWidget || app.dockIndex === undefined);
