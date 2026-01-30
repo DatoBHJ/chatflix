@@ -129,7 +129,7 @@ interface OnThisDayWidgetProps extends WidgetBaseProps {
   isFullscreen?: boolean;
 }
 
-export function OnThisDayWidget({ widgetId, onPromptClick, isFullscreen = false }: OnThisDayWidgetProps) {
+export function OnThisDayWidget({ widgetId, onPromptClick, isFullscreen = false, isDarkMode }: OnThisDayWidgetProps) {
   const defaultLanguage = useMemo(() => getWikimediaLanguageCode(), [])
   const [sharedState, setSharedState] = useOnThisDaySharedState(widgetId, defaultLanguage)
   const selectedLanguage = sharedState.selectedLanguage || defaultLanguage
@@ -1083,7 +1083,7 @@ export function OnThisDayWidget({ widgetId, onPromptClick, isFullscreen = false 
             <Loader2 size={20} className="animate-spin" />
           ) : (
             <Image
-              src={getChatflixLogo()}
+              src={getChatflixLogo({ isDark: isDarkMode })}
               alt="Chatflix"
               width={30}
               height={30}

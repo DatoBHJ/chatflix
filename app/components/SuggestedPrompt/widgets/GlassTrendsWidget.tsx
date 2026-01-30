@@ -2387,7 +2387,7 @@ export function GlassTrendsWidget({
               <Loader2 size={20} className="animate-spin" />
             ) : (
               <Image
-                src={getChatflixLogo({ isDark: true })}
+                src={getChatflixLogo({ isDark: isDarkMode })}
                 alt="Chatflix"
                 width={30}
                 height={30}
