@@ -3638,6 +3638,17 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   user-select: none;
 }
 
+/* 버튼/링크는 터치 시 클릭이 정상 전달되도록 예외 (트렌딩 위젯 등 내부 버튼 포함) */
+.quick-access-no-callout button,
+.quick-access-no-callout a,
+.quick-access-no-callout [role="button"] {
+  -webkit-touch-callout: default;
+  -webkit-user-select: auto;
+  -moz-user-select: auto;
+  -ms-user-select: auto;
+  user-select: auto;
+}
+
 /* input/textarea에서는 선택·복사 가능 유지 */
 .quick-access-no-callout input,
 .quick-access-no-callout textarea,
