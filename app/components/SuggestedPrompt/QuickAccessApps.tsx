@@ -391,7 +391,7 @@ interface SortableWidgetItemProps {
   isRemoving: boolean;
   onDeleteWidget: (widgetId: string) => void;
   handleContextMenu: (e: React.MouseEvent) => void;
-  handleLongPressStart: (widgetId?: string, touchStart?: { x: number; y: number }) => void;
+  handleLongPressStart: (widgetId?: string) => void;
   handleLongPressEnd: () => void;
   renderWidgetContent: (widget: App, hasBackgroundImage: boolean) => React.ReactNode;
   widgetSize: { width: number; height: number };
@@ -462,16 +462,12 @@ function SortableWidgetItem({
     opacity: isDragging ? 0 : 1,
   };
 
-  // 편집 모드가 아닐 때만 long press 이벤트 핸들러 적용 (이동 감지는 부모 document touchmove 캡처)
+  // 편집 모드가 아닐 때만 long press 이벤트 핸들러 적용
+  // 위젯 ID를 포함한 래퍼 함수 생성 (Safari touchEnd -> click 방지용)
   // 데스크탑에서는 마우스 이벤트 제거 (우클릭만 허용)
   const longPressHandlers = !isEditMode ? {
     ...(isTouchDevice ? {
-      onTouchStart: (e: React.TouchEvent) => {
-        handleLongPressStart(
-          widget.id,
-          e.touches[0] ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : undefined
-        );
-      },
+      onTouchStart: () => handleLongPressStart(widget.id),
       onTouchEnd: () => handleLongPressEnd(),
     } : {}),
     // 데스크탑에서는 onMouseDown, onMouseUp, onMouseLeave 제거
@@ -1693,9 +1689,6 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
   // Widget long press tracking (for Safari touchEnd -> click prevention)
   const justEnteredEditModeFromWidget = useRef(false);
   const longPressWidgetId = useRef<string | null>(null);
-  // Document-level touchmove: 터치 시작 위치 저장 및 이동 시 타이머 취소용
-  const longPressTouchStartPosRef = useRef<{ x: number; y: number } | null>(null);
-  const longPressMoveListenerRef = useRef<((e: TouchEvent) => void) | null>(null);
   
   // Prevent edit mode cancellation immediately after resize/drag operations
   const justFinishedResize = useRef(false);
@@ -3149,60 +3142,37 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
     }
   };
 
-  const handleLongPressEnd = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-    longPressWidgetId.current = null;
-    longPressTouchStartPosRef.current = null;
-    if (longPressMoveListenerRef.current) {
-      document.removeEventListener('touchmove', longPressMoveListenerRef.current, { capture: true });
-      longPressMoveListenerRef.current = null;
-    }
-  };
-
-  const handleLongPressStart = (widgetId?: string, touchStart?: { x: number; y: number }) => {
+  const handleLongPressStart = (widgetId?: string) => {
+    // 위젯인 경우 위젯 ID 저장
     if (widgetId) {
       longPressWidgetId.current = widgetId;
     }
-    if (touchStart) {
-      longPressTouchStartPosRef.current = touchStart;
-      if (longPressMoveListenerRef.current) {
-        document.removeEventListener('touchmove', longPressMoveListenerRef.current, { capture: true });
-        longPressMoveListenerRef.current = null;
-      }
-      const handler = (e: TouchEvent) => {
-        const pos = longPressTouchStartPosRef.current;
-        if (!pos || !e.touches[0]) return;
-        const dx = e.touches[0].clientX - pos.x;
-        const dy = e.touches[0].clientY - pos.y;
-        if (Math.sqrt(dx * dx + dy * dy) > 5) {
-          handleLongPressEnd();
-        }
-      };
-      document.addEventListener('touchmove', handler, { capture: true });
-      longPressMoveListenerRef.current = handler;
-    }
+    
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
     }
     longPressTimer.current = setTimeout(() => {
-      longPressTouchStartPosRef.current = null;
-      if (longPressMoveListenerRef.current) {
-        document.removeEventListener('touchmove', longPressMoveListenerRef.current, { capture: true });
-        longPressMoveListenerRef.current = null;
-      }
       if (!isEditMode) {
         setIsEditMode(true);
+        // 위젯 long press로 편집 모드 진입한 경우 플래그 설정
         if (widgetId) {
           justEnteredEditModeFromWidget.current = true;
+          // 500ms 후 플래그 해제 (Safari의 자동 click 이벤트 시간 고려)
           setTimeout(() => {
             justEnteredEditModeFromWidget.current = false;
           }, 500);
         }
       }
     }, longPressDelay);
+  };
+
+  const handleLongPressEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    // 위젯 long press 종료 시 위젯 ID 초기화 (타이머가 완료되지 않은 경우)
+    longPressWidgetId.current = null;
   };
 
   const handleAppClick = (app: App) => {

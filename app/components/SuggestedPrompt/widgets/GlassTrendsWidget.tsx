@@ -2194,7 +2194,6 @@ export function GlassTrendsWidget({
               transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]
               ${isFilterExpanded || isSummaryExpanded ? 'opacity-0 scale-[0.98] translate-y-4 pointer-events-none' : 'opacity-100 scale-100 translate-y-0'}
             `}
-            data-widget-scrollable
           >
           <div className="flex items-center gap-4 mt-4">
             <span className="text-6xl sm:text-7xl font-black tracking-tight text-white leading-none">
