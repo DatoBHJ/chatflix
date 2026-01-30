@@ -454,7 +454,7 @@ function SortableWidgetItem({
   const widgetRef = useRef<HTMLDivElement>(null);
   // 터치 탭 감지: DnD TouchSensor가 합성 click을 막는 문제 회피 (모바일에서 한 번 탭으로 위젯 확대)
   const widgetTapTouchStart = useRef<{ time: number; x: number; y: number } | null>(null);
-  // long-press 취소용: 스크롤 등 이동 시 편집 모드 진입 방지 (캡처 단계에서 감지)
+  // long-press 취소용: 스크롤 영역 터치 시 타이머 미시작 + 이동 시 타이머 취소
   const longPressTouchStartRef = useRef<{ x: number; y: number } | null>(null);
   const LONG_PRESS_MOVE_THRESHOLD = 10;
 
@@ -467,11 +467,12 @@ function SortableWidgetItem({
 
   // 편집 모드가 아닐 때만 long press 이벤트 핸들러 적용
   // 위젯 ID를 포함한 래퍼 함수 생성 (Safari touchEnd -> click 방지용)
-  // 스크롤 시 onTouchMoveCapture(캡처 단계)로 long-press 타이머 취소 (편집 모드 진입 방지)
+  // 스크롤 영역 터치 시 타이머 미시작 + onTouchMoveCapture로 이동 시 타이머 취소
   // 데스크탑에서는 마우스 이벤트 제거 (우클릭만 허용)
   const longPressHandlers = !isEditMode ? {
     ...(isTouchDevice ? {
       onTouchStart: (e: React.TouchEvent) => {
+        if ((e.target as HTMLElement).closest('[data-widget-scrollable]')) return;
         if (e.touches[0]) {
           longPressTouchStartRef.current = {
             x: e.touches[0].clientX,
