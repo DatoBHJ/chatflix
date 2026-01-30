@@ -454,6 +454,9 @@ function SortableWidgetItem({
   const widgetRef = useRef<HTMLDivElement>(null);
   // 터치 탭 감지: DnD TouchSensor가 합성 click을 막는 문제 회피 (모바일에서 한 번 탭으로 위젯 확대)
   const widgetTapTouchStart = useRef<{ time: number; x: number; y: number } | null>(null);
+  // 롱프레스 취소용: 스크롤 등 이동 시 편집 모드 진입 방지
+  const longPressTouchStart = useRef<{ x: number; y: number } | null>(null);
+  const LONG_PRESS_MOVE_THRESHOLD_PX = 10;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -464,11 +467,29 @@ function SortableWidgetItem({
 
   // 편집 모드가 아닐 때만 long press 이벤트 핸들러 적용
   // 위젯 ID를 포함한 래퍼 함수 생성 (Safari touchEnd -> click 방지용)
-  // 데스크탑에서는 마우스 이벤트 제거 (우클릭만 허용)
+  // 스크롤 시 touchMove로 롱프레스 취소 (꾹 누른 걸로 오인 방지)
   const longPressHandlers = !isEditMode ? {
     ...(isTouchDevice ? {
-      onTouchStart: () => handleLongPressStart(widget.id),
-      onTouchEnd: () => handleLongPressEnd(),
+      onTouchStart: (e: React.TouchEvent) => {
+        if (e.touches[0]) {
+          longPressTouchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }
+        handleLongPressStart(widget.id);
+      },
+      onTouchMove: (e: React.TouchEvent) => {
+        const start = longPressTouchStart.current;
+        if (!start || !e.touches[0]) return;
+        const dx = e.touches[0].clientX - start.x;
+        const dy = e.touches[0].clientY - start.y;
+        if (Math.sqrt(dx * dx + dy * dy) > LONG_PRESS_MOVE_THRESHOLD_PX) {
+          longPressTouchStart.current = null;
+          handleLongPressEnd();
+        }
+      },
+      onTouchEnd: () => {
+        longPressTouchStart.current = null;
+        handleLongPressEnd();
+      },
     } : {}),
     // 데스크탑에서는 onMouseDown, onMouseUp, onMouseLeave 제거
     // 터치 디바이스에서만 마우스 이벤트 허용 (하이브리드 디바이스 대응)
@@ -1021,6 +1042,8 @@ function SortableAppItem({
   const hasBackgroundImage = true;
   const iconBoxRef = useRef<HTMLButtonElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
+  const longPressTouchStart = useRef<{ x: number; y: number } | null>(null);
+  const LONG_PRESS_MOVE_THRESHOLD_PX = 10;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -1032,11 +1055,29 @@ function SortableAppItem({
   const isAddButton = app.id === 'add-app';
 
   // 편집 모드가 아닐 때만 long press 이벤트 핸들러 적용
-  // 데스크탑에서는 마우스 이벤트 제거 (우클릭만 허용)
+  // 스크롤 시 touchMove로 롱프레스 취소 (꾹 누른 걸로 오인 방지)
   const longPressHandlers = !isEditMode ? {
     ...(isTouchDevice ? {
-      onTouchStart: handleLongPressStart,
-      onTouchEnd: handleLongPressEnd,
+      onTouchStart: (e: React.TouchEvent) => {
+        if (e.touches[0]) {
+          longPressTouchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }
+        handleLongPressStart();
+      },
+      onTouchMove: (e: React.TouchEvent) => {
+        const start = longPressTouchStart.current;
+        if (!start || !e.touches[0]) return;
+        const dx = e.touches[0].clientX - start.x;
+        const dy = e.touches[0].clientY - start.y;
+        if (Math.sqrt(dx * dx + dy * dy) > LONG_PRESS_MOVE_THRESHOLD_PX) {
+          longPressTouchStart.current = null;
+          handleLongPressEnd();
+        }
+      },
+      onTouchEnd: () => {
+        longPressTouchStart.current = null;
+        handleLongPressEnd();
+      },
     } : {}),
     // 데스크탑에서는 onMouseDown, onMouseUp, onMouseLeave 제거
     // 터치 디바이스에서만 마우스 이벤트 허용 (하이브리드 디바이스 대응)
