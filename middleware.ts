@@ -114,6 +114,19 @@ export async function middleware(request: NextRequest) {
     return await updateSession(request)
   }
 
+  // Block access to Memory, Pensieve, and Changelog (whats-new) routes
+  // API routes are allowed (for future use), but page routes are blocked
+  const blockedPaths = ['/memory', '/pensieve', '/whats-new']
+  const isBlockedPath = blockedPaths.some((p) => request.nextUrl.pathname.startsWith(p))
+  if (isBlockedPath) {
+    const allowApi = request.nextUrl.pathname.startsWith('/api/memory') || request.nextUrl.pathname.startsWith('/api/pensieve')
+    if (allowApi) {
+      return await updateSession(request)
+    }
+    // Redirect all page routes to home
+    return NextResponse.redirect(new URL('/', request.url))
+  }
+
   // Admin route protection (both pages and API)
   // 예외: memory-refine API는 인증 우회 (cron job용)
   if ((request.nextUrl.pathname.startsWith('/admin') || request.nextUrl.pathname.startsWith('/api/admin')) 

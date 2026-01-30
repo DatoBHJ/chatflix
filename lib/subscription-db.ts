@@ -26,7 +26,6 @@ export async function checkSubscriptionFromDatabase(externalId: string): Promise
     // Check Redis cache first
     const cached = await SubscriptionCache.getStatus(externalId)
     if (cached !== null) {
-      console.log('[subscription-db.ts]: Using Redis cached status for user:', externalId)
       return cached
     }
 
@@ -42,8 +41,6 @@ export async function checkSubscriptionFromDatabase(externalId: string): Promise
       
       // Cache the result in Redis
       await SubscriptionCache.setStatus(externalId, result)
-      
-      console.log('[subscription-db.ts]: Cached subscription status in Redis for user:', externalId, 'status:', result)
 
       return result
     } finally {
@@ -52,7 +49,6 @@ export async function checkSubscriptionFromDatabase(externalId: string): Promise
       await SubscriptionCache.deleteOngoingRequest(externalId)
     }
   } catch (error) {
-    console.error('[subscription-db.ts]: Error checking subscription from database:', error)
     // Clean up ongoing request on error
     await SubscriptionCache.deleteOngoingRequest(externalId)
     return false
@@ -168,7 +164,6 @@ export async function getSubscriptionDetails(externalId: string) {
     // Check Redis cache first
     const cached = await SubscriptionCache.getDetails(externalId)
     if (cached !== null) {
-      console.log('[subscription-db.ts]: Using Redis cached details for user:', externalId)
       return cached
     }
 
@@ -188,7 +183,6 @@ export async function getSubscriptionDetails(externalId: string) {
     // Cache the result in Redis if we got data
     if (result) {
       await SubscriptionCache.setDetails(externalId, result)
-      console.log('[subscription-db.ts]: Cached subscription details in Redis for user:', externalId)
     }
     
     return result

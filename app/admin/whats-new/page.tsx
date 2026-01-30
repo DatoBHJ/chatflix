@@ -621,10 +621,7 @@ export default function WhatsNewAdmin() {
                   )}
                   
                   <div className="flex justify-between items-center mt-3 pt-2 text-[var(--muted)]">
-                    <Link 
-                      href={`/whats-new/${update.id}`}
-                      className="text-sm text-blue-500 hover:underline flex items-center"
-                    >
+                    <span className="text-sm text-[var(--muted)] flex items-center">
                       <svg 
                         xmlns="http://www.w3.org/2000/svg" 
                         width="14" 
@@ -640,8 +637,8 @@ export default function WhatsNewAdmin() {
                         <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
                         <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
                       </svg>
-                      View post
-                    </Link>
+                      View in Changelog
+                    </span>
                     
                     <span className="text-sm">{update.created_at && new Date(update.created_at).toLocaleDateString('en-US', {
                       hour: '2-digit',

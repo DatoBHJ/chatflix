@@ -1,13 +1,15 @@
 import { 
   createWebSearchTool, 
   createJinaLinkReaderTool, 
-  // createImageGeneratorTool, // DISABLED: pollination.ai image generator
   createCalculatorTool, 
   createYouTubeSearchTool, 
   createYouTubeLinkAnalyzerTool, 
   createGoogleSearchTool,
   createGeminiImageTool,
   createSeedreamImageTool,
+  // createQwenImageTool,
+  createTwitterSearchTool,
+  createWan25VideoTool,
 } from '../tools';
 
 // 🆕 도구 레지스트리 - 모든 도구를 중앙에서 관리
@@ -27,12 +29,6 @@ export const TOOL_REGISTRY = {
     resultKey: 'linkReaderAttempts',
     description: 'Reading and analyzing web page content'
   },
-  // 'image_generator': { // DISABLED: pollination.ai image generator
-  //   createFn: createImageGeneratorTool,
-  //   resultKey: 'generatedImages',
-  //   description: 'Creating visual content'
-  // },
-
   'youtube_search': {
     createFn: createYouTubeSearchTool,
     resultKey: 'youtubeSearchResults',
@@ -48,38 +44,32 @@ export const TOOL_REGISTRY = {
     resultKey: 'googleSearchResults',
     description: 'Google search using SearchAPI for comprehensive web results'
   },
+  'twitter_search': {
+    createFn: createTwitterSearchTool,
+    resultKey: 'twitterSearchResults',
+    description: 'Advanced Twitter/X search (Latest or Top with full operators)'
+  },
   'gemini_image_tool': {
-    createFn: (dataStream: any, userId: string, messages: any[]) => createGeminiImageTool(dataStream, userId, messages),
+    createFn: (dataStream: any, userId: string, messages: any[], chatId?: string) => createGeminiImageTool(dataStream, userId, messages, chatId),
     resultKey: 'geminiImageResults',
     description: 'Gemini 2.5 Flash image generation & editing'
   },
   'seedream_image_tool': {
-    createFn: (dataStream: any, userId: string, messages: any[]) => createSeedreamImageTool(dataStream, userId, messages),
+    createFn: (dataStream: any, userId: string, messages: any[], chatId?: string) => createSeedreamImageTool(dataStream, userId, messages, chatId),
     resultKey: 'seedreamImageResults',
-    description: 'Seedream 4.0 image generation & editing via Replicate'
+    description: 'Seedream 4.5 image generation & editing via Replicate'
+  },
+  // 'qwen_image_edit': {
+  //   createFn: (dataStream: any, userId: string, messages: any[], chatId?: string) => createQwenImageTool(dataStream, userId, messages, chatId),
+  //   resultKey: 'qwenImageResults',
+  //   description: 'Qwen Image Edit 2511 image editing via Replicate'
+  // },
+  'wan25_video': {
+    createFn: (dataStream: any, userId: string, messages: any[], chatId?: string, forcedModel?: 'text-to-video' | 'image-to-video') => createWan25VideoTool(dataStream, userId, messages, chatId, forcedModel),
+    resultKey: 'wan25VideoResults',
+    description: 'Alibaba Wan 2.5 video generation (text-to-video & image-to-video)'
   }
-  // 'x_search': {
-  //   createFn: createXSearchTool,
-  //   resultKey: 'xSearchResults',
-  //   description: 'X (Twitter) social media search'
-  // }
 } as const;
-
-/**
- * AI SDK v5: 간소화된 도구 초기화 함수
- */
-// export function initializeTool(type: string, dataStream: any, userId?: string, messages?: any[]) {
-//   const toolConfig = TOOL_REGISTRY[type as keyof typeof TOOL_REGISTRY];
-//   if (!toolConfig) {
-//     throw new Error(`Unknown tool type: ${type}`);
-//   }
-  
-//   if (type === 'gemini_image_tool' && userId && messages) {
-//     return toolConfig.createFn(dataStream, userId, messages);
-//   }
-  
-//   return (toolConfig.createFn as any)(dataStream);
-// }
 
 /**
  * AI SDK v5: 간소화된 도구 유틸리티 함수들
@@ -105,12 +95,14 @@ export function collectToolResults(tools: Record<string, any>, toolNames: string
       'calculator': 'calculationSteps',
       'web_search': 'searchResults', 
       'link_reader': 'linkAttempts',
-      // 'image_generator': 'generatedImages', // DISABLED: pollination.ai image generator
       'youtube_search': 'searchResults',
       'youtube_link_analyzer': 'analysisResults',
       'google_search': 'searchResults',
+      'twitter_search': 'searchResults',
       'gemini_image_tool': 'generatedImages',
-      'seedream_image_tool': 'generatedImages'
+      'seedream_image_tool': 'generatedImages',
+      // 'qwen_image_edit': 'generatedImages',
+      'wan25_video': 'generatedVideos'
     };
     
     const resultKey = resultMap[toolName] || 'results';

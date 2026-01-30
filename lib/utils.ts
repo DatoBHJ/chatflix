@@ -55,4 +55,25 @@ export function clearAllSubscriptionCache() {
   } catch (error) {
     console.error('Error clearing subscription cache:', error);
   }
+}
+
+/**
+ * Object에서 '_'로 시작하는 내부 메타데이터 키를 재귀적으로 제거하는 함수
+ */
+export function cleanInternalKeys(obj: any): any {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(cleanInternalKeys);
+  }
+
+  const cleaned: any = {};
+  Object.keys(obj).forEach(key => {
+    if (!key.startsWith('_')) {
+      cleaned[key] = cleanInternalKeys(obj[key]);
+    }
+  });
+  return cleaned;
 } 

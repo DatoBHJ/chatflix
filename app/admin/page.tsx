@@ -248,7 +248,7 @@ export default function AdminModelsPage() {
   };
   
   // 추천 프롬프트 생성 함수
-  const generateSuggestedPrompts = async () => {
+  const generateDailyPrompts = async () => {
     try {
       setIsGeneratingPrompts(true);
       setGeneratedPrompts([]);
@@ -1173,7 +1173,7 @@ export default function AdminModelsPage() {
               <h3 className="text-lg font-medium">프롬프트 생성</h3>
               <div className="flex gap-2">
                 <button
-                  onClick={generateSuggestedPrompts}
+                  onClick={generateDailyPrompts}
                   disabled={isGeneratingPrompts}
                   className="px-4 py-2 rounded transition-colors text-sm font-semibold"
                   style={{ 

@@ -7,13 +7,20 @@ import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import rehypeHighlight from 'rehype-highlight';
 import { MathJaxEquation } from './math/MathJaxEquation';
+import type { LinkCardData } from '@/app/types/linkPreview';
 import React from 'react';
 import dynamic from 'next/dynamic';
 import { createPortal } from 'react-dom';
-import { X, ChevronLeft, ChevronRight, ExternalLink, Play } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, ExternalLink, Play, Pause, Volume2, VolumeX, Download, Bookmark, Share, ScrollText, Info, Check, Copy, Maximize } from 'lucide-react';
+import { getAdaptiveGlassStyleBlur, getIconClassName } from '@/app/lib/adaptiveGlassStyle';
 import { LinkPreview } from './LinkPreview';
+import { useUrlRefresh } from '../hooks/useUrlRefresh';
+import { useLazyMedia } from '../hooks/useIntersectionObserver';
 import { highlightSearchTerm, highlightSearchTermInChildren } from '@/app/utils/searchHighlight';
 import { Tweet } from 'react-tweet';
+import { ImageGalleryStack } from './ImageGalleryStack';
+import { categorizeAspectRatio, parseImageDimensions, parseMediaDimensions, getAspectCategory } from '@/app/utils/imageUtils';
+import { ImageModal, type ImageModalImage } from './ImageModal';
 
 // Dynamically import MermaidDiagram for client-side rendering
 const MermaidDiagram = dynamic(() => import('./Mermaid'), {
@@ -81,7 +88,13 @@ export const TwitterEmbed = memo(function TwitterEmbedComponent({
   
   return (
     <div className="my-6 w-full flex justify-center">
-      <div className="w-full max-w-[500px]">
+      <div 
+        className="w-full max-w-[400px]"
+        style={{
+          maxWidth: 'min(400px, calc(100vw - 2rem))',
+          width: '100%'
+        }}
+      >
         {/* Error state */}
         {hasError && (
           <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 text-center">
@@ -116,10 +129,12 @@ export const TwitterEmbed = memo(function TwitterEmbedComponent({
         {/* Twitter embed */}
         {!hasError && (
           <div 
-            className="w-full [&>div]:w-full [&>div]:mx-auto rounded-lg overflow-hidden [&_a]:!text-[color-mix(in_srgb,var(--foreground)_75%,transparent)] [&_a:hover]:!text-[color-mix(in_srgb,var(--foreground)_90%,transparent)] [&_.react-tweet-theme]:!bg-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] dark:[&_.react-tweet-theme]:!bg-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] [&_.react-tweet-border]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_hr]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_div[data-separator]]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_.react-tweet-header-border]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_.react-tweet-footer-border]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_*]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)]"
-            onError={() => {
-              console.warn('Twitter embed failed, falling back to LinkPreview');
-              setHasError(true);
+            className="w-full [&>div]:w-full [&>div]:mx-auto rounded-lg overflow-hidden [&_a]:!text-[color-mix(in_srgb,var(--foreground)_75%,transparent)] [&_a:hover]:!text-[color-mix(in_srgb,var(--foreground)_90%,transparent)] [&_.react-tweet-theme]:!bg-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] dark:[&_.react-tweet-theme]:!bg-[color-mix(in_srgb,var(--background)_97%,var(--foreground)_3%)] [&_.react-tweet-border]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_hr]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_div[data-separator]]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_.react-tweet-header-border]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_.react-tweet-footer-border]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_*]:!border-[color-mix(in_srgb,var(--foreground)_5%,transparent)] [&_video]:!max-w-full [&_video]:!h-auto [&_iframe]:!max-w-full [&_iframe]:!h-auto"
+            style={{
+              maxWidth: '100%',
+              width: '100%',
+              maxHeight: 'min(600px, calc(100vh - 4rem))',
+              overflowY: 'auto'
             }}
           >
             <Tweet id={tweetId} />
@@ -134,8 +149,18 @@ export const TwitterEmbed = memo(function TwitterEmbedComponent({
 const preprocessLaTeX = (content: string) => {
   if (!content) return '';
   
+  // 볼드체 패턴(**...**)을 먼저 보호하여 LaTeX 처리 과정에서 손상되지 않도록 함
+  // 볼드체는 **로 시작하고 **로 끝나며, 내부에 **가 없어야 함 (단일 *는 허용)
+  const boldPattern = /\*\*((?:[^*]|\*(?!\*))+)\*\*/g;
+  const boldBlocks: string[] = [];
+  let processedContent = content.replace(boldPattern, (match, innerContent) => {
+    const id = boldBlocks.length;
+    boldBlocks.push(innerContent);
+    return `___BOLD_PATTERN_${id}___`;
+  });
+  
   // 이미 이스케이프된 구분자 처리
-  let processedContent = content
+  processedContent = processedContent
     .replace(/\\\[/g, '___BLOCK_OPEN___')
     .replace(/\\\]/g, '___BLOCK_CLOSE___')
     .replace(/\\\(/g, '___INLINE_OPEN___')
@@ -235,6 +260,12 @@ const preprocessLaTeX = (content: string) => {
     return inlines[parseInt(id)];
   });
 
+  // 볼드체 패턴 복원 (LaTeX 처리 완료 후)
+  // react-markdown이 따옴표가 포함된 볼드체를 잘 처리하지 못하는 경우가 있어 HTML 태그로 변환
+  processedContent = processedContent.replace(/___BOLD_PATTERN_(\d+)___/g, (_, id) => {
+    return `<strong>${boldBlocks[parseInt(id)]}</strong>`;
+  });
+
   return processedContent;
 };
 
@@ -301,24 +332,6 @@ function escapeCurrencyDollars(text: string): string {
   return text;
 }
 
-// Pollination 이미지 URL에 nologo 옵션 추가하는 함수
-function ensureNoLogo(url: string): string {
-  if (!url.includes('image.pollinations.ai')) return url;
-  
-  try {
-    const urlObj = new URL(url);
-    // nologo 파라미터가 없으면 추가
-    if (!urlObj.searchParams.has('nologo')) {
-      urlObj.searchParams.set('nologo', 'true');
-    }
-    return urlObj.toString();
-  } catch (error) {
-    // URL 파싱에 실패하면 원본 반환
-    console.warn('Failed to parse pollinations URL:', url);
-    return url;
-  }
-}
-
 interface MarkdownContentProps {
   content: string;
   enableSegmentation?: boolean;
@@ -328,10 +341,16 @@ interface MarkdownContentProps {
   messageType?: 'user' | 'assistant' | 'default'; // 🚀 FEATURE: Message type for different highlight colors
   thumbnailMap?: { [key: string]: string }; // 🚀 FEATURE: Thumbnail map for link previews
   titleMap?: { [key: string]: string }; // 🚀 FEATURE: Title map for link previews
+  linkPreviewData?: Record<string, LinkCardData>;
   isMobile?: boolean;
   noTail?: boolean; // 꼬리 제거 옵션
   isLongPressActive?: boolean; // 🚀 FEATURE: Long press state for segment shadows
   isStreaming?: boolean; // 🚀 FEATURE: Streaming state for Mermaid diagrams
+  messageId?: string; // 🚀 FEATURE: For URL refreshing
+  chatId?: string; // 🚀 FEATURE: For URL refreshing
+  userId?: string; // 🚀 FEATURE: For URL refreshing
+  promptMap?: { [key: string]: string }; // 🚀 FEATURE: Prompt map for image prompts
+  sourceImageMap?: { [key: string]: string }; // 🚀 FEATURE: Source image map for video prompts
 }
 
 // 더 적극적으로 마크다운 구조를 분할하는 함수 - 구분선(---)을 기준으로 메시지 그룹 분할
@@ -496,7 +515,7 @@ const segmentContent = (content: string): string[][] => {
     // 이미지 호스팅 URL은 제외 (이미지 렌더링 로직에서 처리하도록)
     const isImageUrl = 
       url.includes('/storage/v1/object/public/gemini-images/') ||
-      url.includes('image.pollinations.ai');
+      url.includes('/storage/v1/object/sign/generated-images/');
     
     if (!match.includes('[') && !match.includes(']') && !match.includes('<CODE_PLACEHOLDER_') && !isImageUrl) {
       linkSegments.push(match);
@@ -739,119 +758,6 @@ const splitSegmentByLineBreaks = (segment: string): string[] => {
   return segments.filter(s => s.length > 0 && s.trim().length > 0);
 };
 
-// Image component with loading state and modal support
-const ImageWithLoading = memo(function ImageWithLoadingComponent({ 
-  src, 
-  alt, 
-  className = "",
-  onImageClick,
-  ...props 
-}: React.ImgHTMLAttributes<HTMLImageElement> & { onImageClick?: () => void }) {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [error, setError] = useState(false);
-  
-  // pollination 이미지인지 확인
-  const isPollinationImage = src && typeof src === 'string' && src.includes('image.pollinations.ai');
-  
-  // URL이 유효한지 확인 (간단한 체크)
-  const isValidUrl = src && typeof src === 'string' && (
-    src.startsWith('http://') || 
-    src.startsWith('https://') || 
-    src.startsWith('data:')
-  );
-
-  if (!isValidUrl) {
-    return null;
-  }
-
-  // 일반 이미지가 에러나면 아무것도 렌더링하지 않음
-  if (error && !isPollinationImage) {
-    return null;
-  }
-  
-  return (
-    <div className="relative w-full">
-      {!isLoaded && !error && (
-        <div className="text-[var(--muted)] text-sm py-2">
-          {isPollinationImage ? (
-            // AI 이미지 생성용 완전 미니멀 로딩 UI
-            <div className="bg-[var(--accent)] rounded-2xl p-6 border border-[color-mix(in_srgb,var(--foreground)_4%,transparent)]">
-              <div className="flex flex-col items-center space-y-4">
-                {/* 미니멀한 회전 애니메이션만 */}
-                <div className="w-6 h-6 border border-[color-mix(in_srgb,var(--foreground)_20%,transparent)] border-t-[var(--foreground)] rounded-full animate-spin"></div>
-                
-                {/* 미니멀한 로딩 텍스트 */}
-                <div className="text-center space-y-1">
-                  <div className="text-[var(--foreground)] font-medium text-sm">
-                    Creating image
-                  </div>
-                  <div className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)] text-xs">
-                    This may take a moment
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            // 일반 검색 이미지용 기존 로딩 UI
-            <div className="typing-indicator-compact">
-              <div className="typing-dot-compact"></div>
-              <div className="typing-dot-compact"></div>
-              <div className="typing-dot-compact"></div>
-            </div>
-          )}
-        </div>
-      )}
-      
-      {error && isPollinationImage && (
-        <div className="bg-[var(--accent)] rounded-lg p-6 text-center text-[var(--muted)]">
-          <svg className="w-10 h-10 mx-auto mb-3 text-[var(--muted)]" fill="none" strokeWidth="1.5" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-          </svg>
-          <div className="mb-1">Image failed to load</div>
-          {alt && <div className="text-sm italic mb-2 opacity-75">{alt}</div>}
-          {src && typeof src === 'string' && (
-            <a 
-              href={src}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-[var(--muted-foreground)] hover:underline mt-1 block"
-            >
-              View image directly
-            </a>
-          )}
-        </div>
-      )}
-      
-      <div className="relative">
-        <img
-          src={src}
-          alt={alt || ""}
-          className={`${className} ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 rounded-lg ${onImageClick ? 'cursor-pointer' : ''}`}
-          onClick={onImageClick}
-          onLoad={() => {
-            setIsLoaded(true);
-          }}
-          onError={() => {
-            console.log('Image load error:', src);
-            setError(true);
-            setIsLoaded(true);
-          }}
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          {...props}
-        />
-        
-        {/* Generated image tag */}
-        {isPollinationImage && isLoaded && !error && (
-          <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full font-medium">
-            AI Generated
-          </div>
-        )}
-      </div>
-    </div>
-  );
-});
-
 // YouTube utility functions
 const isYouTubeUrl = (url: string): boolean => {
   if (!url) return false;
@@ -917,6 +823,34 @@ const extractTikTokVideoId = (url: string): string | null => {
   return null;
 };
 
+// Instagram utility functions
+const isInstagramUrl = (url: string): boolean => {
+  if (!url) return false;
+  const instagramRegex = /^(https?:\/\/)?(www\.)?(instagram\.com)\/(p|reel|tv)\/[^\/\s]+/i;
+  return instagramRegex.test(url);
+};
+
+const extractInstagramShortcode = (url: string): string | null => {
+  if (!url) return null;
+  
+  const patterns = [
+    // Standard Instagram post URL: https://www.instagram.com/p/ABC123/
+    /instagram\.com\/p\/([a-zA-Z0-9_-]+)/,
+    // Instagram reel URL: https://www.instagram.com/reel/ABC123/
+    /instagram\.com\/reel\/([a-zA-Z0-9_-]+)/,
+    // Instagram TV URL: https://www.instagram.com/tv/ABC123/
+    /instagram\.com\/tv\/([a-zA-Z0-9_-]+)/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return null;
+};
+
 // Google Video Link Component
 const GoogleVideoLink = memo(function GoogleVideoLinkComponent({ 
   linkId, 
@@ -973,12 +907,14 @@ export const YouTubeEmbed = memo(function YouTubeEmbedComponent({
   videoId, 
   title = "YouTube video",
   originalUrl,
-  isShorts = false
+  isShorts = false,
+  isMobile = false
 }: { 
   videoId: string; 
   title?: string; 
   originalUrl?: string;
   isShorts?: boolean;
+  isMobile?: boolean;
 }) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
@@ -988,16 +924,17 @@ export const YouTubeEmbed = memo(function YouTubeEmbedComponent({
     ? `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`
     : `https://www.youtube.com/embed/${videoId}`;
   
+  const videoMaxWidth = '400px';
+  
   return (
-    <div className={`my-6 w-full ${isShorts ? 'flex justify-center' : ''}`}>
+    <div 
+      className={`my-6 w-full ${isShorts ? 'flex justify-center' : ''}`}
+      style={{ maxWidth: videoMaxWidth }}
+    >
       <div 
-        className={`relative bg-black rounded-lg overflow-hidden shadow-lg ${
-          isShorts ? 'max-w-[400px] w-full' : 'w-full'
-        }`}
+        className="relative bg-black rounded-lg overflow-hidden shadow-lg w-full"
         style={{ 
-          aspectRatio: isShorts ? '9/16' : '16/9',
-          maxWidth: isShorts ? 'min(400px, 90vw)' : '100%',
-          width: isShorts ? 'min(400px, 90vw)' : '100%'
+          aspectRatio: isShorts ? '9/16' : '16/9'
         }}
       >
         {/* Loading state */}
@@ -1080,11 +1017,13 @@ export const YouTubeEmbed = memo(function YouTubeEmbedComponent({
 export const TikTokEmbed = memo(function TikTokEmbedComponent({ 
   videoId, 
   title = "TikTok video",
-  originalUrl 
+  originalUrl,
+  isMobile = false
 }: { 
   videoId: string; 
   title?: string; 
   originalUrl?: string;
+  isMobile?: boolean;
 }) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
@@ -1102,14 +1041,17 @@ export const TikTokEmbed = memo(function TikTokEmbedComponent({
     );
   }
   
+  const videoMaxWidth = '400px';
+  
   return (
-    <div className="my-6 w-full flex justify-center">
+    <div 
+      className="my-6 w-full flex justify-center"
+      style={{ maxWidth: videoMaxWidth }}
+    >
       <div 
-        className="relative bg-black rounded-lg overflow-hidden shadow-lg max-w-[400px] w-full"
+        className="relative bg-black rounded-lg overflow-hidden shadow-lg w-full"
         style={{ 
-          aspectRatio: '9/16',
-          maxWidth: 'min(400px, 90vw)',
-          width: 'min(400px, 90vw)'
+          aspectRatio: '9/16'
         }}
       >
         {/* Loading state */}
@@ -1182,6 +1124,125 @@ export const TikTokEmbed = memo(function TikTokEmbedComponent({
   );
 });
 
+// Instagram Embed Component with fallback to LinkPreview
+export const InstagramEmbed = memo(function InstagramEmbedComponent({ 
+  shortcode, 
+  title = "Instagram post",
+  originalUrl 
+}: { 
+  shortcode: string; 
+  title?: string; 
+  originalUrl?: string;
+}) {
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const [useFallback, setUseFallback] = useState(false);
+  
+  // Determine the embed URL based on the original URL
+  let embedUrl = '';
+  if (originalUrl) {
+    if (originalUrl.includes('/p/')) {
+      embedUrl = `https://www.instagram.com/p/${shortcode}/embed/`;
+    } else if (originalUrl.includes('/reel/')) {
+      embedUrl = `https://www.instagram.com/reel/${shortcode}/embed/`;
+    } else if (originalUrl.includes('/tv/')) {
+      embedUrl = `https://www.instagram.com/tv/${shortcode}/embed/`;
+    } else {
+      // Default to post format
+      embedUrl = `https://www.instagram.com/p/${shortcode}/embed/`;
+    }
+  }
+  
+  // If error occurs, fallback to LinkPreview
+  if (useFallback && originalUrl) {
+    return (
+      <div className="my-4">
+        <LinkPreview url={originalUrl} />
+      </div>
+    );
+  }
+  
+  return (
+    <div className="my-6 w-full flex justify-center">
+      <div 
+        className="relative bg-black rounded-lg overflow-hidden shadow-lg max-w-[400px] w-full"
+        style={{ 
+          aspectRatio: '9/16',
+          maxWidth: 'min(400px, 90vw)',
+          width: 'min(400px, 90vw)'
+        }}
+      >
+        {/* Loading state */}
+        {isLoading && !hasError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500 mx-auto mb-2"></div>
+              <p className="text-white text-sm">Loading Instagram...</p>
+            </div>
+          </div>
+        )}
+        
+        {/* Error state */}
+        {hasError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+            <div className="text-center p-4">
+              <div className="w-12 h-12 mx-auto mb-2 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 rounded-full flex items-center justify-center">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                </svg>
+              </div>
+              <p className="text-white text-sm mb-2">Instagram failed to load</p>
+              <p className="text-white text-xs mb-3 opacity-75">Falling back to link preview...</p>
+              {originalUrl && (
+                <button
+                  onClick={() => setUseFallback(true)}
+                  className="text-pink-400 hover:text-pink-300 text-xs underline mb-2 block"
+                >
+                  Show as link preview
+                </button>
+              )}
+              {originalUrl && (
+                <a
+                  href={originalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-pink-400 hover:text-pink-300 text-xs underline"
+                >
+                  Open on Instagram
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {/* Instagram iframe */}
+        {embedUrl && (
+          <iframe
+            src={embedUrl}
+            title={title}
+            frameBorder="0"
+            allow="encrypted-media"
+            allowFullScreen
+            className="absolute inset-0 w-full h-full"
+            onLoad={() => setIsLoading(false)}
+            onError={() => {
+              console.warn('Instagram embed failed, falling back to LinkPreview');
+              setHasError(true);
+              setIsLoading(false);
+              // Auto-fallback after 3 seconds
+              setTimeout(() => {
+                if (originalUrl) {
+                  setUseFallback(true);
+                }
+              }, 3000);
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+});
+
 interface MathProps {
   value: string;
   inline?: boolean;
@@ -1198,6 +1259,7 @@ const MathBlock = ({ content }: { content: string }) => {
   // Create a more stable ID that doesn't change across renders
   const id = useMemo(() => `math-block-${content.slice(0, 10).replace(/\W/g, '')}-${Math.random().toString(36).slice(2, 6)}`, [content]);
   
+  // LaTeX 렌더링 비활성화 - 원본 텍스트로 표시
   return (
     <div 
       className="math-block-wrapper my-6" 
@@ -1207,7 +1269,8 @@ const MathBlock = ({ content }: { content: string }) => {
         isolation: 'isolate' // Create a new stacking context
       }}
     >
-      <MathJaxEquation equation={content} display={true} />
+      {/* <MathJaxEquation equation={content} display={true} /> */}
+      <pre className="font-mono text-sm whitespace-pre-wrap">{content}</pre>
     </div>
   );
 };
@@ -1217,20 +1280,724 @@ const InlineMath = ({ content }: { content: string }) => {
   // Create a more stable ID that doesn't change across renders
   const id = useMemo(() => `math-inline-${content.slice(0, 10).replace(/\W/g, '')}-${Math.random().toString(36).slice(2, 6)}`, [content]);
   
+  // LaTeX 렌더링 비활성화 - 원본 텍스트로 표시
   return (
     <span 
       className="math-inline-wrapper"
       key={id}
       style={{ isolation: 'isolate' }} // Create a new stacking context
     >
-      <MathJaxEquation equation={content} display={false} />
+      {/* <MathJaxEquation equation={content} display={false} /> */}
+      <code className="font-mono text-sm">${content}$</code>
     </span>
   );
 };
 
 
 // Memoize the MarkdownContent component to prevent unnecessary re-renders
-export const MarkdownContent = memo(function MarkdownContentComponent({ 
+// Direct Video File Player Component (supports URL refresh)
+// 🚀 ChatGPT STYLE: max-width 제한 + aspect-ratio CSS로 정확한 비율 유지 (Virtuoso 스크롤 최적화)
+export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({ 
+  url,
+  aspectRatio,
+  messageId,
+  chatId,
+  userId,
+  isMobile = false,
+  maxWidth,
+  prompt,
+  sourceImageUrl,
+  onSourceImageClick
+}: { 
+  url: string;
+  aspectRatio?: string;
+  messageId?: string;
+  chatId?: string;
+  userId?: string;
+  isMobile?: boolean;
+  maxWidth?: string;
+  prompt?: string;
+  sourceImageUrl?: string;
+  onSourceImageClick?: (imageUrl: string) => void;
+}) {
+  // 🚀 INSTANT LOAD: 화면 근처(200px)에서 비디오 로드 시작 - 초기 로딩 최대화
+  const { ref: lazyRef, shouldLoad } = useLazyMedia();
+  
+  const { refreshedUrl, isRefreshing } = useUrlRefresh({
+    url,
+    messageId,
+    chatId,
+    userId,
+    // 🚀 LAZY LOADING: shouldLoad가 true일 때만 URL refresh 수행
+    enabled: shouldLoad
+  });
+
+  // sourceImageUrl도 자동 갱신
+  const { refreshedUrl: refreshedSourceImageUrl } = useUrlRefresh({
+    url: sourceImageUrl || '',
+    messageId,
+    chatId,
+    userId,
+    enabled: shouldLoad && !!sourceImageUrl
+  });
+
+  // 🚀 정확한 비율값 저장 (ChatGPT 방식)
+  const [exactAspectRatio, setExactAspectRatio] = useState<number>(1.0); // 기본값: 정사각형
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Custom Controls State
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(true); // Default to muted
+  const [volume, setVolume] = useState(0); // 0-1, starts at 0 when muted
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [isLooping, setIsLooping] = useState(false);
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Prompt 오버레이 상태
+  const [showPromptOverlay, setShowPromptOverlay] = useState(false);
+  const [copied, setCopied] = useState(false);
+  
+  // Save 상태
+  const [savingVideo, setSavingVideo] = useState(false);
+  const [savedVideo, setSavedVideo] = useState(false);
+  
+  // Mount state for portal
+  const [isMounted, setIsMounted] = useState(false);
+  
+  useEffect(() => {
+    setIsMounted(true);
+    return () => setIsMounted(false);
+  }, []);
+
+  const handleLoadedMetadata = useCallback(() => {
+    const video = videoRef.current;
+    if (video) {
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        // 비디오 메타데이터에서 정확한 aspect ratio 감지 (ChatGPT 방식: 카테고리화 없이 정확한 값)
+        const ratio = video.videoWidth / video.videoHeight;
+        setExactAspectRatio(ratio);
+      }
+      setDuration(video.duration);
+    }
+  }, []);
+
+  // 전체화면 상태 감지
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const fullscreenElement = document.fullscreenElement;
+      const isCurrentlyFullscreen = !!fullscreenElement;
+      // Check if our container or video is in fullscreen
+      const container = containerRef.current;
+      const video = videoRef.current;
+      let isOurElementFullscreen = false;
+      if (isCurrentlyFullscreen && fullscreenElement) {
+        isOurElementFullscreen = 
+          fullscreenElement === container || 
+          fullscreenElement === video ||
+          (container !== null && container.contains(fullscreenElement as Node));
+      }
+      setIsFullscreen(isOurElementFullscreen);
+    };
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  const handleVideoClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Simply toggle play/pause without seeking
+    if (video.paused) {
+      video.play();
+      setIsPlaying(true);
+    } else {
+      video.pause();
+      setIsPlaying(false);
+    }
+  }, []);
+
+  const handleProgressBarClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    const video = videoRef.current;
+    if (!video || !duration) return;
+
+    // Get click position relative to progress bar
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickPercentage = (clickX / rect.width) * 100;
+    
+    // Calculate target time
+    const targetTime = (clickPercentage / 100) * duration;
+    
+    // Seek to target time
+    video.currentTime = Math.max(0, Math.min(targetTime, duration));
+    
+    // If video is paused, play it
+    if (video.paused) {
+      video.play();
+      setIsPlaying(true);
+    }
+  }, [duration]);
+
+  const togglePlay = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.paused) {
+      video.play();
+      setIsPlaying(true);
+    } else {
+      video.pause();
+      setIsPlaying(false);
+    }
+  }, []);
+
+  const toggleMute = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (isMuted) {
+      // Unmute: restore to previous volume or default 0.5
+      const newVolume = volume > 0 ? volume : 0.5;
+      video.muted = false;
+      video.volume = newVolume;
+      setVolume(newVolume);
+      setIsMuted(false);
+    } else {
+      // Mute
+      video.muted = true;
+      setIsMuted(true);
+    }
+  }, [isMuted, volume]);
+
+  const setVolumeValue = useCallback((newVolume: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.volume = newVolume;
+    setVolume(newVolume);
+    
+    if (newVolume === 0) {
+      video.muted = true;
+      setIsMuted(true);
+    } else {
+      video.muted = false;
+      setIsMuted(false);
+    }
+  }, []);
+
+  const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    const newVolume = parseFloat(e.target.value);
+    setVolumeValue(newVolume);
+  }, [setVolumeValue]);
+
+  const toggleLoop = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.loop = !video.loop;
+    setIsLooping(video.loop);
+  }, []);
+
+  const handleDownload = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!refreshedUrl) return;
+    
+    try {
+      const response = await fetch(refreshedUrl);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = 'video.mp4';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      // Fallback: open in new tab
+      window.open(refreshedUrl, '_blank');
+    }
+  }, [refreshedUrl]);
+
+  const toggleFullScreen = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const container = containerRef.current;
+    const video = videoRef.current;
+    if (!container || !video) return;
+
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(err => {
+        console.error('Error exiting fullscreen:', err);
+      });
+    } else {
+      // Use container element for fullscreen (works better in modals)
+      container.requestFullscreen().catch(err => {
+        console.error('Error entering fullscreen:', err);
+        // Fallback: try video element if container fails
+        video.requestFullscreen().catch(err2 => {
+          console.error('Error entering fullscreen (fallback):', err2);
+        });
+      });
+    }
+  }, []);
+
+  const handleEnded = useCallback(() => {
+    setIsPlaying(false);
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+    }
+  }, []);
+
+  // Prompt 복사 핸들러
+  const handleCopyPrompt = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!prompt) return;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      setTimeout(() => {
+        setCopied(false);
+      }, 2000);
+    } catch (error) {
+      console.error('Copy failed:', error);
+    }
+  }, [prompt]);
+
+  // Save to Gallery 핸들러
+  const handleSave = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (savingVideo || savedVideo || !refreshedUrl) return;
+    setSavingVideo(true);
+    try {
+      const response = await fetch('/api/photo/save-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          videoUrl: refreshedUrl,
+          prompt: prompt || null,
+          ai_prompt: null,
+          ai_json_prompt: null,
+          chatId: chatId || null,
+          messageId: messageId || null,
+          metadata: {
+            sourceImageUrl: sourceImageUrl || null
+          }
+        })
+      });
+      if (response.ok) {
+        setSavedVideo(true);
+        setTimeout(() => {
+          setSavedVideo(false);
+        }, 2000);
+      } else {
+        const error = await response.json();
+        console.error('Save failed:', error);
+      }
+    } catch (error) {
+      console.error('Save error:', error);
+    } finally {
+      setSavingVideo(false);
+    }
+  }, [refreshedUrl, prompt, sourceImageUrl, chatId, messageId, savingVideo, savedVideo]);
+
+  // Format time helper
+  const formatTime = (time: number) => {
+    if (!time || isNaN(time)) return "0:00";
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  // 초기 aspect ratio 계산 (비디오 로드 전) - 이미지와 동일한 parseMediaDimensions 사용
+  const initialAspectRatio = useMemo(() => {
+    // 제공된 aspectRatio prop이 있으면 파싱
+    if (aspectRatio) {
+      try {
+        const [width, height] = aspectRatio.split('/').map(Number);
+        if (width && height) {
+          return width / height; // 정확한 비율 반환
+        }
+      } catch (e) {
+        // 파싱 실패 시 기본값 사용
+      }
+    }
+    
+    // 🚀 이미지와 동일한 방식: parseMediaDimensions로 URL에서 크기 정보 추출
+    const parsedDims = parseMediaDimensions(refreshedUrl || url);
+    if (parsedDims) {
+      return parsedDims.width / parsedDims.height; // 정확한 비율 반환
+    }
+    
+    return 1.0; // 기본값: 정사각형
+  }, [aspectRatio, refreshedUrl, url]);
+
+  // 감지된 aspect ratio가 있으면 사용, 없으면 초기값 사용
+  const finalAspectRatio = exactAspectRatio !== 1.0 ? exactAspectRatio : initialAspectRatio;
+
+  // 🚀 ChatGPT 패턴: 모든 중첩 요소에 동일한 aspect-ratio 적용
+  const aspectRatioStyle = `${finalAspectRatio} / 1`;
+
+  // 🚀 ChatGPT 방식: max-width만 제한하고 aspect-ratio로 높이 자동 계산 (이미지와 동일)
+  const containerStyle: React.CSSProperties = useMemo(() => {
+    if (isFullscreen) {
+      return {
+        width: '100vw',
+        height: '100vh',
+        maxWidth: 'none',
+        aspectRatio: aspectRatioStyle,
+      };
+    }
+    return {
+      maxWidth: maxWidth || '400px',
+      width: '100%',
+      aspectRatio: aspectRatioStyle,
+    };
+  }, [aspectRatioStyle, maxWidth, isFullscreen]);
+
+  return (
+    <div 
+      ref={lazyRef}
+      className={`generated-video-container my-1 group relative ${showPromptOverlay ? 'cursor-default' : 'cursor-pointer'}`}
+      style={containerStyle}
+    >
+      {/* 🚀 ChatGPT 스타일: 내부 래퍼에도 동일한 aspect-ratio 적용 (레이아웃 안정성) */}
+      <div 
+        ref={containerRef}
+        className={`relative w-full h-full overflow-hidden bg-black transition-opacity duration-300 ${isFullscreen ? 'rounded-none' : 'rounded-2xl'} ${showPromptOverlay ? 'cursor-default opacity-0 pointer-events-none' : 'opacity-100'}`}
+        style={{ aspectRatio: aspectRatioStyle }}
+        onClick={showPromptOverlay ? undefined : handleVideoClick}
+      >
+        <video 
+          ref={videoRef}
+          src={refreshedUrl}
+          playsInline
+          muted={isMuted}
+          loop={isLooping}
+          onLoadedMetadata={handleLoadedMetadata}
+          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+          onEnded={handleEnded}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          className={`w-full h-full ${isFullscreen ? 'object-contain' : 'object-cover'}`}
+          preload="metadata"
+          style={{ aspectRatio: aspectRatioStyle }}
+          onContextMenu={(e) => {
+            // Sync loop state when user changes via right-click context menu
+            setTimeout(() => {
+              const video = videoRef.current;
+              if (video) {
+                setIsLooping(video.loop);
+              }
+            }, 100);
+          }}
+        >
+          Your browser does not support the video tag.
+        </video>
+        
+        {/* Custom Overlays */}
+        
+        {/* Center Play Button - Visible when paused */}
+        {!isPlaying && !isRefreshing && (
+          <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-auto" onClick={togglePlay}>
+            <div className="w-16 h-16 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white transition-all hover:scale-105 hover:bg-black/50">
+              <Play size={32} fill="white" className="ml-1 opacity-95" />
+            </div>
+          </div>
+        )}
+
+        {/* Bottom Controls Overlay */}
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20">
+          <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-auto">
+            {/* Progress Bar */}
+            <div 
+              className="group/progress relative w-full h-1.5 mb-4 bg-white/20 rounded-full cursor-pointer overflow-visible"
+              onClick={handleProgressBarClick}
+            >
+              {/* Hover effect area */}
+              <div className="absolute -inset-y-2 left-0 right-0" />
+              
+              {/* Background Track */}
+              <div className="absolute inset-0 bg-white/20 rounded-full" />
+              
+              {/* Progress Fill */}
+              <div 
+                className="absolute inset-y-0 left-0 bg-white rounded-full transition-all duration-150"
+                style={{ width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%' }}
+              >
+                {/* Knob */}
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg scale-0 group-hover/progress:scale-100 transition-transform" />
+              </div>
+            </div>
+
+            {/* Controls Row */}
+            <div className="flex items-center justify-between text-white">
+              <div className="flex items-center gap-4">
+                <button onClick={togglePlay} className="hover:scale-110 transition-transform">
+                  {isPlaying ? <Pause size={20} fill="white" /> : <Play size={20} fill="white" />}
+                </button>
+                
+                <div className="text-[13px] font-medium tracking-tight opacity-90">
+                  {formatTime(currentTime)} / {formatTime(duration || 0)}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Volume Control with Horizontal Slider */}
+                <div 
+                  className="group/volume flex items-center"
+                  onMouseEnter={() => setShowVolumeSlider(true)}
+                  onMouseLeave={() => setShowVolumeSlider(false)}
+                >
+                  {/* Horizontal Volume Slider - appears on left */}
+                  <div 
+                    className={`overflow-hidden transition-all duration-200 flex items-center ${showVolumeSlider ? 'w-16 mr-1' : 'w-0'}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div 
+                      className="relative w-16 h-1 bg-white/30 rounded-full cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const clickX = e.clientX - rect.left;
+                        const clickPercentage = (clickX / rect.width) * 100;
+                        const newVolume = Math.max(0, Math.min(clickPercentage / 100, 1));
+                        setVolumeValue(newVolume);
+                      }}
+                    >
+                      {/* Background Track */}
+                      <div className="absolute inset-0 bg-white/30 rounded-full" />
+                      
+                      {/* Filled Progress */}
+                      <div 
+                        className="absolute inset-y-0 left-0 bg-white rounded-full transition-all duration-150"
+                        style={{ width: `${(isMuted ? 0 : volume) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                  
+                  <button onClick={toggleMute} className="hover:scale-110 transition-transform p-1">
+                    {isMuted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
+                  </button>
+                </div>
+                
+                {/* Download Button */}
+                <button onClick={handleDownload} className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100">
+                  <Download size={18} />
+                </button>
+
+                {/* Prompt Button */}
+                {prompt && (
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowPromptOverlay(true);
+                    }}
+                    className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100"
+                    aria-label="Show prompt"
+                  >
+                    <ScrollText size={18} />
+                  </button>
+                )}
+
+                {/* Save Button */}
+                <button 
+                  onClick={handleSave}
+                  disabled={savingVideo || savedVideo}
+                  className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label={savingVideo ? 'Saving...' : savedVideo ? 'Saved' : 'Save to Gallery'}
+                >
+                  {savingVideo ? (
+                    <div className="w-[18px] h-[18px] border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : savedVideo ? (
+                    <Check size={18} />
+                  ) : (
+                    <Bookmark size={18} />
+                  )}
+                </button>
+
+                {/* Loop Toggle */}
+                <button 
+                  onClick={toggleLoop} 
+                  className={`hover:scale-110 transition-transform p-1 relative ${isLooping ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17 2l4 4-4 4" />
+                    <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+                    <path d="M7 22l-4-4 4-4" />
+                    <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+                    {isLooping && (
+                      <text x="12" y="14" textAnchor="middle" fontSize="8" fill="currentColor" stroke="none" fontWeight="bold">1</text>
+                    )}
+                  </svg>
+                </button>
+                
+                {/* Fullscreen */}
+                <button onClick={toggleFullScreen} className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100">
+                  <Maximize size={18} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* 🚀 로딩 중일 때만 placeholder 표시 */}
+        {isRefreshing && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-20">
+            <div className="w-8 h-8 border-2 border-white/20 border-t-white/80 rounded-full animate-spin" />
+          </div>
+        )}
+
+        {/* 프롬프트 오버레이 */}
+        {prompt && isMounted ? createPortal(
+          <div 
+            className={`fixed inset-0 z-[9999] text-white transition-opacity duration-300 ${showPromptOverlay ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+            style={{
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              width: '100vw',
+              minWidth: '100vw',
+              height: '100vh',
+              minHeight: '100vh',
+              overflow: 'hidden'
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            {/* 배경: 블러 처리된 비디오 프레임 */}
+            <div 
+              className="absolute z-0"
+              style={{
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                width: '100vw',
+                minWidth: '100vw',
+                height: '100vh',
+                minHeight: '100vh',
+                backgroundColor: 'rgba(0, 0, 0, 0.8)'
+              }}
+            />
+            <div 
+              className="absolute z-0 overflow-hidden"
+              style={{
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                width: '100vw',
+                minWidth: '100vw',
+                height: '100vh',
+                minHeight: '100vh'
+              }}
+            >
+              <video
+                src={refreshedUrl}
+                className="absolute"
+                style={{
+                  top: 0,
+                  left: 0,
+                  width: '100vw',
+                  minWidth: '100vw',
+                  height: '100vh',
+                  minHeight: '100vh',
+                  objectFit: 'cover',
+                  filter: 'brightness(0.3) blur(20px)',
+                  transform: 'scale(1.1)',
+                  objectPosition: 'center'
+                }}
+                muted
+                loop
+                autoPlay
+              />
+            </div>
+
+            {/* 콘텐츠 영역 */}
+            <div className="relative w-full h-full flex flex-col justify-center items-center text-center z-20 p-6">
+              {/* Done / close button - top right (desktop) / bottom right (mobile) */}
+              <button
+                className={`absolute ${isMobile ? 'bottom-6 right-4' : 'top-4 right-4'} z-30 w-12 h-12 rounded-full flex items-center justify-center cursor-pointer`}
+                style={{
+                  color: 'white',
+                  backgroundColor: '#007AFF',
+                  border: '1px solid #007AFF',
+                  boxShadow:
+                    '0 8px 40px rgba(0, 122, 255, 0.3), 0 4px 20px rgba(0, 122, 255, 0.2), 0 2px 8px rgba(0, 122, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowPromptOverlay(false);
+                }}
+                aria-label="Close prompt overlay"
+              >
+                <Check size={18} />
+              </button>
+
+              {/* Prompt content */}
+              <div className="flex flex-col items-center w-full flex-1 min-h-0">
+                <div className="w-full flex justify-center flex-1 min-h-0 overflow-hidden pt-10 sm:pt-28 pb-22 sm:pb-28">
+                  <div className="max-w-3xl w-full h-full overflow-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-2 flex flex-col items-start justify-start">
+                    {/* 소스 이미지 썸네일 */}
+                    {sourceImageUrl && (
+                      <div className="mb-3 flex justify-center w-full">
+                        <img
+                          src={refreshedSourceImageUrl || sourceImageUrl}
+                          alt="Source image"
+                          className="max-w-[150px] max-h-[150px] object-contain rounded-lg"
+                          style={{ maxWidth: '150px', maxHeight: '150px' }}
+                        />
+                      </div>
+                    )}
+                    
+                    {/* 프롬프트 텍스트 */}
+                    <div className="text-base md:text-lg font-medium leading-relaxed text-white w-full text-left py-8 whitespace-pre-wrap">
+                      {prompt}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Copy button - center bottom */}
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCopyPrompt(e);
+                  }}
+                  className="px-4 py-2.5 rounded-full text-white transition-colors cursor-pointer flex items-center gap-2"
+                  style={getAdaptiveGlassStyleBlur()}
+                  aria-label="Copy"
+                >
+                  {copied ? <Check size={18} /> : <Copy size={18} />}
+                  <span className="text-sm font-medium">{copied ? 'Copied!' : 'Copy'}</span>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        ) : null}
+      </div>
+    </div>
+  );
+});
+
+function MarkdownContentComponent({ 
   content, 
   enableSegmentation = false,
   variant = 'default',
@@ -1239,30 +2006,70 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   messageType = 'default',
   thumbnailMap = {},
   titleMap = {},
+  linkPreviewData = {},
   isMobile = false,
   noTail = false,
   isLongPressActive = false,
-  isStreaming = false
+  isStreaming = false,
+  messageId,
+  chatId,
+  userId,
+  promptMap = {},
+  sourceImageMap = {}
 }: MarkdownContentProps) {
 
   // Image modal state
-  const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string } | null>(null);
+  const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string; prompt?: string; sourceImageUrl?: string } | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   
   // Image gallery state
-  const [imageGallery, setImageGallery] = useState<{ src: string; alt: string }[]>([]);
+  const [imageGallery, setImageGallery] = useState<{ src: string; alt: string; prompt?: string; sourceImageUrl?: string }[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isGalleryMode, setIsGalleryMode] = useState(false);
+  
+  // Save image state
+  const [savingImage, setSavingImage] = useState(false);
+  const [savedImage, setSavedImage] = useState(false);
   
   // Mermaid modal state
   const [selectedMermaid, setSelectedMermaid] = useState<{ chart: string; title?: string } | null>(null);
   
-  // Mobile UI visibility state
+  // Mobile UI visibility state (for Mermaid modal)
   const [showMobileUI, setShowMobileUI] = useState(false);
   
-  // Mobile swipe state
+  // Mobile swipe state (for Mermaid modal)
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
   const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
+  
+  // Mobile touch handlers (for Mermaid modal only - ImageModal handles its own touch handlers)
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isMobile) return;
+    const touch = e.touches[0];
+    setTouchStart({ x: touch.clientX, y: touch.clientY });
+    setTouchEnd(null);
+  }, [isMobile]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isMobile) return;
+    const touch = e.touches[0];
+    setTouchEnd({ x: touch.clientX, y: touch.clientY });
+  }, [isMobile]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!isMobile) {
+      setTouchStart(null);
+      setTouchEnd(null);
+      return;
+    }
+    if (!touchStart || !touchEnd) {
+      setShowMobileUI(prev => !prev);
+      setTouchStart(null);
+      setTouchEnd(null);
+      return;
+    }
+    setTouchStart(null);
+    setTouchEnd(null);
+  }, [isMobile, touchStart, touchEnd]);
 
   // Check if we're in browser environment for portal rendering
   useEffect(() => {
@@ -1271,16 +2078,43 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   }, []);
 
   // Image modal functions
-  const openImageModal = useCallback((src: string | undefined, alt: string, allImages?: { src: string; alt: string; originalMatch?: string }[], imageIndex?: number) => {
+  const openImageModal = useCallback((src: string | undefined, alt: string, allImages?: { src: string; alt: string; originalMatch?: string; prompt?: string }[], imageIndex?: number) => {
     if (src && typeof src === 'string') {
       console.log('Opening image modal:', { src, alt, allImages, imageIndex });
-      setSelectedImage({ src, alt });
-      setShowMobileUI(false); // Reset mobile UI visibility
+      
+      // Extract prompt from promptMap, allImages, or alt
+      let prompt: string | undefined;
+      
+      // 1. promptMap에서 먼저 찾기
+      if (promptMap && promptMap[src]) {
+        prompt = promptMap[src];
+      }
+      // 2. allImages에서 찾기
+      else if (allImages && imageIndex !== undefined && imageIndex >= 0) {
+        const imageData = allImages[imageIndex];
+        prompt = imageData?.prompt;
+      }
+      // 3. alt가 긴 텍스트면 prompt로 사용 (하지만 "image" 같은 단순한 텍스트는 제외)
+      if (!prompt && alt && alt.length > 20 && alt !== 'Image' && alt !== 'image' && !alt.startsWith('http')) {
+        prompt = alt;
+      }
+      
+      // Extract source image URL from sourceImageMap
+      const sourceImageUrl = sourceImageMap && sourceImageMap[src] ? sourceImageMap[src] : undefined;
+      
+      setSelectedImage({ src, alt, prompt, sourceImageUrl });
       
       // If multiple images are provided, set up gallery mode
       if (allImages && allImages.length > 1) {
         console.log('Setting up gallery mode with', allImages.length, 'images');
-        setImageGallery(allImages);
+        // Map allImages to include prompt from promptMap and sourceImageUrl from sourceImageMap
+        const galleryImages = allImages.map(img => ({
+          src: img.src,
+          alt: img.alt,
+          prompt: img.prompt || (promptMap && promptMap[img.src]) || undefined,
+          sourceImageUrl: sourceImageMap && sourceImageMap[img.src] ? sourceImageMap[img.src] : undefined
+        }));
+        setImageGallery(galleryImages);
         setCurrentImageIndex(imageIndex || 0);
         setIsGalleryMode(true);
       } else {
@@ -1290,26 +2124,25 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
         setIsGalleryMode(false);
       }
     }
-  }, []);
+  }, [promptMap, sourceImageMap]);
 
   const closeImageModal = useCallback(() => {
     setSelectedImage(null);
     setImageGallery([]);
     setCurrentImageIndex(0);
     setIsGalleryMode(false);
-    setShowMobileUI(false); // Reset mobile UI visibility
+    setSavingImage(false); // Reset saving state
+    setSavedImage(false); // Reset saved state
   }, []);
 
   // Mermaid modal functions
   const openMermaidModal = useCallback((chart: string, title?: string) => {
     console.log('Opening Mermaid modal:', { chart, title });
     setSelectedMermaid({ chart, title });
-    setShowMobileUI(false); // Reset mobile UI visibility
   }, []);
 
   const closeMermaidModal = useCallback(() => {
     setSelectedMermaid(null);
-    setShowMobileUI(false); // Reset mobile UI visibility
   }, []);
 
   // Gallery navigation functions
@@ -1325,76 +2158,69 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   const navigateToPreviousImage = useCallback(() => {
     if (imageGallery.length > 1) {
       const prevIndex = currentImageIndex === 0 ? imageGallery.length - 1 : currentImageIndex - 1;
-      console.log('Navigating to previous image:', prevIndex, 'of', imageGallery.length);
       setCurrentImageIndex(prevIndex);
       setSelectedImage(imageGallery[prevIndex]);
     }
   }, [imageGallery, currentImageIndex]);
-
-  // Mobile touch handler to toggle UI visibility
-  const handleMobileTouch = useCallback(() => {
-    if (isMobile) {
-      setShowMobileUI(prev => !prev);
-    }
-  }, [isMobile]);
-
-  // Mobile touch handlers - separate for UI toggle and swipe detection
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!isMobile) return;
-    
-    const touch = e.touches[0];
-    setTouchStart({ x: touch.clientX, y: touch.clientY });
-    setTouchEnd(null);
-  }, [isMobile]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isMobile) return;
-    
-    const touch = e.touches[0];
-    setTouchEnd({ x: touch.clientX, y: touch.clientY });
-  }, [isMobile]);
-
-  const handleTouchEnd = useCallback(() => {
-    if (!isMobile || !touchStart || !touchEnd) {
-      // If no proper touch sequence, just toggle UI
-      if (isMobile) {
-        handleMobileTouch();
-      }
-      return;
-    }
-    
-    const deltaX = touchEnd.x - touchStart.x;
-    const deltaY = touchEnd.y - touchStart.y;
-    const minSwipeDistance = 50;
-    
-    // Check if it's a swipe
-    const isSwipe = Math.abs(deltaX) > minSwipeDistance || Math.abs(deltaY) > minSwipeDistance;
-    
-    if (isSwipe && isGalleryMode && imageGallery.length > 1) {
-      // Process swipe navigation
-      if (Math.abs(deltaX) > Math.abs(deltaY)) {
-        // Horizontal swipe
-        if (deltaX > 0) {
-          navigateToPreviousImage();
-        } else {
-          navigateToNextImage();
-        }
-      } else {
-        // Vertical swipe
-        if (deltaY > 0) {
-          navigateToPreviousImage();
-        } else {
-          navigateToNextImage();
-        }
-      }
+  
+  const navigateImage = useCallback((direction: 'prev' | 'next') => {
+    if (direction === 'next') {
+      navigateToNextImage();
     } else {
-      // Not a swipe or no gallery - toggle UI
-      handleMobileTouch();
+      navigateToPreviousImage();
     }
-    
-    setTouchStart(null);
-    setTouchEnd(null);
-  }, [isMobile, isGalleryMode, imageGallery.length, touchStart, touchEnd, navigateToPreviousImage, navigateToNextImage, handleMobileTouch]);
+  }, [navigateToNextImage, navigateToPreviousImage]);
+  
+  // 이미지를 ImageModalImage 형식으로 변환
+  const galleryImages: ImageModalImage[] = useMemo(() => {
+    return imageGallery.map(img => ({
+      src: img.src,
+      alt: img.alt,
+      prompt: img.prompt,
+      sourceImageUrl: img.sourceImageUrl
+    }));
+  }, [imageGallery]);
+  
+  // 저장 핸들러. ImageModal에서 { imageUrl, prompt?, sourceImageUrl?, originalSrc? } 페이로드로 호출.
+  // prompt/sourceImageUrl은 refreshed URL과 map 키 불일치 시 전달값 우선, 없으면 map fallback.
+  const handleSave = useCallback(async (payload: { imageUrl: string; prompt?: string | null; sourceImageUrl?: string | null; originalSrc?: string }) => {
+    if (savingImage || savedImage) return;
+    setSavingImage(true);
+    try {
+      const imageUrl = payload.imageUrl;
+      const prompt = payload.prompt ?? promptMap[imageUrl] ?? null;
+      const sourceImageUrl = payload.sourceImageUrl ?? sourceImageMap[imageUrl] ?? null;
+
+      const response = await fetch('/api/photo/save-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl,
+          prompt: prompt || null,
+          ai_prompt: null,
+          ai_json_prompt: null,
+          chatId: chatId || null,
+          messageId: messageId || null,
+          metadata: {
+            sourceImageUrl: sourceImageUrl || null
+          }
+        })
+      });
+      if (response.ok) {
+        setSavedImage(true);
+        setTimeout(() => {
+          setSavedImage(false);
+        }, 2000);
+      } else {
+        const error = await response.json();
+        console.error('Save failed:', error);
+      }
+    } catch (error) {
+      console.error('Save error:', error);
+    } finally {
+      setSavingImage(false);
+    }
+  }, [savingImage, savedImage, promptMap, sourceImageMap, chatId, messageId]);
 
   // Handle keyboard navigation for image modal and gallery
   useEffect(() => {
@@ -1428,8 +2254,10 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
   }, [selectedImage, isGalleryMode, imageGallery.length, selectedMermaid, navigateToNextImage, navigateToPreviousImage, closeImageModal, closeMermaidModal]);
 
   // Pre-process the content to handle LaTeX and escape currency dollar signs
+  // LaTeX 렌더링 비활성화
   const processedContent = useMemo(() => {
-    return preprocessLaTeX(content);
+    // return preprocessLaTeX(content);
+    return content; // LaTeX 전처리 없이 원본 반환
   }, [content]);
 
   // Build message groups (arrays of segments). When segmentation is disabled, treat as a single group.
@@ -1440,85 +2268,47 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
 
   // Extract all images from content for gallery functionality
   const allImages = useMemo(() => {
-    const images: { src: string; alt: string; originalMatch?: string }[] = [];
+    const images: { src: string; alt: string; originalMatch?: string; prompt?: string }[] = [];
     
     // Extract images from markdown image syntax (these are already processed from IMAGE_ID)
     const markdownImageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
     let match;
     while ((match = markdownImageRegex.exec(processedContent)) !== null) {
       const [fullMatch, alt, src] = match;
+      const prompt = promptMap[src] || undefined;
       images.push({ 
         src, 
         alt: alt || `Image ${images.length + 1}`,
-        originalMatch: fullMatch
-      });
-    }
-    
-    // Extract raw image URLs
-    const rawImageRegex = /(https:\/\/image\.pollinations\.ai\/[^\s)]+)/g;
-    while ((match = rawImageRegex.exec(processedContent)) !== null) {
-      const src = match[1];
-      images.push({ 
-        src, 
-        alt: `Generated image ${images.length + 1}`,
-        originalMatch: match[0]
+        originalMatch: fullMatch,
+        prompt
       });
     }
     
     // Extract Supabase storage image URLs (both custom domain and default domain)
-    const supabaseImageRegex = /(https:\/\/[^\s/]+\/storage\/v1\/object\/public\/gemini-images\/[^\s)]+)/g;
+    const supabaseImageRegex = /(https:\/\/[^\s/]+\/storage\/v1\/object\/(public\/gemini-images|sign\/generated-images)\/[^\s)]+)/g;
     while ((match = supabaseImageRegex.exec(processedContent)) !== null) {
       const src = match[1];
       // Avoid duplicates
       if (!images.find(img => img.src === src)) {
+        const prompt = promptMap[src] || undefined;
         images.push({ 
           src, 
           alt: `Generated image ${images.length + 1}`,
-          originalMatch: match[0]
+          originalMatch: match[0],
+          prompt
         });
       }
     }
     
     console.log('Extracted images for gallery:', images);
     return images;
-  }, [processedContent]);
+  }, [processedContent, promptMap]);
 
 
 
   // Function to detect image URLs (from original code)
   const styleImageUrls = useCallback((text: string) => {
-    if (!text.includes('image.pollinations.ai')) return text;
-    
-    const pollinationsUrlRegex = /(https:\/\/image\.pollinations\.ai\/[^\s]+)/g;
-    
-    const parts = [];
-    let lastIndex = 0;
-    let match;
-
-    while ((match = pollinationsUrlRegex.exec(text)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(text.slice(lastIndex, match.index));
-      }
-      
-      const imageUrl = match[1];
-      const decodedUrl = decodeURIComponent(imageUrl);
-      const urlWithNoLogo = ensureNoLogo(decodedUrl);
-      
-      parts.push({
-        type: 'image_link',
-        key: match.index,
-        url: urlWithNoLogo,
-        display: urlWithNoLogo
-      });
-      
-      lastIndex = match.index + match[0].length;
-    }
-    
-    if (lastIndex < text.length) {
-      parts.push(text.slice(lastIndex));
-    }
-    
-    return parts.length > 0 ? parts : text;
+    return text;
   }, []);
 
   // Function to detect YouTube URLs in text (including Shorts)
@@ -1602,6 +2392,45 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     return parts.length > 0 ? parts : text;
   }, []);
 
+  // Function to detect Instagram URLs in text
+  const styleInstagramUrls = useCallback((text: string) => {
+    if (!text.includes('instagram.com')) return text;
+    
+    const instagramUrlRegex = /(https?:\/\/(?:www\.)?instagram\.com\/(?:p|reel|tv)\/[a-zA-Z0-9_-]+(?:\S*)?)/g;
+    
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = instagramUrlRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      
+      const instagramUrl = match[1];
+      const shortcode = extractInstagramShortcode(instagramUrl);
+      
+      if (shortcode) {
+        parts.push({
+          type: 'instagram_link',
+          key: match.index,
+          url: instagramUrl,
+          shortcode: shortcode
+        });
+      } else {
+        parts.push(instagramUrl);
+      }
+      
+      lastIndex = match.index + match[0].length;
+    }
+    
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+    
+    return parts.length > 0 ? parts : text;
+  }, []);
+
 
   // Function to detect Google Video link IDs in text
   const styleGoogleVideoLinks = useCallback((text: string) => {
@@ -1649,8 +2478,11 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
     while ((match = generalUrlRegex.exec(text)) !== null) {
       const url = match[1];
       
-      // Skip if it's a YouTube URL or image URL (already handled)
-      if (url.includes('youtube.com') || url.includes('youtu.be') || url.includes('image.pollinations.ai')) {
+      // Skip if it's a YouTube URL, TikTok URL, Instagram URL, Twitter URL, or image URL (already handled)
+      if (url.includes('youtube.com') || url.includes('youtu.be') || 
+          url.includes('tiktok.com') || url.includes('vm.tiktok.com') ||
+          url.includes('instagram.com') ||
+          url.includes('twitter.com') || url.includes('x.com')) {
         continue;
       }
       
@@ -1743,77 +2575,6 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
         // 🚀 FEATURE: Apply search term highlighting first
         const highlightedContent = highlightSearchTerm(children, searchTerm, { messageType });
         
-        // Handle image markdown pattern
-        const pollinationsRegex = /!\[([^\]]*)\]\((https:\/\/image\.pollinations\.ai\/[^)]+)\)/g;
-        const match = pollinationsRegex.exec(children);
-        
-        if (match) {
-          const [fullMatch, altText, imageUrl] = match;
-          const decodedUrl = decodeURIComponent(imageUrl);
-          const urlWithNoLogo = ensureNoLogo(decodedUrl);
-          
-          return (
-            <div className="my-4">
-              <div className="block cursor-pointer">
-                <ImageWithLoading 
-                  src={urlWithNoLogo} 
-                  alt={altText || "Generated image"} 
-                  className="w-auto max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md " 
-                  style={{ borderRadius: '32px' }}
-                  onImageClick={() => {
-                    // Find the image index by matching the URL or the original match
-                    const imageIndex = allImages.findIndex(img => 
-                      img.src === urlWithNoLogo || 
-                      img.src === imageUrl ||
-                      img.originalMatch === `![](${imageUrl})` ||
-                      img.originalMatch === `![${altText || ""}](${imageUrl})` ||
-                      (img.originalMatch && img.originalMatch.includes(imageUrl))
-                    );
-                    console.log('Image click - found index:', imageIndex, 'for URL:', urlWithNoLogo);
-                    openImageModal(urlWithNoLogo, altText || "Generated image", allImages, imageIndex >= 0 ? imageIndex : 0);
-                  }}
-                />
-              </div>
-              <div className="text-sm text-[var(--muted)] mt-2 italic text-center">{altText}</div>
-            </div>
-          );
-        }
-        
-        // Process raw image URLs
-        const rawPollinationsRegex = /(https:\/\/image\.pollinations\.ai\/[^\s)]+)/g;
-        const rawMatch = rawPollinationsRegex.exec(children);
-        
-        if (rawMatch) {
-          const [, imageUrl] = rawMatch;
-          const decodedUrl = decodeURIComponent(imageUrl);
-          const urlWithNoLogo = ensureNoLogo(decodedUrl);
-          
-          return (
-            <div className="my-4">
-              <div className="block cursor-pointer">
-                <ImageWithLoading 
-                  src={urlWithNoLogo} 
-                  alt="Generated image" 
-                  className="rounded-lg max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md" 
-                  onImageClick={() => {
-                    // Find the image index by matching the URL or the original match
-                    const imageIndex = allImages.findIndex(img => 
-                      img.src === urlWithNoLogo || 
-                      img.src === imageUrl ||
-                      img.originalMatch === `![](${imageUrl})` ||
-                      img.originalMatch === `![Generated image](${imageUrl})` ||
-                      (img.originalMatch && img.originalMatch.includes(imageUrl))
-                    );
-                    console.log('Image click - found index:', imageIndex, 'for URL:', urlWithNoLogo);
-                    openImageModal(urlWithNoLogo, "Generated image", allImages, imageIndex >= 0 ? imageIndex : 0);
-                  }}
-                />
-              </div>
-              <div className="text-sm text-[var(--muted)] mt-2 italic text-center">Generated Image</div>
-            </div>
-          );
-        }
-        
         // Process for raw image URLs
         const processedImageContent = styleImageUrls(children);
         
@@ -1823,8 +2584,11 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       // Process for TikTok URLs
       const processedTikTokContent = Array.isArray(processedYouTubeContent) ? processedYouTubeContent : styleTikTokUrls(processedYouTubeContent);
       
+      // Process for Instagram URLs
+      const processedInstagramContent = Array.isArray(processedTikTokContent) ? processedTikTokContent : styleInstagramUrls(processedTikTokContent);
+      
       // Process for Google Video links
-      const processedGoogleVideoContent = Array.isArray(processedTikTokContent) ? processedTikTokContent : styleGoogleVideoLinks(processedTikTokContent);
+      const processedGoogleVideoContent = Array.isArray(processedInstagramContent) ? processedInstagramContent : styleGoogleVideoLinks(processedInstagramContent);
       
       // Process for general URLs
       const processedContent = Array.isArray(processedGoogleVideoContent) ? processedGoogleVideoContent : styleGeneralUrls(processedGoogleVideoContent);
@@ -1840,29 +2604,42 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                   </span>;
             } else if (part && typeof part === 'object' && 'type' in part) {
               if (part.type === 'image_link' && 'display' in part && 'url' in part) {
+                // allImages에서 prompt 찾기
+                const imageData = allImages.find(img => 
+                  img.src === part.url ||
+                  img.originalMatch === `![](${part.url})` ||
+                  img.originalMatch === `![Generated image](${part.url})` ||
+                  (img.originalMatch && img.originalMatch.includes(part.url))
+                );
+                const imagePrompt = imageData?.prompt;
+                const imageSourceImageUrl = sourceImageMap && part.url ? sourceImageMap[part.url] : undefined;
+                
                 return (
                   <div key={part.key} className="my-4">
-                    <div className="block cursor-pointer">
-                      <ImageWithLoading 
-                        src={part.url} 
-                        alt="Generated image" 
-                        className="w-auto max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md " 
-                        style={{ borderRadius: '32px' }}
-                        onImageClick={() => {
-                          // Find the image index by matching the URL or the original match
-                          const imageIndex = allImages.findIndex(img => 
-                            img.src === part.url ||
-                            img.originalMatch === `![](${part.url})` ||
-                            img.originalMatch === `![Generated image](${part.url})` ||
-                            (img.originalMatch && img.originalMatch.includes(part.url))
-                          );
-                          console.log('Image click - found index:', imageIndex, 'for URL:', part.url);
-                          openImageModal(part.url, "Generated image", allImages, imageIndex >= 0 ? imageIndex : 0);
-                        }}
-                      />
-                      <div className="text-xs text-[var(--muted)] mt-2 text-center break-all">
-                        {part.display as string}
-                      </div>
+                    <ImageGalleryStack
+                      images={[{
+                        src: part.url,
+                        alt: "Generated image",
+                        prompt: imagePrompt,
+                        sourceImageUrl: imageSourceImageUrl
+                      }]}
+                      onSingleImageClick={(imageSrc, imageAlt, allImagesArray, imageIndex) => {
+                        // Find the image index by matching the URL or the original match
+                        const foundIndex = allImages.findIndex(img => 
+                          img.src === part.url ||
+                          img.originalMatch === `![](${part.url})` ||
+                          img.originalMatch === `![Generated image](${part.url})` ||
+                          (img.originalMatch && img.originalMatch.includes(part.url))
+                        );
+                        console.log('Image click - found index:', foundIndex, 'for URL:', part.url);
+                        openImageModal(part.url, "Generated image", allImages, foundIndex >= 0 ? foundIndex : 0);
+                      }}
+                      isMobile={isMobile}
+                      chatId={chatId}
+                      messageId={messageId}
+                    />
+                    <div className="text-xs text-[var(--muted)] mt-2 text-center break-all">
+                      {part.display as string}
                     </div>
                   </div>
                 );
@@ -1874,6 +2651,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                     title="YouTube video" 
                     originalUrl={part.url}
                     isShorts={'isShorts' in part ? part.isShorts as boolean : false}
+                    isMobile={isMobile}
                   />
                 );
               } else if (part.type === 'tiktok_link' && 'videoId' in part && 'url' in part) {
@@ -1882,6 +2660,16 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                     key={part.key}
                     videoId={part.videoId as string} 
                     title="TikTok video" 
+                    originalUrl={part.url}
+                    isMobile={isMobile}
+                  />
+                );
+              } else if (part.type === 'instagram_link' && 'shortcode' in part && 'url' in part) {
+                return (
+                  <InstagramEmbed 
+                    key={part.key}
+                    shortcode={part.shortcode as string} 
+                    title="Instagram post" 
                     originalUrl={part.url}
                   />
                 );
@@ -1919,62 +2707,56 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       </p>;
     },
     img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
-      // Agent 도구에서 생성된 이미지 URL을 처리합니다
-      if (src && typeof src === 'string' && (src.includes('image.pollinations.ai'))) {
-        const urlWithNoLogo = ensureNoLogo(src);
-        
-        return (
-          <div className="block my-4 cursor-pointer">
-                          <ImageWithLoading 
-                src={urlWithNoLogo} 
-                alt={alt || "Generated image"} 
-                className="w-auto max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md " 
-                style={{ borderRadius: '18px' }}
-                onImageClick={() => {
-                  // Find the image index by matching the URL or the original match
-                  const imageIndex = allImages.findIndex(img => 
-                    img.src === urlWithNoLogo || 
-                    img.src === src ||
-                    img.originalMatch === `![](${src})` ||
-                    img.originalMatch === `![${alt || "Generated image"}](${src})` ||
-                    (img.originalMatch && img.originalMatch.includes(src))
-                  );
-                  console.log('Image click - found index:', imageIndex, 'for URL:', urlWithNoLogo);
-                  openImageModal(urlWithNoLogo, alt || "Generated image", allImages, imageIndex >= 0 ? imageIndex : 0);
-                }}
-                {...props}
-              />
-            {alt && <div className="text-sm text-[var(--muted)] mt-2 italic text-center">{alt}</div>}
-          </div>
-        );
+      // 🚀 모든 이미지를 ImageGalleryStack으로 통일 렌더링
+      // src가 문자열인지 확인
+      if (!src || typeof src !== 'string') {
+        return <span className="text-[var(--muted)]">[Unable to load image]</span>;
       }
       
-      // Regular image rendering with loading state and modal
-      return src ? (
-        <div className="my-1 cursor-pointer">
-          <ImageWithLoading 
-            src={src} 
-            alt={alt || "Image"} 
-            className="w-auto max-w-full hover:opacity-90 transition-opacity" 
-            style={{ borderRadius: '18px' }}
-            onImageClick={() => {
-              if (typeof src === 'string') {
-                // Find the image index by matching the URL or the original match
-                const imageIndex = allImages.findIndex(img => 
-                  img.src === src ||
-                  img.originalMatch === `![](${src})` ||
-                  img.originalMatch === `![${alt || "Image"}](${src})` ||
-                  (img.originalMatch && img.originalMatch.includes(src))
-                );
-                console.log('Image click - found index:', imageIndex, 'for URL:', src);
-                openImageModal(src, alt || "Image", allImages, imageIndex >= 0 ? imageIndex : 0);
-              }
-            }}            {...props} 
+      // allImages에서 prompt 찾기
+      const imageData = allImages.find(img => 
+        img.src === src ||
+        img.originalMatch === `![](${src})` ||
+        img.originalMatch === `![${alt || "Image"}](${src})` ||
+        (img.originalMatch && img.originalMatch.includes(src))
+      );
+      const imagePrompt = imageData?.prompt;
+      const imageSourceImageUrl = sourceImageMap ? sourceImageMap[src] : undefined;
+      
+      // ImageGalleryStack을 사용하여 단일 이미지도 렌더링
+      return (
+        <div 
+          className="my-1"
+          style={{
+            background: 'transparent',
+            padding: '0',
+            border: 'none',
+            boxShadow: 'none',
+            overflow: 'visible',
+            marginBottom: '8px'
+          }}
+        >
+          <ImageGalleryStack
+            images={[{
+              src: src,
+              alt: alt || "Image",
+              prompt: imagePrompt,
+              sourceImageUrl: imageSourceImageUrl
+            }]}
+            onSingleImageClick={(imageSrc, imageAlt, allImagesArray, imageIndex) => {
+              const foundIndex = allImages.findIndex(img => 
+                img.src === src ||
+                img.originalMatch === `![](${src})` ||
+                img.originalMatch === `![${alt || "Image"}](${src})` ||
+                (img.originalMatch && img.originalMatch.includes(src))
+              );
+              openImageModal(src, alt || "Image", allImages, foundIndex >= 0 ? foundIndex : 0);
+            }}
+            isMobile={isMobile}
+            chatId={chatId}
+            messageId={messageId}
           />
-          {alt && <div className="text-sm text-[var(--muted)] mt-2 italic text-center">{alt}</div>}
         </div>
-      ) : (
-        <span className="text-[var(--muted)]">[Unable to load image]</span>
       );
     },
     a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
@@ -1995,9 +2777,36 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               title={linkText || "YouTube video"} 
               originalUrl={href}
               isShorts={isShorts}
+              isMobile={isMobile}
             />
           );
         }
+      }
+
+      // Check if this is a direct video link (mp4, webm, etc.)
+      const isVideoFile = href && (
+        href.toLowerCase().endsWith('.mp4') || 
+        href.toLowerCase().endsWith('.webm') || 
+        href.toLowerCase().endsWith('.mov') ||
+        href.includes('generated-videos') // Supabase bucket name
+      );
+
+      if (href && isVideoFile) {
+        // 🚀 이미지와 동일한 방식: parseMediaDimensions가 URL에서 크기 정보를 자동으로 파싱
+        // aspectRatio prop은 선택적이며, URL에 크기 정보가 없을 때만 사용
+        const videoPrompt = promptMap && href ? promptMap[href] : undefined;
+        const videoSourceImageUrl = sourceImageMap && href ? sourceImageMap[href] : undefined;
+        return (
+          <DirectVideoEmbed 
+            url={href} 
+            messageId={messageId} 
+            chatId={chatId} 
+            userId={userId}
+            isMobile={isMobile}
+            prompt={videoPrompt}
+            sourceImageUrl={videoSourceImageUrl}
+          />
+        );
       }
 
       // Check if this is a TikTok link
@@ -2011,6 +2820,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               videoId={videoId} 
               title={linkText || "TikTok video"} 
               originalUrl={href}
+              isMobile={isMobile}
             />
           );
         }
@@ -2030,63 +2840,55 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           );
         }
       }
+
+      // Check if this is an Instagram link
+      if (href && isInstagramUrl(href)) {
+        const shortcode = extractInstagramShortcode(href);
+        const linkText = typeof children === 'string' ? children : extractText(children);
+        
+        if (shortcode) {
+          return (
+            <InstagramEmbed 
+              shortcode={shortcode} 
+              title={linkText || "Instagram post"} 
+              originalUrl={href}
+            />
+          );
+        }
+      }
       
       // Check if this is a Supabase storage image link (Gemini images)
       // Support both default Supabase domain and custom domain (auth.chatflix.app)
-      if (href && href.includes('/storage/v1/object/public/gemini-images/')) {
+      if (href && (
+        href.includes('/storage/v1/object/public/gemini-images/') ||
+        href.includes('/storage/v1/object/sign/generated-images/')
+      )) {
         const linkText = typeof children === 'string' ? children : extractText(children);
+        const imagePrompt = promptMap && href ? promptMap[href] : undefined;
+        const imageSourceImageUrl = sourceImageMap && href ? sourceImageMap[href] : undefined;
         
         return (
           <div className="my-4">
-            <div className="block cursor-pointer">
-              <ImageWithLoading 
-                src={href} 
-                alt={linkText || "Generated image"} 
-                className="w-auto max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md " 
-                style={{ borderRadius: '32px' }}
-                onImageClick={() => {
-                  const imageIndex = allImages.findIndex(img => 
-                    img.src === href ||
-                    img.originalMatch === `![](${href})` ||
-                    img.originalMatch === `![${linkText || "Generated image"}](${href})` ||
-                    (img.originalMatch && img.originalMatch.includes(href))
-                  );
-                  openImageModal(href, linkText || "Generated image", allImages, imageIndex >= 0 ? imageIndex : 0);
-                }}
-              />
-            </div>
-          </div>
-        );
-      }
-      
-      // Check if this is a pollinations.ai image link
-      if (href && href.includes('image.pollinations.ai')) {
-        const urlWithNoLogo = ensureNoLogo(href);
-        const linkText = typeof children === 'string' ? children : extractText(children);
-        
-        return (
-          <div className="my-4">
-            <div className="block cursor-pointer">
-                              <ImageWithLoading 
-                  src={urlWithNoLogo} 
-                  alt={linkText || "Generated image"} 
-                  className="w-auto max-w-full hover:opacity-90 transition-opacity border border-[var(--accent)] shadow-md " 
-                  style={{ borderRadius: '18px' }}
-                  onImageClick={() => {
-                    // Find the image index by matching the URL or the original match
-                    const imageIndex = allImages.findIndex(img => 
-                      img.src === urlWithNoLogo || 
-                      img.src === href ||
-                      img.originalMatch === `![](${href})` ||
-                      img.originalMatch === `![${linkText || "Generated image"}](${href})` ||
-                      (img.originalMatch && img.originalMatch.includes(href))
-                    );
-                    console.log('Image click - found index:', imageIndex, 'for URL:', urlWithNoLogo);
-                    openImageModal(urlWithNoLogo, linkText || "Generated image", allImages, imageIndex >= 0 ? imageIndex : 0);
-                  }}
-                />
-            </div>
-            <div className="text-sm text-[var(--muted)] mt-2 italic text-center">{linkText}</div>
+            <ImageGalleryStack
+              images={[{
+                src: href,
+                alt: linkText || "Generated image",
+                prompt: imagePrompt,
+                sourceImageUrl: imageSourceImageUrl
+              }]}
+              onSingleImageClick={(imageSrc, imageAlt, allImagesArray, imageIndex) => {
+                const foundIndex = allImages.findIndex(img => 
+                  img.src === href ||
+                  img.originalMatch === `![](${href})` ||
+                  img.originalMatch === `![${linkText || "Generated image"}](${href})` ||
+                  (img.originalMatch && img.originalMatch.includes(href))
+                );
+                openImageModal(href, linkText || "Generated image", allImages, foundIndex >= 0 ? foundIndex : 0);
+              }}
+              isMobile={isMobile}
+              chatId={chatId}
+              messageId={messageId}
+            />
           </div>
         );
       }
@@ -2099,7 +2901,7 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
             minWidth: '300px',
             width: '100%'
           }}>
-            <LinkPreview url={href} thumbnailUrl={thumbnailUrl} searchApiTitle={searchApiTitle} />
+            <LinkPreview url={href} thumbnailUrl={thumbnailUrl} searchApiTitle={searchApiTitle} prefetchedData={linkPreviewData?.[href]} />
           </div>
         );
       }
@@ -2134,14 +2936,15 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       // Use the existing extractText utility which is designed to handle complex children structures.
       const codeText = extractText(children);
     
-      if (language === 'math') {
-        const key = `math-code-${codeText.slice(0, 20).replace(/\W/g, '')}`;
-        return (
-          <div className="non-paragraph-wrapper" key={key}>
-            <MathBlock content={codeText} />
-          </div>
-        );
-      }
+      // LaTeX 렌더링 비활성화 - math 코드 블록을 일반 코드 블록으로 처리
+      // if (language === 'math') {
+      //   const key = `math-code-${codeText.slice(0, 20).replace(/\W/g, '')}`;
+      //   return (
+      //     <div className="non-paragraph-wrapper" key={key}>
+      //       <MathBlock content={codeText} />
+      //     </div>
+      //   );
+      // }
       
       if (language === 'mermaid') {
         return <MermaidDiagram chart={codeText} onMermaidClick={openMermaidModal} title="Mermaid Diagram" isStreaming={isStreaming} />;
@@ -2591,22 +3394,22 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       </li>
     ),
     h1: ({ children, ...props }) => (
-      <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight break-words" {...props}>
+      <h1 className="text-2xl md:text-base font-semibold tracking-tight break-words" {...props}>
         {highlightSearchTermInChildren(children, searchTerm, { messageType })}
       </h1>
     ),
     h2: ({ children, ...props }) => (
-      <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight break-words" {...props}>
+      <h2 className="text-2xl md:text-base font-semibold tracking-tight break-words" {...props}>
         {highlightSearchTermInChildren(children, searchTerm, { messageType })}
       </h2>
     ),
     h3: ({ children, ...props }) => (
-      <h3 className="text-xl sm:text-2xl font-semibold tracking-tight break-words" {...props}>
+      <h3 className="text-xl md:text-base font-semibold tracking-tight break-words" {...props}>
         {highlightSearchTermInChildren(children, searchTerm, { messageType })}
       </h3>
     ),
     strong: ({ children, ...props }) => (
-      <strong className="text-lg" {...props}>
+      <strong className="text-lg md:text-base" {...props}>
         {highlightSearchTermInChildren(children, searchTerm, { messageType })}
       </strong>
     ),
@@ -2625,24 +3428,37 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
         {highlightSearchTermInChildren(children, searchTerm, { messageType })}
       </i>
     ),
+    // LaTeX 렌더링 비활성화 - math를 일반 텍스트로 표시
+    // math: ({ value, inline }: MathProps) => {
+    //   // For block math, use the dedicated wrapper component
+    //   if (!inline) {
+    //     return <MathBlock content={value} />;
+    //   }
+    //   
+    //   // For inline math, use the simpler inline wrapper
+    //   return <InlineMath content={value} />;
+    // },
     math: ({ value, inline }: MathProps) => {
-      // For block math, use the dedicated wrapper component
+      // LaTeX 비활성화 - 원본 텍스트로 표시
       if (!inline) {
-        return <MathBlock content={value} />;
+        return <pre className="font-mono text-sm whitespace-pre-wrap my-2">$${value}$$</pre>;
       }
-      
-      // For inline math, use the simpler inline wrapper
-      return <InlineMath content={value} />;
+      return <code className="font-mono text-sm">${value}$</code>;
     },
-  }), [styleImageUrls, extractText, handleCopy, openImageModal, searchTerm]);
+  }), [styleImageUrls, extractText, handleCopy, openImageModal, searchTerm, messageType]);
 
   // Memoize the remarkPlugins and rehypePlugins
-  const remarkPlugins = useMemo(() => [remarkGfm, remarkMath], []);
+  // singleTilde: false로 설정하여 단일 틸드(~)가 취소선으로 해석되지 않도록 함
+  // 이는 "85~88달러" 같은 범위 표기에서 틸드가 취소선으로 잘못 해석되는 문제를 방지
+  // LaTeX 렌더링 비활성화 - remarkMath 제거
+  const remarkPlugins: any = useMemo(() => [[remarkGfm, { singleTilde: false }] /* , remarkMath */], []);
   
   // Updated rehypePlugins with proper configuration
+  // LaTeX 렌더링 비활성화 - math, inlineMath passThrough 제거
   const rehypePlugins = useMemo(() => {
     return [
-      [rehypeRaw, { passThrough: ['math', 'inlineMath'] }],
+      // [rehypeRaw, { passThrough: ['math', 'inlineMath'] }],
+      rehypeRaw,
       rehypeHighlight,
     ] as any;
   }, []);
@@ -2662,6 +3478,67 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
           if (!isImg && !isLnk) lastBubbleIndex = i;
         }
 
+        // 🚀 Apple 스타일: 연속 이미지 그룹 계산
+        // 연속된 이미지 그룹을 찾아서 시작 인덱스와 이미지 목록을 저장
+        const consecutiveImageGroups: { startIndex: number; images: { src: string; alt: string; prompt?: string; sourceImageUrl?: string }[]; endIndex: number }[] = [];
+        let currentGroup: { startIndex: number; images: { src: string; alt: string; prompt?: string; sourceImageUrl?: string }[]; endIndex: number } | null = null;
+        
+        segmentGroup.forEach((segment, index) => {
+          const isImg = imageRegex.test(segment);
+          
+          if (isImg) {
+            // 마크다운 이미지에서 URL 추출
+            const markdownMatch = segment.match(/!\[([^\]]*)\]\(([^)]+)\)/);
+            let imgSrc = '';
+            let imgAlt = '';
+            
+            if (markdownMatch) {
+              imgAlt = markdownMatch[1] || `Image ${index + 1}`;
+              imgSrc = markdownMatch[2];
+            }
+            
+            if (imgSrc) {
+              // allImages에서 prompt 찾기
+              const imageData = allImages.find(img => img.src === imgSrc);
+              const imagePrompt = imageData?.prompt || promptMap[imgSrc];
+              
+              // sourceImageMap에서 sourceImageUrl 찾기
+              const imageSourceImageUrl = sourceImageMap[imgSrc];
+              
+              const imageObj = {
+                src: imgSrc,
+                alt: imgAlt,
+                prompt: imagePrompt,
+                sourceImageUrl: imageSourceImageUrl
+              };
+              
+              if (currentGroup === null) {
+                currentGroup = { startIndex: index, images: [imageObj], endIndex: index };
+              } else {
+                currentGroup.images.push(imageObj);
+                currentGroup.endIndex = index;
+              }
+            }
+          } else {
+            if (currentGroup !== null) {
+              consecutiveImageGroups.push(currentGroup);
+              currentGroup = null;
+            }
+          }
+        });
+        
+        // 마지막 그룹 처리
+        if (currentGroup !== null) {
+          consecutiveImageGroups.push(currentGroup);
+        }
+        
+        // 각 세그먼트가 어떤 이미지 그룹에 속하는지 확인하는 함수
+        const getImageGroupForIndex = (index: number) => {
+          return consecutiveImageGroups.find(
+            group => index >= group.startIndex && index <= group.endIndex
+          );
+        };
+
         return (
           <div key={groupIndex} className={isReasoningSection ? '' : 'imessage-receive-bubble'}>
             <div className={`${isReasoningSection ? 'markdown-segments' : 'message-segments'}${noTail ? ' no-tail' : ''}`}>
@@ -2669,8 +3546,9 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               // 이미지 세그먼트인지 확인
               const isImageSegment = /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segment);
               
-              // 링크 세그먼트인지 확인
-              const isLinkSegment = /\[.*\]\(https?:\/\/[^)]+\)|https?:\/\/[^\s"'<>]+/.test(segment);
+              // 링크 세그먼트인지 확인 - 세그먼트 전체가 URL인 경우에만 true
+              // (URL이 포함된 텍스트와 구분하기 위해 앵커 사용)
+              const isLinkSegment = /^\s*(\[.*\]\(https?:\/\/[^)]+\)|https?:\/\/[^\s"'<>]+)\s*$/.test(segment);
               
               const processedSegment = segment;
               
@@ -2683,90 +3561,50 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
               // h2 헤더 세그먼트인지 확인
               const isH2HeaderSegment = /^##\s/.test(segment.trim());
               
-              // 이전 세그먼트가 이미지 세그먼트인지 확인
-              const prevIsImage = index > 0 && /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segmentGroup[index - 1]);
+              // 🚀 Apple 스타일: 이미지 그룹 처리
+              const imageGroup = getImageGroupForIndex(index);
+              const isInImageGroup = imageGroup !== null && imageGroup !== undefined;
+              const isFirstInImageGroup = isInImageGroup && imageGroup.startIndex === index;
               
-              // 다음 세그먼트가 이미지 세그먼트인지 확인
-              const nextIsImage = index < segmentGroup.length - 1 && /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segmentGroup[index + 1]);
-              
-              // 연속된 이미지 세그먼트인지 확인
-              const isConsecutiveImage = isImageSegment && (prevIsImage || nextIsImage);
-              
-              // 연속된 이미지가 있는지 확인 (현재 이미지가 연속된 이미지인 경우만)
-              const hasConsecutiveImages = isConsecutiveImage;
-              
-              // 텍스트와 겹치지 않도록 확인
-              const hasTextBefore = index > 0 && !/\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segmentGroup[index - 1]);
-              const hasTextAfter = index < segmentGroup.length - 1 && !/\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segmentGroup[index + 1]);
-              
-              // 연속 이미지들의 겹침을 완전히 제거하는 스타일 계산
-              const getImageStyle = (): React.CSSProperties => {
-                if (!isConsecutiveImage) return {};
-                
-                // 연속 이미지들의 총 개수 계산
-                const consecutiveImageCount = segmentGroup.filter(seg => 
-                  /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(seg)
-                ).length;
-                
-                // 이미지 인덱스에 따른 체계적인 위치 계산
-                const imageIndex = segmentGroup.slice(0, index + 1).filter(seg => 
-                  /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(seg)
-                ).length - 1;
-                
-                // 겹침을 일정하게 번갈아가면서 표현하기 위한 X 오프셋 계산
-                const baseOffset = 15;
-                const maxOffset = 0;
-                // const maxOffset = 45;
-                let offsetX = Math.floor((imageIndex + 1) / 2) * baseOffset;
-                if (offsetX > maxOffset) offsetX = maxOffset;
-                if (imageIndex % 2 !== 0) { // odd indexes are on the left
-                    offsetX = -offsetX;
-                }
-
-                // 모바일에서 이미지가 너무 왼쪽으로 치우치지 않도록 조정
-                const finalRandomX = isMobile && offsetX < 0 ? Math.max(offsetX, 0) : offsetX;
-  
-                // 회전 각도도 더 작게 조정
-                const randomRotate = (imageIndex % 3 - 1) * 1.5; // -1.5도, 0도, 1.5도만 사용
-                
-                // 모든 이미지가 클릭 가능하도록 매우 높은 z-index 설정
-                const zIndexValue = (hasTextBefore || hasTextAfter) ? -1 : 100 + imageIndex; // 각 이미지마다 다른 높은 z-index
-                
-                // iMessage처럼 겹치도록 margin 조정
-                const marginTop = prevIsImage ? '-40px' : '0';
-                // const marginTop = prevIsImage ? '-10px' : '0';
-                const marginBottom = '0';
-                const marginLeft = `${finalRandomX}px`;
-                const marginRight = '0';
-                
-                return {
-                  marginTop,
-                  marginBottom,
-                  marginLeft,
-                  marginRight,
-                  transform: `rotate(${randomRotate}deg)`,
-                  zIndex: zIndexValue,
-                  position: 'relative' as const,
-                  transition: 'all 0.3s ease-in-out',
-                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-                  cursor: 'pointer',
-                  pointerEvents: 'auto', // 명시적으로 포인터 이벤트 활성화
-                  isolation: 'isolate', // 새로운 스택킹 컨텍스트 생성
-                  // 이미지가 컨테이너를 넘어서도 보이도록 설정
-                  overflow: 'visible',
-                  minWidth: 'fit-content'
-                };
-              };
+              // 모든 이미지 그룹의 첫 번째가 아닌 경우 렌더링 스킵 (ImageGalleryStack이 그룹 전체를 렌더링)
+              if (isImageSegment && isInImageGroup && !isFirstInImageGroup) {
+                return null;
+              }
               
               const nextIsHeader = index < segmentGroup.length - 1 && /^#{1,3}\s/.test(segmentGroup[index + 1].trim());
 
               const isLastBubble = !isImageSegment && !isLinkSegment && (index === lastBubbleIndex || nextIsHeader);
+              
+              // 🚀 Apple 스타일: 모든 이미지 그룹(1개 이상)은 ImageGalleryStack으로 렌더링
+              if (isImageSegment && isInImageGroup && isFirstInImageGroup) {
+                return (
+                  <div 
+                    key={index}
+                    style={{
+                      background: 'transparent',
+                      padding: '0',
+                      border: 'none',
+                      boxShadow: 'none',
+                      overflow: 'visible',
+                      marginBottom: '8px'
+                    }}
+                  >
+                    <ImageGalleryStack
+                      images={imageGroup.images}
+                      onSingleImageClick={openImageModal}
+                      isMobile={isMobile}
+                      chatId={chatId}
+                      messageId={messageId}
+                    />
+                  </div>
+                );
+              }
+              
               return (
                 <div 
                   key={index} 
-                  className={`${isImageSegment ? (hasConsecutiveImages ? (isMobile ? 'max-w-[45%]' : 'max-w-[100%] md:max-w-[90%]') : (isMobile ? 'max-w-[55%]' : 'max-w-[100%] md:max-w-[70%]')) : ''} ${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isLastBubble ? ' last-bubble' : ''}${isTableSegment ? ' table-segment' : ''}${isHeaderSegment ? ' contains-header' : ''}${isH2HeaderSegment ? ' contains-h2-header' : ''}${isLongPressActive && isLastBubble ? ' long-press-shadow' : ''}`}`}
+                  className={`${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isLastBubble ? ' last-bubble' : ''}${isTableSegment ? ' table-segment' : ''}${isHeaderSegment ? ' contains-header' : ''}${isH2HeaderSegment ? ' contains-h2-header' : ''}${isLongPressActive && isLastBubble ? ' long-press-shadow' : ''}`}`}
                   style={{
-                    ...getImageStyle(),
                     ...(isTableSegment && {
                       background: 'transparent',
                       padding: 0,
@@ -2778,10 +3616,8 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
                       padding: '0',
                       border: 'none',
                       boxShadow: 'none',
-                      pointerEvents: 'auto', // 모든 이미지가 클릭 가능하도록
+                      pointerEvents: 'auto',
                       position: 'relative',
-                      zIndex: isConsecutiveImage ? 100 + index : 'auto', // 연속 이미지의 경우 매우 높은 z-index
-                      // 이미지가 컨테이너를 넘어서도 보이도록 설정
                       overflow: 'visible',
                       minWidth: 'fit-content',
                       width: 'auto'
@@ -2822,116 +3658,28 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       })}
 
       {/* Image Modal */}
-      {isMounted && selectedImage && createPortal(
-        <div 
-          className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center" 
-          onClick={closeImageModal}
-        >
-          {/* Close button */}
-          {(!isMobile || showMobileUI) && (
-            <button 
-              className="absolute top-4 right-4 bg-black/40 hover:bg-black/60 p-2 rounded-full text-white transition-colors z-10"
-              onClick={closeImageModal}
-              aria-label="Close image viewer"
-            >
-              <X size={24} />
-            </button>
-          )}
-          
-
-          {/* Gallery navigation buttons - hidden on mobile */}
-          {isGalleryMode && imageGallery.length > 1 && !isMobile && (
-            <>
-              {/* Previous button */}
-              <button
-                className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 p-3 rounded-full text-white transition-colors z-10"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigateToPreviousImage();
-                }}
-                aria-label="Previous image"
-              >
-                <ChevronLeft size={24} />
-              </button>
-              
-              {/* Next button */}
-              <button
-                className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 p-3 rounded-full text-white transition-colors z-10"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigateToNextImage();
-                }}
-                aria-label="Next image"
-              >
-                <ChevronRight size={24} />
-              </button>
-            </>
-          )}
-
-          {/* Gallery counter */}
-          {isGalleryMode && imageGallery.length > 1 && (!isMobile || showMobileUI) && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/40 px-3 py-1 rounded-full text-white text-sm z-10">
-              {currentImageIndex + 1} / {imageGallery.length}
-            </div>
-          )}
-          
-          {/* Main image container */}
-          <div 
-            className="relative flex items-center justify-center bg-transparent rounded-lg overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            style={{ 
-              width: '100vw', 
-              height: '100vh' 
-            }}
-          >
-            <div className="relative group cursor-pointer flex flex-col items-center">
-              <div className="relative">
-                <img
-                  src={selectedImage.src}
-                  alt={selectedImage.alt}
-                  className="rounded-md shadow-xl"
-                  style={{ 
-                    maxWidth: '100%', 
-                    maxHeight: '100vh', 
-                    objectFit: 'contain',
-                    width: 'auto',
-                    height: 'auto'
-                  }}
-                  referrerPolicy="no-referrer"
-                />
-                
-              </div>
-       
-            </div>
-          </div>
-
-          {/* Thumbnail indicators */}
-          {isGalleryMode && imageGallery.length > 1 && (!isMobile || showMobileUI) && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
-              {imageGallery.map((_, index) => (
-                <button
-                  key={index}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    index === currentImageIndex 
-                      ? 'bg-white' 
-                      : 'bg-white/40 hover:bg-white/60'
-                  }`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setCurrentImageIndex(index);
-                    setSelectedImage(imageGallery[index]);
-                  }}
-                  aria-label={`Go to image ${index + 1}`}
-                />
-              ))}
-            </div>
-          )}
-        </div>,
-        document.body
-      )}
+      <ImageModal
+        isOpen={!!selectedImage}
+        imageUrl={selectedImage?.src || ''}
+        imageAlt={selectedImage?.alt}
+        onClose={closeImageModal}
+        gallery={isGalleryMode && galleryImages.length > 1 ? galleryImages : undefined}
+        currentIndex={currentImageIndex}
+        onNavigate={isGalleryMode && galleryImages.length > 1 ? navigateImage : undefined}
+        prompt={selectedImage?.prompt}
+        showPromptButton={!!selectedImage?.prompt}
+        enableDownload={true}
+        enableSave={true}
+        enableUrlRefresh={true}
+        messageId={messageId}
+        chatId={chatId}
+        userId={userId}
+        isMobile={isMobile}
+        isSaving={savingImage}
+        isSaved={savedImage}
+        onSave={handleSave}
+        sourceImageUrl={selectedImage?.sourceImageUrl}
+      />
 
       {/* Mermaid Modal */}
       {isMounted && selectedMermaid && createPortal(
@@ -2973,4 +3721,6 @@ export const MarkdownContent = memo(function MarkdownContentComponent({
       )}
     </>
   );
-}); 
+}
+
+export const MarkdownContent = memo(MarkdownContentComponent);

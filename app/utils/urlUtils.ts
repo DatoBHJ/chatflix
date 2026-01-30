@@ -62,11 +62,14 @@ export const isUrlExpired = (url: string): boolean => {
  */
 export const extractFilePath = (url: string): string | null => {
   try {
-    if (url.includes('chat_attachments/')) {
-      const pathMatch = url.split('chat_attachments/')[1];
+    const buckets = ['chat_attachments', 'generated-images', 'generated-videos', 'saved-gallery'];
+    for (const bucket of buckets) {
+      if (url.includes(`${bucket}/`)) {
+        const pathMatch = url.split(`${bucket}/`)[1];
       if (pathMatch) {
         // 쿼리 파라미터 제거
         return pathMatch.split('?')[0];
+        }
       }
     }
     return null;
@@ -83,10 +86,31 @@ export const extractFilePath = (url: string): string | null => {
  */
 export const needsUrlRefresh = (url: string): boolean => {
   // Supabase Storage URL이 아니면 갱신 불필요
-  if (!url.includes('chat_attachments/')) {
+  if (!url.includes('supabase.co/storage/v1/object/sign/') && !url.includes('auth.chatflix.app/storage/v1/object/sign/')) {
     return false;
   }
   
   // 만료되었으면 갱신 필요
   return isUrlExpired(url);
+};
+
+/**
+ * Supabase Storage Signed URL에서 버킷 이름 추출
+ * @param url - Supabase Storage Signed URL
+ * @returns 버킷 이름 또는 null
+ */
+export const extractBucketName = (url: string): string | null => {
+  try {
+    // Supabase Signed URL 형식: .../storage/v1/object/sign/BUCKET_NAME/PATH?token=...
+    if (url.includes('/storage/v1/object/sign/')) {
+      const match = url.match(/\/storage\/v1\/object\/sign\/([^\/]+)\//);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    return null;
+  } catch (error) {
+    console.warn('Failed to extract bucket name from URL:', error);
+    return null;
+  }
 };

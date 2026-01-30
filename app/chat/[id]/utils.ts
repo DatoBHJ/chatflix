@@ -3,6 +3,28 @@ import { ExtendedMessage } from './types';
 import { createClient } from '@/utils/supabase/client';
 import { FileMetadata } from '@/lib/types';
 
+const CODE_FILE_EXTENSIONS = new Set([
+  'js','jsx','ts','tsx','html','css','json','md','py','java','c','cpp','cs','go','rb','php','swift','kt','rs'
+]);
+
+const inferFileType = (file: File): 'image' | 'code' | 'pdf' | 'file' => {
+  const extension = file.name.split('.').pop()?.toLowerCase();
+
+  if (file.type.startsWith('image/')) {
+    return 'image';
+  }
+
+  if (file.type === 'application/pdf' || extension === 'pdf') {
+    return 'pdf';
+  }
+
+  if (file.type.includes('text') || (extension && CODE_FILE_EXTENSIONS.has(extension))) {
+    return 'code';
+  }
+
+  return 'file';
+};
+
 // ================================
 // 메타데이터 추출 함수들 (통합버전)
 // ================================
@@ -372,6 +394,7 @@ export const uploadFile = async (file: File, userId?: string) => {
   
   // 🚀 익명 사용자 감지: 기존 로직과 동일한 패턴 사용
   const isAnonymousUser = !userId || userId === 'anonymous' || userId.startsWith('anonymous_');
+  const fileType = inferFileType(file);
   
   if (isAnonymousUser) {
     console.log('🚀 [ANONYMOUS] Skipping Supabase Storage upload for anonymous user');
@@ -385,22 +408,6 @@ export const uploadFile = async (file: File, userId?: string) => {
     });
     
     // 파일 타입 결정 (기존 로직과 동일)
-    const fileExt = file.name.split('.').pop();
-    let fileType: 'image' | 'code' | 'pdf' | 'file' = 'file';
-    if (file.type.startsWith('image/')) {
-      fileType = 'image';
-    } else if (file.type.includes('text') || 
-               fileExt === 'js' || fileExt === 'jsx' || fileExt === 'ts' || fileExt === 'tsx' || 
-               fileExt === 'html' || fileExt === 'css' || fileExt === 'json' || 
-               fileExt === 'md' || fileExt === 'py' || fileExt === 'java' || 
-               fileExt === 'c' || fileExt === 'cpp' || fileExt === 'cs' || 
-               fileExt === 'go' || fileExt === 'rb' || fileExt === 'php' || 
-               fileExt === 'swift' || fileExt === 'kt' || fileExt === 'rs') {
-      fileType = 'code';
-    } else if (fileExt === 'pdf') {
-      fileType = 'pdf';
-    }
-    
     // 익명 사용자용 간단한 메타데이터 (기존 폴백 로직과 동일)
     let metadata: FileMetadata;
     if (fileType === 'image') {
@@ -431,23 +438,7 @@ export const uploadFile = async (file: File, userId?: string) => {
     // 간단한 파일명 생성 - 타임스탬프 + 랜덤
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-    const filePath = `${fileName}`;
-
-    // 파일 타입 결정
-    let fileType: 'image' | 'code' | 'pdf' | 'file' = 'file';
-    if (file.type.startsWith('image/')) {
-      fileType = 'image';
-    } else if (file.type.includes('text') || 
-               fileExt === 'js' || fileExt === 'jsx' || fileExt === 'ts' || fileExt === 'tsx' || 
-               fileExt === 'html' || fileExt === 'css' || fileExt === 'json' || 
-               fileExt === 'md' || fileExt === 'py' || fileExt === 'java' || 
-               fileExt === 'c' || fileExt === 'cpp' || fileExt === 'cs' || 
-               fileExt === 'go' || fileExt === 'rb' || fileExt === 'php' || 
-               fileExt === 'swift' || fileExt === 'kt' || fileExt === 'rs') {
-      fileType = 'code';
-    } else if (fileExt === 'pdf') {
-      fileType = 'pdf';
-    }
+    const filePath = `${userId}/${fileName}`;
 
     // 메타데이터 추출
     let metadata: FileMetadata;
@@ -484,6 +475,25 @@ export const uploadFile = async (file: File, userId?: string) => {
       throw new Error('Failed to create signed URL');
     }
 
+    // Save image attachments to user_background_settings table for gallery
+    if (fileType === 'image' && userId && userId !== 'anonymous' && !userId.startsWith('anonymous_')) {
+      try {
+        await supabase.from('user_background_settings').insert({
+          user_id: userId,
+          background_path: filePath,
+          background_url: signedData.signedUrl,
+          url_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          name: file.name,
+          source: 'upload',
+          bucket_name: 'chat_attachments'
+        });
+        console.log('✅ Image saved to gallery:', file.name);
+      } catch (error) {
+        // Don't fail the upload if gallery save fails
+        console.error('⚠️ Failed to save image to gallery:', error);
+      }
+    }
+
     return {
       name: file.name,
       contentType: file.type,
@@ -499,22 +509,6 @@ export const uploadFile = async (file: File, userId?: string) => {
     // 업로드 실패 시 로컬 URL로 폴백 (전송은 계속 진행)
     const localUrl = URL.createObjectURL(file);
     console.warn('Using local fallback URL for file:', file.name);
-    
-    const fileExt = file.name.split('.').pop();
-    let fileType: 'image' | 'code' | 'pdf' | 'file' = 'file';
-    if (file.type.startsWith('image/')) {
-      fileType = 'image';
-    } else if (file.type.includes('text') || 
-               fileExt === 'js' || fileExt === 'jsx' || fileExt === 'ts' || fileExt === 'tsx' || 
-               fileExt === 'html' || fileExt === 'css' || fileExt === 'json' || 
-               fileExt === 'md' || fileExt === 'py' || fileExt === 'java' || 
-               fileExt === 'c' || fileExt === 'cpp' || fileExt === 'cs' || 
-               fileExt === 'go' || fileExt === 'rb' || fileExt === 'php' || 
-               fileExt === 'swift' || fileExt === 'kt' || fileExt === 'rs') {
-      fileType = 'code';
-    } else if (fileExt === 'pdf') {
-      fileType = 'pdf';
-    }
     
     // 폴백 시에도 간단한 메타데이터 제공
     let metadata: FileMetadata;
@@ -556,6 +550,34 @@ export const convertMessage = (msg: DatabaseMessage): ExtendedMessage => {
     annotations: msg.annotations || []
   };
 
+  // 🚀 Phase 1: DB에 parts가 저장되어 있으면 그대로 사용 (인터리브 렌더링)
+  // tool-call/tool-result가 포함된 parts 배열이 있어야 새 방식 사용
+  const dbParts = (msg as any).parts;
+  if (dbParts && Array.isArray(dbParts) && dbParts.length > 0) {
+    // 🚀 AI SDK 실제 포맷 인식: "tool-"로 시작하는 타입도 tool로 인식
+    const hasToolParts = dbParts.some((p: any) => 
+      p.type === 'tool-call' || 
+      p.type === 'tool-result' ||
+      (p.type?.startsWith('tool-') && p.toolCallId && p.input)
+    );
+    
+    if (hasToolParts) {
+      // 새 방식: DB parts 그대로 사용 (인터리브 렌더링 가능)
+      baseMessage.parts = dbParts;
+      baseMessage._hasStoredParts = true;
+      
+      // experimental_attachments도 유지
+      if (msg.experimental_attachments && msg.experimental_attachments.length > 0) {
+        baseMessage.experimental_attachments = msg.experimental_attachments;
+      }
+      
+      return baseMessage;
+    }
+  }
+
+  // 🚀 Phase 2: Fallback - 기존 방식으로 parts 생성 (하위 호환)
+  baseMessage._hasStoredParts = false;
+
   // Handle reasoning parts if present
   const dbReasoning = (msg as any).reasoning || (msg as any).reasoningText;
   if (msg.role === 'assistant' && dbReasoning && dbReasoning.trim()) {
@@ -589,7 +611,8 @@ export const convertMessage = (msg: DatabaseMessage): ExtendedMessage => {
       if (attachment.fileType === 'image' || attachment.contentType?.startsWith('image/')) {
         parts.push({
           type: 'image',
-          image: attachment.url
+          image: attachment.url,
+          metadata: attachment.metadata // 메타데이터 전달 (width, height 등)
         });
       } else {
         parts.push({
@@ -615,12 +638,27 @@ export const deleteChat = async (chatId: string) => {
     });
     
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || 'Failed to delete chat');
+      // Try to get error message from response
+      let errorMessage = 'Failed to delete chat';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch {
+        // If JSON parsing fails, use status text
+        errorMessage = response.statusText || errorMessage;
+      }
+      throw new Error(errorMessage);
     }
     
-    const result = await response.json();
-    console.log('✅ [DELETE_CHAT] Chat deleted successfully:', result);
+    // Handle empty response body (some APIs return 200 with no body)
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        await response.json();
+      } catch {
+        // If JSON parsing fails but status is OK, consider it success
+      }
+    }
     
     return true;
   } catch (error) {

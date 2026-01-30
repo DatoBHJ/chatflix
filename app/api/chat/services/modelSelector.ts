@@ -1,7 +1,16 @@
 import { generateObject } from 'ai';
 import { providers } from '@/lib/providers';
 import { z } from 'zod';
-import { MODEL_CONFIGS, ModelConfig, isChatflixModel } from '@/lib/models/config';
+import {
+  MODEL_CONFIGS,
+  ModelConfig,
+  getModelByVariantId,
+  getModelVariantId,
+  isChatflixModel,
+  parseModelVariantId,
+  resolveDefaultModelVariantId,
+  selectModelBasedOnAnalysis,
+} from '@/lib/models/config';
 import { estimateTokenCount, estimateMultiModalTokens, Message } from '@/utils/context-manager';
 
 interface ModelSelectionResult {
@@ -95,9 +104,9 @@ export async function selectOptimalModel(
   );
   
   try {
-    // Gemini 2.0 Flash로 쿼리 분석
+    // Gemini 2.5 Flash Lite로 쿼리 분석
     const analysisResult = await generateObject({
-      model: providers.languageModel('gemini-2.0-flash'),
+      model: providers.languageModel('gemini-2.5-flash-lite'),
       schema: z.object({
         category: z.enum(['coding', 'technical', 'math', 'other']),
         complexity: z.enum(['simple', 'medium', 'complex']),
@@ -150,9 +159,12 @@ export async function selectOptimalModel(
     
   } catch (error) {
     // 오류 발생 시 기본 Agent 모델 사용
-    const fallbackModel = getAgentEnabledModels(modelType).find(m => m.id === 'gemini-2.5-pro');
+    const fallbackModel = getAgentEnabledModels(modelType).find(m => m.id === 'gemini-3-pro-preview');
+    const fallbackVariant = fallbackModel
+      ? getModelVariantId(fallbackModel)
+      : resolveDefaultModelVariantId('gemini-3-pro-preview');
     return {
-      selectedModel: fallbackModel?.id || 'gemini-2.5-pro',
+      selectedModel: fallbackVariant,
       analysis: {
         category: 'other',
         complexity: 'medium',
@@ -167,8 +179,10 @@ export async function selectOptimalModel(
 
 // Agent 활성화된 모델만 필터링하는 함수
 function getAgentEnabledModels(selectedModel?: string, rateLimitedLevels: string[] = []): ModelConfig[] {
+  const parsed = selectedModel ? parseModelVariantId(selectedModel) : undefined;
+
   // 챗플릭스 모델이 선택된 경우 rate limit만 체크하고 나머지 플래그는 무시
-  if (selectedModel && isChatflixModel(selectedModel)) {
+  if (parsed && isChatflixModel(parsed.baseId)) {
     return MODEL_CONFIGS.filter(model => {
       // rate limit은 기존처럼 체크
       const isRateLimited = rateLimitedLevels.includes(model.rateLimit?.level || '');
@@ -183,11 +197,8 @@ function getAgentEnabledModels(selectedModel?: string, rateLimitedLevels: string
     model.isAgentEnabled === true
   );
   
-  // gemini-2.5-pro가 목록에 있는지 확인
-  const hasFallback = models.some(m => m.id === 'gemini-2.5-pro');
-  if (!hasFallback) {
-    // console.warn('Fallback model gemini-2.5-pro not found in agent-enabled models');
-  }
+  // gemini-3-pro-preview가 목록에 있는지 확인
+  const hasFallback = models.some(m => m.id === 'gemini-3-pro-preview');
   
   return models;
 }
@@ -311,15 +322,17 @@ function selectModelWithContextAwareness(
     upgradeReason?: string;
   };
 } {
+  const agentModels = getAgentEnabledModels(modelType);
   try {
     // 1단계: 기존 로직으로 1차 모델 선택
     const primaryModel = selectModelBasedOnAnalysis(analysis, hasImage, hasPDF, modelType);
-    const primaryModelConfig = getAgentEnabledModels(modelType).find(m => m.id === primaryModel);
+    const primaryModelConfig = getModelByVariantId(primaryModel);
+    const primaryModelInfo = parseModelVariantId(primaryModel);
     
     // 2단계: 컨텍스트 용량 확인
-    // gemini-2.5-flash는 1M 컨텍스트로 대부분의 경우 충분하므로 간소화된 검증
+    // gemini-3-flash는 1M 컨텍스트로 대부분의 경우 충분하므로 간소화된 검증
     if (primaryModelConfig && primaryModelConfig.contextWindow) {
-      const isGeminiFlash = primaryModel === 'gemini-2.5-flash';
+      const isGeminiFlash = primaryModelInfo.baseId === 'gemini-3-flash-preview' || primaryModelInfo.baseId === 'gemini-2.5-flash';
       const contextSufficient = isGeminiFlash ? 
         contextInfo.requiredContext <= 800000 : // 1M 중 800K 이하면 충분
         primaryModelConfig.contextWindow >= contextInfo.requiredContext;
@@ -337,26 +350,25 @@ function selectModelWithContextAwareness(
       }
     }
     
-    // 🆕 3단계: gemini-2.5-flash는 1M 컨텍스트로 대부분의 경우 충분하므로 특별 처리 생략
+    // 🆕 3단계: gemini-3-flash는 1M 컨텍스트로 대부분의 경우 충분하므로 특별 처리 생략
     // (1M 컨텍스트면 거의 모든 일반적인 사용 사례에서 충분함)
     
     // 4단계: 컨텍스트 부족 - 일반적인 업그레이드 필요
-    const agentModels = getAgentEnabledModels(modelType);
     const compatibleModels = agentModels.filter(model => 
       model.contextWindow && model.contextWindow >= contextInfo.requiredContext
     );
     
     if (compatibleModels.length === 0) {
-      // 🆕 폴백 로직: 적합한 모델이 없으면 gemini-2.5-pro 사용
-      const fallbackModel = agentModels.find(m => m.id === 'gemini-2.5-pro');
+      // 🆕 폴백 로직: 적합한 모델이 없으면 gemini-3-pro-preview 사용
+      const fallbackModel = agentModels.find(m => m.id === 'gemini-3-pro-preview');
       if (fallbackModel) {
         return {
-          selectedModel: fallbackModel.id,
+          selectedModel: getModelVariantId(fallbackModel),
           contextInfo: {
             ...contextInfo,
             selectedModelContext: fallbackModel.contextWindow || 0,
             wasUpgraded: true,
-            upgradeReason: 'No suitable model found, using fallback: gemini-2.5-pro'
+            upgradeReason: 'No suitable model found, using fallback: gemini-3-pro-preview'
           }
         };
       }
@@ -367,7 +379,7 @@ function selectModelWithContextAwareness(
         .sort((a, b) => (b.contextWindow || 0) - (a.contextWindow || 0))[0];
       
       return {
-        selectedModel: largestContextModel?.id || primaryModel,
+        selectedModel: largestContextModel ? getModelVariantId(largestContextModel) : primaryModel,
         contextInfo: {
           ...contextInfo,
           selectedModelContext: largestContextModel?.contextWindow || 0,
@@ -378,21 +390,22 @@ function selectModelWithContextAwareness(
     }
     
     // 5단계: 최적 모델 선택 (효율성 점수 기반)
-    const scoredModels = compatibleModels.map(model => ({
+    const scoredModels = compatibleModels
+      .map(model => ({
       model,
       score: calculateEfficiencyScore(model, analysis, hasImage, hasPDF, contextInfo)
-    }));
-    
-    scoredModels.sort((a, b) => b.score - a.score);
+      }))
+      .sort((a, b) => b.score - a.score);
     const selectedModel = scoredModels[0].model;
+    const selectedVariantId = getModelVariantId(selectedModel);
     
     return {
-      selectedModel: selectedModel.id,
+      selectedModel: selectedVariantId,
       contextInfo: {
         ...contextInfo,
         selectedModelContext: selectedModel.contextWindow || 0,
-        wasUpgraded: selectedModel.id !== primaryModel,
-        upgradeReason: selectedModel.id !== primaryModel ? 
+        wasUpgraded: selectedVariantId !== primaryModel,
+        upgradeReason: selectedVariantId !== primaryModel ? 
           `Upgraded from ${primaryModel} due to insufficient context (${primaryModelConfig?.contextWindow || 0} < ${contextInfo.requiredContext})` : 
           undefined
       }
@@ -401,17 +414,16 @@ function selectModelWithContextAwareness(
   } catch (error) {
     // 🆕 에러 발생 시 폴백 로직
     
-    const agentModels = getAgentEnabledModels(modelType);
-    const fallbackModel = agentModels.find(m => m.id === 'gemini-2.5-pro');
+    const fallbackModel = agentModels.find(m => m.id === 'gemini-3-pro-preview');
     
     if (fallbackModel) {
       return {
-        selectedModel: fallbackModel.id,
+        selectedModel: getModelVariantId(fallbackModel),
         contextInfo: {
           ...contextInfo,
           selectedModelContext: fallbackModel.contextWindow || 0,
           wasUpgraded: true,
-          upgradeReason: `Error occurred during model selection, using fallback: gemini-2.5-pro`
+          upgradeReason: `Error occurred during model selection, using fallback: gemini-3-pro-preview`
         }
       };
     }
@@ -419,7 +431,7 @@ function selectModelWithContextAwareness(
     // 최후의 수단: 첫 번째 사용 가능한 모델
     const firstAvailable = agentModels[0];
     return {
-      selectedModel: firstAvailable?.id || 'gemini-2.5-pro',
+      selectedModel: firstAvailable ? getModelVariantId(firstAvailable) : resolveDefaultModelVariantId('gemini-3-pro-preview'),
       contextInfo: {
         ...contextInfo,
         selectedModelContext: firstAvailable?.contextWindow || 0,
@@ -559,139 +571,3 @@ function detectCodeAttachments(message: Message): boolean {
   return false;
 }
 
-function selectModelBasedOnAnalysis(
-  analysis: { category: 'coding' | 'technical' | 'math' | 'other'; complexity: 'simple' | 'medium' | 'complex' },
-  hasImage: boolean,
-  hasPDF: boolean,
-  modelType: 'chatflix-ultimate' | 'chatflix-ultimate-pro' = 'chatflix-ultimate'
-): string {
-  // 1단계: 코딩 카테고리 최우선 처리
-  if (analysis.category === 'coding') {
-    if (modelType === 'chatflix-ultimate-pro') {
-      // Pro 버전 코딩 로직
-      if (hasImage || hasPDF) {
-        // 멀티모달 + 코딩
-        if (analysis.complexity === 'simple') {
-          return 'claude-sonnet-4-5-20250929'; // sonnet 4
-        } else { // medium/complex
-          return 'gemini-2.5-pro'; // gemini 2.5 pro
-        }
-      } else {
-        // 비멀티모달 + 코딩
-        if (analysis.complexity === 'simple') {
-          return 'grok-code-fast-1'; // grok code fast for simple coding
-        } else if (analysis.complexity === 'medium') {
-          return 'claude-sonnet-4-5-20250929'; // sonnet 4
-        } else { // complex
-          return 'claude-sonnet-4-5-20250929-thinking'; // sonnet 4 thinking
-        }
-      }
-    } else {
-      // 일반 버전 코딩 로직
-      if (hasImage || hasPDF) {
-        // 멀티모달 + 코딩
-        if (analysis.complexity === 'complex') {
-          return 'gemini-2.5-pro'; // gemini 2.5 pro
-        } else { // simple/medium
-          return 'gemini-2.5-flash'; // gemini 2.5 flash
-        }
-      } else {
-        // 비멀티모달 + 코딩: 복잡도에 따라 모델 선택
-        if (analysis.complexity === 'simple') {
-          return 'grok-code-fast-1'; // grok code fast for simple coding tasks
-        } else {
-          return 'gemini-2.5-flash'; // gemini 2.5 flash for medium/complex
-        }
-      }
-    }
-  }
-  
-  // 2단계: 멀티모달 요소 처리
-  else if (hasImage) {
-    if (analysis.category === 'technical' || analysis.category === 'math') {
-      // 이미지 + 기술/수학: Pro는 gpt-5, 일반은 gemini 2.5 pro
-      return modelType === 'chatflix-ultimate-pro' ? 'gpt-5' : 'gemini-2.5-pro';
-          } else {
-        // 이미지 + 기타 카테고리
-        if (modelType === 'chatflix-ultimate-pro') {
-          // Pro 버전: 단순/중간은 gemini 2.5 flash, 복잡은 gemini 2.5 pro
-          if (analysis.complexity === 'complex') {
-            return 'gemini-2.5-pro';
-          } else { // simple/medium
-            return 'gemini-2.5-flash';
-          }
-        } else {
-          // 일반 버전
-          if (analysis.complexity === 'simple') {
-            return 'gemini-2.0-flash';
-          } else if (analysis.complexity === 'medium') {
-            return 'gemini-2.5-flash';
-          } else { // complex
-            return 'gemini-2.5-pro';
-          }
-        }
-      }
-  }
-  else if (hasPDF) {
-    // PDF 처리 (카테고리 무관)
-    if (modelType === 'chatflix-ultimate-pro') {
-      // Pro 버전: 모든 복잡도에서 gemini 2.5 flash (단순/중간), gemini 2.5 pro (복잡)
-      if (analysis.complexity === 'complex') {
-        return 'gemini-2.5-pro';
-      } else { // simple/medium
-        return 'gemini-2.5-flash';
-      }
-    } else {
-      // 일반 버전
-      if (analysis.complexity === 'simple') {
-        return 'gemini-2.0-flash';
-      } else if (analysis.complexity === 'medium') {
-        return 'gemini-2.5-flash';
-      } else { // complex
-        return 'gemini-2.5-pro';
-      }
-    }
-  }
-  
-  // 3단계: 텍스트만 있는 경우 (비멀티모달) - 🆕 2025-07-15 업데이트
-  else {
-    if (analysis.category === 'math') {
-      // 수학 카테고리 - 비멀티모달: Ultimate는 openai/gpt-oss-120b-high, Pro는 gpt-5 사용
-      return modelType === 'chatflix-ultimate-pro' ? 'gpt-5' : 'openai/gpt-oss-120b-high';
-    }
-    else if (analysis.category === 'technical') {
-      // 기술 카테고리
-      if (modelType === 'chatflix-ultimate-pro') {
-        // Pro 버전: 단순 gemini-2.5-flash, 중간/복잡 claude-sonnet-4
-        if (analysis.complexity === 'simple') {
-          return 'gemini-2.5-flash';
-        } else { // medium/complex
-          return 'claude-sonnet-4-5-20250929';
-        }
-      } else {
-        // 일반 버전: 모든 복잡도 gemini-2.5-flash
-        return 'gemini-2.5-flash';
-      }
-    }
-    else {
-      // 기타 카테고리
-      if (modelType === 'chatflix-ultimate-pro') {
-        // Pro 버전: 복잡도에 따라 모델 선택
-        if (analysis.complexity === 'simple') {
-          return 'deepseek-ai/DeepSeek-V3.1';
-        } else if (analysis.complexity === 'medium') {
-          return 'claude-sonnet-4-5-20250929';
-        } else { // complex
-          return 'claude-sonnet-4-5-20250929-thinking';
-        }
-      } else {
-        // 일반 버전: 복잡도에 따라 모델 선택
-        if (analysis.complexity === 'simple') {
-          return 'moonshotai/kimi-k2-instruct-0905';
-        } else { // medium/complex
-          return 'deepseek-ai/DeepSeek-V3.1';
-        }
-      }
-    }
-  }
-}

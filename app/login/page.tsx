@@ -1,10 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 import { GoogleSignIn, TwitterSignIn } from '../components/auth'
 import { Mail, ArrowLeft } from 'lucide-react'
+import Image from 'next/image'
+import { useBackgroundImageBrightness } from '@/app/hooks/useBackgroundImageBrightness'
+import { useElementBackgroundBrightness } from '@/app/hooks/useBackgroundBrightness'
+import { getAdaptiveGlassStyleBlur, getAdaptiveGlassStyleClean } from '@/app/lib/adaptiveGlassStyle'
+import { getChatflixLogo } from '@/lib/models/logoUtils'
+import { getDefaultBackground } from '@/app/photo/constants/backgrounds'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -15,6 +21,63 @@ export default function LoginPage() {
   const [isSignIn, setIsSignIn] = useState(true)
   const router = useRouter()
   const supabase = createClient()
+
+  // Always use default Chatflix background for login page
+  const defaultBg = getDefaultBackground();
+  const currentBackground = defaultBg.url;
+
+  // Calculate background image brightness for overlay
+  const { isVeryDark, isVeryBright } = useBackgroundImageBrightness(
+    currentBackground
+  );
+
+  const overlayColor = useMemo(() => {
+    if (isVeryDark) {
+      return 'rgba(255, 255, 255, 0.125)';
+    }
+    if (isVeryBright) {
+      return 'rgba(0, 0, 0, 0.2)';
+    }
+    return undefined;
+  }, [isVeryDark, isVeryBright]);
+
+  // Refs for each button and input field to detect their position brightness
+  const emailButtonRef = useRef<HTMLButtonElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+  const passwordSubmitButtonRef = useRef<HTMLButtonElement>(null);
+  const passwordBackButtonRef = useRef<HTMLButtonElement>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
+  const emailSubmitButtonRef = useRef<HTMLButtonElement>(null);
+  const emailBackButtonRef = useRef<HTMLButtonElement>(null);
+  const mainEmailButtonRef = useRef<HTMLButtonElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const mainLogoRef = useRef<HTMLDivElement>(null);
+
+  // Detect brightness at each element's position
+  const { brightness: emailButtonBrightness } = useElementBackgroundBrightness(emailButtonRef, true, 'login-email-button');
+  const { brightness: passwordInputBrightness } = useElementBackgroundBrightness(passwordInputRef, showPasswordForm, 'login-password-input');
+  const { brightness: passwordSubmitBrightness } = useElementBackgroundBrightness(passwordSubmitButtonRef, showPasswordForm, 'login-password-submit');
+  const { brightness: passwordBackBrightness } = useElementBackgroundBrightness(passwordBackButtonRef, showPasswordForm, 'login-password-back');
+  const { brightness: emailInputBrightness } = useElementBackgroundBrightness(emailInputRef, showEmailForm, 'login-email-input');
+  const { brightness: emailSubmitBrightness } = useElementBackgroundBrightness(emailSubmitButtonRef, showEmailForm, 'login-email-submit');
+  const { brightness: emailBackBrightness } = useElementBackgroundBrightness(emailBackButtonRef, showEmailForm, 'login-email-back');
+  const { brightness: mainEmailButtonBrightness } = useElementBackgroundBrightness(mainEmailButtonRef, !showEmailForm && !showPasswordForm, 'login-main-email-button');
+  const { brightness: titleBrightness } = useElementBackgroundBrightness(titleRef, true, 'login-title');
+  const { brightness: mainLogoBrightness } = useElementBackgroundBrightness(mainLogoRef, !showEmailForm && !showPasswordForm, 'login-main-logo');
+
+  // Text style helper function - 각 요소의 위치 밝기에 따라 결정
+  const getTextStyle = (brightness?: number) => {
+    const isVeryBrightAtPosition = brightness !== undefined && brightness > 190;
+    if (isVeryBrightAtPosition) {
+      return { color: 'rgba(0, 0, 0)', textShadow: 'none' };
+    }
+    return { color: 'rgba(255, 255, 255)', textShadow: 'none' };
+  };
+
+  // Logo selection function - 밝기에 따라 적절한 로고 선택
+  const getLogoSrc = (brightness?: number) => {
+    return getChatflixLogo({ brightness });
+  };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,33 +144,63 @@ export default function LoginPage() {
 
   if (showPasswordForm) {
   return (
-      <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)' }}>
+      <div className="min-h-screen flex flex-col relative">
+        {/* Background Image Layer */}
+        <div 
+          className="fixed inset-0 bg-cover bg-center bg-no-repeat min-h-screen w-full pointer-events-none"
+          style={{
+            backgroundImage: currentBackground ? `url("${currentBackground.replace(/"/g, '\\"')}")` : undefined,
+            zIndex: 0
+          }}
+        />
+        
+        {/* Blur overlay */}
+        <div 
+          className="fixed inset-0 min-h-screen w-full pointer-events-none"
+          style={{
+            backdropFilter: 'blur(40px)',
+            WebkitBackdropFilter: 'blur(40px)',
+            zIndex: 1
+          }}
+        />
+        
+        {/* Color overlay for very dark or very bright backgrounds */}
+        {overlayColor && (
+          <div 
+            className="fixed inset-0 min-h-screen w-full pointer-events-none"
+            style={{
+              backgroundColor: overlayColor,
+              zIndex: 2
+            }}
+          />
+        )}
+        
         {/* Password Form */}
-        <div className="flex-1 flex flex-col justify-center items-center px-6">
+        <div className="relative z-10 flex-1 flex flex-col justify-center items-center px-6">
           <div className="w-full max-w-md">
             <div className="mb-8 text-center">
-              <h1 className="font-light text-2xl" style={{ color: 'var(--foreground)' }}>
+              <h1 ref={titleRef} className="font-light text-2xl" style={getTextStyle(titleBrightness)}>
                 {isSignIn ? 'Sign in to your account' : 'Create your account'}
               </h1>
-              <p className="text-sm mt-2" style={{ color: 'var(--muted)' }}>
+              <p className="text-sm mt-2" style={getTextStyle(titleBrightness)}>
                 {email}
               </p>
             </div>
             
             <form className="space-y-6" onSubmit={isSignIn ? handleSignIn : handleSignUp}>
               {error && (
-                <div className="p-4 border rounded-lg text-sm" style={{ 
-                  backgroundColor: 'color-mix(in srgb, var(--accent) 20%, transparent)', 
-                  borderColor: 'color-mix(in srgb, var(--foreground) 15%, transparent)',
-                  color: 'var(--muted)'
+                <div className="p-4 rounded-lg text-sm" style={{ 
+                  ...getAdaptiveGlassStyleBlur(),
+                  color: getTextStyle(titleBrightness).color
                 }}>
                   {error} 
-              </div>
+                </div>
               )}
               
               <div>
-                <label className="block text-sm mb-2" style={{ color: 'var(--foreground)' }}>Password</label>
+                <label className="block text-sm mb-2" style={getTextStyle(passwordInputBrightness)}>Password</label>
                 <input
+                  ref={passwordInputRef}
                   id="password"
                   name="password"
                   type="password"
@@ -115,11 +208,10 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 border rounded-lg focus:outline-none transition-all cursor-text"
+                  className="w-full px-4 py-3 rounded-lg focus:outline-none transition-all cursor-text"
                   style={{
-                    backgroundColor: 'var(--background)',
-                    borderColor: 'color-mix(in srgb, var(--foreground) 20%, transparent)',
-                    color: 'var(--foreground)'
+                    ...getAdaptiveGlassStyleBlur(),
+                    color: getTextStyle(passwordInputBrightness).color
                   }}
                   placeholder={isSignIn ? "Enter your password" : "Create a password"}
                   autoFocus
@@ -128,23 +220,24 @@ export default function LoginPage() {
             
               <div className="space-y-3">
                 <button
+                  ref={passwordSubmitButtonRef}
                   type="submit"
                   className="w-full py-3 rounded-lg transition-all duration-200 font-medium cursor-pointer"
                   style={{
-                    backgroundColor: 'var(--foreground)',
-                    color: 'var(--background)'
+                    ...getAdaptiveGlassStyleBlur(),
+                    color: getTextStyle(passwordSubmitBrightness).color
                   }}
                 >
                   {isSignIn ? 'Sign in' : 'Sign up'}
                 </button>
                 <button 
+                  ref={passwordBackButtonRef}
                   type="button"
                   onClick={goBackToEmail}
-                  className="w-full py-3 border rounded-lg transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
                   style={{
-                    backgroundColor: 'var(--background)',
-                    borderColor: 'color-mix(in srgb, var(--foreground) 20%, transparent)',
-                    color: 'var(--foreground)'
+                    ...getAdaptiveGlassStyleBlur(),
+                    color: getTextStyle(passwordBackBrightness).color
                   }}
                 >
                   <ArrowLeft className="w-4 h-4" />
@@ -160,30 +253,60 @@ export default function LoginPage() {
 
   if (showEmailForm) {
     return (
-      <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)' }}>
+      <div className="min-h-screen flex flex-col relative">
+        {/* Background Image Layer */}
+        <div 
+          className="fixed inset-0 bg-cover bg-center bg-no-repeat min-h-screen w-full pointer-events-none"
+          style={{
+            backgroundImage: currentBackground ? `url("${currentBackground.replace(/"/g, '\\"')}")` : undefined,
+            zIndex: 0
+          }}
+        />
+        
+        {/* Blur overlay */}
+        <div 
+          className="fixed inset-0 min-h-screen w-full pointer-events-none"
+          style={{
+            backdropFilter: 'blur(40px)',
+            WebkitBackdropFilter: 'blur(40px)',
+            zIndex: 1
+          }}
+        />
+        
+        {/* Color overlay for very dark or very bright backgrounds */}
+        {overlayColor && (
+          <div 
+            className="fixed inset-0 min-h-screen w-full pointer-events-none"
+            style={{
+              backgroundColor: overlayColor,
+              zIndex: 2
+            }}
+          />
+        )}
+        
         {/* Email Form */}
-        <div className="flex-1 flex flex-col justify-center items-center px-6">
+        <div className="relative z-10 flex-1 flex flex-col justify-center items-center px-6">
           <div className="w-full max-w-md">
             <div className="mb-12 text-center">
-              <h1 className="font-light text-2xl" style={{ color: 'var(--foreground)' }}>
+              <h1 ref={titleRef} className="font-light text-2xl" style={getTextStyle(titleBrightness)}>
                 {isSignIn ? 'Sign in with your email' : 'Sign up with your email'}
               </h1>
             </div>
             
             <form className="space-y-6" onSubmit={handleEmailSubmit}>
               {error && (
-                <div className="p-4 border rounded-lg text-sm" style={{ 
-                  backgroundColor: 'color-mix(in srgb, var(--accent) 20%, transparent)', 
-                  borderColor: 'color-mix(in srgb, var(--foreground) 15%, transparent)',
-                  color: 'var(--muted)'
+                <div className="p-4 rounded-lg text-sm" style={{ 
+                  ...getAdaptiveGlassStyleBlur(),
+                  color: getTextStyle(titleBrightness).color
                 }}>
                   {error} 
                 </div>
               )}
               
               <div>
-                <label className="block text-sm mb-2" style={{ color: 'var(--foreground)' }}>Email</label>
+                <label className="block text-sm mb-2" style={getTextStyle(emailInputBrightness)}>Email</label>
                   <input
+                    ref={emailInputRef}
                     id="email"
                     name="email"
                     type="email"
@@ -191,11 +314,10 @@ export default function LoginPage() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 border rounded-lg focus:outline-none transition-all cursor-text"
+                  className="w-full px-4 py-3 rounded-lg focus:outline-none transition-all cursor-text"
                   style={{
-                    backgroundColor: 'var(--background)',
-                    borderColor: 'color-mix(in srgb, var(--foreground) 20%, transparent)',
-                    color: 'var(--foreground)'
+                    ...getAdaptiveGlassStyleBlur(),
+                    color: getTextStyle(emailInputBrightness).color
                   }}
                   placeholder="Enter your email"
                   autoFocus
@@ -204,23 +326,24 @@ export default function LoginPage() {
               
               <div className="space-y-3">
                 <button
+                  ref={emailSubmitButtonRef}
                   type="submit"
                   className="w-full py-3 rounded-lg transition-all duration-200 font-medium cursor-pointer"
                   style={{
-                    backgroundColor: 'var(--foreground)',
-                    color: 'var(--background)'
+                    ...getAdaptiveGlassStyleBlur(),
+                    color: getTextStyle(emailSubmitBrightness).color
                   }}
                 >
                   Continue
                 </button>
                 <button 
+                  ref={emailBackButtonRef}
                   type="button"
                   onClick={goBackToMain}
-                  className="w-full py-3 border rounded-lg transition-all duration-200 cursor-pointer"
+                  className="w-full py-3 rounded-lg transition-all duration-200 cursor-pointer"
                   style={{
-                    backgroundColor: 'var(--background)',
-                    borderColor: 'color-mix(in srgb, var(--foreground) 20%, transparent)',
-                    color: 'var(--foreground)'
+                    ...getAdaptiveGlassStyleBlur(),
+                    color: getTextStyle(emailBackBrightness).color
                   }}
                 >
                   Go back
@@ -234,12 +357,53 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)' }}>
+    <div className="min-h-screen flex flex-col relative">
+      {/* Background Image Layer */}
+      <div 
+        className="fixed inset-0 bg-cover bg-center bg-no-repeat min-h-screen w-full pointer-events-none"
+        style={{
+          backgroundImage: currentBackground ? `url("${currentBackground.replace(/"/g, '\\"')}")` : undefined,
+          zIndex: 0
+        }}
+      />
+      
+      {/* Blur overlay */}
+      <div 
+        className="fixed inset-0 min-h-screen w-full pointer-events-none"
+        style={{
+          backdropFilter: 'blur(40px)',
+          WebkitBackdropFilter: 'blur(40px)',
+          zIndex: 1
+        }}
+      />
+      
+      {/* Color overlay for very dark or very bright backgrounds */}
+      {overlayColor && (
+        <div 
+          className="fixed inset-0 min-h-screen w-full pointer-events-none"
+          style={{
+            backgroundColor: overlayColor,
+            zIndex: 2
+          }}
+        />
+      )}
+      
       {/* Create Account Screen */}
-      <div className="flex-1 flex flex-col justify-center items-center px-6">
+      <div className="relative z-10 flex-1 flex flex-col justify-center items-center px-6">
         <div className="w-full max-w-md">
           <div className="mb-12 text-center">
-            <h1 className="font-light text-3xl mb-8" style={{ color: 'var(--foreground)' }}>
+            {/* Logo - 제목 위에 표시 */}
+            <div ref={mainLogoRef} className="mb-8 flex justify-center">
+              <Image
+                src={getLogoSrc(mainLogoBrightness)}
+                alt="Chatflix"
+                width={180}
+                height={58}
+                className="h-14 w-auto"
+                priority
+              />
+            </div>
+            <h1 ref={titleRef} className="font-light text-3xl mb-8" style={getTextStyle(titleBrightness)}>
               {isSignIn ? 'Sign in to your account' : 'Create your account'}
             </h1>
           </div>
@@ -247,15 +411,15 @@ export default function LoginPage() {
           <div className="space-y-4">
             {/* Social Login Buttons */}
             <button 
+              ref={mainEmailButtonRef}
               onClick={() => {
                 setIsSignIn(isSignIn)
                 setShowEmailForm(true)
               }}
-              className="w-full py-3 border rounded-lg transition-all duration-200 flex items-center justify-center gap-3 cursor-pointer"
+              className="w-full py-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-3 cursor-pointer"
               style={{
-                backgroundColor: 'var(--background)',
-                borderColor: 'color-mix(in srgb, var(--foreground) 20%, transparent)',
-                color: 'var(--foreground)'
+                ...getAdaptiveGlassStyleBlur(),
+                color: getTextStyle(mainEmailButtonBrightness).color
               }}
             >
               <Mail className="w-5 h-5" />
@@ -277,12 +441,12 @@ export default function LoginPage() {
                 setPassword('')
               }}
               className="text-sm transition-colors cursor-pointer"
-              style={{ color: 'var(--muted)' }}
+              style={getTextStyle(titleBrightness)}
             >
               {isSignIn ? (
-                <>Don't have an account? <span className="hover:underline" style={{ color: 'var(--tools-color)' }}>Sign up</span></>
+                <>Don't have an account? <span className="text-blue-500 underline">Sign up</span></>
               ) : (
-                <>Already have an account? <span className="hover:underline" style={{ color: 'var(--tools-color)' }}>Sign in</span></>
+                <>Already have an account? <span className="text-blue-500 underline">Sign in</span></>
               )}
             </button>
           </div>

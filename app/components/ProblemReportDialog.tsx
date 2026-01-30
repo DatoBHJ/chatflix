@@ -177,7 +177,7 @@ export function ProblemReportDialog({ isOpen, onClose, user }: ProblemReportDial
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!content.trim()) {
-      setError('피드백 내용을 입력해주세요.')
+      setError('Please enter feedback content.')
       return
     }
     
@@ -192,7 +192,7 @@ export function ProblemReportDialog({ isOpen, onClose, user }: ProblemReportDial
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       
       if (authError || !user) {
-        throw new Error('로그인이 필요합니다.')
+        throw new Error('Login is required.')
       }
 
       const chatIdMatch = pathname.match(/\/chat\/([a-zA-Z0-9-]+)/)
@@ -216,7 +216,7 @@ export function ProblemReportDialog({ isOpen, onClose, user }: ProblemReportDial
         .single()
 
       if (error) {
-        throw new Error('문제 보고 저장에 실패했습니다.')
+        throw new Error('Failed to save problem report.')
       }
       
       setSuccess(true)
@@ -225,7 +225,7 @@ export function ProblemReportDialog({ isOpen, onClose, user }: ProblemReportDial
       }, 2000)
 
     } catch (err: any) {
-      setError(err.message || '예상치 못한 오류가 발생했습니다.')
+      setError(err.message || 'An unexpected error occurred.')
     } finally {
       setIsSubmitting(false)
     }

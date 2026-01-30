@@ -5,7 +5,8 @@ export interface ModelConfig {
   pro?: boolean;
   country: string;
   description?: string;
-  provider: 'anthropic' | 'openai' | 'google' | 'deepseek' | 'together' | 'groq' | 'xai';
+  provider: 'anthropic' | 'openai' | 'google' | 'deepseek' | 'together' | 'groq' | 'xai' | 'fireworks';
+  creator?: string; // Company/organization that developed the model (may differ from provider)
   supportsVision: boolean;
   supportsPDFs: boolean;
   abbreviation?: string; // Short name to display on mobile devices
@@ -16,7 +17,7 @@ export interface ModelConfig {
   isActivated: boolean; // Whether the model is activated for selection
   isAgentEnabled?: boolean;
   isNew?: boolean; // Mark model as new
-  isHot?: boolean; // Mark model as hot/trending
+  isHot?: boolean; // Mark model as hot/popular
   isUpdated?: boolean; // Mark model as recently updated
   updateDescription?: string; // Description for the update tooltip
   
@@ -24,16 +25,22 @@ export interface ModelConfig {
   reasoning?: boolean;
   
   // Reasoning effort level for Groq models
-  reasoningEffort?: 'low' | 'medium' | 'high' | 'default' | 'none';
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high' | 'default' | 'none';
+
+  // Gemini-style thinking configuration
+  thinkingConfig?: {
+    budget?: number;        // Gemini 2.5 (thinking_budget)
+    dynamic?: boolean;      // Gemini 2.5 (thinking_budget: -1)
+    level?: 'minimal' | 'low' | 'medium' | 'high';  // Gemini 3 (thinking_level)
+    includeThoughts?: boolean;
+  };
   
   // Performance metrics (optional)
   contextWindow?: number;
   tps?: number; // Tokens per second
   intelligenceIndex?: number; // AI Intelligence Index
-  multilingual?: number;
   latency?: number; // Response latency
   maxOutputTokens?: number;
-  IFBench?: number; // Instruction Following benchmark
 }
 
 // Default model configuration
@@ -101,59 +108,6 @@ export const RATE_LIMITS = {
     }
   },
 
-  // // 구독자용 레이트 리밋 설정
-  // subscriber_limits: {
-  //   level1: {
-  //     hourly: {
-  //       requests: 50,
-  //       window: '1 h'
-  //     },
-  //     daily: {
-  //       requests: 200,
-  //       window: '24 h'
-  //     }
-  //   },
-  //   level2: {
-  //     hourly: {
-  //       requests: 40,
-  //       window: '1 h'
-  //     },
-  //     daily: {
-  //       requests: 160,
-  //       window: '24 h'
-  //     }
-  //   },
-  //   level3: {
-  //     hourly: {
-  //       requests: 30,
-  //       window: '1 h'
-  //     },
-  //     daily: {
-  //       requests: 120,
-  //       window: '24 h'
-  //     }
-  //   },
-  //   level4: {
-  //     hourly: {
-  //       requests: 20,
-  //       window: '1 h'
-  //     },
-  //     daily: {
-  //       requests: 80,
-  //       window: '24 h'
-  //     }
-  //   },
-  //   level5: {
-  //     hourly: {
-  //       requests: 20,
-  //       window: '1 h'
-  //     },
-  //     daily: {
-  //       requests: 60,
-  //       window: '24 h'
-  //     }
-  //   }
-  // }
 };
 
 
@@ -172,10 +126,309 @@ export function getSystemDefaultModelId(): string {
 }
 
 
+// Reasoning effort helper constants
+const REASONING_EFFORT_SUFFIXES: Array<NonNullable<ModelConfig['reasoningEffort']>> = [
+'none',
+'minimal',
+'low',
+'medium',
+'high',
+'default',
+];
 
 // 챗플릭스 모델인지 확인하는 함수
 export function isChatflixModel(modelId: string): boolean {
-  return modelId === 'chatflix-ultimate' || modelId === 'chatflix-ultimate-pro';
+return modelId === 'chatflix-ultimate' || modelId === 'chatflix-ultimate-pro';
+}
+
+export function buildModelVariantId(
+modelId: string,
+reasoningEffort?: ModelConfig['reasoningEffort'] | null
+): string {
+if (!reasoningEffort) {
+  return modelId;
+}
+return `${modelId}-${reasoningEffort}`;
+}
+
+export function getModelVariantId(model: ModelConfig): string {
+return buildModelVariantId(model.id, model.reasoningEffort);
+}
+
+export function parseModelVariantId(
+identifier: string
+): { baseId: string; reasoningEffort?: NonNullable<ModelConfig['reasoningEffort']> } {
+const parts = identifier.split('-');
+const possibleEffort = parts[parts.length - 1] as NonNullable<ModelConfig['reasoningEffort']>;
+
+if (parts.length >= 2 && REASONING_EFFORT_SUFFIXES.includes(possibleEffort)) {
+  const baseId = parts.slice(0, -1).join('-');
+  return { baseId, reasoningEffort: possibleEffort };
+}
+
+return { baseId: identifier };
+}
+
+// 복잡도에 따라 Gemini 3 모델의 reasoning variant 선택
+function pickGemini3Variant(
+  baseId: 'gemini-3-pro-preview' | 'gemini-3-flash-preview',
+  complexity: 'simple' | 'medium' | 'complex'
+): string {
+  if (complexity === 'simple') {
+    // Simple: 빠른 응답을 위해 low/minimal variant 사용
+    if (baseId === 'gemini-3-pro-preview') {
+      return resolveDefaultModelVariantId('gemini-3-pro-preview-low');
+    } else {
+      return resolveDefaultModelVariantId('gemini-3-flash-preview-minimal');
+    }
+  } else {
+    // Medium/Complex: 높은 성능을 위해 high variant 사용
+    return resolveDefaultModelVariantId(`${baseId}-high`);
+  }
+}
+
+// 복잡도에 따라 GPT-5.2 모델의 reasoning variant 선택
+function pickGPT52Variant(
+  complexity: 'simple' | 'medium' | 'complex'
+): string {
+  if (complexity === 'simple') {
+    // Simple: 빠른 응답을 위해 none variant 사용
+    return resolveDefaultModelVariantId('gpt-5.2-none');
+  } else {
+    // Medium/Complex: 높은 성능을 위해 high variant 사용
+    return resolveDefaultModelVariantId('gpt-5.2-high');
+  }
+}
+
+// Chatflix 라우팅 로직: 중앙화된 모델 선택 로직
+// 이 함수를 수정하면 서버와 클라이언트 모두에 자동으로 반영됨
+export function selectModelBasedOnAnalysis(
+  analysis: { category: 'coding' | 'technical' | 'math' | 'other'; complexity: 'simple' | 'medium' | 'complex' },
+  hasImage: boolean,
+  hasPDF: boolean,
+  modelType: 'chatflix-ultimate' | 'chatflix-ultimate-pro' = 'chatflix-ultimate'
+): string {
+const pick = (modelId: string) => resolveDefaultModelVariantId(modelId);
+
+  // 1단계: 코딩 카테고리 최우선 처리
+  if (analysis.category === 'coding') {
+    if (modelType === 'chatflix-ultimate-pro') {
+      // Pro 버전 코딩 로직
+      if (hasImage || hasPDF) {
+        // 멀티모달 + 코딩
+        if (analysis.complexity === 'simple') {
+        return pick('gemini-3-flash-preview-high'); // gemini 3 flash high
+        } else { // medium/complex
+        return pickGemini3Variant('gemini-3-pro-preview', analysis.complexity); // gemini 3 pro
+        }
+      } else {
+        // 비멀티모달 + 코딩
+        if (analysis.complexity === 'simple') {
+        return pick('grok-code-fast-1'); // grok code fast for simple coding
+        } else if (analysis.complexity === 'medium') {
+        return pick('accounts/fireworks/models/kimi-k2p5');
+        } else { // complex
+        return pick('accounts/fireworks/models/kimi-k2p5');
+        }
+      }
+    } else {
+      // 일반 버전 코딩 로직
+      if (hasImage || hasPDF) {
+        // 멀티모달 + 코딩
+        if (analysis.complexity === 'complex') {
+        return pickGemini3Variant('gemini-3-pro-preview', analysis.complexity); // gemini 3 pro
+        } else { // simple/medium
+        return pickGemini3Variant('gemini-3-flash-preview', analysis.complexity); // gemini 3 flash
+        }
+      } else {
+        // 비멀티모달 + 코딩: 복잡도에 따라 모델 선택
+        if (analysis.complexity === 'simple') {
+        return pick('grok-code-fast-1'); // grok code fast for simple coding tasks
+        } else {
+        return pickGemini3Variant('gemini-3-flash-preview', analysis.complexity); // gemini 3 flash for medium/complex
+        }
+      }
+    }
+  }
+  
+  // 2단계: 멀티모달 요소 처리
+  else if (hasImage) {
+    if (analysis.category === 'technical' || analysis.category === 'math') {
+      // 이미지 + 기술/수학: Pro는 gpt-5.2, 일반은 gemini 3 pro
+    return modelType === 'chatflix-ultimate-pro' ? pickGPT52Variant(analysis.complexity) : pickGemini3Variant('gemini-3-pro-preview', analysis.complexity);
+    } else {
+      // 이미지 + 기타 카테고리
+      if (modelType === 'chatflix-ultimate-pro') {
+        // Pro 버전: 단순/중간은 gemini 3 flash, 복잡은 gemini 3 pro
+        if (analysis.complexity === 'complex') {
+        return pickGemini3Variant('gemini-3-pro-preview', analysis.complexity);
+        } else { // simple/medium
+        return pickGemini3Variant('gemini-3-flash-preview', analysis.complexity);
+        }
+      } else {
+        // 일반 버전
+        if (analysis.complexity === 'simple') {
+        return pickGemini3Variant('gemini-3-flash-preview', analysis.complexity);
+        } else if (analysis.complexity === 'medium') {
+        return pickGemini3Variant('gemini-3-flash-preview', analysis.complexity);
+        } else { // complex
+        return pickGemini3Variant('gemini-3-pro-preview', analysis.complexity);
+        }
+      }
+    }
+  }
+  else if (hasPDF) {
+    // PDF 처리 (카테고리 무관)
+    if (modelType === 'chatflix-ultimate-pro') {
+      // Pro 버전: 모든 복잡도에서 gemini 3 flash (단순/중간), gemini 3 pro (복잡)
+      if (analysis.complexity === 'complex') {
+      return pickGemini3Variant('gemini-3-pro-preview', analysis.complexity);
+      } else { // simple/medium
+      return pickGemini3Variant('gemini-3-flash-preview', analysis.complexity);
+      }
+    } else {
+      // 일반 버전
+      if (analysis.complexity === 'simple') {
+      return pickGemini3Variant('gemini-3-flash-preview', analysis.complexity);
+      } else if (analysis.complexity === 'medium') {
+      return pickGemini3Variant('gemini-3-flash-preview', analysis.complexity);
+      } else { // complex
+      return pickGemini3Variant('gemini-3-pro-preview', analysis.complexity);
+      }
+    }
+  }
+  
+  // 3단계: 텍스트만 있는 경우 (비멀티모달)
+  else {
+    if (analysis.category === 'math') {
+      // 수학 카테고리 - 비멀티모달: Ultimate는 openai/gpt-oss-120b-high, Pro는 gpt-5.2 사용
+    return modelType === 'chatflix-ultimate-pro' ? pickGPT52Variant(analysis.complexity) : pick('openai/gpt-oss-120b-high');
+    }
+    else if (analysis.category === 'technical') {
+      // 기술 카테고리
+      if (modelType === 'chatflix-ultimate-pro') {
+        // Pro 버전: 단순 gemini-3-flash, 중간/복잡 claude-sonnet-4
+        if (analysis.complexity === 'simple') {
+        return pickGemini3Variant('gemini-3-flash-preview', analysis.complexity);
+        } else { // medium/complex
+        return pick('accounts/fireworks/models/kimi-k2p5');
+        }
+      } else {
+        // 일반 버전: 모든 복잡도 gemini-3-flash
+      return pickGemini3Variant('gemini-3-flash-preview', analysis.complexity);
+      }
+    }
+    else {
+      // 기타 카테고리
+      if (modelType === 'chatflix-ultimate-pro') {
+        // Pro 버전: 복잡도에 따라 모델 선택
+        if (analysis.complexity === 'simple') {
+        return pick('accounts/fireworks/models/kimi-k2p5');
+        } else if (analysis.complexity === 'medium') {
+        return pick('accounts/fireworks/models/kimi-k2p5');
+        } else { // complex
+        return pickGPT52Variant(analysis.complexity);
+        }
+      } else {
+        // 일반 버전: 복잡도에 따라 모델 선택
+        if (analysis.complexity === 'simple') {
+        return pick('accounts/fireworks/models/kimi-k2p5-none');
+        } else { // medium/complex
+        return pick('accounts/fireworks/models/kimi-k2p5');
+        }
+      }
+    }
+  }
+}
+
+// Chatflix가 선택할 수 있는 모든 모델 ID를 추출하는 함수
+// selectModelBasedOnAnalysis 함수의 모든 가능한 반환값을 수집
+export function getChatflixSelectableModelIds(
+  modelType: 'chatflix-ultimate' | 'chatflix-ultimate-pro'
+): string[] {
+  const modelIds = new Set<string>();
+  
+  // 모든 가능한 조합을 시뮬레이션
+  const categories: Array<'coding' | 'technical' | 'math' | 'other'> = ['coding', 'technical', 'math', 'other'];
+  const complexities: Array<'simple' | 'medium' | 'complex'> = ['simple', 'medium', 'complex'];
+  const multimodalOptions = [
+    { hasImage: true, hasPDF: false },
+    { hasImage: false, hasPDF: true },
+    { hasImage: false, hasPDF: false }
+  ];
+  
+  // 모든 조합에 대해 모델 ID 수집
+  for (const category of categories) {
+    for (const complexity of complexities) {
+      for (const { hasImage, hasPDF } of multimodalOptions) {
+        const modelId = selectModelBasedOnAnalysis(
+          { category, complexity },
+          hasImage,
+          hasPDF,
+          modelType
+        );
+      modelIds.add(modelId);
+      }
+    }
+  }
+  
+  return Array.from(modelIds);
+}
+
+// Chatflix 모델이 선택할 수 있는 모델들의 지표 범위를 계산하는 함수
+export function getChatflixMetricRange(
+  modelId: string,
+  metric: 'latency' | 'tps' | 'intelligenceIndex' | 'contextWindow',
+  disabledLevels: string[] = []
+): { min: number; max: number } | null {
+  // Chatflix 모델이 아니면 null 반환
+  if (!isChatflixModel(modelId)) {
+    return null;
+  }
+
+  // Chatflix가 실제로 선택할 수 있는 모델 ID 목록 가져오기
+  const selectableModelIds = getChatflixSelectableModelIds(modelId as 'chatflix-ultimate' | 'chatflix-ultimate-pro');
+  
+  // 실제 존재하는 모델들만 필터링
+const selectableModelIdsSet = new Set(selectableModelIds);
+const availableModels = MODEL_CONFIGS.filter(model => {
+  const variantId = getModelVariantId(model);
+
+    // Chatflix 모델 자체는 제외
+    if (isChatflixModel(model.id)) {
+      return false;
+    }
+    // 실제 라우팅 로직에서 사용되는 모델인지 확인
+  if (!selectableModelIdsSet.has(variantId)) {
+      return false;
+    }
+    // rate limit 체크
+    const isRateLimited = disabledLevels.includes(model.rateLimit?.level || '');
+    if (isRateLimited) {
+      return false;
+    }
+    // isEnabled && isActivated 체크
+    if (!model.isEnabled || !model.isActivated) {
+      return false;
+    }
+    return true;
+  });
+
+  // 해당 지표가 있는 모델들만 필터링
+  const modelsWithMetric = availableModels
+    .map(model => model[metric])
+    .filter((value): value is number => typeof value === 'number');
+
+  // 지표가 있는 모델이 없으면 null 반환
+  if (modelsWithMetric.length === 0) {
+    return null;
+  }
+
+  // 최소값과 최대값 계산
+  const min = Math.min(...modelsWithMetric);
+  const max = Math.max(...modelsWithMetric);
+
+  return { min, max };
 }
 
 // Define the model configurations
@@ -189,6 +442,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   country: 'GLOBAL',
   description: 'Selects top models for complex or technical tasks.',
   provider: 'anthropic',
+  creator: 'chatflix',
   supportsVision: true,
   supportsPDFs: true,
   rateLimit: {
@@ -197,8 +451,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   isEnabled: true,
   isActivated: true,
   isAgentEnabled: true,
-  // isUpdated: true, // Recently updated
-  // updateDescription: 'Enhanced model selection algorithm with improved reasoning capabilities and better performance for complex tasks.',
   reasoning: true,
 },
 
@@ -210,30 +462,89 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   abbreviation: 'CHFX',
   country: 'GLOBAL',
   description: 'Selects the best model for everyday tasks',
-  // description: 'Optimized for everyday tasks. Automatically selects the best model based on your input. By default, it prioritizes speed-optimized models like GPT 4.1 and Gemini 2.5 Flash for quick responses. High-performance models such as Claude Sonnet 4 and Gemini 2.5 Pro are also used when your request requires more advanced reasoning or complexity.',
   provider: 'anthropic',
+  creator: 'chatflix',
   supportsVision: true,
   supportsPDFs: true,
   rateLimit: {
     level: 'level0',
   },
-  // isHot: true,
   isEnabled: true,
   isActivated: true,
   isAgentEnabled: true,
 
   reasoning: true,
 },
-// Gemini 2.5 Pro 
+// 📅 현재 Google의 가장 최신 모델은 Gemini 3 Pro입니다.
+// 📅 Gemini 3 Pro
 {
-  id: 'gemini-2.5-pro',
-  name: 'Gemini 2.5 Pro (Thinking)',
-  // pro: true,
+  id: 'gemini-3-pro-preview',
+  name: 'Gemini 3 Pro (High)',
   cutoff: 'Jan 2025',
-  abbreviation: 'Gem2.5P',
+  abbreviation: 'Gem3P',
   country: 'US',
-  description: 'The model thinks before responding. Reasoning process is hidden.',
   provider: 'google',
+  creator: 'google',
+  supportsVision: true,
+  supportsPDFs: true,
+  rateLimit: {
+    level: 'level3',
+  },
+  isEnabled: true,
+  isActivated: true,
+  isAgentEnabled: true,
+  reasoning: true,
+  thinkingConfig: {
+    level: 'high',  // Default thinking_level for Gemini 3
+    includeThoughts: true,
+  },
+  reasoningEffort: 'high', // Creates unique provider key: 'gemini-3-pro-preview-high'
+  // Metrics from https://artificialanalysis.ai/models/gemini-3-pro/providers (Google AI Studio)
+  contextWindow: 1048576, // Updated from artificialanalysis.ai (1m = 1,048,576)
+  tps: 120.6, // Updated from artificialanalysis.ai (Google AI Studio: 120.6 tokens/s)
+  intelligenceIndex: 48, // Updated from artificialanalysis.ai (Intelligence Index: 48, ranks #4/106)
+  latency: 32.66, // Updated from artificialanalysis.ai (Google AI Studio: 32.66s, time to first answer token including thinking)
+  maxOutputTokens: 64000, // From https://ai.google.dev/gemini-api/docs/gemini-3 (Output token limit: 64k)
+},
+// 📅 Gemini 3 Pro (Low Thinking)
+{
+  id: 'gemini-3-pro-preview',
+  name: 'Gemini 3 Pro Fast',
+  cutoff: 'Jan 2025',
+  abbreviation: 'Gem3P-L',
+  country: 'US',
+  provider: 'google',
+  creator: 'google',
+  supportsVision: true,
+  supportsPDFs: true,
+  rateLimit: {
+    level: 'level3',
+  },
+  isEnabled: true,
+  isActivated: true,
+  isAgentEnabled: true,
+  reasoning: true,
+  thinkingConfig: {
+    level: 'low',  // Low thinking_level for faster responses
+    includeThoughts: false,
+  },
+  reasoningEffort: 'low', // Creates unique provider key: 'gemini-3-pro-preview-low'
+  // Metrics from https://artificialanalysis.ai/models/gemini-3-pro-low/providers (Google AI Studio)
+  contextWindow: 1048576, // ✓ Found: 1m (matches)
+  tps: 109.8, // Updated from artificialanalysis.ai (Google AI Studio: 109.8 tokens/s)
+  intelligenceIndex: 41, // Updated from artificialanalysis.ai (Intelligence Index: 41, ranks #15/106)
+  latency: 3.37, // Updated from artificialanalysis.ai (Google AI Studio: 3.37s, time to first answer token including thinking)
+  maxOutputTokens: 64000, // From https://ai.google.dev/gemini-api/docs/gemini-3 (Output token limit: 64k)
+},
+// 📅 Gemini 3 Flash
+{
+  id: 'gemini-3-flash-preview',
+  name: 'Gemini 3 Flash (High)',
+  cutoff: 'Jan 2025',
+  abbreviation: 'Gem3F',
+  country: 'US',
+  provider: 'google',
+  creator: 'google',
   supportsVision: true,
   rateLimit: {
     level: 'level3',
@@ -241,23 +552,60 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   supportsPDFs: true,
   isEnabled: true,
   isActivated: true,
-  contextWindow: 1048576,
   isAgentEnabled: true,
-  tps: 156,
-  intelligenceIndex: 60,
-  latency: 30.2,
-  maxOutputTokens: 65536,
-  IFBench:49
+  // Metrics from https://artificialanalysis.ai/models/gemini-3-flash-reasoning/providers (Google AI Studio)
+  contextWindow: 1048576, // ✓ Found: 1m (matches)
+  tps: 193.6, // Updated from artificialanalysis.ai (Google AI Studio: 193.6 tokens/s)
+  intelligenceIndex: 46, // Updated from artificialanalysis.ai (Intelligence Index: 46, ranks #7/106)
+  latency: 13.00, // Updated from artificialanalysis.ai (Google AI Studio: 13.00s, time to first answer token including thinking) 
+  maxOutputTokens: 65536, // From https://ai.google.dev/gemini-api/docs/models (Output token limit: 65,536)
+  reasoning: true,
+  thinkingConfig: {
+    level: 'high',  // Default thinking_level for Gemini 3 Flash
+    includeThoughts: true,
+  },
+  reasoningEffort: 'high', // Creates unique provider key: 'gemini-3-flash-preview-high'
 },
-// Gemini 2.5 Flash 
+// 📅 Gemini 3 Flash (No Thinking)
+{
+  id: 'gemini-3-flash-preview',
+  name: 'Gemini 3 Flash Fast',
+  cutoff: 'Jan 2025',
+  abbreviation: 'Gem3F-Min',
+  country: 'US',
+  provider: 'google',
+  creator: 'google',
+  supportsVision: true,
+  rateLimit: {
+    level: 'level3',
+  },
+  supportsPDFs: true,
+  isEnabled: true,
+  isActivated: true,
+  isAgentEnabled: true,
+  // Metrics from https://artificialanalysis.ai/models/gemini-3-flash/providers (Google AI Studio - Non-reasoning)
+  contextWindow: 1048576, // ✓ Found: 1m (matches)
+  tps: 164.9, // Updated from artificialanalysis.ai (Google AI Studio: 164.9 tokens/s for non-reasoning)
+  intelligenceIndex: 35, // Updated from artificialanalysis.ai (Intelligence Index: 35, ranks #3/56)
+  latency: 0.89, // Updated from artificialanalysis.ai (Google AI Studio: 0.89s, time to first answer token)
+  maxOutputTokens: 65536, // From https://ai.google.dev/gemini-api/docs/models (Output token limit: 65,536)
+  reasoning: true,
+  thinkingConfig: {
+    level: 'minimal',  // Minimal thinking_level: matches "no thinking" for most queries
+    includeThoughts: false,
+  },
+  reasoningEffort: 'minimal', // Creates unique provider key: 'gemini-3-flash-preview-minimal'
+},
+// 📅 Gemini 2.5 Flash 
+// Note: Gemini 2.5 Flash (Sep) 모델 업데이트 권장. 관련 링크: https://artificialanalysis.ai/models/gemini-2-5-flash-preview-09-2025-reasoning/providers
 {
   id: 'gemini-2.5-flash',
   name: 'Gemini 2.5 Flash (Thinking)',
   cutoff: 'Jan 2025',
   abbreviation: 'Gem2.5F',
   country: 'US',
-  description: 'The model thinks before responding. Reasoning process is hidden.',
   provider: 'google',
+  creator: 'google',
   supportsVision: true,
   rateLimit: {
     level: 'level3',
@@ -266,37 +614,45 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   isEnabled: true,
   isActivated: true,
   isAgentEnabled: true,
-  contextWindow: 1048576,
-  tps: 202,
-  intelligenceIndex: 51,
-  latency: 13.4,
-  maxOutputTokens: 65536,
-  IFBench:39,
+  // Metrics from https://artificialanalysis.ai/models/gemini-2-5-flash-reasoning/providers (Google AI Studio)
+  contextWindow: 1048576, // ✓ Found: 1m (matches)
+  tps: 264.9, // Updated from artificialanalysis.ai (Intelligence Index page: 264.9 tokens/s)
+  intelligenceIndex: 27, // Updated from artificialanalysis.ai (Intelligence Index: 27, ranks #30/135)
+  latency: 16.68, // Updated from artificialanalysis.ai (Google AI Studio: 16.68s, time to first answer token including thinking)
+  maxOutputTokens: 65536, // From https://ai.google.dev/gemini-api/docs/models (Output token limit: 65,536)
+  reasoning: true,
+  thinkingConfig: {
+    budget: 8192,
+    includeThoughts: true,
+  },
 },
-// Gemini 2.0 Flash
+// 📅 Gemini 2.5 Flash (No Thinking)
 {
-  id: 'gemini-2.0-flash',
-  name: 'Gemini 2.0 Flash',
-  cutoff: 'Aug 2024',
-  abbreviation: 'Gem2.0F',
+  id: 'gemini-2.5-flash',
+  name: 'Gemini 2.5 Flash Fast',
+  cutoff: 'Jan 2025',
+  abbreviation: 'Gem2.5F-NT',
   country: 'US',
   provider: 'google',
+  creator: 'google',
   supportsVision: true,
   rateLimit: {
-    level: 'level1',
+    level: 'level3',
   },
   supportsPDFs: true,
   isEnabled: true,
   isActivated: true,
   isAgentEnabled: true,
-  contextWindow: 1048576,
-  tps: 183,
-  intelligenceIndex: 34,
-  latency: 0.4,
-  maxOutputTokens: 8192,
-  IFBench:40
+  // Metrics from https://artificialanalysis.ai/models/gemini-2-5-flash/providers (Google AI Studio - Non-reasoning)
+  contextWindow: 1048576, // ✓ Found: 1m (matches)
+  tps: 224.7, // Updated from artificialanalysis.ai (Google AI Studio: 224.7 tokens/s for non-reasoning)
+  intelligenceIndex: 21, // Updated from artificialanalysis.ai (Intelligence Index: 21, ranks #17/77)
+  latency: 0.38, // Updated from artificialanalysis.ai (Google AI Studio: 0.38s, time to first answer token)
+  maxOutputTokens: 65536, // From https://ai.google.dev/gemini-api/docs/models (Output token limit: 65,536)
+  reasoning: false, // Prevents thinkingConfig from being sent to API
+  reasoningEffort: 'none', // Creates unique provider key: 'gemini-2.5-flash-none'
 },
-// Gemini 2.5 Flash Lite
+// 📅 Gemini 2.5 Flash Lite
 {
   id: 'gemini-2.5-flash-lite',
   name: 'Gemini 2.5 Flash Lite',
@@ -304,22 +660,108 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   abbreviation: 'Gem2.5FL',
   country: 'US',
   provider: 'google',
+  creator: 'google',
   supportsVision: true,
   rateLimit: {
     level: 'level1',
   },
   supportsPDFs: true,
-  isEnabled: false,
+  isEnabled: true,
   isActivated: true,
   isAgentEnabled: true,
-  contextWindow: 1048576,
-  tps: 460,
-  intelligenceIndex: 30,
-  latency: 0.3,
-  maxOutputTokens: 8192,
-  IFBench:40,
+  // Metrics from https://artificialanalysis.ai/models/gemini-2-5-flash-lite/providers (Google AI Studio)
+  contextWindow: 1048576, // ✓ Found: 1m (matches)
+  tps: 255.1, // Updated from artificialanalysis.ai (Google AI Studio: 255.1 tokens/s)
+  intelligenceIndex: 13, // Updated from artificialanalysis.ai (Intelligence Index: 13, ranks #52/77)
+  latency: 0.32, // Updated from artificialanalysis.ai (Google AI Studio: 0.32s, time to first answer token)
+  maxOutputTokens: 65536, // From https://ai.google.dev/gemini-api/docs/models (Output token limit: 65,536)
 },
-// Claude 4 Sonnet (Thinking)
+// 📅 Gemini 2.0 Flash
+// {
+//   id: 'gemini-2.0-flash',
+//   name: 'Gemini 2.0 Flash',
+//   cutoff: 'Aug 2024',
+//   abbreviation: 'Gem2.0F',
+//   country: 'US',
+//   provider: 'google',
+//   creator: 'google',
+//   supportsVision: true,
+//   rateLimit: {
+//     level: 'level1',
+//   },
+//   supportsPDFs: true,
+//   isEnabled: true,
+//   isActivated: true,
+//   isAgentEnabled: true,
+//   // Metrics from https://artificialanalysis.ai/models/gemini-2-0-flash/providers (Google Vertex)
+//   contextWindow: 1048576, // ✓ Found: 1m (matches)
+//   tps: 150.4, // Updated from artificialanalysis.ai (Google Vertex: 150.4 tokens/s)
+//   intelligenceIndex: 19, // Updated from artificialanalysis.ai (Intelligence Index: 19, ranks #21/76)
+//   latency: 0.33, // Updated from artificialanalysis.ai (Google Vertex: 0.33s, time to first answer token)
+//   maxOutputTokens: 8192, // From config (Gemini 2.0 Flash typically uses 8192, verify at https://ai.google.dev/gemini-api/docs/models)
+// },
+// 📅 현재 Anthropic의 가장 최신 모델은 Claude Opus 4.5입니다.
+// 📅 Claude 4.5 Opus (Thinking)
+// ⚠️ 주의: 이전에 contextWindow가 1,000,000 (1M)으로 설정되어 있었으나, 표준은 200,000 (200K)입니다. 1M은 beta 기능이며 usage tier 4+ 조직에서만 사용 가능합니다.
+{
+  id: 'claude-opus-4-5-20251101-thinking',
+  name: 'Claude Opus 4.5 (Thinking)',
+  // pro: true,
+  cutoff: 'May 2025',
+  abbreviation: 'CO4-T',
+  country: 'US',
+  provider: 'anthropic',
+  creator: 'anthropic',
+  supportsVision: true,
+  rateLimit: {
+    level: 'level4',
+  },
+  supportsPDFs: true,
+  // censored: true,
+  isEnabled: true,
+  isActivated: true,
+  isAgentEnabled: true,
+  reasoning: true,
+  // Metrics from https://artificialanalysis.ai/models/claude-opus-4-5-thinking/providers (Anthropic)
+  // Note: 1M token context window is available as beta feature for usage tier 4+ organizations. See: https://docs.claude.com/en/docs/build-with-claude/context-windows#1m-token-context-window
+  contextWindow: 200000, // Standard context window: 200K tokens (1M is beta, usage tier 4+ only)
+  intelligenceIndex: 50, // Updated from artificialanalysis.ai (Intelligence Index: 50)
+  tps: 75.9, // Updated from artificialanalysis.ai (Anthropic: 75.9 tokens/s)
+  latency: 27.9, // Updated from artificialanalysis.ai (Anthropic: 27.9s, time to first answer token including thinking)
+  maxOutputTokens: 64000, // From https://docs.claude.com/en/docs/about-claude/models/overview (Max output: 64K tokens)
+  // pro: true,
+},
+// 📅 Claude 4.5 Opus
+// ⚠️ 주의: 이전에 contextWindow가 1,000,000 (1M)으로 설정되어 있었으나, 표준은 200,000 (200K)입니다. 1M은 beta 기능이며 usage tier 4+ 조직에서만 사용 가능합니다.
+{
+  id: 'claude-opus-4-5-20251101',
+  name: 'Claude Opus 4.5',
+  // pro: true,
+  cutoff: 'May 2025',
+  abbreviation: 'CO4',
+  country: 'US',
+  provider: 'anthropic',
+  creator: 'anthropic',
+  supportsVision: true,
+  supportsPDFs: true,
+  // censored: true,
+  rateLimit: {
+    level: 'level4',
+  },
+  isAgentEnabled: true,
+  isEnabled: true,
+  isActivated: true,
+  // Metrics from https://artificialanalysis.ai/models/claude-opus-4-5/providers (Anthropic)
+  // Note: 1M token context window is available as beta feature for usage tier 4+ organizations. See: https://docs.claude.com/en/docs/build-with-claude/context-windows#1m-token-context-window
+  contextWindow: 200000, // Standard context window: 200K tokens (1M is beta, usage tier 4+ only)
+  intelligenceIndex: 43, // Updated from artificialanalysis.ai (Intelligence Index: 43, ranks #1/56 among non-reasoning models)
+  tps: 74.0, // Updated from artificialanalysis.ai (Anthropic: 74.0 tokens/s)
+  latency: 1.69, // Updated from artificialanalysis.ai (Anthropic: 1.69s, time to first answer token)
+  maxOutputTokens: 64000, // From https://docs.claude.com/en/docs/about-claude/models/overview (Max output: 64K tokens)
+  // pro: true,
+},
+// 📅 Claude 4 Sonnet (Thinking)
+// ⚠️ 주의: 이전에 contextWindow가 1,000,000 (1M)으로 설정되어 있었으나, 표준은 200,000 (200K)입니다. 1M은 beta 기능이며 usage tier 4+ 조직에서만 사용 가능합니다.
 {
   id: 'claude-sonnet-4-5-20250929-thinking',
   name: 'Claude Sonnet 4.5 (Thinking)',
@@ -328,6 +770,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   abbreviation: 'CS4-T',
   country: 'US',
   provider: 'anthropic',
+  creator: 'anthropic',
   supportsVision: true,
   rateLimit: {
     level: 'level3',
@@ -338,15 +781,17 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   isActivated: true,
   isAgentEnabled: true,
   reasoning: true,
-  contextWindow: 200000,
-  intelligenceIndex: 61,
-  tps: 62,
-  latency: 33.8,
-  maxOutputTokens: 64000,
-  IFBench:55,
+  // Metrics from https://artificialanalysis.ai/models/claude-4-5-sonnet-thinking/providers (Anthropic)
+  // Note: 1M token context window is available as beta feature for usage tier 4+ organizations. See: https://docs.claude.com/en/docs/build-with-claude/context-windows#1m-token-context-window
+  contextWindow: 200000, // Standard context window: 200K tokens (1M is beta, usage tier 4+ only)
+  intelligenceIndex: 43, // Updated from artificialanalysis.ai (Intelligence Index: 43, ranks #12/106)
+  tps: 79.9, // Updated from artificialanalysis.ai (Anthropic: 79.9 tokens/s)
+  latency: 44.90, // Updated from artificialanalysis.ai (Anthropic: 44.90s, time to first answer token including thinking)
+  maxOutputTokens: 64000, // From https://docs.claude.com/en/docs/about-claude/models/overview (Max output: 64K tokens)
   // pro: true,
 },
-// Claude 4.5 Sonnet 
+// 📅 Claude 4.5 Sonnet 
+// ⚠️ 주의: 이전에 contextWindow가 1,000,000 (1M)으로 설정되어 있었으나, 표준은 200,000 (200K)입니다. 1M은 beta 기능이며 usage tier 4+ 조직에서만 사용 가능합니다.
 {
   id: 'claude-sonnet-4-5-20250929',
   name: 'Claude Sonnet 4.5',
@@ -355,6 +800,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   abbreviation: 'CS4',
   country: 'US',
   provider: 'anthropic',
+  creator: 'anthropic',
   supportsVision: true,
   supportsPDFs: true,
   // censored: true,
@@ -364,100 +810,52 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   isAgentEnabled: true,
   isEnabled: true,
   isActivated: true,
-  contextWindow: 200000,
-  intelligenceIndex: 49,
-  tps: 77,
-  latency: 1.7,
-  maxOutputTokens: 64000,
-  IFBench:45,
+  // Metrics from https://artificialanalysis.ai/models/claude-4-5-sonnet/providers (Anthropic)
+  // Note: 1M token context window is available as beta feature for usage tier 4+ organizations. See: https://docs.claude.com/en/docs/build-with-claude/context-windows#1m-token-context-window
+  contextWindow: 200000, // Standard context window: 200K tokens (1M is beta, usage tier 4+ only)
+  intelligenceIndex: 37, // Updated from artificialanalysis.ai (Intelligence Index: 37, ranks #2/56)
+  tps: 69.5, // Updated from artificialanalysis.ai (Anthropic: 69.5 tokens/s)
+  latency: 1.16, // Updated from artificialanalysis.ai (Anthropic: 1.16s, time to first answer token)
+  maxOutputTokens: 64000, // From https://docs.claude.com/en/docs/about-claude/models/overview (Max output: 64K tokens)
   // pro: true,
 },
-// // Claude 4 Sonnet (Thinking)
-// {
-//   id: 'claude-sonnet-4-20250514-thinking',
-//   name: 'Claude Sonnet 4 (Thinking)',
-//   // pro: true,
-//   cutoff: 'Mar 2025',
-//   abbreviation: 'CS4-T',
-//   country: 'US',
-//   provider: 'anthropic',
-//   supportsVision: true,
-//   rateLimit: {
-//     level: 'level3',
-//   },
-//   supportsPDFs: true,
-//   // censored: true,
-//   isEnabled: true,
-//   isActivated: true,
-//   isAgentEnabled: true,
-//   reasoning: true,
-//   contextWindow: 200000,
-//   intelligenceIndex: 57,
-//   tps: 51,
-//   latency: 40.6,
-//   maxOutputTokens: 64000,
-//   IFBench:55,
-// },
-// // Claude 4 Sonnet 
-// {
-//   id: 'claude-sonnet-4-20250514',
-//   name: 'Claude Sonnet 4',
-//   // pro: true,
-//   cutoff: 'Mar 2025',
-//   abbreviation: 'CS4',
-//   country: 'US',
-//   provider: 'anthropic',
-//   supportsVision: true,
-//   supportsPDFs: true,
-//   // censored: true,
-//   rateLimit: {
-//     level: 'level3',
-//   },
-//   isAgentEnabled: true,
-//   isEnabled: true,
-//   isActivated: true,
-//   contextWindow: 200000,
-//   intelligenceIndex: 47,
-//   tps: 71,
-//   latency: 1.4,
-//   maxOutputTokens: 64000,
-//   IFBench:45
-// },
-
-//  DeepSeek V3.2 Exp (Thinking)
- {
+// 📅 현재 DeepSeek의 가장 최신 모델은 DeepSeek V3.2 Exp입니다.
+// 📅 DeepSeek V3.2 (Reasoning)
+{
   id: 'deepseek-reasoner',
-  name: 'DeepSeek V3.2 Exp (Thinking)',
+  name: 'DeepSeek V3.2 (Thinking)',
   cutoff: 'Sep 2025',
-  abbreviation: 'DSV3.2-Exp-T',
+  abbreviation: 'DSV3.2-T',
   country: 'CHINA',
   provider: 'deepseek',
+  creator: 'deepseek',
   supportsVision: false,
   rateLimit: {
     level: 'level1',
   },
-  description: 'If the request is agentic, the model will process the request using the non reasoning model DeepSeek V3.2 Exp.',
   supportsPDFs: false,
   reasoning: true,
   isEnabled: true,
   isActivated: true,
   isAgentEnabled: true,
-  contextWindow: 128000,
-  tps: 26,
-  intelligenceIndex: 57,
-  latency: 79.2,
-  maxOutputTokens: 32000,
-  IFBench:42,
-  isNew: true,
+  
+  // Metrics from https://artificialanalysis.ai/models/deepseek-v3-2-reasoning/providers (DeepSeek)
+  contextWindow: 128000,      // ✓ Found: 128k (matches)
+  tps: 30.2, // Updated from artificialanalysis.ai (DeepSeek: 30.2 tokens/s)
+  intelligenceIndex: 42, // Updated from artificialanalysis.ai (Intelligence Index: 42, ranks #3/59)
+  latency: 1.17, // Updated from artificialanalysis.ai (DeepSeek: 1.17s, time to first answer token including thinking)
+  maxOutputTokens: 8192,      // 📉 Updated: 32k -> 8k (Official API Limit: 8192)
 },
-// DeepSeek V3.2 Exp
+
+// 📅 DeepSeek V3.2 (Chat)
 {
   id: 'deepseek-chat',
-  name: "DeepSeek V3.2 Exp",
+  name: "DeepSeek V3.2",
   cutoff: 'Sep 2025',
-  abbreviation: 'DSV3.2-Exp',
+  abbreviation: 'DSV3.2',
   country: 'CHINA',
   provider: 'deepseek',
+  creator: 'deepseek',
   supportsVision: false,
   rateLimit: {
     level: 'level1',
@@ -466,22 +864,24 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   isEnabled: true,
   isActivated: true,
   isAgentEnabled: true,
-  contextWindow: 128000,
-  tps: 24,
-  intelligenceIndex: 46,
-  latency: 1.4,
-  IFBench:38,
-  isNew: true,
+
+  // Metrics from https://artificialanalysis.ai/models/deepseek-v3-2/providers (DeepSeek)
+  contextWindow: 128000,      // ✓ Found: 128k (matches)
+  tps: 30.7, // Updated from artificialanalysis.ai (Intelligence Index page: 30.7 tokens/s)
+  intelligenceIndex: 32, // Updated from artificialanalysis.ai (Intelligence Index: 32, ranks #2/33)
+  latency: 1.13, // Updated from artificialanalysis.ai (DeepSeek: 1.13s, time to first answer token)
+  maxOutputTokens: 8192,      // Added: Official API Limit
 },
-// Kimi K2
+
+// 📅 Kimi K2
 {
   id: 'moonshotai/kimi-k2-instruct-0905',
   name: 'Kimi K2 0905',
   // cutoff: 'Dec 2023',
   abbreviation: 'K2-0905',
-  country: 'US',
-  description: 'Developed by Moonshot AI, powered by Groq',
+  country: 'CHINA',
   provider: 'groq',
+  creator: 'moonshot',
   supportsVision: false,
   rateLimit: {
     level: 'level2',
@@ -490,44 +890,96 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   isEnabled: true,
   isActivated: true,
   isAgentEnabled: true,
-  contextWindow: 256000,
-  latency: 0.3,
-  tps: 343,
-  intelligenceIndex: 50,
-  // IFBench:42,
-  // maxOutputTokens: 16384,
-},    
-// Kimi K2 
+  // Metrics from https://artificialanalysis.ai/models/kimi-k2-0905/providers (Groq)
+  contextWindow: 256000, // Updated from artificialanalysis.ai (256k = 256,000)
+  latency: 0.26, // Updated from artificialanalysis.ai (Groq: 0.26s, time to first answer token)
+  tps: 290.5, // Updated from artificialanalysis.ai (Groq: 290.5 tokens/s)
+  intelligenceIndex: 31, // Updated from artificialanalysis.ai (Intelligence Index: 31, ranks #3/33)
+  // maxOutputTokens: Not found on artificialanalysis.ai, verify at official Moonshot AI documentation
+},
+// 📅 Kimi K2 (Thinking)
 // {
-//   id: 'moonshotai/Kimi-K2-Instruct',
-//   name: 'Kimi K2',
-//   // cutoff: 'July 2024',
-//   abbreviation: 'K2',
+//   id: 'moonshotai/Kimi-K2-Thinking',
+//   name: 'Kimi K2 (Thinking)',
+//   abbreviation: 'K2-T',
 //   country: 'CHINA',
-//   description: 'Developed by Moonshot AI, powered by TogetherAI',
 //   provider: 'together',
+//   creator: 'moonshot',
 //   supportsVision: false,
 //   rateLimit: {
 //     level: 'level2',
 //   },
 //   supportsPDFs: false,
-//   isEnabled: false,
+//   reasoning: true,
+//   isEnabled: true,
 //   isActivated: true,
 //   isAgentEnabled: true,
-//   contextWindow: 131072,
-//   tps: 32,
-//   intelligenceIndex: 49,
-//   latency: 0.6,
-//   IFBench:42
+//   // Metrics from https://artificialanalysis.ai/models/kimi-k2-thinking/providers (Together.ai)
+//   contextWindow: 256000, // Updated from artificialanalysis.ai (256k = 256,000)
+//   tps: 145.2, // Updated from artificialanalysis.ai (Together.ai: 145.2 tokens/s)
+//   intelligenceIndex: 41, // Updated from artificialanalysis.ai (Intelligence Index: 41, ranks #4/59)
+//   latency: 0.49, // Updated from artificialanalysis.ai (Together.ai: 0.49s, time to first answer token including thinking)
+//   // maxOutputTokens: Not found on artificialanalysis.ai, verify at official Moonshot AI documentation
 // },
-// GPT-OSS-120B High
+// 📅 Kimi K2.5
+{
+  id: 'accounts/fireworks/models/kimi-k2p5',
+  name: 'Kimi K2.5 (Thinking)',
+  cutoff: 'Jan 2025',
+  abbreviation: 'K2.5',
+  country: 'CHINA',
+  provider: 'fireworks',
+  creator: 'moonshot',
+  supportsVision: true,
+  supportsPDFs: false,
+  rateLimit: {
+    level: 'level2',
+  },
+  isEnabled: true,
+  isActivated: true,
+  isAgentEnabled: true,
+  reasoning: true, // Reasoning 지원 (effort/budget 조정 옵션 없음)
+  // Metrics from https://artificialanalysis.ai/models/kimi-k2-5/providers (Fireworks)
+  contextWindow: 256000, // Updated from artificialanalysis.ai (256k = 256,000)
+  maxOutputTokens: 32768, // 32k tokens
+  intelligenceIndex: 47, // Updated from artificialanalysis.ai (Intelligence Index: 47, ranks #1/59)
+  tps: 185.4, // Updated from artificialanalysis.ai (Fireworks: 185.4 tokens/s)
+  latency: 0.45, // Updated from artificialanalysis.ai (Fireworks: 0.45s, time to first answer token including thinking)
+},
+// 📅 Kimi K2.5 (Non-reasoning)
+{
+  id: 'accounts/fireworks/models/kimi-k2p5',
+  name: 'Kimi K2.5',
+  cutoff: 'Jan 2026',
+  abbreviation: 'K2.5-NR',
+  country: 'CHINA',
+  provider: 'fireworks',
+  creator: 'moonshot',
+  supportsVision: true,
+  supportsPDFs: false,
+  rateLimit: {
+    level: 'level2',
+  },
+  isEnabled: true,
+  isActivated: true,
+  isAgentEnabled: true,
+  reasoning: false,
+  reasoningEffort: 'none', // Creates unique variant key: kimi-k2p5-none (same id, different from Thinking)
+  // Metrics from https://artificialanalysis.ai/models/kimi-k2-5-non-reasoning and /providers (Fireworks)
+  contextWindow: 256000, // 256k tokens
+  maxOutputTokens: 32768, // 32k tokens
+  intelligenceIndex: 38, // From artificialanalysis.ai (Intelligence Index: 38, ranks #1/34 in class)
+  tps: 166.1, // Fireworks: 166.1 tokens/s (fastest among 5 providers)
+  latency: 0.32, // Fireworks: 0.32s time to first token (lowest)
+},
+// 📅 GPT-OSS-120B High
 {
   id: 'openai/gpt-oss-120b-high',
   name: 'GPT-OSS-120B (High)',
   abbreviation: 'G120B-H',
   country: 'US',
-  description: 'Developed by OpenAI, powered by Groq (High reasoning effort)',
   provider: 'groq',
+  creator: 'openai',
   supportsVision: false,
   rateLimit: {
     level: 'level2',
@@ -538,175 +990,23 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   isEnabled: true,
   isActivated: true,
   isAgentEnabled: true,
-  isNew: true,
-  contextWindow: 131072,
-  intelligenceIndex: 58,
-  tps: 480,
-  latency: 4.4,
+  // Metrics from https://artificialanalysis.ai/models/gpt-oss-120b/providers (Groq provider)
+  contextWindow: 131072, // ✓ Found: 131k (matches)
+  intelligenceIndex: 33, // Updated from artificialanalysis.ai (Intelligence Index: 33, ranks #1/48)
+  tps: 466, // 직접 수정함
+  latency: 4.5, // 직접 수정함
+  // maxOutputTokens: Not found on artificialanalysis.ai
 },
-// GPT-OSS-120B Medium
-{
-  id: 'openai/gpt-oss-120b-medium',
-  name: 'GPT-OSS-120B (Medium)',
-  abbreviation: 'G120B-M',
-  country: 'US',
-  description: 'Developed by OpenAI, powered by Groq (Medium reasoning effort)',
-  provider: 'groq',
-  supportsVision: false,
-  rateLimit: {
-    level: 'level2',
-  },
-  reasoning: true,
-  reasoningEffort: 'medium',
-  supportsPDFs: false,
-  isEnabled: true,
-  isActivated: true,
-  isAgentEnabled: true,
-  isNew: true,
-  contextWindow: 131072,
-},
-// GPT-OSS-120B Low
-{
-  id: 'openai/gpt-oss-120b-low',
-  name: 'GPT-OSS-120B (Low)',
-  abbreviation: 'G120B-L',
-  country: 'US',
-  description: 'Developed by OpenAI, powered by Groq (Low reasoning effort)',
-  provider: 'groq',
-  supportsVision: false,
-  rateLimit: {
-    level: 'level2',
-  },
-  reasoning: true,
-  reasoningEffort: 'low',
-  supportsPDFs: false,
-  isEnabled: true,
-  isActivated: true,
-  isAgentEnabled: true,
-  isNew: true,
-  contextWindow: 131072,
-},
-// GPT-OSS-20B High
-{
-  id: 'openai/gpt-oss-20b-high',
-  name: 'GPT-OSS-20B (High)',
-  abbreviation: 'G20B-H',
-  country: 'US',
-  description: 'Developed by OpenAI, powered by Groq (High reasoning effort)',
-  provider: 'groq',
-  supportsVision: false,
-  rateLimit: {
-    level: 'level2',
-  },
-  reasoning: true,
-  reasoningEffort: 'high',
-  supportsPDFs: false,
-  isEnabled: true,
-  isActivated: true,
-  isAgentEnabled: true,
-  isNew: true,
-  contextWindow: 131072,
-  intelligenceIndex: 43,
-  tps: 973,
-  latency: 2.2,
-},
-// GPT-OSS-20B Medium
-{
-  id: 'openai/gpt-oss-20b-medium',
-  name: 'GPT-OSS-20B (Medium)',
-  abbreviation: 'G20B-M',
-  country: 'US',
-  description: 'Developed by OpenAI, powered by Groq (Medium reasoning effort)',
-  provider: 'groq',
-  supportsVision: false,
-  rateLimit: {
-    level: 'level2',
-  },
-  reasoning: true,
-  reasoningEffort: 'medium',
-  supportsPDFs: false,
-  isEnabled: true,
-  isActivated: true,
-  isAgentEnabled: true,
-  isNew: true,
-  contextWindow: 131072,
-},
-// GPT-OSS-20B Low
-{
-  id: 'openai/gpt-oss-20b-low',
-  name: 'GPT-OSS-20B (Low)',
-  abbreviation: 'G20B-L',
-  country: 'US',
-  description: 'Developed by OpenAI, powered by Groq (Low reasoning effort)',
-  provider: 'groq',
-  supportsVision: false,
-  rateLimit: {
-    level: 'level2',
-  },
-  reasoning: true,
-  reasoningEffort: 'low',
-  supportsPDFs: false,
-  isEnabled: true,
-  isActivated: true,
-  isAgentEnabled: true,
-  isNew: true,
-  contextWindow: 131072,
-},
-// Llama 4 Scout --disabled due to unstable agent performance
-{
-  id: 'meta-llama/llama-4-scout-17b-16e-instruct',
-  name: 'Llama 4 Scout',
-  cutoff: 'Dec 2023',
-  abbreviation: 'L4S',
-  country: 'US',
-  description: 'Developed by Meta, powered by Groq',
-  provider: 'groq',
-  supportsVision: true,
-  rateLimit: {
-    level: 'level1',
-  },
-  supportsPDFs: false,
-  isEnabled: false,
-  isActivated: false,
-  isAgentEnabled: false,
-  contextWindow: 131072,
-  latency: 0.2,
-  tps: 430,
-  intelligenceIndex: 28,
-  IFBench:40
-},
- // QwQ-32B (Thinking)
- {
-  id: 'qwen/qwen3-32b',
-  name: 'Qwen3-32B (Thinking)',
-  cutoff: 'June 2024',
-  abbreviation: 'Q3-32B-T',
-  country: 'CHINA',
-  description: 'Developed by Alibaba, powered by Groq',
-  provider: 'groq',
-  supportsVision: false,
-  rateLimit: {
-    level: 'level2',
-  },
-  reasoning: true,
-  isEnabled: true,
-  isActivated: true,
-  isAgentEnabled: false,
-  supportsPDFs: false,
-  contextWindow: 131072,
-  tps: 480,
-  latency: 4.3,
-  intelligenceIndex: 26,
-  // maxOutputTokens: 32768,
-},
+// 📅 DeepSeek V3.1
+// Note: DeepSeek V3.1 Terminus 모델 업데이트 권장. 관련 링크: https://artificialanalysis.ai/models/deepseek-v3-1-terminus
 {
   id: 'deepseek-ai/DeepSeek-V3.1',
   name: 'DeepSeek V3.1',
   cutoff: 'July 2024',
   abbreviation: 'DSV3.1',
   country: 'CHINA',
-  description: 'Developed by DeepSeek, powered by TogetherAI',
   provider: 'together',
+  creator: 'deepseek',
   supportsVision: false,
   rateLimit: {
     level: 'level2',
@@ -715,517 +1015,283 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   isEnabled: true,
   isActivated: true,
   isAgentEnabled: true,
-  contextWindow: 128000,
-  tps: 119,
-  intelligenceIndex: 45,
-  latency: 1.1,
+  // Metrics from https://artificialanalysis.ai/models/deepseek-v3-1/providers (Together.ai)
+  contextWindow: 131000, // Updated from artificialanalysis.ai (131k = 131,000)
+  tps: 149.7, // Updated from artificialanalysis.ai (Together.ai: 149.7 tokens/s)
+  intelligenceIndex: 28, // Updated from artificialanalysis.ai (Intelligence Index: 28, ranks #8/33)
+  latency: 0.31, // Updated from artificialanalysis.ai (Together.ai: 0.31s, time to first answer token)
+  // maxOutputTokens: Not found on artificialanalysis.ai, verify at https://api-docs.deepseek.com/
 },
+// 📅 Grok 4.1 Fast (Thinking)
 {
-  id: 'Qwen/Qwen3-235B-A22B-Thinking-2507',
-  name: 'Qwen3-235B-A22B-2507 (Thinking)',
-  cutoff: 'mid-2024 (estimated)',
-  abbreviation: 'Q3-235B-A22B-T-2507',
-  country: 'CHINA',
-  description: 'Developed by Alibaba, powered by TogetherAI',
-  provider: 'together',
-  supportsVision: false,
+  id: 'grok-4-1-fast-reasoning',
+  name: 'Grok 4.1 Fast (Thinking)',
+  // cutoff: 'Jul 2025',
+  // pro: true,
+  abbreviation: 'G4.1-F-T',
+  country: 'US',
+  provider: 'xai',
+  creator: 'xai',
+  supportsVision: true,
+  // censored: false,
   rateLimit: {
-    level: 'level2',
+    level: 'level3',
   },
-  supportsPDFs: false,
   reasoning: true,
-  isEnabled: true,
-  isActivated: true,
-  isAgentEnabled: false,
-  contextWindow: 256000,
-  tps: 54,
-  intelligenceIndex: 57,
-  latency: 37.6,
-  maxOutputTokens: 32000,
-  IFBench:51,
-},
-{
-  id: 'Qwen/Qwen3-235B-A22B-Instruct-2507-tput',
-  name: 'Qwen3-235B-A22B-2507',
-  cutoff: 'mid-2024 (estimated)',
-  abbreviation: 'Q3-235B-A22B-2507',
-  country: 'CHINA',
-  description: 'Developed by Alibaba, powered by TogetherAI',
-  provider: 'together',
-  supportsVision: false,
-  rateLimit: {
-    level: 'level2',
-  },
   supportsPDFs: false,
-  reasoning: true,
   isEnabled: true,
   isActivated: true,
   isAgentEnabled: true,
-  contextWindow: 256000,
-  tps: 39,
-  intelligenceIndex: 45,
-  latency: 0.3,
-  maxOutputTokens: 32000,
-  IFBench:51,
+  // Metrics from https://artificialanalysis.ai/models/grok-4-1-fast-reasoning/providers (xAI)
+  contextWindow: 2000000, // ✓ Found: 2m (matches)
+  tps: 201.1, // Updated from artificialanalysis.ai (xAI: 201.1 tokens/s)
+  intelligenceIndex: 39, // Updated from artificialanalysis.ai (Intelligence Index: 39, ranks #7/136)
+  latency: 11.15, // Updated from artificialanalysis.ai (xAI: 11.15s, time to first answer token including thinking)
+  maxOutputTokens: 16000, // From config (verify at official xAI documentation)
 },
-{
-  id: 'lgai/exaone-3-5-32b-instruct',
-  name: 'EXAONE 3.5 32B',
-  cutoff: 'July 2024',
-  abbreviation: 'EXAONE-3.5-32B',
-  country: 'Korea',
-  description: 'A fast bilingual Korean-English model. Developed by LG, powered by TogetherAI',
-  provider: 'together',
-  supportsVision: false,
-  rateLimit: {
-    level: 'level1',
-  },
-  supportsPDFs: false,
-  isEnabled: true,
-  isActivated: true,
-  isAgentEnabled: false,
-  contextWindow: 32000,
-  // tps: 119,
-  intelligenceIndex: 33,
-  // latency: 1.1,
-},
-// // DeepSeek R1 (Thinking)
+// 📅 Grok 4.1 Fast
 // {
-//   id: 'deepseek-ai/DeepSeek-R1',
-//   name: 'DeepSeek R1 0528 (Thinking)',
-//   cutoff: 'July 2024',
-//   abbreviation: 'DSR1-T',
-//   country: 'CHINA',
-//   description: 'Developed by DeepSeek, powered by TogetherAI',
-//   provider: 'together',
-//   supportsVision: false,
+//   id: 'grok-4-1-fast-non-reasoning',
+//   name: 'Grok 4.1 Fast',
+//   // cutoff: 'Jul 2025',
+//   // pro: true,
+//   abbreviation: 'G4.1-F',
+//   country: 'US',
+//   provider: 'xai',
+//   supportsVision: true,
+//   // censored: false,
 //   rateLimit: {
-//     level: 'level2',
+//     level: 'level3',
 //   },
 //   supportsPDFs: false,
-//   reasoning: true,
-//   isEnabled: false,
+//   isEnabled: true,
 //   isActivated: true,
 //   isAgentEnabled: true,
-//   contextWindow: 128000,
-//   // tps: 96,
-//   intelligenceIndex: 59,
-//   // multilingual:86,
-//   latency: 24.2,
-//   maxOutputTokens: 32000,
-//   IFBench:40
+//   // Metrics: https://artificialanalysis.ai/models/grok-4-1-fast-non-reasoning/providers and main page both returned timeout/error
+//   // Note: Grok 4 Fast (Non-reasoning) exists on artificialanalysis.ai, but Grok 4.1 Fast (Non-reasoning) data is not yet available
+//   // Unable to verify metrics from artificialanalysis.ai - using estimated values
+//   contextWindow: 2000000, // From config (verify at artificialanalysis.ai when available)
+//   tps: 265, // From config (verify at artificialanalysis.ai when available)
+//   intelligenceIndex: 38, // From config (verify at artificialanalysis.ai when available)
+//   latency: 0.7, // From config (verify at artificialanalysis.ai when available)
+//   maxOutputTokens: 16000, // From config (verify at official xAI documentation)
 // },
-// DeepSeek V3.1 ,
-  // Grok 4 fast non reasoning  
-  {
-    id: 'grok-4-fast-reasoning',
-    name: 'Grok 4 Fast (Thinking)',
-    description: 'The model thinks before responding. Reasoning process is hidden.',
-    // cutoff: 'Jul 2025',
-    // pro: true,
-    abbreviation: 'G4-F-T',
-    country: 'US',
-    provider: 'xai',
-    supportsVision: true,
-    // censored: false,
-    rateLimit: {
-      level: 'level3',
-    },
-    reasoning: true,
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: false,
-    contextWindow: 2000000,
-    tps: 297,
-    intelligenceIndex: 60,
-    latency: 2.6,
-    maxOutputTokens: 16000,
-    IFBench:51,
+// 📅 Grok Code Fast 1
+{
+  id: 'grok-code-fast-1',
+  name: 'Grok Code Fast 1',
+  cutoff: 'Aug 2025',
+  abbreviation: 'GCF1',
+  country: 'US',
+  provider: 'xai',
+  creator: 'xai',
+  supportsVision: false,
+  rateLimit: {
+    level: 'level2',
   },
-  // Grok 4 fast non reasoning  
-  {
-    id: 'grok-4-fast-non-reasoning',
-    name: 'Grok 4 Fast',
-    // cutoff: 'Jul 2025',
-    // pro: true,
-    abbreviation: 'G4-F',
-    country: 'US',
-    provider: 'xai',
-    supportsVision: true,
-    // censored: false,
-    rateLimit: {
-      level: 'level3',
-    },
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: false,
-    contextWindow: 2000000,
-    tps: 265,
-    intelligenceIndex: 39,
-    latency: 0.6,
-    maxOutputTokens: 16000,
-    IFBench:38,
+  supportsPDFs: false,
+  isEnabled: true,
+  isActivated: true,
+  isAgentEnabled: false,
+  reasoning: true,
+  // Metrics from https://artificialanalysis.ai/models/grok-code-fast-1/providers (xAI)
+  contextWindow: 256000, // ✓ Found: 256k (matches)
+  tps: 227.9, // Updated from artificialanalysis.ai (xAI: 227.9 tokens/s)
+  intelligenceIndex: 29, // Updated from artificialanalysis.ai (Intelligence Index: 29, ranks #26/136)
+  latency: 6.10, // Updated from artificialanalysis.ai (xAI: 6.10s, time to first answer token including thinking)
+  maxOutputTokens: 16000, // From config (verify at official xAI documentation)
+},
+// 📅 현재 OpenAI의 가장 최신 모델은 GPT-5.2입니다.
+// 📅 GPT-5.2 (High)
+{
+  id: 'gpt-5.2',
+  name: 'GPT-5.2 (High)',
+  cutoff: 'Oct 2024',
+  abbreviation: 'G5.2',
+  country: 'US',
+  provider: 'openai',
+  creator: 'openai',
+  supportsVision: true,
+  rateLimit: {
+    level: 'level3',
   },
-  // Grok 4 
-  {
-    id: 'grok-4-0709',
-    name: 'Grok 4',
-    // cutoff: 'Jul 2025',
-    // pro: true,
-    abbreviation: 'G4-0709',
-    country: 'US',
-    provider: 'xai',
-    supportsVision: false,
-    // censored: false,
-    rateLimit: {
-      level: 'level3',
-    },
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: false,
-    contextWindow: 256000,
-    tps: 41,
-    intelligenceIndex: 65,
-    latency: 8.9,
-    maxOutputTokens: 16000,
-    IFBench:54
+  reasoning: true,
+  reasoningEffort: 'high',
+  supportsPDFs: false,
+  isEnabled: true,
+  isActivated: true,
+  isAgentEnabled: true,
+  // Metrics from https://artificialanalysis.ai/models/gpt-5-2/providers (OpenAI)
+  // Note: artificialanalysis.ai shows GPT-5.2 (xhigh)
+  contextWindow: 400000, // ✓ Found: 400k (matches)
+  tps: 101.7, // Updated from artificialanalysis.ai (OpenAI: 101.7 tokens/s)
+  intelligenceIndex: 51, // Updated from artificialanalysis.ai (Intelligence Index: 51, ranks #1/106)
+  latency: 31.40, // Updated from artificialanalysis.ai (OpenAI: 31.40s, time to first answer token including thinking)
+  maxOutputTokens: 128000, // From config (same as GPT-5.1; verify at https://platform.openai.com/docs/models when available)
+},
+// 📅 GPT-5.2 (Medium)
+// {
+//   id: 'gpt-5.2',
+//   name: 'GPT-5.2 (Medium)',
+//   description: 'The best model for coding and agentic tasks with medium reasoning effort.',
+//   cutoff: 'Oct 2024',
+//   abbreviation: 'G5.2-M',
+//   country: 'US',
+//   provider: 'openai',
+//   supportsVision: true,
+//   rateLimit: {
+//     level: 'level3',
+//   },
+//   reasoning: true,
+//   reasoningEffort: 'medium',
+//   supportsPDFs: false,
+//   isEnabled: true,
+//   isActivated: true,
+//   isAgentEnabled: true,
+//   isNew: true,
+//   // Metrics: https://artificialanalysis.ai/models/gpt-5-2-medium/providers - verify availability
+//   // Unable to verify metrics from artificialanalysis.ai
+//   contextWindow: 400000, // From config (verify at artificialanalysis.ai when available)
+//   // tps: Not found on artificialanalysis.ai
+//   // intelligenceIndex: Not found on artificialanalysis.ai
+//   // latency: Not found on artificialanalysis.ai
+//   maxOutputTokens: 128000, // From config (same as GPT-5.1; verify at https://platform.openai.com/docs/models when available)
+// },
+// 📅 GPT-5.2 (Low)
+// {
+//   id: 'gpt-5.2',
+//   name: 'GPT-5.2 (Low)',
+//   description: 'The best model for coding and agentic tasks with low reasoning effort.',
+//   cutoff: 'Oct 2024',
+//   abbreviation: 'G5.2-L',
+//   country: 'US',
+//   provider: 'openai',
+//   supportsVision: true,
+//   rateLimit: {
+//     level: 'level3',
+//   },
+//   reasoning: true,
+//   reasoningEffort: 'low',
+//   supportsPDFs: false,
+//   isEnabled: true,
+//   isActivated: true,
+//   isAgentEnabled: true,
+//   isNew: true,
+//   // Metrics: https://artificialanalysis.ai/models/gpt-5-2-low/providers returned 500 error
+//   // Unable to verify metrics from artificialanalysis.ai
+//   contextWindow: 400000, // From config (verify at artificialanalysis.ai when available)
+//   // tps: Not found on artificialanalysis.ai
+//   // intelligenceIndex: Not found on artificialanalysis.ai
+//   // latency: Not found on artificialanalysis.ai
+//   maxOutputTokens: 128000, // From config (same as GPT-5.1; verify at https://platform.openai.com/docs/models when available)
+// },
+// 📅 GPT-5.2 (Minimal)
+// {
+//   id: 'gpt-5.2',
+//   name: 'GPT-5.2 (Minimal)',
+//   description: 'The best model for coding and agentic tasks with minimal reasoning effort.',
+//   cutoff: 'Oct 2024',
+//   abbreviation: 'G5.2-Min',
+//   country: 'US',
+//   provider: 'openai',
+//   supportsVision: true,
+//   rateLimit: {
+//     level: 'level3',
+//   },
+//   reasoning: true,
+//   reasoningEffort: 'minimal',
+//   supportsPDFs: false,
+//   isEnabled: true,
+//   isActivated: true,
+//   isAgentEnabled: true,
+//   isNew: true,
+//   // Metrics: https://artificialanalysis.ai/models/gpt-5-2-minimal/providers returned 500 error
+//   // Unable to verify metrics from artificialanalysis.ai
+//   contextWindow: 400000, // From config (verify at artificialanalysis.ai when available)
+//   // tps: Not found on artificialanalysis.ai
+//   // intelligenceIndex: Not found on artificialanalysis.ai
+//   // latency: Not found on artificialanalysis.ai
+//   maxOutputTokens: 128000, // From config (same as GPT-5.1; verify at https://platform.openai.com/docs/models when available)
+// },
+// 📅 GPT-5.2 (None)
+{
+  id: 'gpt-5.2',
+  name: 'GPT-5.2 Instant',
+  cutoff: 'Oct 2024',
+  abbreviation: 'G5.2-I',
+  country: 'US',
+  provider: 'openai',
+  creator: 'openai',
+  supportsVision: true,
+  rateLimit: {
+    level: 'level3',
   },
-  // Grok Code Fast 1
-  {
-    id: 'grok-code-fast-1',
-    name: 'Grok Code Fast 1',
-    cutoff: 'Aug 2025',
-    abbreviation: 'GCF1',
-    country: 'US',
-    provider: 'xai',
-    supportsVision: false,
-    rateLimit: {
-      level: 'level2',
-    },
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: false,
-    reasoning: true,
-    contextWindow: 256000,
-    tps: 310, 
-    intelligenceIndex: 49, 
-    latency: 6.8,
-    maxOutputTokens: 16000,
-    description: 'A speedy reasoning model that excels at agentic coding.',
-  },
-  {
-    id: 'grok-3-mini',
-    name: 'Grok 3 Mini (High)',
-    description: 'The model thinks before responding. High reasoning effort.',
-    cutoff: 'Feb 2025',
-    abbreviation: 'G3M-H',
-    country: 'US',
-    provider: 'xai',
-    supportsVision: false,
-    // censored: false,
-    rateLimit: {
-      level: 'level1',
-    },
-    reasoning: true,
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: true,
-    contextWindow: 131072,
-    tps: 127,
-    intelligenceIndex: 57,
-    latency: 16.3,
-    maxOutputTokens: 16000,
-    IFBench:46
-  },
-    // Grok 3 
-    {
-    id: 'grok-3',
-    name: 'Grok 3',
-    cutoff: 'Feb 2025',
-    abbreviation: 'G3',
-    country: 'US',
-    provider: 'xai',
-    supportsVision: false,
-    // censored: false,
-    rateLimit: {
-      level: 'level1',
-    },
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: true,
-    contextWindow: 131072,
-    tps: 43,
-    intelligenceIndex: 36,
-    latency: 0.8,
-    maxOutputTokens: 16000,
-  },
-  
-  // GPT-5
-  {
-    id: 'gpt-5',
-    name: 'GPT-5 (Medium)',
-    description: 'The model thinks before responding. Medium reasoning effort. Reasoning process is hidden.',
-    cutoff: 'Oct 2024',
-    abbreviation: 'G5',
-    country: 'US',
-    provider: 'openai',
-    supportsVision: true,
-    rateLimit: {
-      level: 'level3',
-    },
-    reasoning: true,
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: true,
-    contextWindow: 400000,
-    tps: 181,
-    intelligenceIndex: 66,
-    latency: 31.9,
-    maxOutputTokens: 128000,
-    IFBench:71
-  },
-  // GPT-5 Mini
-  {
-    id: 'gpt-5-mini',
-    name: 'GPT-5 Mini (Medium)',
-    description: 'The model thinks before responding. Medium reasoning effort. Reasoning process is hidden.',
-    cutoff: 'Oct 2024',
-    abbreviation: 'G5M',
-    country: 'US',
-    provider: 'openai',
-    supportsVision: true,
-    rateLimit: {
-      level: 'level1',
-    },
-    reasoning: true,
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: true,
-    contextWindow: 400000,
-    tps: 81,
-    intelligenceIndex: 61,
-    latency: 30.6,
-    maxOutputTokens: 128000,
-    IFBench:71
-  },
-  {
-    id: 'gpt-5-nano',
-    name: 'GPT-5 Nano (Medium)',
-    description: 'The model thinks before responding. Medium reasoning effort. Reasoning process is hidden.',
-    cutoff: 'Oct 2024',
-    abbreviation: 'G5N',
-    country: 'US',
-    provider: 'openai',
-    supportsVision: true,
-    rateLimit: {
-      level: 'level1',
-    },
-    reasoning: true,
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: true,
-    contextWindow: 400000,
-    tps: 194,
-    intelligenceIndex: 48,
-    latency: 35.1,
-    maxOutputTokens: 128000,
-    IFBench:66
-  },
-   // ChatGPT-5 (Aug '25)
-   {
-    id: 'gpt-5-chat-latest',
-    name: 'ChatGPT-5',
-    cutoff: 'Sep 2024',
-    abbreviation: 'CG5',
-    country: 'US',
-    provider: 'openai',
-    description: "GPT-5 model used in ChatGPT",
-    supportsVision: true,
-    rateLimit: {
-      level: 'level3',
-    },
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: false,
-    contextWindow: 400000,
-    // tps: 174,
-    // intelligenceIndex: 40,
-    // latency: 0.5,
-    maxOutputTokens: 128000,
-  },
-  // GPT-4.1
-  {
-    id: 'gpt-4.1',
-    name: 'GPT-4.1',
-    cutoff: 'Jun 2024',
-    abbreviation: 'G4.1',
-    country: 'US',
-    provider: 'openai',
-    supportsVision: true,
-    rateLimit: {
-      level: 'level3',
-    },
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: true,
-    contextWindow: 1047576,
-    tps: 113,
-    intelligenceIndex: 43,
-    latency: 0.5,
-    maxOutputTokens: 32768,
-    IFBench:61
-  },
-  // GPT-4.1 Mini
-  {
-    id: 'gpt-4.1-mini',
-    name: 'GPT-4.1 Mini',
-    cutoff: 'Jun 2024',
-    abbreviation: 'G4.1M',
-    country: 'US',
-    provider: 'openai',
-    supportsVision: true,
-    rateLimit: {
-      level: 'level1',
-    },
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: true,
-    contextWindow: 1047576,
-    tps: 69,
-    intelligenceIndex: 42,
-    latency: 0.5,
-    maxOutputTokens: 32000,
-    IFBench:42
-  },
-  {
-    id: 'gpt-4.1-nano',
-    name: 'GPT-4.1 Nano',
-    cutoff: 'Jun 2024',
-    abbreviation: 'G4.1N',
-    country: 'US',
-    provider: 'openai',
-    supportsVision: true,
-    rateLimit: {
-      level: 'level1',
-    },
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: true,
-    contextWindow: 1047576,
-    tps: 106,
-    intelligenceIndex: 27,
-    latency: 0.4,
-    maxOutputTokens: 32000,
-    IFBench:17
-  },
-    // ChatGPT-4o (Nov '24)
-    {
-    id: 'chatgpt-4o-latest',
-    name: 'ChatGPT-4o',
-    cutoff: 'Oct 2023',
-    abbreviation: 'CG4o',
-    description: "GPT-4o model used in ChatGPT",
-    country: 'US',
-    provider: 'openai',
-    supportsVision: true,
-    rateLimit: {
-      level: 'level3',
-    },
-    supportsPDFs: false,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: false,
-    contextWindow: 128000,
-    tps: 170,
-    intelligenceIndex: 36,
-    latency: 0.4,
-    maxOutputTokens: 16384,
-  },
-  // GPT-4o (Nov '24)
-  {
-    id: 'gpt-4o-2024-11-20',
-    name: 'GPT-4o (Nov \'24)',
-    abbreviation: 'G4o',
-    country: 'US',
-    cutoff: 'Oct 2023',
-    provider: 'openai',
-    supportsVision: true,
-    rateLimit: {
-      level: 'level3',
-    },
-    supportsPDFs: true,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: true,
-    contextWindow: 128000,
-    tps: 158,
-    intelligenceIndex: 27,
-    latency: 0.4,
-    maxOutputTokens: 65536,
-    IFBench:34
-  },
-  // o4-Mini 
-  {
-    id: "o4-mini",
-    name: "o4-Mini (High)",
-    cutoff: 'Jun 2024',
-    abbreviation: "o4M-H",
-    country: 'US',
-    provider: "openai",
-    supportsVision: true,
-    rateLimit: {
-      level: "level3",
-    },
-    reasoning: true,
-    supportsPDFs: true,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: false,
-    contextWindow: 200000,
-    tps: 107,
-    intelligenceIndex: 59,
-    latency: 44.8,
-    maxOutputTokens: 100000,
-    IFBench:69
-  },
-  // o3 (Reasoning)
-  {
-    id: 'o3',
-    name: 'o3',
-    cutoff: 'Jun 2024',
-    abbreviation: 'o3',
-    country: 'US',
-    provider: 'openai',
-    supportsVision: true,
-    rateLimit: {
-      level: 'level3',
-    },
-    reasoning: true,
-    supportsPDFs: true,
-    isEnabled: true,
-    isActivated: true,
-    isAgentEnabled: false,
-    contextWindow: 200000,
-    tps: 176,
-    intelligenceIndex: 65,
-    latency: 10.6,
-    maxOutputTokens: 100000,
-    IFBench:71
-  },
-  
+  reasoning: true,
+  reasoningEffort: 'none',
+  supportsPDFs: false,
+  isEnabled: true,
+  isActivated: true,
+  isAgentEnabled: true,
+  // Metrics from https://artificialanalysis.ai/models/gpt-5-2-non-reasoning/providers (OpenAI)
+  contextWindow: 400000, // ✓ Found: 400k (matches)
+  tps: 71.4, // Updated from artificialanalysis.ai (OpenAI: 71.4 tokens/s)
+  intelligenceIndex: 34, // Updated from artificialanalysis.ai (Intelligence Index: 34, ranks #4/56)
+  latency: 0.50, // Updated from artificialanalysis.ai (OpenAI: 0.50s, time to first answer token)
+  maxOutputTokens: 128000, // From config (same as GPT-5.1; verify at https://platform.openai.com/docs/models when available)
+},
+// 📅 ChatGPT-5.2 (Aug '25)
+// {
+//   id: 'gpt-5.2-chat-latest',
+//   name: 'ChatGPT-5.2',
+//   cutoff: 'Sep 2024',
+//   abbreviation: 'CG5.2',
+//   country: 'US',
+//   provider: 'openai',
+//   description: "GPT-5.2 model used in ChatGPT",
+//   supportsVision: true,
+//   rateLimit: {
+//     level: 'level3',
+//   },
+//   supportsPDFs: false,
+//   isEnabled: true,
+//   isActivated: true,
+//   isAgentEnabled: false,
+//   // Metrics: https://artificialanalysis.ai/models/gpt-5-chat-latest/providers returned 500 error
+//   // Unable to verify metrics from artificialanalysis.ai
+//   contextWindow: 128000, 
+//   // tps: Not found on artificialanalysis.ai
+//   // intelligenceIndex: Not found on artificialanalysis.ai
+//   // latency: Not found on artificialanalysis.ai
+//   maxOutputTokens: 16384, // From config (verify at https://platform.openai.com/docs/models)
+// },
+// 📅 GPT-5 Codex (High)
+// {
+//   id: 'gpt-5-codex',
+//   name: 'GPT-5 Codex (High)',
+//   description: 'A version of GPT-5 optimized for agentic coding in Codex with high reasoning effort.',
+//   cutoff: 'Oct 2024',
+//   abbreviation: 'G5-C',
+//   country: 'US',
+//   provider: 'openai',
+//   supportsVision: true,
+//   rateLimit: {
+//     level: 'level3',
+//   },
+//   reasoning: true,
+//   reasoningEffort: 'high',
+//   supportsPDFs: false,
+//   isEnabled: true,
+//   isActivated: true,
+//   isAgentEnabled: true,
+//   // Metrics from https://artificialanalysis.ai/models/gpt-5-codex/providers (OpenAI)
+//   // Note: artificialanalysis.ai shows GPT-5 Codex (high), using high metrics
+//   contextWindow: 400000, // Updated from artificialanalysis.ai (OpenAI: 400k)
+//   tps: 131, // Updated from artificialanalysis.ai (OpenAI: 131 tokens/s)
+//   intelligenceIndex: 68, // Updated from artificialanalysis.ai (OpenAI: 68)
+//   latency: 29.83, // Updated from artificialanalysis.ai (OpenAI: Total Response 29.83s, thinking time included)
+//   maxOutputTokens: 128000, // From https://platform.openai.com/docs/models (Max output: 128K tokens)
+// },
+
 ];
 
 // Export the final MODEL_CONFIGS
@@ -1234,8 +1300,65 @@ export const MODEL_CONFIGS: ModelConfig[] = MODEL_CONFIG_DATA;
 // Utility functions
 export const getEnabledModels = () => MODEL_CONFIGS.filter(model => model.isEnabled);
 export const getActivatedModels = () => MODEL_CONFIGS.filter(model => model.isEnabled && model.isActivated);
-export const getModelById = (id: string) => MODEL_CONFIGS.find(model => model.id === id);
+export const getModelById = (id: string) => {
+const { baseId, reasoningEffort } = parseModelVariantId(id);
+if (reasoningEffort) {
+  const variantMatch = MODEL_CONFIGS.find(
+    model => model.id === baseId && model.reasoningEffort === reasoningEffort
+  );
+  if (variantMatch) {
+    return variantMatch;
+  }
+  }
+return MODEL_CONFIGS.find(model => model.id === baseId);
+};
+export const getModelByIdWithReasoningEffort = (id: string, reasoningEffort?: string) => {
+  if (reasoningEffort) {
+    return MODEL_CONFIGS.find(model => model.id === id && model.reasoningEffort === reasoningEffort);
+  }
+return MODEL_CONFIGS.find(model => model.id === id);
+};
 export const getVisionModels = () => MODEL_CONFIGS.filter(model => model.supportsVision);
 export const getNonVisionModels = () => MODEL_CONFIGS.filter(model => !model.supportsVision);
 export const getModelsByProvider = (provider: ModelConfig['provider']) => 
   MODEL_CONFIGS.filter(model => model.provider === provider); 
+
+export function getModelByVariantId(variantId: string): ModelConfig | undefined {
+const { baseId, reasoningEffort } = parseModelVariantId(variantId);
+if (reasoningEffort) {
+  const match = getModelByIdWithReasoningEffort(baseId, reasoningEffort);
+  if (match) {
+    return match;
+  }
+}
+return MODEL_CONFIGS.find(model => model.id === baseId);
+}
+
+export function resolveDefaultModelVariantId(modelId: string): string {
+const { baseId, reasoningEffort } = parseModelVariantId(modelId);
+
+if (reasoningEffort) {
+  // Variant가 명시된 경우: 해당 variant가 존재하고 활성화되어 있는지 확인
+  const variantModel = getModelByIdWithReasoningEffort(baseId, reasoningEffort);
+  if (variantModel && variantModel.isEnabled && variantModel.isActivated) {
+    return buildModelVariantId(baseId, reasoningEffort);
+  }
+  // Variant가 비활성화되어 있으면, baseId의 활성화된 variant 중 하나를 찾아서 반환
+  const preferred = MODEL_CONFIGS.find(model => model.id === baseId && model.isEnabled && model.isActivated);
+  if (preferred) {
+    return getModelVariantId(preferred);
+  }
+  // 활성화된 variant가 없으면, 비활성화된 variant라도 반환
+  if (variantModel) {
+    return buildModelVariantId(baseId, reasoningEffort);
+  }
+}
+
+const preferred = MODEL_CONFIGS.find(model => model.id === baseId && model.isEnabled && model.isActivated);
+if (preferred) {
+  return getModelVariantId(preferred);
+}
+
+const fallback = MODEL_CONFIGS.find(model => model.id === baseId);
+return fallback ? getModelVariantId(fallback) : modelId;
+}

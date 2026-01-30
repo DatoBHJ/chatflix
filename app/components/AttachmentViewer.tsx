@@ -1,6 +1,62 @@
-import React from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { useUrlRefresh } from '../hooks/useUrlRefresh';
+import { useLazyMedia } from '../hooks/useIntersectionObserver';
 import { AttachmentTextViewer } from './AttachmentTextViewer';
+import { ImageGalleryStack } from './ImageGalleryStack';
+import { Play } from 'lucide-react';
+import { categorizeAspectRatio } from '@/app/utils/imageUtils';
+
+// 🚀 PENSIEVE STYLE: 고정 크기 400px, paddingBottom 방식으로 aspect ratio 유지
+const LazyVideoViewer: React.FC<{ url: string }> = ({ url }) => {
+  const { ref: lazyRef, shouldLoad } = useLazyMedia();
+  const [detectedAspectRatio, setDetectedAspectRatio] = useState<number>(1.0); // 기본값: 정사각형
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const handleLoadedMetadata = useCallback(() => {
+    const video = videoRef.current;
+    if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+      // 비디오 메타데이터에서 aspect ratio 감지 및 카테고리화
+      const categorized = categorizeAspectRatio(video.videoWidth, video.videoHeight);
+      setDetectedAspectRatio(categorized);
+    }
+  }, []);
+  
+  // 🚀 최대 크기 400px: 더 긴 쪽이 400px를 넘지 않도록
+  const containerStyle = useMemo(() => {
+    if (detectedAspectRatio < 1) {
+      // 세로형: 높이 400px 고정
+      return {
+        height: '400px',
+        width: `${400 * detectedAspectRatio}px`,
+        aspectRatio: detectedAspectRatio
+      };
+    } else {
+      // 가로형/정사각형: 너비 400px 고정
+      return {
+        width: '400px',
+        height: `${400 / detectedAspectRatio}px`,
+        aspectRatio: detectedAspectRatio
+      };
+    }
+  }, [detectedAspectRatio]);
+
+  return (
+    <div ref={lazyRef} className="relative rounded-lg overflow-hidden my-2" style={containerStyle}>
+      {/* 🚀 비디오 렌더링 */}
+      <video 
+        ref={videoRef}
+        src={url}
+        controls 
+        playsInline
+        onLoadedMetadata={handleLoadedMetadata}
+        className="w-full h-full object-cover"
+        preload="metadata"
+      >
+        Your browser does not support the video tag.
+      </video>
+    </div>
+  );
+};
 
 interface AttachmentViewerProps {
   attachment: any;
@@ -14,6 +70,10 @@ export const AttachmentViewer: React.FC<AttachmentViewerProps> = ({ attachment }
   });
 
   const isImage = attachment.contentType?.startsWith('image/');
+  const isVideo = attachment.contentType?.startsWith('video/') || 
+                  attachment.name?.toLowerCase().endsWith('.mp4') || 
+                  attachment.name?.toLowerCase().endsWith('.webm') || 
+                  attachment.name?.toLowerCase().endsWith('.mov');
   const isPDF = attachment.contentType === 'application/pdf' || attachment.name?.toLowerCase().endsWith('.pdf');
   const isText = attachment.contentType?.startsWith('text/') || 
                  attachment.contentType?.includes('json') ||
@@ -51,14 +111,17 @@ export const AttachmentViewer: React.FC<AttachmentViewerProps> = ({ attachment }
   if (isImage) {
     return (
       <div className="flex justify-center">
-        <img 
-          src={refreshedUrl} 
-          alt={attachment.name || 'Attachment'} 
-          className="max-w-full h-auto rounded-lg"
-          style={{ maxHeight: '70vh' }}
+        <ImageGalleryStack
+          images={[{
+            src: refreshedUrl,
+            alt: attachment.name || 'Attachment'
+          }]}
+          isMobile={false}
         />
       </div>
     );
+  } else if (isVideo) {
+    return <LazyVideoViewer url={refreshedUrl} />;
   } else if (isPDF) {
     return (
       <div className="w-full h-full">

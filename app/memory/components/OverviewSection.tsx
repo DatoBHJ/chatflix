@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Cellular, LightBulb, BubbleChat, Speaker, Heart } from 'react-ios-icons'
+import { LightBulb, BubbleChat, Heart } from 'react-ios-icons'
 import { MemoryBankData, CategoryData, categoryNames, categorySubtitles, displayOrder } from './types'
-import MemoryHeader from './MemoryHeader'
 
 // Touch handling for mobile swipe
 const minSwipeDistance = 50;
@@ -64,8 +63,14 @@ export default function OverviewSection({
       return []
     }
     
-    // Directly use the categories data from API
-    const parsedCategories: CategoryData[] = categories.map(categoryMeta => ({
+    // Restrict to allowed categories defined in displayOrder
+    const filteredCategories = categories.filter(categoryMeta => displayOrder.includes(categoryMeta.category))
+    
+    if (filteredCategories.length === 0) {
+      return []
+    }
+    
+    const parsedCategories: CategoryData[] = filteredCategories.map(categoryMeta => ({
       category: categoryMeta.category,
       content: categoryMeta.content,
       updated_at: categoryMeta.updated_at,
@@ -182,14 +187,6 @@ export default function OverviewSection({
         return (
           <LightBulb {...iconProps} />
         )
-      case '03-interaction-history':
-        return (
-          <BubbleChat {...iconProps} />
-        )
-      case '04-relationship':
-        return (
-          <Speaker {...iconProps} />
-        )
       default:
         return (
           <svg {...iconProps} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -200,6 +197,9 @@ export default function OverviewSection({
   }
 
   const categories = memoryData ? parseMemoryData(memoryData.categories) : []
+  
+  // 🚀 게스트 모드 감지: user_id가 'anonymous'이거나 error가 'Sign in to view'인 경우
+  const isGuest = memoryData?.user_id === 'anonymous' || error === 'Sign in to view'
 
   return (
     <>
@@ -218,7 +218,7 @@ export default function OverviewSection({
       </div>
       
       <div className="text-base text-[var(--muted)] pl-0">
-        {error ? (
+        {error && error !== 'Sign in to view' ? (
           <div className="text-center py-8">
             <p className="text-[var(--foreground)] mb-4">{error}</p>
             <button
@@ -239,6 +239,27 @@ export default function OverviewSection({
         
         {/* Card Gallery - Responsive: Mobile single card with peek, Desktop horizontal scroll */}
         <div className="card-gallery relative">
+          {/* Guest Mode Overlay - 블러 위에 표시되도록 z-index 높게 설정 */}
+          {isGuest && (
+            <div className="absolute inset-0 z-50 flex items-center justify-start py-8 pointer-events-none">
+              <div className="text-left max-w-md pointer-events-auto pl-4 md:pl-8 lg:pl-12">
+                <h2 className="text-3xl font-semibold tracking-tight text-[var(--foreground)] mb-4 md:drop-shadow-lg">
+                  Sign in to view your memories.
+                </h2>
+                <p className="text-sm text-[var(--muted)] mb-4 md:text-[var(--foreground)]/90 md:drop-shadow-md">
+                  Your memory categories will appear here.
+                </p>
+                <a 
+                  href="/login"
+                  className="text-blue-500 hover:underline cursor-pointer text-sm md:text-blue-500 md:drop-shadow-md"
+                >
+                  Sign in
+                </a>
+              </div>
+            </div>
+          )}
+          {/* 카드들만 블러 처리 */}
+          <div className={isGuest ? 'filter blur-sm' : ''}>
           {/* Mobile Navigation Arrows */}
           {displayOrder.length > 1 && (
             <>
@@ -315,13 +336,16 @@ export default function OverviewSection({
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
+                          // 🚀 게스트 모드: Edit 버튼 비활성화
+                          if (isGuest) return;
                           // Find the actual category data for editing
                           const categoryData = memoryData?.categories?.find(c => c.category === category);
                           if (categoryData) {
                             handleEditCategory(categoryData);
                           }
                         }}
-                        className="absolute top-4 right-4 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 cursor-pointer"
+                        disabled={isGuest}
+                        className={`absolute top-4 right-4 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${isGuest ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                         style={{
                           // 다크모드 전용 스타일
                           ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
@@ -342,7 +366,7 @@ export default function OverviewSection({
                             color: 'var(--foreground)'
                           })
                         }}
-                        title="Edit category"
+                        title={isGuest ? "Sign in to edit" : "Edit category"}
                       >
                         Edit
                       </button>
@@ -456,13 +480,16 @@ export default function OverviewSection({
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
+                            // 🚀 게스트 모드: Edit 버튼 비활성화
+                            if (isGuest) return;
                             // Find the actual category data for editing
                             const categoryData = memoryData?.categories?.find(c => c.category === category);
                             if (categoryData) {
                               handleEditCategory(categoryData);
                             }
                           }}
-                          className="absolute top-4 right-4 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 cursor-pointer"
+                          disabled={isGuest}
+                          className={`absolute top-4 right-4 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${isGuest ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                           style={{
                             // 다크모드 전용 스타일
                             ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
@@ -483,7 +510,7 @@ export default function OverviewSection({
                               color: 'var(--foreground)'
                             })
                           }}
-                          title="Edit category"
+                          title={isGuest ? "Sign in to edit" : "Edit category"}
                         >
                           Edit
                         </button>
@@ -522,6 +549,8 @@ export default function OverviewSection({
               </div>
             </div>
           </div>
+          </div>
+          {/* 블러 div 닫기 */}
         </div>
 
           </>
@@ -650,7 +679,7 @@ export default function OverviewSection({
       {/* Contact Footer */}
       <div className="mt-28 mb-8 text-center">
         <p className="text-sm text-[var(--muted)]">
-          If you have any questions,<br className="sm:hidden" />contact us at <a href="mailto:sply@chatflix.app" className="hover:text-[var(--foreground)] transition-colors">sply@chatflix.app</a>
+          If you have any questions,<br className="sm:hidden" /> contact us at <a href="mailto:sply@chatflix.app" className="hover:text-[var(--foreground)] transition-colors">sply@chatflix.app</a>
         </p>
       </div>
     </>

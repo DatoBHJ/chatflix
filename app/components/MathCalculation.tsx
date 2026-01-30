@@ -10,16 +10,24 @@ type CalculationStep = {
 type MathCalculationProps = {
   calculationSteps: CalculationStep[];
   finalAnswer?: string;
+  selectedExpression?: string;
 };
 
-export default function MathCalculation({ calculationSteps, finalAnswer }: MathCalculationProps) {
+export default function MathCalculation({ calculationSteps, finalAnswer, selectedExpression }: MathCalculationProps) {
   if (!calculationSteps || calculationSteps.length === 0) return null;
+
+  // Filter steps if selectedExpression is provided
+  const displaySteps = selectedExpression
+    ? calculationSteps.filter(step => step.expression === selectedExpression)
+    : calculationSteps;
+
+  if (displaySteps.length === 0) return null;
 
   return (
     <div className="math-calculation-container overflow-hidden">
       <div className="p-4">        
         <div className="space-y-2.5">
-          {calculationSteps.map((step) => (
+          {displaySteps.map((step) => (
             <div key={step.step} className="calculation-step rounded-md overflow-hidden">
               <div className="p-3 flex items-center">
                 <span className="text-xs text-muted-foreground bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)] py-1 px-2 rounded mr-3 font-medium">

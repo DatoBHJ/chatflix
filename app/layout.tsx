@@ -111,10 +111,11 @@ function ThemeInitScript() {
             }
 
             function getInitialTheme() {
-              const savedTheme = localStorage.getItem('theme');
-              if (savedTheme && savedTheme !== 'system') return savedTheme;
+              // DISABLED: Theme controls removed - always use system theme
+              // const savedTheme = localStorage.getItem('theme');
+              // if (savedTheme && savedTheme !== 'system') return savedTheme;
               
-              // 시스템 테마 감지
+              // 시스템 테마 감지 (항상 시스템 테마만 사용)
               if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
                 return 'dark';
               }
@@ -125,15 +126,16 @@ function ThemeInitScript() {
             document.documentElement.setAttribute('data-theme', theme);
             updateThemeColor(theme);
             
-            // 시스템 테마 변경 감지
+            // 시스템 테마 변경 감지 (항상 시스템 테마만 사용)
             if (window.matchMedia) {
               window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
-                const savedTheme = localStorage.getItem('theme');
-                if (!savedTheme || savedTheme === 'system') {
+                // DISABLED: Theme controls removed - always use system theme
+                // const savedTheme = localStorage.getItem('theme');
+                // if (!savedTheme || savedTheme === 'system') {
                   const newTheme = e.matches ? 'dark' : 'light';
                   document.documentElement.setAttribute('data-theme', newTheme);
                   updateThemeColor(newTheme);
-                }
+                // }
               });
             }
 

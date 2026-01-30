@@ -1,4 +1,8 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, memo, useMemo, useRef, useCallback } from 'react';
+import { useUrlRefresh } from '@/app/hooks/useUrlRefresh';
+import { useLazyMedia } from '@/app/hooks/useIntersectionObserver';
+import { Play, Download, Share2 } from 'lucide-react';
+import { categorizeAspectRatio, parseImageDimensions, parseMediaDimensions, getAspectCategory } from '@/app/utils/imageUtils';
 
 // Simple YouTube Video component
 export const YouTubeVideo = ({ videoId, video }: { videoId: string, video?: any }) => {
@@ -109,7 +113,7 @@ export const YouTubeVideo = ({ videoId, video }: { videoId: string, video?: any 
                       
                       {/* Gradient fade effect for long descriptions */}
                       {isDescriptionLong && !showFullDescription && (
-                        <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[var(--background)] to-transparent"></div>
+                        <div className="absolute bottom-0 left-0 right-0 h-10 bg-linear-to-t from-(--background) to-transparent"></div>
                       )}
                     </div>
                     
@@ -173,170 +177,119 @@ export const YouTubeVideo = ({ videoId, video }: { videoId: string, video?: any 
     );
   };
 
-// Image component with loading state
-export const ImageWithLoading = memo(function ImageWithLoadingComponent({ 
-    src, 
-    alt, 
-    className = "",
-    onClick,
-    ...props 
-  }: React.ImgHTMLAttributes<HTMLImageElement> & { onClick?: (e: React.MouseEvent) => void }) {
-    const [isLoaded, setIsLoaded] = useState(false);
-    const [error, setError] = useState(false);
-    const [loadingProgress, setLoadingProgress] = useState(0);
-    
-    // Animation effect for loading simulation
-    const [loadingTime, setLoadingTime] = useState(0);
-    
-    // pollination 이미지인지 확인
-    const isPollinationImage = src && typeof src === 'string' && src.includes('image.pollinations.ai');
-    
-    // Simulate progress when loading starts
-    useEffect(() => {
-      if (!isLoaded && !error) {
-        const timer = setInterval(() => {
-          setLoadingTime(prev => {
-            const newTime = prev + 1;
-            // Calculate progress (0-95% range, jumps to 100% on actual load completion)
-            const progress = Math.min(95, Math.floor(newTime * 1.5));
-            setLoadingProgress(progress);
-            return newTime;
-          });
-        }, 100);
-        
-        return () => clearInterval(timer);
-      }
-    }, [isLoaded, error]);
-    
-    // Check if URL is valid (simple check) - ensure src is string
-    const isValidUrl = src && typeof src === 'string' && (
-      src.startsWith('http://') || 
-      src.startsWith('https://') || 
-      src.startsWith('data:')
-    );
+// Video component with automatic URL refresh
+// 🚀 ChatGPT STYLE: max-width 제한 + aspect-ratio CSS로 정확한 비율 유지 (Virtuoso 스크롤 최적화)
+export const VideoWithRefresh = memo(function VideoWithRefreshComponent({ 
+  src, 
+  poster,
+  className = "",
+  controls = true,
+  playsInline = true,
+  preload = "metadata",
+  messageId,
+  chatId,
+  userId,
+  onAspectRatioDetected,
+  isMobile,
+  maxWidth,
+  ...props 
+}: React.VideoHTMLAttributes<HTMLVideoElement> & { 
+  messageId?: string; 
+  chatId?: string; 
+  userId?: string;
+  onAspectRatioDetected?: (aspectRatio: string) => void;
+  isMobile?: boolean;
+  maxWidth?: string;
+}) {
+  // 🚀 INSTANT LOAD: 화면 근처(200px)에서 비디오 로드 시작 - 초기 로딩 최대화
+  const { ref: lazyRef, shouldLoad } = useLazyMedia();
   
-    if (!isValidUrl) {
-      return (
-        <div className="bg-[var(--accent)] rounded-lg p-4 text-center text-[var(--muted)]">
-          <svg className="w-8 h-8 mx-auto mb-2 text-[var(--muted)]" fill="none" strokeWidth="1.5" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-          </svg>
-          <p>Invalid image URL</p>
-        </div>
-      );
+  const { refreshedUrl, isRefreshing } = useUrlRefresh({
+    url: typeof src === 'string' ? src : "",
+    messageId,
+    chatId,
+    userId,
+    // 🚀 shouldLoad는 기본값이 true이므로 항상 활성화
+    enabled: true
+  });
+
+  // 🚀 정확한 비율값 저장 (ChatGPT 방식)
+  const [exactAspectRatio, setExactAspectRatio] = useState<number>(1.0); // 기본값: 정사각형
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const lastReportedRatio = useRef<string | undefined>(undefined);
+
+  const handleLoadedMetadata = useCallback(() => {
+    const video = videoRef.current;
+    if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+      // 비디오 메타데이터에서 정확한 aspect ratio 감지 (ChatGPT 방식: 카테고리화 없이 정확한 값 사용)
+      const ratio = video.videoWidth / video.videoHeight;
+      setExactAspectRatio(ratio);
+      
+      // 기존 콜백 호환성을 위해 원본 비율도 전달
+      const ratioStr = `${video.videoWidth}/${video.videoHeight}`;
+      if (lastReportedRatio.current !== ratioStr) {
+        lastReportedRatio.current = ratioStr;
+        onAspectRatioDetected?.(ratioStr);
+      }
+    }
+  }, [onAspectRatioDetected]);
+
+  // 초기 aspect ratio 계산 (비디오 로드 전) - 이미지와 동일한 parseMediaDimensions 사용
+  const initialAspectRatio = useMemo(() => {
+    // 🚀 이미지와 동일한 방식: parseMediaDimensions로 URL에서 크기 정보 추출
+    const parsedDims = parseMediaDimensions(refreshedUrl || (typeof src === 'string' ? src : ''));
+    if (parsedDims) {
+      return parsedDims.width / parsedDims.height; // 정확한 비율 반환
     }
     
-    return (
-      <div className="relative w-full">
-        {!isLoaded && !error && (
-          <div className="bg-[var(--accent)] animate-pulse rounded-lg overflow-hidden" style={{ aspectRatio: "16/9" }}>
-            {isPollinationImage ? (
-              // AI 이미지 생성용 완전 미니멀 로딩 UI
-              <div className="absolute inset-0 bg-[var(--accent)] flex flex-col items-center justify-center p-6">
-                <div className="flex flex-col items-center space-y-4">
-                  {/* 미니멀한 회전 애니메이션만 */}
-                  <div className="w-6 h-6 border border-[color-mix(in_srgb,var(--foreground)_20%,transparent)] border-t-[var(--foreground)] rounded-full animate-spin"></div>
-                  
-                  {/* 미니멀한 로딩 텍스트 */}
-                  <div className="text-center space-y-1">
-                    <div className="text-[var(--foreground)] font-medium text-sm">
-                      Creating image
-                    </div>
-                    <div className="text-[color-mix(in_srgb,var(--foreground)_60%,transparent)] text-xs">
-                      This may take a moment
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              // 일반 검색 이미지용 기존 로딩 UI
-              <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-                {/* Image loading icon */}
-                <svg 
-                  className="w-12 h-12 text-[var(--muted)] mb-2 animate-spin" 
-                  fill="none" 
-                  strokeWidth="1.5" 
-                  viewBox="0 0 24 24" 
-                  stroke="currentColor"
-                  style={{ animationDuration: '2s' }}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                </svg>
-                
-                {/* Loading text - Changed from p to span to avoid nesting issues */}
-                <span className="text-[var(--muted)] text-sm font-medium block">
-                  Loading image... {loadingProgress}%
-                </span>
-                
-                {/* Loading progress indicator - Avoid div inside p issue */}
-                <span className="w-3/4 h-1.5 bg-[var(--muted)] bg-opacity-20 rounded-full mt-3 overflow-hidden block">
-                  <span 
-                    className="h-full bg-[var(--muted)] rounded-full transition-all duration-300 ease-out block"
-                    style={{ width: `${loadingProgress}%` }}
-                  ></span>
-                </span>
-                
-                {/* Image description display (if available) */}
-                {alt && (
-                  <span className="mt-3 text-xs text-[var(--muted)] italic opacity-70 block">
-                    {alt}
-                  </span>
-                )}
-              </div>
-            )}
-            
-            {/* Background pattern - only for non-AI images */}
-            {!isPollinationImage && (
-              <div className="absolute inset-0 opacity-5">
-                <div className="h-full w-full" 
-                  style={{ 
-                    backgroundImage: 'radial-gradient(var(--muted) 1px, transparent 1px)', 
-                    backgroundSize: '20px 20px' 
-                  }}>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {error && (
-          <div className="bg-[var(--accent)] rounded-lg p-6 text-center text-[var(--muted)]">
-            <svg className="w-10 h-10 mx-auto mb-3 text-[var(--muted)]" fill="none" strokeWidth="1.5" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-            </svg>
-            <div className="mb-1">Image failed to load</div>
-            {alt && <div className="text-sm italic mb-2 opacity-75">{alt}</div>}
-            {src && typeof src === 'string' && (
-              <a 
-                href={src}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-[var(--muted-foreground)] hover:underline mt-1 block"
-              >
-                View image directly
-              </a>
-            )}
-          </div>
-        )}
-        
-        <img
-          src={src}
-          alt={alt || ""}
-          className={`${className} ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 rounded-lg ${onClick ? 'cursor-pointer' : ''}`}
-          onLoad={() => {
-            setLoadingProgress(100);
-            setTimeout(() => setIsLoaded(true), 200); // Slight delay for smooth transition
-          }}
-          onError={() => {
-            console.log('Image load error:', src);
-            setError(true);
-            setIsLoaded(true);
-          }}
-          onClick={onClick}
-          loading="lazy"
-          referrerPolicy="no-referrer"
+    return 1.0; // 기본값: 정사각형
+  }, [refreshedUrl, src]);
+
+  // 감지된 aspect ratio가 있으면 사용, 없으면 초기값 사용
+  const finalAspectRatio = exactAspectRatio !== 1.0 ? exactAspectRatio : initialAspectRatio;
+
+  // 🚀 ChatGPT 패턴: 모든 중첩 요소에 동일한 aspect-ratio 적용
+  const aspectRatioStyle = `${finalAspectRatio} / 1`;
+
+  // 🚀 ChatGPT 방식: max-width만 제한하고 aspect-ratio로 높이 자동 계산 (이미지와 동일)
+  const containerStyle: React.CSSProperties = useMemo(() => {
+    return {
+      maxWidth: maxWidth || '400px',
+      width: '100%',
+      aspectRatio: aspectRatioStyle,
+    };
+  }, [aspectRatioStyle, maxWidth]);
+
+  return (
+    <div ref={lazyRef} className="generated-video-container" style={containerStyle}>
+      {/* 🚀 ChatGPT 스타일: 내부 래퍼에도 동일한 aspect-ratio 적용 (레이아웃 안정성) */}
+      <div 
+        className="relative w-full h-full overflow-hidden"
+        style={{ aspectRatio: aspectRatioStyle }}
+      >
+        <video
+          ref={videoRef}
+          src={refreshedUrl}
+          poster={poster}
+          controls={controls}
+          playsInline={playsInline}
+          preload={preload}
+          onLoadedMetadata={handleLoadedMetadata}
+          className={`w-full h-full object-cover ${className}`}
+          style={{ aspectRatio: aspectRatioStyle }}
           {...props}
-        />
+        >
+          Your browser does not support the video tag.
+        </video>
+        
+        {/* 🚀 로딩 중일 때만 placeholder 표시 */}
+        {isRefreshing && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-20">
+            <div className="w-8 h-8 border-2 border-white/20 border-t-white/80 rounded-full animate-spin" />
+          </div>
+        )}
       </div>
-    );
-  });
+    </div>
+  );
+});
+

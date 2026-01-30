@@ -25,6 +25,9 @@ export interface ChatInputProps {
   // 도구 선택 관련 props
   selectedTool?: string | null;
   setSelectedTool?: React.Dispatch<React.SetStateAction<string | null>>;
+  
+  // 배경 이미지 존재 여부
+  hasBackgroundImage?: boolean;
 }
 
 export interface FilePreviewProps {

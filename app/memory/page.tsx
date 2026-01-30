@@ -1,15 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { fetchUserName } from '../components/AccountDialog'
 import { createClient } from '@/utils/supabase/client'
 import { MemoryBankData, CategoryData } from './components/types'
-import MemoryHeader from './components/MemoryHeader'
 import OverviewSection from './components/OverviewSection'
 import MemoryModals from './components/MemoryModals'
+import { useMemoryApp } from './components/MemoryContext'
 
 export default function MemoryBankPage() {
+  const { isLoading: contextLoading } = useMemoryApp()
   const [memoryData, setMemoryData] = useState<MemoryBankData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -20,7 +20,6 @@ export default function MemoryBankPage() {
   const [editingCategory, setEditingCategory] = useState<CategoryData | null>(null)
   const [editingContent, setEditingContent] = useState('')
   const [isSaving, setIsSaving] = useState(false)
-  const router = useRouter()
 
   useEffect(() => {
     fetchMemoryBankData()
@@ -73,9 +72,15 @@ export default function MemoryBankPage() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          console.log('Not authenticated, redirecting to login')
-          // Redirect to login if not authenticated
-          router.push('/login')
+          console.log('Not authenticated, showing guest mode')
+          // 🚀 게스트 모드 지원: 로그인 리다이렉트 대신 빈 데이터로 표시
+          setMemoryData({
+            user_id: 'anonymous',
+            categories: [],
+            last_updated: null,
+            timestamp: new Date().toISOString()
+          })
+          setError('Sign in to view')
           return
         }
         throw new Error(data.error || 'Failed to fetch memory bank data')
@@ -135,6 +140,20 @@ export default function MemoryBankPage() {
         }
       })
 
+      // 🚀 최적화: localStorage 캐시 무효화 및 갱신
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user?.id) {
+          const { invalidateMemoryCache, loadMemoryWithCache } = await import('@/app/utils/memory-cache-client');
+          invalidateMemoryCache(user.id, [editingCategory.category]);
+          await loadMemoryWithCache(user.id); // 캐시 갱신
+          console.log('🔄 [MEMORY] Client cache refreshed after manual update');
+        }
+      } catch (error) {
+        console.warn('Failed to refresh memory cache:', error);
+      }
+
       setEditingCategory(null)
       setEditingContent('')
     } catch (error) {
@@ -151,47 +170,32 @@ export default function MemoryBankPage() {
   }
 
   // Don't render content until user name is loaded
-  if (!isUserNameLoaded) {
-    return (
-      <div className="min-h-screen text-[var(--foreground)] relative z-70" style={{ backgroundColor: 'var(--background)' }}>
-        <div className="px-8 sm:px-8 md:px-40 lg:px-48 pt-8 sm:pt-24 md:pt-28 pb-8">
-          <div className="max-w-4xl mx-auto">
-            <MemoryHeader activeSection="overview" />
-          </div>
-        </div>
-      </div>
-    )
+  if (!isUserNameLoaded || contextLoading) {
+    return null
   }
 
   return (
-      <div className="min-h-screen text-[var(--foreground)] relative z-70" style={{ backgroundColor: 'var(--background)' }}>
-        <div className="px-8 sm:px-8 md:px-40 lg:px-48 pt-8 sm:pt-24 md:pt-28 pb-8">
-        <div className="max-w-4xl mx-auto">
-          {/* Header Navigation - Apple Style */}
-          <MemoryHeader activeSection="overview" />
-          
-          {/* Overview Section */}
-          <OverviewSection
-            memoryData={memoryData}
-            isLoading={isLoading}
-            error={error}
-            fetchMemoryBankData={fetchMemoryBankData}
-            userName={userName}
-            selectedCategory={selectedCategory}
-            setSelectedCategory={setSelectedCategory}
-            editingCategory={editingCategory}
-            setEditingCategory={setEditingCategory}
-            editingContent={editingContent}
-            setEditingContent={setEditingContent}
-            isSaving={isSaving}
-            handleSaveEdit={handleSaveEdit}
-            handleCancelEdit={handleCancelEdit}
-            expandedCard={expandedCard}
-            setExpandedCard={setExpandedCard}
-            handleEditCategory={handleEditCategory}
-          />
-        </div>
-      </div>
+    <>
+      {/* Overview Section */}
+      <OverviewSection
+        memoryData={memoryData}
+        isLoading={isLoading}
+        error={error}
+        fetchMemoryBankData={fetchMemoryBankData}
+        userName={userName}
+        selectedCategory={selectedCategory}
+        setSelectedCategory={setSelectedCategory}
+        editingCategory={editingCategory}
+        setEditingCategory={setEditingCategory}
+        editingContent={editingContent}
+        setEditingContent={setEditingContent}
+        isSaving={isSaving}
+        handleSaveEdit={handleSaveEdit}
+        handleCancelEdit={handleCancelEdit}
+        expandedCard={expandedCard}
+        setExpandedCard={setExpandedCard}
+        handleEditCategory={handleEditCategory}
+      />
 
       {/* Modals */}
       <MemoryModals
@@ -207,6 +211,6 @@ export default function MemoryBankPage() {
         expandedCard={expandedCard}
         setExpandedCard={setExpandedCard}
       />
-    </div>
+    </>
   )
 }

@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { Header } from '@/app/components/Header'
 import { clearRateLimitInfo, clearAllSubscriptionCache } from '@/lib/utils'
 import { checkSubscriptionClient } from '@/lib/subscription-client'
 
@@ -101,13 +100,6 @@ export default function SubscriptionSuccess() {
   
   return (
     <main className="flex-1 flex flex-col min-h-screen">
-      <Header 
-        showBackButton={false}
-        isSidebarOpen={false}
-        toggleSidebar={() => {}}
-        user={user}
-      />
-      
       <div className="flex-1 flex items-center justify-center">
         <div className="max-w-md w-full p-8 rounded-lg">
           <div className="text-center space-y-6">

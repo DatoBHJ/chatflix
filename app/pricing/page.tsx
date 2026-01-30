@@ -7,7 +7,7 @@ import { createClient } from '@/utils/supabase/client'
 import { User } from '@supabase/supabase-js'
 import { checkSubscriptionClient } from '@/lib/subscription-client'
 import { clearAllSubscriptionCache } from '@/lib/utils'
-import { getChatInputTranslations } from '@/app/lib/chatInputTranslations'
+import { getChatInputTranslations } from '@/app/lib/translations/chatInput'
 
 export default function PricingPage() {
   const router = useRouter()

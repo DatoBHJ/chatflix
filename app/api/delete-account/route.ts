@@ -21,10 +21,10 @@ function extractStoragePath(url: string, bucketName: string): string | null {
 // 메시지에서 모든 Storage 파일 경로 수집
 function collectStorageFiles(messages: any[]): {
   chatAttachments: string[];
-  geminiImages: string[];
+  generatedImages: Array<{ path: string, bucket: string }>;
 } {
   const chatAttachments: string[] = [];
-  const geminiImages: string[] = [];
+  const generatedImages: Array<{ path: string, bucket: string }> = [];
 
   for (const message of messages) {
     // 1. experimental_attachments에서 chat_attachments 파일 수집
@@ -41,13 +41,17 @@ function collectStorageFiles(messages: any[]): {
       }
     }
 
-    // 2. tool_results에서 gemini-images URL 수집 (재귀 검색)
+    // 2. tool_results에서 generated-images URL 수집 (재귀 검색)
     if (message.tool_results && typeof message.tool_results === 'object') {
       // tool_results는 복잡한 구조일 수 있으므로 재귀적으로 검색
       const searchForImageUrls = (obj: any): void => {
-        if (typeof obj === 'string' && obj.includes('gemini-images')) {
-          const path = extractStoragePath(obj, 'gemini-images');
-          if (path) geminiImages.push(path);
+        if (typeof obj === 'string') {
+          // Support both old and new bucket names
+          if (obj.includes('generated-images') || obj.includes('gemini-images')) {
+            const bucket = obj.includes('generated-images') ? 'generated-images' : 'gemini-images';
+            const path = extractStoragePath(obj, bucket);
+            if (path) generatedImages.push({ path, bucket });
+          }
         } else if (typeof obj === 'object' && obj !== null) {
           Object.values(obj).forEach(value => searchForImageUrls(value));
         }
@@ -59,13 +63,13 @@ function collectStorageFiles(messages: any[]): {
   // 중복 제거
   return {
     chatAttachments: [...new Set(chatAttachments)],
-    geminiImages: [...new Set(geminiImages)]
+    generatedImages: [...new Set(generatedImages.map(img => JSON.stringify(img)))].map(str => JSON.parse(str))
   };
 }
 
 export async function POST() {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const supabase = await createClient()
 
     // Get current user
@@ -155,7 +159,7 @@ export async function POST() {
         if (sessions && sessions.length > 0) {
           // 2. 각 세션의 메시지에서 파일 경로 수집
           const chatAttachmentPaths: string[] = [];
-          const geminiImagePaths: string[] = [];
+          const generatedImages: Array<{ path: string, bucket: string }> = [];
           
           for (const session of sessions) {
             const { data: messages } = await serviceClient
@@ -166,9 +170,9 @@ export async function POST() {
             
             if (messages) {
               // collectStorageFiles 로직 적용
-              const { chatAttachments, geminiImages } = collectStorageFiles(messages);
+              const { chatAttachments, generatedImages: sessionImages } = collectStorageFiles(messages);
               chatAttachmentPaths.push(...chatAttachments);
-              geminiImagePaths.push(...geminiImages);
+              generatedImages.push(...sessionImages);
             }
           }
           
@@ -185,21 +189,32 @@ export async function POST() {
             }
           }
           
-          if (geminiImagePaths.length > 0) {
-            const { error: geminiImagesError } = await serviceClient.storage
-              .from('gemini-images')
-              .remove(geminiImagePaths);
+          // Delete generated images from both buckets
+          if (generatedImages.length > 0) {
+            // Group by bucket
+            const imagesByBucket = generatedImages.reduce((acc, { path, bucket }) => {
+              if (!acc[bucket]) acc[bucket] = [];
+              acc[bucket].push(path);
+              return acc;
+            }, {} as Record<string, string[]>);
             
-            if (geminiImagesError) {
-              console.warn('Failed to delete gemini images:', geminiImagesError);
-            } else {
-              console.log(`Successfully deleted ${geminiImagePaths.length} gemini images`);
+            // Delete from each bucket
+            for (const [bucket, paths] of Object.entries(imagesByBucket)) {
+              const { error } = await serviceClient.storage
+                .from(bucket)
+                .remove(paths);
+              
+              if (error) {
+                console.warn(`Failed to delete ${bucket} images:`, error);
+              } else {
+                console.log(`Successfully deleted ${paths.length} images from ${bucket}`);
+              }
             }
           }
           
           console.log('Storage cleanup completed:', {
             chatAttachments: chatAttachmentPaths.length,
-            geminiImages: geminiImagePaths.length
+            generatedImages: generatedImages.length
           });
         } else {
           console.log('No chat sessions found for user, skipping storage cleanup');

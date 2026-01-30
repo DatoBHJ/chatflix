@@ -87,7 +87,6 @@ export const handleRateLimiting = async (userId: string, model: string, isSubscr
     }
     
     const now = new Date();
-    // console.log(`[DEBUG-RATELIMIT][${now.toISOString()}] Checking rate limit for user ${userId}, model ${model}, level ${modelConfig.rateLimit.level}`);
     
     const rateLimiters = await getRateLimiter(model, userId);
     const level = modelConfig.rateLimit.level;
@@ -98,7 +97,6 @@ export const handleRateLimiting = async (userId: string, model: string, isSubscr
     
     const hourlyReset = new Date(hourlyResult.reset);
     const hourlyTimeToReset = Math.floor((hourlyResult.reset - Date.now()) / 1000);
-    // console.log(`[DEBUG-RATELIMIT][${now.toISOString()}] Hourly rate limit result: success=${hourlyResult.success}, remaining=${hourlyResult.remaining}/${hourlyResult.limit}, reset=${hourlyReset.toISOString()}, seconds_to_reset=${hourlyTimeToReset}`);
     
     // 시간당 제한 초과시
     if (!hourlyResult.success) {
@@ -126,7 +124,6 @@ export const handleRateLimiting = async (userId: string, model: string, isSubscr
     
     const dailyReset = new Date(dailyResult.reset);
     const dailyTimeToReset = Math.floor((dailyResult.reset - Date.now()) / 1000);
-    // console.log(`[DEBUG-RATELIMIT][${now.toISOString()}] Daily rate limit result: success=${dailyResult.success}, remaining=${dailyResult.remaining}/${dailyResult.limit}, reset=${dailyReset.toISOString()}, seconds_to_reset=${dailyTimeToReset}`);
     
     // 일일 제한 초과시
     if (!dailyResult.success) {

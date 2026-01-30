@@ -1,15 +1,17 @@
 // app/components/chat/ChatInput/index.tsx
 import React, { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { flushSync } from 'react-dom';
+import { flushSync, createPortal } from 'react-dom';
 import { createClient } from '@/utils/supabase/client';
+import { Tooltip } from 'react-tooltip';
+import 'react-tooltip/dist/react-tooltip.css';
 import { getModelById } from '@/lib/models/config';
 import { ChatInputProps } from './types';
 import { useChatInputStyles } from './ChatInputStyles';
-import { FileUploadButton, FilePreview, fileHelpers } from './FileUpload';
+import { FilePreview, fileHelpers } from './FileUpload';
 import { ErrorToast } from './DragDropOverlay';
-import { Search, Calculator, Link, Image, Video, FileText, Plus, BarChart3, Building, BookOpen, Github, User, FileVideo, Paperclip, Youtube } from 'lucide-react';
+import { Search, Calculator, Link, Image, FileText, Plus, BarChart3, Building, BookOpen, Github, User, Youtube, Palette, Video, Info, Wrench, TrendingUp } from 'lucide-react';
 import { SiGoogle, SiLinkedin } from 'react-icons/si';
-import { Brain as BrainIOS } from 'react-ios-icons'; 
+import NextImage from 'next/image'; 
 import { FileMetadata } from '@/lib/types';
 import { 
   extractImageMetadata, 
@@ -17,110 +19,67 @@ import {
   extractTextMetadata, 
   extractDefaultMetadata
 } from '@/app/chat/[id]/utils';
-import { getChatInputTranslations } from '@/app/lib/chatInputTranslations';
+import { getChatInputTranslations } from '@/app/lib/translations/chatInput';
 import { estimateTokenCount, estimateMultiModalTokens, estimateFileTokens, estimateAttachmentTokens } from '@/utils/context-manager';
+import { getAdaptiveGlassStyleClean, getAdaptiveGlassStyleBlur, getAdaptiveGlassBackgroundColor, getIconClassName as getIconClassNameUtil, getTextStyle } from '@/app/lib/adaptiveGlassStyle';
+import { getChatflixLogo } from '@/lib/models/logoUtils';
+import { OnboardingRenderer } from '@/app/components/Onboarding/OnboardingRenderer';
+import { XLogo, WanAiLogo, SeedreamLogo } from '../CanvasFolder/CanvasLogo';
+import { useContentEditableImage } from '@/app/hooks/useContentEditableImage';
+import { FileSelectionPopover } from './FileSelectionPopover';
+import { PhotoSelectionModal } from './PhotoSelectionModal';
+import { useBackgroundImage } from '@/app/hooks/useBackgroundImage';
 
 // 비구독자 컨텍스트 윈도우 제한 제거됨
 
+type ToolCategory = 'search' | 'ai-generation' | 'utility';
+
+type ToolDefinition = {
+  id: string;
+  icon: React.ReactElement<any>;
+  name: React.ReactNode;
+  description: string;
+  category: ToolCategory;
+  background: string;
+  placeholder: { mobile: string; desktop: string };
+  hasInfoIcon?: boolean;
+  smallIcon?: boolean;
+};
+
 // 도구 정의 - Google Search가 일반 검색의 기본 도구, Exa는 특별한 콘텐츠용
-export const TOOLS = [
-  { id: 'google_search', icon: <SiGoogle strokeWidth={0.5} className="h-2 w-2" />, name: 'Google Search', description: 'Search Google for comprehensive results' },
-  { id: 'google-images', icon: <SiGoogle strokeWidth={0.5} className="h-2 w-2" />, name: 'Google Images', description: 'Search Google Images for visual content' },
-  { id: 'google-videos', icon: <SiGoogle strokeWidth={0.5} className="h-2 w-2" />, name: 'Google Videos', description: 'Search Google Videos for video content' },
-  { id: 'web_search:general', icon: <Search strokeWidth={1.8} />, name: 'Advanced Search', description: 'Neural search engine for specialized content' },
-  // 뉴스는 Google Search로 통합 (Exa news 제거됨)
-  // { id: 'web_search:news', icon: <Newspaper strokeWidth={1.8} />, name: 'News Search', description: 'Find latest news and articles' },
-  { id: 'link_reader', icon: <Link strokeWidth={1.8} />, name: 'Link Reader', description: 'Read web page content' },
-  { id: 'youtube_search', icon: <Youtube strokeWidth={1.8} />, name: 'YouTube Search', description: 'Search YouTube videos' },
-  { id: 'youtube_link_analyzer', icon: <Youtube strokeWidth={1.8} />, name: 'YouTube Analyzer', description: 'Analyze YouTube videos' },
-  { id: 'web_search:github', icon: <Github strokeWidth={1.8} />, name: 'GitHub Search', description: 'Search GitHub repositories' },
-  { id: 'web_search:personal site', icon: <User strokeWidth={1.8} />, name: 'Personal Sites', description: 'Find personal websites and blogs' },
-  { id: 'web_search:linkedin profile', icon: <SiLinkedin strokeWidth={0.5} className="h-2 w-2" />, name: 'LinkedIn Profiles', description: 'Search LinkedIn profiles' },
-  { id: 'web_search:company', icon: <Building strokeWidth={1.8} />, name: 'Company Search', description: 'Find company information' },
-  { id: 'web_search:financial report', icon: <BarChart3 strokeWidth={1.8} />, name: 'Financial Reports', description: 'Search financial data and reports' },
-  { id: 'web_search:research paper', icon: <BookOpen strokeWidth={1.8} />, name: 'Academic Papers', description: 'Find academic research papers' },
-  { id: 'web_search:pdf', icon: <FileText strokeWidth={1.8} />, name: 'PDF Search', description: 'Search PDF documents' },
-  { id: 'calculator', icon: <Calculator strokeWidth={1.8} />, name: 'Calculator', description: 'Mathematical calculations' },
-  // { id: 'image_generator', icon: <Image strokeWidth={1.8} />, name: 'Image Generator', description: 'Generate images from text' }, // DISABLED: pollination.ai image generator
-  { id: 'gemini_image_tool', icon: <Image strokeWidth={1.8} />, name: '🍌 Nano Banana', description: 'Gemini image generation & editing' },
-  { 
-    id: 'seedream_image_tool', 
-    icon: <Image strokeWidth={1.8} />, 
-    name: 'Seedream 4.0', 
-    description: 'ByteDance 4K image generation & editing' 
-  },
+export const TOOLS: ToolDefinition[] = [
+  { id: 'google_search', icon: <SiGoogle strokeWidth={0.5} className="h-[0.375rem] w-[0.375rem]" />, name: 'Google Search', description: 'Search Google for comprehensive results', category: 'search', background: 'linear-gradient(0deg, #2980B9 0%, #6DD5FA 100%)', placeholder: { mobile: 'Search Google', desktop: 'Search Google' }, hasInfoIcon: true, smallIcon: true },
+  { id: 'google-images', icon: <SiGoogle strokeWidth={0.5} className="h-[0.375rem] w-[0.375rem]" />, name: 'Google Images', description: 'Search Google Images for visual content', category: 'search', background: 'linear-gradient(0deg, #2980B9 0%, #6DD5FA 100%)', placeholder: { mobile: 'Search images on Google', desktop: 'Search images on Google' }, hasInfoIcon: true, smallIcon: true },
+  { id: 'google-videos', icon: <SiGoogle strokeWidth={0.5} className="h-[0.375rem] w-[0.375rem]" />, name: 'Google Videos', description: 'Search Google Videos for video content', category: 'search', background: 'linear-gradient(0deg, #2980B9 0%, #6DD5FA 100%)', placeholder: { mobile: 'Search videos on Google', desktop: 'Search videos on Google' }, hasInfoIcon: true, smallIcon: true },
+  { id: 'twitter_search', icon: <XLogo size={18} />, name: (<span className="inline-flex items-center gap-1"><XLogo size={14} /><span>Search</span></span>), description: 'Use X advanced operators to find tweets', category: 'search', background: 'linear-gradient(0deg, #1a1a1a 0%, #2a2a2a 100%)', placeholder: { mobile: 'Search tweets', desktop: 'What are people saying about AI?' } },
+  { id: 'gemini_image_tool', icon: <SiGoogle strokeWidth={0.5} className="h-4 w-4" />, name: '🍌 Nano Banana Pro', description: "Google's new state-of-the-art image model", category: 'ai-generation', background: 'linear-gradient(0deg, #9333EA 0%, #C084FC 100%)', placeholder: { mobile: 'Generate, edit images, or create infographics', desktop: 'Generate, edit images, or create infographics' }, hasInfoIcon: true, smallIcon: true },
+  { id: 'seedream_image_tool', icon: <SeedreamLogo size={18} />, name: 'Seedream 4.5', description: 'The new uncensored image model from Bytedance', category: 'ai-generation', background: 'linear-gradient(0deg, #355691 0%, #83D0CB 100%)', placeholder: { mobile: 'Generate or edit images in 4K', desktop: 'Generate or edit images in 4K' }, hasInfoIcon: true },
+  { id: 'wan25_text_to_video', icon: <WanAiLogo size={18} />, name: 'Wan 2.5 Text to Video', description: 'Uncensored Text-to-Video model (Audio included)', category: 'ai-generation', background: 'linear-gradient(0deg, #654ea3 0%, #eaafc8 100%)', placeholder: { mobile: 'Describe a video to generate', desktop: 'Describe a video to generate' }, hasInfoIcon: true },
+  { id: 'wan25_image_to_video', icon: <WanAiLogo size={18} />, name: 'Wan 2.5 Image to Video', description: 'Uncensored Image-to-Video model (Audio included)', category: 'ai-generation', background: 'linear-gradient(0deg, #654ea3 0%, #eaafc8 100%)', placeholder: { mobile: 'Bring this image to life', desktop: 'Bring this image to life' }, hasInfoIcon: true },
+  { id: 'link_reader', icon: <Link strokeWidth={1.8} />, name: 'Link Reader', description: 'Read web page content', category: 'utility', background: 'linear-gradient(0deg, #56ab2f 0%, #a8e063 100%)', placeholder: { mobile: 'Paste a URL to read', desktop: 'Paste a URL to read' } },
+  { id: 'youtube_search', icon: <Youtube strokeWidth={1.8} />, name: 'YouTube Search', description: 'Search YouTube videos', category: 'search', background: 'linear-gradient(0deg, #DC2626 0%, #F87171 100%)', placeholder: { mobile: 'Search YouTube videos', desktop: 'Search cooking tutorials for beginners' } },
+  { id: 'youtube_link_analyzer', icon: <Youtube strokeWidth={1.8} />, name: 'YouTube Analyzer', description: 'Analyze YouTube videos', category: 'utility', background: 'linear-gradient(0deg, #DC2626 0%, #F87171 100%)', placeholder: { mobile: 'Paste YouTube URL to analyze', desktop: 'Paste YouTube URL to analyze' } },
+  { id: 'web_search:github', icon: <Github strokeWidth={1.8} />, name: 'GitHub Search', description: 'Search GitHub repositories', category: 'search', background: 'linear-gradient(0deg, #1a1a1a 0%, #2a2a2a 100%)', placeholder: { mobile: 'Search GitHub repositories', desktop: 'Find OpenAPI to Rust converter repo' } },
+  { id: 'web_search:personal site', icon: <User strokeWidth={1.8} />, name: 'Personal Site Search', description: 'Find personal websites and blogs', category: 'search', background: 'linear-gradient(0deg, #1CD8D2 0%, #93EDC7 100%)', placeholder: { mobile: 'Search personal websites', desktop: 'Find life coach for work stress' } },
+  { id: 'web_search:linkedin profile', icon: <SiLinkedin strokeWidth={0.5} className="h-[0.375rem] w-[0.375rem]" />, name: 'LinkedIn Profile Search', description: 'Search LinkedIn profiles', category: 'search', background: 'linear-gradient(0deg, #0072ff 0%, #00c6ff 100%)', placeholder: { mobile: 'Search LinkedIn profiles', desktop: 'Find best computer scientist at Berkeley' }, smallIcon: true },
+  { id: 'web_search:company', icon: <Building strokeWidth={1.8} />, name: 'Company Search', description: 'Find company information', category: 'search', background: 'linear-gradient(0deg, #8a92a5 0%, #b8c0d0 100%)', placeholder: { mobile: 'Search companies', desktop: 'Find company making space travel cheaper' } },
+  { id: 'web_search:financial report', icon: <TrendingUp strokeWidth={1.8} />, name: 'Financial Report Search', description: 'Search financial data and reports', category: 'search', background: 'linear-gradient(0deg, #11998e 0%, #38ef7d 100%)', placeholder: { mobile: 'Search financial reports', desktop: 'Search Apple\'s revenue growth reports' } },
+  { id: 'web_search:research paper', icon: <BookOpen strokeWidth={1.8} />, name: 'Research Paper Search', description: 'Find academic research papers', category: 'search', background: 'linear-gradient(0deg, #9333EA 0%, #C084FC 100%)', placeholder: { mobile: 'Search research papers', desktop: 'Find papers about embeddings' } },
+  { id: 'web_search:pdf', icon: <FileText strokeWidth={1.8} />, name: 'PDF Search', description: 'Search PDF documents', category: 'search', background: 'linear-gradient(0deg, #991B1B 0%, #DC2626 100%)', placeholder: { mobile: 'Search PDF documents', desktop: 'Search government UFO documents' } },
+  { id: 'calculator', icon: <Calculator strokeWidth={1.8} />, name: 'Calculator', description: 'Mathematical calculations', category: 'utility', background: 'linear-gradient(0deg, #F2994A 0%, #F2C94C 100%)', placeholder: { mobile: 'Calculate mortgage payment 500k 30yr 4.5%', desktop: 'Calculate mortgage payment 500k 30yr 4.5%' } },
 ];
 
+// 카테고리별 도구 분류 자동 생성
+const TOOL_CATEGORIES: Record<ToolCategory, { label: string; toolIds: string[] }> = {
+  'search': { label: 'Search', toolIds: TOOLS.filter(t => t.category === 'search').map(t => t.id) },
+  'ai-generation': { label: 'AI Generation', toolIds: TOOLS.filter(t => t.category === 'ai-generation').map(t => t.id) },
+  'utility': { label: 'Utility', toolIds: TOOLS.filter(t => t.category === 'utility').map(t => t.id) }
+};
 
-
-
-
-
-
-// 개선된 토큰 계산 함수 - 보수적 계수 적용
-function calculateTokens(
-  text: string,
-  allMessages: any[],
-  attachments: any[],
-  isHomePage: boolean = false
-): { conversation: number; input: number; files: number; total: number } {
-  // 보수적 계수 (1.3배로 증가)
-  const CONSERVATIVE_FACTOR = 1.3;
-  
-  // 현재 입력 토큰 수 계산
-  const input = Math.ceil(estimateTokenCount(text) * CONSERVATIVE_FACTOR);
-  
-  // 파일 토큰 수 계산
-  let files = 0;
-  
-  // 새로 업로드된 파일들의 토큰 수 계산
-  for (const attachment of attachments) {
-    if (attachment.file) {
-      files += Math.ceil(estimateFileTokens({
-      name: attachment.file.name,
-      type: attachment.file.type,
-      metadata: attachment.file.metadata
-    }) * CONSERVATIVE_FACTOR);
-    } else if (attachment.metadata?.estimatedTokens) {
-      files += Math.ceil(attachment.metadata.estimatedTokens * CONSERVATIVE_FACTOR);
-    } else {
-      files += Math.ceil(estimateAttachmentTokens(attachment) * CONSERVATIVE_FACTOR);
-    }
-  }
-  
-  // 대화 히스토리 토큰 수 계산 (홈페이지가 아닌 경우)
-  let conversation = 0;
-  if (!isHomePage && allMessages && allMessages.length > 0) {
-    conversation = allMessages.reduce((total, message) => {
-      return total + Math.ceil(estimateMultiModalTokens(message) * CONSERVATIVE_FACTOR);
-    }, 0);
-  }
-  
-  const total = conversation + input + files;
-  
-  return { conversation, input, files, total };
-}
-
-// 모델별 토큰 임계값 계산 함수
-function getTokenThresholds(contextWindow?: number, isSubscribed?: boolean): { warning: number; danger: number; limit: number } {
-  if (!contextWindow) {
-    // Default values (128K tokens)
-    return {
-      warning: 64000,  // 50%
-      danger: 89600,   // 70%
-      limit: 128000    // 100%
-    };
-  }
-  
-  // 컨텍스트 윈도우 제한 제거됨 - 모든 사용자가 전체 컨텍스트 윈도우 사용 가능
-  const effectiveContextWindow = contextWindow;
-  
-  return {
-    warning: Math.floor(effectiveContextWindow * 0.50),  // 50%
-    danger: Math.floor(effectiveContextWindow * 0.70),   // 70%
-    limit: effectiveContextWindow
-  };
-}
+// 도구 아이콘 배경 스타일 결정 함수
+const getToolIconBackground = (toolId: string): string => {
+  return TOOLS.find(t => t.id === toolId)?.background || 'linear-gradient(0deg, #9ca3a8 0%, #4a5568 100%)';
+};
 
 export function ChatInput({
   input,
@@ -141,16 +100,33 @@ export function ChatInput({
   globalShowFolderError = false,
   globalShowVideoError = false,
   selectedTool,
-  setSelectedTool
+  setSelectedTool,
+  hasBackgroundImage = false
 }: ChatInputProps) {
+  // 테마 감지 상태
+  const [isDark, setIsDark] = useState(false);
+
+  const {
+    insertedImages,
+    setInsertedImages,
+    contentEditableRef: inputRef,
+    insertImageIntoContentEditable,
+    syncImagesWithDOM,
+    extractContentFromEditable
+  } = useContentEditableImage();
+
   // 기본 상태 및 참조
-  const inputRef = useRef<HTMLDivElement>(null);
+  // const inputRef = useRef<HTMLDivElement>(null);
+  
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isSubmittingRef = useRef(false);
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const lastTextContentRef = useRef<string>(''); // 마지막 텍스트 콘텐츠 저장
   const agentDropdownRef = useRef<HTMLDivElement>(null);
+  const toolSelectorRef = useRef<HTMLDivElement>(null);
+  const fileUploadButtonRef = useRef<HTMLButtonElement>(null);
+  const fileSelectionPopoverRef = useRef<HTMLDivElement>(null);
   
   // 상태 관리
   const [files, setFiles] = useState<File[]>([]);
@@ -160,9 +136,14 @@ export function ChatInput({
   const [showVideoError, setShowVideoError] = useState(false);
   const [showAgentError, setShowAgentError] = useState(false);
   const [showToolSelector, setShowToolSelector] = useState(false);
+  const [openTooltipId, setOpenTooltipId] = useState<string | null>(null); // 모바일에서 열린 tooltip 추적
+  const [showFileSelectionPopover, setShowFileSelectionPopover] = useState(false);
+  const [showPhotoSelectionModal, setShowPhotoSelectionModal] = useState(false);
   const [translations, setTranslations] = useState({
     uploadFile: 'Upload file'
   });
+  // 실제 DOM 내용을 추적하여 placeholder 겹침 문제 해결
+  const [domContent, setDomContent] = useState<string>('');
   
   // Supabase 클라이언트
   const supabase = createClient();
@@ -171,6 +152,19 @@ export function ChatInput({
   const modelConfig = getModelById(modelId);
   const supportsVision = modelConfig?.supportsVision ?? false;
   const supportsPDFs = modelConfig?.supportsPDFs ?? false;
+
+  // 배경 정보 가져오기 (PhotoSelectionModal용)
+  const {
+    currentBackground,
+    backgroundType,
+    backgroundId,
+    isBackgroundLoading,
+    refreshBackground
+  } = useBackgroundImage(user?.id, {
+    refreshOnMount: true,
+    preload: false,
+    useSupabase: false
+  });
   
 
 
@@ -182,7 +176,32 @@ export function ChatInput({
     setTranslations(getChatInputTranslations());
   }, []);
 
+  // 테마 감지 useEffect
+  useEffect(() => {
+    const checkTheme = () => {
+      const theme = document.documentElement.getAttribute('data-theme');
+      const isDarkMode = theme === 'dark' || 
+        (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      setIsDark(isDarkMode);
+    };
+    
+    checkTheme();
+    const observer = new MutationObserver(checkTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme']
+    });
+    
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', checkTheme);
+    
+    return () => {
+      observer.disconnect();
+      mediaQuery.removeEventListener('change', checkTheme);
+    };
+  }, []);
 
+  // Placeholder 색상은 CSS에서 var(--muted)를 사용하므로 별도 설정 불필요
 
   // Device detection hook
   const [isMobile, setIsMobile] = useState(false);
@@ -214,65 +233,21 @@ export function ChatInput({
   }, []);
 
   const placeholder = propPlaceholder ?? (selectedTool 
-    ? (() => {        
-        // Mobile placeholders (concise)
-        const mobilePlaceholders: { [key: string]: string } = {
-          'web_search:general': 'Neural Search',
-          // 'web_search:news': 'Search the news', // 제거됨 - Google Search로 대체
-          'web_search:financial report': 'Search financial reports',
-          'web_search:company': 'Search companies',
-          'web_search:research paper': 'Search research papers',
-          'web_search:pdf': 'Search PDF documents',
-          'web_search:github': 'Search GitHub repositories',
-          'web_search:personal site': 'Search personal websites',
-          'web_search:linkedin profile': 'Search LinkedIn profiles',
-
-          'google_search': 'Search Google',
-          'google-images': 'Search images on Google',
-          'google-videos': 'Search videos on Google',
-          'calculator': 'Enter a calculation',
-          'link_reader': 'Paste a URL to read',
-          // 'image_generator': 'Describe an image to generate', // DISABLED: pollination.ai image generator
-          'gemini_image_tool': 'Generate or edit images',
-          'seedream_image_tool': 'Generate or edit images in 4K',
-          'youtube_search': 'Search YouTube videos',
-          'youtube_link_analyzer': 'Paste YouTube URL to analyze'
-        };
-
-        // Desktop placeholders (detailed examples)
-        const desktopPlaceholders: { [key: string]: string } = {
-          'web_search:general': 'Neural Search',
-          // 'web_search:news': 'Find breaking news about AI war', // 제거됨 - Google Search로 대체
-          'web_search:financial report': 'Search Apple\'s revenue growth reports',
-          'web_search:company': 'Find company making space travel cheaper',
-          'web_search:research paper': 'Find papers about embeddings',
-          'web_search:pdf': 'Search government UFO documents',
-          'web_search:github': 'Find OpenAPI to Rust converter repo',
-          'web_search:personal site': 'Find life coach for work stress',
-          'web_search:linkedin profile': 'Find best computer scientist at Berkeley',
-
-          'google_search': 'Search Google',
-          'google-images': 'Search images on Google',
-          'google-videos': 'Search videos on Google',
-          'calculator': 'Calculate mortgage payment 500k 30yr 4.5%',
-          'link_reader': 'https://www.showstudio.com/projects/in_camera/kanye_west',
-          // 'image_generator': 'Draw a futuristic city skyline at sunset', // DISABLED: pollination.ai image generator
-          'gemini_image_tool': 'Generate or edit images',
-          'seedream_image_tool': 'Generate or edit images in 4K',
-          'youtube_search': 'Search cooking tutorials for beginners',
-          'youtube_link_analyzer': 'https://www.youtube.com/watch?v=60RFIF9y8fY'
-        };
-        
-        return isMobile ? mobilePlaceholders[selectedTool] : desktopPlaceholders[selectedTool];
+    ? (() => {
+        const tool = TOOLS.find(t => t.id === selectedTool);
+        return tool ? (isMobile ? tool.placeholder.mobile : tool.placeholder.desktop) : "Talk to the model directly";
       })()
     : isAgentEnabled 
-      ? 'One ring to rule them all...' 
-      : "Chatflix.app"
+      ? 'One ring to rule them all' 
+      : "Talk to the model directly"
   );
 
   // 입력 처리 함수 (최대 단순화)
   const debouncedInputHandler = useCallback(() => {
     if (!inputRef.current || isSubmittingRef.current) return;
+
+    // Sync images with DOM
+    syncImagesWithDOM();
 
     // 최소한의 처리만 - 복잡한 로직 모두 제거
     let content = inputRef.current.innerText || '';
@@ -282,22 +257,51 @@ export function ChatInput({
       content = '';
     }
 
-    // 중복 처리 방지만 유지
-    if (content === lastTextContentRef.current) return;
+    // DOM 내용 state 업데이트
+    setDomContent(content);
+
+    // 중복 처리 방지만 유지 (이미지 변경 시에도 업데이트 필요하므로 조건 완화)
+    // if (content === lastTextContentRef.current) return;
     lastTextContentRef.current = content;
 
     // 상위 컴포넌트로 변경 사항 전파 (empty 클래스는 className에서 자동 처리)
     handleInputChange({
       target: { value: content }
     } as any);
-  }, [handleInputChange]);
+  }, [handleInputChange, syncImagesWithDOM]);
 
-  // 붙여넣기 이벤트 핸들러 - 성능 최적화 버전
+  // 붙여넣기 이벤트 핸들러 - 성능 최적화 버전 + 이미지 지원
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
     e.preventDefault();
     
     if (!inputRef.current) return;
     
+    // Check for images in clipboard
+    const items = e.clipboardData.items;
+    let hasImage = false;
+    
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          if (!supportsVision) {
+             // Vision not supported, show error
+             const errorMessageElement = document.createElement('div');
+             errorMessageElement.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 text-center max-w-md';
+             errorMessageElement.textContent = 'This model does not support images.';
+             document.body.appendChild(errorMessageElement);
+             setTimeout(() => errorMessageElement.remove(), 3000);
+             continue;
+          }
+          
+          insertImageIntoContentEditable(file);
+          hasImage = true;
+        }
+      }
+    }
+    
+    if (hasImage) return;
+
     // 클립보드에서 일반 텍스트 가져오기
     const text = e.clipboardData.getData('text/plain');
     
@@ -401,40 +405,57 @@ export function ChatInput({
   const handleInput = () => {
     if (!inputRef.current || isSubmittingRef.current) return;
     
+    // DOM 내용을 즉시 확인하여 placeholder 겹침 방지
+    const currentContent = inputRef.current.innerText || '';
+    const normalizedContent = currentContent === '\n' ? '' : currentContent;
+    setDomContent(normalizedContent);
+    
     // 타이핑은 항상 즉시 반영 - 디바운싱 제거
     debouncedInputHandler();
   };
 
-  // 입력 필드 클리어 - 완전한 클리어 함수 (모바일 최적화)
+  // 입력 필드 클리어 - 완전한 클리어 함수 (동기적 DOM 업데이트 보장)
   const clearInput = () => {
     if (inputRef.current) {
-      // 모든 콘텐츠 및 빈 노드 제거
-      inputRef.current.innerHTML = '';
-      lastTextContentRef.current = ''; // 참조 업데이트
-      
-      // 모바일에서 DOM 업데이트를 보장하기 위해 requestAnimationFrame 사용
-      requestAnimationFrame(() => {
-        if (inputRef.current) {
-          // 빈 상태 클래스 추가 (강제로)
-          inputRef.current.classList.add('empty');
-          
-          // placeholder 속성 재설정
-          inputRef.current.setAttribute('data-placeholder', placeholder);
-          
-          // 모바일에서 추가 확인 - innerText가 정말 비어있는지 체크
-          if (inputRef.current.innerText && inputRef.current.innerText.trim() !== '') {
-            // 아직 내용이 남아있다면 강제로 다시 클리어
-            inputRef.current.innerHTML = '';
-            inputRef.current.classList.add('empty');
-          }
-        }
+      // flushSync를 사용하여 동기적 DOM 업데이트 보장
+      flushSync(() => {
+        // 모든 콘텐츠 및 빈 노드 제거
+        inputRef.current!.innerHTML = '';
+        lastTextContentRef.current = ''; // 참조 업데이트
+        setDomContent(''); // DOM 내용 state도 클리어
+        
+        // 빈 상태 클래스 추가 (강제로)
+        inputRef.current!.classList.add('empty');
+        
+        // placeholder 속성 재설정
+        inputRef.current!.setAttribute('data-placeholder', placeholder || "Talk to the model directly");
       });
       
+      // Clear inserted images state
+      setInsertedImages(new Map());
+
       // 부모 상태 업데이트 (즉시)
       handleInputChange({
         target: { value: '' }
       } as React.ChangeEvent<HTMLTextAreaElement>);
       
+      // 모바일에서 추가 보장 - requestAnimationFrame으로 한 번 더 체크
+      if (isMobile) {
+        requestAnimationFrame(() => {
+          if (inputRef.current) {
+            // innerText가 정말 비어있는지 체크
+            if (inputRef.current.innerText && inputRef.current.innerText.trim() !== '') {
+              // 아직 내용이 남아있다면 강제로 다시 클리어
+              flushSync(() => {
+                inputRef.current!.innerHTML = '';
+                inputRef.current!.classList.add('empty');
+                inputRef.current!.setAttribute('data-placeholder', placeholder || "Talk to the model directly");
+                setDomContent('');
+              });
+            }
+          }
+        });
+      }
     }
   };
 
@@ -442,7 +463,7 @@ export function ChatInput({
   useEffect(() => {
     if (inputRef.current) {
       // placeholder 속성만 업데이트 (empty 클래스는 className에서 자동 처리)
-      inputRef.current.setAttribute('data-placeholder', placeholder);
+      inputRef.current.setAttribute('data-placeholder', placeholder || "Talk to the model directly");
     }
   }, [placeholder]);
 
@@ -451,13 +472,96 @@ export function ChatInput({
     return Date.now().toString(36) + Math.random().toString(36).substring(2);
   };
 
+  // 기존 채팅창의 uploaded_image_N 인덱스 계산
+  // 서버(tools.ts)의 buildImageMapsFromDBMessages 로직과 동기화: 텍스트 파싱 대신 이미지 개수 카운트
+  const nextImageIndex = useMemo(() => {
+    if (!allMessages || allMessages.length === 0) return 1;
+
+    let imageCount = 0;
+    
+    allMessages.forEach(msg => {
+      // 1. experimental_attachments
+      if (msg.experimental_attachments && Array.isArray(msg.experimental_attachments)) {
+        msg.experimental_attachments.forEach((attachment: any) => {
+          if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
+            imageCount++;
+          }
+        });
+      }
+      
+      // 2. parts
+      if (msg.parts && Array.isArray(msg.parts)) {
+        msg.parts.forEach((part: any) => {
+          if (part.type === 'file' && part.mediaType?.startsWith('image/')) {
+            imageCount++;
+          }
+        });
+      }
+
+      // 3. content (레거시)
+      if (msg.content && Array.isArray(msg.content)) {
+        msg.content.forEach((contentItem: any) => {
+          if (contentItem.type === 'file' && contentItem.mediaType?.startsWith('image/')) {
+            imageCount++;
+          }
+        });
+      }
+    });
+
+    return imageCount + 1;
+  }, [allMessages]);
+
+  // 공통 메시지 제출 로직 (extractContentFromEditable 사용)
+  const prepareMessageSubmission = useCallback(() => {
+    // Extract content with uploaded_image_N placeholders
+    // Pass nextImageIndex to ensure continuity with existing images
+    const { text: messageContent, imageFiles: extractedImageFiles } = extractContentFromEditable(nextImageIndex);
+    
+    // 올바른 FileList 생성: extractedImageFiles (순서 보장) + 기존 files (PDF 등)
+    const snapshotFiles = [...extractedImageFiles, ...files];
+    
+    const fileList = {
+      length: snapshotFiles.length,
+      item: (index: number) => snapshotFiles[index],
+      [Symbol.iterator]: function* () {
+        for (let i = 0; i < snapshotFiles.length; i++) {
+          yield snapshotFiles[i];
+        }
+      }
+    } as FileList;
+
+    // 파일 상태 정리 (미리 스냅샷으로 전달했으므로 안전)
+    const urls = Array.from(fileMap.values()).map(({ url }) => url).filter(url => url.startsWith('blob:'));
+    const inlineUrls = Array.from(insertedImages.values()).map(v => v.blobUrl);
+    
+    // 상태 클리어
+    setFiles([]);
+    setFileMap(new Map());
+    setInsertedImages(new Map());
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    
+    // URL 리소스 해제
+    [...urls, ...inlineUrls].forEach(url => {
+      try { URL.revokeObjectURL(url); } catch {}
+    });
+
+    // 입력 및 UI 클리어
+    clearInput();
+
+    return { messageContent, fileList };
+  }, [extractContentFromEditable, files, fileMap, insertedImages, clearInput, nextImageIndex]);
+
   // 단순화된 메시지 제출 함수
   const submitMessage = useCallback(async () => {
     if (isSubmittingRef.current || isLoading || !inputRef.current) return;
 
     // 🚀 비전 모델 검증: 전송 전에 이미지가 있는데 비전 모델이 아닌 경우 에러 표시
     // 새로 업로드한 파일과 기존 메시지 모두 확인
-    const hasNewImages = files.some(file => file.type.startsWith('image/'));
+    const hasInlineImages = insertedImages.size > 0;
+    const hasNewImages = files.some(file => file.type.startsWith('image/')) || hasInlineImages;
     const hasExistingImages = allMessages && allMessages.length > 0 ? allMessages.some(msg => {
       // AI SDK v5: parts 배열 구조 체크
       if (Array.isArray(msg.parts)) {
@@ -493,49 +597,13 @@ export function ChatInput({
     isSubmittingRef.current = true;
     
     try {
-      const messageContent = inputRef.current.innerText || '';
+      const { messageContent, fileList } = prepareMessageSubmission();
+      
       // 제출 이벤트 생성 (메시지 내용을 target.value로 전달)
       const submitEvent = {
         preventDefault: () => {},
         target: { value: messageContent }
       } as unknown as FormEvent<HTMLFormElement>;
-
-      // 올바른 FileList 생성 (현재 files 스냅샷 고정)
-      const snapshotFiles = [...files];
-      const fileList = {
-        length: snapshotFiles.length,
-        item: (index: number) => snapshotFiles[index],
-        [Symbol.iterator]: function* () {
-          for (let i = 0; i < snapshotFiles.length; i++) {
-            yield snapshotFiles[i];
-          }
-        }
-      } as FileList;
-
-      // 입력 및 UI를 즉시 클리어하여 즉각적 UX 제공 (clearInput 사용으로 placeholder 재설정 보장)
-      clearInput();
-      
-      // 모바일에서 추가 보장 - 이중 체크로 확실히 클리어
-      if (isMobile) {
-        setTimeout(() => {
-          if (inputRef.current && inputRef.current.innerText && inputRef.current.innerText.trim() !== '') {
-            inputRef.current.innerHTML = '';
-            inputRef.current.classList.add('empty');
-            inputRef.current.setAttribute('data-placeholder', placeholder);
-          }
-        }, 50); // 50ms 후 한 번 더 체크
-      }
-
-      // 파일 상태는 제출 직후 정리 (미리 스냅샷으로 전달했으므로 안전)
-      const urls = Array.from(fileMap.values()).map(({ url }) => url).filter(url => url.startsWith('blob:'));
-      setFiles([]);
-      setFileMap(new Map());
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      urls.forEach(url => {
-        try { URL.revokeObjectURL(url); } catch {}
-      });
 
       // 메시지 제출 (선택된 도구 정보 포함)
       const submitEventWithTool = { ...submitEvent, selectedTool: selectedTool || null } as any;
@@ -545,10 +613,10 @@ export function ChatInput({
     } finally {
       isSubmittingRef.current = false;
     }
-  }, [handleInputChange, handleSubmit, files, fileMap, isLoading, selectedTool, supportsVision, allMessages]);
+  }, [handleSubmit, isLoading, selectedTool, supportsVision, allMessages, prepareMessageSubmission]);
 
   // 간단한 내용 확인 - input prop 기반으로 통일
-  const hasContent = input.length > 0 || files.length > 0;
+  const hasContent = input.length > 0 || files.length > 0 || insertedImages.size > 0;
 
   // isInputExpanded 관련 코드 제거 - 전송 버튼 항상 하단 고정
 
@@ -560,96 +628,18 @@ export function ChatInput({
     
     if (isLoading || !hasContent) return;
 
-    // AI SDK 5 형식: parts 배열 구조 사용
-    const uiParts: any[] = [];
-    
-    // 텍스트 부분 추가
-    if (input.trim()) {
-      uiParts.push({ type: 'text', text: input.trim() });
-    }
-    
-    // 첨부파일을 file parts로 변환
-    files.forEach(file => {
-      const fileInfo = fileMap.get(file.name);
-      if (fileInfo) {
-        if (file.type.startsWith('image/')) {
-          uiParts.push({
-            type: 'image',
-            image: fileInfo.url
-          });
-        } else {
-          uiParts.push({
-            type: 'file',
-            url: fileInfo.url,
-            mediaType: file.type,
-            filename: file.name
-          });
-        }
-      }
-    });
-
-    // 기존 experimental_attachments 제거 (v5에서는 사용하지 않음)
-    // (submitEvent as any).experimental_attachments = attachments;
-
-    // FileList로 변환하여 전달
-    const fileList = {
-      length: files.length,
-      item: (index: number) => files[index],
-      [Symbol.iterator]: function* () {
-        for (let i = 0; i < files.length; i++) {
-          yield files[i];
-        }
-      }
-    } as FileList;
+    const { messageContent, fileList } = prepareMessageSubmission();
 
     // 선택된 도구 정보를 이벤트에 추가 (preventDefault 메서드 보존)
     const eventWithTool = {
       ...e,
       preventDefault: e.preventDefault.bind(e),
+      target: { value: messageContent },
       selectedTool: selectedTool || null
     } as any;
     
-    // 파일 상태 정리 (완전한 클리어) - handleSubmit 호출 전에 실행
-    const urls = Array.from(fileMap.values()).map(({ url }) => url).filter(url => url.startsWith('blob:'));
-    
-    // 즉시 상태 클리어
-    setFiles([]);
-    setFileMap(new Map());
-    
-    // 파일 입력 필드 클리어
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-    
-    // URL 리소스 즉시 해제 (지연 없이)
-    urls.forEach(url => {
-      try {
-        URL.revokeObjectURL(url);
-      } catch (error) {
-        // 에러 무시 - 이미 해제된 URL일 수 있음
-      }
-    });
-    
-    // 메시지 제출 및 입력 클리어
+    // 메시지 제출
     handleSubmit(eventWithTool, fileList);
-    handleInputChange({ target: { value: '' } } as React.ChangeEvent<HTMLTextAreaElement>);
-    
-    // 모바일에서 추가 보장 - 입력창이 확실히 클리어되도록
-    if (isMobile && inputRef.current) {
-      // 즉시 클리어
-      inputRef.current.innerHTML = '';
-      inputRef.current.classList.add('empty');
-      inputRef.current.setAttribute('data-placeholder', placeholder);
-      
-      // 50ms 후 한 번 더 체크하여 확실히 클리어
-      setTimeout(() => {
-        if (inputRef.current && inputRef.current.innerText && inputRef.current.innerText.trim() !== '') {
-          inputRef.current.innerHTML = '';
-          inputRef.current.classList.add('empty');
-          inputRef.current.setAttribute('data-placeholder', placeholder);
-        }
-      }, 50);
-    }
   };
 
 
@@ -679,6 +669,13 @@ export function ChatInput({
           
           // 입력 변경 이벤트 발생
           debouncedInputHandler();
+
+          // 스크롤 최하단으로 이동 (줄바꿈 시)
+          requestAnimationFrame(() => {
+            if (inputRef.current) {
+              inputRef.current.scrollTop = inputRef.current.scrollHeight;
+            }
+          });
         }
       } else {
         // 일반 Enter: 메시지 제출 - 직접 함수 호출로 이벤트 큐 건너뛰기
@@ -688,17 +685,6 @@ export function ChatInput({
           requestAnimationFrame(() => {
             submitMessage();
           });
-          
-          // 모바일에서 추가 보장 - Enter 키 후 즉시 클리어
-          if (isMobile && inputRef.current) {
-            setTimeout(() => {
-              if (inputRef.current && inputRef.current.innerText && inputRef.current.innerText.trim() !== '') {
-                inputRef.current.innerHTML = '';
-                inputRef.current.classList.add('empty');
-                inputRef.current.setAttribute('data-placeholder', placeholder);
-              }
-            }, 10); // 10ms 후 즉시 체크
-          }
         }
       }
     } else if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
@@ -708,10 +694,41 @@ export function ChatInput({
     } else if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
       // Command+X (잘라내기) 최적화
       handleOptimizedCut();
-    } else if (e.key === 'Backspace') {
+    } else if (e.key === 'Backspace' || e.key === 'Delete') {
+      // Check for Select All + Delete scenario
+      const selection = window.getSelection();
+      
+      if (inputRef.current && selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        
+        // Check if the entire content is selected (inputRef.current as container)
+        // This commonly happens with Cmd+A (optimizedSelectAll uses selectNodeContents)
+        const isAllSelected = 
+          range.commonAncestorContainer === inputRef.current &&
+          range.startOffset === 0 &&
+          range.endOffset === inputRef.current.childNodes.length;
+
+        // Also check if selection covers effectively all content (text length match)
+        const textLength = inputRef.current.innerText.replace(/\n/g, '').length;
+        const selectedLength = selection.toString().replace(/\n/g, '').length;
+        const isTextAllSelected = textLength > 0 && textLength === selectedLength;
+
+        // If there are images and selection length is 0 but it's a range selection inside input, 
+        // it might be selecting just the image wrapper.
+        const hasImages = insertedImages.size > 0;
+        
+        if (isAllSelected || isTextAllSelected || (hasImages && isAllSelected)) {
+          e.preventDefault();
+          clearInput();
+          return;
+        }
+      }
+
       const currentContent = inputRef.current?.innerText ?? '';
       // Backspace로 모든 내용 지웠을 때 placeholder 다시 보이게
       if (currentContent === '' || currentContent === '\n') {
+        // DOM 내용 state 즉시 업데이트
+        setDomContent('');
         // When clearing input with backspace, ensure handler is called
         debouncedInputHandler();
       }
@@ -752,7 +769,7 @@ export function ChatInput({
           selection?.addRange(range);
         }
       } catch (error) {
-        console.error('선택 최적화 중 오류:', error);
+        console.error('Error optimizing selection:', error);
         // 오류 발생 시 표준 선택 명령으로 폴백
         document.execCommand('selectAll', false);
       }
@@ -789,6 +806,11 @@ export function ChatInput({
           // 선택 영역 삭제 (단일 DOM 연산으로)
           selection.getRangeAt(0).deleteContents();
           
+          // DOM 내용 state 업데이트
+          const newContent = inputRef.current.innerText || '';
+          const normalizedContent = newContent === '\n' ? '' : newContent;
+          setDomContent(normalizedContent);
+          
           // 입력 필드 상태 업데이트
           if (inputRef.current.innerText?.trim() === '') {
             inputRef.current.classList.add('empty');
@@ -796,7 +818,7 @@ export function ChatInput({
           
           // 부모 컴포넌트 상태 업데이트
           const event = {
-            target: { value: inputRef.current.innerText || '' }
+            target: { value: normalizedContent }
           } as React.ChangeEvent<HTMLTextAreaElement>;
           handleInputChange(event);
           
@@ -804,12 +826,12 @@ export function ChatInput({
           inputRef.current.focus();
         });
       }).catch(err => {
-        console.error('클립보드 작업 실패:', err);
+        console.error('Clipboard operation failed:', err);
         // 실패시 표준 잘라내기 명령으로 폴백
         document.execCommand('cut');
       });
     } catch (error) {
-      console.error('최적화된 잘라내기 중 오류:', error);
+      console.error('Error in optimized cut:', error);
       // 오류 발생시 표준 잘라내기로 폴백
       document.execCommand('cut');
     }
@@ -862,40 +884,54 @@ export function ChatInput({
 
   // 파일 처리 - 메타데이터 추출 추가
   const handleFiles = async (newFiles: FileList) => {
+    const imagesToInsert: File[] = [];
+    const filesToUpload: File[] = [];
+
     // FileList를 Array로 변환하고 기본 필터링만 수행
-    const newFileArray = Array.from(newFiles).filter(file => {
+    Array.from(newFiles).forEach(file => {
       // PDF 파일 지원 확인
       if (fileHelpers.isPDFFile(file)) {
         if (!supportsPDFs) {
           setShowPDFError(true);
           setTimeout(() => setShowPDFError(false), 3000);
-          return false;
+          return;
         }
-        return true;
+        filesToUpload.push(file);
+        return;
       }      
       
       // 이미지 파일 지원 확인
-      if (!supportsVision && file.type.startsWith('image/')) {
-        setShowPDFError(true);
-        setTimeout(() => setShowPDFError(false), 3000);
-        return false;
+      if (file.type.startsWith('image/')) {
+        if (!supportsVision) {
+          setShowPDFError(true);
+          setTimeout(() => setShowPDFError(false), 3000);
+          return;
+        }
+        imagesToInsert.push(file);
+        return;
       }
 
       // 비디오 파일 필터링
       if (file.type.startsWith('video/') || /\.(mp4|mov|avi|wmv|flv|mkv|webm)$/i.test(file.name)) {
         setShowVideoError(true);
         setTimeout(() => setShowVideoError(false), 3000);
-        return false;
+        return;
       }
       
-      return true;
+      // Default to file upload
+      filesToUpload.push(file);
     });
+
+    // Handle images inline
+    for (const file of imagesToInsert) {
+       await insertImageIntoContentEditable(file);
+    }
     
-    if (newFileArray.length === 0) return;
+    if (filesToUpload.length === 0) return;
     
-    // 메타데이터 추출 및 파일 처리
+    // 메타데이터 추출 및 파일 처리 (For filesToUpload only)
     const processedFiles = await Promise.all(
-      newFileArray.map(async (file) => {
+      filesToUpload.map(async (file) => {
         const fileId = generateUniqueId();
         const url = URL.createObjectURL(file);
         
@@ -1007,7 +1043,7 @@ export function ChatInput({
 
 
 
-  // 외부 클릭/터치 시 도구 선택창 닫기
+  // 외부 클릭/터치 시 도구 선택창 및 파일 선택 팝오버 닫기
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (showToolSelector && agentDropdownRef.current) {
@@ -1016,9 +1052,28 @@ export function ChatInput({
           setShowToolSelector(false);
         }
       }
+
+      // 파일 선택 팝오버 닫기
+      if (showFileSelectionPopover) {
+        const target = event.target as Node;
+        const buttonContainer = fileUploadButtonRef.current?.parentElement;
+        if (buttonContainer && !buttonContainer.contains(target)) {
+          setShowFileSelectionPopover(false);
+        }
+      }
+
+      // 모바일에서 tooltip이 열려있을 때 외부 클릭 시 닫기
+      if (isMobile && openTooltipId) {
+        const target = event.target as HTMLElement;
+        // tooltip 요소나 정보 아이콘이 아닌 곳을 클릭한 경우
+        if (!target.closest('[data-tooltip-id="tool-selector-tooltip"]') && 
+            !target.closest('[data-tooltip-is-open]')) {
+          setOpenTooltipId(null);
+        }
+      }
     };
 
-    if (showToolSelector) {
+    if (showToolSelector || showFileSelectionPopover || (isMobile && openTooltipId)) {
       // 마우스와 터치 이벤트 모두 처리
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('touchstart', handleClickOutside);
@@ -1027,7 +1082,7 @@ export function ChatInput({
         document.removeEventListener('touchstart', handleClickOutside);
       };
     }
-  }, [showToolSelector]);
+  }, [showToolSelector, showFileSelectionPopover, isMobile, openTooltipId]);
 
   // 도구 선택 핸들러
   const handleToolSelect = (toolId: string) => {
@@ -1042,44 +1097,31 @@ export function ChatInput({
     });
   };
 
-  // 도구 선택 해제 핸들러
-  const handleToolDeselect = () => {
-    flushSync(() => {
-      if (setSelectedTool) {
-        setSelectedTool(null);
-      }
-      if (setisAgentEnabled) {
-        setisAgentEnabled(false);
-      }
-    });
-  };
-
   // 선택된 도구 정보 가져오기
   const selectedToolInfo = selectedTool ? TOOLS.find(tool => tool.id === selectedTool) : null;
 
+  // 온보딩 컨텍스트 준비
+  const onboardingContext = useMemo(() => ({
+    isAgentEnabled,
+    showToolSelector,
+    selectedTool,
+    hasInput: input.length > 0,
+  }), [isAgentEnabled, showToolSelector, selectedTool, input]);
+
+  // 온보딩 타겟 ref 관리 (런치패드 패턴)
+  const onboardingTooltipTargetsRef = useRef<Map<string, HTMLElement>>(new Map());
+
+  useEffect(() => {
+    if (agentDropdownRef.current) {
+      const buttonElement = agentDropdownRef.current.querySelector('button');
+      if (buttonElement) {
+        onboardingTooltipTargetsRef.current.set('agent-mode-button', buttonElement);
+      }
+    }
+  }, []);
 
   return (
     <div className="relative">
-      {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
-      <svg style={{ position: 'absolute', width: 0, height: 0 }}>
-        <defs>
-          <filter id="glass-distortion" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
-            <feTurbulence type="fractalNoise" baseFrequency="0.02 0.05" numOctaves="3" seed="7" result="noise" />
-            <feImage result="radialMask" preserveAspectRatio="none" x="0" y="0" width="100%" height="100%" xlinkHref="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><defs><radialGradient id='g' cx='50%25' cy='50%25' r='70%25'><stop offset='0%25' stop-color='black'/><stop offset='100%25' stop-color='white'/></radialGradient></defs><rect width='100%25' height='100%25' fill='url(%23g)'/></svg>" />
-            <feComposite in="noise" in2="radialMask" operator="arithmetic" k1="0" k2="0" k3="1" k4="0" result="modulatedNoise" />
-            <feGaussianBlur in="modulatedNoise" stdDeviation="0.3" edgeMode="duplicate" result="smoothNoise" />
-            <feDisplacementMap in="SourceGraphic" in2="smoothNoise" scale="18" xChannelSelector="R" yChannelSelector="G" />
-          </filter>
-          {/* 다크모드 전용 글라스 필터 */}
-          <filter id="glass-distortion-dark" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
-            <feTurbulence type="fractalNoise" baseFrequency="0.015 0.03" numOctaves="4" seed="7" result="noise" />
-            <feImage result="radialMask" preserveAspectRatio="none" x="0" y="0" width="100%" height="100%" xlinkHref="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><defs><radialGradient id='g-dark' cx='50%25' cy='50%25' r='80%25'><stop offset='0%25' stop-color='white'/><stop offset='100%25' stop-color='black'/></radialGradient></defs><rect width='100%25' height='100%25' fill='url(%23g-dark)'/></svg>" />
-            <feComposite in="noise" in2="radialMask" operator="arithmetic" k1="0" k2="0" k3="0.8" k4="0" result="modulatedNoise" />
-            <feGaussianBlur in="modulatedNoise" stdDeviation="0.4" edgeMode="duplicate" result="smoothNoise" />
-            <feDisplacementMap in="SourceGraphic" in2="smoothNoise" scale="12" xChannelSelector="R" yChannelSelector="G" />
-          </filter>
-        </defs>
-      </svg>
       
       <form 
         ref={formRef} 
@@ -1116,9 +1158,13 @@ export function ChatInput({
           />
           
           <div ref={inputContainerRef} className="flex gap-2 sm:gap-3 items-end py-0">
-            {/* Agent(뇌) 버튼 */}
+            {/* Agent(챗플릭스 아이콘) 버튼 */}
             {setisAgentEnabled && (
-              <div className="relative flex-shrink-0" ref={agentDropdownRef}>
+              <div 
+                className="relative flex-shrink-0" 
+                ref={agentDropdownRef}
+                data-onboarding-target="agent-mode-button"
+              >
                 <button
                   type="button"
                   onClick={() => {
@@ -1131,20 +1177,20 @@ export function ChatInput({
                     const isCurrentModelAgentEnabled = currentModel?.isAgentEnabled === true;
                     
                     if (selectedTool) {
-                      // 도구가 선택된 상태에서 뇌 버튼을 누르면 기본 상태로 복귀
+                      // 도구가 선택된 상태에서 챗플릭스 아이콘을 누르면 기본 상태로 복귀
                       flushSync(() => {
                         setSelectedTool?.(null);
                         setisAgentEnabled?.(false);
                         setShowToolSelector(false);
                       });
                     } else if (isAgentEnabled) {
-                      // 에이전트 모드에서 뇌 버튼을 누르면 기본 상태로 복귀
+                      // 에이전트 모드에서 챗플릭스 아이콘을 누르면 기본 상태로 복귀
                       flushSync(() => {
                         setisAgentEnabled?.(false);
                         setShowToolSelector(false);
                       });
                     } else {
-                      // 일반 모드에서 뇌 버튼을 누를 때
+                      // 일반 모드에서 챗플릭스 아이콘을 누를 때
                       if (!isCurrentModelAgentEnabled) {
                         // 현재 모델이 에이전트를 지원하지 않으면 에러 표시
                         setShowAgentError(true);
@@ -1161,143 +1207,298 @@ export function ChatInput({
                     }
                   }}
                   className={`input-btn transition-all duration-300 flex items-center justify-center relative rounded-full w-8 h-8 cursor-pointer`}
-                  style={{
-                    backgroundColor: (isAgentEnabled || selectedTool)
-                      ? 'var(--chat-input-primary)'
-                      : 'rgba(255, 255, 255, 0.1)',
-                    backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
-                    WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
-                    color: (isAgentEnabled || selectedTool)
-                      ? 'var(--chat-input-primary-foreground)'
-                      : 'var(--foreground)',
-                    opacity: user?.hasAgentModels === false && !isAgentEnabled ? 0.4 : 1,
-                    // 다크모드 전용 스타일
-                    ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
-                        (document.documentElement.getAttribute('data-theme') === 'system' && 
-                         window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
-                      backgroundColor: (isAgentEnabled || selectedTool)
-                        ? 'var(--chat-input-primary)'
-                        : 'rgba(0, 0, 0, 0.05)',
-                      backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
-                      WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-                    } : {})
-                  }}
+                  style={(() => {
+                    const glassStyle = getAdaptiveGlassStyleBlur();
+              //     const glassStyle = getAdaptiveGlassStyleClean(hasBackgroundImage);
+                    let backgroundColor;
+                    if (!isAgentEnabled && !selectedTool) {
+                      backgroundColor = getAdaptiveGlassBackgroundColor().backgroundColor;
+                    } else if (selectedTool) {
+                      backgroundColor = getToolIconBackground(selectedTool);
+                    } else {
+                      backgroundColor = 'var(--chat-input-primary)';
+                    }
+                    return {
+                      ...glassStyle,
+                      background: backgroundColor,
+                      color: (isAgentEnabled || selectedTool)
+                        ? 'var(--chat-input-primary-foreground)'
+                        : 'var(--foreground)',
+                      opacity: user?.hasAgentModels === false && !isAgentEnabled ? 0.4 : 1,
+                      // border 완전 제거
+                      border: 'none',
+                    };
+                  })()}
                   disabled={user?.hasAgentModels === false && !isAgentEnabled}
                   title={
-                    user?.hasAgentModels === false && !isAgentEnabled 
-                      ? "Agent mode not available" 
-                      : ""
-                  }
-                >
+                        user?.hasAgentModels === false && !isAgentEnabled 
+                          ? "Agent mode not available" 
+                          : ""
+                      }
+                    >
                   {selectedTool && selectedToolInfo?.icon ? (
                     React.cloneElement(selectedToolInfo.icon, { 
-                      className: "h-4 w-4 transition-transform duration-300",
-                      strokeWidth: 2
+                      className: `transition-transform duration-300 text-white ${selectedToolInfo.smallIcon ? "h-3.5 w-3.5" : "h-4 w-4"}`,
+                      size: selectedToolInfo.smallIcon ? 14 : 16
                     })
                   ) : (
-                    <BrainIOS className="h-5 w-5 transition-transform duration-300" />
+                    <NextImage
+                      src={getChatflixLogo({ 
+                        isAgentEnabled, 
+                        selectedTool, 
+                        hasBackgroundImage, 
+                        isDark: isDark || (typeof window !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'system' && 
+                          window.matchMedia('(prefers-color-scheme: dark)').matches)
+                      })}
+                      alt="Chatflix"
+                      width={20}
+                      height={20}
+                      className={`transition-transform duration-300 ${(isAgentEnabled || selectedTool || hasBackgroundImage) 
+                        ? '[filter:drop-shadow(0_0px_4px_rgba(255,255,255,0.7))]'
+                        : ''}`}
+                    />
                   )}
-                  {/* <Brain className="h-5 w-5 transition-transform duration-300" strokeWidth={1.2} /> */}
                 </button>
 
                 {/* Tool selector */}
                 {showToolSelector && (
                   <div 
-                    className="absolute top-0 -translate-y-full -mt-2 -left-1 w-56  rounded-2xl z-50 overflow-hidden tool-selector"
+                    ref={toolSelectorRef}
+                    className="absolute top-0 -translate-y-full -mt-3 sm:-mt-3.5 -left-1 w-[calc(100vw-2rem)] sm:w-96 md:w-[420px] rounded-[24px] z-[35] overflow-hidden tool-selector"
                     style={{
-                      // 라이트모드 기본 스타일 (모델 선택창과 동일)
-                      backgroundColor: 'rgba(255, 255, 255, 0.5)',
-                      backdropFilter: (isMobile || isSafari) ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
-                      WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px) saturate(180%)' : 'url(#glass-distortion) blur(10px) saturate(180%)',
-                      border: '1px solid rgba(255, 255, 255, 0.2)',
-                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
-                      // 다크모드 전용 스타일
-                      ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
-                          (document.documentElement.getAttribute('data-theme') === 'system' && 
-                           window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
-                        backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                        backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(24px)',
-                        WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(24px)',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-                      } : {})
+                      // 모델 선택창과 동일한 글라스 효과 적용
+                      ...getAdaptiveGlassStyleBlur(),
+                      backgroundColor: getAdaptiveGlassBackgroundColor().backgroundColor,
+                      backdropFilter: 'blur(40px)',
+                      WebkitBackdropFilter: 'blur(40px)',
+                      maxHeight: 'calc(100vh - 150px)', // 모바일: 화면 높이에서 입력창과 여백 제외
                     }}
                   >
-                                  {/* Apple-style arrow removed */}
-                    
-
-
-                    {/* Agent mode tools section */}
-                    <div className="p-2">
-                      <div className="flex items-center gap-2 text-xs font-medium text-[var(--muted)] px-2 py-1 mb-1">
-                        <span>Tools</span>
-                        {/* <a href="/agent-mode" target="_blank" rel="noopener noreferrer" className="w-4 h-4 rounded-full bg-[#007AFF]/10 hover:bg-[#007AFF]/20 flex items-center justify-center transition-colors group flex-shrink-0" title="Learn more about Agent Mode">
-                          <svg className="w-2.5 h-2.5 text-[#007AFF] group-hover:text-[#007AFF]/80" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                          </svg>
-                        </a> */}
-                      </div>
-                      <div className="max-h-50 overflow-y-auto scrollbar-minimal">
-                        {TOOLS.map((tool) => (
-                          <button
-                            key={tool.id}
-                            type="button"
-                            onClick={() => handleToolSelect(tool.id)}
-                            className={`flex items-center gap-2 w-full p-2 transition-colors text-left tool-button rounded-lg ${
-                              selectedTool === tool.id
-                                ? 'bg-[#007AFF] text-white'
-                                : 'hover:bg-[var(--accent)]'
-                            }`}
-                          >
-                            <div className={`flex items-center justify-center w-7 h-7 flex-shrink-0 ${
-                              selectedTool === tool.id
-                                ? 'text-white'
-                                : 'text-[var(--muted)]'
-                            }`}>
-                              {React.cloneElement(tool.icon, { 
-                                className: "h-3.5 w-3.5"
-                              })}
+                    <div className="p-4">
+                      <div className="max-h-[calc(100vh-220px)] sm:max-h-[500px] md:max-h-[500px] overflow-y-auto scrollbar-minimal">
+                        {/* Tool Explanation Section */}
+                        <div 
+                          className="mb-6 rounded-[12px] p-4"
+                          style={{
+                            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#f7f7f7',
+                            backdropFilter: 'blur(30px)',
+                            WebkitBackdropFilter: 'blur(30px)',
+                          }}
+                        >
+                          <div className="flex items-start gap-3 mb-4">
+                            <div 
+                              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                              style={{ 
+                                ...getAdaptiveGlassStyleBlur(),
+                                backgroundColor: (isAgentEnabled && !selectedTool)
+                                  ? 'var(--chat-input-primary)'
+                                  : selectedTool
+                                    ? getToolIconBackground(selectedTool)
+                                    : getAdaptiveGlassBackgroundColor().backgroundColor,
+                                border: 'none',
+                              }}
+                            >
+                              <NextImage
+                                src={getChatflixLogo({ 
+                                  isAgentEnabled, 
+                                  selectedTool, 
+                                  hasBackgroundImage, 
+                                  isDark: isDark || (typeof window !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'system' && 
+                                    window.matchMedia('(prefers-color-scheme: dark)').matches)
+                                })}
+                                alt="Chatflix"
+                                width={28}
+                                height={28}
+                                className="transition-transform duration-300"
+                              />
                             </div>
-                            <span className={`text-sm font-medium ${
-                              selectedTool === tool.id
-                                ? 'text-white'
-                                : 'text-[var(--foreground)]'
-                            }`}>
-                              {tool.name}
-                            </span>
-                          </button>
-                        ))}
+                            <div className="flex-1">
+                              <div className="text-[14px] leading-[1.2] font-normal mb-1" style={{ color: 'var(--foreground)' }}>
+                                Chatflix Tools
+                              </div>
+                              <div className="text-[12px] leading-tight" style={{ color: 'color-mix(in srgb, var(--foreground) 50%, transparent)' }}>
+                                Enhance your conversations with powerful tools.
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Toggle Section */}
+                          <div className="flex items-center justify-between pt-3 mt-3 border-t" style={{ borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }}>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[15px] font-normal" style={{ color: 'var(--foreground)' }}>
+                                Agent Mode
+                              </span>
+                              <div 
+                                data-tooltip-id="tool-selector-tooltip"
+                                data-tool-id="auto-mode-info"
+                                data-tooltip-content="AI automatically selects and uses the best tools for your request"
+                                data-tooltip-is-open={isMobile && openTooltipId === 'auto-mode-info'}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isMobile) {
+                                    setOpenTooltipId(prev => prev === 'auto-mode-info' ? null : 'auto-mode-info');
+                                  }
+                                }}
+                                className="rounded-full p-0.5 cursor-pointer flex items-center justify-center"
+                                style={{ backgroundColor: 'transparent' }}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5" style={{ color: 'color-mix(in srgb, var(--foreground) 40%, transparent)' }}>
+                                  <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const newAgentEnabled = !isAgentEnabled;
+                                if (setSelectedTool && selectedTool !== null) {
+                                  setSelectedTool(null);
+                                }
+                                if (setisAgentEnabled) {
+                                  setisAgentEnabled(newAgentEnabled);
+                                }
+                              }}
+                              className={`relative inline-flex h-[18px] w-[38px] items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
+                                isAgentEnabled && !selectedTool
+                                  ? 'bg-[#007AFF]'
+                                  : isDark ? 'bg-[#39393d]' : 'bg-[#e9e9ea]'
+                              }`}
+                              style={{ willChange: 'background-color' }}
+                              role="switch"
+                              aria-checked={isAgentEnabled && !selectedTool}
+                            >
+                              <span
+                                className={`inline-block h-[14px] w-[23px] transform rounded-full bg-white shadow-md transition-all duration-200 ease-in-out ${
+                                  isAgentEnabled && !selectedTool ? 'translate-x-[13px]' : 'translate-x-[2px]'
+                                }`}
+                                style={{ willChange: 'transform, width' }}
+                              />
+                            </button>
+                          </div>
+                        </div>
+
+                        {(Object.entries(TOOL_CATEGORIES) as [ToolCategory, { label: string; toolIds: string[] }][]).map(([category, categoryData]) => {
+                          const categoryTools = TOOLS.filter(tool => categoryData.toolIds.includes(tool.id));
+                          if (categoryTools.length === 0) return null;
+                          
+                          return (
+                            <div key={category} className="mb-7 last:mb-0">
+                              {/* Category Title */}
+                              <div className="px-3 mb-1.5 text-[14px] font-semibold tracking-tight" style={{ color: 'var(--foreground)' }}>
+                                {categoryData.label}
+                              </div>
+                              {/* Category Group - iOS Style */}
+                              <div 
+                                className="overflow-hidden rounded-[12px]"
+                                style={{
+                                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#f7f7f7',
+                                  backdropFilter: 'blur(30px)',
+                                  WebkitBackdropFilter: 'blur(30px)',
+                                }}
+                              >
+                                <div>
+                                  {categoryTools.map((tool, index) => (
+                                    <div key={tool.id}>
+                                      {index > 0 && (
+                                        <div 
+                                          className={`${isDark ? 'border-t border-white/5' : 'border-t border-black/5'}`}
+                                          style={{ marginLeft: '12px', marginRight: '12px' }}
+                                        />
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToolSelect(tool.id)}
+                                        className="w-full flex items-center justify-between px-3 py-3 transition-colors text-left cursor-pointer"
+                                        style={{
+                                          '--tw-active-bg': isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                                        } as React.CSSProperties}
+                                        onMouseDown={(e) => {
+                                          e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)';
+                                        }}
+                                        onMouseUp={(e) => {
+                                          e.currentTarget.style.backgroundColor = 'transparent';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.backgroundColor = 'transparent';
+                                        }}
+                                      >
+                                        <div className="flex items-center gap-3">
+                                        <div 
+                                          className="w-6 h-6 rounded-[6px] flex items-center justify-center shrink-0 relative overflow-visible"
+                                          style={{ 
+                                            ...getAdaptiveGlassStyleBlur(),
+                                            background: getToolIconBackground(tool.id),
+                                            border: 'none',
+                                          }}
+                                        >
+                                          {React.cloneElement(tool.icon, { 
+                                            className: `text-white ${tool.smallIcon ? "h-3 w-3" : "h-3.5 w-3.5"}`,
+                                            size: tool.smallIcon ? 12 : 14
+                                          })}
+                                          {(tool.id === 'wan25_text_to_video' || tool.id === 'wan25_image_to_video') && (
+                                            <div 
+                                              className="absolute -bottom-1 -right-2 text-[7.5px] font-bold px-1 py-0.5 rounded-full leading-none whitespace-nowrap"
+                                              style={{
+                                                backgroundColor: 'var(--foreground)',
+                                                color: 'var(--background)'
+                                              }}
+                                            >
+                                              BETA
+                                            </div>
+                                          )}
+                                        </div>
+                                        <span className="text-[14px] leading-[1.2] font-normal" style={{ color: 'var(--foreground)', display: 'flex', alignItems: 'center', height: '28px', transform: 'translateY(1px)' }}>
+                                          {tool.name}
+                                        </span>
+                                      </div>
+
+                                      {/* 정보 아이콘 - 이미지/비디오 관련 도구 및 Google 검색에 표시 */}
+                                      {tool.hasInfoIcon && (
+                                        <div 
+                                          data-tooltip-id="tool-selector-tooltip"
+                                          data-tool-id={tool.id}
+                                          data-tooltip-content={
+                                            tool.id.startsWith('google') 
+                                              ? 'Safe search is disabled by default to allow unrestricted search results'
+                                              : tool.description
+                                          }
+                                          data-tooltip-is-open={isMobile && openTooltipId === tool.id}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (isMobile) {
+                                              // 모바일에서 클릭 시 토글
+                                              setOpenTooltipId(prev => prev === tool.id ? null : tool.id);
+                                            }
+                                          }}
+                                          className="rounded-full p-0.5 cursor-pointer flex items-center justify-center"
+                                          style={{ backgroundColor: 'transparent' }}
+                                        >
+                                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5" style={{ color: 'color-mix(in srgb, var(--foreground) 40%, transparent)' }}>
+                                            <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                                          </svg>
+                                        </div>
+                                      )}
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-
-                    {/* Clear selection */}
-                    {selectedTool && (
-                      <>
-                        <div className="h-px bg-[var(--subtle-divider)] mx-3"></div>
-                        <div className="p-2">
-                          <button
-                            type="button"
-                            onClick={handleToolDeselect}
-                            className="flex items-center gap-2 w-full p-2 hover:bg-[var(--accent)] transition-colors text-left tool-button rounded-lg"
-                          >
-                            <div className="flex items-center justify-center w-7 h-7 flex-shrink-0">
-                              <svg className="h-3.5 w-3.5 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </div>
-                            <span className="text-sm font-medium text-[var(--muted)]">
-                              Cancel Selection
-                            </span>
-                          </button>
-                        </div>
-                      </>
-                    )}
                   </div>
                 )}
+
+                {/* Onboarding Renderer */}
+                <OnboardingRenderer
+                  location="chat"
+                  context={onboardingContext}
+                  target={onboardingTooltipTargetsRef.current}
+                  displayTypes={['tooltip']}
+                />
 
               </div>
             )}
@@ -1305,30 +1506,40 @@ export function ChatInput({
             {/* File upload button */}
             <div className="relative flex-shrink-0">
               <button
+                ref={fileUploadButtonRef}
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => setShowFileSelectionPopover(true)}
                 className="flex items-center justify-center w-8 h-8 rounded-full transition-colors flex-shrink-0 text-[var(--foreground)] cursor-pointer"
                   style={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
-                    WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                  boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
-                  // 다크모드 전용 스타일
-                  ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
-                      (document.documentElement.getAttribute('data-theme') === 'system' && 
-                       window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
-                    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                    backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
-                    WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-                  } : {})
-                }}
+                    ...(() => {
+                      const glassStyle = getAdaptiveGlassStyleBlur();
+              //     const glassStyle = getAdaptiveGlassStyleClean(hasBackgroundImage);
+                      return {
+                        ...glassStyle,
+                        border: 'none',
+                        ...getAdaptiveGlassBackgroundColor(),
+                      };
+                    })(),
+                  }}
                 title={translations.uploadFile}
               >
-                <Plus className="h-4 w-4" strokeWidth={2} />
+                <Plus 
+                  className="h-4 w-4 text-[var(--foreground)]"
+                  strokeWidth={2} 
+                />
               </button>
+
+              {/* File Selection Popover */}
+              {showFileSelectionPopover && (
+                <FileSelectionPopover
+                  isOpen={showFileSelectionPopover}
+                  onClose={() => setShowFileSelectionPopover(false)}
+                  onSelectPhoto={() => setShowPhotoSelectionModal(true)}
+                  onSelectLocalFile={() => fileInputRef.current?.click()}
+                  buttonRef={fileUploadButtonRef}
+                  isDark={isDark}
+                />
+              )}
             </div>
   
             <div className="flex-1 relative flex-shrink-0">
@@ -1341,9 +1552,10 @@ export function ChatInput({
                   contentEditable
                   onInput={handleInput}
                   onPaste={handlePaste}
-                  onKeyDown={handleKeyDown}
-                  className={`futuristic-input ${input === '' ? 'empty' : ''} w-full transition-colors duration-300 py-1.5 rounded-full outline-none text-sm sm:text-base bg-[var(--chat-input-bg)] text-[var(--chat-input-text)] overflow-y-auto min-h-[32px]`}
-                  data-placeholder={placeholder}
+                onKeyDown={handleKeyDown}
+                className={`futuristic-input ${(input === '' && domContent === '' && insertedImages.size === 0) ? 'empty' : ''} w-full transition-colors duration-300 py-1.5 rounded-full outline-none text-sm sm:text-base overflow-y-auto min-h-[32px]`}
+                data-placeholder={placeholder}
+                data-ignore-bg-color-for-brightness="true"
                   suppressContentEditableWarning
                   style={{ 
                     maxHeight: '300px', 
@@ -1352,24 +1564,20 @@ export function ChatInput({
                     whiteSpace: 'pre-wrap', 
                     lineHeight: '1.3',
                     resize: 'none',
-                    caretColor: 'var(--chat-input-primary)',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
-                    WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)', // Safari 지원
-                    boxShadow: '0 8px 40px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                    // caretColor: 'var(--chat-input-primary)',
                     paddingLeft: '1rem', // CSS에서 paddingRight 처리
                     ...(('caretWidth' in document.documentElement.style) && { caretWidth: '2px' }),
-                    // 다크모드 전용 스타일
-                    ...(document.documentElement.getAttribute('data-theme') === 'dark' || 
-                        (document.documentElement.getAttribute('data-theme') === 'system' && 
-                         window.matchMedia('(prefers-color-scheme: dark)').matches) ? {
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                      backdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
-                      WebkitBackdropFilter: (isMobile || isSafari) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
-                      boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-                    } : {})
+                    // 사이드바 배경색과 동일하게 설정
+                    ...(() => {
+                      const glassStyle = getAdaptiveGlassStyleBlur();
+              //     const glassStyle = getAdaptiveGlassStyleClean(hasBackgroundImage);
+                      return {
+                        ...glassStyle,
+                        backgroundColor: getAdaptiveGlassBackgroundColor().backgroundColor,
+                        // border: 'none',
+                      };
+                    })(),
+                    color: 'var(--foreground)'
                   } as React.CSSProperties}
                 ></div>
                 
@@ -1381,6 +1589,7 @@ export function ChatInput({
                         onClick={(e) => { e.preventDefault(); stop(); }} 
                         type="button" 
                         className="flex items-center justify-center w-8 h-6 rounded-full transition-all duration-300 bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)] flex-shrink-0 cursor-pointer" 
+                        style={{ border: 'none' }}
                         aria-label="Stop generation"
                       >
                         <div className="w-2 h-2 bg-current rounded-sm"></div>
@@ -1393,6 +1602,7 @@ export function ChatInput({
                             ? 'bg-[var(--chat-input-button-bg)] text-[var(--muted)] cursor-not-allowed' 
                             : 'bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)]'
                         }`} 
+                        style={{ border: 'none' }}
                         disabled={disabled || !hasContent} 
                         aria-label="Send message"
                       >
@@ -1409,6 +1619,67 @@ export function ChatInput({
           </div>
         </div>
       </form>
+
+      {/* Tool Selector Tooltip */}
+      {typeof document !== 'undefined' && createPortal(
+        <Tooltip
+          key={`tool-tip-${openTooltipId || 'none'}`}
+          id="tool-selector-tooltip"
+          anchorSelect={isMobile && openTooltipId ? `[data-tool-id="${openTooltipId}"]` : '[data-tooltip-id="tool-selector-tooltip"]'}
+          place="right"
+          offset={15}
+          delayShow={isMobile ? 0 : 200}
+          delayHide={100}
+          noArrow={true}
+          opacity={1}
+          clickable={true}
+          isOpen={isMobile ? openTooltipId !== null : undefined}
+          // 모바일에서는 기본 이벤트를 끄고 상태로만 제어
+          openEvents={isMobile ? {} : undefined}
+          style={{
+            backgroundColor: (isDark || hasBackgroundImage) ? 'rgba(0, 0, 0, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+            border: (isDark || hasBackgroundImage) ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(0, 0, 0, 0.1)',
+            boxShadow: (isDark || hasBackgroundImage) ? '0 8px 32px rgba(0, 0, 0, 0.6)' : '0 8px 32px rgba(0, 0, 0, 0.2)',
+            borderRadius: '12px',
+            padding: '12px 16px',
+            fontSize: '13px',
+            fontWeight: 500,
+            maxWidth: '240px',
+            color: (isDark || hasBackgroundImage) ? '#ffffff' : '#000000',
+            zIndex: 99999999,
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            lineHeight: '1.5',
+          }}
+        />,
+        document.body
+      )}
+
+      {/* Photo Selection Modal */}
+      <PhotoSelectionModal
+        isOpen={showPhotoSelectionModal}
+        onClose={() => setShowPhotoSelectionModal(false)}
+        user={user}
+        currentBackground={currentBackground}
+        backgroundType={backgroundType}
+        backgroundId={backgroundId}
+        onBackgroundChange={() => {}}
+        onSelectImages={async (selectedFiles) => {
+          // Convert File[] to FileList
+          const fileList = {
+            length: selectedFiles.length,
+            item: (index: number) => selectedFiles[index],
+            [Symbol.iterator]: function* () {
+              for (let i = 0; i < selectedFiles.length; i++) {
+                yield selectedFiles[i];
+              }
+            }
+          } as FileList;
+          
+          // Process files using existing handleFiles function
+          await handleFiles(fileList);
+        }}
+      />
     </div>
   );
   }

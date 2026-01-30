@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { getAllMemoryBank } from '@/utils/memory-bank'
+import { getAllMemoryBank, ALLOWED_MEMORY_CATEGORY_ARRAY, isAllowedMemoryCategory } from '@/utils/memory-bank'
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,11 +15,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    // Get individual category data directly
+    // Get individual category data directly (limited to allowed categories)
     const { data: categoryData, error: categoryError } = await supabase
       .from('memory_bank')
       .select('category, content, updated_at, last_refined_at')
       .eq('user_id', user.id)
+      .in('category', ALLOWED_MEMORY_CATEGORY_ARRAY)
       .order('category')
 
     console.log('Memory Bank API - categoryData result:', { 
@@ -72,6 +73,10 @@ export async function PATCH(req: NextRequest) {
 
     if (!category || !content) {
       return NextResponse.json({ error: 'Category and content are required' }, { status: 400 })
+    }
+
+    if (!isAllowedMemoryCategory(category)) {
+      return NextResponse.json({ error: 'Unsupported category' }, { status: 400 })
     }
 
     // Update the specific category content

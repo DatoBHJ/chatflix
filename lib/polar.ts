@@ -94,11 +94,10 @@ export async function checkSubscription(externalId: string): Promise<boolean> {
     }
 
     // Check Redis cache first
-    const cached = await SubscriptionCache.getStatus(externalId);
-    if (cached !== null) {
-      console.log('[polar.ts]: Using Redis cached status for user:', externalId);
-      return cached;
-    }
+      const cached = await SubscriptionCache.getStatus(externalId);
+      if (cached !== null) {
+        return cached;
+      }
 
     // Set ongoing request lock in Redis
     await SubscriptionCache.setOngoingRequest(externalId);

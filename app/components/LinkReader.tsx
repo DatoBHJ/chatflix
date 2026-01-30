@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ExternalLink, CheckCircle, XCircle, Clock, Eye, EyeOff, Copy, Check } from 'lucide-react';
+import { MarkdownContent } from './MarkdownContent';
 
 type LinkReaderProps = {
   linkAttempts: {
@@ -18,17 +19,25 @@ type LinkReaderProps = {
     contentLength: number;
     timestamp: string;
   }[];
+  selectedUrl?: string;
 };
 
 /**
  * LinkReader Component
  * Displays a list of links that were attempted to be read by the Jina.ai link reader tool
  */
-export default function LinkReader({ linkAttempts, rawContent }: LinkReaderProps) {
+export default function LinkReader({ linkAttempts, rawContent, selectedUrl }: LinkReaderProps) {
   const [expandedContent, setExpandedContent] = useState<Set<string>>(new Set());
   const [copiedUrls, setCopiedUrls] = useState<Set<string>>(new Set());
 
   if (!linkAttempts?.length) return null;
+
+  // Filter linkAttempts if selectedUrl is provided
+  const displayAttempts = selectedUrl
+    ? linkAttempts.filter(attempt => attempt.url === selectedUrl)
+    : linkAttempts;
+
+  if (displayAttempts.length === 0) return null;
 
   // Helper function to get status indicator
   const getStatusIcon = (attempt: LinkReaderProps['linkAttempts'][0]) => {
@@ -78,7 +87,7 @@ export default function LinkReader({ linkAttempts, rawContent }: LinkReaderProps
       <div className="mb-3">
         <h4 className="text-sm font-medium mb-2">Link Reading Attempts</h4>
         <div className="space-y-2">
-          {linkAttempts.map((attempt, index) => {
+          {displayAttempts.map((attempt, index) => {
             const isFailed = attempt.status === 'failed' || !!attempt.error;
             const statusText = isFailed 
               ? 'Failed' 
@@ -146,10 +155,10 @@ export default function LinkReader({ linkAttempts, rawContent }: LinkReaderProps
                         Content Type: {rawData.contentType}
                       </div>
                     </div>
-                    <div className=" rounded p-3 max-h-64 overflow-y-auto">
-                      <pre className="text-xs text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">
-                        {rawData.content}
-                      </pre>
+                    <div className="rounded p-3 max-h-96 overflow-y-auto bg-[var(--accent)]/30">
+                      <div className="prose prose-sm dark:prose-invert max-w-none break-words">
+                        <MarkdownContent content={rawData.content} variant="clean" />
+                      </div>
                     </div>
                   </div>
                 )}

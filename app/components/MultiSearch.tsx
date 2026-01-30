@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
@@ -13,24 +15,49 @@ import {
   X, 
   ChevronLeft, 
   ChevronRight, 
-  ArrowUpDown, 
-  ArrowUp, 
-  ArrowDown, 
   User, 
-  Zap,
   Github,
   Newspaper,
   Building,
   BarChart3,
   FileText,
-  Twitter,
   BookOpen,
   Video,
-  Play
+  Play,
+  TrendingUp
 } from 'lucide-react';
 import { SiGoogle, SiLinkedin } from 'react-icons/si';
-import { YouTubeEmbed, TikTokEmbed } from './MarkdownContent';
+import { YouTubeEmbed, TikTokEmbed, TwitterEmbed, InstagramEmbed } from './MarkdownContent';
 import { LinkPreview } from './LinkPreview';
+import { LinkResultCard } from './LinkResultCard';
+import { linkMetadataCache } from '@/app/lib/linkMetadataCache';
+import { extractDomain, formatPublishedDate, getSeedGradient } from '@/app/lib/linkCardUtils';
+import type { LinkCardData, LinkMetaEntry, LinkMetadataResult } from '@/app/types/linkPreview';
+import { XLogo } from './CanvasFolder/CanvasLogo';
+
+// Twitter utility functions
+const isTwitterUrl = (url: string): boolean => {
+  if (!url) return false;
+  const twitterRegex = /^(https?:\/\/)?(www\.)?(twitter\.com|x\.com)\/.+/i;
+  return twitterRegex.test(url);
+};
+
+const extractTwitterId = (url: string): string | null => {
+  const patterns = [
+    // Standard Twitter URL: https://twitter.com/username/status/1234567890
+    /(?:twitter\.com|x\.com)\/\w+\/status\/(\d+)/,
+    // Short Twitter URL: https://t.co/abc123
+    /t\.co\/([^\/\?]+)/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+  return null;
+};
 
 // YouTube utility functions
 const isYouTubeUrl = (url: string): boolean => {
@@ -97,6 +124,34 @@ const extractTikTokVideoId = (url: string): string | null => {
   return null;
 };
 
+// Instagram utility functions
+const isInstagramUrl = (url: string): boolean => {
+  if (!url) return false;
+  const instagramRegex = /^(https?:\/\/)?(www\.)?(instagram\.com)\/(p|reel|tv)\/[^\/\s]+/i;
+  return instagramRegex.test(url);
+};
+
+const extractInstagramShortcode = (url: string): string | null => {
+  if (!url) return null;
+  
+  const patterns = [
+    // Standard Instagram post URL: https://www.instagram.com/p/ABC123/
+    /instagram\.com\/p\/([a-zA-Z0-9_-]+)/,
+    // Instagram reel URL: https://www.instagram.com/reel/ABC123/
+    /instagram\.com\/reel\/([a-zA-Z0-9_-]+)/,
+    // Instagram TV URL: https://www.instagram.com/tv/ABC123/
+    /instagram\.com\/tv\/([a-zA-Z0-9_-]+)/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return null;
+};
+
 type SearchImage = {
   url: string;
   description: string;
@@ -114,6 +169,9 @@ type SearchResult = {
   score?: number;
   author?: string;
   publishedDate?: string;
+  // Google Search API highlighted words
+  snippetHighlightedWords?: string[];
+  linkId?: string;
 };
 
 type SearchVideo = {
@@ -126,6 +184,19 @@ type SearchVideo = {
   length: string;
   date: string;
   position: number;
+};
+
+type DecoratedResult = SearchResult & {
+  domain: string;
+  thumbnail?: string | null;
+  thumbnailSource?: 'metadata' | 'search_images' | 'content';
+  fallbackSeed: string;
+  topic?: string;
+  topicIcon?: string;
+  searchQuery?: string;
+  metadata?: LinkMetadataResult | null;
+  tweetId?: string;
+  tweetData?: any;
 };
 
 type SearchQueryResult = {
@@ -184,23 +255,81 @@ const getUniqueValidImages = (images: SearchImage[]) => {
   });
 };
 
-// Domain extraction helper
-const extractDomain = (url: string): string => {
-  try {
-    const hostname = new URL(url).hostname;
-    const parts = hostname.split('.');
-    if (parts.length > 2 && parts[0] === 'www') {
-      return parts.slice(1).join('.');
-    }
-    return hostname;
-  } catch (e) {
-    return url;
-  }
+const getComparableDate = (dateInput?: string | null) => {
+  if (!dateInput) return null;
+  const parsedDate = new Date(dateInput);
+  const timestamp = parsedDate.getTime();
+  return Number.isNaN(timestamp) ? null : timestamp;
 };
+
+const extractImageFromContent = (content?: string | null) => {
+  if (!content) return null;
+  const imgTagMatch = content.match(/<img[^>]+src=["']([^"']+)["']/i);
+  if (imgTagMatch && imgTagMatch[1]) {
+    return imgTagMatch[1];
+  }
+  const inlineUrlMatch = content.match(/https?:\/\/[^\s"'<>]+?\.(?:jpe?g|png|gif|webp)/i);
+  if (inlineUrlMatch && inlineUrlMatch[0]) {
+    return inlineUrlMatch[0];
+  }
+  return null;
+};
+
+const normalizeSearchImages = (images?: SearchImage[]) => {
+  if (!images || images.length === 0) return [];
+  
+  return images
+    .map(image => {
+      if (typeof image === 'string') {
+        return { url: image, description: '', sourceLink: image };
+      }
+      return image;
+    })
+    .filter(image => image?.url);
+};
+
+const findThumbnailForResult = (
+  result: SearchResult,
+  searchImages: SearchImage[]
+): { url: string; source: 'content' | 'search_images' } | null => {
+  const contentImage = extractImageFromContent(result?.raw_content || result?.content);
+  if (contentImage) {
+    return { url: contentImage, source: 'content' };
+  }
+  
+  if (searchImages && searchImages.length > 0) {
+    const domain = extractDomain(result.url);
+    
+    const domainMatch = searchImages.find(image => {
+      if (!image?.sourceLink) return false;
+      return extractDomain(image.sourceLink) === domain;
+    });
+    
+    if (domainMatch?.url) {
+      return { url: domainMatch.url, source: 'search_images' };
+    }
+    
+    if (searchImages[0]?.url) {
+      return { url: searchImages[0].url, source: 'search_images' };
+    }
+  }
+  
+  return null;
+};
+
+const clampColor = (value: number) => Math.max(0, Math.min(255, value));
+
+const mixColors = (color: number[], mixWith: number[], factor: number) => {
+  return color.map((channel, index) => 
+    clampColor(Math.round(channel * (1 - factor) + mixWith[index] * factor))
+  );
+};
+
+const rgbToCss = (color: number[]) => `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
 
 // Topic icon mapping function
 export const getTopicIconComponent = (topicIcon: string) => {
-  const iconProps = { size: 14, strokeWidth: 1.5 };
+  const iconProps = { size: 14, strokeWidth: 1.8 };
   
   switch (topicIcon) {
     case 'github':
@@ -211,10 +340,12 @@ export const getTopicIconComponent = (topicIcon: string) => {
       return <Building {...iconProps} />;
     case 'bar-chart':
       return <BarChart3 {...iconProps} />;
+    case 'trending-up':
+      return <TrendingUp {...iconProps} />;
     case 'file-text':
       return <FileText {...iconProps} />;
     case 'twitter':
-      return <Twitter {...iconProps} />;
+      return <XLogo size={iconProps.size} strokeWidth={iconProps.strokeWidth} />;
     case 'user':
       return <User {...iconProps} />;
     case 'briefcase':
@@ -235,9 +366,9 @@ export const getTopicIcon = (topic: string): string => {
   switch (topic) {
     case 'github': return 'github';
     case 'news': return 'newspaper';
-    case 'financial report': return 'building';
+    case 'financial report': return 'trending-up';
     case 'company': return 'building';
-    case 'research paper': return 'file-text';
+    case 'research paper': return 'book-open';
     case 'pdf': return 'file-text';
     case 'personal site': return 'user';
     case 'linkedin profile': return 'briefcase';
@@ -251,127 +382,40 @@ export const getTopicIcon = (topic: string): string => {
 // Topic name mapping function
 export const getTopicName = (topic: string): string => {
   switch (topic) {
-    case 'general': return 'Advanced Search';
-    case 'news': return 'News Search';
-    case 'financial report': return 'Financial Report';
-    case 'company': return 'Company Search';
-    case 'research paper': return 'Research Paper';
-    case 'pdf': return 'PDF Search';
-    case 'github': return 'GitHub Search';
-    case 'personal site': return 'Personal Site';
-    case 'linkedin profile': return 'LinkedIn Search';
-    case 'google': return 'Google Search';
+    // case 'general': return 'Advanced Search'; // Removed - use google_search for general information
+    case 'news': return 'News Searches';
+    case 'financial report': return 'Financial Reports';
+    case 'company': return 'Company Searches';
+    case 'research paper': return 'Research Papers';
+    case 'pdf': return 'PDF Searches';
+    case 'github': return 'GitHub Searches';
+    case 'personal site': return 'Personal Sites';
+    case 'linkedin profile': return 'LinkedIn Profiles';
+    case 'google': return 'Google Searches';
     case 'google_images': return 'Google Images';
     case 'google_videos': return 'Google Videos';
+    case 'twitter': return 'X Searches';
     default: return 'Advanced Search';
   }
 };
 
-// Result card component
-const ResultCard = ({ result }: { result: SearchResult }) => {
-  // Determine which content to display - prioritize summary for Exa results
-  const hasExaData = result.summary;
-  
-  return (
-    <a
-      href={result.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="block py-4 px-4 mx-[-1rem] cursor-pointer transition-colors duration-200 rounded-lg group hover:bg-[color-mix(in_srgb,var(--accent)_100%,black_4%)] dark:hover:bg-[color-mix(in_srgb,var(--accent)_100%,white_4%)]"
-    > 
-      <h3 className="font-medium text-sm mb-1.5 line-clamp-2 text-[var(--foreground)] transition-colors duration-300">
-        {result.title}
-      </h3>
-
-      {/* Display content based on available data */}
-      {hasExaData ? (
-        <div className="space-y-2">
-          {/* Display summary if available */}
-          {result.summary && (
-            <p className="text-sm text-[var(--muted)] line-clamp-3 break-words overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
-              {result.summary}
-            </p>
-          )}
-        </div>
-      ) : (
-        /* Fallback to original content for Tavily results */
-        <p className="text-sm text-[var(--muted)] mb-2 line-clamp-3 break-words overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
-          {result.content}
-        </p>
-      )}
-
-      {/* Metadata Section */}
-      <div className="flex items-center gap-4 mt-3 text-xs text-[var(--muted)]">
-        {(result.published_date || result.publishedDate) && (
-          <div className="flex items-center gap-1.5">
-            <Calendar className="h-3 w-3" strokeWidth={1.5} />
-            <span>{new Date(result.published_date || result.publishedDate!).toLocaleDateString()}</span>
-          </div>
-        )}
-        
-        {result.author && (
-          <div className="flex items-center gap-1.5 min-w-0">
-            <User className="h-3 w-3 flex-shrink-0" strokeWidth={1.5} />
-            <span className="truncate">{result.author}</span>
-          </div>
-        )}
-        
-        {result.score && (
-          <div className="flex items-center gap-1.5">
-            <Zap className="h-3 w-3" strokeWidth={1.5} />
-            <span>{Math.round(result.score * 100)}% relevance</span>
-          </div>
-        )}
-      </div>
-    </a>
-  );
-};
-
-// Domain group component
-const DomainGroup = ({ 
-  domain, 
-  results
-}: { 
-  domain: string; 
-  results: SearchResult[];
-}) => {
-  const domainUrl = `https://${domain}`;
-  
-  return (
-    <div className="relative group p-0">
-      <div className="absolute left-5 top-12 bottom-4 w-px bg-[var(--subtle-divider)]" />
-      <div className="relative z-10 flex items-center justify-between mb-2">
-        <div className="flex items-center gap-1 min-w-0 flex-1">
-          <div className="w-10 h-10 rounded-full bg-white dark:bg-black flex items-center justify-center overflow-hidden flex-shrink-0">
-            <img
-              src={`https://www.google.com/s2/favicons?sz=128&domain=${domain}`}
-              alt=""
-              className="w-5 h-5 object-contain"
-              onError={(e) => {
-                e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='16'/%3E%3Cline x1='8' y1='12' x2='16' y2='12'/%3E%3C/svg%3E";
-              }}
-            />
-          </div>
-          <a 
-            href={domainUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-semibold hover:underline flex items-center gap-1.5 text-[var(--foreground)] transition-colors"
-          >
-            {domain}
-            <ExternalLink className="h-3.5 w-3.5 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-          </a>
-        </div>
-      </div>
-      
-      <div className="space-y-0 divide-y divide-[var(--subtle-divider)] pl-11">
-        {results.map((result, index) => (
-          <ResultCard key={`${domain}-${index}`} result={result} />
-        ))}
-      </div>
-    </div>
-  );
-};
+const toLinkCardData = (result: DecoratedResult): LinkCardData => ({
+  url: result.url,
+  title: result.title,
+  summary: result.summary,
+  content: result.content,
+  domain: result.domain,
+  fallbackSeed: result.fallbackSeed,
+  thumbnail: result.thumbnail || undefined,
+  metadata: result.metadata,
+  snippetHighlightedWords: result.snippetHighlightedWords,
+  author: result.author,
+  publishedDate: result.published_date || result.publishedDate,
+  topic: result.topic,
+  topicIcon: result.topicIcon,
+  searchQuery: result.searchQuery,
+  score: result.score
+});
 
 // Image grid component
 const ImageGrid = ({ images }: { images: SearchImage[] }) => {
@@ -379,6 +423,8 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
   const [selectedImage, setSelectedImage] = useState<SearchImage | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const [isMounted, setIsMounted] = useState(false);
+  const [savingImages, setSavingImages] = useState<Set<string>>(new Set());
+  const [savedImages, setSavedImages] = useState<Set<string>>(new Set());
   const metaTagRef = useRef<HTMLMetaElement | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   
@@ -507,15 +553,64 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
         <X className="h-5 w-5 text-white" strokeWidth={1.5} />
       </div>
       
+      <button 
+        onClick={async (e) => {
+          e.stopPropagation();
+          setSavingImages(prev => new Set(prev).add(selectedImage.url));
+          try {
+            const response = await fetch('/api/photo/save-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ imageUrl: selectedImage.url })
+            });
+            if (response.ok) {
+              setSavedImages(prev => new Set(prev).add(selectedImage.url));
+              // Show success toast
+            } else {
+              const error = await response.json();
+              console.error('Save failed:', error);
+              // Show error toast
+            }
+          } catch (error) {
+            console.error('Save error:', error);
+            // Show error toast
+          } finally {
+            setSavingImages(prev => {
+              const next = new Set(prev);
+              next.delete(selectedImage.url);
+              return next;
+            });
+          }
+        }}
+        className="absolute bottom-5 right-5 bg-black/60 hover:bg-black/80 p-2 rounded-full text-white transition-colors z-[10000]"
+        disabled={savedImages.has(selectedImage.url) || savingImages.has(selectedImage.url)}
+        style={{
+          backgroundColor: savedImages.has(selectedImage.url) ? 'rgba(34, 197, 94, 0.6)' : 'rgba(0, 0, 0, 0.6)'
+        }}
+        title={savingImages.has(selectedImage.url) ? 'Saving...' : savedImages.has(selectedImage.url) ? 'Saved' : 'Save to Gallery'}
+      >
+        {savingImages.has(selectedImage.url) ? (
+          <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+        ) : savedImages.has(selectedImage.url) ? (
+          <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+          </svg>
+        ) : (
+          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
+          </svg>
+        )}
+      </button>
+      
       <a 
         href={selectedImage.sourceLink || selectedImage.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="view-original-button"
+        className="absolute bottom-5 left-5 bg-black/60 hover:bg-black/80 p-2 rounded-full text-white transition-colors z-[10000]"
         onClick={(e) => e.stopPropagation()}
+        title="View Original"
       >
-        <ExternalLink className="h-4 w-4" strokeWidth={1.5} />
-        View Original
+        <ExternalLink className="h-6 w-6" strokeWidth={1.5} />
       </a>
       
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -528,11 +623,11 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
             loading="lazy"
           />
           
-          {selectedImage.description && (
+          {/* {selectedImage.description && (
             <div className="image-description">
               <p>{selectedImage.description}</p>
             </div>
-          )}
+          )} */}
         </div>
         
         <div className="nav-button prev-button" onClick={() => navigateImage('prev')}>
@@ -927,24 +1022,6 @@ const ImageGrid = ({ images }: { images: SearchImage[] }) => {
           border-radius: 6px;
         }
         
-        .view-original-button {
-          position: absolute;
-          top: 20px;
-          left: 20px;
-          background-color: rgba(0, 0, 0, 0.6);
-          border-radius: 8px;
-          padding: 8px 16px;
-          color: white;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          z-index: 10000;
-          transition: background-color 0.2s;
-        }
-        
-        .view-original-button:hover {
-          background-color: rgba(0, 0, 0, 0.8);
-        }
         
         .expanded-grid {
           max-height: none !important;
@@ -1472,6 +1549,7 @@ const MultiSearch: React.FC<{
   highlightedQueries?: string[];
   initialAllSelected?: boolean;
   onFilterChange?: (hasActiveFilters: boolean, selectedTopics?: string[], isAllQueriesSelected?: boolean, userHasInteracted?: boolean) => void;
+  linkMetaMap?: Record<string, LinkMetaEntry>;
 }> = ({
   result,
   args,
@@ -1479,12 +1557,11 @@ const MultiSearch: React.FC<{
   results = [],
   highlightedQueries = [],
   initialAllSelected = false,
-  onFilterChange
+  onFilterChange,
+  linkMetaMap = {}
 }) => {
   // 1. 모든 useState 훅을 상단에 배치
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
-  const [sortOrder, setSortOrder] = useState<'relevance' | 'date' | 'none'>('none');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   
   // 초기 쿼리 순서를 저장하는 ref
   const initialQueryOrderRef = useRef<string[]>([]);
@@ -1501,7 +1578,16 @@ const MultiSearch: React.FC<{
   const [selectedQueryList, setSelectedQueryList] = useState<string[]>(highlightedQueries || []);
   const [allChipSelected, setAllChipSelected] = useState<boolean>(false);
   const [userHasInteracted, setUserHasInteracted] = useState<boolean>(false);
-
+  const combinedLinkMetaMap = useMemo(() => linkMetaMap || {}, [linkMetaMap]);
+  const metadataByUrl = useMemo(() => {
+    const map: Record<string, LinkMetadataResult> = {};
+    Object.values(combinedLinkMetaMap).forEach(entry => {
+      if (entry?.url && entry.metadata) {
+        map[entry.url] = entry.metadata;
+      }
+    });
+    return map;
+  }, [combinedLinkMetaMap]);
   // Sync when highlightedQueries changes (from preview/topic selection)
   useEffect(() => {
     const incoming = Array.isArray(highlightedQueries) ? highlightedQueries : [];
@@ -1549,45 +1635,6 @@ const MultiSearch: React.FC<{
       setAllChipSelected(true);
     }
   }, [initialAllSelected]);
-  
-  // Sorting function for search results
-  const sortResults = (results: SearchResult[]) => {
-    if (sortOrder === 'none') return results;
-    
-    return [...results].sort((a, b) => {
-      let comparison = 0;
-      
-      if (sortOrder === 'relevance') {
-        const scoreA = a.score || 0;
-        const scoreB = b.score || 0;
-        comparison = scoreB - scoreA; // Higher score first by default
-      } else if (sortOrder === 'date') {
-        const dateA = new Date(a.publishedDate || a.published_date || 0);
-        const dateB = new Date(b.publishedDate || b.published_date || 0);
-        comparison = dateB.getTime() - dateA.getTime(); // Newer first by default
-      }
-      
-      return sortDirection === 'desc' ? comparison : -comparison;
-    });
-  };
-  
-  // Toggle sort function
-  const toggleSort = (newSortOrder: 'relevance' | 'date') => {
-    if (sortOrder === newSortOrder) {
-      // If same sort order, toggle direction
-      setSortDirection(prev => prev === 'desc' ? 'asc' : 'desc');
-    } else {
-      // If different sort order, set new order with default direction
-      setSortOrder(newSortOrder);
-      setSortDirection(newSortOrder === 'relevance' ? 'desc' : 'desc'); // Higher relevance and newer dates first
-    }
-  };
-  
-  // Clear sort function
-  const clearSort = () => {
-    setSortOrder('none');
-    setSortDirection('desc');
-  };
   
   // 2. 모든 useMemo를 조건 없이 호출 (Hook 순서 일관성 유지)
   // Track if we're loading results for any searchId
@@ -1860,8 +1907,8 @@ const MultiSearch: React.FC<{
     });
   }, [allCompletedSearches, result]);
 
-  // Group all results by domain or show as flat list when sorting
-  const domainGroups = useMemo(() => {
+  // Build base decorated results (without metadata thumbnails)
+  const baseResults = useMemo(() => {
     // Use allCompletedSearches if available
     const searchesToUse = allCompletedSearches.length > 0 
       ? allCompletedSearches 
@@ -1876,59 +1923,74 @@ const MultiSearch: React.FC<{
       ? searchesToUse.filter(search => selectedSet.has(search.query))
       : searchesToUse;
     
-    // Collect all results from all searches
-    const allResults: SearchResult[] = [];
-    filteredSearches.forEach(search => {
-      allResults.push(...search.results);
-    });
+    const uniqueUrls = new Set<string>();
+    const decorated: DecoratedResult[] = [];
     
-    // If sorting is active, return flat sorted list without domain grouping
-    if (sortOrder !== 'none') {
-      const sortedResults = sortResults(allResults);
-      return [['all_results', sortedResults]];
-    }
-    
-    // Otherwise, group by domain as before
-    const groups: Record<string, SearchResult[]> = {};
-    allResults.forEach(result => {
+    filteredSearches.forEach((search, searchIndex) => {
+      const normalizedImages = normalizeSearchImages(search.images);
+      
+      search.results.forEach((result, resultIndex) => {
+        if (!result?.url || uniqueUrls.has(result.url)) return;
+        uniqueUrls.add(result.url);
+        
       const domain = extractDomain(result.url);
-      if (!groups[domain]) {
-        groups[domain] = [];
+        const fallbackThumbnail = findThumbnailForResult(result, normalizedImages);
+        
+        if (search.topic !== 'twitter' && fallbackThumbnail?.url) {
+          const cached = linkMetadataCache.get(result.url);
+          if (!cached) {
+            linkMetadataCache.set(result.url, {
+              title: result.title || domain,
+              description: result.summary || result.content || '',
+              image: fallbackThumbnail.url,
+              favicon: undefined,
+              publisher: domain,
+              url: result.url
+            }, 'searchapi');
+          }
+        }
+        decorated.push({
+          ...result,
+          linkId: result.linkId,
+          domain,
+          thumbnail: fallbackThumbnail?.url || null,
+          thumbnailSource: fallbackThumbnail?.source,
+          fallbackSeed: `${domain}-${result.url}-${searchIndex}-${resultIndex}`,
+          topic: search.topic,
+          topicIcon: search.topicIcon,
+          searchQuery: search.query,
+          metadata: null
+        });
+      });
+    });
+    
+    return decorated.sort((a, b) => {
+      const dateA = getComparableDate(a.published_date || a.publishedDate);
+      const dateB = getComparableDate(b.published_date || b.publishedDate);
+      if (dateA && dateB && dateA !== dateB) return dateB - dateA;
+      if (dateA && !dateB) return -1;
+      if (!dateA && dateB) return 1;
+      if (a.score !== undefined || b.score !== undefined) {
+        return (b.score ?? 0) - (a.score ?? 0);
       }
-      groups[domain].push(result);
+      return (b.url?.length ?? 0) - (a.url?.length ?? 0);
     });
-    
-    // Sort by result count (keep domain-level sorting by count)
-    return Object.entries(groups)
-      .sort(([, resultsA], [, resultsB]) => resultsB.length - resultsA.length);
-  }, [allCompletedSearches, result, JSON.stringify(selectedQueryList), sortOrder, sortDirection]);
+  }, [allCompletedSearches, result, JSON.stringify(selectedQueryList)]);
 
-  // Get sorted flat results when sorting is active
-  const sortedFlatResults = useMemo(() => {
-    if (sortOrder === 'none') return null;
-    
-    // Use allCompletedSearches if available
-    const searchesToUse = allCompletedSearches.length > 0 
-      ? allCompletedSearches 
-      : (result && result.searches ? result.searches : []);
-    
-    if (!searchesToUse.length) return null;
-    
-    // If multi-select is active, include results from selected queries only
-    const selectionActive = selectedQueryList && selectedQueryList.length > 0;
-    const selectedSet = new Set(selectionActive ? selectedQueryList : []);
-    const filteredSearches = selectionActive
-      ? searchesToUse.filter(search => selectedSet.has(search.query))
-      : searchesToUse;
-    
-    // Collect all results from all searches
-    const allResults: SearchResult[] = [];
-    filteredSearches.forEach(search => {
-      allResults.push(...search.results);
+  const decoratedResults = useMemo(() => {
+    return baseResults.map(result => {
+      const metaEntry = result.linkId ? combinedLinkMetaMap[result.linkId] : undefined;
+      const metadata = metaEntry?.metadata || metadataByUrl[result.url];
+      const metadataImage = metadata?.image || metaEntry?.thumbnail || null;
+      
+      return {
+        ...result,
+        metadata: metadata || null,
+        thumbnail: metadataImage || result.thumbnail,
+        thumbnailSource: metadataImage ? 'metadata' : result.thumbnailSource,
+      };
     });
-    
-    return sortResults(allResults);
-  }, [allCompletedSearches, result, JSON.stringify(selectedQueryList), sortOrder, sortDirection]);
+  }, [baseResults, combinedLinkMetaMap, metadataByUrl]);
 
   // Calculate total results based on selection
   const totalResults = useMemo(() => {
@@ -2048,7 +2110,7 @@ const MultiSearch: React.FC<{
     <div className="w-full space-y-4 my-4">
       <div className="px-0 sm:px-4">
         {/* 통합된 쿼리 필터 (완료된 쿼리 + 로딩 중인 쿼리) */}
-        <div className="flex flex-wrap gap-2 mb-4 overflow-hidden">
+        <div className="flex flex-wrap gap-2 mb-8 sm:mb-14 overflow-hidden">
           <button
             onClick={() => {
               setUserHasInteracted(true);
@@ -2133,57 +2195,6 @@ const MultiSearch: React.FC<{
           })}
         </div>
         
-        {/* Sorting Controls */}
-        {domainGroups.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 mb-4 pb-4 border-b border-[var(--subtle-divider)]">
-            <span className="text-xs text-[var(--muted)] self-center mr-2">Sort by:</span>
-            
-            {/* Relevance Sort Button */}
-            <button
-              onClick={() => toggleSort('relevance')}
-              className={`px-2.5 py-1 rounded-md flex items-center gap-1.5 text-xs transition-all
-                        ${sortOrder === 'relevance' 
-                          ? "bg-[var(--accent)] text-[var(--foreground)]" 
-                          : "bg-transparent text-[var(--muted)] hover:bg-[var(--accent)]"
-                        }`}
-            >
-              <span>Relevance</span>
-              {sortOrder === 'relevance' ? (
-                sortDirection === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />
-              ) : (
-                <ArrowUpDown className="h-3 w-3" />
-              )}
-            </button>
-            
-            {/* Date Sort Button */}
-            <button
-              onClick={() => toggleSort('date')}
-              className={`px-2.5 py-1 rounded-md flex items-center gap-1.5 text-xs transition-all
-                        ${sortOrder === 'date' 
-                          ? "bg-[var(--accent)] text-[var(--foreground)]" 
-                          : "bg-transparent text-[var(--muted)] hover:bg-[var(--accent)]"
-                        }`}
-            >
-              <span>Date</span>
-              {sortOrder === 'date' ? (
-                sortDirection === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />
-              ) : (
-                <ArrowUpDown className="h-3 w-3" />
-              )}
-            </button>
-            
-            {/* Clear Sort Button */}
-            {sortOrder !== 'none' && (
-              <button
-                onClick={clearSort}
-                className="px-2.5 py-1 rounded-md text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        )}
-        
         {/* Image Gallery */}
         {displayImages.length > 0 && (
           <ImageGrid images={displayImages} />
@@ -2195,58 +2206,94 @@ const MultiSearch: React.FC<{
         )}
         
         {/* Display search results directly in the main area */}
-        <div className="mt-4 space-y-6 min-h-[150px]">
-          {sortedFlatResults ? (
-            // When sorting is active, display flat sorted results
-            <div className="bg-[var(--accent)]/40 rounded-xl">
-              <div className="divide-y divide-[var(--subtle-divider)]">
-                {sortedFlatResults.map((result, index) => {
-                  const domain = extractDomain(result.url);
-                  const domainUrl = `https://${domain}`;
+        <div className="mt-4 min-h-[150px]">
+          {decoratedResults.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+              {decoratedResults.map((result, index) => {
+                // Check for Twitter
+                const isTwitterResult = result.topic === 'twitter' || (result as any).tweetId;
+                if (isTwitterResult || (result.url && isTwitterUrl(result.url))) {
+                  let tweetId = (result as any).tweetId as string | undefined;
+                  if (!tweetId && result.url) {
+                    const match = result.url.match(/status\/(\d+)/);
+                    if (match) {
+                      tweetId = match[1];
+                    } else {
+                      // Try extracting from URL using the utility function
+                      tweetId = extractTwitterId(result.url) ?? undefined;
+                    }
+                  }
                   return (
-                    <div key={`sorted-${index}`} className="p-4 hover:bg-[color-mix(in_srgb,var(--accent)_100%,black_4%)] dark:hover:bg-[color-mix(in_srgb,var(--accent)_100%,white_4%)] rounded-lg group">
-                      <div className="flex items-center gap-2 min-w-0 mb-2">
-                        <div className="w-5 h-5 rounded-full bg-[var(--accent)] flex items-center justify-center overflow-hidden flex-shrink-0">
-                          <img
-                            src={`https://www.google.com/s2/favicons?sz=128&domain=${domain}`}
-                            alt=""
-                            className="w-3.5 h-3.5 object-contain"
-                            onError={(e) => {
-                              e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='16'/%3E%3Cline x1='8' y1='12' x2='16' y2='12'/%3E%3C/svg%3E";
-                            }}
-                          />
-                        </div>
-                        <a 
-                          href={domainUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs font-medium hover:underline flex items-center gap-1.5 text-[var(--muted)] transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {domain}
-                          <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                        </a>
-                      </div>
-                      <ResultCard result={result} />
+                    <div key={`twitter-${result.url ?? index}`} className="col-span-1">
+                      {tweetId ? (
+                        <TwitterEmbed tweetId={tweetId} originalUrl={result.url} />
+                      ) : (
+                        <LinkResultCard data={toLinkCardData(result)} />
+                      )}
                     </div>
                   );
-                })}
-              </div>
+                }
+
+                // Check for YouTube
+                if (result.url && isYouTubeUrl(result.url)) {
+                  const videoId = extractYouTubeVideoId(result.url);
+                  const isShorts = isYouTubeShorts(result.url);
+                  if (videoId) {
+                    return (
+                      <div key={`youtube-${result.url ?? index}`} className="col-span-1">
+                        <YouTubeEmbed 
+                          videoId={videoId} 
+                          title={result.title || "YouTube video"} 
+                          originalUrl={result.url}
+                          isShorts={isShorts}
+                        />
+                      </div>
+                    );
+                  }
+                }
+
+                // Check for TikTok
+                if (result.url && isTikTokUrl(result.url)) {
+                  const videoId = extractTikTokVideoId(result.url);
+                  if (videoId) {
+                    return (
+                      <div key={`tiktok-${result.url ?? index}`} className="col-span-1">
+                        <TikTokEmbed 
+                          videoId={videoId} 
+                          title={result.title || "TikTok video"} 
+                          originalUrl={result.url}
+                        />
+                      </div>
+                    );
+                  }
+                }
+
+                // Check for Instagram
+                if (result.url && isInstagramUrl(result.url)) {
+                  const shortcode = extractInstagramShortcode(result.url);
+                  if (shortcode) {
+                    return (
+                      <div key={`instagram-${result.url ?? index}`} className="col-span-1">
+                        <InstagramEmbed 
+                          shortcode={shortcode} 
+                          title={result.title || "Instagram post"} 
+                          originalUrl={result.url}
+                        />
+                      </div>
+                    );
+                  }
+                }
+
+                // Default: render as LinkResultCard
+                return (
+                  <LinkResultCard key={`${result.url}-${index}`} data={toLinkCardData(result)} />
+                );
+              })}
             </div>
           ) : (
-            // Normal domain grouping when not sorting
-            domainGroups.map(([domain, results]) => (
-              <DomainGroup 
-                key={domain as string} 
-                domain={domain as string} 
-                results={results as SearchResult[]}
-              />
-            ))
-          )}
-          
-          {/* 검색 결과가 없을 경우 공간 유지를 위한 빈 요소 */}
-          {domainGroups.length === 0 && allCompletedSearches.length === 0 && loadingQueries.length > 0 && (
+            allCompletedSearches.length === 0 && loadingQueries.length > 0 && (
             <div className="py-12"></div>
+            )
           )}
         </div>
       </div>

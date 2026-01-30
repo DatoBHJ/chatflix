@@ -3,7 +3,7 @@
 import { JSX, useState } from 'react'
 import { MarkdownContent } from '../../components/MarkdownContent'
 import { CategoryData, categoryNames } from './types'
-import { Cellular, LightBulb, BubbleChat, Speaker, Heart } from 'react-ios-icons'
+import { LightBulb, BubbleChat, Heart } from 'react-ios-icons'
 
 interface MemoryModalsProps {
   selectedCategory: CategoryData | null
@@ -53,14 +53,6 @@ export default function MemoryModals({
       case '02-interests':
         return (
           <LightBulb {...iconProps} />
-        )
-      case '03-interaction-history':
-        return (
-          <BubbleChat {...iconProps} />
-        )
-      case '04-relationship':
-        return (
-          <Speaker {...iconProps} />
         )
       default:
         return (
@@ -156,7 +148,7 @@ export default function MemoryModals({
       {/* Modal */}
       {selectedCategory && (
         <div 
-          className="modal-overlay fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-0 sm:p-6 md:p-8"
+          className="modal-overlay fixed inset-0 z-[100] bg-transparent sm:bg-black/50 backdrop-blur-none sm:backdrop-blur-sm flex items-center justify-center p-0 sm:p-6 md:p-8"
           onClick={() => setSelectedCategory(null)}
         >
           <div 
@@ -198,7 +190,7 @@ export default function MemoryModals({
     {/* Edit Modal */}
     {editingCategory && (
       <div 
-        className="modal-overlay fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm flex items-center justify-center p-0 sm:p-6 md:p-8"
+        className="modal-overlay fixed inset-0 z-[110] bg-transparent sm:bg-black/50 backdrop-blur-none sm:backdrop-blur-sm flex items-center justify-center p-0 sm:p-6 md:p-8"
         onClick={handleCancelEdit}
       >
         <div 
@@ -240,7 +232,7 @@ export default function MemoryModals({
                   backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
                   WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
                   border: '1px solid rgba(255, 255, 255, 0.1)',
-                  boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                  boxShadow: '0 8px 40px rgba(0, 0, 0, 0.15), 0 4px 20px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
                 } : {
                   backgroundColor: 'rgba(255, 255, 255, 0.6)',
                   backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',
@@ -269,7 +261,7 @@ export default function MemoryModals({
                   backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
                   WebkitBackdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion-dark) blur(1px)',
                   border: '1px solid rgba(255, 255, 255, 0.1)',
-                  boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                  boxShadow: '0 8px 40px rgba(0, 0, 0, 0.15), 0 4px 20px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
                 } : {
                   backgroundColor: 'rgba(255, 255, 255, 0.6)',
                   backdropFilter: (window.innerWidth <= 768 || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)) ? 'blur(10px)' : 'url(#glass-distortion) blur(1px)',

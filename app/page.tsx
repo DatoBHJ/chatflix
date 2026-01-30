@@ -1,7 +1,7 @@
 'use client'
 
-import UnifiedChatInterface from './components/UnifiedChatInterface'
+import HomeScreen from './components/HomeScreen'
 
 export default function Home() {
-  return <UnifiedChatInterface />
+  return <HomeScreen />
 }

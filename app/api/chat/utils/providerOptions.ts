@@ -2,6 +2,7 @@ import { OpenAIResponsesProviderOptions } from '@ai-sdk/openai';
 import { XaiProviderOptions } from '@ai-sdk/xai';
 import { GroqProviderOptions } from '@ai-sdk/groq';
 import { AnthropicProviderOptions } from '@ai-sdk/anthropic';
+import { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google';
 import { ModelConfig } from '../../../../lib/models/config';
 
 export interface ProviderOptions {
@@ -9,6 +10,7 @@ export interface ProviderOptions {
   xai?: XaiProviderOptions;
   groq?: GroqProviderOptions;
   anthropic?: AnthropicProviderOptions;
+  google?: GoogleGenerativeAIProviderOptions;
   [key: string]: any; // Index signature for compatibility with SharedV2ProviderOptions
 }
 
@@ -60,16 +62,23 @@ export function getProviderOptions(
         parallelToolCalls: false, // Reasoning models work better with sequential calls
         include: ['reasoning.encrypted_content'], // Include reasoning content across conversation steps
       };
-    } else if (model.startsWith('gpt-5') && model !== 'gpt-5-chat-latest') {
-      // GPT-5 series models (except standard gpt-5) are reasoning models per documentation
+    } else if (model.startsWith('gpt-5') && !model.includes('chat-latest')) {
+      // GPT-5 / GPT-5.1 / GPT-5.2 series models (except standard gpt-5) are reasoning models per documentation
       providerOptions.openai = {
         ...baseOpenAIOptions,
-        reasoningEffort: 'medium', // GPT-5 models support reasoning
+        reasoningEffort: modelConfig?.reasoningEffort || 'medium', // Use config value, default to 'medium'
         reasoningSummary: 'auto', // Auto summary for GPT-5 reasoning
         serviceTier: 'flex', // Available for GPT-5 models at 50% discount
         strictJsonSchema: true, // Enable for reasoning models
         parallelToolCalls: model.includes('nano') ? false : true, // Nano models work better sequential
         include: ['reasoning.encrypted_content'], // Include reasoning content
+      };
+    } else if (model.includes('chat-latest')) {
+      // ChatGPT-latest variants (e.g., gpt-5.2-chat-latest) do not support flex tier
+      providerOptions.openai = {
+        ...baseOpenAIOptions,
+        serviceTier: undefined,
+        strictJsonSchema: false,
       };
     } 
     else if (model.startsWith('gpt-4.1')) {
@@ -100,20 +109,12 @@ export function getProviderOptions(
 
   // xAI (Grok) Provider Options
   if (modelConfig?.provider === 'xai') {
-    // Only grok-3-mini supports reasoningEffort according to xAI docs (grok-3-mini-fast is deprecated)
-    if (model === 'grok-3-mini') {
-      providerOptions.xai = {
-        reasoningEffort: 'high', // Reasoning effort: 'low' or 'high' for grok-3-mini
-      } as XaiProviderOptions;
-    }
-    // Grok Code Fast 1 is a reasoning model that excels at coding
-    else if (model === 'grok-code-fast-1') {
-      providerOptions.xai = {
-        // No special parameters needed for grok-code-fast-1 according to xAI docs
-        // It supports reasoning, function calling, and structured outputs by default
-      } as XaiProviderOptions;
-    }
-    // Other Grok models don't support reasoningEffort parameter
+    // grok-4-1-fast-reasoning and grok-4-1-fast-non-reasoning don't support reasoningEffort parameter
+    // Only grok-3-mini supported it, but it's deprecated and removed
+    // All xAI models support parallel function calling
+    providerOptions.xai = {
+      parallel_function_calling: true, // Enable parallel function calling
+    } as XaiProviderOptions;
   }
 
   // Groq Provider Options
@@ -126,7 +127,14 @@ export function getProviderOptions(
     // Add reasoning options ONLY for GPT-OSS models that support it
     if (model.includes('gpt-oss') && modelConfig.reasoning && modelConfig.reasoningEffort) {
       baseGroqOptions.reasoningFormat = 'parsed';
-      baseGroqOptions.reasoningEffort = modelConfig.reasoningEffort;
+      // Groq 3.x doesn't support 'minimal', so map it to 'low'
+      if (modelConfig.reasoningEffort !== 'minimal') {
+        // Type assertion: Groq 3.x supports 'default' | 'low' | 'high' | 'none' | 'medium'
+        baseGroqOptions.reasoningEffort = modelConfig.reasoningEffort as 'default' | 'low' | 'high' | 'none' | 'medium';
+      } else {
+        // Map 'minimal' to 'low' for Groq compatibility
+        baseGroqOptions.reasoningEffort = 'low';
+      }
     }
     // For other Groq reasoning models (like qwen/qwen3-32b), use default reasoning
     else if (modelConfig.reasoning && !model.includes('gpt-oss')) {
@@ -135,6 +143,46 @@ export function getProviderOptions(
     }
     
     providerOptions.groq = baseGroqOptions;
+  }
+
+  // Google (Gemini) Provider Options
+  if (modelConfig?.provider === 'google' && modelConfig.reasoning) {
+    const googleOptions: GoogleGenerativeAIProviderOptions = {};
+
+    // Gemini 3 uses thinking_level, Gemini 2.5 uses thinking_budget
+    const isGemini3 = modelConfig.id.startsWith('gemini-3');
+    
+    if (isGemini3) {
+      // Gemini 3: Use thinking_level
+      const thinkingLevel = modelConfig.thinkingConfig?.level;
+      googleOptions.thinkingConfig = {
+        ...(thinkingLevel ? { thinkingLevel } : {}),
+        includeThoughts: modelConfig.thinkingConfig?.includeThoughts ?? true,
+      };
+    } else {
+      // Gemini 2.5: Use thinking_budget
+      const thinkingBudget = modelConfig.thinkingConfig?.dynamic
+        ? -1
+        : modelConfig.thinkingConfig?.budget;
+
+      googleOptions.thinkingConfig = {
+        ...(thinkingBudget !== undefined ? { thinkingBudget } : {}),
+        includeThoughts: modelConfig.thinkingConfig?.includeThoughts ?? true,
+      };
+    }
+
+    providerOptions.google = googleOptions;
+  }
+
+  // Fireworks Provider Options (Kimi K2.5)
+  // https://fireworks.ai/models/fireworks/kimi-k2p5 — use thinking: { type: 'disabled' } for non-reasoning
+  if (modelConfig?.provider === 'fireworks' && modelConfig.id.includes('kimi-k2p5')) {
+    if (modelConfig.reasoning === false || modelConfig.reasoningEffort === 'none') {
+      // Non-reasoning: do not use reasoning_effort and thinking together (causes error)
+      providerOptions.fireworks = {
+        thinking: { type: 'disabled' },
+      };
+    }
   }
 
   return providerOptions;
@@ -154,21 +202,12 @@ export function getProviderOptionsWithTools(
 
   // Override options for specific tool scenarios
   if (hasTools && providerOptions.openai) {
-    // When using tools, ensure parallel calls are enabled for efficiency (except for mini models)
-    providerOptions.openai.parallelToolCalls = model.includes('mini') ? false : true;
-    
+
     // Disable strict JSON schema validation for tools to avoid schema validation issues
     // This is especially important for o3 and gpt-5 series models which have stricter validation
     providerOptions.openai.strictJsonSchema = false;
     
-    // Enhanced instruction following for reasoning models when using tools
-    if (model === 'o3' || model === 'o4-mini' || model.startsWith('gpt-5')) {
-      // Increase reasoning effort for better instruction following with tools
-      providerOptions.openai.reasoningEffort = 'high';
-      
-      // Enable detailed reasoning summaries for better tool usage tracking
-      providerOptions.openai.reasoningSummary = 'detailed';
-    }
+    // Note: reasoningEffort and reasoningSummary use config default values, no override
   }
 
   return providerOptions;

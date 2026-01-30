@@ -18,21 +18,18 @@ export function estimateTokenCount(text: string, model: string = 'gpt-4'): numbe
         const tokens = encoding.encode(text);
         return tokens.length;
       } catch (error) {
-        console.warn(`tiktoken failed for model ${model}, trying gpt-4:`, error);
-        
         // 2단계: gpt-4로 시도
         try {
           const encoding = encoding_for_model('gpt-4' as any);
           const tokens = encoding.encode(text);
           return tokens.length;
         } catch (error2) {
-          console.warn('tiktoken failed for gpt-4, using fallback estimation:', error2);
-          // 3단계로 진행
+          // 3단계로 진행 (fallback)
         }
       }
     } catch (importError) {
-      console.warn('tiktoken import failed, using fallback estimation:', importError);
-      // 3단계로 진행
+      // tiktoken import 실패 (WASM 파일 없음 등) - 조용히 fallback 사용
+      // 이는 정상적인 상황일 수 있으므로 에러를 던지지 않음
     }
   }
 
@@ -63,15 +60,15 @@ export interface Message {
 }
 
 // 🆕 개선된 멀티모달 토큰 추정 함수 (실제 토큰 사용량 우선 사용)
+// IMPORTANT: Use usage.totalTokens (single turn), NOT totalUsage.totalTokens (cumulative)
 export function estimateMultiModalTokens(msg: Message): number {
   // 🆕 새로운 token_usage 구조에서 실제 토큰 사용량 우선 확인
   if ((msg as any).token_usage) {
     const tokenUsage = (msg as any).token_usage;
     
-    // usage와 totalUsage 분리 저장 구조에 맞게 처리
-    if (tokenUsage.totalUsage?.totalTokens) {
-      return tokenUsage.totalUsage.totalTokens;
-    } else if (tokenUsage.usage?.totalTokens) {
+    // usage 우선 사용 (단일 턴 토큰 - 이것이 올바른 값)
+    // NOTE: totalUsage는 누적값이므로 사용하면 안됨!
+    if (tokenUsage.usage?.totalTokens) {
       return tokenUsage.usage.totalTokens;
     } else if (tokenUsage.totalTokens) {
       // 기존 단일 구조 호환성
@@ -83,18 +80,30 @@ export function estimateMultiModalTokens(msg: Message): number {
   if ((msg as any).tool_results?.token_usage) {
     const tokenUsage = (msg as any).tool_results.token_usage;
     
-    if (tokenUsage.totalUsage?.totalTokens) {
-      return tokenUsage.totalUsage.totalTokens;
-    } else if (tokenUsage.usage?.totalTokens) {
+    // usage 우선 사용 (단일 턴 토큰)
+    if (tokenUsage.usage?.totalTokens) {
       return tokenUsage.usage.totalTokens;
     } else if (tokenUsage.totalTokens) {
       return tokenUsage.totalTokens;
     }
   }
   
-  // 🔧 실제 토큰 사용량이 없는 경우에만 예측 로직 사용 (백업용)
-  // 실제 토큰 사용량을 우선 사용하므로 이 부분은 거의 사용되지 않음
-  /*
+  // 🔧 tool_results가 있으면 그 크기도 추정에 포함 (중요!)
+  // tool_results는 웹 검색 결과, 코드 실행 결과 등 대용량 데이터를 포함할 수 있음
+  if ((msg as any).tool_results && typeof (msg as any).tool_results === 'object') {
+    const toolResultsStr = JSON.stringify((msg as any).tool_results);
+    // tool_results의 토큰 추정 (JSON 문자열 기준)
+    return estimateTokenCount(toolResultsStr);
+  }
+  
+  // 🔧 parts 배열이 있으면 parts 기반으로 추정 (AI SDK v5 형식)
+  if (Array.isArray((msg as any).parts) && (msg as any).parts.length > 0) {
+    const partsStr = JSON.stringify((msg as any).parts);
+    return estimateTokenCount(partsStr);
+  }
+  
+  // 🔧 실제 토큰 사용량이 없는 경우 예측 로직 사용 (필수!)
+  // 클라이언트에서 보낸 메시지에는 token_usage가 없으므로 반드시 추정해야 함
   let total = 0;
 
   // v5 parts 우선 처리
@@ -171,10 +180,6 @@ export function estimateMultiModalTokens(msg: Message): number {
   }
   
   return total;
-  */
-  
-  // 🔧 실제 토큰 사용량이 없는 경우 기본값 반환 (예측 로직 대신)
-  return 0;
 }
 
 // 파일 타입별 토큰 추정 함수
@@ -228,4 +233,38 @@ export function estimateAttachmentTokens(attachment: {
   } else {
     return 2000; // 기타 파일
   }
+}
+
+/**
+ * Calculate total context tokens for messages and system prompt
+ * Used by context summarization to determine when summarization is needed
+ * 
+ * IMPORTANT: We use usage.totalTokens (single turn), NOT totalUsage.totalTokens (cumulative)
+ */
+export function calculateTotalContextTokens(
+  messages: any[],
+  systemPrompt: string,
+  model: string
+): number {
+  const systemTokens = estimateTokenCount(systemPrompt, model);
+  
+  const messageTokens = messages.reduce((sum, msg) => {
+    // For assistant messages: use usage.totalTokens (single turn token count)
+    // NOTE: totalUsage.totalTokens is CUMULATIVE and should NOT be summed!
+    if (msg.token_usage?.usage?.totalTokens) {
+      return sum + msg.token_usage.usage.totalTokens;
+    }
+    // Check if message has tool_results or parts (large data that must be included)
+    if (msg.tool_results || (Array.isArray(msg.parts) && msg.parts.length > 0)) {
+      return sum + (msg._tokenCount || estimateMultiModalTokens(msg));
+    }
+    // For user messages or messages without token_usage: estimate based on content
+    if (typeof msg.content === 'string') {
+      return sum + estimateTokenCount(msg.content, model);
+    }
+    // Fallback to multi-modal estimation
+    return sum + (msg._tokenCount || estimateMultiModalTokens(msg));
+  }, 0);
+  
+  return systemTokens + messageTokens;
 } 

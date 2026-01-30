@@ -1,0 +1,4 @@
+export const MODAL_SHEET_Z = 99999
+export const MODAL_SHEET_SECONDARY_Z = 100000
+export const IMAGE_VIEWER_Z = 100001
+export const IMAGE_VIEWER_PROMPT_OVERLAY_Z = 100002

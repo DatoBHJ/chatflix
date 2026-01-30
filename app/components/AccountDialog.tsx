@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import ReactDOM from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
@@ -6,7 +6,6 @@ import { clearAllSubscriptionCache } from '@/lib/utils'
 import { getCachedUserName, invalidateUserNameCache } from '@/lib/user-name-cache'
 
 import Image from 'next/image'
-import { ThemeToggle } from './ThemeToggle'
 import {
   User,
   Settings,
@@ -22,7 +21,10 @@ import {
 import Link from 'next/link'
 // import { useHomeStarryNight } from '@/app/hooks/useHomeStarryNight'
 import { useDarkMode } from '@/app/hooks/useDarkMode'
-import { getSidebarTranslations } from '../lib/sidebarTranslations'
+import { getSidebarTranslations } from '../lib/translations/sidebar'
+import { useBackgroundImage } from '@/app/hooks/useBackgroundImage'
+import { useBackgroundImageBrightness } from '@/app/hooks/useBackgroundImageBrightness'
+import { getTextStyle as getTextStyleUtil, getIconClassName } from '@/app/lib/adaptiveGlassStyle'
 
 // Internal function to fetch user name from database (without cache)
 const fetchUserNameFromDB = async (userId: string, supabase: any) => {
@@ -118,6 +120,16 @@ export const updateUserName = async (userId: string, userName: string, supabase:
       if (response.ok) {
         const result = await response.json();
         console.log('✅ Personal info memory updated immediately:', result.message);
+        
+        // 🚀 최적화: localStorage 캐시 무효화 및 갱신
+        try {
+          const { invalidateMemoryCache, loadMemoryWithCache } = await import('@/app/utils/memory-cache-client');
+          invalidateMemoryCache(userId, ['00-personal-info']);
+          await loadMemoryWithCache(userId, ['00-personal-info']); // 캐시 갱신
+          console.log('🔄 [MEMORY] Client cache refreshed after name change');
+        } catch (error) {
+          console.warn('Failed to refresh memory cache:', error);
+        }
       } else {
         const error = await response.json();
         console.warn('⚠️ Failed to update memory immediately:', error.message);
@@ -141,9 +153,10 @@ interface AccountDialogProps {
   onClose: () => void;
   profileImage?: string | null;
   handleDeleteAllChats?: () => Promise<void>;
+  hasBackgroundImage?: boolean;
 }
 
-export function AccountDialog({ user, isOpen, onClose, profileImage: initialProfileImage, handleDeleteAllChats }: AccountDialogProps) {
+export function AccountDialog({ user, isOpen, onClose, profileImage: initialProfileImage, handleDeleteAllChats, hasBackgroundImage = false }: AccountDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [showDeactivationOptions, setShowDeactivationOptions] = useState(false)
@@ -168,6 +181,39 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
   const isDarkMode = useDarkMode()
   // const { isEnabled: isStarryNightEnabled, toggle: toggleStarryNight } = useHomeStarryNight()
   
+  // Background management using shared hook
+  const {
+    currentBackground,
+  } = useBackgroundImage(user?.id, {
+    refreshOnMount: true,
+    preload: true,
+    useSupabase: false
+  });
+
+  // Calculate background image brightness for overlay
+  const { isVeryDark, isVeryBright } = useBackgroundImageBrightness(
+    currentBackground
+  );
+
+  const overlayColor = useMemo(() => {
+    if (isVeryDark) {
+      return 'rgba(255, 255, 255, 0.125)';
+    }
+    if (isVeryBright) {
+      return 'rgba(0, 0, 0, 0.2)';
+    }
+    return undefined;
+  }, [isVeryDark, isVeryBright]);
+
+  // Text style helper function - hasBackgroundImage 기준으로 일관성 있게 동작
+  const getTextStyle = () => {
+    return getTextStyleUtil(hasBackgroundImage);
+  };
+
+  // Icon style helper function - hasBackgroundImage 기준으로 일관성 있게 동작
+  const getIconClassNameLocal = () => {
+    return getIconClassName(hasBackgroundImage);
+  };
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   
@@ -641,6 +687,16 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
 
         if (response.ok) {
           console.log('✅ Profile image change reflected in memory');
+          
+          // 🚀 최적화: localStorage 캐시 무효화 및 갱신
+          try {
+            const { invalidateMemoryCache, loadMemoryWithCache } = await import('@/app/utils/memory-cache-client');
+            invalidateMemoryCache(user?.id, ['00-personal-info']);
+            await loadMemoryWithCache(user?.id, ['00-personal-info']); // 캐시 갱신
+            console.log('🔄 [MEMORY] Client cache refreshed after profile image change');
+          } catch (error) {
+            console.warn('Failed to refresh memory cache:', error);
+          }
         }
       } catch (error) {
         console.warn('⚠️ Memory update failed for profile image:', error);
@@ -1027,6 +1083,37 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
         }
       }}
     >
+      {/* Background Image Layer */}
+      <div 
+        className="fixed inset-0 bg-cover bg-center bg-no-repeat min-h-screen w-full pointer-events-none"
+        style={{
+          backgroundImage: `url(${currentBackground})`,
+          zIndex: 0
+        }}
+      />
+      
+      {/* Blur overlay */}
+      <div 
+        className="fixed inset-0 min-h-screen w-full pointer-events-none"
+        style={{
+          backdropFilter: 'blur(40px)',
+          WebkitBackdropFilter: 'blur(40px)',
+          zIndex: 0.5
+        }}
+      />
+      
+      {/* Color overlay for very dark or very bright backgrounds */}
+      {overlayColor && (
+        <div 
+          className="fixed inset-0 min-h-screen w-full pointer-events-none"
+          style={{
+            backgroundColor: overlayColor,
+            zIndex: 0.6
+          }}
+        />
+      )}
+      
+    <div className="relative z-10 w-full h-full flex items-end sm:items-center justify-center">
       <div 
         ref={modalRef}
         className="w-full bg-[var(--background)] flex flex-col shadow-xl overflow-hidden rounded-t-2xl sm:rounded-2xl sm:w-[800px] sm:h-[600px] h-[85vh] border border-[var(--accent)]"
@@ -1087,13 +1174,13 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
                   className="absolute left-4 p-2 hover:bg-[var(--accent)] rounded-lg transition-colors"
                   aria-label={translations.goBack}
                 >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={getIconClassNameLocal()}>
                     <path d="M19 12H5" />
                     <path d="M12 19l-7-7 7-7" />
                   </svg>
                 </button>
               )}
-              <h2 className="text-lg font-semibold">
+              <h2 className="text-lg font-semibold" style={getTextStyle()}>
                 {mobileView ? 
                   (mobileView === 'account' ? translations.profile :
                    mobileView === 'appearance' ? translations.appearance :
@@ -1121,7 +1208,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
           <div className="flex flex-col sm:flex-row flex-1 min-h-0">
             {/* Sidebar */}
             <div className="w-full sm:w-56 sm:bg-[var(--accent)] p-4 flex flex-col border-b sm:border-b-0 sm:border-r border-[var(--accent)]">
-              <h2 className="text-lg font-semibold mb-6 px-2 hidden sm:block">{translations.settings}</h2>
+              <h2 className="text-lg font-semibold mb-6 px-2 hidden sm:block" style={getTextStyle()}>{translations.settings}</h2>
               <nav className="flex sm:flex-col gap-1 overflow-x-auto pb-2 sm:pb-0 -mx-4 px-4">
                 <button onClick={() => setActiveTab('account')} className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm shrink-0 cursor-pointer ${activeTab === 'account' ? 'bg-[var(--accent)]' : 'hover:bg-[var(--accent)]'}`}>
                   <User size={16} /> <span className="hidden sm:inline">{translations.profile}</span>
@@ -1183,6 +1270,7 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
         )}
 
       </div>
+    </div>
     </div>
   )
 

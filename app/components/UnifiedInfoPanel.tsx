@@ -1,8 +1,6 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { Brain } from 'lucide-react';
+import React, { useCallback, useMemo, useEffect } from 'react';
+import { Brain as BrainIOS } from 'react-ios-icons';
 import { ReasoningSection } from './ReasoningSection';
-import { CanvasToolsPreview } from './Canvas/CanvasToolsPreview';
-import { highlightSearchTerm } from '@/app/utils/searchHighlight';
 
 // Shimmer animation styles
 const shimmerStyles = `
@@ -29,47 +27,26 @@ interface UnifiedInfoPanelProps {
   userOverrideReasoningPartRef: React.MutableRefObject<Record<string, boolean | null>>;
   loadingReasoningKey: string;
   completeReasoningKey: string;
-  hasActualCanvasData: boolean;
   webSearchData?: any;
   mathCalculationData?: any;
   linkReaderData?: any;
   imageGeneratorData?: any;
   geminiImageData?: any;
   seedreamImageData?: any;
-  xSearchData?: any;
+  qwenImageData?: any;
+  wan25VideoData?: any;
+  twitterSearchData?: any;
   youTubeSearchData?: any;
   youTubeLinkAnalysisData?: any;
   googleSearchData?: any;
   messageId: string;
   togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string, fileName?: string) => void;
   activePanel?: { messageId: string; type: string; toolType?: string } | null;
-  messageTitle?: string;
   searchTerm?: string | null; // 🚀 FEATURE: Add search term for highlighting
-  message?: any; // 🚀 Add message prop to detect title generation started
+  useInterleavedMode?: boolean; // 🚀 인터리브 모드에서는 도구 미리보기 숨김
+  chatId?: string;
+  userId?: string;
 }
-
-// 제목 생성 시작 신호를 감지하는 헬퍼 함수
-const isTitleGenerationStarted = (message: any): boolean => {
-  if (!message) return false;
-  
-  // parts에서 title generation started 신호 확인
-  if (message.parts && Array.isArray(message.parts)) {
-    const titleStartPart = message.parts.find((part: any) => 
-      part.type === 'data-title_generation_started'
-    );
-    if (titleStartPart) return true;
-  }
-  
-  // annotations에서도 확인 (fallback)
-  if (message.annotations && Array.isArray(message.annotations)) {
-    const titleStartAnnotation = message.annotations.find((annotation: any) => 
-      annotation.type === 'title_generation_started'
-    );
-    if (titleStartAnnotation) return true;
-  }
-  
-  return false;
-};
 
 // 도구별 로딩 상태를 감지하는 헬퍼 함수
 const isToolLoading = (toolData: any, toolType: string): boolean => {
@@ -135,30 +112,48 @@ const isToolLoading = (toolData: any, toolType: string): boolean => {
       if (toolData.status === 'processing' || toolData.status === 'in_progress') return true;
       return false;
 
-    case 'xSearch':
-      // X Search: 결과가 하나라도 있으면 로딩 해제
-      if (Array.isArray(toolData.xResults) && toolData.xResults.length > 0) return false;
-      if (toolData.xResults && toolData.xResults.length === 0) return true;
-      if (toolData.status === 'processing' || toolData.status === 'in_progress') return true;
+    case 'twitterSearch':
+      if (Array.isArray(toolData.results) && toolData.results.length > 0) {
+        const hasComplete = toolData.results.some((r: any) => r && r.isComplete === true);
+        if (hasComplete) return false;
+        const allIncomplete = toolData.results.every((r: any) => r && r.isComplete === false);
+        if (allIncomplete) return true;
+      }
+      if (toolData.annotations && toolData.annotations.length > 0) {
+        const hasTwitterComplete = toolData.annotations.some((a: any) => a.type === 'twitter_search_complete');
+        if (!hasTwitterComplete) return true;
+      }
       return false;
 
     case 'youTubeSearch':
       // YouTube Search: 결과가 하나라도 있으면 로딩 해제
       if (Array.isArray(toolData.youtubeResults) && toolData.youtubeResults.length > 0) return false;
-      if (toolData.youtubeResults && toolData.youtubeResults.length === 0) return true;
+      // pendingCount가 있으면 로딩 중
+      if (toolData.pendingCount && toolData.pendingCount > 0) return true;
+      // status가 processing이면 로딩 중
       if (toolData.status === 'processing' || toolData.status === 'in_progress') return true;
+      // startedCount가 있지만 결과가 없으면 로딩 중
+      if (toolData.startedCount && toolData.startedCount > 0 && (!toolData.youtubeResults || toolData.youtubeResults.length === 0)) return true;
+      // youtubeResults가 빈 배열이면 로딩 중 (started 신호가 있었을 가능성)
+      if (toolData.youtubeResults && toolData.youtubeResults.length === 0) return true;
       return false;
 
     case 'youTubeAnalyzer':
       // YouTube Analyzer: 완료(세부정보 또는 에러)가 하나라도 있으면 로딩 해제
-      if (Array.isArray(toolData.analysisResults)) {
-        if (toolData.analysisResults.length === 0) return true;
+      if (Array.isArray(toolData.analysisResults) && toolData.analysisResults.length > 0) {
         const hasComplete = toolData.analysisResults.some((r: any) => r?.details || r?.error);
         if (hasComplete) return false;
         const hasIncomplete = toolData.analysisResults.some((r: any) => !r?.error && !r?.details);
         if (hasIncomplete) return true;
       }
+      // pendingCount가 있으면 로딩 중
+      if (toolData.pendingCount && toolData.pendingCount > 0) return true;
+      // status가 processing이면 로딩 중
       if (toolData.status === 'processing' || toolData.status === 'in_progress') return true;
+      // startedCount가 있지만 결과가 없으면 로딩 중
+      if (toolData.startedCount && toolData.startedCount > 0 && (!toolData.analysisResults || toolData.analysisResults.length === 0)) return true;
+      // analysisResults가 빈 배열이면 로딩 중 (started 신호가 있었을 가능성)
+      if (toolData.analysisResults && toolData.analysisResults.length === 0) return true;
       return false;
 
     case 'googleSearch':
@@ -190,6 +185,13 @@ const isToolLoading = (toolData: any, toolType: string): boolean => {
       if (toolData.status === 'processing' || toolData.status === 'in_progress') return true;
       return false;
 
+    case 'qwenImage':
+      // Qwen Image: 이미지가 생성되면 로딩 해제
+      if (Array.isArray(toolData.generatedImages) && toolData.generatedImages.length > 0) return false;
+      if (toolData.generatedImages && toolData.generatedImages.length === 0) return true;
+      if (toolData.status === 'processing' || toolData.status === 'in_progress') return true;
+      return false;
+
     default:
       return false;
   }
@@ -208,26 +210,26 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
   userOverrideReasoningPartRef,
   loadingReasoningKey,
   completeReasoningKey,
-  hasActualCanvasData,
   webSearchData,
   mathCalculationData,
   linkReaderData,
   imageGeneratorData,
   geminiImageData,
   seedreamImageData,
-  xSearchData,
+  qwenImageData,
+  wan25VideoData,
+  twitterSearchData,
   youTubeSearchData,
   youTubeLinkAnalysisData,
   googleSearchData,
   messageId,
   togglePanel,
   activePanel,
-  messageTitle,
   searchTerm, // 🚀 FEATURE: Add search term for highlighting
-  message, // 🚀 Add message prop to detect title generation started
+  useInterleavedMode = false, // 🚀 인터리브 모드에서는 도구 미리보기 숨김
+  chatId,
+  userId
 }) => {
-  const [thinkingStartTime, setThinkingStartTime] = useState<number | null>(null);
-  const [isThinkingModalOpen, setIsThinkingModalOpen] = useState(false);
 
   // 실제 도구 데이터 기반으로 로딩 상태 감지
   const actualToolLoadingState = useMemo(() => {
@@ -237,7 +239,9 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
       linkReader: isToolLoading(linkReaderData, 'linkReader'),
       imageGenerator: isToolLoading(imageGeneratorData, 'imageGenerator'),
       geminiImage: isToolLoading(geminiImageData, 'geminiImage'),
-      xSearch: isToolLoading(xSearchData, 'xSearch'),
+      seedreamImage: isToolLoading(seedreamImageData, 'seedreamImage'),
+      qwenImage: isToolLoading(qwenImageData, 'qwenImage'),
+      twitterSearch: isToolLoading(twitterSearchData, 'twitterSearch'),
       youTubeSearch: isToolLoading(youTubeSearchData, 'youTubeSearch'),
       youTubeAnalyzer: isToolLoading(youTubeLinkAnalysisData, 'youTubeAnalyzer'),
       googleSearch: isToolLoading(googleSearchData, 'googleSearch'),
@@ -253,68 +257,40 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
       loadingTools,
       toolStates
     };
-  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, geminiImageData, xSearchData, youTubeSearchData, youTubeLinkAnalysisData, googleSearchData]);
-
-  // 제목이 도착하기 전까지 현재 상태를 간단히 표시
-  const derivedTitle = useMemo(() => {
-    if (messageTitle) return highlightSearchTerm(messageTitle, searchTerm || null);
-    if (isReasoningInProgress) return 'Thinking...';
-    
-    // 실제 도구 로딩 상태 기반으로 제목 표시
-    if (actualToolLoadingState.isLoadingAnyTool) {
-      const toolCount = actualToolLoadingState.loadingTools.length;
-      if (toolCount === 1) {
-        const toolName = actualToolLoadingState.loadingTools[0];
-        const toolDisplayNames: { [key: string]: string } = {
-          webSearch: 'Searching',
-          mathCalculation: 'Calculating',
-          linkReader: 'Reading Links',
-          imageGenerator: 'Generating Images',
-          xSearch: 'Searching X/Twitter',
-          youTubeSearch: 'Searching YouTube',
-          youTubeAnalyzer: 'Analyzing YouTube',
-          googleSearch: 'Searching Google'
-        };
-        return toolDisplayNames[toolName] || 'Using Tools...';
-      } else {
-        return `Using ${toolCount} Tools...`;
-      }
-    }
-    
-    // 제목 생성 시작 신호가 있으면 "Generating Title..." 표시
-    if (isTitleGenerationStarted(message) && !messageTitle) {
-      return 'Generating Title...';
-    }
-    
-    if (isStreaming) return 'Answering...';
-    return null; // 일반 모드에서 reasoning 완료 후에는 제목을 표시하지 않음
-  }, [messageTitle, searchTerm, isReasoningInProgress, actualToolLoadingState, isStreaming, hasAnyContent, message]);
+  }, [webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, geminiImageData, seedreamImageData, qwenImageData, twitterSearchData, youTubeSearchData, youTubeLinkAnalysisData, googleSearchData]);
 
   // 실제 도구 로딩 상태를 포함한 전체 로딩 상태
   const isLoading = !hasAnyContent || actualToolLoadingState.isLoadingAnyTool || isStreaming;
   const key = isLoading ? loadingReasoningKey : completeReasoningKey;
+  const overrideState = userOverrideReasoningPartRef.current[key];
+  // 사용자 오버라이드가 있으면 그것을 사용, 없으면 reasoningPartExpanded 상태를 확인,
+  // 그것도 없으면 스트리밍 중이면 기본적으로 열림
+  const isReasoningExpanded = typeof overrideState === 'boolean' 
+    ? overrideState  // 사용자가 수동으로 설정한 경우
+    : (reasoningPartExpanded[key] ?? (isStreaming || isReasoningInProgress));  // 기본값: 스트리밍 중이면 열림
 
   const handleReasoningToggle = useCallback((expanded: boolean) => {
-    setReasoningPartExpanded(prev => ({ ...prev, [key]: expanded }));
-    userOverrideReasoningPartRef.current = { ...userOverrideReasoningPartRef.current, [key]: expanded };
-  }, [key, setReasoningPartExpanded, userOverrideReasoningPartRef]);
+    setReasoningPartExpanded(prev => ({
+      ...prev,
+      [loadingReasoningKey]: expanded,
+      [completeReasoningKey]: expanded,
+    }));
+    userOverrideReasoningPartRef.current = {
+      ...userOverrideReasoningPartRef.current,
+      [loadingReasoningKey]: expanded,
+      [completeReasoningKey]: expanded,
+    };
+  }, [loadingReasoningKey, completeReasoningKey, setReasoningPartExpanded, userOverrideReasoningPartRef]);
 
   const handleToggleClick = useCallback(() => {
-    setIsThinkingModalOpen(true);
-  }, []);
+    handleReasoningToggle(!isReasoningExpanded);
+  }, [handleReasoningToggle, isReasoningExpanded]);
 
-  useEffect(() => {
-    if (isAssistant && reasoningPart && !thinkingStartTime) {
-      setThinkingStartTime(Date.now());
-    }
-  }, [isAssistant, reasoningPart, thinkingStartTime]);
+  const dynamicReasoningTitle = 'Reasoning Process';
 
   const hasReasoning = reasoningPart && isAssistant;
-  const hasCanvas = hasActualCanvasData && isAssistant;
-  const hasTitle = isAssistant && messageTitle; // 백엔드에서 제목을 전송한 경우에만 제목 표시
-  const shouldShowTitle = derivedTitle !== null; // derivedTitle이 null이면 제목 영역 숨김
 
-  if (!hasReasoning && !hasCanvas && !hasTitle && !shouldShowTitle) {
+  if (!hasReasoning) {
     return null;
   }
 
@@ -322,104 +298,74 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
     <>
       <style>{shimmerStyles}</style>
       <div className="pl-0 mb-2">
-      <div className={`${shouldShowTitle ? 'pt-12 sm:pt-16' : ''} pb-2 sm:pb-2 pr-8 sm:pr-0`}>
-      {shouldShowTitle && (
-          <div className="flex items-center gap-3">
-            <h2
-              className={`text-3xl sm:text-4xl md:text-4xl font-semibold tracking-tight break-keep text-balance max-w-[780px] ${
-                !messageTitle ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'
-              } ${!(hasReasoning || hasCanvas) ? 'mb-8' : ''}`}
-              style={{ wordBreak: 'keep-all' }}
-            >
-              {derivedTitle}
-            </h2>
-          </div>
-        )}
-        {/* {shouldShowTitle && (
-          <div className="flex items-center md:max-w-[75%]">
-            <h2
-              className={`text-3xl sm:text-4xl md:text-4xl font-light tracking-[-0.02em] leading-tight text-balance ${
-                !messageTitle ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'
-              } ${!(hasReasoning || hasCanvas) ? 'mb-8' : ''}`}
-              style={{ 
-                wordBreak: 'keep-all',
-                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif',
-                fontWeight: '300'
-              }}
-            >
-              {derivedTitle}
-            </h2>
-          </div>
-        )} */}
-        
-        {(hasReasoning || hasCanvas) && (
+      <div className="pb-2 sm:pb-2 pr-8 sm:pr-0">
+        {hasReasoning && (
           <div className="mt-12  text-base text-[var(--muted)]">
             {hasReasoning && (
               <div className="mb-8">
                 <div className="mb-5 text-base font-normal text-[var(--muted)] pl-1.5">Thinking</div>
-                <div className="space-y-3 pl-1.5">
+                <div className="space-y-3 pl-2">
                   <button
                     onClick={handleToggleClick}
-                    className="flex items-center gap-2 cursor-pointer"
+                    className="flex items-center gap-2 cursor-pointer group"
                   >
                     <div className="text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors">
-                      <Brain size={14} />
+                      <BrainIOS className="w-5 h-5" />
                     </div>
                     
-                    <span className={`text-base font-medium text-[var(--foreground)] ${
-                      isReasoningInProgress 
-                        ? 'bg-gradient-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent' 
-                        : ''
-                    }`}
-                    style={isReasoningInProgress ? {
-                      backgroundSize: '200% 100%',
-                      animation: 'shimmer 2s ease-in-out infinite'
-                    } : {}}
+                    <span
+                      className={`text-base font-medium text-[var(--foreground)] flex items-center gap-2 ${
+                        isReasoningInProgress
+                          ? 'bg-gradient-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent'
+                          : ''
+                      }`}
+                      style={
+                        isReasoningInProgress
+                          ? {
+                              backgroundSize: '200% 100%',
+                              animation: 'shimmer 2s ease-in-out infinite'
+                            }
+                          : {}
+                      }
                     >
-                      Reasoning Process
+                      {dynamicReasoningTitle}
+                      <svg
+                        className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                          isReasoningExpanded ? 'rotate-180' : ''
+                        }`}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
                     </span>
                   </button>
+                  <div className="pl-1.5">
+                    <ReasoningSection
+                      content={reasoningPart.reasoningText || reasoningPart.text}
+                      isComplete={reasoningComplete}
+                      hideToggle={true}
+                      isExpanded={isReasoningExpanded}
+                      onExpandedChange={handleReasoningToggle}
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
-            
-            {hasCanvas && (
-              <div>
-                <div className="mb-5 text-base font-normal text-[var(--muted)] pl-1.5">Tools</div>
-                <CanvasToolsPreview
-                  webSearchData={webSearchData}
-                  mathCalculationData={mathCalculationData}
-                  linkReaderData={linkReaderData}
-                  imageGeneratorData={imageGeneratorData}
-                  geminiImageData={geminiImageData}
-                  seedreamImageData={seedreamImageData}
-                  xSearchData={xSearchData}
-                  youTubeSearchData={youTubeSearchData}
-                  youTubeLinkAnalysisData={youTubeLinkAnalysisData}
-                  googleSearchData={googleSearchData}
-                  messageId={messageId}
-                  togglePanel={togglePanel}
-                  hideToggle={true}
-                  activePanel={activePanel}
-                />
               </div>
             )}
           </div>
         )}
       </div>
 
-      {isThinkingModalOpen && (
-        <ReasoningSection 
-          content={reasoningPart.reasoningText || reasoningPart.text} 
-          isComplete={reasoningComplete}
-          startTime={thinkingStartTime}
-          key={`thinking-modal-${key}`}
-          hideToggle={true}
-          onModalClose={() => setIsThinkingModalOpen(false)}
-        />
-      )}
       </div>
     </>
   );
 };
+
+
+
+
 

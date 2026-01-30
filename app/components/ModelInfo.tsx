@@ -1,13 +1,47 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
-import { getModelById } from '@/lib/models/config'
-import { getProviderLogo, hasLogo } from '@/lib/models/logoUtils'
+import { getModelById, isChatflixModel } from '@/lib/models/config'
+import { getProviderLogo, hasLogo, getChatflixLogo } from '@/lib/models/logoUtils'
 
 // Model name with logo component
 export const ModelNameWithLogo = ({ modelId }: { modelId: string }) => {
   const model = getModelById(modelId);
   const [isExpanded, setIsExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isDarkTheme, setIsDarkTheme] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const evaluateTheme = () => {
+      const themeAttr = document.documentElement.getAttribute('data-theme');
+      if (themeAttr === 'dark') return true;
+      if (themeAttr === 'system') {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches;
+      }
+      return false;
+    };
+
+    setIsDarkTheme(evaluateTheme());
+
+    const observer = new MutationObserver(() => {
+      setIsDarkTheme(evaluateTheme());
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme']
+    });
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleMediaChange = () => setIsDarkTheme(evaluateTheme());
+    mediaQuery.addEventListener('change', handleMediaChange);
+
+    return () => {
+      observer.disconnect();
+      mediaQuery.removeEventListener('change', handleMediaChange);
+    };
+  }, []);
 
   // Auto-collapse after a delay
   useEffect(() => {
@@ -45,24 +79,29 @@ export const ModelNameWithLogo = ({ modelId }: { modelId: string }) => {
   const displayName = model.abbreviation || model.name || modelId;
   
   const hasProviderLogo = model.provider && hasLogo(model.provider, model.id);
+  const isChatflix = model?.id ? isChatflixModel(model.id) : false;
+  const chatflixLogoSrc = getChatflixLogo({ isDark: isDarkTheme });
+  const providerLogoSrc = model.provider 
+    ? (isChatflix ? chatflixLogoSrc : getProviderLogo(model.provider, model.id))
+    : '';
 
   return (
     <div
       ref={containerRef}
       onClick={() => setIsExpanded(!isExpanded)}
-      className={`relative flex items-center h-7 transition-all duration-300 ease-in-out rounded-full cursor-pointer group
+      className={`relative flex items-center transition-all duration-300 ease-in-out cursor-pointer group
         ${isExpanded
-            ? 'bg-black/5 dark:bg-white/5 text-[var(--muted)] hover:bg-black/10 dark:hover:bg-white/10 px-2 py-1 gap-1.5'
-            : 'w-7 bg-[var(--accent)] opacity-70 hover:opacity-100 p-2'
+            ? 'bg-black/5 dark:bg-white/5 text-[var(--muted)] hover:bg-black/10 dark:hover:bg-white/10 px-2 py-1 gap-1.5 h-7 rounded-full'
+            : 'w-7 h-7 justify-center'
         }`
       }
       title={`Model: ${displayName}`}
     >
       <div className={`flex-shrink-0 w-3 h-3 flex items-center justify-center transition-transform duration-300 ease-in-out ${!isExpanded ? 'group-hover:scale-110' : ''}`}>
-        {hasProviderLogo && (
+        {hasProviderLogo && providerLogoSrc && (
             <Image 
-                src={getProviderLogo(model.provider, model.id)}
-                alt={`${model.provider} logo`}
+                src={providerLogoSrc}
+                alt={isChatflix ? 'Chatflix logo' : `${model.provider} logo`}
                 width={12}
                 height={12}
                 className="object-contain"

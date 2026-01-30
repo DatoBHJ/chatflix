@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { MODEL_CONFIGS } from '@/lib/models/config'
 import { enrichAttachmentsWithMetadata } from '@/app/chat/[id]/utils'
 import { uploadFile } from '@/app/chat/[id]/utils'
+import { ensureFreshAttachmentUrls } from '@/app/utils/attachmentUrlHelpers';
+import { Attachment } from '@/lib/types';
 import { getWebSearchResults, getGoogleSearchData } from './toolFunction'
 
 export function useMessages(chatId: string, userId: string) {
@@ -295,8 +297,39 @@ export function useMessages(chatId: string, userId: string) {
       }
 
       // 편집된 파일 목록 처리: 유지되는 기존 파일 + 새로 업로드된 파일
-      const retainedAttachments = remainingAttachments || [];
+      const retainedAttachments: Attachment[] = remainingAttachments && remainingAttachments.length > 0
+        ? await ensureFreshAttachmentUrls(remainingAttachments as Attachment[])
+        : [];
       const allAttachments = [...retainedAttachments, ...newAttachments];
+
+      const buildAttachmentPart = (attachment: Attachment) => {
+        const isImage =
+          attachment.fileType === 'image' ||
+          attachment.contentType?.startsWith('image/');
+
+        if (isImage) {
+          return {
+            type: 'image',
+            image: attachment.url
+          };
+        }
+
+        return {
+          type: 'file',
+          url: attachment.url,
+          mediaType: attachment.contentType || 'application/octet-stream',
+          filename: attachment.name || 'file'
+        };
+      };
+
+      const attachmentParts = allAttachments.map(buildAttachmentPart);
+      const updatedParts = [
+        {
+          type: 'text',
+          text: currentEditingContent
+        },
+        ...attachmentParts
+      ];
       
       // console.log('🔍 [DEBUG] File processing for edit:', {
       //   originalAttachmentCount: (localMessage as any).experimental_attachments?.length || 0,
@@ -311,42 +344,12 @@ export function useMessages(chatId: string, userId: string) {
       // 1. 먼저 UI 상태 업데이트 (레퍼런스 코드 패턴)
       const updatedMessages = messages.slice(0, messageIndex + 1).map(msg => {
         if (msg.id !== messageId) return msg;
-        
-        // 기존 파일들을 보존하면서 텍스트만 업데이트
-        const newParts = Array.isArray(msg.parts)
-          ? msg.parts.map(part => {
-              if ((part as any).type === 'text') {
-                // 텍스트 부분만 내용 업데이트
-                return { ...(part as any), text: currentEditingContent };
-              } else {
-                // 파일 부분은 그대로 유지
-                return part;
-              }
-            })
-          : [{ type: 'text', text: currentEditingContent } as any];
-        
-        // 🚀 새로 업로드된 첨부파일들을 parts에 추가
-        newAttachments.forEach((attachment) => {
-          if (attachment.contentType?.startsWith('image/')) {
-            newParts.push({
-              type: 'image',
-              image: attachment.url
-            });
-          } else {
-            newParts.push({
-              type: 'file',
-              url: attachment.url,
-              mediaType: attachment.contentType || 'application/octet-stream',
-              filename: attachment.name || 'file'
-            });
-          }
-        });
-        
+
         return {
           ...(msg as any),
           content: currentEditingContent, // legacy UI paths still read .content
           experimental_attachments: allAttachments.length > 0 ? allAttachments : null, // 🚀 기존 파일 + 새 파일 모두 포함
-          parts: newParts,
+          parts: updatedParts,
         } as any;
       });
       
@@ -357,12 +360,13 @@ export function useMessages(chatId: string, userId: string) {
       setEditingMessageId(null);
       setEditingContent('');
 
+      // Use upsert pattern to handle race conditions with server-generated chatIds
+      // Query by messageId only (not chatId) since chatId might be different on server
       const { data: existingMessages, error: queryError } = await supabase
         .from('messages')
         .select('id, sequence_number, chat_session_id')
         .eq('id', messageId)
-        .eq('user_id', userId)
-        .eq('chat_session_id', chatId);
+        .eq('user_id', userId);
 
       if (queryError) {
         throw queryError;
@@ -370,44 +374,33 @@ export function useMessages(chatId: string, userId: string) {
 
       let existingMessage = existingMessages?.[0];
       
-      if (!existingMessage) {
-        // console.log('Message not found in database, inserting new message');
-        const { data: insertedMessage, error: insertError } = await supabase
-          .from('messages')
-          .insert([{
-            id: messageId,
-            role: localMessage.role,
-            content: currentEditingContent,
-            created_at: new Date().toISOString(),
-            chat_session_id: chatId,
-            user_id: userId,
-            sequence_number: localSequenceNumber,
-            is_edited: true,
-            edited_at: new Date().toISOString(),
-            host: localMessage.role === 'assistant' ? 'assistant' : 'user',
-            experimental_attachments: allAttachments.length > 0 ? allAttachments : null // 🚀 기존 파일 + 새 파일 모두 저장
-          }])
-          .select()
-          .single();
+      // Use the actual chatId from DB if message exists (handles server-generated chatId)
+      const actualChatId = existingMessage?.chat_session_id || chatId;
+      
+      // Upsert pattern: handles both insert and update atomically
+      const { data: upsertedMessage, error: upsertError } = await supabase
+        .from('messages')
+        .upsert({
+          id: messageId,
+          role: localMessage.role,
+          content: currentEditingContent,
+          created_at: existingMessage ? undefined : new Date().toISOString(), // Only set on insert
+          chat_session_id: actualChatId,
+          user_id: userId,
+          sequence_number: existingMessage?.sequence_number || localSequenceNumber,
+          is_edited: true,
+          edited_at: new Date().toISOString(),
+          host: localMessage.role === 'assistant' ? 'assistant' : 'user',
+          experimental_attachments: allAttachments.length > 0 ? allAttachments : null
+        }, {
+          onConflict: 'id',
+          ignoreDuplicates: false
+        })
+        .select()
+        .single();
 
-        if (insertError) throw insertError;
-        existingMessage = insertedMessage;
-      } else {
-        // console.log('Message found in database, updating message', existingMessage);
-        const { error: updateError } = await supabase
-          .from('messages')
-          .update({
-            content: currentEditingContent,
-            is_edited: true,
-            edited_at: new Date().toISOString(),
-            experimental_attachments: allAttachments.length > 0 ? allAttachments : null // 🚀 기존 파일 + 새 파일 모두 저장
-          })
-          .eq('id', messageId)
-          .eq('user_id', userId)
-          .eq('chat_session_id', chatId);
-
-        if (updateError) throw updateError;
-      }
+      if (upsertError) throw upsertError;
+      existingMessage = upsertedMessage;
 
       // 🆕 디버깅: 편집된 메시지들의 첨부파일 정보 출력
       // console.log('🔍 [DEBUG] Messages for edit save:', {
@@ -432,7 +425,7 @@ export function useMessages(chatId: string, userId: string) {
       const { error: deleteError } = await supabase
         .from('messages')
         .delete()
-        .eq('chat_session_id', chatId)
+        .eq('chat_session_id', actualChatId) // Use actualChatId for consistency
         .eq('user_id', userId)
         .gt('sequence_number', existingMessage.sequence_number);
 
@@ -479,7 +472,7 @@ export function useMessages(chatId: string, userId: string) {
           body: {
             messages: messagesWithMetadata,
             model: modelToUse, // Use original model - rate limits will be handled by error handlers
-            chatId,
+            chatId: actualChatId, // Use actualChatId from DB for consistency
             isRegeneration: false, // 편집 후 전송은 새로운 대화이므로 재생성이 아님
             isAgentEnabled: !!isAgentEnabled,
             selectedTool: selectedTool || null, // 현재 선택된 도구 사용
@@ -609,14 +602,16 @@ export function useMessages(chatId: string, userId: string) {
       // 1. 먼저 UI 상태 업데이트 (레퍼런스 코드 패턴)
       setMessages(updatedMessages)
 
-      // 메시지의 sequence_number를 찾거나 계산
+      // 메시지의 sequence_number와 실제 chatId를 찾거나 계산
       let sequenceNumber: number;
+      let actualChatId = chatId;
+      
+      // Query by messageId only to handle server-generated chatId mismatch
       const { data: messageData, error: messageError } = await supabase
         .from('messages')
-        .select('sequence_number')
+        .select('sequence_number, chat_session_id')
         .eq('id', messageId)
         .eq('user_id', userId)
-        .eq('chat_session_id', chatId)
         .single()
 
       if (messageError || !messageData) {
@@ -625,13 +620,14 @@ export function useMessages(chatId: string, userId: string) {
         sequenceNumber = messageIndex 
       } else {
         sequenceNumber = messageData.sequence_number
+        actualChatId = messageData.chat_session_id || chatId
       }
 
       // 재생성하려는 메시지 이후의 메시지들만 삭제 (재생성 메시지는 유지)
       const { error: deleteError } = await supabase
         .from('messages')
         .delete()
-        .eq('chat_session_id', chatId)
+        .eq('chat_session_id', actualChatId) // Use actual chatId from DB
         .eq('user_id', userId)
         .gt('sequence_number', sequenceNumber)
 
@@ -679,7 +675,7 @@ export function useMessages(chatId: string, userId: string) {
               } as any,
             ],
             model: modelToUse, // Use original model - rate limits will be handled by error handlers
-            chatId,
+            chatId: actualChatId, // Use actual chatId from DB
             isRegeneration: true,
             existingMessageId: assistantMessageId,
             saveToDb: true,

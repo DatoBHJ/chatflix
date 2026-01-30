@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
+import { useElementBackgroundBrightness } from '@/app/hooks/useBackgroundBrightness'
+import { getAdaptiveGlassStyleBlur } from '@/app/lib/adaptiveGlassStyle'
 
 interface GoogleSignInProps {
   isSignIn?: boolean
@@ -12,6 +14,21 @@ export function GoogleSignIn({ isSignIn = false }: GoogleSignInProps) {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
+
+  // Ref for button to detect its position brightness
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Detect brightness at button's position
+  const { brightness: buttonBrightness } = useElementBackgroundBrightness(buttonRef, true, 'google-signin-button');
+
+  // Text style helper function - 각 요소의 위치 밝기에 따라 결정
+  const getTextStyle = (brightness?: number) => {
+    const isVeryBrightAtPosition = brightness !== undefined && brightness > 190;
+    if (isVeryBrightAtPosition) {
+      return { color: 'rgba(0, 0, 0)', textShadow: 'none' };
+    }
+    return { color: 'rgba(255, 255, 255)', textShadow: 'none' };
+  };
 
   async function handleSignInWithGoogle() {
     try {
@@ -71,17 +88,17 @@ export function GoogleSignIn({ isSignIn = false }: GoogleSignInProps) {
 
   return (
     <button 
+      ref={buttonRef}
       onClick={handleSignInWithGoogle}
       disabled={loading}
-      className="w-full py-3 border rounded-lg transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+      className="w-full py-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
       style={{
-        backgroundColor: 'var(--background)',
-        borderColor: 'color-mix(in srgb, var(--foreground) 20%, transparent)',
-        color: 'var(--foreground)'
+        ...getAdaptiveGlassStyleBlur(),
+        color: getTextStyle(buttonBrightness).color
       }}
     >
       {loading ? (
-        <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--foreground)' }}></div>
+        <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: getTextStyle(buttonBrightness).color }}></div>
       ) : (
         <svg className="w-5 h-5" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

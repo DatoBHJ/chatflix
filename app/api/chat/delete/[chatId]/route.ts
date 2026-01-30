@@ -18,10 +18,10 @@ function extractStoragePath(url: string, bucketName: string): string | null {
 // 메시지에서 모든 Storage 파일 경로 수집
 function collectStorageFiles(messages: any[]): {
   chatAttachments: string[];
-  geminiImages: string[];
+  generatedImages: Array<{ path: string, bucket: string }>;
 } {
   const chatAttachments: string[] = [];
-  const geminiImages: string[] = [];
+  const generatedImages: Array<{ path: string, bucket: string }> = [];
 
   for (const message of messages) {
     // 1. experimental_attachments에서 chat_attachments 파일 수집
@@ -38,13 +38,17 @@ function collectStorageFiles(messages: any[]): {
       }
     }
 
-    // 2. tool_results에서 gemini-images URL 수집 (재귀 검색)
+    // 2. tool_results에서 generated-images URL 수집 (재귀 검색)
     if (message.tool_results && typeof message.tool_results === 'object') {
       // tool_results는 복잡한 구조일 수 있으므로 재귀적으로 검색
       const searchForImageUrls = (obj: any): void => {
-        if (typeof obj === 'string' && obj.includes('gemini-images')) {
-          const path = extractStoragePath(obj, 'gemini-images');
-          if (path) geminiImages.push(path);
+        if (typeof obj === 'string') {
+          // Support both old and new bucket names
+          if (obj.includes('generated-images') || obj.includes('gemini-images')) {
+            const bucket = obj.includes('generated-images') ? 'generated-images' : 'gemini-images';
+            const path = extractStoragePath(obj, bucket);
+            if (path) generatedImages.push({ path, bucket });
+          }
         } else if (typeof obj === 'object' && obj !== null) {
           Object.values(obj).forEach(value => searchForImageUrls(value));
         }
@@ -54,9 +58,13 @@ function collectStorageFiles(messages: any[]): {
   }
 
   // 중복 제거
+  const uniqueGeneratedImages = generatedImages.filter((img, index, self) => 
+    index === self.findIndex((i) => i.path === img.path && i.bucket === img.bucket)
+  );
+
   return {
     chatAttachments: [...new Set(chatAttachments)],
-    geminiImages: [...new Set(geminiImages)]
+    generatedImages: uniqueGeneratedImages
   };
 }
 
@@ -104,13 +112,7 @@ export async function DELETE(
     }
 
     // 4. Storage 파일 경로 수집
-    const { chatAttachments, geminiImages } = collectStorageFiles(messages || []);
-
-    console.log(`🗑️ [DELETE_CHAT] Found files to delete:`, {
-      chatId,
-      chatAttachments: chatAttachments.length,
-      geminiImages: geminiImages.length
-    });
+    const { chatAttachments, generatedImages } = collectStorageFiles(messages || []);
 
     // 5. Storage 파일 삭제 (bucket별 일괄 처리)
     const storageErrors: string[] = [];
@@ -123,33 +125,35 @@ export async function DELETE(
           .remove(chatAttachments);
 
         if (chatAttachmentsError) {
-          console.warn('⚠️ [DELETE_CHAT] Failed to delete chat attachments:', chatAttachmentsError);
           storageErrors.push(`chat_attachments: ${chatAttachmentsError.message}`);
-        } else {
-          console.log(`✅ [DELETE_CHAT] Deleted ${chatAttachments.length} chat attachments`);
         }
       } catch (error) {
-        console.warn('⚠️ [DELETE_CHAT] Error deleting chat attachments:', error);
         storageErrors.push(`chat_attachments: ${error}`);
       }
     }
 
-    // gemini-images 삭제
-    if (geminiImages.length > 0) {
-      try {
-        const { error: geminiImagesError } = await supabase.storage
-          .from('gemini-images')
-          .remove(geminiImages);
-
-        if (geminiImagesError) {
-          console.warn('⚠️ [DELETE_CHAT] Failed to delete gemini images:', geminiImagesError);
-          storageErrors.push(`gemini-images: ${geminiImagesError.message}`);
-        } else {
-          console.log(`✅ [DELETE_CHAT] Deleted ${geminiImages.length} gemini images`);
+    // generated-images 삭제 (both old and new buckets)
+    if (generatedImages.length > 0) {
+      // Group by bucket
+      const imagesByBucket = generatedImages.reduce((acc, { path, bucket }) => {
+        if (!acc[bucket]) acc[bucket] = [];
+        acc[bucket].push(path);
+        return acc;
+      }, {} as Record<string, string[]>);
+      
+      // Delete from each bucket
+      for (const [bucket, paths] of Object.entries(imagesByBucket)) {
+        try {
+          const { error } = await supabase.storage
+            .from(bucket)
+            .remove(paths);
+          
+          if (error) {
+            storageErrors.push(`${bucket}: ${error.message}`);
+          }
+        } catch (error) {
+          storageErrors.push(`${bucket}: ${error}`);
         }
-      } catch (error) {
-        console.warn('⚠️ [DELETE_CHAT] Error deleting gemini images:', error);
-        storageErrors.push(`gemini-images: ${error}`);
       }
     }
 
@@ -183,16 +187,14 @@ export async function DELETE(
       message: 'Chat deleted successfully',
       deletedFiles: {
         chatAttachments: chatAttachments.length,
-        geminiImages: geminiImages.length
+        generatedImages: generatedImages.length
       }
     };
 
     if (storageErrors.length > 0) {
       response.warnings = storageErrors;
-      console.warn('⚠️ [DELETE_CHAT] Storage deletion warnings:', storageErrors);
     }
 
-    console.log(`✅ [DELETE_CHAT] Successfully deleted chat ${chatId}`);
     return NextResponse.json(response);
 
   } catch (error) {

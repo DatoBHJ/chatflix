@@ -12,6 +12,15 @@ interface MemoryData {
   timestamp: string;
 }
 
+interface PreferenceSessionMeta {
+  sessionId: string;
+  title: string;
+  messageCount: number;
+  durationMinutes: number;
+  totalTokens: number;
+  score: number;
+}
+
 export default function MemoryViewerPage() {
   const [userId, setUserId] = useState('');
   const [memoryData, setMemoryData] = useState<MemoryData | null>(null);
@@ -20,8 +29,20 @@ export default function MemoryViewerPage() {
   const [showMarkdown, setShowMarkdown] = useState(true);
   const [isRefining, setIsRefining] = useState(false);
   const [lastRefined, setLastRefined] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [refineStatus, setRefineStatus] = useState<string | null>(null);
+  const [preferenceSessions, setPreferenceSessions] = useState<PreferenceSessionMeta[]>([]);
+  const [preferenceSessionsNote, setPreferenceSessionsNote] = useState<string | null>(null);
+  const [preferenceAnalysisTimestamp, setPreferenceAnalysisTimestamp] = useState<string | null>(null);
 
-  const fetchUserMemory = async () => {
+  const CATEGORY_OPTIONS = [
+    { value: '', label: 'All Categories' },
+    { value: '00-personal-info', label: '00 - Personal Information' },
+    { value: '01-preferences', label: '01 - Preferences' },
+    { value: '02-interests', label: '02 - Interests' }
+  ];
+
+  const fetchUserMemory = async ({ resetPreferenceInsights = true }: { resetPreferenceInsights?: boolean } = {}) => {
     if (!userId.trim()) {
       toast.error('Please enter a user ID');
       return;
@@ -30,6 +51,11 @@ export default function MemoryViewerPage() {
     setIsLoading(true);
     setError(null);
     setMemoryData(null);
+    if (resetPreferenceInsights) {
+      setPreferenceSessions([]);
+      setPreferenceSessionsNote(null);
+      setPreferenceAnalysisTimestamp(null);
+    }
 
     try {
       const response = await fetch(`/api/admin/memory-viewer?user_id=${encodeURIComponent(userId.trim())}`);
@@ -62,25 +88,58 @@ export default function MemoryViewerPage() {
       return;
     }
 
+    const shouldTrackPreferenceInsights = !selectedCategory || selectedCategory === '01-preferences';
     setIsRefining(true);
+    setRefineStatus('Step 1/4 · Gathering long-session analytics...');
     try {
-      const response = await fetch(`/api/admin/memory-refine?mode=manual&user_id=${encodeURIComponent(userId.trim())}`, {
-        method: 'POST'
+      const payload: Record<string, string> = {
+        mode: 'manual',
+        user_id: userId.trim()
+      };
+
+      if (selectedCategory) {
+        payload.category = selectedCategory;
+      }
+
+      setRefineStatus('Step 2/4 · Requesting refinement from the model...');
+      const response = await fetch(`/api/admin/memory-refine`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
       });
       
       const result = await response.json();
+      setRefineStatus('Step 3/4 · Saving refreshed memory to Supabase...');
       
       if (response.ok) {
         toast.success(`Memory refined successfully! Processed: ${result.processed}, Successful: ${result.successful}`);
         setLastRefined(new Date().toLocaleString());
+        if (shouldTrackPreferenceInsights) {
+          const matchedResult = Array.isArray(result.results)
+            ? result.results.find((item: any) => item.user_id === userId.trim())
+            : result;
+          const sessionMeta = matchedResult?.preferenceSessions || [];
+          setPreferenceSessions(sessionMeta);
+          setPreferenceSessionsNote(sessionMeta.length === 0 ? 'No qualifying long sessions were available for this run.' : null);
+          setPreferenceAnalysisTimestamp(new Date().toLocaleString());
+        } else {
+          setPreferenceSessions([]);
+          setPreferenceSessionsNote(null);
+          setPreferenceAnalysisTimestamp(null);
+        }
+        setRefineStatus('Step 4/4 · Completed!');
         // Refresh memory data
-        await fetchUserMemory();
+        await fetchUserMemory({ resetPreferenceInsights: false });
       } else {
         toast.error(`Refine failed: ${result.error}`);
+        setRefineStatus(null);
       }
     } catch (error) {
       console.error('Error refining memory:', error);
       toast.error('Failed to refine memory');
+      setRefineStatus(null);
     } finally {
       setIsRefining(false);
     }
@@ -172,7 +231,27 @@ export default function MemoryViewerPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-semibold">Memory Data (as sent to LLM)</h3>
-              <div className="flex gap-2">
+              <div className="flex gap-3 flex-col sm:flex-row items-start sm:items-center">
+                <div className="flex flex-col text-sm">
+                  <span className="font-medium mb-1" style={{ color: 'var(--foreground)' }}>Refine Scope</span>
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="px-3 py-2 rounded border text-sm"
+                    style={{
+                      backgroundColor: 'var(--background)',
+                      color: 'var(--foreground)',
+                      borderColor: 'var(--border)'
+                    }}
+                    disabled={isRefining || !memoryData}
+                  >
+                    {CATEGORY_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <button
                   onClick={refineUserMemory}
                   disabled={isRefining || !memoryData}
@@ -200,7 +279,52 @@ export default function MemoryViewerPage() {
                   {showMarkdown ? 'Markdown View' : 'Raw Text'}
                 </button>
               </div>
+              {refineStatus && (
+                <div className="text-xs text-right" style={{ color: 'var(--muted)' }}>
+                  {refineStatus}
+                </div>
+              )}
             </div>
+
+            {(preferenceSessions.length > 0 || preferenceSessionsNote) && (
+              <div className="p-4 rounded border" style={{ 
+                borderColor: 'var(--border)', 
+                backgroundColor: 'var(--accent)'
+              }}>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <h4 className="text-lg font-semibold">Long-session insights for 01-preferences</h4>
+                    <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                      {preferenceAnalysisTimestamp ? `Last analyzed: ${preferenceAnalysisTimestamp}` : 'Run a refine to populate this section.'}
+                    </p>
+                  </div>
+                </div>
+                {preferenceSessions.length > 0 ? (
+                  <div className="mt-3 space-y-3">
+                    {preferenceSessions.map(session => (
+                      <div key={session.sessionId} className="p-3 rounded border" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)' }}>
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-semibold">{session.title}</p>
+                            <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                              {session.messageCount} msgs · {Number(session.durationMinutes || 0).toFixed(1)} min · {Math.round(session.totalTokens || 0)} tokens
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs uppercase tracking-wide" style={{ color: 'var(--muted)' }}>Score</p>
+                            <p className="text-sm font-semibold">{Number(session.score || 0).toFixed(2)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm mt-3" style={{ color: 'var(--muted)' }}>
+                    {preferenceSessionsNote || 'No qualifying long sessions were available for the last run.'}
+                  </p>
+                )}
+              </div>
+            )}
             
             {memoryData.memory_data ? (
               <div className="p-6 rounded-lg border" style={{ 

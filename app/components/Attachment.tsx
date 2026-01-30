@@ -1,25 +1,36 @@
 import { Attachment } from "@/lib/types";
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useState, useCallback } from "react";
 import { Download } from 'lucide-react';
 import { getIcon } from 'material-file-icons';
 import { fileHelpers } from './ChatInput/FileUpload';
 import { useUrlRefresh } from '../hooks/useUrlRefresh';
+import { ImageGalleryStack } from "./ImageGalleryStack";
+import { ImageModal } from "./ImageModal";
 
 interface AttachmentPreviewProps {
   attachment: Attachment;
   messageId?: string;
+  chatId?: string;
   attachmentIndex?: number;
   togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse' | 'attachment', fileIndex?: number, toolType?: string, fileName?: string) => void;
+  isMobile?: boolean;
 }
 
 
 export const AttachmentPreview = memo(function AttachmentPreviewComponent({ 
   attachment, 
   messageId, 
+  chatId, 
   attachmentIndex, 
-  togglePanel 
+  togglePanel,
+  isMobile = false
 }: AttachmentPreviewProps) {
   const isImage = attachment.contentType?.startsWith('image/') || false;
+
+  // 이미지 모달 상태
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [savingImage, setSavingImage] = useState(false);
+  const [savedImage, setSavedImage] = useState(false);
 
   // URL 자동 갱신 훅 사용
   const { refreshedUrl, isRefreshing, refreshError, refreshUrl } = useUrlRefresh({
@@ -43,18 +54,63 @@ export const AttachmentPreview = memo(function AttachmentPreviewComponent({
     return () => { aborted = true; };
   }, [attachment.metadata?.fileSize, refreshedUrl]);
 
-  // 클릭 핸들러 - 모든 파일을 사이드 패널에서 열기
-  const handleClick = (e: React.MouseEvent) => {
+  // 이미지 모달 열기
+  const openImageModal = useCallback(() => {
+    setShowImageModal(true);
+    setSavedImage(false); // 모달 열 때 저장 상태 초기화
+  }, []);
+
+  // 이미지 모달 닫기
+  const closeImageModal = useCallback(() => {
+    setShowImageModal(false);
+    setSavedImage(false);
+  }, []);
+
+  // 클릭 핸들러 - 파일을 사이드 패널에서 열기 (이미지 제외)
+  const handleClick = (e?: React.MouseEvent) => {
     if (togglePanel && messageId !== undefined && attachmentIndex !== undefined) {
-      // 이미지와 일반 파일 모두 사이드패널에서 열기
-      e.preventDefault();
-      e.stopPropagation();
+      e?.preventDefault();
+      e?.stopPropagation();
       togglePanel(messageId, 'attachment', attachmentIndex, undefined, attachment.name);
     } else {
-      // togglePanel이 없으면 새 탭에서 열기 (갱신된 URL 사용)
       window.open(refreshedUrl, '_blank');
     }
   };
+
+  // 모달에서 Save 핸들러. ImageModal은 { imageUrl, prompt?, sourceImageUrl?, originalSrc? } 페이로드 전달.
+  const handleModalSave = useCallback(async (payload: { imageUrl: string; prompt?: string | null; sourceImageUrl?: string | null; originalSrc?: string }) => {
+    if (savingImage || savedImage) return;
+    setSavingImage(true);
+    try {
+      const imageUrl = payload.imageUrl;
+      const response = await fetch('/api/photo/save-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl,
+          prompt: payload.prompt || null,
+          ai_prompt: null,
+          ai_json_prompt: null,
+          chatId: chatId || null,
+          messageId: messageId || null,
+          metadata: { sourceImageUrl: payload.sourceImageUrl || null }
+        })
+      });
+      if (response.ok) {
+        setSavedImage(true);
+        setTimeout(() => {
+          setSavedImage(false);
+        }, 2000);
+      } else {
+        const error = await response.json();
+        console.error('Save failed:', error);
+      }
+    } catch (error) {
+      console.error('Save error:', error);
+    } finally {
+      setSavingImage(false);
+    }
+  }, [savingImage, savedImage, messageId, chatId]);
 
   // 다운로드 핸들러
   const handleDownload = (e: React.MouseEvent) => {
@@ -74,18 +130,43 @@ export const AttachmentPreview = memo(function AttachmentPreviewComponent({
   };
 
   if (isImage) {
+    // 🚀 ChatGPT STYLE: 고정 크기 400px (모바일/데스크탑 동일)
     return (
-      <div className="relative">
-        <img 
-          src={refreshedUrl} 
-          alt={attachment.name || 'Image Attachment'}
-          className="imessage-image-attachment"
-          onClick={handleClick}
-          style={{ 
-            cursor: togglePanel ? 'pointer' : 'default' 
-          }}
+      <>
+        <div className="relative" style={{ maxWidth: '400px' }}>
+          <ImageGalleryStack
+            images={[{
+              src: refreshedUrl,
+              alt: attachment.name || 'Image Attachment'
+            }]}
+            onSingleImageClick={() => {
+              openImageModal();
+            }}
+            isMobile={isMobile}
+            chatId={chatId}
+            messageId={messageId}
+          />
+        </div>
+
+        {/* 이미지 모달 */}
+        <ImageModal
+          isOpen={showImageModal}
+          imageUrl={refreshedUrl}
+          imageAlt={attachment.name || 'Image Attachment'}
+          onClose={closeImageModal}
+          enableDownload={true}
+          enableSave={true}
+          enableUrlRefresh={true}
+          messageId={messageId}
+          chatId={chatId}
+          userId={undefined}
+          showPromptButton={false}
+          isMobile={isMobile}
+          isSaving={savingImage}
+          isSaved={savedImage}
+          onSave={handleModalSave}
         />
-      </div>
+      </>
     );
   }
 

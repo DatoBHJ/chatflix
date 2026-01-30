@@ -1,10 +1,61 @@
 @import "tailwindcss";
 @import "./styles/typing-indicator.css";
 
+/* Apple-style scanning animation for image analysis */
+@keyframes scanDown {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.7;
+  }
+  90% {
+    opacity: 0.7;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+/* Scan animation for generating mode - vertical up and down */
+@keyframes scan {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  5% {
+    opacity: 0.9;
+  }
+  50% {
+    top: 100%;
+    opacity: 0.9;
+  }
+  95% {
+    opacity: 0.9;
+  }
+  100% {
+    top: 0%;
+    opacity: 0;
+  }
+}
+
 /* Minimal reset to prevent subtle global scroll caused by default UA margins */
 html, body {
   margin: 0;
   padding: 0;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }
 
 /* Map Tailwind's screen height utilities to dynamic viewport on supported browsers */
@@ -31,6 +82,89 @@ html, body {
 @custom-variant lg (@media (min-width: 1024px));
 @custom-variant xl (@media (min-width: 1280px));
 @custom-variant 2xl (@media (min-width: 1536px));
+
+/* ChatGPT-style Thread Layout CSS Variables */
+:root {
+  /* Thread content max-width: responsive (40rem default, 48rem on large screens) */
+  --thread-content-max-width: 40rem;
+  /* Thread content margin: responsive (16px mobile, 24px tablet, 64px desktop) */
+  --thread-content-margin: 1rem;
+  /* Composer overlap for sticky positioning */
+  --composer-overlap-px: 28px;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --thread-content-margin: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --thread-content-max-width: 48rem;
+    --thread-content-margin: 4rem;
+  }
+}
+
+/* Thread container styles */
+.thread-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  /* 🚀 Scroll anchoring: 브라우저 네이티브 스크롤 앵커링 지원 */
+  overflow-anchor: auto;
+}
+
+.thread-content {
+  max-width: var(--thread-content-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--thread-content-margin);
+  padding-right: var(--thread-content-margin);
+  width: 100%;
+}
+
+/* 🚀 Scroll anchoring: 메시지별 스크롤 앵커 지원 */
+.thread-content[data-scroll-anchor="true"] {
+  overflow-anchor: auto;
+}
+.thread-content[data-scroll-anchor="false"] {
+  overflow-anchor: none;
+}
+
+/* 🚀 Virtuoso 스크롤 최적화 */
+.virtuoso-messages {
+  /* 스크롤 앵커링 활성화 */
+  overflow-anchor: auto;
+  /* GPU 가속 활성화 */
+  transform: translateZ(0);
+  will-change: scroll-position;
+}
+
+/* 🚀 Virtuoso 아이템 렌더링 최적화 */
+.virtuoso-messages [data-index] {
+  /* 레이아웃 격리 - 크기 변경이 다른 아이템에 영향 안 줌 */
+  contain: layout style;
+}
+
+/* Sticky composer container at bottom of thread */
+.thread-composer-container {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  width: 100%;
+  padding-top: 1rem;
+  padding-bottom: 1.5rem;
+}
+
+
+.thread-composer-content {
+  max-width: var(--thread-content-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--thread-content-margin);
+  padding-right: var(--thread-content-margin);
+}
 
 /* Tailwind utility classes for CSS variables */
 .bg-background {
@@ -254,10 +388,10 @@ html, body {
 .imessage-send-bubble {
   display: inline-block;
   position: relative;
-  max-width: 540px;
+  max-width: 480px;  /* AI 메시지와 동일한 길이 */
   /* max-width: 780px; */
   padding: 5px 11px;
-  margin: 2px 0;
+  margin: 1px 0;
   background-color: #007AFF;
   color: white;
   border-radius: 22px;
@@ -306,6 +440,7 @@ html, body {
   width: 26px;
   height: 16px;
   background-color: var(--background);
+  /* background-color: var(--background); */
   border-bottom-left-radius: 10px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -394,25 +529,85 @@ html, body {
   }
 }
 
-.imessage-image-bubble::after {
-  content: "";
-  position: absolute;
-  right: -7px;
-  bottom: 0;
-  width: 20px;
-  height: 25px;
-  background-color: transparent;
-  border-bottom-left-radius: 16px 14px;
-  box-shadow: -10px -4px 0 0 #007AFF; /* Use box-shadow to create the tail shape */
-  z-index: -1;
-}
-
 .imessage-image-attachment {
   border-radius: 18px;
   max-width: 280px;
   max-height: 350px;
   object-fit: cover;
   cursor: pointer;
+}
+
+/* 🚀 Apple iMessage-style Image Gallery Stack */
+.apple-image-stack {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: transform 0.3s ease;
+}
+
+.apple-image-stack:hover {
+  transform: scale(1.02);
+}
+
+.apple-image-stack:active {
+  transform: scale(0.98);
+}
+
+.apple-image-stack-label {
+  position: absolute;
+  top: 0;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #007AFF;
+  background: transparent;
+  z-index: 10;
+  white-space: nowrap;
+}
+
+.apple-stack-icon {
+  stroke-width: 2.5px;
+}
+
+/* 다크모드 라벨 */
+:root[data-theme="dark"] .apple-image-stack-label {
+  color: #0A84FF;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .apple-image-stack-label {
+    color: #0A84FF;
+  }
+}
+
+.apple-image-stack-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 8px;
+  z-index: 10;
+}
+
+/* 단일/이중 이미지 크기 조절 */
+.apple-single-image {
+  max-width: 200px;
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+@media (min-width: 640px) {
+  .apple-single-image {
+    max-width: 280px;
+  }
 }
 
 .imessage-file-bubble {
@@ -586,6 +781,99 @@ html, body {
   }
 }
 
+/* Shimmer animation for image generation prompt loading */
+@keyframes shimmer-text {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Strong shimmer animation for image generation prompt loading overlay */
+@keyframes shimmer-text-strong {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* 🚀 인라인 도구 미리보기 스타일 (Cursor 스타일 인터리브 렌더링) */
+.inline-tool-preview {
+  display: flex;
+  align-items: center;
+}
+
+.inline-tool-preview button {
+  border: none;
+  background: transparent;
+}
+
+.inline-tool-preview button:hover {
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+.inline-tool-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--muted) 0%,
+    var(--foreground) 50%,
+    var(--muted) 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: shimmer-text 2s ease-in-out infinite;
+}
+
+.inline-tool-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--foreground);
+  opacity: 0.5;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+  /* 원 모양 유지를 위한 고정 속성 */
+  transform: scale(1);
+  transform-origin: center center;
+  will-change: opacity;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* 인터리브 메시지 컨테이너 */
+.interleaved-message-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+}
+
+/* 다크모드 인라인 도구 미리보기 */
+:root[data-theme="dark"] .inline-tool-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.9) 50%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: shimmer-text 2s ease-in-out infinite;
+}
+
 /* 다크모드 스켈레톤 */
 :root[data-theme="dark"] .imessage-link-preview-skeleton {
   background-color: #39393a;
@@ -648,10 +936,9 @@ html, body {
 .imessage-receive-bubble {
   display: inline-block;
   position: relative;
-  /* max-width: 540px; */
-  max-width: 780px; 
+  max-width: 480px;  /* thread-content 실제 콘텐츠 영역과 일치 */
   padding: 5px 11px;
-  margin: 2px 0;
+  margin: 1px 0;
   background-color: var(--accent); 
   border-radius: 22px;
   word-wrap: break-word;
@@ -726,10 +1013,10 @@ html, body {
   /* Light theme variables */
   --background-light: #ffffff;
   --foreground-light: #111111;
-  --accent-light: #f5f5f5;
-  /* --accent-light: #E9E9EB; literal imessage light mode */
-  /* --sidebar-light: #E9E9EB; literal imessage light mode */
-  --sidebar-light: #f5f5f5; 
+  /* --accent-light: #E9E9EB; literal imessage light */
+  --accent-light: #f5f5f5; /*  custom  */
+  /* --sidebar-light: #FAFAFA; literal imessage light mode in desktop */
+  --sidebar-light: #E9E9EB; /* literal imessage light mode in mobile */
   --muted-light: #666666;
   --code-bg-light: #f8f9fa;
   --code-text-light: #374151;
@@ -743,14 +1030,13 @@ html, body {
   --background-overlay-dark: rgba(0, 0, 0, 0.55);
 
   /* Dark theme variables */
-  /* --background-dark: #161617; */
-  --background-dark: #000000;
+  /* --background-dark: #1E1E1E; literal imessage dark mode in desktop */
+  --background-dark: #000000; /* literal imessage dark mode in mobile */
   --foreground-dark: #e5e5e5;
-  --accent-dark: #2C2C2E;
-  /* --accent-dark: #262626;  */
-  /* --accent-dark: #181818;  */
-  /* --sidebar-dark: #242424; literal imessage dark mode */
-  --sidebar-dark: #131313;
+  /* --accent-dark: #3B3B3D; literal imessage dark mode in desktop */
+  --accent-dark: #2C2C2E; /* literal imessage dark mode in mobile */
+  --sidebar-dark: #131313; /* literal imessage dark mode in desktop */
+  /* --sidebar-dark: #242424; literal imessage dark mode in mobile */
 
   --muted-dark: #999999;
   --code-bg-dark: #1a1a1a;
@@ -940,6 +1226,7 @@ html, body {
 html {
   background: var(--background);
   min-height: 100%;
+  overscroll-behavior-y: none; /* Prevent rubber-band scroll effect */
 }
 
 body {
@@ -951,6 +1238,7 @@ body {
   overflow-x: hidden;
   min-height: 100vh;
   min-height: 100dvh; /* Dynamic viewport height for mobile */
+  overscroll-behavior-y: none; /* Prevent rubber-band scroll effect */
 }
 
 /* 미래지향적 스크롤바 스타일 */
@@ -986,8 +1274,8 @@ body {
   }
 
   .yeezy-button {
-    @apply bg-transparent text-[var(--foreground)] rounded-none px-6 sm:px-8 py-3 sm:py-4
-           hover:bg-[var(--foreground)] hover:text-[var(--background)] transition-all 
+    @apply bg-transparent text-(--foreground) rounded-none px-6 sm:px-8 py-3 sm:py-4
+           hover:bg-(--foreground) hover:text-(--background) transition-all 
            font-medium text-sm sm:text-base uppercase tracking-wider
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
@@ -1002,8 +1290,8 @@ body {
   /* 트렌딩 용어 버튼 스타일 */
   .trending-term {
     @apply text-xs uppercase tracking-wider px-3 py-1.5 border border-transparent 
-           hover:bg-[var(--foreground)] hover:text-[var(--background)] 
-           transition-[var(--transition)] whitespace-nowrap;
+           hover:bg-(--foreground) hover:text-(--background) 
+           transition-(--transition) whitespace-nowrap;
     line-height: 1;
     letter-spacing: 0.05em;
   }
@@ -1033,7 +1321,11 @@ body {
 }
 
 .animate-fade-in {
-  animation: fadeInScale 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  animation: fadeInScale 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
 }
 
 /* Message Timestamp Separator */
@@ -1067,27 +1359,14 @@ body {
 }
 
 .message-group {
-  @apply py-1 first:pt-0 last:pb-1 max-w-[calc(100vw-2rem)] mx-auto;
+  @apply py-0.5 first:pt-0 last:pb-1 max-w-[calc(100vw-2rem)] mx-auto;
 }
 
 .message-group:last-child {
   @apply border-b-0;
 }
 
-/* Message Role Indicators */
-.message-role {
-  @apply text-xs uppercase tracking-wider mb-0 px-1;
-  color: var(--muted);
-}
-
 /* Message Styles */
-.message-user {
-  @apply rounded-lg p-4 my-2;
-  max-width: calc(100% - 2rem);
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-}
-
 .message-content {
   @apply leading-relaxed;
   overflow-wrap: break-word;
@@ -1140,12 +1419,12 @@ body {
 
 /* Special handling for non-language-specified code blocks */
 .message-code:not([class*="language-"]) code {
-  @apply whitespace-pre-wrap break-words;
+  @apply whitespace-pre-wrap wrap-break-word;
 }
 
 /* Ensure inline code doesn't cause overflow */
 .message-content p code {
-  @apply break-words whitespace-normal;
+  @apply wrap-break-word whitespace-normal;
   max-width: 100%;
 }
 
@@ -1517,11 +1796,11 @@ body {
 
 .message-content th,
 .message-content td {
-  @apply border border-[var(--accent)] p-2;
+  @apply border border-(--accent) p-2;
 }
 
 .message-content th {
-  @apply bg-[var(--accent)] font-medium text-[var(--muted)] uppercase tracking-wider;
+  @apply bg-(--accent) font-medium text-(--muted) uppercase tracking-wider;
 }
 
 /* Responsive Table Styles */
@@ -1734,6 +2013,41 @@ body {
   }
 }
 
+/* Mobile widget carousel snap effects */
+@media (max-width: 640px) {
+  .widget-carousel {
+    scroll-behavior: smooth;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+  
+  .widget-carousel::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .widget-item {
+    scroll-snap-align: center;
+    scroll-snap-stop: always;
+    transition: transform 0.2s ease-out;
+  }
+  
+  .widget-item:hover {
+    transform: scale(1.01);
+  }
+  
+  /* Enhanced snap behavior */
+  .widget-carousel:focus {
+    outline: none;
+  }
+  
+  /* Smooth momentum scrolling on iOS */
+  .widget-carousel {
+    -webkit-overflow-scrolling: touch;
+    scroll-padding: 0 1rem;
+  }
+}
+
 /* Tablet optimizations */
 @media (min-width: 641px) and (max-width: 1024px) {
   .table-wrapper {
@@ -1774,12 +2088,12 @@ body {
 
 /* Blockquote Styles */
 .message-content blockquote {
-  @apply border-l-4 border-[var(--muted)] pl-4 my-4 italic text-[var(--muted)];
+  @apply border-l-4 border-(--muted) pl-4 my-4 italic text-(--muted);
 }
 
 /* Horizontal Rule */
 .message-content hr {
-  @apply my-6 border-t border-[var(--accent)];
+  @apply my-6 border-t border-(--accent);
 }
 
 /* Image Styles */
@@ -1813,7 +2127,7 @@ body {
 .message-content kbd,
 .message-content sub,
 .message-content sup {
-  @apply inline-block px-1.5 py-0.5 text-xs border border-[var(--accent)] rounded;
+  @apply inline-block px-1.5 py-0.5 text-xs border border-(--accent) rounded;
 }
 
 /* Task Lists */
@@ -1823,8 +2137,8 @@ body {
 
 /* Code Copy Button */
 .message-code-copy {
-  @apply absolute top-2 right-2 p-1.5 text-xs bg-[var(--accent)] 
-         hover:bg-[var(--foreground)] hover:text-[var(--background)]
+  @apply absolute top-2 right-2 p-1.5 text-xs bg-(--accent) 
+         hover:bg-(--foreground) hover:text-(--background)
          transition-colors opacity-0 group-hover:opacity-100;
 }
 
@@ -1922,18 +2236,6 @@ body {
   @apply min-h-screen flex items-center justify-center;
   background-color: #ffffff;
 }
-
-/* 이미지 컨테이너에 대한 스타일을 단순화합니다 */
-/* 
-.login-image-container {
-  @apply cursor-pointer transition-all duration-300;
-  transform-origin: center bottom;
-}
-
-.login-image-container:hover {
-  transform: scale(1.03);
-}
-*/
 
 .login-form-container {
   @apply w-full max-w-md mx-auto px-6 py-8;
@@ -2190,7 +2492,7 @@ p:has(.katex) {
   word-wrap: break-word;
   overflow-wrap: break-word;
   opacity: 1;
-  margin: 2px 0;
+  margin: 1px 0;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   max-width: 100%;
   overflow: visible; /* 꼬리를 위해 visible로 유지 */
@@ -2567,11 +2869,14 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
 /* Chat Input Dynamic Border Radius */
 
 /* Follow-up Question Container Styles */
+/* 🚀 SCROLL STABILITY: 레이아웃 시프트 방지를 위한 containment */
 .follow-up-questions-section {
   position: relative;
   margin-top: 1rem;
-  min-height: 0;
-  contain: layout;
+  /* 🚀 CSS Containment: 이 요소의 크기 변경이 부모 레이아웃에 영향 최소화 */
+  contain: layout style;
+  /* 🚀 will-change: 트랜지션 성능 최적화 */
+  will-change: height, opacity;
 }
 
 @media (min-width: 640px) {
@@ -2586,7 +2891,9 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   display: flex;
   justify-content: flex-end;
   margin-top: 2.5rem;
-  contain: layout;
+  /* 🚀 CSS Containment */
+  contain: layout style;
+  will-change: opacity, min-height;
 }
 
 .follow-up-questions-wrapper {
@@ -2788,18 +3095,11 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   height: 28px;
   border-radius: 50%;
   border: none;
-  background-color: var(--accent);
-  color: var(--muted);
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  opacity: 0.7;
 }
 
 .imessage-control-btn:hover {
-  opacity: 1;
   transform: scale(1.1);
-  background-color: var(--accent);
-  color: var(--muted);
 }
 
 .imessage-control-btn:active {
@@ -2807,32 +3107,15 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
 }
 
 .imessage-control-btn:disabled {
-  opacity: 0.4;
   cursor: not-allowed;
   transform: none;
 }
 
 .imessage-control-btn:disabled:hover {
   transform: none;
-  background-color: var(--accent);
-  color: var(--muted);
-}
-
-/* 특별한 상태 색상 */
-.imessage-control-btn.copied {
-  background-color: #34C759;
-  color: white;
-  opacity: 1;
-}
-
-.imessage-control-btn.bookmarked {
-  background-color: #007AFF;
-  color: white;
-  opacity: 1;
 }
 
 .imessage-control-btn.loading {
-  opacity: 0.6;
   cursor: not-allowed;
 }
 
@@ -3252,11 +3535,11 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
 
 /* Desktop arrow hover effects - Desktop only */
 @media (min-width: 641px) {
-  .hidden.sm\\:block button[class*="absolute"][class*="top-1/2"]:not(:disabled):hover {
+  [class*="hidden"][class*="sm:block"] button[class*="absolute"][class*="top-1/2"]:not(:disabled):hover {
     transform: translateY(-50%) scale(1.08);
   }
 
-  .hidden.sm\\:block button[class*="absolute"][class*="top-1/2"]:not(:disabled):active {
+  [class*="hidden"][class*="sm:block"] button[class*="absolute"][class*="top-1/2"]:not(:disabled):active {
     transform: translateY(-50%) scale(0.95);
   }
 }
@@ -3292,3 +3575,468 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
               background-color 0.3s ease;
 }
 
+/* QuickAccessApps Edit Mode Animations */
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-2deg); }
+  75% { transform: rotate(2deg); }
+}
+
+@keyframes wiggle-subtle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-0.4deg); }
+  75% { transform: rotate(0.4deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.8); }
+}
+
+/* 터치 디바이스에서만 wiggle 애니메이션 적용 (데스크탑에서는 제거) */
+@media (hover: none) and (pointer: coarse) {
+  .quick-access-edit-mode .app-icon {
+    animation: wiggle 0.3s ease-in-out infinite;
+  }
+
+  .quick-access-edit-mode .widget-container {
+    animation: wiggle-subtle 0.3s ease-in-out infinite;
+  }
+}
+
+.quick-access-delete-btn {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.quick-access-app-removing {
+  animation: fadeOut 0.2s ease-out forwards;
+}
+
+.quick-access-drag-preview {
+  opacity: 0.8;
+  transform: rotate(5deg);
+  z-index: 1000;
+}
+
+.quick-access-drag-over {
+  transform: scale(1.05);
+  transition: transform 0.2s ease;
+}
+
+/* 모바일 터치 드래그 개선 */
+.quick-access-edit-mode * {
+  touch-action: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 드래그 중인 아이템의 커서 스타일 */
+[data-dnd-kit-dragging="true"] {
+  cursor: grabbing !important;
+  cursor: -webkit-grabbing !important;
+}
+
+/* 편집 모드에서 앱 아이콘 커서 */
+.quick-access-edit-mode .app-icon {
+  cursor: grab;
+  cursor: -webkit-grab;
+}
+
+/* 위젯 드래그 핸들 애니메이션 */
+@keyframes pulse-soft {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+.quick-access-edit-mode .widget-container {
+  position: relative;
+}
+
+/* 편집 모드에서 위젯에 드래그 가능 표시 */
+.quick-access-edit-mode .widget-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* 터치 디바이스에서만 점선 박스 애니메이션 적용 (데스크탑에서는 제거) */
+@media (hover: none) and (pointer: coarse) {
+  .quick-access-edit-mode .widget-container::before {
+    animation: pulse-soft 2s ease-in-out infinite;
+  }
+}
+
+/* 위젯 호버 시 포인터 커서 효과 */
+[data-widget-container] {
+  cursor: pointer;
+}
+
+[data-widget-container]:hover {
+  cursor: pointer;
+}
+
+/* 편집 모드에서는 드래그 핸들이 있으므로 grab 커서 사용 */
+.quick-access-edit-mode [data-widget-container] {
+  cursor: default;
+}
+
+/* Twitter/X embed responsive styles for mobile */
+.react-tweet {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+.react-tweet > div {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* Ensure video and iframe elements in tweets are responsive */
+.react-tweet video,
+.react-tweet iframe {
+  max-width: 100% !important;
+  width: 100% !important;
+  height: auto !important;
+}
+
+/* Mobile-specific adjustments for Twitter embeds */
+@media (max-width: 640px) {
+  .react-tweet {
+    max-width: calc(100vw - 2rem) !important;
+  }
+  
+  .react-tweet > div {
+    max-width: 100% !important;
+  }
+  
+  /* Ensure media elements don't overflow on mobile */
+  .react-tweet video,
+  .react-tweet iframe,
+  .react-tweet img {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+}
+
+/* 텍스트 선택 모달 애니메이션 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+
+
+
+
+/* 🚀 Apple-style Smooth Skeleton UI */
+@keyframes apple-pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+.apple-skeleton {
+  animation: apple-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  @apply bg-neutral-200 dark:bg-neutral-800;
+}
+
+.apple-skeleton-card {
+  @apply w-full overflow-hidden bg-neutral-100 dark:bg-[#1c1c1e] border border-black/5 dark:border-white/5;
+  border-radius: 18px; /* LinkPreview와 일치 */
+}
+
+/* Media Load Transition */
+.media-loaded {
+  animation: media-fade-in 0.4s ease-out forwards;
+}
+
+@keyframes media-fade-in {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* 🚀 iOS-style Message Entrance Animation */
+@keyframes message-pop-in {
+  0% { 
+    opacity: 0; 
+    transform: translateY(20px) scale(0.98); 
+  }
+  100% { 
+    opacity: 1; 
+    transform: translateY(0) scale(1); 
+  }
+}
+
+.message-enter {
+  animation: message-pop-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: transform, opacity;
+}
+
+/* Regeneration/Deletion smooth collapse */
+.message-exit {
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  max-height: 0;
+  opacity: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+/* 🚀 Improved iOS-style Spring Animation */
+@keyframes ios-spring-in {
+  0% { 
+    opacity: 0; 
+    transform: translateY(20px) scale(0.96); 
+  }
+  60% { 
+    opacity: 1; 
+    transform: translateY(-2px) scale(1.005); /* 살짝 튀어오름 */
+  }
+  100% { 
+    opacity: 1; 
+    transform: translateY(0) scale(1); 
+  }
+}
+
+.message-enter {
+  /* 더 느리고 부드러운 타이밍 */
+  animation: ios-spring-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: transform, opacity;
+  transform-origin: bottom center; /* 아래에서 위로 커지듯 */
+}
+
+/* ChatGPT 스타일 생성 이미지 컨테이너 */
+.generated-image-container {
+  --image-max-size: 400px;
+  position: relative;
+  max-width: var(--image-max-size);
+  border-radius: 1rem;
+  overflow: hidden;
+  /* 🚀 Virtuoso 스크롤 최적화: 레이아웃 격리로 높이 변경이 부모에 영향 안 줌 */
+  contain: layout style;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 400px;
+}
+
+/* Aspect-ratio 예약 - 이미지 로드 전 공간 확보 */
+.generated-image-container[data-aspect="portrait"] {
+  aspect-ratio: 2/3;
+}
+.generated-image-container[data-aspect="landscape"] {
+  aspect-ratio: 3/2;
+}
+.generated-image-container[data-aspect="square"] {
+  aspect-ratio: 1/1;
+}
+.generated-image-container[data-aspect="wide"] {
+  aspect-ratio: 16/9;
+}
+
+/* 호버 액션 오버레이 */
+.image-hover-overlay {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.generated-image-container:hover .image-hover-overlay,
+.generated-image-container:focus-within .image-hover-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 프롬프트 오버레이 - 호버 시 표시 */
+.generated-image-container:hover .prompt-overlay-image,
+.generated-image-container:focus-within .prompt-overlay-image {
+  opacity: 1;
+}
+
+/* 스택 아이템 프롬프트 오버레이 - 호버 시 표시 */
+.apple-image-stack-item:hover .prompt-overlay-image {
+  opacity: 1;
+}
+
+/* 하단 그라데이션 */
+.image-hover-gradient {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 5rem;
+  background: linear-gradient(to top, rgba(0,0,0,0.3), transparent);
+  pointer-events: none;
+}
+
+/* 액션 버튼 스타일 */
+.image-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  color: white;
+  background: transparent;
+  transition: background 150ms;
+  cursor: pointer;
+  border: none;
+  pointer-events: auto;
+}
+.image-action-btn:hover {
+  background: rgba(255,255,255,0.15);
+  backdrop-filter: blur(8px);
+}
+
+/* 모바일에서 호버 오버레이 항상 표시 (터치 디바이스) */
+@media (hover: none) and (pointer: coarse) {
+  .generated-image-container .image-hover-overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* ChatGPT 스타일 생성 비디오 컨테이너 */
+.generated-video-container {
+  --video-max-size: 400px;
+  position: relative;
+  max-width: var(--video-max-size);
+  border-radius: 1rem;
+  overflow: hidden;
+  /* Virtuoso 스크롤 최적화: 레이아웃 격리로 높이 변경이 부모에 영향 안 줌 */
+  contain: layout style;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 400px;
+}
+
+/* Video Player Volume Slider */
+.generated-video-container input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 9999px;
+  cursor: pointer;
+  height: 4px;
+  margin: 0;
+  padding: 0;
+  vertical-align: middle;
+}
+
+.generated-video-container input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 9999px;
+}
+
+.generated-video-container input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  background: white;
+  border-radius: 50%;
+  cursor: pointer;
+  margin-top: -3px;
+}
+
+.generated-video-container input[type="range"]::-moz-range-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 9999px;
+}
+
+.generated-video-container input[type="range"]::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  background: white;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+}
+
+/* ChatflixLoadingScreen - moved from styled-jsx to avoid hydration mismatch */
+@keyframes chatflix-loading-fade-in {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes chatflix-loading-logo-glow-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(1.2); filter: blur(20px); }
+  50% { opacity: 0.6; transform: scale(1.4); filter: blur(30px); }
+}
+@keyframes chatflix-loading-logo-gradient-shimmer {
+  0% { background-position: -200% center; filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.5)); }
+  50% { filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.7)); }
+  100% { background-position: 200% center; filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.5)); }
+}
+@keyframes chatflix-loading-logo-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes chatflix-loading-background-radial-pulse {
+  0%, 100% {
+    opacity: 0.1;
+    background: radial-gradient(circle at center, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+  }
+  50% {
+    opacity: 0.2;
+    background: radial-gradient(circle at center, rgba(139, 92, 246, 0.25) 0%, transparent 70%);
+  }
+}
+.chatflix-loading-screen .animate-fade-in {
+  animation: chatflix-loading-fade-in 0.6s ease-out;
+}
+.chatflix-loading-screen .logo-container { position: relative; }
+.chatflix-loading-screen .logo-glow-pulse {
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.4), transparent 70%);
+  border-radius: 50%;
+  animation: chatflix-loading-logo-glow-pulse 2.5s ease-in-out infinite;
+  pointer-events: none;
+}
+.chatflix-loading-screen .logo-float {
+  animation: chatflix-loading-logo-float 3s ease-in-out infinite;
+}
+.chatflix-loading-screen .logo-gradient-shimmer {
+  position: relative;
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.4) 20%, rgba(0,0,0,1) 50%, rgba(0,0,0,0.4) 80%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.4) 20%, rgba(0,0,0,1) 50%, rgba(0,0,0,0.4) 80%, transparent 100%);
+  animation: chatflix-loading-logo-gradient-shimmer 3s ease-in-out infinite;
+  transition: filter 0.3s ease;
+}
+.chatflix-loading-screen .background-radial-pulse {
+  animation: chatflix-loading-background-radial-pulse 4s ease-in-out infinite;
+  pointer-events: none;
+}

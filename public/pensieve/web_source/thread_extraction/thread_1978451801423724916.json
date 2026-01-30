@@ -1,0 +1,15 @@
+{
+  "tweetId": "1978451801423724916",
+  "originalTweetCount": 1,
+  "tweets": [
+    {
+      "id": "1978451801423724916",
+      "url": "https://x.com/ozenua_/status/1978451801423724916",
+      "text": "Since you can only upload 3 images on free GPT, you may not have enough data, so what I do is simply merge as many images as I can into one single on... as shown here. that way there's just enough reference.\n\nThen ask for a JSON prompt, the most efficient way to prompt, IMO. https://t.co/DBZqdzJb6r",
+      "mediaLinks": [
+        "https://pbs.twimg.com/media/G3TfIf5WoAAWQK3.jpg"
+      ]
+    }
+  ],
+  "extractedAt": "2025-12-24T14:53:35.334Z"
+}

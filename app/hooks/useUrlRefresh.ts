@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { isUrlExpired, extractFilePath } from '../utils/urlUtils';
+import { isUrlExpired, extractFilePath, extractBucketName } from '../utils/urlUtils';
 
 interface UseUrlRefreshOptions {
   url: string;
@@ -30,7 +30,7 @@ export const useUrlRefresh = ({ url, enabled = true, messageId, chatId, userId }
     }
 
     // Supabase Storage URL이 아니면 갱신 불필요
-    if (!url.includes('chat_attachments/')) {
+    if (!url.includes('supabase.co/storage/v1/object/sign/') && !url.includes('auth.chatflix.app/storage/v1/object/sign/')) {
       return url;
     }
 
@@ -44,13 +44,15 @@ export const useUrlRefresh = ({ url, enabled = true, messageId, chatId, userId }
     
     try {
       const filePath = extractFilePath(url);
-      if (!filePath) {
-        throw new Error('Failed to extract file path from URL');
+      const bucketName = extractBucketName(url);
+      
+      if (!filePath || !bucketName) {
+        throw new Error('Failed to extract file path or bucket name from URL');
       }
       
       const supabase = createClient();
       const { data: signedData, error } = await supabase.storage
-        .from('chat_attachments')
+        .from(bucketName)
         .createSignedUrl(filePath, 24 * 60 * 60); // 24시간
       
       if (error) {
@@ -60,8 +62,8 @@ export const useUrlRefresh = ({ url, enabled = true, messageId, chatId, userId }
       if (signedData?.signedUrl) {
         setRefreshedUrl(signedData.signedUrl);
         
-        // 데이터베이스의 URL도 갱신 (백그라운드에서 실행)
-        if (messageId && chatId && userId && !dbRefreshTriggered) {
+        // 데이터베이스의 URL도 갱신 (백그라운드에서 실행 - chat_attachments인 경우에만 기존 API 호출)
+        if (bucketName === 'chat_attachments' && messageId && chatId && userId && !dbRefreshTriggered) {
           setDbRefreshTriggered(true);
           
           fetch('/api/chat/refresh-attachment-urls', {

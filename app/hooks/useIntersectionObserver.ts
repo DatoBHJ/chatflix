@@ -57,3 +57,76 @@ export const useLazyLoad = (delay: number = 100) => {
 
   return { ref: ref as React.RefObject<HTMLDivElement>, shouldLoad, hasIntersected };
 };
+
+// 🚀 미디어(이미지/비디오) 전용 lazy loading 훅
+// - 화면 근처에서만 로드하여 초기 로딩 속도 최대화
+// - 200px rootMargin으로 살짝 미리 로드 시작
+export const useLazyMedia = (rootMargin: string = '200px') => {
+  // 🚀 기본값을 true로 설정하여 이미지가 즉시 보이도록 함
+  const [shouldLoad, setShouldLoad] = useState(true);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    // 이미 로드 상태라면 observer 설정 불필요
+    if (shouldLoad) return;
+
+    // rootMargin에서 숫자 추출 (예: "200px" -> 200)
+    const marginValue = parseInt(rootMargin.replace('px', ''), 10) || 200;
+
+    // 초기 마운트 시 뷰포트에 이미 있는지 체크
+    const checkInitialVisibility = () => {
+      const rect = element.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
+      
+      const isInViewport = (
+        rect.top < viewportHeight + marginValue &&
+        rect.bottom > -marginValue &&
+        rect.left < viewportWidth + marginValue &&
+        rect.right > -marginValue
+      );
+      
+      return isInViewport;
+    };
+
+    let observer: IntersectionObserver | null = null;
+
+    // 초기 체크 (약간의 지연을 두어 DOM이 완전히 렌더링된 후 체크)
+    const timeoutId = setTimeout(() => {
+      if (checkInitialVisibility()) {
+        setShouldLoad(true);
+        return;
+      }
+
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            setShouldLoad(true);
+            // 한 번 로드되면 더 이상 관찰 불필요
+            if (observer) {
+              observer.disconnect();
+            }
+          }
+        },
+        {
+          threshold: 0,
+          rootMargin // 화면 밖 200px에서 미리 로드 시작
+        }
+      );
+
+      observer.observe(element);
+    }, 0);
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (observer) {
+        observer.disconnect();
+      }
+    };
+  }, [shouldLoad, rootMargin]);
+
+  return { ref, shouldLoad };
+};

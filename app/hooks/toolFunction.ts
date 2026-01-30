@@ -1,6 +1,84 @@
 import { UIMessage } from 'ai'
 
- // Find web search tool results to display
+const buildThumbnailUrlMap = (
+  rawThumbnailMap: Record<string, string>,
+  linkMapSource: Record<string, string>
+) => {
+  const thumbnailUrlMap: Record<string, string> = {};
+  Object.entries(rawThumbnailMap || {}).forEach(([key, value]) => {
+    const url = linkMapSource[key] || key;
+    if (url && !thumbnailUrlMap[url]) {
+      thumbnailUrlMap[url] = value;
+    }
+  });
+  return thumbnailUrlMap;
+};
+
+const extractImageIdFromPath = (path?: string) => {
+  if (!path) return null;
+  const filename = path.split('/').pop();
+  if (!filename) return null;
+  return filename.replace(/\.[^.]+$/, '');
+};
+
+const getMessageTextForImageOrder = (message: UIMessage | any) => {
+  if (message?.content) return message.content as string;
+  if (Array.isArray((message as any)?.parts)) {
+    return (message as any).parts
+      .filter((part: any) => part?.type === 'text' && part?.text)
+      .map((part: any) => part.text)
+      .join('\n');
+  }
+  return '';
+};
+
+const buildContentImageIndex = (content?: string) => {
+  if (!content || !content.includes('[IMAGE_ID:')) return new Map<string, number>();
+  const matches = [...content.matchAll(/\[IMAGE_ID:([^\]]+)\]/g)].map(match => match[1]);
+  const indexMap = new Map<string, number>();
+  matches.forEach((id, index) => {
+    if (!indexMap.has(id)) {
+      indexMap.set(id, index);
+    }
+  });
+  return indexMap;
+};
+
+const buildImagePartIndexMap = (
+  parts: any[] | undefined,
+  toolName: string,
+  completePartType: string
+) => {
+  const indexMap = new Map<string, number>();
+  if (!Array.isArray(parts)) return indexMap;
+
+  parts.forEach((part, idx) => {
+    const isToolPart = part?.type?.startsWith(`tool-${toolName}`) || part?.toolName === toolName;
+    if (isToolPart) {
+      const result = part.output?.value || part.output || part.result;
+      const images = Array.isArray(result)
+        ? result
+        : (result?.images || (result?.imageUrl ? [result] : []));
+      images.forEach((img: any) => {
+        const key = img?.path || img?.imageUrl;
+        if (key && !indexMap.has(key)) {
+          indexMap.set(key, idx);
+        }
+      });
+    }
+
+    if (part?.type === completePartType && part?.data) {
+      const key = part.data.path || part.data.imageUrl;
+      if (key && !indexMap.has(key)) {
+        indexMap.set(key, idx);
+      }
+    }
+  });
+
+  return indexMap;
+};
+
+// Find web search tool results to display
 export const getWebSearchResults = (message: UIMessage) => {
     if (!message) return null;
     
@@ -33,8 +111,9 @@ export const getWebSearchResults = (message: UIMessage) => {
     // Extract imageMap, linkMap, thumbnailMap, titleMap from annotations
     let imageMap: { [key: string]: string } = {};
     let linkMap: { [key: string]: string } = {};
-    let thumbnailMap: { [key: string]: string } = {};
+    let rawThumbnailMap: { [key: string]: string } = {};
     let titleMap: { [key: string]: string } = {};
+    let linkMetaMap: { [key: string]: any } = {};
     
     webSearchCompletions.forEach(completion => {
       if (completion.data?.imageMap) {
@@ -44,10 +123,13 @@ export const getWebSearchResults = (message: UIMessage) => {
         linkMap = { ...linkMap, ...completion.data.linkMap };
       }
       if (completion.data?.thumbnailMap) {
-        thumbnailMap = { ...thumbnailMap, ...completion.data.thumbnailMap };
+        rawThumbnailMap = { ...rawThumbnailMap, ...completion.data.thumbnailMap };
       }
       if (completion.data?.titleMap) {
         titleMap = { ...titleMap, ...completion.data.titleMap };
+      }
+      if (completion.data?.linkMetaMap) {
+        linkMetaMap = { ...linkMetaMap, ...completion.data.linkMetaMap };
       }
     });
 
@@ -80,7 +162,6 @@ export const getWebSearchResults = (message: UIMessage) => {
           ...result,
           // Ensure Exa-specific fields are preserved
           summary: result.summary || undefined,
-          score: result.score || undefined,
           author: result.author || undefined,
           publishedDate: result.publishedDate || result.published_date || undefined,
         })),
@@ -191,7 +272,6 @@ export const getWebSearchResults = (message: UIMessage) => {
                     ...result,
                     // Preserve Exa-specific fields
                     summary: result.summary || undefined,
-                    score: result.score || undefined,
                     author: result.author || undefined,
                     publishedDate: result.publishedDate || result.published_date || undefined,
                   });
@@ -291,6 +371,7 @@ export const getWebSearchResults = (message: UIMessage) => {
     
     // If we've found results via annotations, return them
     if (allResults.length > 0) {
+      const thumbnailMap = buildThumbnailUrlMap(rawThumbnailMap, linkMap);
       return {
         result: null, // For backward compatibility
         args: null,
@@ -299,7 +380,8 @@ export const getWebSearchResults = (message: UIMessage) => {
         imageMap,
         linkMap,
         thumbnailMap,
-        titleMap
+        titleMap,
+        linkMetaMap
       };
     }
     
@@ -317,10 +399,13 @@ export const getWebSearchResults = (message: UIMessage) => {
             linkMap = { ...linkMap, ...result.linkMap };
           }
           if (result.thumbnailMap) {
-            thumbnailMap = { ...thumbnailMap, ...result.thumbnailMap };
+            rawThumbnailMap = { ...rawThumbnailMap, ...result.thumbnailMap };
           }
           if (result.titleMap) {
             titleMap = { ...titleMap, ...result.titleMap };
+          }
+          if (result.linkMetaMap) {
+            linkMetaMap = { ...linkMetaMap, ...result.linkMetaMap };
           }
         });
       } else if (Array.isArray(toolResults)) {
@@ -332,10 +417,13 @@ export const getWebSearchResults = (message: UIMessage) => {
             linkMap = { ...linkMap, ...result.linkMap };
           }
           if (result.thumbnailMap) {
-            thumbnailMap = { ...thumbnailMap, ...result.thumbnailMap };
+            rawThumbnailMap = { ...rawThumbnailMap, ...result.thumbnailMap };
           }
           if (result.titleMap) {
             titleMap = { ...titleMap, ...result.titleMap };
+          }
+          if (result.linkMetaMap) {
+            linkMetaMap = { ...linkMetaMap, ...result.linkMetaMap };
           }
         });
       }
@@ -409,6 +497,7 @@ export const getWebSearchResults = (message: UIMessage) => {
       }
       
       if (storedResults.length > 0) {
+        const thumbnailMap = buildThumbnailUrlMap(rawThumbnailMap, linkMap);
         return {
           result: null, // For backward compatibility
           args: null,
@@ -417,7 +506,8 @@ export const getWebSearchResults = (message: UIMessage) => {
           imageMap,
           linkMap,
           thumbnailMap,
-          titleMap
+          titleMap,
+          linkMetaMap
         };
       }
     }
@@ -426,6 +516,7 @@ export const getWebSearchResults = (message: UIMessage) => {
     if (!message.parts || message.parts.length === 0) {
       // If we have query completions, we can show a loading state
       if (queryCompletions.length > 0) {
+        const thumbnailMap = buildThumbnailUrlMap(rawThumbnailMap, linkMap);
         return {
           result: null, // For backward compatibility
           args: { queries: [], maxResults: [], topics: [], searchDepth: [] },
@@ -547,6 +638,7 @@ export const getWebSearchResults = (message: UIMessage) => {
         });
       }
       
+      const thumbnailMap = buildThumbnailUrlMap(rawThumbnailMap, linkMap);
       return {
         result: null, // For backward compatibility 
         args: allArgs[0] || null,
@@ -561,6 +653,7 @@ export const getWebSearchResults = (message: UIMessage) => {
     
     // Extract queries for loading state
     if (allArgs.length > 0) {
+      const thumbnailMap = buildThumbnailUrlMap(rawThumbnailMap, linkMap);
       return {
         result: null, // For backward compatibility
         args: allArgs[0],
@@ -681,7 +774,7 @@ export const getLinkReaderData = (message: UIMessage) => {
   let linkReaderAnnotations: any[] = [];
   let linkReaderUpdates: any[] = [];
   let linkReaderRawContent: any[] = [];
-  let linkReaderStarted = false;
+  let startedCount = 0;
   
   // Check annotations array (legacy format)
   if ((message as any).annotations) {
@@ -701,7 +794,7 @@ export const getLinkReaderData = (message: UIMessage) => {
     const startAnnotations = (((message as any).annotations) as any[])
       .filter(a => a && typeof a === 'object' && a.type === 'link_reader_started');
     
-    linkReaderStarted = startAnnotations.length > 0;
+    startedCount = startAnnotations.length;
   }
   
   // Check parts array for streaming annotations (AI SDK 5 format)
@@ -730,11 +823,11 @@ export const getLinkReaderData = (message: UIMessage) => {
       ...linkRawContentParts.map(p => p.data).filter(Boolean)
     ];
     
-    linkReaderStarted = linkReaderStarted || linkStartParts.length > 0;
+    startedCount = Math.max(startedCount, linkStartParts.length);
   }
   
   // 시작 신호가 있거나 시도가 있으면 반환
-  if (linkReaderStarted || linkReaderAnnotations.length > 0) {
+  if (startedCount > 0 || linkReaderAnnotations.length > 0) {
     // Create a map of attempts by URL for easy updating
     const attemptsMap = new Map(
       linkReaderAnnotations.map(attempt => [attempt.url, attempt])
@@ -754,10 +847,15 @@ export const getLinkReaderData = (message: UIMessage) => {
       attempt.status === 'success' || (attempt.title && !attempt.error)
     );
     
+    const completedCount = linkAttempts.length;
+    const pendingCount = Math.max(0, startedCount - completedCount);
+    
     return { 
       linkAttempts,
       rawContent: linkReaderRawContent,
-      status: hasSuccessfulAttempt ? 'completed' : 'processing'
+      status: hasSuccessfulAttempt ? 'completed' : 'processing',
+      startedCount,
+      pendingCount
     };
   }
   
@@ -766,17 +864,108 @@ export const getLinkReaderData = (message: UIMessage) => {
 
 // Extract Gemini image data from message tool_results
 export const getGeminiImageData = (message: UIMessage) => {
-    // Check if there are stored Gemini images in tool_results
+    // 1. tool_results 확인 (DB 저장된 데이터 - 최우선)
     if ((message as any).tool_results?.geminiImageResults) {
       const generatedImages = (message as any).tool_results.geminiImageResults;
       if (Array.isArray(generatedImages) && generatedImages.length > 0) {
-        return { generatedImages };
+        const contentIndexMap = buildContentImageIndex(getMessageTextForImageOrder(message));
+        const partIndexMap = buildImagePartIndexMap(
+          (message as any).parts,
+          'gemini_image_tool',
+          'data-gemini_image_complete'
+        );
+        const enrichedImages = generatedImages.map((image: any) => {
+          const key = image?.path || image?.imageUrl;
+          const imageId = extractImageIdFromPath(image?.path);
+          return {
+            ...image,
+            ...(key && partIndexMap.has(key) ? { partIndex: partIndexMap.get(key) } : {}),
+            ...(imageId && contentIndexMap.has(imageId) ? { contentIndex: contentIndexMap.get(imageId) } : {})
+          };
+        });
+        return { generatedImages: enrichedImages };
       }
     }
     
+    // 2. parts 배열의 tool-result 확인 (스트리밍 중 데이터)
+    let imagesFromToolResults: any[] = [];
+    let errorCount = 0;
+    // 🔥 toolCallId로 고유 식별 추가
+    let failedImages: Array<{ prompt: string; error: string; editImageUrl?: string | string[]; toolCallId?: string; index?: number }> = [];
+    // 🔥 완료된 toolCallId 추적
+    let completedToolCallIds: Set<string> = new Set();
+    let failedToolCallIds: Set<string> = new Set();
+    
+    if ((message as any).parts && Array.isArray((message as any).parts)) {
+      const partsArray = (message as any).parts as any[];
+      
+      // 🔥 parts 배열 순회하면서 원본 인덱스(partIndex) 추적
+      let toolPartIndex = 0; // tool-result 파트 중에서의 순서
+      for (let partIdx = 0; partIdx < partsArray.length; partIdx++) {
+        const part = partsArray[partIdx];
+        
+        // tool-result 또는 tool-gemini_image_tool 타입 확인
+        const isToolResult = part?.type === 'tool-result' || 
+                            part?.type?.startsWith('tool-gemini_image_tool');
+        const isGeminiTool = part?.toolName === 'gemini_image_tool' || 
+                            part?.type?.includes('gemini_image_tool');
+        
+        if (!isToolResult || !isGeminiTool) continue;
+        
+        const result = part.output?.value || part.output || part.result;
+        const toolCallId = part.toolCallId;
+        
+        // 에러 케이스 체크
+        if (result?.success === false) {
+          errorCount++;
+          if (toolCallId) failedToolCallIds.add(toolCallId);
+          failedImages.push({
+            prompt: result.prompt || 'Unknown prompt',
+            error: result.error || 'Unknown error',
+            editImageUrl: result.editImageUrl,
+            toolCallId, // 🔥 toolCallId 추가
+            index: toolPartIndex // 🔥 순서 인덱스 추가
+          });
+          toolPartIndex++;
+          continue;
+        }
+        
+        // 성공 케이스: 이미지 데이터 추출
+        if (result?.imageUrl && result?.path) {
+          if (toolCallId) completedToolCallIds.add(toolCallId);
+          imagesFromToolResults.push({
+            imageUrl: result.imageUrl,
+            path: result.path,
+            prompt: result.prompt,
+            timestamp: result.timestamp || new Date().toISOString(),
+            generatedBy: 'gemini',
+            toolCallId, // 🔥 toolCallId 추가
+            partIndex: partIdx, // 🔥 원본 parts 배열에서의 인덱스
+            ...(result.isEdit && { isEdit: true, originalImageUrl: result.originalImageUrl })
+          });
+        }
+        // 배열 형식 (Seedream 스타일)
+        if (result?.images && Array.isArray(result.images)) {
+          if (toolCallId) completedToolCallIds.add(toolCallId);
+          for (const img of result.images) {
+            if (img.imageUrl && img.path) {
+              imagesFromToolResults.push({
+                ...img,
+                toolCallId, // 🔥 toolCallId 추가
+                partIndex: partIdx // 🔥 원본 parts 배열에서의 인덱스
+              });
+            }
+          }
+        }
+        
+        toolPartIndex++;
+      }
+    }
+    
+    // 3. 기존 data-gemini_image_complete 확인 (항상 실행하여 pending 정보 수집)
     // Check for streaming Gemini image annotations
     let imageAnnotations: any[] = [];
-    let imageStarted = false;
+    let startedCount = 0;
     
     // Check annotations array (legacy format)
     if ((message as any).annotations) {
@@ -788,29 +977,139 @@ export const getGeminiImageData = (message: UIMessage) => {
       const startAnnotations = (((message as any).annotations) as any[])
         .filter(a => a && typeof a === 'object' && a.type === 'gemini_image_started');
       
-      imageStarted = startAnnotations.length > 0;
+      startedCount = startAnnotations.length;
     }
     
     // Check parts array for streaming annotations (AI SDK 5 format)
+    // 🔥 pendingItems로 개별 항목 추적
+    let pendingPrompts: string[] = [];
+    let pendingEditImageUrls: (string | string[] | undefined)[] = [];
+    let pendingItems: Array<{ prompt: string; editImageUrl?: string; index: number; id?: string }> = [];
+    
     if ((message as any).parts && Array.isArray((message as any).parts)) {
-      const imageParts = ((message as any).parts as any[])
-        .filter(p => p?.type === 'data-gemini_image_complete');
+      const partsArr = (message as any).parts as any[];
       
-      const imageStartParts = ((message as any).parts as any[])
-        .filter(p => p?.type === 'data-gemini_image_started');
+      // 🔥 parts 배열 순회하면서 각 타입별로 partIndex 추적
+      const imageParts: Array<{ part: any; partIndex: number }> = [];
+      const imageStartParts: Array<{ part: any; partIndex: number }> = [];
+      const errorParts: Array<{ part: any; partIndex: number }> = [];
       
+      for (let idx = 0; idx < partsArr.length; idx++) {
+        const p = partsArr[idx];
+        if (p?.type === 'data-gemini_image_complete') {
+          imageParts.push({ part: p, partIndex: idx });
+        } else if (p?.type === 'data-gemini_image_started') {
+          imageStartParts.push({ part: p, partIndex: idx });
+        } else if (p?.type === 'data-gemini_image_error') {
+          errorParts.push({ part: p, partIndex: idx });
+        }
+      }
+      
+      // Check for error annotations
+      // Extract failed images from error annotations
+      for (let i = 0; i < errorParts.length; i++) {
+        const { part: errorPart } = errorParts[i];
+        if (errorPart.data) {
+          // 🔥 중복 방지: toolCallId로 이미 추가된 에러인지 확인
+          const existingError = failedImages.find(f => 
+            f.prompt === errorPart.data.prompt && 
+            f.editImageUrl === errorPart.data.editImageUrl
+          );
+          if (!existingError) {
+            failedImages.push({
+              prompt: errorPart.data.prompt || 'Unknown prompt',
+              error: errorPart.data.error || 'Unknown error',
+              editImageUrl: errorPart.data.editImageUrl,
+              index: failedImages.length
+            });
+            errorCount++;
+          }
+        }
+      }
+      
+      // 🔥 imageAnnotations에 partIndex 포함
       imageAnnotations = [
         ...imageAnnotations,
-        ...imageParts.map(p => p.data).filter(Boolean)
+        ...imageParts.map(({ part, partIndex }) => part.data ? { ...part.data, partIndex } : null).filter(Boolean)
       ];
-      imageStarted = imageStarted || imageStartParts.length > 0;
+      startedCount = Math.max(startedCount, imageStartParts.length);
+      
+      // 🔥 개별 pending 항목 추적 (인덱스 기반)
+      for (let i = 0; i < imageStartParts.length; i++) {
+        const { part: startPart } = imageStartParts[i];
+        pendingItems.push({
+          prompt: startPart.data?.prompt || '',
+          editImageUrl: startPart.data?.resolvedEditImageUrl || startPart.data?.editImageUrl,
+          index: i,
+          id: startPart.id
+        });
+      }
+      
+      // Extract prompts and editImageUrls from started signals
+      pendingPrompts = imageStartParts
+        .map(({ part: p }) => p.data?.prompt)
+        .filter(Boolean);
+      
+      // Use resolved URL if available, otherwise fall back to editImageUrl reference
+      pendingEditImageUrls = imageStartParts
+        .map(({ part: p }) => {
+          // Prefer resolved URL (actual URL) over reference
+          if (p.data?.resolvedEditImageUrl) {
+            return p.data.resolvedEditImageUrl;
+          }
+          return p.data?.editImageUrl;
+        })
+        .filter(url => url !== undefined);
     }
     
+    // 🔥 모든 이미지 소스 통합 (tool-result + data-annotations)
+    // ⚠️ 중복 제거: tool-result와 data-annotation에 같은 이미지가 있을 수 있음
+    // 🔥 path를 우선적으로 사용 (같은 path를 가진 이미지는 같은 이미지로 간주)
+    const seenKeys = new Set<string>();
+    const allGeneratedImages = [...imagesFromToolResults, ...imageAnnotations].filter(img => {
+      // path가 있으면 path를 우선 사용, 없으면 imageUrl 사용
+      const key = img.path || img.imageUrl;
+      if (!key || seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    });
+    
+    // 🔥 완료+에러 수를 고려한 정확한 pending 계산
+    const completedCount = allGeneratedImages.length;
+    const actualPendingCount = Math.max(0, startedCount - completedCount - errorCount);
+    
+    // 🔥 실제로 pending인 항목만 필터링 (완료되지도 실패하지도 않은 것)
+    const trulyPendingItems = pendingItems.filter((item, idx) => {
+      // 인덱스 기반으로 완료 또는 실패 여부 확인
+      const isCompleted = idx < completedCount;
+      const isFailed = failedImages.some(f => f.index === idx);
+      return !isCompleted && !isFailed;
+    });
+    
     // Return streaming data if available
-    if (imageStarted || imageAnnotations.length > 0) {
+    if (startedCount > 0 || allGeneratedImages.length > 0 || errorCount > 0) {
+      // 상태 결정: 모든 작업이 완료되었는지 확인
+      let status: 'processing' | 'completed' | 'error';
+      if (actualPendingCount > 0) {
+        status = 'processing';
+      } else if (allGeneratedImages.length > 0) {
+        status = 'completed';
+      } else if (errorCount > 0) {
+        status = 'error';
+      } else {
+        status = 'processing';
+      }
+      
       return { 
-        generatedImages: imageAnnotations,
-        status: imageAnnotations.length > 0 ? 'completed' : 'processing'
+        generatedImages: allGeneratedImages,
+        status,
+        startedCount,
+        pendingCount: actualPendingCount,
+        pendingPrompts,
+        pendingEditImageUrls,
+        pendingItems: trulyPendingItems, // 🔥 실제 pending 항목만
+        errorCount: errorCount > 0 ? errorCount : undefined,
+        failedImages: failedImages.length > 0 ? failedImages : undefined
       };
     }
     
@@ -819,17 +1118,118 @@ export const getGeminiImageData = (message: UIMessage) => {
 
 // Extract Seedream image data from message tool_results
 export const getSeedreamImageData = (message: UIMessage) => {
-    // Check if there are stored Seedream images in tool_results
+    // 1. tool_results 확인 (DB 저장된 데이터 - 최우선)
     if ((message as any).tool_results?.seedreamImageResults) {
       const generatedImages = (message as any).tool_results.seedreamImageResults;
       if (Array.isArray(generatedImages) && generatedImages.length > 0) {
-        return { generatedImages };
+        const contentIndexMap = buildContentImageIndex(getMessageTextForImageOrder(message));
+        const partIndexMap = buildImagePartIndexMap(
+          (message as any).parts,
+          'seedream_image_tool',
+          'data-seedream_image_complete'
+        );
+        const enrichedImages = generatedImages.map((image: any) => {
+          const key = image?.path || image?.imageUrl;
+          const imageId = extractImageIdFromPath(image?.path);
+          return {
+            ...image,
+            ...(key && partIndexMap.has(key) ? { partIndex: partIndexMap.get(key) } : {}),
+            ...(imageId && contentIndexMap.has(imageId) ? { contentIndex: contentIndexMap.get(imageId) } : {})
+          };
+        });
+        return { generatedImages: enrichedImages };
       }
     }
     
+    // 2. parts 배열의 tool-result 확인 (스트리밍 중 데이터)
+    let imagesFromToolResults: any[] = [];
+    let errorCount = 0;
+    // 🔥 toolCallId로 고유 식별 추가
+    let failedImages: Array<{ prompt: string; error: string; editImageUrl?: string | string[]; toolCallId?: string; index?: number }> = [];
+    // 🔥 완료된 toolCallId 추적
+    let completedToolCallIds: Set<string> = new Set();
+    let failedToolCallIds: Set<string> = new Set();
+    
+    if ((message as any).parts && Array.isArray((message as any).parts)) {
+      const partsArray = (message as any).parts as any[];
+      
+      // 🔥 parts 배열 순회하면서 원본 인덱스(partIndex) 추적
+      let toolPartIndex = 0; // tool-result 파트 중에서의 순서
+      for (let partIdx = 0; partIdx < partsArray.length; partIdx++) {
+        const part = partsArray[partIdx];
+        
+        // tool-result 또는 tool-seedream_image_tool 타입 확인
+        const isToolResult = part?.type === 'tool-result' || 
+                            part?.type?.startsWith('tool-seedream_image_tool');
+        const isSeedreamTool = part?.toolName === 'seedream_image_tool' || 
+                              part?.type?.includes('seedream_image_tool');
+        
+        if (!isToolResult || !isSeedreamTool) continue;
+        
+        const result = part.output?.value || part.output || part.result;
+        const toolCallId = part.toolCallId;
+        
+        // 에러 케이스 체크
+        if (result?.success === false) {
+          errorCount++;
+          if (toolCallId) failedToolCallIds.add(toolCallId);
+          failedImages.push({
+            prompt: result.prompt || 'Unknown prompt',
+            error: result.error || 'Unknown error',
+            editImageUrl: result.editImageUrl,
+            toolCallId, // 🔥 toolCallId 추가
+            index: toolPartIndex // 🔥 순서 인덱스 추가
+          });
+          toolPartIndex++;
+          continue;
+        }
+        
+        // 성공 케이스: 이미지 데이터 추출
+        // Seedream은 images 배열로 반환하는 경우가 많음
+        if (result?.images && Array.isArray(result.images)) {
+          if (toolCallId) completedToolCallIds.add(toolCallId);
+          for (const img of result.images) {
+            if (img.imageUrl && img.path) {
+              imagesFromToolResults.push({
+                imageUrl: img.imageUrl,
+                path: img.path,
+                prompt: img.prompt || result.prompt,
+                timestamp: img.timestamp || result.timestamp || new Date().toISOString(),
+                generatedBy: 'seedream',
+                toolCallId, // 🔥 toolCallId 추가
+                partIndex: partIdx, // 🔥 원본 parts 배열에서의 인덱스
+                ...(img.isEdit && { isEdit: true, originalImageUrl: img.originalImageUrl }),
+                ...(img.size && { size: img.size }),
+                ...(img.aspectRatio && { aspectRatio: img.aspectRatio })
+              });
+            }
+          }
+        }
+        // 단일 이미지 형식
+        else if (result?.imageUrl && result?.path) {
+          if (toolCallId) completedToolCallIds.add(toolCallId);
+          imagesFromToolResults.push({
+            imageUrl: result.imageUrl,
+            path: result.path,
+            prompt: result.prompt,
+            timestamp: result.timestamp || new Date().toISOString(),
+            generatedBy: 'seedream',
+            toolCallId, // 🔥 toolCallId 추가
+            partIndex: partIdx, // 🔥 원본 parts 배열에서의 인덱스
+            ...(result.isEdit && { isEdit: true, originalImageUrl: result.originalImageUrl }),
+            ...(result.size && { size: result.size }),
+            ...(result.aspectRatio && { aspectRatio: result.aspectRatio })
+          });
+        }
+        
+        toolPartIndex++;
+      }
+    }
+    
+    // 3. 기존 data-seedream_image_complete 확인 (항상 실행하여 pending 정보 수집)
     // Check for streaming Seedream image annotations
     let imageAnnotations: any[] = [];
-    let imageStarted = false;
+    let startedCount = 0;
     
     // Check annotations array (legacy format)
     if ((message as any).annotations) {
@@ -841,29 +1241,363 @@ export const getSeedreamImageData = (message: UIMessage) => {
       const startAnnotations = (((message as any).annotations) as any[])
         .filter(a => a && typeof a === 'object' && a.type === 'seedream_image_started');
       
-      imageStarted = startAnnotations.length > 0;
+      startedCount = startAnnotations.length;
     }
     
     // Check parts array for streaming annotations (AI SDK 5 format)
+    // 🔥 pendingItems로 개별 항목 추적
+    let pendingPrompts: string[] = [];
+    let pendingEditImageUrls: (string | string[] | undefined)[] = [];
+    let pendingItems: Array<{ prompt: string; editImageUrl?: string; index: number; id?: string }> = [];
+    
     if ((message as any).parts && Array.isArray((message as any).parts)) {
-      const imageParts = ((message as any).parts as any[])
-        .filter(p => p?.type === 'data-seedream_image_complete');
+      const partsArr = (message as any).parts as any[];
       
-      const imageStartParts = ((message as any).parts as any[])
-        .filter(p => p?.type === 'data-seedream_image_started');
+      // 🔥 parts 배열 순회하면서 각 타입별로 partIndex 추적
+      const imageParts: Array<{ part: any; partIndex: number }> = [];
+      const imageStartParts: Array<{ part: any; partIndex: number }> = [];
+      const errorParts: Array<{ part: any; partIndex: number }> = [];
       
+      for (let idx = 0; idx < partsArr.length; idx++) {
+        const p = partsArr[idx];
+        if (p?.type === 'data-seedream_image_complete') {
+          imageParts.push({ part: p, partIndex: idx });
+        } else if (p?.type === 'data-seedream_image_started') {
+          imageStartParts.push({ part: p, partIndex: idx });
+        } else if (p?.type === 'data-seedream_image_error') {
+          errorParts.push({ part: p, partIndex: idx });
+        }
+      }
+      
+      // Check for error annotations
+      // Extract failed images from error annotations
+      for (let i = 0; i < errorParts.length; i++) {
+        const { part: errorPart } = errorParts[i];
+        if (errorPart.data) {
+          // 🔥 중복 방지: toolCallId로 이미 추가된 에러인지 확인
+          const existingError = failedImages.find(f => 
+            f.prompt === errorPart.data.prompt && 
+            f.editImageUrl === errorPart.data.editImageUrl
+          );
+          if (!existingError) {
+            failedImages.push({
+              prompt: errorPart.data.prompt || 'Unknown prompt',
+              error: errorPart.data.error || 'Unknown error',
+              editImageUrl: errorPart.data.editImageUrl,
+              index: failedImages.length
+            });
+            errorCount++;
+          }
+        }
+      }
+      
+      // 🔥 imageAnnotations에 partIndex 포함
       imageAnnotations = [
         ...imageAnnotations,
-        ...imageParts.map(p => p.data).filter(Boolean)
+        ...imageParts.map(({ part, partIndex }) => part.data ? { ...part.data, partIndex } : null).filter(Boolean)
       ];
-      imageStarted = imageStarted || imageStartParts.length > 0;
+      startedCount = Math.max(startedCount, imageStartParts.length);
+      
+      // 🔥 개별 pending 항목 추적 (인덱스 기반)
+      for (let i = 0; i < imageStartParts.length; i++) {
+        const { part: startPart } = imageStartParts[i];
+        pendingItems.push({
+          prompt: startPart.data?.prompt || '',
+          editImageUrl: startPart.data?.resolvedEditImageUrl || startPart.data?.editImageUrl,
+          index: i,
+          id: startPart.id
+        });
+      }
+      
+      // Extract prompts and editImageUrls from started signals
+      pendingPrompts = imageStartParts
+        .map(({ part: p }) => p.data?.prompt)
+        .filter(Boolean);
+      
+      // Use resolved URL if available, otherwise fall back to editImageUrl reference
+      pendingEditImageUrls = imageStartParts
+        .map(({ part: p }) => {
+          // Prefer resolved URL (actual URL) over reference
+          if (p.data?.resolvedEditImageUrl) {
+            return p.data.resolvedEditImageUrl;
+          }
+          return p.data?.editImageUrl;
+        })
+        .filter(url => url !== undefined);
     }
     
+    // 🔥 모든 이미지 소스 통합 (tool-result + data-annotations)
+    // ⚠️ 중복 제거: tool-result와 data-annotation에 같은 이미지가 있을 수 있음
+    // 🔥 path를 우선적으로 사용 (같은 path를 가진 이미지는 같은 이미지로 간주)
+    const seenKeys = new Set<string>();
+    const allGeneratedImages = [...imagesFromToolResults, ...imageAnnotations].filter(img => {
+      // path가 있으면 path를 우선 사용, 없으면 imageUrl 사용
+      const key = img.path || img.imageUrl;
+      if (!key || seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    });
+    
+    // 🔥 완료+에러 수를 고려한 정확한 pending 계산
+    const completedCount = allGeneratedImages.length;
+    const actualPendingCount = Math.max(0, startedCount - completedCount - errorCount);
+    
+    // 🔥 실제로 pending인 항목만 필터링 (완료되지도 실패하지도 않은 것)
+    const trulyPendingItems = pendingItems.filter((item, idx) => {
+      // 인덱스 기반으로 완료 또는 실패 여부 확인
+      const isCompleted = idx < completedCount;
+      const isFailed = failedImages.some(f => f.index === idx);
+      return !isCompleted && !isFailed;
+    });
+    
     // Return streaming data if available
-    if (imageStarted || imageAnnotations.length > 0) {
+    if (startedCount > 0 || allGeneratedImages.length > 0 || errorCount > 0) {
+      // 상태 결정: 모든 작업이 완료되었는지 확인
+      let status: 'processing' | 'completed' | 'error';
+      if (actualPendingCount > 0) {
+        status = 'processing';
+      } else if (allGeneratedImages.length > 0) {
+        status = 'completed';
+      } else if (errorCount > 0) {
+        status = 'error';
+      } else {
+        status = 'processing';
+      }
+      
       return { 
-        generatedImages: imageAnnotations,
-        status: imageAnnotations.length > 0 ? 'completed' : 'processing'
+        generatedImages: allGeneratedImages,
+        status,
+        startedCount,
+        pendingCount: actualPendingCount,
+        pendingPrompts,
+        pendingEditImageUrls,
+        pendingItems: trulyPendingItems, // 🔥 실제 pending 항목만
+        errorCount: errorCount > 0 ? errorCount : undefined,
+        failedImages: failedImages.length > 0 ? failedImages : undefined
+      };
+    }
+    
+    return null;
+};
+
+// 🔥 Qwen Image Edit 데이터 추출
+export const getQwenImageData = (message: UIMessage) => {
+    // 1. tool_results 확인 (DB 저장된 데이터)
+    if ((message as any).tool_results?.qwenImageResults) {
+      const generatedImages = (message as any).tool_results.qwenImageResults;
+      if (Array.isArray(generatedImages) && generatedImages.length > 0) {
+        const contentIndexMap = buildContentImageIndex(getMessageTextForImageOrder(message));
+        const partIndexMap = buildImagePartIndexMap(
+          (message as any).parts,
+          'qwen_image_edit',
+          'data-qwen_image_complete'
+        );
+        const enrichedImages = generatedImages.map((image: any) => {
+          const key = image?.path || image?.imageUrl;
+          const imageId = extractImageIdFromPath(image?.path);
+          return {
+            ...image,
+            ...(key && partIndexMap.has(key) ? { partIndex: partIndexMap.get(key) } : {}),
+            ...(imageId && contentIndexMap.has(imageId) ? { contentIndex: contentIndexMap.get(imageId) } : {})
+          };
+        });
+        return { generatedImages: enrichedImages };
+      }
+    }
+    
+    // 2. parts 배열의 tool-result 확인 (스트리밍 중 데이터)
+    let imagesFromToolResults: any[] = [];
+    let errorCount = 0;
+    let failedImages: Array<{ prompt: string; error: string; editImageUrl?: string | string[]; toolCallId?: string; index?: number }> = [];
+    let completedToolCallIds: Set<string> = new Set();
+    let failedToolCallIds: Set<string> = new Set();
+    
+    if ((message as any).parts && Array.isArray((message as any).parts)) {
+      const partsArray = (message as any).parts as any[];
+      let toolPartIndex = 0;
+      
+      for (let partIdx = 0; partIdx < partsArray.length; partIdx++) {
+        const part = partsArray[partIdx];
+        const isToolResult = part?.type === 'tool-result' || part?.type?.startsWith('tool-qwen_image_edit');
+        const isQwenTool = part?.toolName === 'qwen_image_edit' || part?.type?.includes('qwen_image_edit');
+        
+        if (!isToolResult || !isQwenTool) continue;
+        
+        const result = part.output?.value || part.output || part.result;
+        const toolCallId = part.toolCallId;
+        
+        if (result?.success === false) {
+          errorCount++;
+          if (toolCallId) failedToolCallIds.add(toolCallId);
+          failedImages.push({
+            prompt: result.prompt || 'Unknown prompt',
+            error: result.error || 'Unknown error',
+            editImageUrl: result.editImageUrl,
+            toolCallId,
+            index: toolPartIndex
+          });
+          toolPartIndex++;
+          continue;
+        }
+        
+        if (result?.images && Array.isArray(result.images)) {
+          if (toolCallId) completedToolCallIds.add(toolCallId);
+          for (const img of result.images) {
+            if (img.imageUrl && img.path) {
+              imagesFromToolResults.push({
+                ...img,
+                generatedBy: 'qwen',
+                toolCallId,
+                partIndex: partIdx
+              });
+            }
+          }
+        } else if (result?.imageUrl && result?.path) {
+          if (toolCallId) completedToolCallIds.add(toolCallId);
+          imagesFromToolResults.push({
+            ...result,
+            generatedBy: 'qwen',
+            toolCallId,
+            partIndex: partIdx
+          });
+        }
+        toolPartIndex++;
+      }
+    }
+    
+    // 3. streaming annotations 확인
+    // 🔥 pendingItems로 개별 항목 추적
+    let pendingPrompts: string[] = [];
+    let pendingEditImageUrls: (string | string[] | undefined)[] = [];
+    let pendingItems: Array<{ prompt: string; editImageUrl?: string | string[]; index: number; id?: string }> = [];
+    
+    let imageAnnotations: any[] = [];
+    let startedCount = 0;
+    
+    if ((message as any).parts && Array.isArray((message as any).parts)) {
+      const partsArr = (message as any).parts as any[];
+      
+      // 🔥 parts 배열 순회하면서 각 타입별로 partIndex 추적
+      const imageParts: Array<{ part: any; partIndex: number }> = [];
+      const imageStartParts: Array<{ part: any; partIndex: number }> = [];
+      const errorParts: Array<{ part: any; partIndex: number }> = [];
+      
+      for (let idx = 0; idx < partsArr.length; idx++) {
+        const p = partsArr[idx];
+        if (p?.type === 'data-qwen_image_complete') {
+          imageParts.push({ part: p, partIndex: idx });
+        } else if (p?.type === 'data-qwen_image_started') {
+          imageStartParts.push({ part: p, partIndex: idx });
+        } else if (p?.type === 'data-qwen_image_error') {
+          errorParts.push({ part: p, partIndex: idx });
+        }
+      }
+      
+      // Check for error annotations
+      // Extract failed images from error annotations
+      for (let i = 0; i < errorParts.length; i++) {
+        const { part: errorPart } = errorParts[i];
+        if (errorPart.data) {
+          // 🔥 중복 방지: toolCallId로 이미 추가된 에러인지 확인
+          const existingError = failedImages.find(f => 
+            f.prompt === errorPart.data.prompt && 
+            f.editImageUrl === errorPart.data.editImageUrl
+          );
+          if (!existingError) {
+            failedImages.push({
+              prompt: errorPart.data.prompt || 'Unknown prompt',
+              error: errorPart.data.error || 'Unknown error',
+              editImageUrl: errorPart.data.editImageUrl,
+              index: failedImages.length
+            });
+            errorCount++;
+          }
+        }
+      }
+      
+      // 🔥 imageAnnotations에 partIndex 포함
+      imageAnnotations = [
+        ...imageAnnotations,
+        ...imageParts.map(({ part, partIndex }) => part.data ? { ...part.data, partIndex } : null).filter(Boolean)
+      ];
+      startedCount = Math.max(startedCount, imageStartParts.length);
+      
+      // 🔥 개별 pending 항목 추적 (인덱스 기반)
+      for (let i = 0; i < imageStartParts.length; i++) {
+        const { part: startPart } = imageStartParts[i];
+        pendingItems.push({
+          prompt: startPart.data?.prompt || '',
+          editImageUrl: startPart.data?.resolvedEditImageUrl || startPart.data?.editImageUrl,
+          index: i,
+          id: startPart.id
+        });
+      }
+      
+      // Extract prompts and editImageUrls from started signals
+      pendingPrompts = imageStartParts
+        .map(({ part: p }) => p.data?.prompt)
+        .filter(Boolean);
+      
+      // Use resolved URL if available, otherwise fall back to editImageUrl reference
+      pendingEditImageUrls = imageStartParts
+        .map(({ part: p }) => {
+          // Prefer resolved URL (actual URL) over reference
+          if (p.data?.resolvedEditImageUrl) {
+            return p.data.resolvedEditImageUrl;
+          }
+          return p.data?.editImageUrl;
+        })
+        .filter(url => url !== undefined);
+    }
+    
+    // 🔥 모든 이미지 소스 통합 (tool-result + data-annotations)
+    // ⚠️ 중복 제거: tool-result와 data-annotation에 같은 이미지가 있을 수 있음
+    // 🔥 path를 우선적으로 사용 (같은 path를 가진 이미지는 같은 이미지로 간주)
+    const seenKeys = new Set<string>();
+    const allGeneratedImages = [...imagesFromToolResults, ...imageAnnotations].filter(img => {
+      // path가 있으면 path를 우선 사용, 없으면 imageUrl 사용
+      const key = img.path || img.imageUrl;
+      if (!key || seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    });
+    
+    // 🔥 완료+에러 수를 고려한 정확한 pending 계산
+    const completedCount = allGeneratedImages.length;
+    const actualPendingCount = Math.max(0, startedCount - completedCount - errorCount);
+    
+    // 🔥 실제로 pending인 항목만 필터링 (완료되지도 실패하지도 않은 것)
+    const trulyPendingItems = pendingItems.filter((item, idx) => {
+      // 인덱스 기반으로 완료 또는 실패 여부 확인
+      const isCompleted = idx < completedCount;
+      const isFailed = failedImages.some(f => f.index === idx);
+      return !isCompleted && !isFailed;
+    });
+    
+    // Return streaming data if available
+    if (startedCount > 0 || allGeneratedImages.length > 0 || errorCount > 0) {
+      // 상태 결정: 모든 작업이 완료되었는지 확인
+      let status: 'processing' | 'completed' | 'error';
+      if (actualPendingCount > 0) {
+        status = 'processing';
+      } else if (allGeneratedImages.length > 0) {
+        status = 'completed';
+      } else if (errorCount > 0) {
+        status = 'error';
+      } else {
+        status = 'processing';
+      }
+      
+      return { 
+        generatedImages: allGeneratedImages,
+        status,
+        startedCount,
+        pendingCount: actualPendingCount,
+        pendingPrompts,
+        pendingEditImageUrls,
+        pendingItems: trulyPendingItems, // 🔥 실제 pending 항목만
+        errorCount: errorCount > 0 ? errorCount : undefined,
+        failedImages: failedImages.length > 0 ? failedImages : undefined
       };
     }
     
@@ -882,7 +1616,7 @@ export const getImageGeneratorData = (message: UIMessage) => {
     
     // Check for image generator annotations
     let imageAnnotations: any[] = [];
-    let imageStarted = false;
+    let startedCount = 0;
     
     // Check annotations array (legacy format)
     if ((message as any).annotations) {
@@ -894,7 +1628,7 @@ export const getImageGeneratorData = (message: UIMessage) => {
       const startAnnotations = (((message as any).annotations) as any[])
         .filter(a => a && typeof a === 'object' && a.type === 'image_generation_started');
       
-      imageStarted = startAnnotations.length > 0;
+      startedCount = startAnnotations.length;
     }
     
     // Check parts array for streaming annotations (AI SDK 5 format)
@@ -909,14 +1643,19 @@ export const getImageGeneratorData = (message: UIMessage) => {
         ...imageAnnotations,
         ...imageParts.map(p => p.data).filter(Boolean)
       ];
-      imageStarted = imageStarted || imageStartParts.length > 0;
+      startedCount = Math.max(startedCount, imageStartParts.length);
     }
     
     // 시작 신호가 있거나 이미지가 있으면 반환
-    if (imageStarted || imageAnnotations.length > 0) {
+    if (startedCount > 0 || imageAnnotations.length > 0) {
+      const completedCount = imageAnnotations.length;
+      const pendingCount = Math.max(0, startedCount - completedCount);
+      
       return { 
         generatedImages: imageAnnotations,
-        status: imageAnnotations.length > 0 ? 'completed' : 'processing'
+        status: completedCount > 0 ? 'completed' : 'processing',
+        startedCount,
+        pendingCount
       };
     }
     
@@ -928,57 +1667,168 @@ export const getImageGeneratorData = (message: UIMessage) => {
 
 
 
-  // Extract X search data from message annotations and tool_results
-  export const getXSearchData = (message: UIMessage) => {
-    // Check if there are stored X search results in tool_results
-    if ((message as any).tool_results?.xSearchResults) {
-      const xResults = (message as any).tool_results.xSearchResults;
-      if (Array.isArray(xResults) && xResults.length > 0) {
-        return { xResults };
+  // Extract Twitter search data from message annotations and tool_results
+  export const getTwitterSearchData = (message: UIMessage) => {
+    if (!message) return null;
+  
+    const normalizeSearches = (searches: any[]) => {
+      if (!Array.isArray(searches)) return [];
+      return searches.map(search => ({
+        ...search,
+        topic: search.topic || 'twitter',
+        topicIcon: 'twitter',
+        results: (search.results || []).map((result: any) => ({
+          ...result,
+          topic: 'twitter',
+          topicIcon: 'twitter'
+        })),
+        images: search.images || []
+      }));
+    };
+  
+  const mapFromToolResults = () => {
+    if ((message as any).tool_results?.twitterSearchResults) {
+      const twitterResults = (message as any).tool_results.twitterSearchResults;
+      if (Array.isArray(twitterResults) && twitterResults.length > 0) {
+        const resultWithMaps = twitterResults.find((result: any) => 
+          result.linkMap || result.thumbnailMap || result.titleMap || result.imageMap || result.linkMetaMap
+        ) || twitterResults[0];
+
+        const processedResults = twitterResults
+          .filter((result: any) => result.searches && Array.isArray(result.searches))
+          .map((result: any) => ({
+            searchId: result.searchId || `twitter_${Date.now()}`,
+            searches: normalizeSearches(result.searches),
+            isComplete: true
+          }));
+
+        if (processedResults.length > 0) {
+          const thumbnailMap = buildThumbnailUrlMap(resultWithMaps?.thumbnailMap || {}, resultWithMaps?.linkMap || {});
+          const finalData = {
+            result: null,
+            args: null,
+            annotations: [],
+            results: processedResults,
+            imageMap: resultWithMaps?.imageMap || {},
+            linkMap: resultWithMaps?.linkMap || {},
+            thumbnailMap,
+            titleMap: resultWithMaps?.titleMap || {},
+            linkMetaMap: resultWithMaps?.linkMetaMap || {}
+          };
+          
+          return finalData;
+        }
+      }
+    }
+    return null;
+  };
+  
+    const storedResult = mapFromToolResults();
+    if (storedResult) return storedResult;
+  
+    // Gather streaming annotations
+    let twitterCompletions: any[] = [];
+    let startedCount = 0;
+    
+    if ((message as any).annotations) {
+      twitterCompletions = ((message as any).annotations as any[]).filter(
+        a => a?.type === 'twitter_search_complete'
+      );
+      
+      const startAnnotations = ((message as any).annotations as any[]).filter(
+        a => a?.type === 'twitter_search_started'
+      );
+      startedCount = startAnnotations.length;
+    }
+  
+    if ((message as any).parts && Array.isArray((message as any).parts)) {
+      const completionParts = ((message as any).parts as any[]).filter(
+        p => p?.type === 'data-twitter_search_complete'
+      );
+      const startParts = ((message as any).parts as any[]).filter(
+        p => p?.type === 'data-twitter_search_started'
+      );
+      
+      twitterCompletions = [
+        ...twitterCompletions,
+        ...completionParts.map(p => ({ type: 'twitter_search_complete', data: p.data }))
+      ];
+      startedCount = Math.max(startedCount, startParts.length);
+    }
+  
+    if (twitterCompletions.length > 0) {
+      const processedResults = twitterCompletions
+        .filter(completion => completion.data?.searches)
+        .map(completion => ({
+          searchId: completion.data?.searchId || `twitter_${Date.now()}`,
+          searches: normalizeSearches(completion.data.searches),
+          isComplete: true
+        }));
+
+      if (processedResults.length > 0) {
+        // Extract imageMap, linkMap, thumbnailMap, titleMap, linkMetaMap from annotations
+        let imageMap: { [key: string]: string } = {};
+        let linkMap: { [key: string]: string } = {};
+        let rawThumbnailMap: { [key: string]: string } = {};
+        let titleMap: { [key: string]: string } = {};
+        let linkMetaMap: { [key: string]: any } = {};
+        
+        twitterCompletions.forEach(completion => {
+          if (completion.data?.imageMap) {
+            imageMap = { ...imageMap, ...completion.data.imageMap };
+          }
+          if (completion.data?.linkMap) {
+            linkMap = { ...linkMap, ...completion.data.linkMap };
+          }
+          if (completion.data?.thumbnailMap) {
+            rawThumbnailMap = { ...rawThumbnailMap, ...completion.data.thumbnailMap };
+          }
+          if (completion.data?.titleMap) {
+            titleMap = { ...titleMap, ...completion.data.titleMap };
+          }
+          if (completion.data?.linkMetaMap) {
+            linkMetaMap = { ...linkMetaMap, ...completion.data.linkMetaMap };
+          }
+        });
+
+        const thumbnailMap = buildThumbnailUrlMap(rawThumbnailMap, linkMap);
+        
+        const completedCount = processedResults.length;
+        const pendingCount = Math.max(0, startedCount - completedCount);
+
+        return {
+          result: null,
+          args: null,
+          annotations: twitterCompletions,
+          results: processedResults,
+          imageMap,
+          linkMap,
+          thumbnailMap,
+          titleMap,
+          linkMetaMap,
+          startedCount,
+          pendingCount
+        };
       }
     }
     
-    // Check for X search annotations and parts
-    let xSearchAnnotations: any[] = [];
-    let xSearchStarted = false;
-    
-    // Check annotations array (legacy format)
-    if ((message as any).annotations) {
-      const completeAnnotations = (((message as any).annotations) as any[])
-        .filter(a => a && typeof a === 'object' && a.type === 'x_search_complete')
-        .map(a => a.data)
-        .filter(Boolean);
-      
-      const startAnnotations = (((message as any).annotations) as any[])
-        .filter(a => a && typeof a === 'object' && a.type === 'x_search_started');
-      
-      xSearchAnnotations = completeAnnotations;
-      xSearchStarted = startAnnotations.length > 0;
-    }
-    
-    // Check parts array for streaming annotations (AI SDK 5 format)
-    if ((message as any).parts && Array.isArray((message as any).parts)) {
-      const xCompleteParts = ((message as any).parts as any[])
-        .filter(p => p?.type === 'data-x_search_complete');
-      
-      const xStartParts = ((message as any).parts as any[])
-        .filter(p => p?.type === 'data-x_search_started');
-      
-      xSearchAnnotations = [
-        ...xSearchAnnotations,
-        ...xCompleteParts.map(p => p.data).filter(Boolean)
-      ];
-      xSearchStarted = xSearchStarted || xStartParts.length > 0;
-    }
-    
-    // 시작 신호가 있거나 완료 결과가 있으면 반환
-    if (xSearchStarted || xSearchAnnotations.length > 0) {
-      return { 
-        xResults: xSearchAnnotations,
-        status: xSearchAnnotations.length > 0 ? 'completed' : 'processing'
+    // Return started signal even if no completions yet
+    if (startedCount > 0) {
+      return {
+        result: null,
+        args: null,
+        annotations: [],
+        results: [],
+        imageMap: {},
+        linkMap: {},
+        thumbnailMap: {},
+        titleMap: {},
+        linkMetaMap: {},
+        startedCount,
+        pendingCount: startedCount
       };
     }
-    
+  
     return null;
   };
   
@@ -988,14 +1838,19 @@ export const getImageGeneratorData = (message: UIMessage) => {
     // Check if there are stored YouTube search results in tool_results
     if ((message as any).tool_results?.youtubeSearchResults) {
       const youtubeResults = (message as any).tool_results.youtubeSearchResults;
-      if (Array.isArray(youtubeResults) && youtubeResults.length > 0) {
-        return { youtubeResults };
+      if (Array.isArray(youtubeResults)) {
+        return { 
+          youtubeResults,
+          status: youtubeResults.length > 0 ? 'completed' : 'processing',
+          startedCount: youtubeResults.length > 0 ? youtubeResults.length : 1,
+          pendingCount: youtubeResults.length > 0 ? 0 : 1
+        };
       }
     }
     
     // Check for YouTube search annotations and parts
     let youtubeSearchAnnotations: any[] = [];
-    let youtubeSearchStarted = false;
+    let startedCount = 0;
     
     // Check annotations array (legacy format)
     if ((message as any).annotations) {
@@ -1008,7 +1863,7 @@ export const getImageGeneratorData = (message: UIMessage) => {
         .filter(a => a && typeof a === 'object' && a.type === 'youtube_search_started');
       
       youtubeSearchAnnotations = completeAnnotations;
-      youtubeSearchStarted = startAnnotations.length > 0;
+      startedCount = startAnnotations.length;
     }
     
     // Check parts array for streaming annotations (AI SDK 5 format)
@@ -1023,14 +1878,36 @@ export const getImageGeneratorData = (message: UIMessage) => {
         ...youtubeSearchAnnotations,
         ...youtubeCompleteParts.map(p => p.data).filter(Boolean)
       ];
-      youtubeSearchStarted = youtubeSearchStarted || youtubeStartParts.length > 0;
+      startedCount = Math.max(startedCount, youtubeStartParts.length);
+      
+      // Extract query from started parts for loading state display
+      const startedQueries = youtubeStartParts
+        .map(p => p.data?.query)
+        .filter(Boolean);
+      
+      // If we have started signals but no complete results, include query info
+      if (startedQueries.length > 0 && youtubeSearchAnnotations.length === 0) {
+        // Return structure with query info for loading display
+        return {
+          youtubeResults: [],
+          status: 'processing',
+          startedCount: startedCount,
+          pendingCount: startedCount,
+          query: startedQueries[0] // Use first query for display
+        };
+      }
     }
     
     // 시작 신호가 있거나 완료 결과가 있으면 반환
-    if (youtubeSearchStarted || youtubeSearchAnnotations.length > 0) {
+    if (startedCount > 0 || youtubeSearchAnnotations.length > 0) {
+      const completedCount = youtubeSearchAnnotations.length;
+      const pendingCount = Math.max(0, startedCount - completedCount);
+      
       return { 
         youtubeResults: youtubeSearchAnnotations,
-        status: youtubeSearchAnnotations.length > 0 ? 'completed' : 'processing'
+        status: completedCount > 0 ? 'completed' : 'processing',
+        startedCount,
+        pendingCount
       };
     }
     
@@ -1048,40 +1925,38 @@ export const getImageGeneratorData = (message: UIMessage) => {
       const googleResults = (message as any).tool_results.googleSearchResults;
       if (Array.isArray(googleResults) && googleResults.length > 0) {
         // Process stored results to match the expected format
-        const processedResults = googleResults.map((result: any) => {
-          if (result.searches && Array.isArray(result.searches)) {
-            return {
-              searchId: result.searchId,
-              searches: result.searches.map((search: any) => ({
-                query: search.query,
-                topic: search.topic || search.engine || 'google',
-                topicIcon: 'google',
-                results: search.results || [],
-                images: search.images || [],
-                videos: search.videos || []
-              })),
-              isComplete: true
-            };
-          }
-          return null;
-        }).filter(Boolean);
+        // Since we now use a single unified object, get maps from the first result that has them
+        const resultWithMaps = googleResults.find((result: any) => 
+          result.linkMap || result.thumbnailMap || result.titleMap || result.imageMap || result.linkMetaMap
+        ) || googleResults[0];
+        
+        const processedResults = googleResults
+          .filter((result: any) => result.searches && Array.isArray(result.searches))
+          .map((result: any) => ({
+            searchId: result.searchId,
+            searches: result.searches.map((search: any) => ({
+              ...search,
+              topic: search.topic || search.engine || 'google',
+              topicIcon: 'google',
+              results: search.results || [],
+              images: search.images || [],
+              videos: search.videos || []
+            })),
+            isComplete: true
+          }));
         
         if (processedResults.length > 0) {
-          // linkMap, thumbnailMap, titleMap이 있는 객체 찾기 (배열에서 두 번째 객체)
-          const resultWithMaps = googleResults.find((result: any) => result.linkMap || result.thumbnailMap || result.titleMap);
-          
-          // imageMap을 모든 결과에서 찾기 (일반적으로 첫 번째 또는 두 번째 객체에 있음)
-          const resultWithImageMap = googleResults.find((result: any) => result.imageMap && Object.keys(result.imageMap).length > 0);
-          
+          const thumbnailMap = buildThumbnailUrlMap(resultWithMaps?.thumbnailMap || {}, resultWithMaps?.linkMap || {});
           return {
             result: null,
             args: null,
             annotations: [],
             results: processedResults,
-            imageMap: resultWithImageMap?.imageMap || {},
+            imageMap: resultWithMaps?.imageMap || {},
             linkMap: resultWithMaps?.linkMap || {},
-            thumbnailMap: resultWithMaps?.thumbnailMap || {},
-            titleMap: resultWithMaps?.titleMap || {}
+            thumbnailMap,
+            titleMap: resultWithMaps?.titleMap || {},
+            linkMetaMap: resultWithMaps?.linkMetaMap || {}
           };
         }
       }
@@ -1090,6 +1965,7 @@ export const getImageGeneratorData = (message: UIMessage) => {
     // Get query completion annotations - check both annotations and parts for AI SDK 5 compatibility
     let queryCompletions: any[] = [];
     let googleSearchCompletions: any[] = [];
+    let startedCount = 0;
     
     // Check annotations array (legacy format)
     if ((message as any).annotations) {
@@ -1097,6 +1973,11 @@ export const getImageGeneratorData = (message: UIMessage) => {
         a?.type === 'google_search_started' || a?.type === 'google_search_query_complete'
       );
       googleSearchCompletions = ((message as any).annotations as any[]).filter(a => a?.type === 'google_search_complete');
+      
+      const startAnnotations = ((message as any).annotations as any[]).filter(a => 
+        a?.type === 'google_search_started'
+      );
+      startedCount = startAnnotations.length;
     }
     
     // Check parts array for streaming annotations (AI SDK 5 format)
@@ -1105,6 +1986,9 @@ export const getImageGeneratorData = (message: UIMessage) => {
         p?.type === 'data-google_search_started' || p?.type === 'data-google_search_query_complete'
       );
       const googleSearchParts = ((message as any).parts as any[]).filter(p => p?.type === 'data-google_search_complete');
+      const startParts = ((message as any).parts as any[]).filter(p => 
+        p?.type === 'data-google_search_started'
+      );
       
       // Convert parts format to annotations format for consistency
       queryCompletions = [
@@ -1118,13 +2002,15 @@ export const getImageGeneratorData = (message: UIMessage) => {
         ...googleSearchCompletions,
         ...googleSearchParts.map(p => ({ type: 'google_search_complete', data: p.data }))
       ];
+      startedCount = Math.max(startedCount, startParts.length);
     }
 
     // Extract imageMap, linkMap, thumbnailMap, titleMap from annotations
     let imageMap: { [key: string]: string } = {};
     let linkMap: { [key: string]: string } = {};
-    let thumbnailMap: { [key: string]: string } = {};
+    let rawThumbnailMap: { [key: string]: string } = {};
     let titleMap: { [key: string]: string } = {};
+    let linkMetaMap: { [key: string]: any } = {};
     
     googleSearchCompletions.forEach(completion => {
       if (completion.data?.imageMap) {
@@ -1134,10 +2020,13 @@ export const getImageGeneratorData = (message: UIMessage) => {
         linkMap = { ...linkMap, ...completion.data.linkMap };
       }
       if (completion.data?.thumbnailMap) {
-        thumbnailMap = { ...thumbnailMap, ...completion.data.thumbnailMap };
+        rawThumbnailMap = { ...rawThumbnailMap, ...completion.data.thumbnailMap };
       }
       if (completion.data?.titleMap) {
         titleMap = { ...titleMap, ...completion.data.titleMap };
+      }
+      if (completion.data?.linkMetaMap) {
+        linkMetaMap = { ...linkMetaMap, ...completion.data.linkMetaMap };
       }
     });
 
@@ -1159,18 +2048,6 @@ export const getImageGeneratorData = (message: UIMessage) => {
     // Track completed searches and in-progress searches separately
     const completedSearchIdSet = new Set<string>();
     const allResults: any[] = [];
-    
-    // Helper function to process search results
-    const processSearchResults = (results: any[]) => {
-      return results.map(result => ({
-        ...result,
-        // Ensure Google-specific fields are preserved
-        summary: result.summary || result.content || undefined,
-        score: result.score || undefined,
-        author: result.author || undefined,
-        publishedDate: result.publishedDate || undefined,
-      }));
-    };
 
     // Process Google search completions to determine which searches are complete
     if (googleSearchCompletions.length > 0) {
@@ -1194,27 +2071,25 @@ export const getImageGeneratorData = (message: UIMessage) => {
         if (searchId === 'default') continue;
         
         // Extract all searches from this searchId
+        // completion.data.searches already contains the correct format
         const searchesForThisId: any[] = [];
         
         completions.forEach(completion => {
-          if (completion.data && completion.data.results) {
-            searchesForThisId.push({
-              query: completion.data.query,
-              results: completion.data.results,
-              images: completion.data.images || []
-            });
+          if (completion.data && completion.data.searches) {
+            searchesForThisId.push(...completion.data.searches);
           }
         });
         
         if (searchesForThisId.length > 0) {
           // Add this completed searchId result to our collection
+          // searches already have the correct format, just ensure topicIcon is set
           allResults.push({
             searchId,
             searches: searchesForThisId.map(search => ({
               ...search,
-              topic: search.topic || 'google',
+              topic: search.topic || search.engine || 'google',
               topicIcon: 'google',
-              results: processSearchResults(search.results || []),
+              results: search.results || [],
               images: search.images || [],
               videos: search.videos || []
             })),
@@ -1254,7 +2129,11 @@ export const getImageGeneratorData = (message: UIMessage) => {
     }
     
     // If we've found results via annotations, return them
-    if (allResults.length > 0) {
+    if (allResults.length > 0 || startedCount > 0) {
+      const thumbnailMap = buildThumbnailUrlMap(rawThumbnailMap, linkMap);
+      const completedCount = allResults.filter(r => r.isComplete).length;
+      const pendingCount = Math.max(0, startedCount - completedCount);
+      
       return {
         result: null, // For backward compatibility
         args: null,
@@ -1263,7 +2142,10 @@ export const getImageGeneratorData = (message: UIMessage) => {
         imageMap,
         linkMap,
         thumbnailMap,
-        titleMap
+        titleMap,
+        linkMetaMap,
+        startedCount,
+        pendingCount
       };
     }
     
@@ -1271,11 +2153,23 @@ export const getImageGeneratorData = (message: UIMessage) => {
     if ((message as any).tool_results) {
       const toolResults = (message as any).tool_results;
       
-      // Extract imageMap from tool_results
+      // Extract maps from tool_results
       if (toolResults.googleSearchResults) {
         toolResults.googleSearchResults.forEach((result: any) => {
           if (result.imageMap) {
             imageMap = { ...imageMap, ...result.imageMap };
+          }
+          if (result.linkMap) {
+            linkMap = { ...linkMap, ...result.linkMap };
+          }
+          if (result.thumbnailMap) {
+            rawThumbnailMap = { ...rawThumbnailMap, ...result.thumbnailMap };
+          }
+          if (result.titleMap) {
+            titleMap = { ...titleMap, ...result.titleMap };
+          }
+          if (result.linkMetaMap) {
+            linkMetaMap = { ...linkMetaMap, ...result.linkMetaMap };
           }
         });
       }
@@ -1287,6 +2181,7 @@ export const getImageGeneratorData = (message: UIMessage) => {
         // New format with googleSearchResults key
         if (Array.isArray(toolResults.googleSearchResults)) {
           // Process all results with searchIds
+          // If result already has searches array, use it directly
           const resultsWithIds = toolResults.googleSearchResults.filter((r: any) => r.searchId);
           
           // Create a result entry for each unique searchId
@@ -1296,32 +2191,61 @@ export const getImageGeneratorData = (message: UIMessage) => {
             const searchId = result.searchId;
             if (searchId && !processedIds.has(searchId)) {
               processedIds.add(searchId);
-              storedResults.push({
-                searchId,
-                searches: [{
-                  query: result.query,
-                  topic: result.topic || 'google',
-                  topicIcon: 'google',
-                  results: processSearchResults(result.results || []),
-                  images: result.images || [],
-                  videos: result.videos || []
-                }],
-                isComplete: true
-              });
+              
+              // If result already has searches array, use it directly
+              if (result.searches && Array.isArray(result.searches)) {
+                storedResults.push({
+                  searchId,
+                  searches: result.searches.map((search: any) => ({
+                    ...search,
+                    topic: search.topic || search.engine || 'google',
+                    topicIcon: 'google',
+                    results: search.results || [],
+                    images: search.images || [],
+                    videos: search.videos || []
+                  })),
+                  isComplete: true
+                });
+              } else {
+                // Legacy format: single query/result structure
+                storedResults.push({
+                  searchId,
+                  searches: [{
+                    query: result.query || 'Google Search',
+                    topic: result.topic || 'google',
+                    topicIcon: 'google',
+                    results: result.results || [],
+                    images: result.images || [],
+                    videos: result.videos || []
+                  }],
+                  isComplete: true
+                });
+              }
             }
           });
           
           // Handle results without searchId (legacy)
           if (storedResults.length === 0) {
-            const mergedSearches = toolResults.googleSearchResults.flatMap((r: any) => r.results || []);
+            const mergedSearches = toolResults.googleSearchResults.flatMap((r: any) => {
+              // If result has searches array, use it
+              if (r.searches && Array.isArray(r.searches)) {
+                return r.searches;
+              }
+              // Otherwise, treat as legacy format (results array)
+              return r.results || [];
+            });
             if (mergedSearches.length > 0) {
+              // Check if mergedSearches contains search objects or result objects
+              const firstItem = mergedSearches[0];
+              const isSearchObjects = firstItem && (firstItem.query !== undefined || firstItem.topic !== undefined);
+              
               storedResults.push({
                 searchId: 'legacy',
-                searches: [{
+                searches: isSearchObjects ? mergedSearches : [{
                   query: 'Google Search',
                   topic: 'google',
                   topicIcon: 'google',
-                  results: processSearchResults(mergedSearches),
+                  results: mergedSearches,
                   images: [],
                   videos: []
                 }],
@@ -1333,6 +2257,7 @@ export const getImageGeneratorData = (message: UIMessage) => {
       }
       
       if (storedResults.length > 0) {
+        const thumbnailMap = buildThumbnailUrlMap(rawThumbnailMap, linkMap);
         return {
           result: null, // For backward compatibility
           args: null,
@@ -1341,7 +2266,8 @@ export const getImageGeneratorData = (message: UIMessage) => {
           imageMap,
           linkMap,
           thumbnailMap,
-          titleMap
+          titleMap,
+          linkMetaMap
         };
       }
     }
@@ -1406,7 +2332,7 @@ export const getImageGeneratorData = (message: UIMessage) => {
                     query: search.query,
                     topic: search.topic || 'google',
                     topicIcon: 'google',
-                    results: processSearchResults(search.results || []),
+                    results: search.results || [],
                     images: search.images || [],
                     videos: search.videos || []
                   })),
@@ -1420,7 +2346,7 @@ export const getImageGeneratorData = (message: UIMessage) => {
                     query: result.query || 'Google Search',
                     topic: result.topic || 'google',
                     topicIcon: 'google',
-                    results: processSearchResults(result.results || []),
+                    results: result.results || [],
                     images: result.images || [],
                     videos: result.videos || []
                   }],
@@ -1435,7 +2361,7 @@ export const getImageGeneratorData = (message: UIMessage) => {
                   query: 'Google Search',
                   topic: result.topic || 'google',
                   topicIcon: 'google',
-                  results: processSearchResults(result.results || []),
+                  results: result.results || [],
                   images: result.images || [],
                   videos: result.videos || []
                 }],
@@ -1476,7 +2402,7 @@ export const getImageGeneratorData = (message: UIMessage) => {
               query: a.data.query,
               topic: a.data.topic || 'google',
               topicIcon: 'google',
-              results: processSearchResults(a.data.results || []),
+              results: a.data.results || [],
               images: a.data.images || [],
               videos: a.data.videos || []
             }));
@@ -1513,6 +2439,7 @@ export const getImageGeneratorData = (message: UIMessage) => {
         });
       }
       
+      const thumbnailMap = buildThumbnailUrlMap(rawThumbnailMap, linkMap);
       return {
         result: null, // For backward compatibility 
         args: allArgs[0] || null,
@@ -1527,6 +2454,7 @@ export const getImageGeneratorData = (message: UIMessage) => {
     
     // Extract queries for loading state
     if (allArgs.length > 0) {
+      const thumbnailMap = buildThumbnailUrlMap(rawThumbnailMap, linkMap);
       return {
         result: null, // For backward compatibility
         args: allArgs[0],
@@ -1559,30 +2487,35 @@ export const getImageGeneratorData = (message: UIMessage) => {
     // Check tool_results first
     if ((message as any).tool_results?.youtubeLinkAnalysisResults) {
       const analysisResults = (message as any).tool_results.youtubeLinkAnalysisResults;
-      if (Array.isArray(analysisResults) && analysisResults.length > 0) {
-        return { analysisResults };
+      if (Array.isArray(analysisResults)) {
+        return { 
+          analysisResults,
+          status: analysisResults.length > 0 ? 'completed' : 'processing',
+          startedCount: analysisResults.length > 0 ? analysisResults.length : 1,
+          pendingCount: analysisResults.length > 0 ? 0 : 1
+        };
       }
     }
     
     // Check annotations and parts for YouTube analysis
     let youtubeAnalysisAnnotations: any[] = [];
-    let youtubeAnalysisStarted = false;
+    let startedCount = 0;
     
-    // Check annotations array (legacy format)
+    // Check annotations array (legacy format - for backward compatibility)
     if ((message as any).annotations) {
       const completeAnnotations = (((message as any).annotations) as any[])
         .filter(a => a && typeof a === 'object' && 
-          (a.type === 'youtube_analysis_complete' || a.type === 'youtube_link_analysis_complete'))
+          (a.type === 'youtube_analysis_complete' || a.type === 'youtube_link_analysis_complete' || a.type === 'data-youtube_analysis_complete'))
         .map(a => a.data?.results || a.data)
         .filter(Boolean)
         .flat();
       
       const startAnnotations = (((message as any).annotations) as any[])
         .filter(a => a && typeof a === 'object' && 
-          (a.type === 'youtube_analysis_started' || a.type === 'youtube_link_analysis_started'));
+          (a.type === 'youtube_analysis_started' || a.type === 'youtube_link_analysis_started' || a.type === 'data-youtube_analysis_started'));
       
       youtubeAnalysisAnnotations = completeAnnotations;
-      youtubeAnalysisStarted = startAnnotations.length > 0;
+      startedCount = Math.max(startedCount, startAnnotations.length);
     }
     
     // Check parts array for streaming annotations (AI SDK 5 format)
@@ -1602,16 +2535,360 @@ export const getImageGeneratorData = (message: UIMessage) => {
         ...youtubeAnalysisAnnotations,
         ...partsResults
       ];
-      youtubeAnalysisStarted = youtubeAnalysisStarted || youtubeStartParts.length > 0;
+      startedCount = Math.max(startedCount, youtubeStartParts.length);
+      
+      // Extract URLs from started parts for loading state display
+      const startedUrls = youtubeStartParts
+        .map(p => p.data?.urls)
+        .filter(Boolean)
+        .flat();
+      
+      // If we have started signals but no complete results, include URL info
+      if (startedUrls.length > 0 && youtubeAnalysisAnnotations.length === 0) {
+        // Return structure with URL info for loading display
+        return {
+          analysisResults: [],
+          status: 'processing',
+          startedCount: startedCount,
+          pendingCount: startedCount,
+          urls: startedUrls
+        };
+      }
     }
     
     // 시작 신호가 있거나 완료 결과가 있으면 반환
-    if (youtubeAnalysisStarted || youtubeAnalysisAnnotations.length > 0) {
+    if (startedCount > 0 || youtubeAnalysisAnnotations.length > 0) {
+      const completedCount = youtubeAnalysisAnnotations.length;
+      const pendingCount = Math.max(0, startedCount - completedCount);
+      
       return { 
         analysisResults: youtubeAnalysisAnnotations,
-        status: youtubeAnalysisAnnotations.length > 0 ? 'completed' : 'processing'
+        status: completedCount > 0 ? 'completed' : 'processing',
+        startedCount,
+        pendingCount
       };
     }
     
     return null;
   };
+
+// Extract Wan 2.5 video data from message tool_results and streaming annotations
+export const getWan25VideoData = (message: UIMessage): {
+  generatedVideos: {
+    videoUrl: string;
+    prompt: string;
+    timestamp: string;
+    resolution?: string;
+    size?: string;
+    duration?: number;
+    isImageToVideo?: boolean;
+    sourceImageUrl?: string;
+    path?: string;
+  }[];
+  status?: 'processing' | 'completed' | 'error';
+  startedCount?: number;
+  pendingCount?: number;
+  pendingPrompts?: string[];
+  pendingSourceImages?: string[];
+  errorCount?: number;
+  failedVideos?: Array<{ prompt: string; error: string }>;
+  isImageToVideo: boolean;
+  progress?: {
+    status: string;
+    elapsedSeconds: number;
+    requestId: string;
+  };
+} | null => {
+  // 1. tool_results 확인 (DB 저장된 데이터 - 최우선)
+  if ((message as any).tool_results?.wan25VideoResults) {
+    const generatedVideos = (message as any).tool_results.wan25VideoResults;
+    if (Array.isArray(generatedVideos) && generatedVideos.length > 0) {
+      const isImageToVideo = generatedVideos.some(v => v.isImageToVideo);
+      return { 
+        generatedVideos, 
+        isImageToVideo,
+        status: 'completed' as const
+      };
+    }
+  }
+  
+  // 2. parts 배열의 tool-result 확인 (스트리밍 중 데이터)
+  let videosFromToolResults: any[] = [];
+  let errorCount = 0;
+  let failedVideos: Array<{ prompt: string; error: string }> = [];
+  
+  if ((message as any).parts && Array.isArray((message as any).parts)) {
+    const toolResultParts = ((message as any).parts as any[])
+      .filter(p => {
+        const isToolResult = p?.type === 'tool-result' || 
+                            p?.type?.startsWith('tool-wan25_');
+        const isWan25Tool = p?.toolName === 'wan25_video' ||
+                          p?.type?.includes('wan25_');
+        return isToolResult && isWan25Tool;
+      });
+    
+    for (const part of toolResultParts) {
+      const result = part.output?.value || part.output || part.result;
+      
+      if (result?.success === false) {
+        errorCount++;
+        failedVideos.push({
+          prompt: result.prompt || 'Unknown prompt',
+          error: result.error || 'Unknown error'
+        });
+        continue;
+      }
+      
+      if (result?.videos && Array.isArray(result.videos)) {
+        for (const vid of result.videos) {
+          if (vid.videoUrl && vid.path) {
+            videosFromToolResults.push({
+              videoUrl: vid.videoUrl,
+              path: vid.path,
+              prompt: vid.prompt || result.prompt,
+              timestamp: vid.timestamp || new Date().toISOString(),
+              resolution: vid.resolution,
+              size: vid.size,
+              duration: vid.duration,
+              isImageToVideo: vid.isImageToVideo,
+              sourceImageUrl: vid.sourceImageUrl
+            });
+          }
+        }
+      }
+    }
+    
+    if (videosFromToolResults.length > 0) {
+      // Determine tool type from videos
+      const hasImageToVideo = videosFromToolResults.some(v => v.isImageToVideo);
+
+      return { 
+        generatedVideos: videosFromToolResults,
+        status: 'completed' as const,
+        errorCount,
+        failedVideos: failedVideos.length > 0 ? failedVideos : undefined,
+        isImageToVideo: hasImageToVideo
+      };
+    }
+  }
+  
+  // 3. streaming annotations 확인 (fallback)
+  let videoAnnotations: any[] = [];
+  let startedCount = 0;
+  let pendingPrompts: string[] = [];
+  let pendingSourceImages: string[] = [];
+  let hasImageToVideoStreaming = false;
+  let progressData: { status: string; elapsedSeconds: number; requestId: string } | undefined;
+  
+  if ((message as any).annotations) {
+    const completeAnnotations = (((message as any).annotations) as any[])
+      .filter(a => a && typeof a === 'object' && a.type === 'wan25_video_complete')
+      .map(a => a.data)
+      .filter(Boolean);
+    
+    videoAnnotations = [...videoAnnotations, ...completeAnnotations];
+    if (completeAnnotations.some(v => v.isImageToVideo)) hasImageToVideoStreaming = true;
+    
+    const startAnnotations = (((message as any).annotations) as any[])
+      .filter(a => a && typeof a === 'object' && a.type === 'wan25_video_started');
+    
+    startedCount = startAnnotations.length;
+    
+    startAnnotations.forEach(a => {
+      if (a.data?.prompt) pendingPrompts.push(a.data.prompt);
+      if (a.data?.resolvedImageUrl) {
+        pendingSourceImages.push(a.data.resolvedImageUrl);
+        hasImageToVideoStreaming = true;
+      }
+      else pendingSourceImages.push(''); // 텍스트-비디오의 경우 빈 값
+    });
+    
+    // 🚀 Progress annotation 추출 (annotations에서)
+    const progressAnnotations = (((message as any).annotations) as any[])
+      .filter(a => a && typeof a === 'object' && 
+        (a.type === 'wan25_video_progress' || a.type === 'data-wan25_video_progress'));
+    
+    if (progressAnnotations.length > 0) {
+      // 가장 최신 progress 사용 (마지막 항목)
+      const latestProgress = progressAnnotations[progressAnnotations.length - 1];
+      if (latestProgress.data && latestProgress.data.status && 
+          typeof latestProgress.data.elapsedSeconds === 'number' && 
+          latestProgress.data.requestId) {
+        progressData = {
+          status: latestProgress.data.status,
+          elapsedSeconds: latestProgress.data.elapsedSeconds,
+          requestId: latestProgress.data.requestId
+        };
+      }
+    }
+  }
+  
+  if ((message as any).parts && Array.isArray((message as any).parts)) {
+    const videoParts = ((message as any).parts as any[])
+      .filter(p => p?.type === 'data-wan25_video_complete');
+    
+    const videoStartParts = ((message as any).parts as any[])
+      .filter(p => p?.type === 'data-wan25_video_started');
+
+    if (videoParts.some(p => p.data?.isImageToVideo)) hasImageToVideoStreaming = true;
+    if (videoStartParts.some(p => p.data?.resolvedImageUrl)) hasImageToVideoStreaming = true;
+    
+    const errorParts = ((message as any).parts as any[])
+      .filter(p => p?.type === 'data-wan25_video_error');
+    
+    for (const errorPart of errorParts) {
+      if (errorPart.data) {
+        failedVideos.push({
+          prompt: errorPart.data.prompt || 'Unknown prompt',
+          error: errorPart.data.error || 'Unknown error'
+        });
+        errorCount++;
+      }
+    }
+    
+    // 🚀 Progress annotation 추출 (parts에서 - annotations보다 우선)
+    const progressParts = ((message as any).parts as any[])
+      .filter(p => p?.type === 'data-wan25_video_progress');
+    
+    if (progressParts.length > 0) {
+      // 가장 최신 progress 사용 (마지막 항목)
+      const latestProgress = progressParts[progressParts.length - 1];
+      if (latestProgress.data && latestProgress.data.status && 
+          typeof latestProgress.data.elapsedSeconds === 'number' && 
+          latestProgress.data.requestId) {
+        progressData = {
+          status: latestProgress.data.status,
+          elapsedSeconds: latestProgress.data.elapsedSeconds,
+          requestId: latestProgress.data.requestId
+        };
+      }
+    }
+    
+    videoAnnotations = [
+      ...videoAnnotations,
+      ...videoParts.map(p => p.data).filter(Boolean)
+    ];
+    startedCount = Math.max(startedCount, videoStartParts.length);
+    
+    videoStartParts.forEach(p => {
+      const prompt = p.data?.prompt;
+      const sourceImage = p.data?.resolvedImageUrl || '';
+      
+      if (prompt && !pendingPrompts.includes(prompt)) {
+        pendingPrompts.push(prompt);
+        pendingSourceImages.push(sourceImage);
+        if (sourceImage) hasImageToVideoStreaming = true;
+      }
+    });
+  }
+  
+  if (startedCount > 0 || videoAnnotations.length > 0) {
+    const completedCount = videoAnnotations.length;
+    const pendingCount = Math.max(0, startedCount - completedCount);
+    
+    const isImageToVideo = hasImageToVideoStreaming || videoAnnotations.some(v => v.isImageToVideo);
+
+    return { 
+      generatedVideos: videoAnnotations,
+      status: (completedCount > 0 && pendingCount === 0 ? 'completed' : 'processing') as 'completed' | 'processing',
+      startedCount,
+      pendingCount,
+      pendingPrompts,
+      pendingSourceImages,
+      errorCount: errorCount > 0 ? errorCount : undefined,
+      failedVideos: failedVideos.length > 0 ? failedVideos : undefined,
+      isImageToVideo,
+      progress: progressData
+    };
+  }
+  
+  if (errorCount > 0) {
+    // Determine if it's image-to-video from available context
+    let isImageToVideoError = hasImageToVideoStreaming;
+    
+    // Check parts for image-to-video tool calls
+    if (!isImageToVideoError && (message as any).parts && Array.isArray((message as any).parts)) {
+      const toolResultParts = ((message as any).parts as any[])
+        .filter(p => {
+          const isToolResult = p?.type === 'tool-result' || 
+                              p?.type?.startsWith('tool-wan25_');
+          const isWan25Tool = p?.toolName === 'wan25_video' ||
+                            p?.type?.includes('wan25_');
+          return isToolResult && isWan25Tool;
+        });
+      
+      // Check if any tool result indicates image-to-video mode
+      isImageToVideoError = toolResultParts.some(p => 
+        p.output?.isImageToVideo || p.input?.model === 'image-to-video'
+      );
+    }
+    
+    return {
+      generatedVideos: [],
+      errorCount,
+      failedVideos: failedVideos.length > 0 ? failedVideos : undefined,
+      status: 'error' as const,
+      isImageToVideo: isImageToVideoError
+    };
+  }
+  
+  return null;
+};
+
+/**
+ * Extract tool data from a tool-call/tool-result pair for InlineToolPreview
+ * Used in interleaved rendering mode
+ */
+export interface ToolPartData {
+  toolName: string;
+  displayName: string;
+  args: any;
+  result: any | null;
+  status: 'processing' | 'completed' | 'error';
+}
+
+const TOOL_DISPLAY_NAMES: Record<string, string> = {
+  'web_search': 'Web Search',
+  'multi_search': 'Web Search',
+  'calculator': 'Calculator',
+  'math_calculation': 'Calculator',
+  'link_reader': 'Link Reader',
+  'gemini_image_tool': 'Nano Banana Pro',
+  'seedream_image_tool': 'Seedream 4.5',
+  'qwen_image_edit': 'Qwen Image Edit',
+  'twitter_search': 'X Search',
+  'youtube_search': 'YouTube Search',
+  'youtube_link_analysis': 'YouTube Analyzer',
+  'youtube_link_analyzer': 'YouTube Analyzer',
+  'google_search': 'Google Search',
+  'wan25_video': 'Wan 2.5 Video',
+};
+
+export const getToolDataFromPart = (
+  toolCall: { toolName: string; args: any; toolCallId: string },
+  toolResult: { result: any; toolCallId: string } | null
+): ToolPartData => {
+  const toolName = toolCall.toolName;
+  const displayName = TOOL_DISPLAY_NAMES[toolName] || toolName;
+  
+  let status: 'processing' | 'completed' | 'error' = 'processing';
+  
+  if (toolResult) {
+    // Check if result indicates an error
+    if (toolResult.result?.error) {
+      status = 'error';
+    } else {
+      status = 'completed';
+    }
+  }
+  
+  return {
+    toolName,
+    displayName,
+    args: toolCall.args,
+    result: toolResult?.result || null,
+    status,
+  };
+  };
+
+

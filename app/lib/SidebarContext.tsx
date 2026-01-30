@@ -11,8 +11,8 @@ export interface SidebarContextType {
   isMobile: boolean
   isSelectionMode: boolean
   setIsSelectionMode: React.Dispatch<React.SetStateAction<boolean>>
-  isPromptEditMode: boolean
-  setIsPromptEditMode: React.Dispatch<React.SetStateAction<boolean>>
+  // isPromptEditMode: boolean
+  // setIsPromptEditMode: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined)
@@ -29,8 +29,8 @@ export const useSidebar = () => {
       isMobile: false,
       isSelectionMode: false,
       setIsSelectionMode: () => {},
-      isPromptEditMode: false,
-      setIsPromptEditMode: () => {}
+      // isPromptEditMode: false,
+      // setIsPromptEditMode: () => {}
     } // 기본값
   }
   return context

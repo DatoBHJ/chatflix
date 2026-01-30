@@ -15,6 +15,15 @@ export default {
         accent: "var(--accent)",
         muted: "var(--muted)",
       },
+      keyframes: {
+        scan: {
+          '0%': { top: '0%' },
+          '100%': { top: '100%' },
+        },
+      },
+      animation: {
+        scan: 'scan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite',
+      },
     },
   },
 } satisfies Config;

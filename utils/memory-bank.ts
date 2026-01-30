@@ -1,8 +1,26 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 
+export const ALLOWED_MEMORY_CATEGORIES = ['00-personal-info', '01-preferences', '02-interests'] as const;
+type AllowedMemoryCategory = typeof ALLOWED_MEMORY_CATEGORIES[number];
+
+export const ALLOWED_MEMORY_CATEGORY_ARRAY: AllowedMemoryCategory[] = [...ALLOWED_MEMORY_CATEGORIES];
+const ALLOWED_CATEGORY_SET = new Set<string>(ALLOWED_MEMORY_CATEGORY_ARRAY);
+
 export interface MemoryBankEntry {
   category: string;
   content: string;
+}
+
+export function isAllowedMemoryCategory(category: string): category is AllowedMemoryCategory {
+  return ALLOWED_CATEGORY_SET.has(category);
+}
+
+function normalizeAllowedCategories(categories?: string[]): AllowedMemoryCategory[] {
+  if (!categories || categories.length === 0) {
+    return [...ALLOWED_MEMORY_CATEGORY_ARRAY];
+  }
+
+  return categories.filter((category): category is AllowedMemoryCategory => isAllowedMemoryCategory(category));
 }
 
 /**
@@ -13,6 +31,10 @@ export async function getMemoryBankEntry(
   userId: string,
   category: string
 ): Promise<{ data: string | null; error: any }> {
+  if (!isAllowedMemoryCategory(category)) {
+    return { data: null, error: new Error(`Unsupported memory category: ${category}`) };
+  }
+
   const { data, error } = await supabase
     .from('memory_bank')
     .select('content')
@@ -46,17 +68,17 @@ export async function getAllMemoryBank(
   userId: string,
   categories?: string[]
 ): Promise<{ data: string | null; error: any }> {
-  let query = supabase
-    .from('memory_bank')
-    .select('category, content')
-    .eq('user_id', userId);
-  
-  if (categories && categories.length > 0) {
-    query = query.in('category', categories);
+  const allowedCategories = normalizeAllowedCategories(categories);
+
+  if (allowedCategories.length === 0) {
+    return { data: null, error: null };
   }
 
-  
-  const { data, error } = await query;
+  const { data, error } = await supabase
+    .from('memory_bank')
+    .select('category, content')
+    .eq('user_id', userId)
+    .in('category', allowedCategories);
 
   
   if (error) {
@@ -86,6 +108,10 @@ export async function updateMemoryBank(
   category: string,
   content: string
 ): Promise<{ data: any; error: any }> {
+  if (!isAllowedMemoryCategory(category)) {
+    return { data: null, error: new Error(`Unsupported memory category: ${category}`) };
+  }
+
   const { data, error } = await supabase
     .from('memory_bank')
     .upsert({
@@ -111,6 +137,7 @@ export async function getLastMemoryUpdate(
       .from('memory_bank')
       .select('updated_at')
       .eq('user_id', userId)
+      .in('category', ALLOWED_MEMORY_CATEGORY_ARRAY)
       .order('updated_at', { ascending: false })
       .limit(1)
       .single();
@@ -184,7 +211,6 @@ export async function initializeMemoryBank(
 ## Basic Details
 - Name: ${userName}
 - Member since: ${joinDate}
-- Last active: ${new Date().toLocaleDateString()}
 
 ## Professional Context
 - Occupation: [To be determined from conversations]
@@ -205,10 +231,10 @@ ${emailInfo}
 - Technical detail level: [To be determined from interactions]
 - Tone preference: [To be determined from interactions]
 
-## Content Preferences
-- Code examples: [To be determined from interactions]
-- Visual elements: [To be determined from interactions]
-- Step-by-step guides: [To be determined from interactions]
+## Response Format Preferences
+- Structure preference: [To be determined from interactions]
+- Organization style: [To be determined from interactions]
+- Detail presentation: [To be determined from interactions]
 `
     },
     {
@@ -220,27 +246,6 @@ ${emailInfo}
 
 ## Recent Topics
 - First interactions with the system
-`
-    },
-    {
-      category: '03-interaction-history',
-      content: `# Interaction History
-
-## Recent Conversations
-- Initial interaction (${new Date().toLocaleDateString()})
-- Building user profile
-`
-    },
-    {
-      category: '04-relationship',
-      content: `# Relationship Development
-
-## Communication Quality
-- Trust level: Initial relationship being established
-- Engagement level: [To be determined from interactions]
-
-## Personalization Strategy
-- Establish rapport and understand user's specific needs
 `
     }
   ];

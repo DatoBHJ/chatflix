@@ -84,10 +84,10 @@ export function useChatInputStyles() {
           50% { opacity: 1; }
         }
         
-        /* 플레이스홀더 스타일 - 빈 상태일 때만 보이게 */
+        /* 플레이스홀더 스타일 - 빈 상태일 때만 보이게 (사이드바 검색창과 동일) */
         .futuristic-input.empty:before {
           content: attr(data-placeholder);
-          color: color-mix(in srgb, var(--foreground) 40%, transparent);
+          color: var(--muted);
           pointer-events: none;
           position: absolute;
           top: 50%;
@@ -108,11 +108,11 @@ export function useChatInputStyles() {
         /* 모바일에서 플레이스홀더 스타일 개선 - iOS 최적화 */
         @media (max-width: 768px) {
           .futuristic-input.empty:before {
-            color: color-mix(in srgb, var(--foreground) 50%, transparent);
+            color: var(--muted);
             font-weight: 500;
             letter-spacing: 0.02em;
             filter: none;
-            -webkit-text-fill-color: color-mix(in srgb, var(--foreground) 50%, transparent);
+            -webkit-text-fill-color: var(--muted);
             -webkit-opacity: 1;
             opacity: 1;
           }
@@ -121,11 +121,11 @@ export function useChatInputStyles() {
         /* Safari 브라우저 감지 및 모바일과 동일한 스타일 적용 */
         @supports (-webkit-touch-callout: none) {
           .futuristic-input.empty:before {
-            color: color-mix(in srgb, var(--foreground) 50%, transparent);
+            color: var(--muted);
             font-weight: 500;
             letter-spacing: 0.02em;
             filter: none;
-            -webkit-text-fill-color: color-mix(in srgb, var(--foreground) 50%, transparent);
+            -webkit-text-fill-color: var(--muted);
             -webkit-opacity: 1;
             opacity: 1;
           }
@@ -134,11 +134,11 @@ export function useChatInputStyles() {
         /* Safari 데스크탑 감지 - User Agent 기반으로는 CSS에서 직접 감지 불가하므로 
            JavaScript에서 추가한 클래스를 사용 */
         .safari-browser .futuristic-input.empty:before {
-          color: color-mix(in srgb, var(--foreground) 50%, transparent);
+          color: var(--muted);
           font-weight: 500;
           letter-spacing: 0.02em;
           filter: none;
-          -webkit-text-fill-color: color-mix(in srgb, var(--foreground) 50%, transparent);
+          -webkit-text-fill-color: var(--muted);
           -webkit-opacity: 1;
           opacity: 1;
         }
@@ -164,17 +164,9 @@ export function useChatInputStyles() {
           }
         }
         
-        /* Tool button hover effects */
+        /* Tool button styles */
         .tool-button {
           transition: all 0.15s ease-out;
-        }
-        
-        .tool-button:hover {
-          transform: translateY(-1px);
-        }
-        
-        .tool-button:active {
-          transform: translateY(0);
         }
         
         /* 활성화된 버튼 스타일 통합 */
@@ -202,77 +194,6 @@ export function useChatInputStyles() {
           z-index: 0;
         }
         
-        
-        /* Trending terms styles */
-        .trending-term {
-          font-size: 0.75rem;
-          padding: 0.25rem 0.5rem;
-          border-radius: 9999px;
-          white-space: nowrap;
-          transition: all 0.2s ease;
-          background-color: color-mix(in srgb, var(--foreground) 5%, transparent);
-          color: var(--foreground);
-          border: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
-        }
-        
-        .trending-term:hover {
-          background-color: color-mix(in srgb, var(--foreground) 10%, transparent);
-          transform: translateY(-1px);
-        }
-        
-        /* Agent dropdown styles */
-        .agent-dropdown {
-          backdrop-filter: blur(16px);
-          border: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
-          animation: slideUpFadeIn 0.2s ease-out;
-          transform-origin: bottom left;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-        }
-        
-        .agent-dropdown::before {
-          content: '';
-          position: absolute;
-          bottom: -6px;
-          left: 20px;
-          width: 0;
-          height: 0;
-          border-left: 6px solid transparent;
-          border-right: 6px solid transparent;
-          border-top: 6px solid color-mix(in srgb, var(--foreground) 10%, transparent);
-        }
-        
-        .agent-dropdown::after {
-          content: '';
-          position: absolute;
-          bottom: -5px;
-          left: 21px;
-          width: 0;
-          height: 0;
-          border-left: 5px solid transparent;
-          border-right: 5px solid transparent;
-          border-top: 5px solid var(--accent);
-        }
-        
-        @keyframes slideUpFadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(10px) scale(0.98);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
-        }
-        
-        /* Agent dropdown button states */
-        .agent-dropdown button:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-        
-        .agent-dropdown button:active:not(:disabled) {
-          transform: translateY(0);
-        }
         
         /* 라이트모드 기본 스타일 (모델 선택창과 동일) */
         .chat-input-tooltip-backdrop {

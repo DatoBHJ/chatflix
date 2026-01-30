@@ -83,7 +83,7 @@ export default function ControlSection() {
       {/* Contact Footer */}
       <div className="mt-28 mb-8 text-center">
         <p className="text-sm text-[var(--muted)]">
-          If you have any questions,<br className="sm:hidden" />contact us at <a href="mailto:sply@chatflix.app" className="hover:text-[var(--foreground)] transition-colors">sply@chatflix.app</a>
+          If you have any questions,<br className="sm:hidden" /> contact us at <a href="mailto:sply@chatflix.app" className="hover:text-[var(--foreground)] transition-colors">sply@chatflix.app</a>
         </p>
       </div>
     </div>

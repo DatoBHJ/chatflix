@@ -1,5 +1,6 @@
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { ALLOWED_MEMORY_CATEGORY_ARRAY } from '@/utils/memory-bank';
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
     const { data: allRows } = await serviceSupabase
       .from('memory_bank')
       .select('user_id, updated_at, last_refined_at')
+      .in('category', ALLOWED_MEMORY_CATEGORY_ARRAY)
       .order('user_id', { ascending: true });
 
     if (!allRows) {

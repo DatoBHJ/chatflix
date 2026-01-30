@@ -3,12 +3,12 @@ import { updateMemoryBank, getLastMemoryUpdate, getMemoryBankEntry, getAllMemory
 // import { MultiModalMessage } from '../types';
 import { callMemoryBankUpdate } from '@/app/api/chat/utils/callMemoryBankUpdate';
 import { getCachedUserName } from '@/lib/user-name-cache';
+import { getUserLocaleInfo, getUserTrendsPreferences, formatTrendsPreferencesForPrompt } from '@/lib/user-locale';
+import { getGeoOptions } from '@/lib/trends/options';
 
 // Internal function to fetch user name from database (without cache)
 const fetchUserNameFromDB = async (userId: string, supabase: SupabaseClient) => {
   try {
-    console.log(`👤 [USER NAME] Fetching name for user ${userId}`);
-    
     // First try to get name from all_user table
     const { data, error } = await supabase
       .from('all_user')
@@ -17,35 +17,25 @@ const fetchUserNameFromDB = async (userId: string, supabase: SupabaseClient) => 
       .single();
 
     if (error) {
-      console.log(`👤 [USER NAME] all_user lookup failed (${error.code}), checking auth metadata...`);
-      
       // Single auth call with better error handling
       try {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         
         if (authError || !user) {
-          // 게스트 모드에서는 auth 에러가 정상이므로 warn 레벨로만 로깅
-          console.log(`👤 [USER NAME] Auth lookup failed (guest mode), using default 'You'`);
           return 'You';
         }
         
         const authName = user.user_metadata?.full_name || user.user_metadata?.name || 'You';
-        console.log(`👤 [USER NAME] Using auth metadata name: ${authName}`);
         return authName;
       } catch (authErr) {
-        // 게스트 모드에서는 auth 에러가 정상이므로 error 레벨 로깅 제거
-        console.log(`👤 [USER NAME] Auth lookup failed (guest mode), using default 'You'`);
         return 'You';
       }
     } else if (data?.name) {
-      console.log(`👤 [USER NAME] Found name in all_user table: ${data.name}`);
       return data.name;
     } else {
-      console.log(`👤 [USER NAME] No name data found, using default 'You'`);
       return 'You';
     }
   } catch (error) {
-    console.error('❌ [USER NAME] Unexpected error fetching user name:', error);
     return 'You'; // 안전한 폴백
   }
 };
@@ -59,11 +49,27 @@ const fetchUserName = async (userId: string, supabase: SupabaseClient) => {
 // 메모리 뱅크 업데이트에 사용할 AI 모델 및 설정
 const MEMORY_UPDATE_MODEL = 'gemini-2.5-flash';
 const MEMORY_UPDATE_MAX_TOKENS = 4000;
-const MEMORY_UPDATE_TEMPERATURE = 0.3;
 
 // 🆕 Smart Trigger 관련 상수
-const MEMORY_ANALYSIS_MODEL = 'gemini-2.0-flash'; // Gemini 2.0 Flash 모델 사용
+const MEMORY_ANALYSIS_MODEL = 'gemini-2.5-flash-lite'; // Gemini 2.5 Flash Lite 모델 사용
 const MAX_TIME_SINCE_LAST_UPDATE = 24 * 60 * 60 * 1000; // 최대 24시간
+
+const describeTrendsPreference = (
+  preference?: ReturnType<typeof formatTrendsPreferencesForPrompt>,
+): string => {
+  if (!preference) {
+    return '';
+  }
+
+  const countryLabel = preference.countryName || preference.countryCode || '';
+  const regionLabel = preference.regionName || preference.regionCode || '';
+
+  if (countryLabel && regionLabel) {
+    return `${countryLabel}, ${regionLabel}`;
+  }
+
+  return countryLabel || regionLabel || '';
+};
 
 /**
  * 메모리 업데이트 필요성 분석 (Smart Trigger)
@@ -127,7 +133,7 @@ export async function shouldUpdateMemory(
         categories: { 
           type: "array", 
           items: { type: "string" },
-          description: "Categories that need updating: personal-info, preferences, interests, interaction-history, relationship"
+          description: "Categories eligible for real-time updates: personal-info, preferences (Pinned Memories only), interests"
         },
         reasons: { 
           type: "array", 
@@ -141,7 +147,7 @@ export async function shouldUpdateMemory(
             properties: {
               category: { 
                 type: "string",
-                description: "Category to apply this edit to: personal-info, preferences, interests, interaction-history, relationship"
+                description: "Category to apply this edit to: personal-info, preferences (Pinned-only), or interests"
               },
               editIntent: { 
                 type: "string",
@@ -164,27 +170,57 @@ AI RESPONSE: "${aiMessage}"
 RECENT CONTEXT: "${recentConversation}"
 ${memoryData ? `EXISTING MEMORY DATA: "${memoryData}"` : 'NO EXISTING MEMORY DATA'}
 ${isDefaultMemory ? 'NOTE: User has default/initial memory data - prioritize updates' : ''}
+${!memoryData ? '⚠️ CRITICAL: User has NO memory data yet. This is a prime opportunity to capture information naturally shared during the conversation.' : ''}
 
 Determine:
 1. Should memory be updated? (yes/no)
-2. What categories need updating? (personal-info, preferences, interests, interaction-history, relationship)
+2. What categories need updating? (personal-info, preferences (Pinned-only), interests)
 3. Brief reasons
 4. If user explicitly requests an edit operation, set editIntent and targetContent
 
+NOTE: Realtime writes support three paths:
+- 00-personal-info: facts about the person, expertise, key characteristics
+- 02-interests: hobbies, projects, long-term focus areas
+- 01-preferences: ONLY the \"## Pinned Memories (User Requested)\" section when the user explicitly commands changes to tone/format/structure (e.g., \"앞으로 이미지는 쓰지 마\", \"항상 한국어 요약부터 해줘\"). Strategy sections stay untouched until refinement.
+
 CRITICAL RULES FOR MEMORY UPDATES:
+
+${!memoryData ? `**SPECIAL RULES FOR USERS WITH NO EXISTING MEMORY:**
+- User has NO memory data yet - this is the foundation for future personalization
+- Be MORE PERMISSIVE in capturing information - any naturally shared information is valuable
+- If the user naturally shares ANY personal information (name, interests, work) capture it under personal-info or interests
+- Explicit instructions about response tone/format (\"앞으로 이미지는 쓰지 마\", \"코드 먼저 보여줘\") belong in the preferences pinned section
+- Even subtle information is valuable when there's no existing memory (e.g., "I'm learning Python" → interests category)
+- If the AI asked natural follow-up questions and the user responded, capture that information
+- Focus on building a basic profile from available information
+- However, still maintain quality - don't capture meaningless greetings or single-word responses
+- Priority categories when no memory exists: personal-info and interests (preferences only when pinned instructions are explicitly given)
+
+**Examples for Users with No Memory:**
+✅ User: "Hi, I'm working on a React project" → Update personal-info (work/project), interests (React)
+✅ User: "방정식 풀이를 이미지로 하지 마. 앞으로 텍스트로만 설명해줘." → Update preferences (Pinned instruction to avoid images)
+✅ User: "I'm a beginner in programming" → Update personal-info (expertise level), interests
+✅ AI: "What are you working on?" → User: "A web app for my startup" → Update personal-info (work), interests
+❌ User: "Hi" → AI: "Hello!" → User: "Thanks" → Skip (no meaningful information)
+` : ''}
 - ALWAYS update when user EXPLICITLY requests to remember something (e.g., "remember this", "save this", "keep this in mind", "memorize this")
-- ALWAYS update when user asks to remember specific preferences, styles, or instructions
+- ALWAYS update preferences when the user gives a direct instruction about how answers should be formatted/styled (this becomes a Pinned entry)
 - UPDATE for:
   * User explicitly requests memory updates ("remember this", "save this", "keep this in mind", etc.)
   * Major personal info changes (name, occupation, location)
-  * Strong emotional responses or preferences that contradict existing data
+  * Strong emotional responses or preferences that contradict existing data (log inside personal-info key characteristics unless it's an explicit command)
   * Completely new topics/interests not mentioned before
   * New users with default memory (first few interactions)
-  * Specific writing style preferences or communication instructions
+  * Distinct communication or response-style instructions that clearly begin with "앞으로", "다음부터", "기억해", "하지 마", etc. (store as Pinned preferences)
   * New learning patterns or expertise level changes
   * Significant technical discussions on new subjects
-  * Communication style preferences that differ from existing patterns
+  * Communication style preferences that differ from existing patterns ONLY when the user makes an explicit request ("항상 TL;DR부터", "이미지는 금지", "한국어로만")
   * Regular updates for users with established profiles (every 24h)
+
+PREFERENCES (PINNED) LOGIC:
+- Look for imperative phrases about how the assistant should respond (e.g., "앞으로 이미지는 쓰지 마", "항상 한국어 요약부터", "코드 먼저 보여줘").
+- These instructions must generate a preferences edit with editIntent "add"/"delete"/"modify" targeting the pinned section.
+- If the user did NOT explicitly instruct a change, do NOT update preferences—implicit hints belong to refinement later.
 - SKIP update for:
   * Purely factual Q&A without personal context
   * Information already well-documented in memory
@@ -193,35 +229,6 @@ CRITICAL RULES FOR MEMORY UPDATES:
   * Minor clarifications or elaborations on existing topics
   * Simple questions or greetings
   * Information already present in memory
-
-SPECIAL RULES FOR INTERACTION-HISTORY CATEGORY:
-⚠️ INTERACTION-HISTORY IS THE MOST SELECTIVE CATEGORY - USE HIGHEST STANDARDS ⚠️
-
-NEVER update interaction-history for:
-- Simple greetings: "hi", "hello", "hey", "good morning", "good afternoon"
-- Single-word responses: "ok", "thanks", "sure", "yes", "no", "maybe"
-- Basic acknowledgments: "got it", "understood", "alright", "cool"
-- Small talk without substance: "how are you?", "what's up?", "how's it going?"
-- Routine questions without personal context: "what time is it?", "what's the weather?"
-- Short follow-up questions: "and?", "really?", "why?", "how?"
-- Simple requests for information without personal relevance
-- Conversations under 3 meaningful exchanges
-
-ONLY update interaction-history when:
-- User shares significant life events, achievements, or major life changes
-- User discusses ongoing projects, goals, or challenges they're working on
-- User has substantive multi-turn conversations (3+ meaningful exchanges) about topics that would provide valuable context for future interactions
-- User shares personal struggles, successes, or important decisions
-- User discusses relationships, family, work situations that are meaningful
-- User has in-depth technical discussions that show their expertise level or learning journey
-- User shares preferences about communication style that would be useful to remember
-- User discusses problems they're trying to solve that might come up again
-
-EXAMPLES:
-❌ DON'T record: "hi" → "Hello! How can I help you?" → "thanks"
-❌ DON'T record: "what's 2+2?" → "4" → "ok"
-✅ DO record: "I'm working on a React project and struggling with state management" → [substantive discussion about their coding challenges]
-✅ DO record: "I just got promoted at work and I'm excited but nervous about the new responsibilities" → [discussion about their career development]
 
 EXPLICIT MEMORY REQUESTS:
 - Look for phrases like: "remember this", "save this", "keep this in mind", "memorize this", "remember that", "save that"
@@ -249,27 +256,53 @@ COMPARISON LOGIC:
       'You are an AI assistant that analyzes conversations to determine memory update necessity.',
       analysisPrompt,
       200,
-      0.1,
       analysisSchema
     );
     
     if (analysisResult) {
       try {
         const analysis = JSON.parse(analysisResult);
-        console.log(`🧠 [SMART TRIGGER] Analysis result:`, analysis);
+        const allowedCategories = new Set(AI_CATEGORY_KEYS);
+        const rawCategories: string[] = analysis.categories || [];
+        const includeAll = rawCategories.includes('all');
+        let filteredCategories = includeAll
+          ? ['all']
+          : rawCategories.filter(category => allowedCategories.has(category as typeof AI_CATEGORY_KEYS[number]));
+        const filteredEdits = Array.isArray(analysis.edits)
+          ? analysis.edits.filter((edit: { category: string }) => allowedCategories.has(edit.category as typeof AI_CATEGORY_KEYS[number]))
+          : undefined;
+        const reasons = analysis.reasons || [];
+        const hasPreferenceEdit = filteredEdits?.some((edit: { category: string }) => edit.category === 'preferences') ?? false;
+
+        if (!includeAll) {
+          if (hasPreferenceEdit && !filteredCategories.includes('preferences')) {
+            filteredCategories = [...filteredCategories, 'preferences'];
+          }
+          if (filteredCategories.includes('preferences') && !hasPreferenceEdit) {
+            filteredCategories = filteredCategories.filter(category => category !== 'preferences');
+          }
+        }
+
+        if ((analysis.shouldUpdate && filteredCategories.length === 0) && !includeAll) {
+          return {
+            shouldUpdate: false,
+            reasons: [...reasons, 'Realtime updates require personal-info/interests context or explicit Pinned preference instructions.'],
+            categories: [],
+            edits: filteredEdits
+          };
+        }
         return {
           shouldUpdate: analysis.shouldUpdate || false,
-          reasons: analysis.reasons || [],
-          categories: analysis.categories || [],
-          edits: analysis.edits
+          reasons,
+          categories: filteredCategories,
+          edits: filteredEdits
         };
       } catch (parseError) {
-        console.error('❌ [SMART TRIGGER] Failed to parse analysis result:', parseError);
+        // Failed to parse analysis result
       }
     }
     
     // AI 분석 실패 시 업데이트 건너뛰기
-    console.log(`⏭️ [SMART TRIGGER] AI analysis failed, skipping memory update`);
     return {
       shouldUpdate: false,
       reasons: ['AI analysis failed'],
@@ -277,7 +310,6 @@ COMPARISON LOGIC:
     };
     
   } catch (error) {
-    console.error('❌ [SMART TRIGGER] Analysis failed:', error);
     // AI 분석 실패 시 업데이트 건너뛰기
     return {
       shouldUpdate: false,
@@ -295,10 +327,10 @@ const RECENT_MESSAGES_COUNT = 5;
 const MEMORY_CATEGORIES = {
   PERSONAL_INFO: '00-personal-info',
   PREFERENCES: '01-preferences',
-  INTERESTS: '02-interests',
-  INTERACTION_HISTORY: '03-interaction-history',
-  RELATIONSHIP: '04-relationship'
+  INTERESTS: '02-interests'
 };
+
+const AI_CATEGORY_KEYS = ['personal-info', 'preferences', 'interests'] as const;
 
 /**
  * Map category name from AI analysis format to database format
@@ -309,9 +341,7 @@ function mapCategoryToDb(category: string): string | null {
   const mapping: Record<string, string> = {
     'personal-info': MEMORY_CATEGORIES.PERSONAL_INFO,
     'preferences': MEMORY_CATEGORIES.PREFERENCES,
-    'interests': MEMORY_CATEGORIES.INTERESTS,
-    'interaction-history': MEMORY_CATEGORIES.INTERACTION_HISTORY,
-    'relationship': MEMORY_CATEGORIES.RELATIONSHIP
+    'interests': MEMORY_CATEGORIES.INTERESTS
   };
   
   return mapping[category] || null;
@@ -416,42 +446,27 @@ async function updateMemoryCategory(
   maxTokens: number = MEMORY_UPDATE_MAX_TOKENS
 ): Promise<string | null> {
   try {
-    console.log(`📝 [MEMORY CATEGORY] Updating ${category} for user ${userId}`);
-    // console.log('--------------------------------');
-    // console.log(`📝 [MEMORY CATEGORY] System prompt text:`, systemPromptText);
-    // console.log('--------------------------------');
-    // console.log(`📝 [MEMORY CATEGORY] Prompt content:`, promptContent);
-    // console.log('--------------------------------');
-    
     const result = await callMemoryBankUpdate(
       MEMORY_UPDATE_MODEL,
       systemPromptText,
       promptContent,
-      maxTokens,
-      MEMORY_UPDATE_TEMPERATURE
+      maxTokens
     );
     
     if (result) {
-      console.log(`💾 [MEMORY CATEGORY] Saving ${category} to database...`);
-      console.log('--------------------------------');
-      console.log(`📝 [MEMORY CATEGORY] Result:`, result);
-      console.log('--------------------------------');
       const dbResult = await updateMemoryBank(supabase, userId, category, result);
       
       if (dbResult.error) {
-        console.error(`❌ [MEMORY CATEGORY] Database save failed for ${category}:`, dbResult.error);
         return null;
       }
       
-      console.log(`✅ [MEMORY CATEGORY] Successfully updated ${category} for user ${userId}`);
       return result;
     } else {
-      console.error(`❌ [MEMORY CATEGORY] AI generation failed for ${category}`);
+      // AI generation failed for category
     }
     
     return null;
   } catch (error) {
-    console.error(`❌ [MEMORY CATEGORY] Error updating memory category ${category}:`, error);
     return null;
   }
 }
@@ -485,6 +500,30 @@ export async function updatePersonalInfo(
     // Get basic user info from auth.users
     const basicInfo = await getUserBasicInfo(supabase, userId);
     
+    // Get user locale and trends preference information
+    const [localeInfo, trendsPreferencesRaw] = await Promise.all([
+      getUserLocaleInfo(userId, supabase),
+      getUserTrendsPreferences(userId, supabase),
+    ]);
+    const localeContext = localeInfo ? JSON.stringify(localeInfo) : '';
+    const geoOptions = trendsPreferencesRaw ? await getGeoOptions() : null;
+    const formattedTrendsPreferences = trendsPreferencesRaw
+      ? formatTrendsPreferencesForPrompt(trendsPreferencesRaw, geoOptions || [])
+      : null;
+    const trendsDescription = describeTrendsPreference(formattedTrendsPreferences || undefined);
+    const trendsContext = formattedTrendsPreferences
+      ? {
+          country_code: formattedTrendsPreferences.countryCode,
+          country_name: formattedTrendsPreferences.countryName,
+          region_code: formattedTrendsPreferences.regionCode,
+          region_name: formattedTrendsPreferences.regionName,
+          description: trendsDescription,
+        }
+      : null;
+    const trendsContextBlock = trendsContext
+      ? `TRENDS PREFERENCES CONTEXT:\n${JSON.stringify(trendsContext)}\n\nIMPORTANT: The user manually follows trending topics from ${trendsDescription || 'the specified location'}. Mention this interest naturally in ## Basic Details and avoid duplicating the same location if USER LOCALE CONTEXT already covers it.\n\n`
+      : '';
+    
     // Extract conversation text from recent messages
     const recentConversationText = getRecentConversationText(messages);
     
@@ -494,7 +533,7 @@ export async function updatePersonalInfo(
     const personalInfoPrompt = hasExistingMemory 
       ? `Update the user's personal information based on new conversation data.
 
-EXISTING PERSONAL INFO:
+${localeContext ? `USER LOCALE CONTEXT:\n${localeContext}\n\n` : ''}${trendsContextBlock}EXISTING PERSONAL INFO:
 ${categoryMemory}
 
 NEW CONVERSATION:
@@ -512,58 +551,90 @@ ${edit.editIntent === 'add' ? '   - Add this new information while preserving ex
 Apply ALL edit operations above in sequence.
 ` : ''}
 
+LOCALE INFORMATION USAGE:
+- If USER LOCALE CONTEXT is provided, use it to determine the user's primary language and location
+- The language field in locale context indicates the user's preferred language (e.g., "ko" = Korean, "en" = English)
+- Use this language to write the entire profile in the same language
+- Include location information (country, region) in Basic Details section if available
+- Store the language preference explicitly in Basic Details section
+
+TRENDS PREFERENCES USAGE:
+- If TRENDS PREFERENCES CONTEXT is provided, the user manually selected a country/region for the Trending widget
+- Treat it as an active interest and weave it naturally into ## Basic Details (e.g., "Interested in trends from United States, California")
+- Prefer the provided human-readable names; fall back to codes when names are missing
+- Do not duplicate locale information—merge the trend interest with existing location facts when they refer to the same place
+
 CRITICAL FORMAT REQUIREMENTS:
-- MUST maintain the exact same markdown structure as the existing profile
-- MUST preserve all existing section headers (## Basic Details, ## Professional Context, ## Usage Patterns)
-- MUST maintain the same language as the existing profile
-- DELETE any content that doesn't fit the required format
-- NEVER include explanatory text, meta-comments, or reasoning
-- Output ONLY the markdown profile content
-- NO sentences like 'No new X can be inferred...' or 'The existing profile will be returned unchanged'
-- If no updates needed, return ONLY the existing profile in pure markdown format
+- MUST output ONLY these sections in this order: ## Basic Details, ## Professional Context, ## Key Characteristics, ## Pinned Memories (User Requested)
+- Each section must contain at most 3 concise bullet sentences (no nested lists, no enumerated examples)
+- Summaries must read like how someone would naturally describe a friend (e.g., "GOAT은 ...")
+- Start each sentence directly with the fact—avoid generic openings like "사용자는", "그는", "그녀는"
+- Do NOT repeat the same fact across multiple sections
+- Delete filler sentences and long enumerations—capture only memorable traits
+- Pinned entries must use the format "- [PINNED] <short instruction>" and ONLY appear when the user explicitly asked to remember/add/delete/modify something (keywords like remember/save/keep/add/delete/remove/forget/erase/update/change/modify)
+- If there are no explicit user memory requests, include "- [PINNED] None yet"
+- NEVER include explanatory text, meta-comments, or reasoning outside the markdown sections
 
 Update the existing personal info profile by:
-1. ${edits && edits.length > 0 ? 'Following the specific edit operations listed above' : 'Integrating new observations while preserving previous insights'}
-2. Only updating information that can be reliably inferred from the new conversation
-3. Maintaining the exact same language and format as the existing profile
-4. If no new personal info insights are available, return ONLY the existing profile in pure markdown format without any explanatory text`
+1. ${edits && edits.length > 0 ? 'Applying the requested edit operations first' : 'Integrating new insights without losing earlier facts'}
+2. Compressing long lists into natural sentences that highlight only the most important ideas
+3. Adding explicit user memory requests to the pinned section (never infer pinned entries yourself)
+4. Returning ONLY the markdown profile content even when no changes are needed`
       
       : `Create a new user personal information profile based on conversation analysis.
 
-BASIC USER DATA:
+${localeContext ? `USER LOCALE CONTEXT:\n${localeContext}\n\n` : ''}${trendsContextBlock}BASIC USER DATA:
 - Name: ${basicInfo.name || '[Extract from conversation if mentioned]'}
 - Member since: ${basicInfo.created_at ? new Date(basicInfo.created_at).toLocaleDateString() : 'Unknown'}
 
 CONVERSATION:
 ${recentConversationText}
 
-CRITICAL FORMAT REQUIREMENTS:
-- MUST use exactly these section headers: ## Basic Details, ## Professional Context, ## Usage Patterns
-- MUST analyze conversation to detect user's preferred language and write entire profile in that language
-- MUST follow the exact structure shown below
-- DELETE any content that doesn't fit the required format
+⚠️ IMPORTANT: User has NO existing memory data. Capture naturally shared facts even if brief, but summarize them like a friend describing another friend.
 
-Create a comprehensive user profile in markdown format with these EXACT sections:
+LOCALE INFORMATION USAGE:
+- If USER LOCALE CONTEXT is provided, use it to determine the user's primary language and location
+- The language field in locale context indicates the user's preferred language (e.g., "ko" = Korean, "en" = English)
+- Use this language to write the entire profile in the same language
+- Include location information (country, region) in Basic Details section if available
+- Store the language preference explicitly in Basic Details section
+
+TRENDS PREFERENCES USAGE:
+- If TRENDS PREFERENCES CONTEXT is provided, the user manually selected a country/region for the Trending widget
+- Treat it as an active interest and weave it naturally into ## Basic Details (e.g., "Interested in trends from United States, California")
+- Prefer the provided human-readable names; fall back to codes when names are missing
+- Do not duplicate locale information—merge the trend interest with existing location facts when they refer to the same place
+
+CRITICAL FORMAT REQUIREMENTS:
+- MUST use exactly these section headers in this order: ## Basic Details, ## Professional Context, ## Key Characteristics, ## Pinned Memories (User Requested)
+- Each section is limited to 3 short bullet sentences—no rambling lists or long chains of clauses
+- If locale information is provided, prioritize it over inferring from conversation content
+- Omit enumerated examples; focus on the essence
+- Start each sentence directly with the fact; avoid generic subjects like "사용자는/그는/그녀는"
+- Pinned section lists explicit user memory requests using "- [PINNED] ..." only when the user explicitly issued a remember/save/add/delete-style command; otherwise output "- [PINNED] None yet"
+
+Create the profile as follows:
 
 ## Basic Details
-- Name: [Extract from conversation if mentioned, otherwise use provided name]
+- Name: [Extract or use provided name]
 - Member since: [Use provided date]
-- Language preference: [Extract from conversation]
+- Language preference: [Use locale context if available, otherwise infer from conversation]
 
 ## Professional Context
-- Occupation: [Extract from conversation if mentioned]
-- Expertise level: [Beginner/Intermediate/Advanced - infer from conversation]
-- Fields: [Extract main professional/interest areas]
+- Occupation: [Summarize job/role context]
+- Expertise level: [Beginner/Intermediate/Advanced inferred]
+- Fields: [1-line summary of main domains]
 
-## Usage Patterns
-- Typical activity: [Identify any patterns in usage]
-- Session frequency: [How often they engage in conversations]
+## Key Characteristics
+- Provide up to 3 natural-language sentences that capture personality, focus areas, or habits
+
+## Pinned Memories (User Requested)
+- Include "- [PINNED] ..." entries only when the user explicitly asked to remember/add/delete/modify something; otherwise output "- [PINNED] None yet"
 
 GUIDELINES:
-1. Only include information that can be reliably inferred from the conversation or the provided user data
-2. DO NOT make up information that wasn't mentioned or isn't provided
-3. If information isn't available, keep the existing placeholder text in brackets
-4. Follow the exact format requirements above - no deviations allowed`;
+1. Be permissive while staying factual—short memorable sentences beat exhaustive lists
+2. Convert even implicit hints into concise statements when reasonably supported
+3. Never fabricate information; use "[To be determined]" when absolutely no clue exists`
     
     return await updateMemoryCategory(
       supabase,
@@ -606,81 +677,48 @@ export async function updatePreferences(
     const recentMessages = messages.slice(-RECENT_MESSAGES_COUNT);
     const conversationText = convertMessagesToText(recentMessages);
     
-    // 메모리 유무에 따른 조건부 접근
-    const hasExistingMemory = categoryMemory && !categoryMemory.includes('No previous preferences recorded');
-    
-    const preferencesPrompt = hasExistingMemory 
-      ? `Update the user's preferences based on new conversation data.
+    // 메모리 유무에 따른 조건부 접근 (legacy structure preserved for refinement, pinned-only updates handled below)
+    let preferencesPrompt = '';
 
-EXISTING PREFERENCES:
-${categoryMemory}
-
-NEW CONVERSATION:
-${conversationText}
-
-${edits && edits.length > 0 ? `
-EDIT OPERATIONS REQUESTED:
-${edits.map((edit, index) => `
-${index + 1}. ${edit.editIntent.toUpperCase()}: "${edit.targetContent}"
-${edit.editIntent === 'delete' ? '   - Remove all mentions while preserving other content' : ''}
-${edit.editIntent === 'modify' ? '   - Update/change this content based on new information' : ''}
-${edit.editIntent === 'add' ? '   - Add this new information while preserving existing content' : ''}
-`).join('\n')}
-
-Apply ALL edit operations above in sequence.
-` : ''}
-
-CRITICAL FORMAT REQUIREMENTS:
-- MUST maintain the exact same markdown structure as the existing profile
-- MUST preserve all existing section headers (## Communication Style, ## Content Preferences, ## Response Format Preferences)
-- MUST maintain the same language as the existing profile
-- DELETE any content that doesn't fit the required format
-- NEVER include explanatory text, meta-comments, or reasoning
-- Output ONLY the markdown profile content
-- NO sentences like 'No new X can be inferred...' or 'The existing profile will be returned unchanged'
-- If no updates needed, return ONLY the existing profile in pure markdown format
-
-Update the existing preference profile by:
-1. ${edits && edits.length > 0 ? 'Following the specific edit operations listed above' : 'Integrating new observations while preserving previous insights'}
-2. Only updating preferences that can be reliably inferred from the new conversation
-3. Maintaining the exact same language and format as the existing profile
-4. If no new preference insights are available, return ONLY the existing profile in pure markdown format without any explanatory text`
-      
-      : `Create a new user preference profile based on conversation analysis.
-
-CONVERSATION:
-${conversationText}
-
-CRITICAL FORMAT REQUIREMENTS:
-- MUST use exactly these section headers: ## Communication Style, ## Content Preferences, ## Response Format Preferences
-- MUST analyze conversation to detect user's preferred language and write entire profile in that language
-- MUST follow the exact structure shown below
-- DELETE any content that doesn't fit the required format
-
-Create a comprehensive preference profile in markdown format with these EXACT sections:
-
-## Communication Style
-- Preferred response length: [Concise/Detailed - analyze how they respond to different length answers]
-- Technical detail level: [Basic/Intermediate/Advanced - analyze their comfort with technical details]
-- Tone preference: [Casual/Professional/Academic - infer from their language style]
-- Language style: [Formal/Informal - analyze their writing style]
-
-## Content Preferences
-- Code examples: [Frequency of code-related questions, preference for examples]
-- Visual elements: [Any mentions or requests for visual aids, diagrams, etc.]
-- Step-by-step guides: [Do they prefer procedural explanations?]
-- References inclusion: [Do they ask for sources or additional reading?]
+    if (!categoryMemory) {
+      categoryMemory = `## Communication Style
+- [To be determined from interactions]
 
 ## Response Format Preferences
-- Structure preference: [Do they prefer structured responses, bullet points, or prose?]
-- Organization style: [Linear flow vs. hierarchical organization]
-- Detail presentation: [How they prefer information to be organized and presented]
+- [To be determined from interactions]
 
-GUIDELINES:
-1. Only include preferences that can be reliably inferred from the conversation
-2. If certain preferences can't be determined, indicate "Not enough data" rather than guessing
-3. Follow the exact format requirements above - no deviations allowed`;
-    
+## Pinned Memories (User Requested)
+- [PINNED] None yet`;
+    }
+
+    const preferenceEditBlock = edits && edits.length > 0
+      ? `EXPLICIT EDIT OPERATIONS (apply in order):
+${edits.map((edit, index) => `${index + 1}. ${edit.editIntent.toUpperCase()} "${edit.targetContent}"`).join('\n')}
+
+Remember: these edits always target the pinned section only.`
+      : 'EXPLICIT EDIT OPERATIONS: None detected. Only add a pinned entry if the conversation clearly contains commands such as "앞으로", "기억해", "하지 마", "keep this in mind".';
+
+    preferencesPrompt = `REALTIME UPDATE MODE (Pinned-only)
+- You are ONLY allowed to modify the "## Pinned Memories (User Requested)" section.
+- DO NOT rewrite or reorder the "## Communication Style" or "## Response Format Preferences" sections—copy them exactly as the existing profile shows.
+- Add, modify, or delete pinned entries ONLY when the user clearly gave an instruction about response tone/format (e.g., "이미지로 설명하지 마", "항상 텍스트 요약부터").
+- If there are no qualifying instructions, return the profile unchanged.
+- Phrase pinned entries as direct instructions (e.g., "- [PINNED] 방정식은 텍스트로 설명")—avoid generic openings like "사용자는/그는/그녀는".
+
+${preferenceEditBlock}
+
+EXISTING PREFERENCE PROFILE:
+${categoryMemory}
+
+RECENT CONVERSATION (focus on explicit commands):
+${conversationText}
+
+OUTPUT REQUIREMENTS:
+1. Return the complete markdown profile with sections in this exact order: ## Communication Style, ## Response Format Preferences, ## Pinned Memories (User Requested).
+2. Keep the first two sections verbatim—identical text and bullet order.
+3. Update only the pinned section. Use "- [PINNED] ..." entries, deduplicate similar commands, and remove an entry only when the user explicitly rescinds it.
+4. If nothing changes, output the original profile verbatim.`;
+
     await updateMemoryCategory(
       supabase,
       userId,
@@ -725,7 +763,7 @@ export async function updateInterests(
     const hasExistingMemory = categoryMemory && !categoryMemory.includes('No previous interests recorded');
     
     const interestsPrompt = hasExistingMemory 
-      ? `Update the user's interests based on new conversation data.
+      ? `Update the user's interests based on new conversation data while trimming the content to only the most memorable facts.
 
 EXISTING INTERESTS:
 ${categoryMemory}
@@ -746,53 +784,49 @@ Apply ALL edit operations above in sequence.
 ` : ''}
 
 CRITICAL FORMAT REQUIREMENTS:
-- MUST maintain the exact same markdown structure as the existing profile
-- MUST preserve all existing section headers (## Primary Interests, ## Recent Topics, ## Learning Journey)
-- MUST maintain the same language as the existing profile
-- DELETE any content that doesn't fit the required format
-- NEVER include explanatory text, meta-comments, or reasoning
-- Output ONLY the markdown profile content
-- NO sentences like 'No new X can be inferred...' or 'The existing profile will be returned unchanged'
-- If no updates needed, return ONLY the existing profile in pure markdown format
+- MUST output ONLY these sections in this order: ## Primary Interests, ## Current Focus, ## Learning Journey, ## Pinned Memories (User Requested)
+- Limit each bullet to a single vivid sentence—do not enumerate subtopics or list every example
+- Use natural Korean sentences when the conversation is in Korean
+- Start each sentence directly with the fact; avoid generic openings such as "사용자는/그는/그녀는"
+- No duplicated facts across sections
+- Pinned section uses "- [PINNED] ..." entries ONLY when the user explicitly asked to remember/add/delete/modify something; otherwise include "- [PINNED] None yet"
+- No meta commentary or explanation outside the markdown sections
 
 Update the existing interests profile by:
-1. ${edits && edits.length > 0 ? 'Following the specific edit operations listed above' : 'Integrating new observations while preserving previous insights'}
-2. Only updating interests that can be reliably inferred from the new conversation
-3. Maintaining the exact same language and format as the existing profile
-4. If no new interest insights are available, return ONLY the existing profile in pure markdown format without any explanatory text`
+1. ${edits && edits.length > 0 ? 'Applying requested edits first' : 'Synthesizing only the standout interests'}
+2. Collapsing long subtopic lists into short descriptors (e.g., "Seedream vs Nano Banana Pro 비교에 집착함")
+3. Capturing explicit memory requests in the pinned section`
       
-      : `Create a new user interests profile based on conversation analysis.
+      : `Create a new user interests profile from the conversation while keeping it punchy.
 
 CONVERSATION:
 ${conversationText}
 
 CRITICAL FORMAT REQUIREMENTS:
-- MUST use exactly these section headers: ## Primary Interests, ## Recent Topics, ## Learning Journey
-- MUST analyze conversation to detect user's preferred language and write entire profile in that language
-- MUST follow the exact structure shown below
-- DELETE any content that doesn't fit the required format
+- Sections must be: ## Primary Interests, ## Current Focus, ## Learning Journey, ## Pinned Memories (User Requested)
+- Each bullet = one sentence, no semicolons or comma splices
+- Describe interests the way someone would recall them later ("요즘 위젯 UI 리디자인 얘기를 자주 꺼냄")
+- Start each sentence directly with the fact; avoid generic openings such as "사용자는/그는/그녀는"
+- Pinned section lists explicit instructions with "- [PINNED] ..." only when directly requested; otherwise "- [PINNED] None yet"
 
-Create a comprehensive interest profile in markdown format with these EXACT sections:
+Section guidance:
 
 ## Primary Interests
-- Identify 3-5 main topics the user frequently discusses or asks about
-- For each interest, note subtopics and engagement level (high/medium/low)
+- Up to 4 bullets summarizing the main domains they care about (include engagement hint like "집중", "관심")
 
-## Recent Topics
-- List 2-3 topics from recent conversations
-- Include when they were last discussed (if possible)
+## Current Focus
+- 2 bullets on what they are actively exploring or building now
 
 ## Learning Journey
-- Current focus: Topics the user is actively learning or exploring
-- Progress areas: Topics where the user shows increasing expertise
-- Challenging areas: Topics where the user seems to need more support
+- 3 bullets covering current focus, progress strengths, and areas they find challenging
+
+## Pinned Memories (User Requested)
+- Explicit remember requests only (user must have clearly asked to remember/add/delete something); otherwise "- [PINNED] None yet"
 
 GUIDELINES:
-1. Focus on identifying genuine interests, not just passing mentions
-2. Look for patterns across multiple messages or sessions
-3. Prioritize recurring topics that show sustained interest
-4. Be specific about topics rather than using generic categories
-5. Follow the exact format requirements above - no deviations allowed`;
+1. A single mention can qualify if it felt important to the user
+2. Prefer concrete nouns over broad categories (\"Nano Banana Pro\" instead of \"AI\")
+3. If information is missing, use "- [To be determined from conversations]" but keep it brief`
     
     await updateMemoryCategory(
       supabase,
@@ -807,248 +841,8 @@ GUIDELINES:
 }
 
 /**
- * Update the interaction history
- */
-export async function updateInteractionHistory(
-  supabase: SupabaseClient,
-  userId: string,
-  messages: any[],
-  memoryData?: string | null,
-  edits?: Array<{
-    editIntent: 'add' | 'delete' | 'modify';
-    targetContent: string;
-  }>
-): Promise<void> {
-  try {
-    // 🆕 If memoryData is undefined (not explicitly passed), fetch it
-    let categoryMemory = memoryData;
-    if (categoryMemory === undefined) {
-      const { data } = await getMemoryBankEntry(
-        supabase, 
-        userId, 
-        MEMORY_CATEGORIES.INTERACTION_HISTORY
-      );
-      categoryMemory = data;
-    }
-    
-    const recentMessages = messages.slice(-RECENT_MESSAGES_COUNT);
-    const conversationText = convertMessagesToText(recentMessages);
-    
-    // 현재 날짜 정보 추가
-    const currentDate = new Date().toLocaleDateString();
-    
-    // 메모리 유무에 따른 조건부 접근
-    const hasExistingMemory = categoryMemory && !categoryMemory.includes('No previous interaction history recorded');
-    
-    const historyPrompt = hasExistingMemory 
-      ? `Update the user's interaction history based on new conversation data.
-
-EXISTING INTERACTION HISTORY:
-${categoryMemory}
-
-NEW CONVERSATION (${currentDate}):
-${conversationText}
-
-${edits && edits.length > 0 ? `
-EDIT OPERATIONS REQUESTED:
-${edits.map((edit, index) => `
-${index + 1}. ${edit.editIntent.toUpperCase()}: "${edit.targetContent}"
-${edit.editIntent === 'delete' ? '   - Remove all mentions while preserving other content' : ''}
-${edit.editIntent === 'modify' ? '   - Update/change this content based on new information' : ''}
-${edit.editIntent === 'add' ? '   - Add this new information while preserving existing content' : ''}
-`).join('\n')}
-
-Apply ALL edit operations above in sequence.
-` : ''}
-
-CRITICAL FORMAT REQUIREMENTS:
-- MUST maintain the exact same markdown structure as the existing profile
-- MUST preserve all existing section headers (## Recent Conversations, ## Recurring Questions, ## Unresolved Issues)
-- MUST maintain the same language as the existing profile
-- DELETE any content that doesn't fit the required format
-- Place the new interaction at the top of the Recent Conversations section
-- NEVER include explanatory text, meta-comments, or reasoning
-- Output ONLY the markdown profile content
-- NO sentences like 'No new X can be inferred...' or 'The existing profile will be returned unchanged'
-- If no updates needed, return ONLY the existing profile in pure markdown format
-
-Update the existing interaction history by:
-1. ${edits && edits.length > 0 ? 'Following the specific edit operations listed above' : 'Adding today\'s conversation summary to the top of Recent Conversations'}
-2. ${edits && edits.length > 0 ? 'Following the specific edit operations listed above' : 'Integrating new observations while preserving previous insights'}
-3. Maintaining the exact same language and format as the existing profile
-4. If no new interaction insights are available, return ONLY the existing profile in pure markdown format without any explanatory text`
-      
-      : `Create a new user interaction history based on conversation analysis.
-
-CONVERSATION (${currentDate}):
-${conversationText}
-
-CRITICAL FORMAT REQUIREMENTS:
-- MUST use exactly these section headers: ## Recent Conversations, ## Recurring Questions, ## Unresolved Issues
-- MUST analyze conversation to detect user's preferred language and write entire profile in that language
-- MUST follow the exact structure shown below
-- DELETE any content that doesn't fit the required format
-
-Create a comprehensive interaction history in markdown format with these EXACT sections:
-
-## Recent Conversations
-- Today (${currentDate}): Summarize this conversation with main topics and any conclusions reached
-- Focus on capturing actionable information and important outcomes
-
-## Recurring Questions
-- Identify any questions or topics that seem to repeat across conversations
-- Note the frequency and context of these recurring patterns
-
-## Unresolved Issues
-- Note any questions or problems that weren't fully addressed
-- Include any tasks the user mentioned they wanted to complete
-
-GUIDELINES:
-1. Prioritize information that will be useful for future interactions
-2. Focus on factual summaries rather than interpretations
-3. Include dates wherever possible to maintain chronology
-4. Keep the history concise but comprehensive
-5. Follow the exact format requirements above - no deviations allowed`;
-    
-    await updateMemoryCategory(
-      supabase,
-      userId,
-      MEMORY_CATEGORIES.INTERACTION_HISTORY,
-      'Create a structured interaction history from conversation',
-      historyPrompt
-    );
-  } catch (error) {
-    console.error("Error updating interaction history:", error);
-  }
-}
-
-/**
- * Update the relationship development
- */
-export async function updateRelationship(
-  supabase: SupabaseClient,
-  userId: string,
-  messages: any[],
-  userMessage: string,
-  aiMessage: string,
-  memoryData?: string | null,
-  edits?: Array<{
-    editIntent: 'add' | 'delete' | 'modify';
-    targetContent: string;
-  }>
-): Promise<void> {
-  try {
-    // 🆕 If memoryData is undefined (not explicitly passed), fetch it
-    let categoryMemory = memoryData;
-    if (categoryMemory === undefined) {
-      const { data } = await getMemoryBankEntry(
-        supabase, 
-        userId, 
-        MEMORY_CATEGORIES.RELATIONSHIP
-      );
-      categoryMemory = data;
-    }
-    
-    // 최근 대화 분석을 통한 감정 상태와 소통 패턴 파악
-    const recentConversation = getRecentConversationText(messages);
-    
-    // 메모리 유무에 따른 조건부 접근
-    const hasExistingMemory = categoryMemory && !categoryMemory.includes('No previous relationship data recorded');
-    
-    const relationshipPrompt = hasExistingMemory 
-      ? `Update the AI-user relationship profile based on new conversation data.
-
-EXISTING RELATIONSHIP PROFILE:
-${categoryMemory}
-
-NEW CONVERSATION CONTEXT:
-${recentConversation}
-
-LATEST INTERACTION:
-User: ${userMessage}
-AI: ${aiMessage}
-
-${edits && edits.length > 0 ? `
-EDIT OPERATIONS REQUESTED:
-${edits.map((edit, index) => `
-${index + 1}. ${edit.editIntent.toUpperCase()}: "${edit.targetContent}"
-${edit.editIntent === 'delete' ? '   - Remove all mentions while preserving other content' : ''}
-${edit.editIntent === 'modify' ? '   - Update/change this content based on new information' : ''}
-${edit.editIntent === 'add' ? '   - Add this new information while preserving existing content' : ''}
-`).join('\n')}
-
-Apply ALL edit operations above in sequence.
-` : ''}
-
-CRITICAL FORMAT REQUIREMENTS:
-- MUST maintain the exact same markdown structure as the existing profile
-- MUST preserve all existing section headers (## Communication Quality, ## Emotional Patterns, ## Personalization Strategy)
-- MUST maintain the same language as the existing profile
-- DELETE any content that doesn't fit the required format
-- NEVER include explanatory text, meta-comments, or reasoning
-- Output ONLY the markdown profile content
-- NO sentences like 'No new X can be inferred...' or 'The existing profile will be returned unchanged'
-- If no updates needed, return ONLY the existing profile in pure markdown format
-
-Update the existing relationship profile by:
-1. ${edits && edits.length > 0 ? 'Following the specific edit operations listed above' : 'Integrating new observations while preserving previous insights'}
-2. Only updating relationship insights that can be reliably inferred from the new conversation
-3. Maintaining the exact same language and format as the existing profile
-4. If no new relationship insights are available, return ONLY the existing profile in pure markdown format without any explanatory text`
-      
-      : `Create a new AI-user relationship profile based on conversation analysis.
-
-CONVERSATION CONTEXT:
-${recentConversation}
-
-LATEST INTERACTION:
-User: ${userMessage}
-AI: ${aiMessage}
-
-CRITICAL FORMAT REQUIREMENTS:
-- MUST use exactly these section headers: ## Communication Quality, ## Emotional Patterns, ## Personalization Strategy
-- MUST analyze conversation to detect user's preferred language and write entire profile in that language
-- MUST follow the exact structure shown below
-- DELETE any content that doesn't fit the required format
-
-Create a comprehensive relationship profile in markdown format with these EXACT sections:
-
-## Communication Quality
-- Trust level: How much does the user seem to trust the AI's responses?
-- Satisfaction indicators: Evidence of satisfaction or dissatisfaction
-- Engagement level: How detailed and engaged are their messages?
-
-## Emotional Patterns
-- Typical emotional tone: Neutral/Positive/Negative patterns in communication
-- Response to feedback: How they react when corrected or given new information
-- Frustration triggers: Topics or response styles that seem to cause frustration
-
-## Personalization Strategy
-- Effective approaches: Communication strategies that work well with this user
-- Approaches to avoid: Communication patterns that don't resonate with this user
-- Relationship goals: How to improve the interaction quality over time
-
-GUIDELINES:
-1. Focus on objective observations rather than judgments
-2. Be specific about observable communication patterns
-3. Don't make assumptions about the user's actual feelings or thoughts
-4. Focus on insights that will help improve future interactions
-5. Follow the exact format requirements above - no deviations allowed`;
-    
-    await updateMemoryCategory(
-      supabase,
-      userId,
-      MEMORY_CATEGORIES.RELATIONSHIP,
-      'Analyze and update AI-user relationship insights',
-      relationshipPrompt
-    );
-  } catch (error) {
-    console.error("Error updating relationship profile:", error);
-  }
-}
-
-/**
  * Selective memory update - 특정 카테고리만 업데이트
+ * @returns 업데이트 결과 정보 (클라이언트 캐시 갱신용)
  */
 export async function updateSelectiveMemoryBanks(
   supabase: SupabaseClient,
@@ -1064,10 +858,26 @@ export async function updateSelectiveMemoryBanks(
     targetContent: string;
   }>
   // 🆕 REMOVE memoryData parameter - will be fetched per-category
-): Promise<void> {
+): Promise<{
+  success: boolean;
+  updatedCategories: string[];
+  timestamp: number;
+}> {
   try {
     const startTime = Date.now();
-    console.log(`🎯 [SELECTIVE UPDATE] Updating categories: ${categories.join(', ')}`);
+    
+    const isAllRequest = categories.includes('all');
+    const normalizedCategories = isAllRequest
+      ? [...AI_CATEGORY_KEYS]
+      : categories.filter(category => AI_CATEGORY_KEYS.includes(category as (typeof AI_CATEGORY_KEYS)[number]));
+    
+    if (normalizedCategories.length === 0) {
+      return {
+        success: false,
+        updatedCategories: [],
+        timestamp: Date.now()
+      };
+    }
     
     const updatePromises: Promise<any>[] = [];
     
@@ -1075,24 +885,19 @@ export async function updateSelectiveMemoryBanks(
     const categoryDataMap: Record<string, string | null> = {};
     
     // Handle 'all' category specially
-    if (categories.includes('all')) {
-      // Fetch all categories
-      for (const [key, dbCategory] of Object.entries(MEMORY_CATEGORIES)) {
+    if (isAllRequest) {
+      for (const category of AI_CATEGORY_KEYS) {
+        const dbCategory = mapCategoryToDb(category);
+        if (!dbCategory) continue;
         const { data } = await getMemoryBankEntry(supabase, userId, dbCategory);
-        // Map back to AI format for the map
-        const aiFormat = dbCategory.replace(/^\d+-/, ''); // Remove "00-", "01-", etc.
-        categoryDataMap[aiFormat] = data;
+        categoryDataMap[category] = data;
       }
     } else {
-      // Fetch only specified categories
-      for (const category of categories) {
+      for (const category of normalizedCategories) {
         const dbCategory = mapCategoryToDb(category);
-        if (dbCategory) {
-          const { data } = await getMemoryBankEntry(supabase, userId, dbCategory);
-          categoryDataMap[category] = data;
-        } else {
-          console.warn(`⚠️ [SELECTIVE UPDATE] Unknown category: ${category}`);
-        }
+        if (!dbCategory) continue;
+        const { data } = await getMemoryBankEntry(supabase, userId, dbCategory);
+        categoryDataMap[category] = data;
       }
     }
     
@@ -1100,6 +905,9 @@ export async function updateSelectiveMemoryBanks(
     const editsByCategory: Record<string, Array<{editIntent: 'add' | 'delete' | 'modify', targetContent: string}>> = {};
     if (edits) {
       edits.forEach(edit => {
+        if (!AI_CATEGORY_KEYS.includes(edit.category as (typeof AI_CATEGORY_KEYS)[number])) {
+          return;
+        }
         if (!editsByCategory[edit.category]) {
           editsByCategory[edit.category] = [];
         }
@@ -1111,31 +919,30 @@ export async function updateSelectiveMemoryBanks(
     }
 
     // 카테고리별 업데이트 함수 매핑 (category-specific data)
+    const hasPreferenceEdits = !!(editsByCategory['preferences'] && editsByCategory['preferences'].length);
+
     const updateFunctions = {
       'personal-info': () => updatePersonalInfo(supabase, userId, messages, categoryDataMap['personal-info'], editsByCategory['personal-info']),
       'preferences': () => updatePreferences(supabase, userId, messages, categoryDataMap['preferences'], editsByCategory['preferences']),
-      'interests': () => updateInterests(supabase, userId, messages, categoryDataMap['interests'], editsByCategory['interests']),
-      'interaction-history': () => updateInteractionHistory(supabase, userId, messages, categoryDataMap['interaction-history'], editsByCategory['interaction-history']),
-      'relationship': () => updateRelationship(supabase, userId, messages, userMessage, aiMessage, categoryDataMap['relationship'], editsByCategory['relationship']),
-      'all': () => Promise.all([
-        updatePersonalInfo(supabase, userId, messages, categoryDataMap['personal-info'], editsByCategory['personal-info']),
-        updatePreferences(supabase, userId, messages, categoryDataMap['preferences'], editsByCategory['preferences']),
-        updateInterests(supabase, userId, messages, categoryDataMap['interests'], editsByCategory['interests']),
-        updateInteractionHistory(supabase, userId, messages, categoryDataMap['interaction-history'], editsByCategory['interaction-history']),
-        updateRelationship(supabase, userId, messages, userMessage, aiMessage, categoryDataMap['relationship'], editsByCategory['relationship'])
-      ])
+      'interests': () => updateInterests(supabase, userId, messages, categoryDataMap['interests'], editsByCategory['interests'])
     };
     
     // 선택된 카테고리만 업데이트
-    categories.forEach(category => {
+    normalizedCategories.forEach(category => {
+      if (category === 'preferences' && !hasPreferenceEdits) {
+        return;
+      }
       if (updateFunctions[category as keyof typeof updateFunctions]) {
         updatePromises.push(updateFunctions[category as keyof typeof updateFunctions]());
       }
     });
     
     if (updatePromises.length === 0) {
-      console.log(`⏭️ [SELECTIVE UPDATE] No valid categories to update`);
-      return;
+      return {
+        success: false,
+        updatedCategories: [],
+        timestamp: Date.now()
+      };
     }
     
     // 선택적 업데이트 실행
@@ -1145,26 +952,34 @@ export async function updateSelectiveMemoryBanks(
     const successes = results.filter(result => result.status === 'fulfilled').length;
     const failures = results.filter(result => result.status === 'rejected').length;
     
-    // 실패한 업데이트 로그
-    results.forEach((result, index) => {
-      if (result.status === 'rejected') {
-        console.error(`❌ [SELECTIVE UPDATE] Failed to update ${categories[index]}:`, result.reason);
-      }
-    });
-    
     if (successes > 0) {
-      console.log(`✅ [SELECTIVE UPDATE] ${successes}/${categories.length} categories updated successfully in ${duration}ms`);
+      // 🚀 최적화: 업데이트 후 최신 메모리를 반환하여 클라이언트 캐시 갱신 가능하도록
+      // 클라이언트는 이 정보를 사용하여 localStorage 캐시를 갱신할 수 있음
+      return {
+        success: true,
+        updatedCategories: normalizedCategories,
+        timestamp: Date.now()
+      };
     } else {
-      console.error(`❌ [SELECTIVE UPDATE] All ${categories.length} category updates failed in ${duration}ms`);
+      return {
+        success: false,
+        updatedCategories: [],
+        timestamp: Date.now()
+      };
     }
     
   } catch (error) {
-    console.error("❌ [SELECTIVE UPDATE] Selective memory update failed:", error);
+    return {
+      success: false,
+      updatedCategories: [],
+      timestamp: Date.now()
+    };
   }
 }
 
 /**
  * Smart Memory Update - AI 분석 기반 지능적 업데이트
+ * @returns 업데이트 결과 정보 (클라이언트 캐시 갱신용)
  */
 export async function smartUpdateMemoryBanks(
   supabase: SupabaseClient,
@@ -1174,7 +989,11 @@ export async function smartUpdateMemoryBanks(
   userMessage: string,
   aiMessage: string
   // 🆕 REMOVE memoryData parameter
-): Promise<void> {
+): Promise<{
+  success: boolean;
+  updatedCategories: string[];
+  timestamp: number;
+} | null> {
   try {
     // 🆕 Fetch all memory for analysis purposes ONLY
     const { data: allMemoryData } = await getAllMemoryBank(supabase, userId);
@@ -1182,27 +1001,25 @@ export async function smartUpdateMemoryBanks(
     // 1. 메모리 업데이트 필요성 분석
     const analysis = await shouldUpdateMemory(supabase, userId, messages, userMessage, aiMessage, allMemoryData);
     
-    console.log(`🧠 [SMART UPDATE] Analysis complete:`, {
-      shouldUpdate: analysis.shouldUpdate,
-      categories: analysis.categories,
-      reasons: analysis.reasons
-    });
-    
     // 2. 업데이트 불필요 시 건너뛰기
     if (!analysis.shouldUpdate) {
-      console.log(`⏭️ [SMART UPDATE] Skipping update - ${analysis.reasons.join(', ')}`);
-      return;
+      return null;
     }
     
     // 3. 선택적 업데이트 실행
-    console.log(`🚀 [SMART UPDATE] Executing memory update`);
-    await updateSelectiveMemoryBanks(
+    const result = await updateSelectiveMemoryBanks(
       supabase, userId, chatId, messages, userMessage, aiMessage, 
       analysis.categories,
       analysis.edits
     );
     
+    return result;
+    
   } catch (error) {
-    console.error("❌ [SMART UPDATE] Smart memory update failed:", error);
+    return {
+      success: false,
+      updatedCategories: [],
+      timestamp: Date.now()
+    };
   }
 } 

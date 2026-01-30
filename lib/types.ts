@@ -36,6 +36,7 @@ export interface ChatSession {
   title: string;
   created_at: string;
   current_model?: string;
+  last_activity_at?: string;
 }
 
 // 파일 메타데이터 인터페이스
@@ -95,6 +96,5 @@ export interface ModelConfig {
   id: string
   baseURL: string
   apiKey: string
-  temperature: number
   maxOutputTokens: number
 } 
