@@ -3615,7 +3615,12 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
 }
 
 .quick-access-app-removing {
-  animation: fadeOut 0.2s ease-out forwards;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  max-height: 0;
+  overflow: hidden;
+  transition: none;
 }
 
 .quick-access-drag-preview {

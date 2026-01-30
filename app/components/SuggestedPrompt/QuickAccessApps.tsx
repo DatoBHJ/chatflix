@@ -3277,16 +3277,22 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
 
   const handleDeleteApp = (appId: string) => {
     if (appId === 'add-app') return; // Prevent deletion of Add button
-    setVisibleApps(prev => prev.filter(app => app.id !== appId));
-    setRemovingAppId(null);
+    setRemovingAppId(appId);
+    setTimeout(() => {
+      setVisibleApps(prev => prev.filter(app => app.id !== appId));
+      setRemovingAppId(null);
+    }, 0);
   };
 
   const handleRemoveMultipleApps = (appIds: string[]) => {
     const validIds = appIds.filter(id => id !== 'add-app');
     if (validIds.length === 0) return;
     
-    setVisibleApps(prev => prev.filter(app => !validIds.includes(app.id)));
-    setRemovingAppId(null);
+    setRemovingAppId(validIds[0]);
+    setTimeout(() => {
+      setVisibleApps(prev => prev.filter(app => !validIds.includes(app.id)));
+      setRemovingAppId(null);
+    }, 0);
   };
 
   const handleAddMultipleApps = (appIds: string[]) => {
@@ -5560,8 +5566,11 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                                   isDarkMode={isDarkMode}
                                     isRemoving={removingAppId === item.id}
                                   onDeleteWidget={(widgetId) => {
-                                    setVisibleApps(prev => prev.filter(app => app.id !== widgetId));
-                                    setRemovingAppId(null);
+                                    setRemovingAppId(widgetId);
+                                    setTimeout(() => {
+                                      setVisibleApps(prev => prev.filter(app => app.id !== widgetId));
+                                      setRemovingAppId(null);
+                                    }, 0);
                                   }}
                                   handleContextMenu={handleContextMenu}
                                   handleLongPressStart={handleLongPressStart}
