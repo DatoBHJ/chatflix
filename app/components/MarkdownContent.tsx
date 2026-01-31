@@ -1408,6 +1408,16 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     };
   }, []);
 
+  // Body scroll lock when prompt overlay is open; restore on close so chat scroll works again (fixes mobile)
+  useEffect(() => {
+    if (!showPromptOverlay) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [showPromptOverlay]);
+
   const handleVideoClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
     const video = videoRef.current;
@@ -1718,9 +1728,9 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
           </div>
         )}
 
-        {/* Bottom Controls Overlay */}
+        {/* Bottom Controls Overlay - pointer-events only when visible (group-hover) to prevent accidental taps on mobile */}
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20">
-          <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-auto">
+          <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-none group-hover:pointer-events-auto">
             {/* Progress Bar */}
             <div 
               className="group/progress relative w-full h-1.5 mb-4 bg-white/20 rounded-full cursor-pointer overflow-visible"
@@ -1860,10 +1870,10 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
           </div>
         )}
 
-        {/* 프롬프트 오버레이 */}
-        {prompt && isMounted ? createPortal(
+        {/* 프롬프트 오버레이 - 열 때만 DOM에 마운트하여 모바일 스크롤 복구 문제 방지 */}
+        {prompt && isMounted && showPromptOverlay ? createPortal(
           <div 
-            className={`fixed inset-0 z-[9999] text-white transition-opacity duration-300 ${showPromptOverlay ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+            className="fixed inset-0 z-[9999] text-white opacity-100 pointer-events-auto"
             style={{
               top: 0,
               left: 0,
