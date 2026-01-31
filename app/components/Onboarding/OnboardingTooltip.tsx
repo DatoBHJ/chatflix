@@ -20,6 +20,8 @@ interface OnboardingTooltipProps {
   className?: string;
   currentStep?: number; // Current step number (e.g., 1)
   totalSteps?: number; // Total number of steps (e.g., 2)
+  /** When true, use z-index above fullscreen widget overlay (z-200) so tooltip is visible */
+  elevateForOverlay?: boolean;
 }
 
 export function OnboardingTooltip({
@@ -32,6 +34,7 @@ export function OnboardingTooltip({
   className = '',
   currentStep,
   totalSteps,
+  elevateForOverlay = false,
 }: OnboardingTooltipProps) {
   const router = useRouter();
   const [isVisible, setIsVisible] = useState(false);
@@ -478,8 +481,8 @@ export function OnboardingTooltip({
     return feature.description;
   };
 
-  // Set higher z-index for chat location to appear above quick-access
-  const zIndexClass = feature.location === 'chat' ? 'z-[75]' : 'z-[70]';
+  // Set higher z-index for chat location to appear above quick-access; above overlay (z-200) when fullscreen
+  const zIndexClass = elevateForOverlay ? 'z-[210]' : (feature.location === 'chat' ? 'z-[75]' : 'z-[70]');
 
   const tooltipEl = (
     <div

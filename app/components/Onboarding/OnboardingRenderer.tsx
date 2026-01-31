@@ -59,6 +59,22 @@ interface OnboardingRendererProps {
    * Hide in specific conditions (e.g., edit mode)
    */
   hideWhen?: boolean;
+
+  /**
+   * Optional ref to scope selector lookups to a container (e.g. widget root).
+   * When set, target elements are found via scopeRef.current.querySelector(selector)
+   * instead of document.querySelector, so each instance finds targets within its own subtree.
+   */
+  scopeRef?: React.RefObject<HTMLElement | null>;
+
+  /**
+   * Optional container element (e.g. from parent state) to scope selector lookups.
+   * When provided, used before scopeRef so target resolution works after ref callback triggers re-render.
+   */
+  scopeElement?: HTMLElement | null;
+
+  /** When true, tooltip uses z-index above fullscreen widget overlay so it is visible */
+  elevateForOverlay?: boolean;
 }
 
 export function OnboardingRenderer({
@@ -69,6 +85,9 @@ export function OnboardingRenderer({
   filterFeatures,
   displayTypes,
   hideWhen = false,
+  scopeRef,
+  scopeElement,
+  elevateForOverlay = false,
 }: OnboardingRendererProps) {
   const { getUnseenFeatures, markFeatureAsSeen, isLoaded, hasSeenFeature } = useOnboarding();
   
@@ -127,16 +146,17 @@ export function OnboardingRenderer({
     }
   }, [target]);
 
-  // Find target elements by selector if feature has selector
-  const findTargetBySelector = useCallback((selector: string): HTMLElement | null => {
+  // Find target elements by selector; when scope is set, search only within that container
+  const findTargetBySelector = useCallback((selector: string, scope?: HTMLElement | null): HTMLElement | null => {
     try {
-      const element = document.querySelector(selector) as HTMLElement;
+      const root = scope ?? scopeElement ?? scopeRef?.current ?? document;
+      const element = (root === document ? document.querySelector(selector) : root.querySelector(selector)) as HTMLElement;
       return element || null;
     } catch (error) {
       console.warn(`Invalid selector for onboarding target: ${selector}`, error);
       return null;
     }
-  }, []);
+  }, [scopeRef, scopeElement]);
 
   // Get unseen features for this location
   const unseenFeatures = useMemo(() => {
@@ -251,9 +271,10 @@ export function OnboardingRenderer({
       }
     }
 
-    // Second try: Use selector from feature
+    // Second try: Use selector from feature (scoped to scopeElement/scopeRef when provided)
     if (feature.selector) {
-      const element = findTargetBySelector(feature.selector);
+      const scope = scopeElement ?? scopeRef?.current ?? undefined;
+      const element = findTargetBySelector(feature.selector, scope);
       if (element) return element;
     }
 
@@ -264,7 +285,7 @@ export function OnboardingRenderer({
     }
 
     return null;
-  }, [target, context, findTargetBySelector]);
+  }, [target, context, scopeRef, scopeElement, findTargetBySelector]);
 
   // Handle dismiss
   // If hasNextStep is true (Skip button), mark all unseen features as seen
@@ -318,6 +339,7 @@ export function OnboardingRenderer({
             totalSteps={stepInfo.totalSteps}
             onDismiss={handleDismiss}
             onNext={hasNextStep ? handleNext : undefined}
+            elevateForOverlay={elevateForOverlay}
           />
         );
 
@@ -370,6 +392,7 @@ export function OnboardingRenderer({
                   markFeatureAsSeen(feature.key);
                 }}
                 onNext={undefined}
+                elevateForOverlay={elevateForOverlay}
               />
             );
           case 'badge':

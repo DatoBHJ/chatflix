@@ -342,6 +342,7 @@ export function GlassTrendsWidget({
   const [isMobile, setIsMobile] = useState(false)
   const [isSingleRow, setIsSingleRow] = useState(false)
   const [containerElement, setContainerElement] = useState<HTMLDivElement | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const touchStartX = useRef<number | null>(null)
   const touchStartY = useRef<number | null>(null)
   
@@ -2155,7 +2156,10 @@ export function GlassTrendsWidget({
 
     return (
       <div 
-        ref={setContainerElement}
+        ref={(el) => {
+          setContainerElement(el)
+          ;(containerRef as React.MutableRefObject<HTMLDivElement | null>).current = el
+        }}
         className="relative w-full h-full overflow-hidden bg-black  text-white flex flex-col"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -2409,6 +2413,9 @@ export function GlassTrendsWidget({
           context={{ widgetId: stableWidgetId }}
           displayTypes={['tooltip']}
           hideWhen={isFilterExpanded || isSummaryExpanded || isSingleRow}
+          scopeRef={containerRef}
+          scopeElement={containerElement}
+          elevateForOverlay={isFullscreen}
         />
       </div>
     )
