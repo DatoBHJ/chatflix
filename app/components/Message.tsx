@@ -1609,7 +1609,8 @@ const Message = memo(function MessageComponent({
 
   useEffect(() => {
     const checkIfMobile = () => {
-      setIsMobile(window.innerWidth < 640); // sm breakpoint
+      const isTouchDevice = typeof window !== 'undefined' && ('ontouchstart' in window || (navigator.maxTouchPoints != null && navigator.maxTouchPoints > 0));
+      setIsMobile(window.innerWidth < 640 || !!isTouchDevice);
     };
     
     checkIfMobile();

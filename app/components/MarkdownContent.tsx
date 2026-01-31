@@ -1370,9 +1370,21 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
   // Mobile: tap-to-show controls (no hover on touch devices)
   const [controlsVisible, setControlsVisible] = useState(false);
   
+  // Touch device detection (fallback when isMobile prop is false, e.g. tablet/landscape)
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  
   useEffect(() => {
     setIsMounted(true);
     return () => setIsMounted(false);
+  }, []);
+
+  // Detect touch device on mount; show controls by default on touch so buttons are visible without a tap
+  useEffect(() => {
+    const touch = typeof window !== 'undefined' && ('ontouchstart' in window || (navigator.maxTouchPoints != null && navigator.maxTouchPoints > 0));
+    const coarse = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+    const isTouch = !!touch || !!coarse;
+    setIsTouchDevice(isTouch);
+    if (isTouch) setControlsVisible(true);
   }, []);
 
   const handleLoadedMetadata = useCallback(() => {
@@ -1426,8 +1438,8 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     const video = videoRef.current;
     if (!video) return;
 
-    // Mobile: first tap shows controls only; second tap plays/pauses
-    if (isMobile && !controlsVisible) {
+    // Mobile/touch: first tap shows controls only; second tap plays/pauses
+    if ((isMobile || isTouchDevice) && !controlsVisible) {
       setControlsVisible(true);
       return;
     }
@@ -1440,7 +1452,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
       video.pause();
       setIsPlaying(false);
     }
-  }, [isMobile, controlsVisible]);
+  }, [isMobile, isTouchDevice, controlsVisible]);
 
   const handleProgressBarClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
@@ -1470,8 +1482,8 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     const video = videoRef.current;
     if (!video) return;
 
-    // Mobile: first tap shows controls only; second tap plays/pauses
-    if (isMobile && !controlsVisible) {
+    // Mobile/touch: first tap shows controls only; second tap plays/pauses
+    if ((isMobile || isTouchDevice) && !controlsVisible) {
       setControlsVisible(true);
       return;
     }
@@ -1483,7 +1495,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
       video.pause();
       setIsPlaying(false);
     }
-  }, [isMobile, controlsVisible]);
+  }, [isMobile, isTouchDevice, controlsVisible]);
 
   const toggleMute = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
