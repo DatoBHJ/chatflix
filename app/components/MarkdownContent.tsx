@@ -1387,14 +1387,66 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     if (isTouch) setControlsVisible(true);
   }, []);
 
-  // 🚀 VENICE: 비율 업데이트 없음 - 컨테이너 크기 고정
+  // 🚀 근본적 해결: URL에서 크기 정보 먼저 추출, 없으면 메타데이터로 빠른 측정
+  // 측정된 비율은 initialVideoAspectRatio에 저장되어 컨테이너 크기가 한 번만 설정됨
+  const [initialVideoAspectRatio, setInitialVideoAspectRatio] = useState<number | null>(() => {
+    if (!refreshedUrl) return null;
+    const dimensions = parseMediaDimensions(refreshedUrl);
+    return dimensions ? dimensions.width / dimensions.height : null;
+  });
+  const preloadVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  // 🚀 URL에서 크기 정보를 못 찾았으면 메타데이터로 빠르게 측정
+  // 측정된 비율은 initialVideoAspectRatio에 저장되어 컨테이너 크기가 변경되지 않음
+  useEffect(() => {
+    if (shouldLoad && refreshedUrl && !initialVideoAspectRatio) {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
+      video.src = refreshedUrl;
+      
+      video.onloadedmetadata = () => {
+        const videoWidth = video.videoWidth;
+        const videoHeight = video.videoHeight;
+        if (videoWidth > 0 && videoHeight > 0) {
+          setInitialVideoAspectRatio(videoWidth / videoHeight);
+        }
+        video.src = '';
+        video.load();
+        preloadVideoRef.current = null;
+      };
+      
+      video.onerror = () => {
+        video.src = '';
+        video.load();
+        preloadVideoRef.current = null;
+      };
+      
+      preloadVideoRef.current = video;
+      
+      return () => {
+        if (preloadVideoRef.current) {
+          preloadVideoRef.current.src = '';
+          preloadVideoRef.current.load();
+          preloadVideoRef.current = null;
+        }
+      };
+    }
+  }, [shouldLoad, refreshedUrl, initialVideoAspectRatio]);
+
+  // 비디오 메타데이터 로드 시 실제 비율 계산 (fallback)
   const handleLoadedMetadata = useCallback(() => {
     const video = videoRef.current;
     if (video) {
       setIsVideoLoaded(true);
       setDuration(video.duration);
+      // initialVideoAspectRatio가 아직 설정되지 않았으면 최종 확인
+      if (video.videoWidth > 0 && video.videoHeight > 0 && !initialVideoAspectRatio) {
+        setInitialVideoAspectRatio(video.videoWidth / video.videoHeight);
+      }
     }
-  }, []);
+  }, [initialVideoAspectRatio]);
 
   // 전체화면 상태 감지
   useEffect(() => {
@@ -1666,38 +1718,53 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // 🚀 VENICE STYLE: 고정 컨테이너 크기 - aspect-ratio 사용 안 함
+  // 🚀 근본적 해결: 컨테이너 크기를 초기에 한 번만 설정하고 절대 변경하지 않음
+  // initialVideoAspectRatio만 사용하여 레이아웃 시프트 완전 방지
   const containerStyle: React.CSSProperties = useMemo(() => {
     if (isFullscreen) {
       return {
         width: '100vw',
         height: '100vh',
         maxWidth: 'none',
+        aspectRatio: 'unset',
       };
     }
-    return {
-      maxWidth: maxWidth || '560px',
+    const baseStyle: React.CSSProperties = {
+      maxWidth: maxWidth || '100%',
       width: '100%',
-      height: '450px',
       backgroundColor: 'black',
+      height: 'auto',
     };
-  }, [maxWidth, isFullscreen]);
+    
+    // 초기 비율만 사용 (비디오 로드 후에도 변경되지 않음)
+    // URL에서 추출한 비율이 있으면 사용, 없으면 안정적인 기본값(16:9)으로 고정
+    const finalAspectRatio = initialVideoAspectRatio || 16/9;
+    baseStyle.aspectRatio = `${finalAspectRatio}`;
+    
+    return baseStyle;
+  }, [maxWidth, isFullscreen, initialVideoAspectRatio]);
 
   return (
     <div 
       ref={lazyRef}
       className={`generated-video-container my-1 group relative ${showPromptOverlay ? 'cursor-default' : 'cursor-pointer'}`}
-      style={containerStyle}
+      style={{
+        ...containerStyle,
+        // GPU 가속으로 레이아웃 변경 성능 향상
+        transform: 'translateZ(0)',
+        // 레이아웃 격리로 부모에 영향 최소화
+        isolation: 'isolate',
+      }}
     >
       {/* 🚀 VENICE: Skeleton while loading */}
       {!isVideoLoaded && (
         <div className="absolute inset-0 skeleton-shimmer rounded-2xl" />
       )}
       
-      {/* 🚀 VENICE STYLE: 고정 컨테이너 + object-fit: contain */}
+      {/* 🚀 비디오가 컨테이너를 꽉 채우도록 표시 */}
       <div 
         ref={containerRef}
-        className={`relative w-full h-full overflow-hidden bg-black transition-opacity duration-300 flex items-center justify-center ${isFullscreen ? 'rounded-none' : 'rounded-2xl'} ${showPromptOverlay ? 'cursor-default opacity-0 pointer-events-none' : 'opacity-100'}`}
+        className={`relative w-full h-full overflow-hidden bg-black transition-opacity duration-300 ${isFullscreen ? 'rounded-none' : 'rounded-2xl'} ${showPromptOverlay ? 'cursor-default opacity-0 pointer-events-none' : 'opacity-100'}`}
         onClick={showPromptOverlay ? undefined : handleVideoClick}
       >
         <video 
@@ -1711,7 +1778,12 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
           onEnded={handleEnded}
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
-          className={`max-w-full max-h-full object-contain transition-opacity duration-200 ${isVideoLoaded ? 'opacity-100' : 'opacity-0'}`}
+          className={`w-full h-full object-cover transition-opacity duration-200 ${isVideoLoaded ? 'opacity-100' : 'opacity-0'}`}
+          style={{
+            objectFit: 'cover',
+            width: '100%',
+            height: '100%',
+          }}
           preload="metadata"
           onContextMenu={(e) => {
             // Sync loop state when user changes via right-click context menu

@@ -78,7 +78,8 @@ function ChatPageWrapper({ chatId }: { chatId: string }) {
         // 전체 메시지 수 저장 (hasMore 계산용)
         setTotalMessageCount(count || 0);
         
-        if (!count || count <= 20) {
+        const INITIAL_PAGE_SIZE = 20;
+        if (!count || count <= INITIAL_PAGE_SIZE) {
           // Small chat - load all
           const { data, error } = await supabase
             .from('messages')
@@ -90,14 +91,14 @@ function ChatPageWrapper({ chatId }: { chatId: string }) {
           if (error) throw error;
           messagesData = data;
         } else {
-          // Large chat - load latest 20 messages
+          // Large chat - load latest N messages
           const { data, error } = await supabase
             .from('messages')
             .select('*')
             .eq('chat_session_id', chatId)
             .eq('user_id', user.id)
             .order('sequence_number', { ascending: false })
-            .limit(20);
+            .limit(INITIAL_PAGE_SIZE);
           
           if (error) throw error;
           messagesData = data?.reverse(); // Reverse to get chronological order

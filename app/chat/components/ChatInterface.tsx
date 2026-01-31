@@ -12,7 +12,7 @@ import { Attachment } from '@/lib/types';
 import { useMessages } from '@/app/hooks/useMessages';
 import { getSystemDefaultModelId, MODEL_CONFIGS, RATE_LIMITS, isChatflixModel, resolveDefaultModelVariantId } from '@/lib/models/config';
 import { getChatflixLogo } from '@/lib/models/logoUtils';
-import { VirtualizedMessages } from '@/app/components/VirtualizedMessages';
+import { SimpleMessages } from '@/app/components/SimpleMessages';
 import { SidePanel } from '@/app/components/SidePanel';
 import { ChatInputArea } from './ChatInputArea';
 import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getGoogleSearchData } from '@/app/hooks/toolFunction';
@@ -146,9 +146,8 @@ const ChatView = memo(function ChatView({
           className="flex-1 min-h-0 overflow-hidden"
           ref={messagesContainerRef}
         >
-          {/* 🚀 VIRTUALIZATION: VirtualizedMessages with thread-content layout */}
-          {/* 🚀 PERF: 메모이제이션된 콜백 사용으로 불필요한 리렌더 방지 */}
-          <VirtualizedMessages
+          {/* Simple messages - no virtualization */}
+          <SimpleMessages
             messages={messages}
             currentModel={currentModel}
             isRegenerating={isRegenerating}
@@ -827,16 +826,15 @@ export default function ChatInterface({
     setEditingContent
   } = useMessages(initialChatId || chatId, user?.id || 'anonymous');
 
+  const MESSAGES_PAGE_SIZE = 20;
   // 🔧 FIX: totalMessageCount를 사용하여 정확한 hasMore 계산
-  // - totalMessageCount > 20: 부분 로드됨, 더 로드할 메시지 있음
-  // - totalMessageCount <= 20: 전체 로드됨, 더 로드할 메시지 없음
-  const [hasMore, setHasMore] = useState(totalMessageCount > 20);
+  const [hasMore, setHasMore] = useState(totalMessageCount > MESSAGES_PAGE_SIZE);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // 🔧 FIX: totalMessageCount가 비동기로 로드되므로 hasMore 상태 업데이트
   useEffect(() => {
     if (totalMessageCount > 0) {
-      setHasMore(totalMessageCount > 20);
+      setHasMore(totalMessageCount > MESSAGES_PAGE_SIZE);
     }
   }, [totalMessageCount]);
 
@@ -872,7 +870,7 @@ export default function ChatInterface({
         .eq('user_id', userId)
         .lt('sequence_number', currentSequence)
         .order('sequence_number', { ascending: false })
-        .limit(20);
+        .limit(MESSAGES_PAGE_SIZE);
         
       if (error) throw error;
       
@@ -882,7 +880,7 @@ export default function ChatInterface({
         // We need to cast to any because UIMessage type might be slightly different from ExtendedMessage
         setMessages((prevMessages: UIMessage[]) => [...(newMessages as any[]), ...prevMessages]);
         
-        if (previousMessages.length < 20) {
+        if (previousMessages.length < MESSAGES_PAGE_SIZE) {
           setHasMore(false);
         }
       } else {

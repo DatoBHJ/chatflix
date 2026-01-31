@@ -124,42 +124,36 @@ html, body {
   width: 100%;
 }
 
-/* 🚀 Scroll anchoring: 메시지별 스크롤 앵커 지원 */
+/* Scroll anchoring: 메시지별 스크롤 앵커 지원 */
 .thread-content[data-scroll-anchor="true"] {
   overflow-anchor: auto;
 }
 .thread-content[data-scroll-anchor="false"] {
   overflow-anchor: none;
 }
-
-/* 🚀 Virtuoso 스크롤 최적화 */
-.virtuoso-messages {
+.thread-content {
   overflow-anchor: auto;
-  transform: translateZ(0);
-  will-change: scroll-position;
+  /* 화면 밖 메시지 렌더링 최적화 - 브라우저가 자동으로 스킵 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 200px; /* 예상 높이 힌트로 레이아웃 시프트 최소화 */
+}
+
+/* 마지막 메시지나 스트리밍 중인 메시지는 항상 렌더링 */
+.thread-content.message-always-visible {
+  content-visibility: visible;
+}
+
+/* Simple messages container - no virtualization */
+.messages-scroll-container {
+  overflow-anchor: auto;
   -webkit-overflow-scrolling: touch;
+  scroll-behavior: auto; /* 즉시 스크롤 */
 }
 
-/* 🚀 Virtuoso 아이템 렌더링 최적화 */
-.virtuoso-messages [data-index] {
-  /* NOTE: paint containment clips box-shadow (e.g., assistant model avatar).
-     Keep layout/style containment for perf, but avoid shadow clipping on desktop. */
-  contain: layout style;
-  contain-intrinsic-block-size: auto 400px;
-  overflow: visible;
-}
-
-/* Mobile: keep paint containment for scroll perf (avatar not shown) */
-@media (max-width: 767px) {
-  .virtuoso-messages [data-index] {
-    contain: layout style paint;
-  }
-}
-
-/* 🚀 VENICE STYLE: 미디어 컨테이너 고정 크기 - 절대 리사이즈 안 함 */
+/* 🚀 VENICE STYLE: 미디어 컨테이너 최적화 */
 .generated-image-container,
 .generated-video-container {
-  contain: strict;
+  contain: layout style;
   transform: translateZ(0);
 }
 
@@ -3907,31 +3901,42 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   transform-origin: bottom center; /* 아래에서 위로 커지듯 */
 }
 
+/* 메시지 미디어(업로드/생성 이미지·비디오) 최대 너비 – 버블과 동일 */
+.message-media-max-width {
+  max-width: 480px;
+}
+@media (max-width: 640px) {
+  .message-media-max-width {
+    max-width: 85vw;
+  }
+}
+@media (max-width: 480px) {
+  .message-media-max-width {
+    max-width: 80vw;
+  }
+}
+
 /* ChatGPT 스타일 생성 이미지 컨테이너 */
 .generated-image-container {
-  --image-max-size: 400px;
+  --image-max-size: 480px;
   position: relative;
   max-width: var(--image-max-size);
   border-radius: 1rem;
   overflow: hidden;
-  /* 🚀 Virtuoso 스크롤 최적화: 레이아웃 격리로 높이 변경이 부모에 영향 안 줌 */
   contain: layout style;
   content-visibility: auto;
-  contain-intrinsic-size: auto 400px;
+  /* Virtuoso 레이아웃 시프트 방지: 기본 비율(16:9) 기준 예상 크기 제공 */
+  contain-intrinsic-size: auto 315px;
 }
-
-/* Aspect-ratio 예약 - 이미지 로드 전 공간 확보 */
-.generated-image-container[data-aspect="portrait"] {
-  aspect-ratio: 2/3;
+@media (max-width: 640px) {
+  .generated-image-container {
+    max-width: 85vw;
+  }
 }
-.generated-image-container[data-aspect="landscape"] {
-  aspect-ratio: 3/2;
-}
-.generated-image-container[data-aspect="square"] {
-  aspect-ratio: 1/1;
-}
-.generated-image-container[data-aspect="wide"] {
-  aspect-ratio: 16/9;
+@media (max-width: 480px) {
+  .generated-image-container {
+    max-width: 80vw;
+  }
 }
 
 /* 호버 액션 오버레이 */
@@ -4002,15 +4007,25 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
 
 /* ChatGPT 스타일 생성 비디오 컨테이너 */
 .generated-video-container {
-  --video-max-size: 400px;
+  --video-max-size: 480px;
   position: relative;
   max-width: var(--video-max-size);
   border-radius: 1rem;
   overflow: hidden;
-  /* Virtuoso 스크롤 최적화: 레이아웃 격리로 높이 변경이 부모에 영향 안 줌 */
   contain: layout style;
   content-visibility: auto;
-  contain-intrinsic-size: auto 400px;
+  /* Virtuoso 레이아웃 시프트 방지: 기본 비율(16:9) 기준 예상 크기 제공 */
+  contain-intrinsic-size: auto 225px;
+}
+@media (max-width: 640px) {
+  .generated-video-container {
+    max-width: 85vw;
+  }
+}
+@media (max-width: 480px) {
+  .generated-video-container {
+    max-width: 80vw;
+  }
 }
 
 /* Video Player Volume Slider */

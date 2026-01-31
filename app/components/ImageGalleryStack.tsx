@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { X, LayoutGrid, Download, Bookmark, ScrollText, Check, Copy } from 'lucide-react';
 import { getAdaptiveGlassStyleBlur, getIconClassName } from '@/app/lib/adaptiveGlassStyle';
 import { useLazyMedia } from '../hooks/useIntersectionObserver';
-import { categorizeAspectRatio, parseImageDimensions, getAspectCategory } from '@/app/utils/imageUtils';
+import { categorizeAspectRatio, parseImageDimensions, parseMediaDimensions, getAspectCategory } from '@/app/utils/imageUtils';
 import { useUrlRefresh } from '../hooks/useUrlRefresh';
 import { ImageModal, type ImageModalImage } from './ImageModal';
 
@@ -74,21 +74,63 @@ const SimpleImageWithLoading = memo(function SimpleImageWithLoadingComponent({
     enabled: shouldLoad && !!sourceImageUrl
   });
 
-  // 🚀 VENICE: 이미지 캐시 체크 (로딩 상태만 업데이트, 컨테이너 크기 변경 없음)
+  // 🚀 근본적 해결: URL에서 크기 정보 먼저 추출, 없으면 숨겨진 이미지로 빠른 측정
+  // 측정된 비율은 initialAspectRatio에 저장되어 컨테이너 크기가 한 번만 설정됨
+  const [initialAspectRatio, setInitialAspectRatio] = useState<number | null>(() => {
+    if (!src) return null;
+    const dimensions = parseMediaDimensions(src);
+    return dimensions ? dimensions.width / dimensions.height : null;
+  });
+  const measurementImgRef = useRef<HTMLImageElement | null>(null);
+
+  // 🚀 URL에서 크기 정보를 못 찾았으면 숨겨진 이미지로 빠르게 측정
+  // 측정된 비율은 initialAspectRatio에 저장되어 컨테이너 크기가 변경되지 않음
   useEffect(() => {
-    if (shouldLoad && src) {
+    if (shouldLoad && src && !initialAspectRatio) {
       const img = new globalThis.Image();
+      img.style.display = 'none';
+      img.style.position = 'absolute';
+      img.style.visibility = 'hidden';
+      img.style.width = '1px';
+      img.style.height = '1px';
+      document.body.appendChild(img);
+      measurementImgRef.current = img;
+      
       img.src = src;
+      
       if (img.complete) {
-        setIsLoaded(true);
+        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+          setInitialAspectRatio(img.naturalWidth / img.naturalHeight);
+        }
+        document.body.removeChild(img);
+        measurementImgRef.current = null;
+      } else {
+        img.onload = () => {
+          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+            setInitialAspectRatio(img.naturalWidth / img.naturalHeight);
+          }
+          if (img.parentNode) {
+            document.body.removeChild(img);
+          }
+          measurementImgRef.current = null;
+        };
+        img.onerror = () => {
+          if (img.parentNode) {
+            document.body.removeChild(img);
+          }
+          measurementImgRef.current = null;
+        };
       }
     }
-  }, [src, shouldLoad]);
 
-  // 🚀 VENICE: 로드 완료만 표시 (컨테이너 크기 변경 없음)
-  const handleImageLoad = useCallback(() => {
-    setIsLoaded(true);
-  }, []);
+    return () => {
+      if (measurementImgRef.current?.parentNode) {
+        document.body.removeChild(measurementImgRef.current);
+        measurementImgRef.current = null;
+      }
+    };
+  }, [src, shouldLoad, initialAspectRatio]);
+
 
   // 다운로드 핸들러
   const handleDownload = useCallback(async (e: React.MouseEvent) => {
@@ -157,14 +199,38 @@ const SimpleImageWithLoading = memo(function SimpleImageWithLoadingComponent({
     }
   }, [prompt]);
 
-  // 🚀 VENICE STYLE: 고정 컨테이너 크기 - 이미지 로드 전후로 절대 변하지 않음
-  const containerStyle: React.CSSProperties = useMemo(() => ({
-    ...style,
-    maxWidth: '560px',
-    width: '100%',
-    height: '450px',
-    backgroundColor: 'rgb(38, 38, 38)',
-  }), [style]);
+  // 이미지 로드 완료 핸들러
+  const handleImageLoad = useCallback(() => {
+    setIsLoaded(true);
+    // initialAspectRatio가 아직 설정되지 않았으면 최종 확인
+    if (imgRef.current && !initialAspectRatio) {
+      const img = imgRef.current;
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        setInitialAspectRatio(img.naturalWidth / img.naturalHeight);
+      }
+    }
+  }, [initialAspectRatio]);
+
+  // 🚀 근본적 해결: 컨테이너 크기를 초기에 한 번만 설정하고 절대 변경하지 않음
+  // aspectRatio가 변경되어도 컨테이너 크기는 유지 (이미지만 크롭)
+  // 🚀 근본적 해결: 컨테이너 크기를 초기에 한 번만 설정하고 절대 변경하지 않음
+  // initialAspectRatio만 사용하여 레이아웃 시프트 완전 방지
+  const containerStyle: React.CSSProperties = useMemo(() => {
+    const baseStyle: React.CSSProperties = {
+      ...style,
+      maxWidth: '100%',
+      width: '100%',
+      backgroundColor: 'rgb(38, 38, 38)',
+      height: 'auto',
+    };
+    
+    // 초기 비율만 사용 (이미지 로드 후에도 변경되지 않음)
+    // URL에서 추출한 비율이 있으면 사용, 없으면 안정적인 기본값(16:9)으로 고정
+    const finalAspectRatio = initialAspectRatio || 16/9;
+    baseStyle.aspectRatio = `${finalAspectRatio}`;
+    
+    return baseStyle;
+  }, [style, initialAspectRatio]);
 
   if (error) {
     return null;
@@ -174,34 +240,42 @@ const SimpleImageWithLoading = memo(function SimpleImageWithLoadingComponent({
     <div 
       ref={lazyRef}
       className="generated-image-container relative rounded-2xl overflow-hidden"
-      style={containerStyle}
+      style={{
+        ...containerStyle,
+        // GPU 가속으로 레이아웃 변경 성능 향상
+        transform: 'translateZ(0)',
+        // 레이아웃 격리로 부모에 영향 최소화
+        isolation: 'isolate',
+      }}
     >
       {/* 🚀 VENICE: Skeleton shimmer while loading */}
       {!isLoaded && (
         <div className="absolute inset-0 skeleton-shimmer" />
       )}
       
-      {/* 🚀 VENICE: 이미지는 고정 컨테이너 안에서 object-fit: contain으로 표시 */}
-      <div className="relative w-full h-full flex items-center justify-center">
-        <img
-          ref={imgRef}
-          src={shouldLoad ? src : undefined}
-          alt={alt}
-          className={`max-w-full max-h-full object-contain transition-opacity duration-200 ${isLoaded ? 'opacity-100' : 'opacity-0'} ${onImageClick ? 'cursor-pointer' : ''} ${className}`}
-          onClick={onImageClick}
-          onLoad={handleImageLoad}
-          onError={() => {
-            setError(true);
-            setIsLoaded(true);
-          }}
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          style={{ 
-            border: 'none', 
-            outline: 'none',
-          }}
-        />
-      </div>
+      {/* 🚀 이미지가 컨테이너를 꽉 채우도록 표시 */}
+      <img
+        ref={imgRef}
+        src={shouldLoad ? src : undefined}
+        alt={alt}
+        className={`w-full h-full object-cover transition-opacity duration-200 ${isLoaded ? 'opacity-100' : 'opacity-0'} ${onImageClick ? 'cursor-pointer' : ''} ${className}`}
+        onClick={onImageClick}
+        onLoad={handleImageLoad}
+        onError={() => {
+          setError(true);
+          setIsLoaded(true);
+        }}
+        loading="lazy"
+        decoding="async"
+        referrerPolicy="no-referrer"
+        style={{ 
+          border: 'none', 
+          outline: 'none',
+          objectFit: 'cover',
+          width: '100%',
+          height: '100%',
+        }}
+      />
       
       {/* 🚀 호버 액션 오버레이 */}
       {showHoverActions && !showPromptOverlay && (
@@ -792,7 +866,7 @@ export const ImageGalleryStack = memo(function ImageGalleryStackComponent({
     }
   }, [savingImage, savedImage, chatId, messageId]);
 
-  // For 1-2 images, render them normally with ChatGPT style (400px max)
+  // For 1-2 images, parent (bubble or .message-media-max-width) constrains width
   if (images.length <= 2) {
     return (
       <div className="flex flex-col gap-2">
@@ -801,7 +875,7 @@ export const ImageGalleryStack = memo(function ImageGalleryStackComponent({
             key={index} 
             className="cursor-pointer"
             style={{
-              maxWidth: '560px'
+              maxWidth: '100%'
             }}
             onClick={() => {
               if (onSingleImageClick) {
@@ -838,7 +912,7 @@ export const ImageGalleryStack = memo(function ImageGalleryStackComponent({
   // 🚀 스택 전체의 베이스 비율 카테고리 (첫 번째 이미지 기준)
   const baseRatioCategory = imageRatios[0] || 'square';
   
-  // 🚀 비율에 따른 높이 배수 계산 (400px 기준으로 스케일)
+  // 🚀 비율에 따른 높이 배수 계산 (baseItemWidth 기준, 단일 미디어와 비례)
   const heightMultiplier = baseRatioCategory === 'portrait' ? 1.33 : baseRatioCategory === 'landscape' ? 0.75 : 1;
   const baseItemWidth = isMobile ? 280 : 360; // 스택 시 개별 이미지 크기 (단일 미디어와 비례)
   const stackItemHeight = baseItemWidth * heightMultiplier;

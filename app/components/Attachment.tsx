@@ -130,10 +130,10 @@ export const AttachmentPreview = memo(function AttachmentPreviewComponent({
   };
 
   if (isImage) {
-    // 🚀 ChatGPT STYLE: 고정 크기 400px (모바일/데스크탑 동일)
+    /* 버블과 동일한 메시지 미디어 최대 너비 적용 */
     return (
       <>
-        <div className="relative" style={{ maxWidth: '400px' }}>
+        <div className="relative message-media-max-width">
           <ImageGalleryStack
             images={[{
               src: refreshedUrl,

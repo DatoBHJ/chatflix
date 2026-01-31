@@ -2,8 +2,7 @@
 
 import { UIMessage as AIMessage } from 'ai'
 import { User } from '@supabase/supabase-js'
-import React, { useState, useEffect, useCallback, memo, useRef, useMemo, useDeferredValue } from 'react'
-import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
+import React, { useState, useEffect, useCallback, memo, useRef, useMemo } from 'react'
 import { Message as MessageComponent } from '@/app/components/Message'
 import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getTwitterSearchData, getWan25VideoData } from '@/app/hooks/toolFunction';
 import { formatMessageGroupTimestamp } from '@/app/lib/messageGroupTimeUtils';
@@ -21,9 +20,8 @@ interface ContextSummaryData {
   created_at: string;
 }
 
-// 🚀 OPTIMIZATION: 커스텀 비교 함수로 progress annotation만 변경될 때 리렌더링 방지
+// OPTIMIZATION: 커스텀 비교 함수로 progress annotation만 변경될 때 리렌더링 방지
 const areMessageItemPropsEqual = (prevProps: any, nextProps: any) => {
-  // message.annotations의 progress만 변경된 경우 무시
   const prevAnnotationsWithoutProgress = (prevProps.message?.annotations || []).filter(
     (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress'
   );
@@ -31,10 +29,8 @@ const areMessageItemPropsEqual = (prevProps: any, nextProps: any) => {
     (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress'
   );
   
-  // annotations (progress 제외) 비교
   const annotationsEqual = JSON.stringify(prevAnnotationsWithoutProgress) === JSON.stringify(nextAnnotationsWithoutProgress);
   
-  // message.parts의 실제 내용 비교 (progress annotation 제외)
   const prevPartsWithoutProgress = (prevProps.message?.parts || []).filter(
     (p: any) => p?.type !== 'data-wan25_video_progress'
   );
@@ -43,7 +39,6 @@ const areMessageItemPropsEqual = (prevProps: any, nextProps: any) => {
   );
   const partsEqual = JSON.stringify(prevPartsWithoutProgress) === JSON.stringify(nextPartsWithoutProgress);
   
-  // message의 핵심 필드 비교
   const messageCoreEqual = 
     prevProps.message?.id === nextProps.message?.id &&
     prevProps.message?.content === nextProps.message?.content &&
@@ -52,7 +47,6 @@ const areMessageItemPropsEqual = (prevProps: any, nextProps: any) => {
     annotationsEqual &&
     partsEqual;
   
-  // 다른 props 비교 (함수와 객체는 참조 비교)
   const otherPropsEqual = 
     prevProps.index === nextProps.index &&
     prevProps.totalMessages === nextProps.totalMessages &&
@@ -71,7 +65,6 @@ const areMessageItemPropsEqual = (prevProps: any, nextProps: any) => {
     prevProps.isBookmarksLoading === nextProps.isBookmarksLoading &&
     JSON.stringify(prevProps.activePanel) === JSON.stringify(nextProps.activePanel) &&
     JSON.stringify(prevProps.contextSummary) === JSON.stringify(nextProps.contextSummary) &&
-    // 함수와 Set은 참조 비교 (자주 변경되지 않음)
     prevProps.onRegenerate === nextProps.onRegenerate &&
     prevProps.onCopy === nextProps.onCopy &&
     prevProps.onEditStart === nextProps.onEditStart &&
@@ -83,16 +76,14 @@ const areMessageItemPropsEqual = (prevProps: any, nextProps: any) => {
     prevProps.togglePanel === nextProps.togglePanel &&
     prevProps.handleFollowUpQuestionClick === nextProps.handleFollowUpQuestionClick &&
     prevProps.handleBookmarkToggle === nextProps.handleBookmarkToggle &&
-    // Set과 Map은 참조 비교 (내용이 같으면 참조도 같음)
     prevProps.bookmarkedMessageIds === nextProps.bookmarkedMessageIds &&
     prevProps.globalImageMap === nextProps.globalImageMap &&
     prevProps.globalVideoMap === nextProps.globalVideoMap;
   
-  // 모든 핵심 필드가 같으면 리렌더링 방지
   return messageCoreEqual && otherPropsEqual;
 };
 
-// 🚀 Performance: MessageItem component to isolate expensive calculations and re-renders
+// Performance: MessageItem component to isolate expensive calculations and re-renders
 const MessageItem = memo(function MessageItem({
   message,
   previousMessage,
@@ -128,8 +119,6 @@ const MessageItem = memo(function MessageItem({
   contextSummary,
   allMessages
 }: any) {
-  // 🚀 OPTIMIZATION: progress annotation만 변경될 때는 재계산 방지
-  // message.annotations에서 progress를 제외한 나머지만 비교
   const messageKey = useMemo(() => {
     const annotationsWithoutProgress = (message.annotations || []).filter(
       (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress'
@@ -144,15 +133,11 @@ const MessageItem = memo(function MessageItem({
     message.id, 
     message.parts, 
     (message as any).tool_results,
-    // annotations를 직렬화하여 비교 (progress 제외)
     JSON.stringify((message.annotations || []).filter(
       (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress'
     ))
   ]);
 
-  // Memoize expensive tool data extractions
-  // 🚀 OPTIMIZATION: messageKey만 의존성으로 사용하여 progress annotation 변경 시 재계산 방지
-  // message는 클로저로 접근하되, messageKey가 변경되지 않으면 재계산하지 않음
   const toolData = useMemo(() => {
     return {
       webSearchData: getWebSearchResults(message),
@@ -168,7 +153,7 @@ const MessageItem = memo(function MessageItem({
       youTubeLinkAnalysisData: getYouTubeLinkAnalysisData(message),
       wan25VideoData: getWan25VideoData(message)
     };
-  }, [messageKey, message]); // messageKey가 변경되지 않으면 재계산 방지 (progress annotation 제외)
+  }, [messageKey, message]);
 
   const {
     webSearchData,
@@ -185,10 +170,6 @@ const MessageItem = memo(function MessageItem({
     wan25VideoData
   } = toolData;
 
-
-  // Memoize map generation
-  // 🚀 OPTIMIZATION: 각 맵을 별도 useMemo로 분리하여 안정화
-  // 새 메시지 추가 시 각 맵의 내용이 변경되지 않으면 참조 유지
   const combinedImageMap = useMemo(() => {
     return {
       ...globalImageMap,
@@ -287,35 +268,30 @@ const MessageItem = memo(function MessageItem({
   const promptMap = useMemo(() => {
     const map: Record<string, string> = {};
     
-    // geminiImageData에서 prompt 추출
     geminiImageData?.generatedImages?.forEach((image: any) => {
       if (image.imageUrl && image.prompt) {
         map[image.imageUrl] = image.prompt;
       }
     });
     
-    // seedreamImageData에서 prompt 추출
     seedreamImageData?.generatedImages?.forEach((image: any) => {
       if (image.imageUrl && image.prompt) {
         map[image.imageUrl] = image.prompt;
       }
     });
     
-    // qwenImageData에서 prompt 추출
     qwenImageData?.generatedImages?.forEach((image: any) => {
       if (image.imageUrl && image.prompt) {
         map[image.imageUrl] = image.prompt;
       }
     });
     
-    // imageGeneratorData에서 prompt 추출
     imageGeneratorData?.generatedImages?.forEach((image: any) => {
       if (image.imageUrl && image.prompt) {
         map[image.imageUrl] = image.prompt;
       }
     });
 
-    // wan25VideoData에서 prompt 추출
     wan25VideoData?.generatedVideos?.forEach((video: any) => {
       if (video.videoUrl && video.prompt) {
         map[video.videoUrl] = video.prompt;
@@ -328,17 +304,14 @@ const MessageItem = memo(function MessageItem({
   const sourceImageMap = useMemo(() => {
     const map: Record<string, string> = {};
     
-    // wan25VideoData에서 sourceImageUrl 추출
     wan25VideoData?.generatedVideos?.forEach((video: any) => {
       if (video.videoUrl && video.sourceImageUrl) {
         map[video.videoUrl] = video.sourceImageUrl;
       }
     });
 
-    // geminiImageData에서 originalImageUrl 추출
     geminiImageData?.generatedImages?.forEach((image: any) => {
       if (image.imageUrl) {
-        // originalImageUrls가 배열인 경우 첫 번째 사용, 아니면 originalImageUrl 사용
         const originalUrl = image.originalImageUrls && Array.isArray(image.originalImageUrls) && image.originalImageUrls.length > 0
           ? image.originalImageUrls[0]
           : image.originalImageUrl;
@@ -348,21 +321,18 @@ const MessageItem = memo(function MessageItem({
       }
     });
 
-    // seedreamImageData에서 originalImageUrl 추출
     seedreamImageData?.generatedImages?.forEach((image: any) => {
       if (image.imageUrl && image.originalImageUrl) {
         map[image.imageUrl] = image.originalImageUrl;
       }
     });
 
-    // qwenImageData에서 originalImageUrl 추출
     qwenImageData?.generatedImages?.forEach((image: any) => {
       if (image.imageUrl && image.originalImageUrl) {
         map[image.imageUrl] = image.originalImageUrl;
       }
     });
 
-    // 스트리밍 중 프롬프트 버튼 클릭 시 소스 이미지가 보이도록: parts의 완료 annotation에서 직접 추출 (tool 데이터 병합/순서 이슈 방지)
     const parts = (message as any).parts;
     if (Array.isArray(parts)) {
       for (const part of parts) {
@@ -385,7 +355,6 @@ const MessageItem = memo(function MessageItem({
     return map;
   }, [wan25VideoData?.generatedVideos, geminiImageData?.generatedImages, seedreamImageData?.generatedImages, qwenImageData?.generatedImages, (message as any).parts]);
 
-  // 🚀 OPTIMIZATION: maps 객체 안정화 - 각 맵의 참조가 변경되지 않으면 maps 객체 참조도 유지
   const maps = useMemo(() => {
     return { 
       imageMap: combinedImageMap, 
@@ -411,8 +380,6 @@ const MessageItem = memo(function MessageItem({
   const isCurrentMessageUser = message.role === 'user';
   const isCurrentMessageAssistant = message.role === 'assistant';
 
-  // 🚀 FIX: margin 대신 padding 사용 - ResizeObserver는 contentRect만 측정하므로 margin은 높이 계산에서 누락됨
-  // Virtuoso 버벅임의 핵심 원인!
   let spacingClass = '';
   if (isCurrentMessageUser && isNextMessageAssistant) {
     spacingClass = 'pb-2';
@@ -435,12 +402,11 @@ const MessageItem = memo(function MessageItem({
           </div>
         </div>
       )}
-      {/* 🚀 FIX: margin 대신 padding으로 간격 처리하여 ResizeObserver 측정 정확도 향상 */}
       <div 
-        className={`${spacingClass} thread-content transform-gpu`}
+        className={`${spacingClass} thread-content transform-gpu ${(isLastMessage || (isLoading && message.role === 'assistant' && isLastMessage)) ? 'message-always-visible' : ''}`}
         data-scroll-anchor={isLastMessage ? "true" : "false"}
         data-message-id={message.id}
-        style={{ contain: 'layout style' }}
+        style={{ contain: 'layout style', minHeight: '60px' }}
       >
         <div className="relative">
           <MessageComponent
@@ -496,7 +462,6 @@ const MessageItem = memo(function MessageItem({
       </div>
       {isSummaryBoundary && (
         <div className="thread-content" style={{ contain: 'layout style' }}>
-          {/* 🚀 FIX: my-2 (margin) 대신 py-2 추가하여 padding으로 변환 */}
           <div className="flex items-center justify-center gap-2 py-5">
             <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
             <span className="text-xs text-neutral-500 dark:text-neutral-400 px-2 whitespace-nowrap">
@@ -510,7 +475,7 @@ const MessageItem = memo(function MessageItem({
   );
 }, areMessageItemPropsEqual);
 
-interface VirtualizedMessagesProps {
+interface SimpleMessagesProps {
   messages: any[]
   currentModel: string
   isRegenerating: boolean
@@ -533,14 +498,13 @@ interface VirtualizedMessagesProps {
   user: User | null
   handleFollowUpQuestionClick: (question: string) => Promise<void>
   messagesEndRef: React.RefObject<HTMLDivElement | null>
-  searchTerm?: string | null // 🚀 FEATURE: Search term for highlighting
-  onLoadMore?: () => void // 무한 스크롤을 위한 콜백
-  hasMore?: boolean // 더 로드할 메시지가 있는지 여부
-  contextSummary?: ContextSummaryData | null // 🚀 Context summary for displaying summarization marker
+  searchTerm?: string | null
+  onLoadMore?: () => void
+  hasMore?: boolean
+  contextSummary?: ContextSummaryData | null
 }
 
-// ✅ P1 FIX: React.memo로 렌더링 최적화 - 빠른 스트리밍 시 불필요한 리렌더링 방지
-export const VirtualizedMessages = memo(function VirtualizedMessages({
+export const SimpleMessages = memo(function SimpleMessages({
   messages,
   currentModel,
   isRegenerating,
@@ -563,48 +527,41 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
   user,
   handleFollowUpQuestionClick,
   messagesEndRef,
-  searchTerm, // 🚀 FEATURE: Search term for highlighting
+  searchTerm,
   onLoadMore,
   hasMore = false,
-  contextSummary = null // 🚀 Context summary for displaying summarization marker
-}: VirtualizedMessagesProps) {
-  // 🚀 LAZY LOADING: 이미지 프리로딩 로직 제거
-  // IntersectionObserver 기반 lazy loading이 각 컴포넌트에서 직접 처리하므로
-  // 전역 프리로딩은 불필요하며 오히려 초기 로딩을 느리게 함
+  contextSummary = null
+}: SimpleMessagesProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const scrollSentinelRef = useRef<HTMLDivElement>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isScrollingRef = useRef(false);
+  const hasScrolledToBottomRef = useRef(false);
+  const prevMessagesLengthRef = useRef(messages.length);
+  const scrollMaintainRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollPositionBeforeLoadRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null);
+  const isInitialLoadCompleteRef = useRef(false);
+  const userScrolledRef = useRef(false);
+  const userScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastScrollTopRef = useRef(0);
 
-  // Virtuoso ref
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
-  
-  // 🚀 INFINITE SCROLL: firstItemIndex를 위한 큰 시작 값
-  // 새 메시지가 앞에 추가될 때 스크롤 위치 유지를 위해 필요
-  const FIRST_INDEX = 100000;
-  
-  // 🚀 SCROLL STABILITY: 이전 메시지 길이 추적 (prepend vs append 구분용)
-  const prevMessageLengthRef = useRef(messages.length);
-  
-  // 🔥 서버와 동일한 로직으로 전체 대화 기반 글로벌 이미지 맵 구성
-  // InlineToolPreview 및 서버 tools.ts와 완벽히 일치하는 순서로 인덱싱
   const globalImageMap = useMemo(() => {
     const imageMap: Record<string, string> = {};
     let uploadedImageIndex = 1;
     let generatedImageIndex = 1;
-    
-    // 🔥 path 기반 중복 추적 (같은 path를 가진 이미지는 한 번만 추가)
     const seenPaths = new Set<string>();
     
-    // Helper: path에서 파일명 기반 ID 추출 (예: "user-id/seedream_123_abc.png" -> "seedream_123_abc")
     const extractFilenameId = (path: string): string | null => {
       if (!path) return null;
-      const filename = path.split('/').pop(); // 마지막 경로 요소
+      const filename = path.split('/').pop();
       if (!filename) return null;
-      // 확장자 제거
       return filename.replace(/\.[^.]+$/, '');
     };
     
     for (const message of messages) {
       let foundInParts = false;
       
-      // 1. [Uploads] experimental_attachments 처리
       if (message.experimental_attachments && Array.isArray(message.experimental_attachments)) {
         for (const attachment of message.experimental_attachments) {
           if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
@@ -613,21 +570,18 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
         }
       }
       
-      // 2. [Primary] AI SDK v5: parts 배열 처리 (Uploads + Generated)
       if (message.parts && Array.isArray(message.parts)) {
         for (const part of message.parts) {
-          // v5 업로드 파일 파트
           if (part.type === 'file' && part.mediaType?.startsWith('image/')) {
             if (part.url || part.data) {
               imageMap[`uploaded_image_${uploadedImageIndex++}`] = part.url || part.data;
             }
           }
           
-          // 🔥 v5 도구 결과 파트 (DB 저장 형식: tool-${toolName})
           const imageToolNames = ['gemini_image_tool', 'seedream_image_tool', 'qwen_image_edit'];
           const isToolResult = imageToolNames.some(toolName => 
-            part.type === `tool-${toolName}` ||                    // DB 저장 형식
-            (part.type === 'tool-result' && part.toolName === toolName)  // AI SDK 표준
+            part.type === `tool-${toolName}` ||
+            (part.type === 'tool-result' && part.toolName === toolName)
           );
           
           if (isToolResult) {
@@ -636,20 +590,16 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
               const images = Array.isArray(result) ? result : (result.images || (result.imageUrl ? [result] : []));
               for (const img of images) {
                 if (img.imageUrl) {
-                  // 🔥 path 기반 중복 체크 (path가 있으면 path로, 없으면 imageUrl로)
                   const dedupKey = img.path || img.imageUrl;
                   if (!seenPaths.has(dedupKey)) {
                     seenPaths.add(dedupKey);
                     imageMap[`generated_image_${generatedImageIndex++}`] = img.imageUrl;
-                    
-                    // 🔥 파일명 기반 ID도 추가 매핑 (seedream_123_abc 형식)
                     if (img.path) {
                       const filenameId = extractFilenameId(img.path);
                       if (filenameId) {
                         imageMap[filenameId] = img.imageUrl;
                       }
                     }
-                    
                     foundInParts = true;
                   }
                 }
@@ -657,18 +607,13 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
             }
           }
           
-          // 🔥 data-*_image_complete annotation 처리 (스트리밍 완료 이벤트)
-          // ⚠️ tool-* 결과와 중복되므로, path 기반으로 중복 체크
           if (part.type === 'data-seedream_image_complete' || part.type === 'data-gemini_image_complete' || part.type === 'data-qwen_image_complete') {
             const data = part.data;
             if (data?.imageUrl) {
-              // 🔥 path 기반 중복 체크 (path가 우선, 없으면 imageUrl)
               const dedupKey = data.path || data.imageUrl;
               if (!seenPaths.has(dedupKey)) {
                 seenPaths.add(dedupKey);
                 imageMap[`generated_image_${generatedImageIndex++}`] = data.imageUrl;
-                
-                // 파일명 기반 ID 매핑
                 if (data.path) {
                   const filenameId = extractFilenameId(data.path);
                   if (filenameId) {
@@ -681,17 +626,13 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
         }
       }
       
-      // 3. [Backup] 기존 구조 처리 (parts에서 찾지 못한 경우만 실행)
       if (!foundInParts) {
-        // legacy tool_results 객체 체크
         if (message.tool_results) {
           const results = message.tool_results.geminiImageResults || message.tool_results.seedreamImageResults || message.tool_results.qwenImageResults;
           if (Array.isArray(results)) {
             for (const img of results) {
               if (img.imageUrl) {
                 imageMap[`generated_image_${generatedImageIndex++}`] = img.imageUrl;
-                
-                // 파일명 기반 ID 매핑
                 if (img.path) {
                   const filenameId = extractFilenameId(img.path);
                   if (filenameId) {
@@ -707,9 +648,7 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
     
     return imageMap;
   }, [messages]);
-  
-  // 🚀 OPTIMIZATION: Helper 함수를 컴포넌트 외부로 이동하여 재생성 방지
-  // (하지만 컴포넌트 내부에서 사용하므로 useCallback으로 최적화)
+
   const extractFilenameId = useCallback((path: string): string | null => {
     if (!path) return null;
     const filename = path.split('/').pop();
@@ -717,30 +656,19 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
     return filename.replace(/\.[^.]+$/, '');
   }, []);
 
-  // 🚀 OPTIMIZATION: 각 메시지의 parts를 개별적으로 추적하여 비디오 맵 재계산 최적화
-  // messages 배열 자체를 의존성으로 사용하여 input state 변경 시 불필요한 재계산 방지
   const messagePartsKeys = useMemo(() => {
     return messages.map(msg => {
       if (!msg.parts || !Array.isArray(msg.parts)) return '';
-      // progress annotation 제외하고 직렬화 (비디오 관련 parts만 포함)
       const videoParts = msg.parts.filter(
         (p: any) => p?.type?.startsWith('tool-wan25_') || p?.type === 'data-wan25_video_complete'
       );
       return JSON.stringify(videoParts);
     });
-  }, [messages]); // ✅ messages 배열 자체를 의존성으로 사용 (참조 비교)
+  }, [messages]);
 
-  // 🚀 OPTIMIZATION: useDeferredValue를 사용하여 비디오 맵 업데이트 지연
-  // 새 메시지 추가 시 비디오 맵 재계산을 지연하여 입력 응답성 향상
-  const deferredMessagePartsKeys = useDeferredValue(messagePartsKeys);
-
-  // 🔥 글로벌 비디오 맵 구성 (parts에서 비디오 URL 수집)
-  // 🚀 OPTIMIZATION: 계산 결과 안정화 및 불필요한 중복 체크 최소화
   const globalVideoMap = useMemo(() => {
     const videoMap: Record<string, { url: string; size?: string } | string> = {};
     let generatedVideoIndex = 1;
-    
-    // 🔥 path 기반 중복 추적 (같은 path를 가진 비디오는 한 번만 추가)
     const seenPaths = new Set<string>();
     
     for (const message of messages) {
@@ -748,27 +676,22 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
       
       if (message.parts && Array.isArray(message.parts)) {
         for (const part of message.parts) {
-          // 🔥 tool-wan25_* 비디오 결과 파트 처리
           if (part.type?.startsWith('tool-wan25_') && part.output?.videos && Array.isArray(part.output.videos)) {
             const result = part.output;
             if (result && result.success !== false) {
               for (const vid of result.videos) {
                 if (vid.videoUrl) {
-                  // 🔥 path 기반 중복 체크 (path가 있으면 path로, 없으면 videoUrl로)
                   const dedupKey = vid.path || vid.videoUrl;
                   if (!seenPaths.has(dedupKey)) {
                     seenPaths.add(dedupKey);
                     const videoData = vid.size ? { url: vid.videoUrl, size: vid.size } : vid.videoUrl;
                     videoMap[`generated_video_${generatedVideoIndex++}`] = videoData;
-                    
-                    // 파일명 기반 ID도 추가 매핑
                     if (vid.path) {
                       const filenameId = extractFilenameId(vid.path);
                       if (filenameId && !videoMap[filenameId]) {
                         videoMap[filenameId] = videoData;
                       }
                     }
-                    
                     foundInParts = true;
                   }
                 }
@@ -776,19 +699,14 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
             }
           }
           
-          // 🔥 data-wan25_video_complete annotation 처리
-          // ⚠️ tool-wan25_* 결과와 중복되므로, path 기반으로 중복 체크
           if (part.type === 'data-wan25_video_complete') {
             const data = part.data;
             if (data?.videoUrl) {
-              // 🔥 path 기반 중복 체크 (path가 우선, 없으면 videoUrl)
               const dedupKey = data.path || data.videoUrl;
               if (!seenPaths.has(dedupKey)) {
                 seenPaths.add(dedupKey);
                 const videoData = data.size ? { url: data.videoUrl, size: data.size } : data.videoUrl;
                 videoMap[`generated_video_${generatedVideoIndex++}`] = videoData;
-                
-                // 파일명 기반 ID 매핑
                 if (data.path) {
                   const filenameId = extractFilenameId(data.path);
                   if (filenameId && !videoMap[filenameId]) {
@@ -801,7 +719,6 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
         }
       }
       
-      // Backup: legacy tool_results 처리
       if (!foundInParts && message.tool_results?.wan25VideoResults) {
         const results = message.tool_results.wan25VideoResults;
         if (Array.isArray(results)) {
@@ -809,7 +726,6 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
             if (vid.videoUrl) {
               const videoData = vid.size ? { url: vid.videoUrl, size: vid.size } : vid.videoUrl;
               videoMap[`generated_video_${generatedVideoIndex++}`] = videoData;
-              
               if (vid.path) {
                 const filenameId = extractFilenameId(vid.path);
                 if (filenameId && !videoMap[filenameId]) {
@@ -823,27 +739,18 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
     }
     
     return videoMap;
-  }, [deferredMessagePartsKeys, extractFilenameId]); // deferredMessagePartsKeys 사용하여 지연 업데이트
-  
-  // Bookmark state management
+  }, [messagePartsKeys, extractFilenameId]);
+
   const [bookmarkedMessageIds, setBookmarkedMessageIds] = useState<Set<string>>(new Set());
   const [isBookmarksLoading, setIsBookmarksLoading] = useState(false);
-  
-  // User name state for greeting
   const [userName, setUserName] = useState<string>('');
   const [isUserNameLoading, setIsUserNameLoading] = useState(true);
-
-  // 무한 스크롤 상태 관리
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-
-  // Greeting animation state for staggered entrance
   const [greetingAnimation, setGreetingAnimation] = useState({
     header: false,
     receive: false,
     send: false
   });
 
-  // 🚀 FAST LOAD: 즉시 애니메이션 시작 (로딩 대기 없음)
   useEffect(() => {
     if (messages.length === 0) {
       const timeouts = [
@@ -855,7 +762,6 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
     }
   }, [messages.length]);
 
-  // Fetch bookmarks for current chat session
   const fetchBookmarks = useCallback(async (currentMessages: any[]) => {
     if (!user || !chatId) return;
     
@@ -886,12 +792,10 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
     }
   }, [user, chatId]);
 
-  // Fetch bookmarks when user or chatId changes
   useEffect(() => {
     fetchBookmarks(messages);
   }, [user, chatId, messages.length, fetchBookmarks]);
 
-  // Load user name for greeting
   const loadUserName = useCallback(async () => {
     if (!user) {
       setUserName('');
@@ -914,11 +818,9 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
     loadUserName();
   }, [loadUserName]);
 
-  // Handle bookmark toggle
   const handleBookmarkToggle = useCallback(async (messageId: string, shouldBookmark: boolean) => {
     if (!user || !chatId || !messageId) return;
     
-    // 🚀 즉시 UI 반영 (낙관적 업데이트)
     setBookmarkedMessageIds(prev => {
       const newSet = new Set(prev);
       if (shouldBookmark) {
@@ -935,7 +837,6 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
       if (!message) return;
       
       if (shouldBookmark) {
-        // 🚀 content 추출 로직
         let messageContent = message.content;
         if (!messageContent && message.parts) {
           const textParts = message.parts.filter((p: any) => p.type === 'text');
@@ -945,7 +846,6 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
           messageContent = '[Empty message]';
         }
         
-        // Add bookmark
         const { error } = await supabase
           .from('message_bookmarks')
           .insert({
@@ -958,7 +858,6 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
           });
           
         if (error) {
-          // 🚀 DB 실패 시 UI 롤백
           setBookmarkedMessageIds(prev => {
             const newSet = new Set(prev);
             newSet.delete(messageId);
@@ -967,7 +866,6 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
           throw error;
         }
       } else {
-        // Remove bookmark - message_id로 정확한 삭제
         const { error } = await supabase
           .from('message_bookmarks')
           .delete()
@@ -976,7 +874,6 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
           .eq('chat_session_id', chatId);
           
         if (error) {
-          // 🚀 DB 실패 시 UI 롤백
           setBookmarkedMessageIds(prev => {
             const newSet = new Set(prev);
             newSet.add(messageId);
@@ -990,123 +887,118 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
     }
   }, [user, chatId, messages, currentModel]);
 
-  // 🚀 INFINITE SCROLL: 무한 스크롤 핸들러 (startReached 콜백)
-  const handleStartReached = useCallback(async () => {
-    if (isLoadingMore || !hasMore || !onLoadMore) return;
-    
-    console.log('🚀 [LOAD MORE] Start reached, loading more messages...');
-    setIsLoadingMore(true);
-    try {
-      await onLoadMore();
-    } catch (error) {
-      console.error('Error loading more messages:', error);
-    } finally {
-      setIsLoadingMore(false);
-    }
-  }, [isLoadingMore, hasMore, onLoadMore]);
-
-  // 🚀 INSTANT LOAD: 로딩 인디케이터 제거 - 즉시 컨텐츠 표시
-
-  // 하단 스페이서 컴포넌트 - 적절한 여백 제공 (데스크탑: 300px, 모바일: 100px)
-  const BottomSpacer = useCallback(() => (
-    <div 
-      ref={messagesEndRef} 
-      className="h-[200px] min-h-[200px] md:h-[300px] md:min-h-[300px]"
-    />
-  ), [messagesEndRef]);
-
-
-  // 🚀 SCROLL STABILITY: 항상 동일한 구조 유지
-  const virtualizedData = useMemo(() => {
-    // 메시지가 없으면 greeting 표시, 있으면 chatflix-label + messages
-    if (messages.length === 0) {
-      return [
-        { id: 'greeting', type: 'greeting' }
-      ];
-    }
-    return [
-      { id: 'chatflix-label', type: 'chatflix-label' },
-      ...messages
-    ];
-  }, [messages]);
-
-  // 🚀 JANK FIX: Per-item height estimates to reduce layout thrash (Virtuoso heightEstimates)
-  const heightEstimates = useMemo(() => {
-    const out: number[] = [];
-    for (let i = 0; i < virtualizedData.length; i++) {
-      const item = virtualizedData[i];
-      if (item?.type === 'greeting') {
-        out.push(220);
-      } else if (item?.type === 'chatflix-label') {
-        out.push(90);
-      } else {
-        const msg = item as any;
-        let h = 140;
-        const parts = msg?.parts || [];
-        for (const p of parts) {
-          if (p?.type?.startsWith('tool-') || p?.type?.startsWith('data-')) h += 80;
-        }
-        out.push(Math.min(h, 700));
-      }
-    }
-    return out;
-  }, [virtualizedData]);
-  
-  // 🚀 SCROLL STABILITY: firstItemIndex를 state로 관리 (Virtuoso에 전달하려면 리렌더 필요)
-  // - 이전 메시지 로드(prepend): firstItemIndex 감소
-  // - 새 메시지 추가(append): firstItemIndex 유지 (스크롤 점프 방지!)
-  const [firstItemIndex, setFirstItemIndex] = useState(() => 
-    Math.max(0, FIRST_INDEX - virtualizedData.length)
-  );
-  
-  // 🚀 SCROLL STABILITY: ref로 최신 값 추적 (콜백에서 사용)
-  const firstItemIndexRef = useRef(firstItemIndex);
-  firstItemIndexRef.current = firstItemIndex;
-
-  const followOutputLastRef = useRef(0);
-  const FOLLOW_OUTPUT_THROTTLE_MS = 120;
-  const atBottomRef = useRef(true);
-
-  // 🚀 JANK FIX: Stable itemContent – ref holds latest context so renderVirtualizedItem identity stays stable
-  const renderContextRef = useRef({
-    virtualizedData: [] as typeof virtualizedData,
-    messages: [] as typeof messages,
-    user,
-    userName: '',
-    isUserNameLoading: true,
-    greetingAnimation: { header: false, receive: false, send: false },
-    currentModel: '',
-    isRegenerating: false,
-    editingMessageId: null as string | null,
-    editingContent: '',
-    copiedMessageId: null as string | null,
-    onRegenerate: ((() => () => {}) as unknown) as VirtualizedMessagesProps['onRegenerate'],
-    onCopy: (() => {}) as VirtualizedMessagesProps['onCopy'],
-    onEditStart: (() => {}) as VirtualizedMessagesProps['onEditStart'],
-    onEditCancel: (() => {}) as VirtualizedMessagesProps['onEditCancel'],
-    onEditSave: (() => {}) as VirtualizedMessagesProps['onEditSave'],
-    setEditingContent: (() => {}) as VirtualizedMessagesProps['setEditingContent'],
-    chatId: undefined as string | undefined,
-    isLoading: false,
-    isWaitingForToolResults: (() => false) as VirtualizedMessagesProps['isWaitingForToolResults'],
-    hasCanvasData: (() => false) as VirtualizedMessagesProps['hasCanvasData'],
-    activePanelMessageId: null as string | null,
-    activePanel: null as typeof activePanel,
-    togglePanel: (() => {}) as VirtualizedMessagesProps['togglePanel'],
-    handleFollowUpQuestionClick: (() => Promise.resolve()) as VirtualizedMessagesProps['handleFollowUpQuestionClick'],
-    globalImageMap: {} as Record<string, string>,
-    globalVideoMap: {} as Record<string, { url: string; size?: string } | string>,
-    bookmarkedMessageIds: new Set<string>(),
-    handleBookmarkToggle: (async () => {}) as (messageId: string, shouldBookmark: boolean) => Promise<void>,
-    isBookmarksLoading: false,
-    searchTerm: null as string | null,
-    contextSummary: null as ContextSummaryData | null,
-    allMessagesForLast: [] as any[]
-  });
   const allMessagesRef = useRef(messages);
   if (allMessagesRef.current !== messages) allMessagesRef.current = messages;
-  Object.assign(renderContextRef.current, {
-    virtualizedData,
+
+  const renderMessageItem = useCallback((item: any, index: number) => {
+    if (item.type === 'greeting') {
+      if (isUserNameLoading) {
+        return (
+          <div key="greeting-loading" className="thread-content" style={{ minHeight: '200px' }}>
+          </div>
+        );
+      }
+      const greetingText = user ? `Hey ${userName}!` : 'Hey there';
+      return (
+        <div key="greeting" className="thread-content">
+          <div className="relative flex flex-col items-end">
+            <div className={`w-full flex flex-col items-center mb-4 transform-gpu transition-all duration-500 ease-out ${
+              greetingAnimation.header ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-[0.98]'
+            }`}>
+              <div className="message-timestamp chatflix-header relative z-10" style={{ paddingBottom: '0', textTransform: 'none', color: '#737373' }}>
+                Chatflix
+              </div>
+              <div className="message-timestamp relative z-10" style={{ paddingTop: '0', textTransform: 'none', color: '#737373' }}>
+                {formatMessageGroupTimestamp(new Date())}
+              </div>
+            </div>
+            <div className={`flex justify-start w-full group mb-2 transform-gpu transition-all duration-500 ease-out ${
+              greetingAnimation.receive ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-[0.98]'
+            }`}>
+              <div className="max-w-[85%] md:max-w-[70%]">
+                <div className="imessage-receive-bubble"><span>{greetingText}</span></div>
+              </div>
+            </div>
+            <div className={`flex justify-end w-full group mb-4 transform-gpu transition-all duration-500 ease-out ${
+              greetingAnimation.send ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-[0.98]'
+            }`}>
+              <div className="max-w-[85%] md:max-w-[70%]">
+                <div className="flex flex-col items-end gap-0">
+                  <div className="imessage-send-bubble"><span>Hey</span></div>
+                  <div className="text-[10px] text-neutral-500 mt-1 pr-1">{formatMessageTime(new Date())}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (item.type === 'chatflix-label') {
+      const firstMessage = messages[0];
+      const displayDate = firstMessage ? (firstMessage.createdAt || new Date()) : new Date();
+      return (
+        <div key="chatflix-label" className="thread-content">
+          <div className="message-timestamp chatflix-header" style={{
+            paddingBottom: '0',
+            textTransform: 'none',
+            color: '#737373'
+          }}>
+            Chatflix
+          </div>
+          <div className="message-timestamp" style={{ paddingTop: '0', textTransform: 'none', color: '#737373' }}>
+            {formatMessageGroupTimestamp(displayDate)}
+          </div>
+        </div>
+      );
+    }
+
+    const messageIndex = index - 1;
+    const message = messages[messageIndex];
+    if (!message) return null;
+
+    const isLastMessage = messageIndex === messages.length - 1;
+    const allMessagesForItem = isLastMessage ? allMessagesRef.current : undefined;
+
+    return (
+      <MessageItem
+        key={message.id}
+        message={message}
+        previousMessage={messageIndex > 0 ? messages[messageIndex - 1] : undefined}
+        nextMessage={messageIndex < messages.length - 1 ? messages[messageIndex + 1] : undefined}
+        index={messageIndex}
+        totalMessages={messages.length}
+        currentModel={currentModel}
+        isRegenerating={isRegenerating}
+        editingMessageId={editingMessageId}
+        editingContent={editingContent}
+        copiedMessageId={copiedMessageId}
+        onRegenerate={onRegenerate}
+        onCopy={onCopy}
+        onEditStart={onEditStart}
+        onEditCancel={onEditCancel}
+        onEditSave={onEditSave}
+        setEditingContent={setEditingContent}
+        chatId={chatId}
+        isLoading={isLoading}
+        isWaitingForToolResults={isWaitingForToolResults}
+        hasCanvasData={hasCanvasData}
+        activePanelMessageId={activePanelMessageId}
+        activePanel={activePanel}
+        togglePanel={togglePanel}
+        user={user}
+        handleFollowUpQuestionClick={handleFollowUpQuestionClick}
+        globalImageMap={globalImageMap}
+        globalVideoMap={globalVideoMap}
+        bookmarkedMessageIds={bookmarkedMessageIds}
+        handleBookmarkToggle={handleBookmarkToggle}
+        isBookmarksLoading={isBookmarksLoading}
+        searchTerm={searchTerm}
+        contextSummary={contextSummary}
+        allMessages={allMessagesForItem}
+      />
+    );
+  }, [
     messages,
     user,
     userName,
@@ -1137,231 +1029,331 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
     handleBookmarkToggle,
     isBookmarksLoading,
     searchTerm,
-    contextSummary,
-    allMessagesForLast: allMessagesRef.current
-  });
-  
-  // 메시지 변경 시 prepend vs append 구분
+    contextSummary
+  ]);
+
+  const messageData = useMemo(() => {
+    if (messages.length === 0) {
+      return [{ id: 'greeting', type: 'greeting' }];
+    }
+    // 중복 제거: 메시지 ID를 기준으로 중복 제거
+    const seenIds = new Set<string>();
+    const uniqueMessages = messages.filter(msg => {
+      if (seenIds.has(msg.id)) {
+        return false;
+      }
+      seenIds.add(msg.id);
+      return true;
+    });
+    
+    return [
+      { id: 'chatflix-label', type: 'chatflix-label' },
+      ...uniqueMessages
+    ];
+  }, [messages]);
+
+  const handleLoadMore = useCallback(async () => {
+    if (isLoadingMore || !hasMore || !onLoadMore) return;
+    
+    // 현재 스크롤 위치와 높이 저장 (DOM 업데이트 직전)
+    if (containerRef.current) {
+      scrollPositionBeforeLoadRef.current = {
+        scrollTop: containerRef.current.scrollTop,
+        scrollHeight: containerRef.current.scrollHeight
+      };
+    }
+    
+    setIsLoadingMore(true);
+    try {
+      await onLoadMore();
+    } catch (error) {
+      console.error('Error loading more messages:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isLoadingMore, hasMore, onLoadMore]);
+
+  // 초기 스크롤 위치 설정 - 하단부터 표시
   useEffect(() => {
-    const prevLength = prevMessageLengthRef.current;
+    if (!containerRef.current || hasScrolledToBottomRef.current) return;
+    
+    const scrollToBottom = () => {
+      if (containerRef.current) {
+        containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        hasScrolledToBottomRef.current = true;
+        
+        // 초기 스크롤 완료 후 약간의 지연을 두고 무한 스크롤 활성화
+        setTimeout(() => {
+          isInitialLoadCompleteRef.current = true;
+        }, 500);
+      }
+    };
+    
+    // DOM 렌더링 완료 대기
+    requestAnimationFrame(() => {
+      requestAnimationFrame(scrollToBottom);
+    });
+  }, [messageData.length]);
+
+  // 새 메시지 추가 시 하단 스크롤 (append만)
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    const prevLength = prevMessagesLengthRef.current;
     const currentLength = messages.length;
-    const diff = currentLength - prevLength;
     
-    if (diff > 0 && prevLength > 0) {
-      // 메시지가 추가됨 - prepend인지 append인지 확인
-      // prepend: diff가 크면 batch load (이전 메시지)
-      // append: diff가 1~2면 새 메시지 추가
+    // 메시지가 추가된 경우
+    if (currentLength > prevLength && prevLength > 0) {
+      // prepend인지 append인지 구분
+      // prepend: 이전 메시지 로드 (diff가 크고, scrollPositionBeforeLoadRef가 설정됨)
+      // append: 새 메시지 추가 (diff가 1~2이고, scrollPositionBeforeLoadRef가 없음)
+      const diff = currentLength - prevLength;
+      const isPrepend = scrollPositionBeforeLoadRef.current !== null || diff > 2;
       
-      // 🚀 FIX: 새 메시지 추가(append)는 firstItemIndex를 변경하지 않음!
-      // 이전 메시지 로드(prepend)만 firstItemIndex를 감소시킴
-      if (hasMore && diff > 2) {
-        // prepend: 이전 메시지 batch 로드 (보통 10~20개)
-        const newFirstItemIndex = Math.max(0, FIRST_INDEX - virtualizedData.length);
-        setFirstItemIndex(newFirstItemIndex);
+      // append인 경우에만 하단으로 스크롤
+      if (!isPrepend && !userScrolledRef.current) {
+        // 사용자가 하단에 있을 때만 하단으로 스크롤
+        const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 200; // 임계값 증가
+        
+        if (isAtBottom) {
+          requestAnimationFrame(() => {
+            if (containerRef.current && !userScrolledRef.current) {
+              containerRef.current.scrollTop = containerRef.current.scrollHeight;
+            }
+          });
+        }
       }
-      // append (새 메시지 1~2개 추가)는 firstItemIndex 유지 → 스크롤 점프 없음!
     }
-    // 🚀 SCROLL STABILITY: 첫 메시지 추가(prevLength === 0)도 firstItemIndex 유지!
-    // virtualizedData 구조가 일관되므로 (항상 chatflix-label + messages)
-    // 첫 메시지 추가 시에도 firstItemIndex를 변경할 필요 없음
-    // else if (currentLength > 0 && prevLength === 0) { ... } 제거
     
-    prevMessageLengthRef.current = currentLength;
-  }, [messages.length, virtualizedData.length, hasMore, FIRST_INDEX]);
+    prevMessagesLengthRef.current = currentLength;
+  }, [messages.length]);
 
-  // 🚀 INFINITE SCROLL: 범위 변경 시 미리 로드 트리거
-  // 사용자가 상단 근처(15개 이내)에 도달하면 미리 load more 실행
-  const handleRangeChanged = useCallback((range: { startIndex: number; endIndex: number }) => {
-    // 🚀 FIX: ref에서 직접 읽어서 최신 값 사용
-    const relativeStart = range.startIndex - firstItemIndexRef.current;
-    
-    // 상위 15개 아이템 이내에 도달하면 미리 로드 (더 일찍 트리거)
-    if (relativeStart <= 15 && hasMore && !isLoadingMore && onLoadMore) {
-      console.log('🚀 [LOAD MORE] Early trigger at relative index:', relativeStart);
-      handleStartReached();
+  // 이전 메시지 로드 시 스크롤 위치 유지 및 연속 로드 체크
+  useEffect(() => {
+    if (scrollPositionBeforeLoadRef.current && !isLoadingMore) {
+      const { scrollTop: oldScrollTop, scrollHeight: oldScrollHeight } = scrollPositionBeforeLoadRef.current;
+      
+      // DOM 업데이트 완료 대기
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (containerRef.current) {
+            const newScrollHeight = containerRef.current.scrollHeight;
+            const heightDiff = newScrollHeight - oldScrollHeight;
+            
+            // 정확한 스크롤 위치 복원
+            containerRef.current.scrollTop = oldScrollTop + heightDiff;
+            scrollPositionBeforeLoadRef.current = null;
+            
+            // 로딩 완료 후 즉시 다음 로드 체크 (연속 로드)
+            if (hasMore && onLoadMore && isInitialLoadCompleteRef.current) {
+              setTimeout(() => {
+                if (containerRef.current && hasMore && !isLoadingMore) {
+                  const scrollTop = containerRef.current.scrollTop;
+                  if (scrollTop <= 1500) {
+                    handleLoadMore();
+                  }
+                }
+              }, 50);
+            }
+          }
+        });
+      });
     }
-  }, [hasMore, isLoadingMore, onLoadMore, handleStartReached]);
+  }, [messages.length, isLoadingMore, hasMore, onLoadMore, handleLoadMore]);
 
-  // 🚀 FAST LOAD: 초기 로딩 대기 로직 제거 - Virtuoso의 alignToBottom이 자동으로 처리
-
-  // 🚀 JANK FIX: Stable itemContent – read from ref and use (index, data) so callback identity is stable
-  const renderVirtualizedItem = useCallback((index: number, data?: any) => {
-    const ctx = renderContextRef.current;
-    const dataIndex = index - firstItemIndexRef.current;
-    const item = data ?? ctx.virtualizedData?.[dataIndex];
-
-    if (!item) return <div style={{ height: 1 }} />;
-
-    if (item.type === 'greeting') {
-      if (ctx.isUserNameLoading) {
-        return (
-          <div className="thread-content" style={{ minHeight: '200px' }}>
-          </div>
-        );
+  // 스트리밍 중 하단 유지
+  useEffect(() => {
+    if (!containerRef.current || !isLoading || isRegenerating || userScrolledRef.current) {
+      if (scrollMaintainRef.current) {
+        clearInterval(scrollMaintainRef.current);
+        scrollMaintainRef.current = null;
       }
-      const greetingText = ctx.user ? `Hey ${ctx.userName}!` : 'Hey there';
-      return (
-        <div className="thread-content">
-          <div className="relative flex flex-col items-end">
-            <div className={`w-full flex flex-col items-center mb-4 transform-gpu transition-all duration-500 ease-out ${
-              ctx.greetingAnimation.header ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-[0.98]'
-            }`}>
-              <div className="message-timestamp chatflix-header relative z-10" style={{ paddingBottom: '0', textTransform: 'none', color: '#737373' }}>
-                Chatflix
-              </div>
-              <div className="message-timestamp relative z-10" style={{ paddingTop: '0', textTransform: 'none', color: '#737373' }}>
-                {formatMessageGroupTimestamp(new Date())}
-              </div>
-            </div>
-            <div className={`flex justify-start w-full group mb-2 transform-gpu transition-all duration-500 ease-out ${
-              ctx.greetingAnimation.receive ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-[0.98]'
-            }`}>
-              <div className="max-w-[85%] md:max-w-[70%]">
-                <div className="imessage-receive-bubble"><span>{greetingText}</span></div>
-              </div>
-            </div>
-            <div className={`flex justify-end w-full group mb-4 transform-gpu transition-all duration-500 ease-out ${
-              ctx.greetingAnimation.send ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-[0.98]'
-            }`}>
-              <div className="max-w-[85%] md:max-w-[70%]">
-                <div className="flex flex-col items-end gap-0">
-                  <div className="imessage-send-bubble"><span>Hey</span></div>
-                  <div className="text-[10px] text-neutral-500 mt-1 pr-1">{formatMessageTime(new Date())}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
+      return;
     }
+    
+    const maintainScroll = () => {
+      if (!containerRef.current || userScrolledRef.current) return;
+      
+      const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 200; // 임계값 증가
+      
+      if (isAtBottom) {
+        containerRef.current.scrollTop = scrollHeight;
+      }
+    };
+    
+    // 50ms마다 스크롤 유지 (더 부드럽게)
+    scrollMaintainRef.current = setInterval(() => {
+      requestAnimationFrame(maintainScroll);
+    }, 50); // 100 → 50
+    
+    return () => {
+      if (scrollMaintainRef.current) {
+        clearInterval(scrollMaintainRef.current);
+        scrollMaintainRef.current = null;
+      }
+    };
+  }, [isLoading, isRegenerating]);
 
-    if (item.type === 'chatflix-label') {
-      const firstMessage = ctx.messages[0];
-      const displayDate = firstMessage ? (firstMessage.createdAt || new Date()) : new Date();
-      return (
-        <div className="thread-content">
-          <div className="message-timestamp chatflix-header" style={{
-            paddingBottom: '0',
-            textTransform: 'none',
-            color: '#737373'
-          }}>
-            Chatflix
-          </div>
-          <div className="message-timestamp" style={{ paddingTop: '0', textTransform: 'none', color: '#737373' }}>
-            {formatMessageGroupTimestamp(displayDate)}
-          </div>
-        </div>
-      );
-    }
-
-    const messageIndex = dataIndex - 1;
-    const message = ctx.messages[messageIndex];
-    if (!message) return <div style={{ height: 1 }} />;
-
-    const isLastMessage = messageIndex === ctx.messages.length - 1;
-    const allMessagesForItem = isLastMessage ? (ctx.allMessagesForLast ?? ctx.messages) : undefined;
-
-    return (
-      <MessageItem
-        key={message.id}
-        message={message}
-        previousMessage={messageIndex > 0 ? ctx.messages[messageIndex - 1] : undefined}
-        nextMessage={messageIndex < ctx.messages.length - 1 ? ctx.messages[messageIndex + 1] : undefined}
-        index={messageIndex}
-        totalMessages={ctx.messages.length}
-        currentModel={ctx.currentModel}
-        isRegenerating={ctx.isRegenerating}
-        editingMessageId={ctx.editingMessageId}
-        editingContent={ctx.editingContent}
-        copiedMessageId={ctx.copiedMessageId}
-        onRegenerate={ctx.onRegenerate}
-        onCopy={ctx.onCopy}
-        onEditStart={ctx.onEditStart}
-        onEditCancel={ctx.onEditCancel}
-        onEditSave={ctx.onEditSave}
-        setEditingContent={ctx.setEditingContent}
-        chatId={ctx.chatId}
-        isLoading={ctx.isLoading}
-        isWaitingForToolResults={ctx.isWaitingForToolResults(message)}
-        hasCanvasData={ctx.hasCanvasData}
-        activePanelMessageId={ctx.activePanelMessageId}
-        activePanel={ctx.activePanel}
-        togglePanel={ctx.togglePanel}
-        user={ctx.user}
-        handleFollowUpQuestionClick={ctx.handleFollowUpQuestionClick}
-        globalImageMap={ctx.globalImageMap}
-        globalVideoMap={ctx.globalVideoMap}
-        bookmarkedMessageIds={ctx.bookmarkedMessageIds}
-        handleBookmarkToggle={ctx.handleBookmarkToggle}
-        isBookmarksLoading={ctx.isBookmarksLoading}
-        searchTerm={ctx.searchTerm}
-        contextSummary={ctx.contextSummary}
-        allMessages={allMessagesForItem}
-      />
+  useEffect(() => {
+    if (!scrollSentinelRef.current || !onLoadMore || !hasMore || !containerRef.current) return;
+    
+    // 초기 로드 완료 전에는 무한 스크롤 비활성화
+    if (!isInitialLoadCompleteRef.current) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore) {
+          // 로딩 중이어도 다음 로드를 미리 시작할 수 있도록 (연속 로드)
+          if (isLoadingMore) {
+            setTimeout(() => {
+              if (hasMore && !isLoadingMore && containerRef.current) {
+                const scrollTop = containerRef.current.scrollTop;
+                if (scrollTop <= 1500) {
+                  handleLoadMore();
+                }
+              }
+            }, 100);
+          } else {
+            handleLoadMore();
+          }
+        }
+      },
+      { 
+        root: containerRef.current,
+        rootMargin: '2000px 0px 0px 0px', // 상단에만 2000px 마진 - 매우 일찍 로드
+        threshold: 0
+      }
     );
+    
+    observer.observe(scrollSentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, onLoadMore, handleLoadMore]);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    if (!containerRef.current) return;
+    
+    if (behavior === 'smooth') {
+      containerRef.current.scrollTo({
+        top: containerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    } else {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
   }, []);
+
+  const checkIfAtBottom = useCallback(() => {
+    if (!containerRef.current) return false;
+    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+    return scrollTop + clientHeight >= scrollHeight - 200; // 100 → 200 (하단 근처 판정 확대)
+  }, []);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    const container = containerRef.current;
+    let rafId: number | null = null;
+    let lastScrollTime = 0;
+    const SCROLL_THROTTLE_MS = 100;
+    let lastLoadCheckTime = 0;
+    const LOAD_CHECK_THROTTLE_MS = 10; // throttle을 10ms로 줄여 매우 빠르게 반응
+
+    // 초기 스크롤 위치 저장
+    lastScrollTopRef.current = container.scrollTop;
+
+    const handleScroll = () => {
+      const now = Date.now();
+      if (now - lastScrollTime < SCROLL_THROTTLE_MS) return;
+      lastScrollTime = now;
+      
+      // 사용자 스크롤 감지
+      const currentScrollTop = container.scrollTop;
+      const scrollDelta = Math.abs(currentScrollTop - lastScrollTopRef.current);
+      
+      if (scrollDelta > 5) { // 5px 이상 움직이면 사용자 스크롤로 간주
+        userScrolledRef.current = true;
+        
+        // 1초 후 자동 스크롤 재활성화
+        if (userScrollTimeoutRef.current) {
+          clearTimeout(userScrollTimeoutRef.current);
+        }
+        userScrollTimeoutRef.current = setTimeout(() => {
+          userScrolledRef.current = false;
+        }, 1000);
+      }
+      
+      lastScrollTopRef.current = currentScrollTop;
+      
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        isScrollingRef.current = container.scrollTop + container.clientHeight < container.scrollHeight - 50;
+        rafId = null;
+      });
+
+      // 상단 근처에서 미리 로드 체크 (스크롤 이벤트 기반)
+      if (isInitialLoadCompleteRef.current && hasMore && onLoadMore) {
+        const checkTime = Date.now();
+        if (checkTime - lastLoadCheckTime < LOAD_CHECK_THROTTLE_MS) return;
+        lastLoadCheckTime = checkTime;
+
+        const scrollTop = container.scrollTop;
+        // 상단에서 1500px 이내에 있으면 미리 로드 (매우 일찍 로드)
+        // 로딩 중이어도 다음 로드를 미리 시작할 수 있도록 (연속 로드)
+        if (scrollTop <= 1500) {
+          // 로딩 중이면 약간의 지연 후 다음 로드 시작
+          if (isLoadingMore) {
+            setTimeout(() => {
+              if (hasMore && !isLoadingMore && container.scrollTop <= 1500) {
+                handleLoadMore();
+              }
+            }, 100);
+          } else {
+            handleLoadMore();
+          }
+        }
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      if (userScrollTimeoutRef.current) clearTimeout(userScrollTimeoutRef.current);
+    };
+  }, [hasMore, isLoadingMore, onLoadMore, handleLoadMore]);
+
 
   return (
     <div className="thread-container messages-container flex flex-col">
-      <div className="grow">
-        {/* Virtuoso 가상화 리스트 - Chatflix 레이블 포함 */}
-        {/* 🚀 FIX: Bug 1 수정으로 메시지가 로드된 후 렌더링되므로 조건부 렌더링 제거 */}
-        <Virtuoso
-          ref={virtuosoRef}
-          data={virtualizedData}
-          itemContent={renderVirtualizedItem}
-          // 🚀 SCROLL STABILITY FIX: alignToBottom 제거!
-          // alignToBottom은 margin-top: auto를 사용하여 콘텐츠를 하단 정렬함
-          // 문제: 아이템 크기 측정 전후로 margin-top이 변경되어 레이아웃 시프트 발생
-          // 해결: initialTopMostItemIndex로 마지막 아이템 표시 + 수동 스크롤
-          // alignToBottom={true} // 제거됨!
-          
-          // 🚀 SCROLL STABILITY: 초기 렌더링 시 마지막 아이템 표시 (greeting일 때는 0, 메시지가 있을 때는 마지막)
-          initialTopMostItemIndex={messages.length === 0 ? 0 : virtualizedData.length - 1}
-          
-          // 🚀 INFINITE SCROLL: firstItemIndex로 스크롤 위치 유지
-          firstItemIndex={firstItemIndex}
-          // 🚀 JANK FIX: followOutput – throttle scroll during streaming (max once per 120ms)
-          followOutput={(isAtBottom) => {
-            if (isRegenerating || !isAtBottom) return false;
-            if (!isLoading) return 'smooth';
-            const now = Date.now();
-            if (now - followOutputLastRef.current < FOLLOW_OUTPUT_THROTTLE_MS) return false;
-            followOutputLastRef.current = now;
-            return 'auto';
-          }}
-          // 🚀 VENICE: ResizeObserver 즉시 처리
-          skipAnimationFrameInResizeObserver={true}
-          // 🚀 JANK FIX: Per-item height estimates reduce layout thrash; fallback for edge cases
-          heightEstimates={heightEstimates}
-          defaultItemHeight={400}
-          // 🚀 VENICE: overscan 최소화 (동시 렌더링 아이템 수 제한)
-          increaseViewportBy={{ top: 200, bottom: 200 }}
-          // 🚀 STANDARD: 안정적인 아이템 키 생성
-          computeItemKey={(index, item) => item?.id || `item-${index}`}
-          // 🚀 STANDARD: atBottomThreshold로 하단 판정 기준 설정
-          atBottomThreshold={200}
-          atBottomStateChange={(atBottom) => { atBottomRef.current = atBottom; }}
-          scrollIntoViewOnChange={({ totalCount }) => {
-            if (!atBottomRef.current || isRegenerating) return undefined;
-            return { index: totalCount - 1, align: 'end', behavior: 'auto' as const };
-          }}
-          // 🚀 INFINITE SCROLL: 스크롤이 상단에 도달하면 이전 메시지 로드
-          startReached={handleStartReached}
-          // 🚀 INFINITE SCROLL: 범위 변경 시 미리 로드 트리거
-          rangeChanged={handleRangeChanged}
-          components={{
-            // 🚀 INSTANT LOAD: Header 로딩 인디케이터 제거
-            Footer: BottomSpacer
-          }}
-          style={{ 
-            height: '100vh', 
-            width: '100%',
-            overflowX: 'hidden'
-          }}
-          className="virtuoso-messages"
+      <div 
+        ref={containerRef}
+        className="grow messages-scroll-container"
+        style={{ 
+          height: '100vh', 
+          overflowY: 'auto',
+          overflowX: 'hidden'
+        }}
+      >
+        {hasMore && (
+          <div 
+            ref={scrollSentinelRef} 
+            style={{ height: '1px', width: '100%', position: 'relative' }}
+            aria-hidden="true"
+          />
+        )}
+        {messageData.map((item, index) => {
+          const rendered = renderMessageItem(item, index);
+          if (!rendered) return null;
+          // React element를 복제하여 고유한 key 설정
+          return React.cloneElement(rendered, { key: item.id || `item-${index}` });
+        })}
+        <div 
+          ref={messagesEndRef} 
+          className="h-[200px] min-h-[200px] md:h-[300px] md:min-h-[300px]"
         />
       </div>
     </div>
-  )
+  );
 });
