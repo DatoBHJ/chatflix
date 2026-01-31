@@ -1367,6 +1367,9 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
   // Mount state for portal
   const [isMounted, setIsMounted] = useState(false);
   
+  // Mobile: tap-to-show controls (no hover on touch devices)
+  const [controlsVisible, setControlsVisible] = useState(false);
+  
   useEffect(() => {
     setIsMounted(true);
     return () => setIsMounted(false);
@@ -1423,6 +1426,12 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     const video = videoRef.current;
     if (!video) return;
 
+    // Mobile: first tap shows controls only; second tap plays/pauses
+    if (isMobile && !controlsVisible) {
+      setControlsVisible(true);
+      return;
+    }
+
     // Simply toggle play/pause without seeking
     if (video.paused) {
       video.play();
@@ -1431,7 +1440,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
       video.pause();
       setIsPlaying(false);
     }
-  }, []);
+  }, [isMobile, controlsVisible]);
 
   const handleProgressBarClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
@@ -1461,6 +1470,12 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     const video = videoRef.current;
     if (!video) return;
 
+    // Mobile: first tap shows controls only; second tap plays/pauses
+    if (isMobile && !controlsVisible) {
+      setControlsVisible(true);
+      return;
+    }
+
     if (video.paused) {
       video.play();
       setIsPlaying(true);
@@ -1468,7 +1483,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
       video.pause();
       setIsPlaying(false);
     }
-  }, []);
+  }, [isMobile, controlsVisible]);
 
   const toggleMute = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1728,9 +1743,9 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
           </div>
         )}
 
-        {/* Bottom Controls Overlay - pointer-events only when visible (group-hover) to prevent accidental taps on mobile */}
-        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20">
-          <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-none group-hover:pointer-events-auto">
+        {/* Bottom Controls Overlay - visible on group-hover (desktop) or when controlsVisible (mobile tap) */}
+        <div className={`absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 via-black/40 to-transparent transition-opacity duration-300 pointer-events-none z-20 ${controlsVisible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+          <div className={`absolute bottom-0 left-0 right-0 p-4 ${controlsVisible ? 'pointer-events-auto' : 'pointer-events-none group-hover:pointer-events-auto'}`}>
             {/* Progress Bar */}
             <div 
               className="group/progress relative w-full h-1.5 mb-4 bg-white/20 rounded-full cursor-pointer overflow-visible"
