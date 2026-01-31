@@ -1086,7 +1086,7 @@ export function OnThisDayWidget({ widgetId, onPromptClick, isFullscreen = false,
             <Loader2 size={20} className="animate-spin" />
           ) : (
             <Image
-              src={getChatflixLogo({ isDark: isDarkMode })}
+              src={getChatflixLogo({ isDark: true })}
               alt="Chatflix"
               width={30}
               height={30}
