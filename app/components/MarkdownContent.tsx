@@ -1942,6 +1942,8 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                 backgroundColor: 'rgba(0, 0, 0, 0.8)'
               }}
             />
+            {/* Desktop only: blurred background video; mobile uses dark overlay only to avoid stutter */}
+            {!(isMobile || isTouchDevice) && (
             <div 
               className="absolute z-0 overflow-hidden"
               style={{
@@ -1975,6 +1977,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                 autoPlay
               />
             </div>
+            )}
 
             {/* 콘텐츠 영역 */}
             <div className="relative w-full h-full flex flex-col justify-center items-center text-center z-20 p-6">
