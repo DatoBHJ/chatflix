@@ -2754,7 +2754,7 @@ const Message = memo(function MessageComponent({
           <>
             <div className="flex items-end gap-5 group/assistant relative max-w-full assistant-message-container">
               {!isMobile && (
-                <div ref={avatarRef} className="shrink-0 pb-6 z-10 avatar-container -ml-12 sm:-ml-16 overflow-visible">
+                <div ref={avatarRef} className="shrink-0 -mb-1 z-10 avatar-container -ml-12 sm:-ml-16">
                   <AssistantAvatar 
                     modelId={displayModel || ''} 
                     onClick={() => setShowActionsDesktop(!showActionsDesktop)}
