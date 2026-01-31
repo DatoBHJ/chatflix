@@ -1779,10 +1779,11 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
               </div>
             </div>
 
-            {/* Controls Row */}
-            <div className="flex items-center justify-between text-white">
-              <div className="flex items-center gap-4">
-                <button onClick={togglePlay} className="hover:scale-110 transition-transform">
+            {/* Controls Row - scrollable on narrow screens so Fullscreen button is reachable */}
+            <div className="overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <div className="flex items-center justify-between text-white min-w-max gap-2">
+              <div className="flex items-center gap-4 shrink-0">
+                <button onClick={togglePlay} className="hover:scale-110 transition-transform min-w-[44px] min-h-[44px] flex items-center justify-center">
                   {isPlaying ? <Pause size={20} fill="white" /> : <Play size={20} fill="white" />}
                 </button>
                 
@@ -1791,7 +1792,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 {/* Volume Control with Horizontal Slider */}
                 <div 
                   className="group/volume flex items-center"
@@ -1825,13 +1826,13 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                     </div>
                   </div>
                   
-                  <button onClick={toggleMute} className="hover:scale-110 transition-transform p-1">
+                  <button onClick={toggleMute} className="hover:scale-110 transition-transform p-1 min-w-[44px] min-h-[44px] flex items-center justify-center">
                     {isMuted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
                   </button>
                 </div>
                 
                 {/* Download Button */}
-                <button onClick={handleDownload} className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100">
+                <button onClick={handleDownload} className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100 min-w-[44px] min-h-[44px] flex items-center justify-center">
                   <Download size={18} />
                 </button>
 
@@ -1842,7 +1843,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                       e.stopPropagation();
                       setShowPromptOverlay(true);
                     }}
-                    className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100"
+                    className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
                     aria-label="Show prompt"
                   >
                     <ScrollText size={18} />
@@ -1853,7 +1854,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                 <button 
                   onClick={handleSave}
                   disabled={savingVideo || savedVideo}
-                  className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] flex items-center justify-center"
                   aria-label={savingVideo ? 'Saving...' : savedVideo ? 'Saved' : 'Save to Gallery'}
                 >
                   {savingVideo ? (
@@ -1868,7 +1869,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                 {/* Loop Toggle */}
                 <button 
                   onClick={toggleLoop} 
-                  className={`hover:scale-110 transition-transform p-1 relative ${isLooping ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
+                  className={`hover:scale-110 transition-transform p-1 relative min-w-[44px] min-h-[44px] flex items-center justify-center ${isLooping ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M17 2l4 4-4 4" />
@@ -1881,8 +1882,15 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                   </svg>
                 </button>
                 
-                {/* Fullscreen */}
-                <button onClick={toggleFullScreen} className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100">
+                {/* Fullscreen - 44pt touch target + onTouchEnd for iOS reliability */}
+                <button
+                  onClick={toggleFullScreen}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    toggleFullScreen(e as unknown as React.MouseEvent);
+                  }}
+                  className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                >
                   <Maximize size={18} />
                 </button>
               </div>
