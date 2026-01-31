@@ -142,8 +142,18 @@ html, body {
 
 /* 🚀 Virtuoso 아이템 렌더링 최적화 */
 .virtuoso-messages [data-index] {
-  contain: layout style paint;
+  /* NOTE: paint containment clips box-shadow (e.g., assistant model avatar).
+     Keep layout/style containment for perf, but avoid shadow clipping on desktop. */
+  contain: layout style;
   contain-intrinsic-block-size: auto 400px;
+  overflow: visible;
+}
+
+/* Mobile: keep paint containment for scroll perf (avatar not shown) */
+@media (max-width: 767px) {
+  .virtuoso-messages [data-index] {
+    contain: layout style paint;
+  }
 }
 
 /* 🚀 VENICE STYLE: 미디어 컨테이너 고정 크기 - 절대 리사이즈 안 함 */
