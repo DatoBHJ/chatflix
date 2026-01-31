@@ -42,6 +42,8 @@ type DeviceType = 'mobile' | 'tablet' | 'desktop';
 
 const DEVICE_STORAGE_KEY_PREFIX = 'quickAccessApps';
 const DEVICE_CACHE_KEY_PREFIX = 'quickAccessAppsCache';
+// Legacy keys: device-agnostic (no _mobile/_tablet/_desktop). Do NOT use as migration source
+// to avoid writing one device's data into another device's column (cross-device contamination).
 const LEGACY_STORAGE_KEY = 'quickAccessApps';
 const LEGACY_CACHE_KEY = 'quickAccessAppsCache';
 
@@ -54,6 +56,7 @@ const isIPad = (): boolean => {
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 };
 
+// Returns current viewport/environment type, not a stable device ID. Used to key storage and API per device type.
 const getEnvironmentDeviceType = (): DeviceType => {
   if (typeof window === 'undefined') return 'desktop';
   
@@ -1781,7 +1784,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
   // Available apps configuration
   const allAvailableApps: App[] = [...ALL_APPS];
 
-  // 디바이스 타입 감지 헬퍼 - getEnvironmentDeviceType 래퍼
+  // Device type for storage/API: viewport-based (getEnvironmentDeviceType), not a stable device ID.
   const getDeviceType = (): DeviceType => {
     return getEnvironmentDeviceType();
   };
@@ -2650,9 +2653,11 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
               console.warn('Failed to cache app IDs:', error);
             }
             
-            // Migrate from localStorage ONLY if user doesn't have database settings yet
+            // Migrate from localStorage ONLY if user doesn't have database settings yet.
+            // Use only device-specific storageKey—never LEGACY_STORAGE_KEY—so we don't
+            // write another device's data into the current device column (cross-device contamination).
             if (!migrationCompleted && data.source === 'default') {
-              const localStored = localStorage.getItem(storageKey) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
+              const localStored = localStorage.getItem(storageKey);
               if (localStored) {
                 try {
                   let localAppIds = JSON.parse(localStored);
@@ -2673,11 +2678,9 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                     localAppIds = [{ id: 'add-app' }, ...localAppIds];
                   }
                   
-                  // Migrate localStorage to database for new user
+                  // Migrate localStorage to database for this device only
                   await saveAppsToAPI(localAppIds);
-                  // Clear localStorage after successful migration
                   localStorage.removeItem(storageKey);
-                  localStorage.removeItem(LEGACY_STORAGE_KEY);
                 } catch (e) {
                   console.warn('Failed to migrate localStorage data:', e);
                 }

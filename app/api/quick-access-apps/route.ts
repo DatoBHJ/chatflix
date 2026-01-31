@@ -153,12 +153,22 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    // Get existing user preferences to preserve background settings
-    const { data: existingPrefs } = await supabase
+    // Get existing user preferences to preserve other device columns and background settings.
+    // If this fetch fails (e.g. network), we must not upsert—we could overwrite other device columns.
+    const { data: existingPrefs, error: prefError } = await supabase
       .from('user_preferences')
       .select('selected_background_type, selected_background_id, quick_access_apps_mobile, quick_access_apps_tablet, quick_access_apps_desktop')
       .eq('user_id', user.id)
       .single();
+
+    if (prefError && prefError.code !== 'PGRST116') {
+      console.error('Error fetching user preferences for quick-access-apps PUT:', prefError);
+      return NextResponse.json(
+        { error: 'Failed to load existing preferences' },
+        { status: 500 }
+      );
+    }
+    // PGRST116 = no row; existingPrefs is null, which is fine for first-time save.
 
     // Preserve existing background settings or use defaults
     const backgroundType = existingPrefs?.selected_background_type || 'default';
