@@ -4007,14 +4007,25 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
 
 /* ChatGPT 스타일 생성 비디오 컨테이너 */
 .generated-video-container {
+  --video-max-size: 480px;
   position: relative;
-  /* max-width는 .message-media-max-width 클래스에서 관리 */
+  max-width: var(--video-max-size);
   border-radius: 1rem;
   overflow: hidden;
   contain: layout style;
   content-visibility: auto;
   /* Virtuoso 레이아웃 시프트 방지: 기본 비율(16:9) 기준 예상 크기 제공 */
   contain-intrinsic-size: auto 225px;
+}
+@media (max-width: 640px) {
+  .generated-video-container {
+    max-width: 85vw;
+  }
+}
+@media (max-width: 480px) {
+  .generated-video-container {
+    max-width: 80vw;
+  }
 }
 
 /* Video Player Volume Slider */

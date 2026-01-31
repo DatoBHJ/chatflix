@@ -147,11 +147,20 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
-                  aspectRatio: '1 / 1'
+                  aspectRatio: '1 / 1',
+                  display: 'block'
                 }}
                 preload="metadata"
                 muted
                 playsInline
+                {...({ 'webkit-playsinline': true } as any)}
+                onLoadedMetadata={(e) => {
+                  const videoElement = e.currentTarget;
+                  if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
+                    videoElement.style.width = '100%';
+                    videoElement.style.height = '100%';
+                  }
+                }}
               />
             </div>
           );
