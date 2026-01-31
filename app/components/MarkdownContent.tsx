@@ -1575,31 +1575,30 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     const video = videoRef.current;
     if (!container || !video) return;
 
-    const videoEl = video as HTMLVideoElement & { webkitEnterFullScreen?: () => void; webkitExitFullScreen?: () => void; webkitDisplayingFullscreen?: boolean };
-    const isWebkitFullscreen = videoEl.webkitDisplayingFullscreen === true;
-    const isStandardFullscreen = !!document.fullscreenElement;
+    // iOS Safari: use webkitEnterFullscreen on video element (requestFullscreen doesn't work on iOS)
+    if (typeof (video as any).webkitEnterFullscreen === 'function') {
+      try {
+        (video as any).webkitEnterFullscreen();
+      } catch (err) {
+        console.error('Error entering iOS fullscreen:', err);
+      }
+      return;
+    }
 
-    if (isWebkitFullscreen || isStandardFullscreen) {
-      // Exit: prefer webkit exit on iOS, then standard exit
-      if (isWebkitFullscreen && typeof videoEl.webkitExitFullScreen === 'function') {
-        videoEl.webkitExitFullScreen();
-      } else if (typeof document.exitFullscreen === 'function') {
-        document.exitFullscreen().catch(err => console.error('Error exiting fullscreen:', err));
-      } else if (typeof (document as any).webkitExitFullscreen === 'function') {
-        (document as any).webkitExitFullscreen();
-      }
+    // Standard Fullscreen API for other browsers
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(err => {
+        console.error('Error exiting fullscreen:', err);
+      });
     } else {
-      // Enter: on iOS Safari only video.webkitEnterFullScreen works; try it first
-      if (typeof videoEl.webkitEnterFullScreen === 'function') {
-        videoEl.webkitEnterFullScreen();
-      } else if (typeof container.requestFullscreen === 'function') {
-        container.requestFullscreen().catch(err => {
-          console.error('Error entering fullscreen:', err);
-          video.requestFullscreen?.()?.catch(err2 => console.error('Error entering fullscreen (fallback):', err2));
+      // Use container element for fullscreen (works better in modals)
+      container.requestFullscreen().catch(err => {
+        console.error('Error entering fullscreen:', err);
+        // Fallback: try video element if container fails
+        video.requestFullscreen().catch(err2 => {
+          console.error('Error entering fullscreen (fallback):', err2);
         });
-      } else {
-        video.requestFullscreen?.()?.catch(err => console.error('Error entering fullscreen:', err));
-      }
+      });
     }
   }, []);
 
@@ -1791,10 +1790,10 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
               </div>
             </div>
 
-            {/* Controls Row - right group scrollable on narrow screens so fullscreen button is reachable */}
-            <div className="flex items-center justify-between text-white gap-2 min-w-0">
-              <div className="flex items-center gap-4 flex-shrink-0">
-                <button onClick={togglePlay} className="hover:scale-110 transition-transform min-w-[44px] min-h-[44px] flex items-center justify-center p-1">
+            {/* Controls Row */}
+            <div className="flex items-center justify-between text-white">
+              <div className="flex items-center gap-4">
+                <button onClick={togglePlay} className="hover:scale-110 transition-transform">
                   {isPlaying ? <Pause size={20} fill="white" /> : <Play size={20} fill="white" />}
                 </button>
                 
@@ -1803,7 +1802,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 flex-nowrap flex-shrink-0 min-w-0 overflow-x-auto overflow-y-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex items-center gap-2">
                 {/* Volume Control with Horizontal Slider */}
                 <div 
                   className="group/volume flex items-center"
@@ -1837,13 +1836,13 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                     </div>
                   </div>
                   
-                  <button onClick={toggleMute} className="hover:scale-110 transition-transform min-w-[44px] min-h-[44px] flex items-center justify-center p-1">
+                  <button onClick={toggleMute} className="hover:scale-110 transition-transform p-1">
                     {isMuted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
                   </button>
                 </div>
                 
                 {/* Download Button */}
-                <button onClick={handleDownload} className="hover:scale-110 transition-transform min-w-[44px] min-h-[44px] flex items-center justify-center p-1 opacity-80 hover:opacity-100">
+                <button onClick={handleDownload} className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100">
                   <Download size={18} />
                 </button>
 
@@ -1854,7 +1853,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                       e.stopPropagation();
                       setShowPromptOverlay(true);
                     }}
-                    className="hover:scale-110 transition-transform min-w-[44px] min-h-[44px] flex items-center justify-center p-1 opacity-80 hover:opacity-100"
+                    className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100"
                     aria-label="Show prompt"
                   >
                     <ScrollText size={18} />
@@ -1865,7 +1864,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                 <button 
                   onClick={handleSave}
                   disabled={savingVideo || savedVideo}
-                  className="hover:scale-110 transition-transform min-w-[44px] min-h-[44px] flex items-center justify-center p-1 opacity-80 hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label={savingVideo ? 'Saving...' : savedVideo ? 'Saved' : 'Save to Gallery'}
                 >
                   {savingVideo ? (
@@ -1880,7 +1879,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                 {/* Loop Toggle */}
                 <button 
                   onClick={toggleLoop} 
-                  className={`hover:scale-110 transition-transform min-w-[44px] min-h-[44px] flex items-center justify-center p-1 relative ${isLooping ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
+                  className={`hover:scale-110 transition-transform p-1 relative ${isLooping ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M17 2l4 4-4 4" />
@@ -1893,8 +1892,8 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                   </svg>
                 </button>
                 
-                {/* Fullscreen */}
-                <button onClick={toggleFullScreen} className="hover:scale-110 transition-transform min-w-[44px] min-h-[44px] flex items-center justify-center p-1 opacity-80 hover:opacity-100" aria-label="Fullscreen">
+                {/* Fullscreen - larger touch target for mobile (44px min) */}
+                <button onClick={toggleFullScreen} className="hover:scale-110 transition-transform p-2 min-w-[44px] min-h-[44px] flex items-center justify-center opacity-80 hover:opacity-100">
                   <Maximize size={18} />
                 </button>
               </div>
