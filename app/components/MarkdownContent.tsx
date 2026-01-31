@@ -1373,9 +1373,6 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
   // Touch device detection (fallback when isMobile prop is false, e.g. tablet/landscape)
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   
-  // Mobile: captured frame for prompt overlay background (instant display, no video load)
-  const [overlayFrameDataUrl, setOverlayFrameDataUrl] = useState<string | null>(null);
-  
   useEffect(() => {
     setIsMounted(true);
     return () => setIsMounted(false);
@@ -1435,30 +1432,6 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
       document.body.style.overflow = prevOverflow;
     };
   }, [showPromptOverlay]);
-
-  // Capture current video frame to data URL for instant overlay background on mobile (avoids loading second video)
-  const captureVideoFrame = useCallback((): string | null => {
-    const video = videoRef.current;
-    if (!video || video.readyState < 2) return null;
-    const w = video.videoWidth;
-    const h = video.videoHeight;
-    if (!w || !h) return null;
-    const maxSize = 1280;
-    const scale = w > h ? Math.min(1, maxSize / w) : Math.min(1, maxSize / h);
-    const cw = Math.round(w * scale);
-    const ch = Math.round(h * scale);
-    const canvas = document.createElement('canvas');
-    canvas.width = cw;
-    canvas.height = ch;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    try {
-      ctx.drawImage(video, 0, 0, cw, ch);
-      return canvas.toDataURL('image/jpeg', 0.8);
-    } catch {
-      return null;
-    }
-  }, []);
 
   const handleVideoClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
@@ -1878,10 +1851,6 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (isMobile || isTouchDevice) {
-                        const dataUrl = captureVideoFrame();
-                        setOverlayFrameDataUrl(dataUrl ?? null);
-                      }
                       setShowPromptOverlay(true);
                     }}
                     className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100"
@@ -1939,10 +1908,10 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
           </div>
         )}
 
-        {/* 프롬프트 오버레이 - 열 때만 DOM에 마운트하여 모바일 스크롤 복구 문제 방지 */}
-        {prompt && isMounted && showPromptOverlay ? createPortal(
+        {/* 프롬프트 오버레이 - 항상 마운트하되 가시성만 조절하여 즉각적인 반응성 확보 (채팅창 배경 노출 방지) */}
+        {prompt && isMounted ? createPortal(
           <div 
-            className="fixed inset-0 z-[9999] text-white opacity-100 pointer-events-auto"
+            className={`fixed inset-0 z-[9999] text-white bg-black transition-all duration-200 ${showPromptOverlay ? 'opacity-100 pointer-events-auto visible' : 'opacity-0 pointer-events-none invisible'}`}
             style={{
               top: 0,
               left: 0,
@@ -1958,55 +1927,25 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
               e.stopPropagation();
             }}
           >
-            {/* 배경: 블러 처리된 비디오 프레임 */}
+            {/* 배경: 즉각적인 블랙 배경으로 채팅창 가림 */}
             <div 
-              className="absolute z-0"
-              style={{
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                width: '100vw',
-                minWidth: '100vw',
-                height: '100vh',
-                minHeight: '100vh',
-                backgroundColor: 'rgba(0, 0, 0, 0.8)'
-              }}
+              className="absolute inset-0 z-0 bg-black"
             />
-            {/* Blurred background: mobile uses captured frame (instant); desktop uses video */}
-            <div 
-              className="absolute z-0 overflow-hidden"
-              style={{
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                width: '100vw',
-                minWidth: '100vw',
-                height: '100vh',
-                minHeight: '100vh'
-              }}
-            >
-              {(isMobile || isTouchDevice) && overlayFrameDataUrl ? (
-                <img
-                  src={overlayFrameDataUrl}
-                  alt=""
-                  className="absolute"
-                  style={{
-                    top: 0,
-                    left: 0,
-                    width: '100vw',
-                    minWidth: '100vw',
-                    height: '100vh',
-                    minHeight: '100vh',
-                    objectFit: 'cover',
-                    filter: 'brightness(0.3) blur(10px)',
-                    transform: 'scale(1.1)',
-                    objectPosition: 'center',
-                    willChange: 'transform'
-                  }}
-                />
-              ) : (
+            {/* Blurred background video; mobile: static frame with lighter blur for performance */}
+            {showPromptOverlay && (
+              <div 
+                className="absolute z-0 overflow-hidden animate-in fade-in duration-500"
+                style={{
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: '100vw',
+                  minWidth: '100vw',
+                  height: '100vh',
+                  minHeight: '100vh'
+                }}
+              >
                 <video
                   src={refreshedUrl}
                   className="absolute"
@@ -2018,6 +1957,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                     height: '100vh',
                     minHeight: '100vh',
                     objectFit: 'cover',
+                    // Mobile: lighter blur (10px) and no animation for smoother performance
                     filter: (isMobile || isTouchDevice) ? 'brightness(0.3) blur(10px)' : 'brightness(0.3) blur(20px)',
                     transform: 'scale(1.1)',
                     objectPosition: 'center',
@@ -2025,14 +1965,15 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                   }}
                   muted
                   loop
+                  // Desktop: autoPlay for animated background; Mobile: static frame (no autoPlay) for performance
                   autoPlay={!(isMobile || isTouchDevice)}
                   playsInline
                 />
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* 콘텐츠 영역 */}
-            <div className="relative w-full h-full flex flex-col justify-center items-center text-center z-20 p-6">
+            {/* 콘텐츠 영역 - 부드러운 등장 효과 */}
+            <div className={`relative w-full h-full flex flex-col justify-center items-center text-center z-20 p-6 ${showPromptOverlay ? 'animate-in fade-in zoom-in-95 duration-300' : ''}`}>
               {/* Done / close button - top right (desktop) / bottom right (mobile) */}
               <button
                 className={`absolute ${isMobile ? 'bottom-6 right-4' : 'top-4 right-4'} z-30 w-12 h-12 rounded-full flex items-center justify-center cursor-pointer`}
@@ -2046,7 +1987,6 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowPromptOverlay(false);
-                  setOverlayFrameDataUrl(null);
                 }}
                 aria-label="Close prompt overlay"
               >
