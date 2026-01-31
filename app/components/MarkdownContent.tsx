@@ -19,6 +19,7 @@ import { useLazyMedia } from '../hooks/useIntersectionObserver';
 import { highlightSearchTerm, highlightSearchTermInChildren } from '@/app/utils/searchHighlight';
 import { Tweet } from 'react-tweet';
 import { ImageGalleryStack } from './ImageGalleryStack';
+import { VideoGalleryStack } from './VideoGalleryStack';
 import { categorizeAspectRatio, parseImageDimensions, parseMediaDimensions, getAspectCategory } from '@/app/utils/imageUtils';
 import { ImageModal, type ImageModalImage } from './ImageModal';
 
@@ -2470,6 +2471,62 @@ function MarkdownContentComponent({
     return images;
   }, [processedContent, promptMap]);
 
+  // Extract all videos from content for gallery functionality
+  const allVideos = useMemo(() => {
+    const videos: { src: string; prompt?: string; sourceImageUrl?: string; aspectRatio?: string }[] = [];
+    
+    // Extract video URLs from markdown links and direct URLs
+    const videoUrlRegex = /(https?:\/\/[^\s"'<>)]+\.(mp4|webm|mov)|https?:\/\/[^\s"'<>)]*generated-videos[^\s"'<>)]+)/gi;
+    let match;
+    while ((match = videoUrlRegex.exec(processedContent)) !== null) {
+      const src = match[1];
+      // Avoid duplicates
+      if (!videos.find(v => v.src === src)) {
+        const prompt = promptMap[src] || undefined;
+        const sourceImageUrl = sourceImageMap && sourceImageMap[src] ? sourceImageMap[src] : undefined;
+        // Extract aspect ratio from URL if available
+        const dimensions = parseMediaDimensions(src);
+        const aspectRatio = dimensions ? `${dimensions.width}/${dimensions.height}` : undefined;
+        
+        videos.push({ 
+          src,
+          prompt,
+          sourceImageUrl,
+          aspectRatio
+        });
+      }
+    }
+    
+    // Also check for video links in markdown link syntax
+    const markdownLinkRegex = /\[([^\]]*)\]\(([^)]+)\)/g;
+    while ((match = markdownLinkRegex.exec(processedContent)) !== null) {
+      const [, linkText, href] = match;
+      const isVideoFile = href && (
+        href.toLowerCase().endsWith('.mp4') || 
+        href.toLowerCase().endsWith('.webm') || 
+        href.toLowerCase().endsWith('.mov') ||
+        href.includes('generated-videos')
+      );
+      
+      if (isVideoFile && !videos.find(v => v.src === href)) {
+        const prompt = promptMap[href] || undefined;
+        const sourceImageUrl = sourceImageMap && sourceImageMap[href] ? sourceImageMap[href] : undefined;
+        const dimensions = parseMediaDimensions(href);
+        const aspectRatio = dimensions ? `${dimensions.width}/${dimensions.height}` : undefined;
+        
+        videos.push({ 
+          src: href,
+          prompt,
+          sourceImageUrl,
+          aspectRatio
+        });
+      }
+    }
+    
+    console.log('Extracted videos for gallery:', videos);
+    return videos;
+  }, [processedContent, promptMap, sourceImageMap]);
+
 
 
   // Function to detect image URLs (from original code)
@@ -2958,20 +3015,34 @@ function MarkdownContentComponent({
       );
 
       if (href && isVideoFile) {
-        // 🚀 이미지와 동일한 방식: parseMediaDimensions가 URL에서 크기 정보를 자동으로 파싱
-        // aspectRatio prop은 선택적이며, URL에 크기 정보가 없을 때만 사용
+        // 🚀 이미지와 동일한 방식: VideoGalleryStack 사용 (1개 비디오도 스택으로 처리)
         const videoPrompt = promptMap && href ? promptMap[href] : undefined;
         const videoSourceImageUrl = sourceImageMap && href ? sourceImageMap[href] : undefined;
+        const dimensions = parseMediaDimensions(href);
+        const aspectRatio = dimensions ? `${dimensions.width}/${dimensions.height}` : undefined;
+        
         return (
-          <DirectVideoEmbed 
-            url={href} 
-            messageId={messageId} 
-            chatId={chatId} 
-            userId={userId}
-            isMobile={isMobile}
-            prompt={videoPrompt}
-            sourceImageUrl={videoSourceImageUrl}
-          />
+          <div className="my-1">
+            <VideoGalleryStack
+              videos={[{
+                src: href,
+                prompt: videoPrompt,
+                sourceImageUrl: videoSourceImageUrl,
+                aspectRatio: aspectRatio
+              }]}
+              messageId={messageId}
+              chatId={chatId}
+              userId={userId}
+              isMobile={isMobile}
+              onSourceImageClick={(imageUrl) => {
+                // 소스 이미지 클릭 시 이미지 모달 열기
+                const sourceImage = allImages.find(img => img.src === imageUrl);
+                if (sourceImage) {
+                  openImageModal(imageUrl, sourceImage.alt, allImages, allImages.findIndex(img => img.src === imageUrl));
+                }
+              }}
+            />
+          </div>
         );
       }
 
@@ -3647,10 +3718,33 @@ function MarkdownContentComponent({
         // 🚀 Apple 스타일: 연속 이미지 그룹 계산
         // 연속된 이미지 그룹을 찾아서 시작 인덱스와 이미지 목록을 저장
         const consecutiveImageGroups: { startIndex: number; images: { src: string; alt: string; prompt?: string; sourceImageUrl?: string }[]; endIndex: number }[] = [];
-        let currentGroup: { startIndex: number; images: { src: string; alt: string; prompt?: string; sourceImageUrl?: string }[]; endIndex: number } | null = null;
+        let currentImageGroup: { startIndex: number; images: { src: string; alt: string; prompt?: string; sourceImageUrl?: string }[]; endIndex: number } | null = null;
+        
+        // 🚀 Apple 스타일: 연속 비디오 그룹 계산
+        const consecutiveVideoGroups: { startIndex: number; videos: { src: string; prompt?: string; sourceImageUrl?: string; aspectRatio?: string }[]; endIndex: number }[] = [];
+        let currentVideoGroup: { startIndex: number; videos: { src: string; prompt?: string; sourceImageUrl?: string; aspectRatio?: string }[]; endIndex: number } | null = null;
+        
+        // 비디오 URL 감지 함수
+        const isVideoUrl = (url: string) => {
+          if (!url) return false;
+          return url.toLowerCase().endsWith('.mp4') || 
+                 url.toLowerCase().endsWith('.webm') || 
+                 url.toLowerCase().endsWith('.mov') ||
+                 url.includes('generated-videos');
+        };
         
         segmentGroup.forEach((segment, index) => {
           const isImg = imageRegex.test(segment);
+          
+          // 링크 세그먼트인지 확인 - 세그먼트 전체가 URL인 경우에만 true
+          const isLinkSegment = /^\s*(\[.*\]\(https?:\/\/[^)]+\)|https?:\/\/[^\s"'<>]+)\s*$/.test(segment);
+          
+          // 비디오 세그먼트인지 확인 (링크 세그먼트이면서 비디오 URL인 경우)
+          const isVideoSegment = isLinkSegment && /^\s*(https?:\/\/[^\s"'<>)]+)\s*$/.test(segment.trim()) && 
+            (() => {
+              const urlMatch = segment.match(/https?:\/\/[^\s"'<>)]+/);
+              return urlMatch && isVideoUrl(urlMatch[0]);
+            })();
           
           if (isImg) {
             // 마크다운 이미지에서 URL 추출
@@ -3678,29 +3772,66 @@ function MarkdownContentComponent({
                 sourceImageUrl: imageSourceImageUrl
               };
               
-              if (currentGroup === null) {
-                currentGroup = { startIndex: index, images: [imageObj], endIndex: index };
+              if (currentImageGroup === null) {
+                currentImageGroup = { startIndex: index, images: [imageObj], endIndex: index };
               } else {
-                currentGroup.images.push(imageObj);
-                currentGroup.endIndex = index;
+                currentImageGroup.images.push(imageObj);
+                currentImageGroup.endIndex = index;
+              }
+            }
+          } else if (isVideoSegment) {
+            // 비디오 URL 추출
+            const urlMatch = segment.match(/https?:\/\/[^\s"'<>)]+/);
+            if (urlMatch) {
+              const videoSrc = urlMatch[0];
+              const videoData = allVideos.find(v => v.src === videoSrc);
+              
+              const videoObj = {
+                src: videoSrc,
+                prompt: videoData?.prompt || promptMap[videoSrc],
+                sourceImageUrl: videoData?.sourceImageUrl || (sourceImageMap && sourceImageMap[videoSrc] ? sourceImageMap[videoSrc] : undefined),
+                aspectRatio: videoData?.aspectRatio
+              };
+              
+              if (currentVideoGroup === null) {
+                currentVideoGroup = { startIndex: index, videos: [videoObj], endIndex: index };
+              } else {
+                currentVideoGroup.videos.push(videoObj);
+                currentVideoGroup.endIndex = index;
               }
             }
           } else {
-            if (currentGroup !== null) {
-              consecutiveImageGroups.push(currentGroup);
-              currentGroup = null;
+            // 이미지 그룹 종료
+            if (currentImageGroup !== null) {
+              consecutiveImageGroups.push(currentImageGroup);
+              currentImageGroup = null;
+            }
+            // 비디오 그룹 종료
+            if (currentVideoGroup !== null) {
+              consecutiveVideoGroups.push(currentVideoGroup);
+              currentVideoGroup = null;
             }
           }
         });
         
         // 마지막 그룹 처리
-        if (currentGroup !== null) {
-          consecutiveImageGroups.push(currentGroup);
+        if (currentImageGroup !== null) {
+          consecutiveImageGroups.push(currentImageGroup);
+        }
+        if (currentVideoGroup !== null) {
+          consecutiveVideoGroups.push(currentVideoGroup);
         }
         
         // 각 세그먼트가 어떤 이미지 그룹에 속하는지 확인하는 함수
         const getImageGroupForIndex = (index: number) => {
           return consecutiveImageGroups.find(
+            group => index >= group.startIndex && index <= group.endIndex
+          );
+        };
+        
+        // 각 세그먼트가 어떤 비디오 그룹에 속하는지 확인하는 함수
+        const getVideoGroupForIndex = (index: number) => {
+          return consecutiveVideoGroups.find(
             group => index >= group.startIndex && index <= group.endIndex
           );
         };
@@ -3715,6 +3846,16 @@ function MarkdownContentComponent({
               // 링크 세그먼트인지 확인 - 세그먼트 전체가 URL인 경우에만 true
               // (URL이 포함된 텍스트와 구분하기 위해 앵커 사용)
               const isLinkSegment = /^\s*(\[.*\]\(https?:\/\/[^)]+\)|https?:\/\/[^\s"'<>]+)\s*$/.test(segment);
+              
+              // 비디오 세그먼트인지 확인
+              const isVideoSegment = isLinkSegment && /^\s*(https?:\/\/[^\s"'<>)]+)\s*$/.test(segment.trim()) && 
+                (() => {
+                  const urlMatch = segment.match(/https?:\/\/[^\s"'<>)]+/);
+                  return urlMatch && (urlMatch[0].toLowerCase().endsWith('.mp4') || 
+                         urlMatch[0].toLowerCase().endsWith('.webm') || 
+                         urlMatch[0].toLowerCase().endsWith('.mov') ||
+                         urlMatch[0].includes('generated-videos'));
+                })();
               
               const processedSegment = segment;
               
@@ -3732,14 +3873,24 @@ function MarkdownContentComponent({
               const isInImageGroup = imageGroup !== null && imageGroup !== undefined;
               const isFirstInImageGroup = isInImageGroup && imageGroup.startIndex === index;
               
+              // 🚀 Apple 스타일: 비디오 그룹 처리
+              const videoGroup = getVideoGroupForIndex(index);
+              const isInVideoGroup = videoGroup !== null && videoGroup !== undefined;
+              const isFirstInVideoGroup = isInVideoGroup && videoGroup.startIndex === index;
+              
               // 모든 이미지 그룹의 첫 번째가 아닌 경우 렌더링 스킵 (ImageGalleryStack이 그룹 전체를 렌더링)
               if (isImageSegment && isInImageGroup && !isFirstInImageGroup) {
                 return null;
               }
               
+              // 모든 비디오 그룹의 첫 번째가 아닌 경우 렌더링 스킵 (VideoGalleryStack이 그룹 전체를 렌더링)
+              if (isVideoSegment && isInVideoGroup && !isFirstInVideoGroup) {
+                return null;
+              }
+              
               const nextIsHeader = index < segmentGroup.length - 1 && /^#{1,3}\s/.test(segmentGroup[index + 1].trim());
 
-              const isLastBubble = !isImageSegment && !isLinkSegment && (index === lastBubbleIndex || nextIsHeader);
+              const isLastBubble = !isImageSegment && !isLinkSegment && !isVideoSegment && (index === lastBubbleIndex || nextIsHeader);
               
               // 🚀 Apple 스타일: 모든 이미지 그룹(1개 이상)은 ImageGalleryStack으로 렌더링
               if (isImageSegment && isInImageGroup && isFirstInImageGroup) {
@@ -3766,10 +3917,42 @@ function MarkdownContentComponent({
                 );
               }
               
+              // 🚀 Apple 스타일: 모든 비디오 그룹(1개 이상)은 VideoGalleryStack으로 렌더링
+              if (isVideoSegment && isInVideoGroup && isFirstInVideoGroup) {
+                return (
+                  <div 
+                    key={index}
+                    style={{
+                      background: 'transparent',
+                      padding: '0',
+                      border: 'none',
+                      boxShadow: 'none',
+                      overflow: 'visible',
+                      marginBottom: '8px'
+                    }}
+                  >
+                    <VideoGalleryStack
+                      videos={videoGroup.videos}
+                      messageId={messageId}
+                      chatId={chatId}
+                      userId={userId}
+                      isMobile={isMobile}
+                      onSourceImageClick={(imageUrl) => {
+                        // 소스 이미지 클릭 시 이미지 모달 열기
+                        const sourceImage = allImages.find(img => img.src === imageUrl);
+                        if (sourceImage) {
+                          openImageModal(imageUrl, sourceImage.alt, allImages, allImages.findIndex(img => img.src === imageUrl));
+                        }
+                      }}
+                    />
+                  </div>
+                );
+              }
+              
               return (
                 <div 
                   key={index} 
-                  className={`${(isImageSegment || isLinkSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isLastBubble ? ' last-bubble' : ''}${isTableSegment ? ' table-segment' : ''}${isHeaderSegment ? ' contains-header' : ''}${isH2HeaderSegment ? ' contains-h2-header' : ''}${isLongPressActive && isLastBubble ? ' long-press-shadow' : ''}`}`}
+                  className={`${(isImageSegment || isLinkSegment || isVideoSegment) ? '' : `${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isLastBubble ? ' last-bubble' : ''}${isTableSegment ? ' table-segment' : ''}${isHeaderSegment ? ' contains-header' : ''}${isH2HeaderSegment ? ' contains-h2-header' : ''}${isLongPressActive && isLastBubble ? ' long-press-shadow' : ''}`}`}
                   style={{
                     ...(isTableSegment && {
                       background: 'transparent',
@@ -3777,7 +3960,7 @@ function MarkdownContentComponent({
                       border: 'none',
                       boxShadow: 'none'
                     }),
-                    ...((isImageSegment || isLinkSegment) && {
+                    ...((isImageSegment || isLinkSegment || isVideoSegment) && {
                       background: 'transparent !important',
                       padding: '0',
                       border: 'none',
@@ -3789,14 +3972,14 @@ function MarkdownContentComponent({
                       width: 'auto'
                     }),
                     // 롱프레스 상태에서 세그먼트 그림자 효과 (noTail이 있어도 적용)
-                    ...(isLongPressActive && !(isImageSegment || isLinkSegment) && {
+                    ...(isLongPressActive && !(isImageSegment || isLinkSegment || isVideoSegment) && {
                       boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15), 0 4px 16px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05)',
                       transform: 'translateY(-2px)',
                       transition: 'all 0.3s cubic-bezier(0.22, 1, 0.36, 1)'
                     })
                   }}
                 >
-                  {(isImageSegment || isLinkSegment) ? (
+                  {(isImageSegment || isLinkSegment || isVideoSegment) ? (
                     <ReactMarkdown
                       remarkPlugins={remarkPlugins}
                       rehypePlugins={rehypePlugins}
