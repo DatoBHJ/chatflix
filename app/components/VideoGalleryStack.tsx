@@ -1,9 +1,10 @@
 'use client';
 
-import React, { memo, useState, useCallback, useEffect } from 'react';
+import React, { memo, useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, LayoutGrid, Video } from 'lucide-react';
 import { DirectVideoEmbed } from './MarkdownContent';
+import { useUrlRefresh } from '@/app/hooks/useUrlRefresh';
 
 interface VideoData {
   src: string;
@@ -11,6 +12,83 @@ interface VideoData {
   sourceImageUrl?: string;
   aspectRatio?: string;
 }
+
+// iOS Safari 감지 (iOS 또는 iPadOS Safari)
+const isIOSSafari = () => {
+  if (typeof window === 'undefined') return false;
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS/.test(ua);
+  return isIOS && isSafari;
+};
+
+// 스택 미리보기용 비디오 썸네일 컴포넌트
+const VideoStackThumbnail = memo(function VideoStackThumbnailComponent({
+  src,
+  style,
+  className
+}: {
+  src: string;
+  style: React.CSSProperties;
+  className?: string;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isIOS] = useState(() => isIOSSafari());
+  
+  // URL refresh for signed URLs
+  const { refreshedUrl } = useUrlRefresh({
+    url: src,
+    enabled: true
+  });
+
+  // iOS Safari에서 비디오 로드 처리
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !refreshedUrl) return;
+
+    const handleLoadedData = () => {
+      setIsLoaded(true);
+    };
+
+    const handleCanPlay = () => {
+      setIsLoaded(true);
+    };
+
+    // iOS Safari에서는 canplay 이벤트가 더 안정적
+    video.addEventListener('loadeddata', handleLoadedData);
+    video.addEventListener('canplay', handleCanPlay);
+
+    // iOS Safari에서 비디오 로드 강제
+    if (isIOS) {
+      video.load();
+    }
+
+    return () => {
+      video.removeEventListener('loadeddata', handleLoadedData);
+      video.removeEventListener('canplay', handleCanPlay);
+    };
+  }, [refreshedUrl, isIOS]);
+
+  return (
+    <video
+      ref={videoRef}
+      src={refreshedUrl}
+      style={{
+        ...style,
+        opacity: isLoaded ? 1 : 0,
+        transition: 'opacity 0.3s ease'
+      }}
+      className={className}
+      // iOS Safari 필수 속성들
+      preload={isIOS ? 'auto' : 'metadata'}
+      muted
+      playsInline
+      // @ts-ignore - webkit-playsinline for older iOS
+      webkit-playsinline="true"
+    />
+  );
+});
 
 interface VideoGalleryStackProps {
   videos: VideoData[];
@@ -138,28 +216,17 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
                 overflow: 'hidden',
                 boxShadow: '0 4px 12px rgba(0, 0, 0, 0.18)',
                 transition: 'all 0.3s ease',
-                pointerEvents: 'none'
+                pointerEvents: 'none',
+                backgroundColor: '#1a1a1a'
               }}
             >
-              <video
+              <VideoStackThumbnail
                 src={video.src}
                 style={{
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
-                  aspectRatio: '1 / 1',
-                  display: 'block'
-                }}
-                preload="metadata"
-                muted
-                playsInline
-                {...({ 'webkit-playsinline': true } as any)}
-                onLoadedMetadata={(e) => {
-                  const videoElement = e.currentTarget;
-                  if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
-                    videoElement.style.width = '100%';
-                    videoElement.style.height = '100%';
-                  }
+                  aspectRatio: '1 / 1'
                 }}
               />
             </div>

@@ -9,6 +9,15 @@ import { useUrlRefresh } from '@/app/hooks/useUrlRefresh';
 import { getAdaptiveGlassStyleBlur } from '@/app/lib/adaptiveGlassStyle';
 import { IMAGE_VIEWER_PROMPT_OVERLAY_Z } from '@/app/lib/zIndex';
 
+// iOS Safari 감지 (iOS 또는 iPadOS Safari)
+const isIOSSafari = () => {
+  if (typeof window === 'undefined') return false;
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS/.test(ua);
+  return isIOS && isSafari;
+};
+
 interface PhotoVideoPlayerProps {
   url: string;
   aspectRatio?: string;
@@ -95,6 +104,9 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
     return () => ctrl.abort();
   }, [chatId, messageId]);
 
+  // iOS Safari 감지
+  const [isIOS] = useState(() => isIOSSafari());
+
   const handleLoadedMetadata = useCallback(() => {
     const video = videoRef.current;
     if (video) {
@@ -103,6 +115,29 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
         const ratio = video.videoWidth / video.videoHeight;
         setExactAspectRatio(ratio);
       }
+      // iOS Safari에서는 duration이 NaN일 수 있음
+      if (!isNaN(video.duration) && video.duration > 0) {
+        setDuration(video.duration);
+      }
+    }
+  }, []);
+
+  // iOS Safari에서 canplay/durationchange 이벤트로 duration 업데이트
+  const handleCanPlay = useCallback(() => {
+    const video = videoRef.current;
+    if (video) {
+      if (!isNaN(video.duration) && video.duration > 0 && duration === 0) {
+        setDuration(video.duration);
+      }
+      if (video.videoWidth > 0 && video.videoHeight > 0 && exactAspectRatio === 1.0) {
+        setExactAspectRatio(video.videoWidth / video.videoHeight);
+      }
+    }
+  }, [duration, exactAspectRatio]);
+
+  const handleDurationChange = useCallback(() => {
+    const video = videoRef.current;
+    if (video && !isNaN(video.duration) && video.duration > 0) {
       setDuration(video.duration);
     }
   }, []);
@@ -130,6 +165,20 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
     };
   }, []);
 
+  // iOS Safari에서 play() Promise 처리를 위한 안전한 재생 함수
+  const safePlay = useCallback(async (video: HTMLVideoElement) => {
+    try {
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        await playPromise;
+      }
+      setIsPlaying(true);
+    } catch (error) {
+      // iOS Safari에서 사용자 상호작용 없이 재생 시도 시 발생할 수 있음
+      console.debug('Video play failed:', error);
+    }
+  }, []);
+
   const handleVideoClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
     const video = videoRef.current;
@@ -137,13 +186,12 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
 
     // Simply toggle play/pause without seeking
     if (video.paused) {
-      video.play();
-      setIsPlaying(true);
+      safePlay(video);
     } else {
       video.pause();
       setIsPlaying(false);
     }
-  }, []);
+  }, [safePlay]);
 
   const handleProgressBarClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
@@ -163,10 +211,9 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
     
     // If video is paused, play it
     if (video.paused) {
-      video.play();
-      setIsPlaying(true);
+      safePlay(video);
     }
-  }, [duration]);
+  }, [duration, safePlay]);
 
   const togglePlay = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -174,13 +221,12 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
     if (!video) return;
 
     if (video.paused) {
-      video.play();
-      setIsPlaying(true);
+      safePlay(video);
     } else {
       video.pause();
       setIsPlaying(false);
     }
-  }, []);
+  }, [safePlay]);
 
   const toggleMute = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -254,6 +300,17 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
     const video = videoRef.current;
     if (!container || !video) return;
 
+    // iOS Safari: use webkitEnterFullscreen on video element (requestFullscreen doesn't work on iOS)
+    if (typeof (video as any).webkitEnterFullscreen === 'function') {
+      try {
+        (video as any).webkitEnterFullscreen();
+      } catch (err) {
+        console.error('Error entering iOS fullscreen:', err);
+      }
+      return;
+    }
+
+    // Standard Fullscreen API for other browsers
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(err => {
         console.error('Error exiting fullscreen:', err);
@@ -370,15 +427,20 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
           ref={videoRef}
           src={shouldLoad ? url : undefined}
           playsInline
+          // @ts-ignore - webkit-playsinline for older iOS Safari
+          webkit-playsinline="true"
           muted={isMuted}
           loop={isLooping}
           onLoadedMetadata={handleLoadedMetadata}
+          onCanPlay={handleCanPlay}
+          onDurationChange={handleDurationChange}
           onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
           onEnded={handleEnded}
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
           className={`w-full h-full ${isFullscreen ? 'object-contain' : 'object-cover'}`}
-          preload="metadata"
+          // iOS Safari에서는 preload="auto"가 더 안정적
+          preload={isIOS ? 'auto' : 'metadata'}
           style={{ aspectRatio: aspectRatioStyle }}
           onContextMenu={(e) => {
             // Sync loop state when user changes via right-click context menu

@@ -22,6 +22,15 @@ import { ImageGalleryStack } from './ImageGalleryStack';
 import { categorizeAspectRatio, parseImageDimensions, parseMediaDimensions, getAspectCategory } from '@/app/utils/imageUtils';
 import { ImageModal, type ImageModalImage } from './ImageModal';
 
+// iOS Safari 감지 (iOS 또는 iPadOS Safari)
+const isIOSSafari = () => {
+  if (typeof window === 'undefined') return false;
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS/.test(ua);
+  return isIOS && isSafari;
+};
+
 // Dynamically import MermaidDiagram for client-side rendering
 const MermaidDiagram = dynamic(() => import('./Mermaid'), {
   ssr: false,
@@ -1373,38 +1382,18 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
   // Touch device detection (fallback when isMobile prop is false, e.g. tablet/landscape)
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   
-  // iOS Safari detection and native controls fallback
-  const [isIOSSafari, setIsIOSSafari] = useState(false);
-  const [useNativeControls, setUseNativeControls] = useState(false);
-  
-  // CSS aspect-ratio support detection
-  const [supportsAspectRatio, setSupportsAspectRatio] = useState(true);
-  
   useEffect(() => {
     setIsMounted(true);
     return () => setIsMounted(false);
   }, []);
 
-  // Detect touch device and iOS Safari on mount; show controls by default on touch so buttons are visible without a tap
+  // Detect touch device on mount; show controls by default on touch so buttons are visible without a tap
   useEffect(() => {
     const touch = typeof window !== 'undefined' && ('ontouchstart' in window || (navigator.maxTouchPoints != null && navigator.maxTouchPoints > 0));
     const coarse = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
     const isTouch = !!touch || !!coarse;
     setIsTouchDevice(isTouch);
     if (isTouch) setControlsVisible(true);
-    
-    // Detect iOS Safari
-    if (typeof window !== 'undefined' && typeof navigator !== 'undefined') {
-      const ua = navigator.userAgent;
-      const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
-      const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
-      setIsIOSSafari(isIOS && isSafari);
-    }
-    
-    // Detect CSS aspect-ratio support
-    if (typeof CSS !== 'undefined' && CSS.supports) {
-      setSupportsAspectRatio(CSS.supports('aspect-ratio', '16 / 9'));
-    }
   }, []);
 
   // 🚀 근본적 해결: URL에서 크기 정보 먼저 추출, 없으면 메타데이터로 빠른 측정
@@ -1416,51 +1405,81 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
   });
   const preloadVideoRef = useRef<HTMLVideoElement | null>(null);
 
+  // iOS Safari 감지 상태
+  const [isIOS] = useState(() => isIOSSafari());
+
   // 🚀 URL에서 크기 정보를 못 찾았으면 메타데이터로 빠르게 측정
   // 측정된 비율은 initialVideoAspectRatio에 저장되어 컨테이너 크기가 변경되지 않음
+  // iOS Safari에서는 preload="auto"와 canplay 이벤트를 사용
   useEffect(() => {
     if (shouldLoad && refreshedUrl && !initialVideoAspectRatio) {
       const video = document.createElement('video');
-      video.preload = 'metadata';
+      // iOS Safari에서는 preload="auto"가 더 안정적
+      video.preload = isIOS ? 'auto' : 'metadata';
       video.muted = true;
       video.playsInline = true;
+      // @ts-ignore - webkit-playsinline for older iOS
+      video.setAttribute('webkit-playsinline', 'true');
       video.src = refreshedUrl;
       
-      video.onloadedmetadata = () => {
+      const handleMetadata = () => {
         const videoWidth = video.videoWidth;
         const videoHeight = video.videoHeight;
         if (videoWidth > 0 && videoHeight > 0) {
           setInitialVideoAspectRatio(videoWidth / videoHeight);
         }
+        cleanup();
+      };
+      
+      const handleError = () => {
+        cleanup();
+      };
+
+      const cleanup = () => {
+        video.removeEventListener('loadedmetadata', handleMetadata);
+        video.removeEventListener('canplay', handleMetadata);
+        video.removeEventListener('error', handleError);
         video.src = '';
         video.load();
         preloadVideoRef.current = null;
       };
       
-      video.onerror = () => {
-        video.src = '';
+      // iOS Safari에서는 canplay 이벤트도 리스닝 (loadedmetadata가 발생하지 않을 수 있음)
+      video.addEventListener('loadedmetadata', handleMetadata);
+      if (isIOS) {
+        video.addEventListener('canplay', handleMetadata);
+      }
+      video.addEventListener('error', handleError);
+      
+      // iOS Safari에서 비디오 로드 강제
+      if (isIOS) {
         video.load();
-        preloadVideoRef.current = null;
-      };
+      }
       
       preloadVideoRef.current = video;
       
       return () => {
         if (preloadVideoRef.current) {
+          preloadVideoRef.current.removeEventListener('loadedmetadata', handleMetadata);
+          preloadVideoRef.current.removeEventListener('canplay', handleMetadata);
+          preloadVideoRef.current.removeEventListener('error', handleError);
           preloadVideoRef.current.src = '';
           preloadVideoRef.current.load();
           preloadVideoRef.current = null;
         }
       };
     }
-  }, [shouldLoad, refreshedUrl, initialVideoAspectRatio]);
+  }, [shouldLoad, refreshedUrl, initialVideoAspectRatio, isIOS]);
 
   // 비디오 메타데이터 로드 시 실제 비율 계산 (fallback)
   const handleLoadedMetadata = useCallback(() => {
     const video = videoRef.current;
     if (video) {
       setIsVideoLoaded(true);
-      setDuration(video.duration);
+      // iOS Safari에서는 duration이 NaN일 수 있으므로 체크
+      if (!isNaN(video.duration) && video.duration > 0) {
+        setDuration(video.duration);
+      }
       // initialVideoAspectRatio가 아직 설정되지 않았으면 최종 확인
       if (video.videoWidth > 0 && video.videoHeight > 0 && !initialVideoAspectRatio) {
         setInitialVideoAspectRatio(video.videoWidth / video.videoHeight);
@@ -1468,16 +1487,28 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     }
   }, [initialVideoAspectRatio]);
 
-  // iOS Safari: loadeddata 이벤트로 더 안정적인 로딩 감지
-  const handleLoadedData = useCallback(() => {
+  // iOS Safari에서 canplay 이벤트로 duration 업데이트
+  const handleCanPlay = useCallback(() => {
     const video = videoRef.current;
     if (video) {
       setIsVideoLoaded(true);
+      if (!isNaN(video.duration) && video.duration > 0 && duration === 0) {
+        setDuration(video.duration);
+      }
+      // aspect ratio 업데이트
       if (video.videoWidth > 0 && video.videoHeight > 0 && !initialVideoAspectRatio) {
         setInitialVideoAspectRatio(video.videoWidth / video.videoHeight);
       }
     }
-  }, [initialVideoAspectRatio]);
+  }, [duration, initialVideoAspectRatio]);
+
+  // iOS Safari에서 durationchange 이벤트로 duration 업데이트
+  const handleDurationChange = useCallback(() => {
+    const video = videoRef.current;
+    if (video && !isNaN(video.duration) && video.duration > 0) {
+      setDuration(video.duration);
+    }
+  }, []);
 
   // 전체화면 상태 감지
   useEffect(() => {
@@ -1513,6 +1544,21 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     };
   }, [showPromptOverlay]);
 
+  // iOS Safari에서 play() Promise 처리를 위한 안전한 재생 함수
+  const safePlay = useCallback(async (video: HTMLVideoElement) => {
+    try {
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        await playPromise;
+      }
+      setIsPlaying(true);
+    } catch (error) {
+      // iOS Safari에서 사용자 상호작용 없이 재생 시도 시 발생할 수 있음
+      // 무시하고 상태만 업데이트하지 않음
+      console.debug('Video play failed:', error);
+    }
+  }, []);
+
   const handleVideoClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
     const video = videoRef.current;
@@ -1526,27 +1572,12 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
 
     // Simply toggle play/pause without seeking
     if (video.paused) {
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            setIsPlaying(true);
-          })
-          .catch((error) => {
-            console.warn('Video play() failed, falling back to native controls:', error);
-            if (isIOSSafari) {
-              setUseNativeControls(true);
-            }
-            setIsPlaying(false);
-          });
-      } else {
-        setIsPlaying(true);
-      }
+      safePlay(video);
     } else {
       video.pause();
       setIsPlaying(false);
     }
-  }, [isMobile, isTouchDevice, controlsVisible, isIOSSafari]);
+  }, [isMobile, isTouchDevice, controlsVisible, safePlay]);
 
   const handleProgressBarClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
@@ -1566,24 +1597,9 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     
     // If video is paused, play it
     if (video.paused) {
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            setIsPlaying(true);
-          })
-          .catch((error) => {
-            console.warn('Video play() failed, falling back to native controls:', error);
-            if (isIOSSafari) {
-              setUseNativeControls(true);
-            }
-            setIsPlaying(false);
-          });
-      } else {
-        setIsPlaying(true);
-      }
+      safePlay(video);
     }
-  }, [duration, isIOSSafari]);
+  }, [duration, safePlay]);
 
   const togglePlay = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1597,27 +1613,12 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     }
 
     if (video.paused) {
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            setIsPlaying(true);
-          })
-          .catch((error) => {
-            console.warn('Video play() failed, falling back to native controls:', error);
-            if (isIOSSafari) {
-              setUseNativeControls(true);
-            }
-            setIsPlaying(false);
-          });
-      } else {
-        setIsPlaying(true);
-      }
+      safePlay(video);
     } else {
       video.pause();
       setIsPlaying(false);
     }
-  }, [isMobile, isTouchDevice, controlsVisible, isIOSSafari]);
+  }, [isMobile, isTouchDevice, controlsVisible, safePlay]);
 
   const toggleMute = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1806,38 +1807,16 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
       maxWidth: maxWidth || '100%',
       width: '100%',
       backgroundColor: 'black',
+      height: 'auto',
     };
     
     // 초기 비율만 사용 (비디오 로드 후에도 변경되지 않음)
     // URL에서 추출한 비율이 있으면 사용, 없으면 안정적인 기본값(16:9)으로 고정
     const finalAspectRatio = initialVideoAspectRatio || 16/9;
-    
-    // iOS Safari fallback: aspect-ratio 미지원 시 paddingTop 사용
-    if (supportsAspectRatio) {
-      baseStyle.aspectRatio = `${finalAspectRatio}`;
-      baseStyle.height = 'auto';
-    } else {
-      baseStyle.height = 0;
-      baseStyle.paddingTop = `${(1 / finalAspectRatio) * 100}%`;
-      baseStyle.position = 'relative';
-    }
+    baseStyle.aspectRatio = `${finalAspectRatio}`;
     
     return baseStyle;
-  }, [maxWidth, isFullscreen, initialVideoAspectRatio, supportsAspectRatio]);
-
-  // iOS Safari fallback: paddingTop 사용 시 비디오를 절대 위치로 배치
-  const innerContainerStyle: React.CSSProperties = useMemo(() => {
-    if (isFullscreen || supportsAspectRatio) {
-      return {};
-    }
-    return {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
-    };
-  }, [isFullscreen, supportsAspectRatio]);
+  }, [maxWidth, isFullscreen, initialVideoAspectRatio]);
 
   return (
     <div 
@@ -1853,29 +1832,26 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     >
       {/* 🚀 VENICE: Skeleton while loading */}
       {!isVideoLoaded && (
-        <div 
-          className={`absolute inset-0 skeleton-shimmer ${isFullscreen ? 'rounded-none' : 'rounded-2xl'}`}
-          style={innerContainerStyle}
-        />
+        <div className="absolute inset-0 skeleton-shimmer rounded-2xl" />
       )}
       
       {/* 🚀 비디오가 컨테이너를 꽉 채우도록 표시 */}
       <div 
         ref={containerRef}
         className={`relative w-full h-full overflow-hidden bg-black transition-opacity duration-300 ${isFullscreen ? 'rounded-none' : 'rounded-2xl'} ${showPromptOverlay ? 'cursor-default opacity-0 pointer-events-none' : 'opacity-100'}`}
-        style={innerContainerStyle}
         onClick={showPromptOverlay ? undefined : handleVideoClick}
       >
         <video 
           ref={videoRef}
           src={shouldLoad ? refreshedUrl : undefined}
           playsInline
-          {...(isIOSSafari ? { 'webkit-playsinline': true } as any : {})}
+          // @ts-ignore - webkit-playsinline for older iOS Safari
+          webkit-playsinline="true"
           muted={isMuted}
           loop={isLooping}
-          controls={useNativeControls}
           onLoadedMetadata={handleLoadedMetadata}
-          onLoadedData={handleLoadedData}
+          onCanPlay={handleCanPlay}
+          onDurationChange={handleDurationChange}
           onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
           onEnded={handleEnded}
           onPlay={() => setIsPlaying(true)}
@@ -1886,7 +1862,8 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
             width: '100%',
             height: '100%',
           }}
-          preload="metadata"
+          // iOS Safari에서는 preload="auto"가 더 안정적
+          preload={isIOS ? 'auto' : 'metadata'}
           onContextMenu={(e) => {
             // Sync loop state when user changes via right-click context menu
             setTimeout(() => {
@@ -1900,156 +1877,151 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
           Your browser does not support the video tag.
         </video>
         
-        {/* Custom Overlays - Only show when not using native controls */}
-        {!useNativeControls && (
-          <>
-            {/* Center Play Button - Visible when paused */}
-            {!isPlaying && !isRefreshing && (
-              <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-auto" onClick={togglePlay}>
-                <div className="w-16 h-16 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white transition-all hover:scale-105 hover:bg-black/50">
-                  <Play size={32} fill="white" className="ml-1 opacity-95" />
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Bottom Controls Overlay - visible on group-hover (desktop) or when controlsVisible (mobile tap); pointer-events match visibility so touches reach buttons on mobile */}
-        {!useNativeControls && (
-          <div className={`absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 via-black/40 to-transparent transition-opacity duration-300 z-20 ${controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
-            <div className={`absolute bottom-0 left-0 right-0 p-4 ${controlsVisible ? 'pointer-events-auto' : 'pointer-events-none group-hover:pointer-events-auto'}`}>
-              {/* Progress Bar */}
-              <div 
-                className="group/progress relative w-full h-1.5 mb-4 bg-white/20 rounded-full cursor-pointer overflow-visible"
-                onClick={handleProgressBarClick}
-              >
-                {/* Hover effect area */}
-                <div className="absolute -inset-y-2 left-0 right-0" />
-                
-                {/* Background Track */}
-                <div className="absolute inset-0 bg-white/20 rounded-full" />
-                
-                {/* Progress Fill */}
-                <div 
-                  className="absolute inset-y-0 left-0 bg-white rounded-full transition-all duration-150"
-                  style={{ width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%' }}
-                >
-                  {/* Knob */}
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg scale-0 group-hover/progress:scale-100 transition-transform" />
-                </div>
-              </div>
-
-              {/* Controls Row */}
-              <div className="flex items-center justify-between text-white">
-                <div className="flex items-center gap-4">
-                  <button onClick={togglePlay} className="hover:scale-110 transition-transform">
-                    {isPlaying ? <Pause size={20} fill="white" /> : <Play size={20} fill="white" />}
-                  </button>
-                  
-                  <div className="text-[13px] font-medium tracking-tight opacity-90">
-                    {formatTime(currentTime)} / {formatTime(duration || 0)}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {/* Volume Control with Horizontal Slider */}
-                  <div 
-                    className="group/volume flex items-center"
-                    onMouseEnter={() => setShowVolumeSlider(true)}
-                    onMouseLeave={() => setShowVolumeSlider(false)}
-                  >
-                    {/* Horizontal Volume Slider - appears on left */}
-                    <div 
-                      className={`overflow-hidden transition-all duration-200 flex items-center ${showVolumeSlider ? 'w-16 mr-1' : 'w-0'}`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div 
-                        className="relative w-16 h-1 bg-white/30 rounded-full cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          const clickX = e.clientX - rect.left;
-                          const clickPercentage = (clickX / rect.width) * 100;
-                          const newVolume = Math.max(0, Math.min(clickPercentage / 100, 1));
-                          setVolumeValue(newVolume);
-                        }}
-                      >
-                        {/* Background Track */}
-                        <div className="absolute inset-0 bg-white/30 rounded-full" />
-                        
-                        {/* Filled Progress */}
-                        <div 
-                          className="absolute inset-y-0 left-0 bg-white rounded-full transition-all duration-150"
-                          style={{ width: `${(isMuted ? 0 : volume) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                    
-                    <button onClick={toggleMute} className="hover:scale-110 transition-transform p-1">
-                      {isMuted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
-                    </button>
-                  </div>
-                  
-                  {/* Download Button */}
-                  <button onClick={handleDownload} className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100">
-                    <Download size={18} />
-                  </button>
-
-                  {/* Prompt Button */}
-                  {prompt && (
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowPromptOverlay(true);
-                      }}
-                      className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100"
-                      aria-label="Show prompt"
-                    >
-                      <ScrollText size={18} />
-                    </button>
-                  )}
-
-                  {/* Save Button */}
-                  <button 
-                    onClick={handleSave}
-                    disabled={savingVideo || savedVideo}
-                    className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    aria-label={savingVideo ? 'Saving...' : savedVideo ? 'Saved' : 'Save to Gallery'}
-                  >
-                    {savingVideo ? (
-                      <div className="w-[18px] h-[18px] border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : savedVideo ? (
-                      <Check size={18} />
-                    ) : (
-                      <Bookmark size={18} />
-                    )}
-                  </button>
-
-                  {/* Loop Toggle */}
-                  <button 
-                    onClick={toggleLoop} 
-                    className={`hover:scale-110 transition-transform p-1 relative ${isLooping ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17 2l4 4-4 4" />
-                      <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
-                      <path d="M7 22l-4-4 4-4" />
-                      <path d="M21 13v1a4 4 0 0 1-4 4H3" />
-                      {isLooping && (
-                        <text x="12" y="14" textAnchor="middle" fontSize="8" fill="currentColor" stroke="none" fontWeight="bold">1</text>
-                      )}
-                    </svg>
-                  </button>
-                  
-                  {/* Fullscreen */}
-                  <button onClick={toggleFullScreen} className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100">
-                    <Maximize size={18} />
-                  </button>
-                </div>
-              </div>
+        {/* Custom Overlays */}
+        
+        {/* Center Play Button - Visible when paused */}
+        {!isPlaying && !isRefreshing && (
+          <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-auto" onClick={togglePlay}>
+            <div className="w-16 h-16 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white transition-all hover:scale-105 hover:bg-black/50">
+              <Play size={32} fill="white" className="ml-1 opacity-95" />
             </div>
           </div>
         )}
+
+        {/* Bottom Controls Overlay - visible on group-hover (desktop) or when controlsVisible (mobile tap); pointer-events match visibility so touches reach buttons on mobile */}
+        <div className={`absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 via-black/40 to-transparent transition-opacity duration-300 z-20 ${controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
+          <div className={`absolute bottom-0 left-0 right-0 p-4 ${controlsVisible ? 'pointer-events-auto' : 'pointer-events-none group-hover:pointer-events-auto'}`}>
+            {/* Progress Bar */}
+            <div 
+              className="group/progress relative w-full h-1.5 mb-4 bg-white/20 rounded-full cursor-pointer overflow-visible"
+              onClick={handleProgressBarClick}
+            >
+              {/* Hover effect area */}
+              <div className="absolute -inset-y-2 left-0 right-0" />
+              
+              {/* Background Track */}
+              <div className="absolute inset-0 bg-white/20 rounded-full" />
+              
+              {/* Progress Fill */}
+              <div 
+                className="absolute inset-y-0 left-0 bg-white rounded-full transition-all duration-150"
+                style={{ width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%' }}
+              >
+                {/* Knob */}
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg scale-0 group-hover/progress:scale-100 transition-transform" />
+              </div>
+            </div>
+
+            {/* Controls Row */}
+            <div className="flex items-center justify-between text-white">
+              <div className="flex items-center gap-4">
+                <button onClick={togglePlay} className="hover:scale-110 transition-transform">
+                  {isPlaying ? <Pause size={20} fill="white" /> : <Play size={20} fill="white" />}
+                </button>
+                
+                <div className="text-[13px] font-medium tracking-tight opacity-90">
+                  {formatTime(currentTime)} / {formatTime(duration || 0)}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Volume Control with Horizontal Slider */}
+                <div 
+                  className="group/volume flex items-center"
+                  onMouseEnter={() => setShowVolumeSlider(true)}
+                  onMouseLeave={() => setShowVolumeSlider(false)}
+                >
+                  {/* Horizontal Volume Slider - appears on left */}
+                  <div 
+                    className={`overflow-hidden transition-all duration-200 flex items-center ${showVolumeSlider ? 'w-16 mr-1' : 'w-0'}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div 
+                      className="relative w-16 h-1 bg-white/30 rounded-full cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const clickX = e.clientX - rect.left;
+                        const clickPercentage = (clickX / rect.width) * 100;
+                        const newVolume = Math.max(0, Math.min(clickPercentage / 100, 1));
+                        setVolumeValue(newVolume);
+                      }}
+                    >
+                      {/* Background Track */}
+                      <div className="absolute inset-0 bg-white/30 rounded-full" />
+                      
+                      {/* Filled Progress */}
+                      <div 
+                        className="absolute inset-y-0 left-0 bg-white rounded-full transition-all duration-150"
+                        style={{ width: `${(isMuted ? 0 : volume) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                  
+                  <button onClick={toggleMute} className="hover:scale-110 transition-transform p-1">
+                    {isMuted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
+                  </button>
+                </div>
+                
+                {/* Download Button */}
+                <button onClick={handleDownload} className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100">
+                  <Download size={18} />
+                </button>
+
+                {/* Prompt Button */}
+                {prompt && (
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowPromptOverlay(true);
+                    }}
+                    className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100"
+                    aria-label="Show prompt"
+                  >
+                    <ScrollText size={18} />
+                  </button>
+                )}
+
+                {/* Save Button */}
+                <button 
+                  onClick={handleSave}
+                  disabled={savingVideo || savedVideo}
+                  className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label={savingVideo ? 'Saving...' : savedVideo ? 'Saved' : 'Save to Gallery'}
+                >
+                  {savingVideo ? (
+                    <div className="w-[18px] h-[18px] border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : savedVideo ? (
+                    <Check size={18} />
+                  ) : (
+                    <Bookmark size={18} />
+                  )}
+                </button>
+
+                {/* Loop Toggle */}
+                <button 
+                  onClick={toggleLoop} 
+                  className={`hover:scale-110 transition-transform p-1 relative ${isLooping ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17 2l4 4-4 4" />
+                    <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+                    <path d="M7 22l-4-4 4-4" />
+                    <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+                    {isLooping && (
+                      <text x="12" y="14" textAnchor="middle" fontSize="8" fill="currentColor" stroke="none" fontWeight="bold">1</text>
+                    )}
+                  </svg>
+                </button>
+                
+                {/* Fullscreen */}
+                <button onClick={toggleFullScreen} className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100">
+                  <Maximize size={18} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
         
         {/* 🚀 로딩 중일 때만 placeholder 표시 */}
         {isRefreshing && (
