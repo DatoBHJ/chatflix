@@ -1892,8 +1892,8 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                   </svg>
                 </button>
                 
-                {/* Fullscreen - larger touch target for mobile (44px min) */}
-                <button onClick={toggleFullScreen} className="hover:scale-110 transition-transform p-2 min-w-[44px] min-h-[44px] flex items-center justify-center opacity-80 hover:opacity-100">
+                {/* Fullscreen */}
+                <button onClick={toggleFullScreen} className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100">
                   <Maximize size={18} />
                 </button>
               </div>
