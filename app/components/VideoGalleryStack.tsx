@@ -278,7 +278,7 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
               e.stopPropagation();
             }}
           >
-            <div className="grid grid-cols-2 gap-3 max-w-3xl mx-auto">
+            <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2'} gap-3 max-w-3xl mx-auto`}>
               {videos.map((video, index) => (
                 <div key={index} className="w-full">
                   <DirectVideoEmbed
