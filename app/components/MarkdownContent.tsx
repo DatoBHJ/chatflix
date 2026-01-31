@@ -1482,18 +1482,33 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     };
   }, [showPromptOverlay]);
 
-  const handleVideoClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  const handleVideoClick = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
     const video = videoRef.current;
     if (!video) return;
 
-    // Mobile/touch: first tap shows controls only; second tap plays/pauses
-    if ((isMobile || isTouchDevice) && !controlsVisible) {
-      setControlsVisible(true);
+    // Mobile/touch: 컨트롤 표시와 동시에 재생 (배포 환경에서 재생 문제 해결)
+    if (isMobile || isTouchDevice) {
+      if (!controlsVisible) {
+        setControlsVisible(true);
+      }
+      // 컨트롤 표시와 관계없이 즉시 재생 시도
+      if (video.paused) {
+        try {
+          await video.play();
+          setIsPlaying(true);
+        } catch (error) {
+          console.error('Video play failed:', error);
+          // 재생 실패 시에도 컨트롤은 표시됨
+        }
+      } else {
+        video.pause();
+        setIsPlaying(false);
+      }
       return;
     }
 
-    // Simply toggle play/pause without seeking
+    // Desktop: 일반 재생/일시정지
     if (video.paused) {
       video.play();
       setIsPlaying(true);
@@ -1526,17 +1541,33 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     }
   }, [duration]);
 
-  const togglePlay = useCallback((e: React.MouseEvent) => {
+  const togglePlay = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
     const video = videoRef.current;
     if (!video) return;
 
-    // Mobile/touch: first tap shows controls only; second tap plays/pauses
-    if ((isMobile || isTouchDevice) && !controlsVisible) {
-      setControlsVisible(true);
+    // Mobile/touch: 컨트롤 표시와 동시에 재생 (배포 환경에서 재생 문제 해결)
+    if (isMobile || isTouchDevice) {
+      if (!controlsVisible) {
+        setControlsVisible(true);
+      }
+      // 컨트롤 표시와 관계없이 즉시 재생 시도
+      if (video.paused) {
+        try {
+          await video.play();
+          setIsPlaying(true);
+        } catch (error) {
+          console.error('Video play failed:', error);
+          // 재생 실패 시에도 컨트롤은 표시됨
+        }
+      } else {
+        video.pause();
+        setIsPlaying(false);
+      }
       return;
     }
 
+    // Desktop: 일반 재생/일시정지
     if (video.paused) {
       video.play();
       setIsPlaying(true);
@@ -1730,7 +1761,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
       };
     }
     const baseStyle: React.CSSProperties = {
-      maxWidth: maxWidth || '100%',
+      // maxWidth는 CSS 클래스(.message-media-max-width)에 의존하므로 인라인 스타일에서 제거
       width: '100%',
       backgroundColor: 'black',
       height: 'auto',
@@ -1742,12 +1773,12 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     baseStyle.aspectRatio = `${finalAspectRatio}`;
     
     return baseStyle;
-  }, [maxWidth, isFullscreen, initialVideoAspectRatio]);
+  }, [isFullscreen, initialVideoAspectRatio]);
 
   return (
     <div 
       ref={lazyRef}
-      className={`generated-video-container my-1 group relative ${showPromptOverlay ? 'cursor-default' : 'cursor-pointer'}`}
+      className={`generated-video-container message-media-max-width my-1 group relative ${showPromptOverlay ? 'cursor-default' : 'cursor-pointer'}`}
       style={{
         ...containerStyle,
         // GPU 가속으로 레이아웃 변경 성능 향상
