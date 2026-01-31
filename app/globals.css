@@ -134,17 +134,44 @@ html, body {
 
 /* 🚀 Virtuoso 스크롤 최적화 */
 .virtuoso-messages {
-  /* 스크롤 앵커링 활성화 */
   overflow-anchor: auto;
-  /* GPU 가속 활성화 */
   transform: translateZ(0);
   will-change: scroll-position;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* 🚀 Virtuoso 아이템 렌더링 최적화 */
 .virtuoso-messages [data-index] {
-  /* 레이아웃 격리 - 크기 변경이 다른 아이템에 영향 안 줌 */
-  contain: layout style;
+  contain: layout style paint;
+  contain-intrinsic-block-size: auto 400px;
+}
+
+/* 🚀 VENICE STYLE: 미디어 컨테이너 고정 크기 - 절대 리사이즈 안 함 */
+.generated-image-container,
+.generated-video-container {
+  contain: strict;
+  transform: translateZ(0);
+}
+
+/* 🚀 VENICE STYLE: Skeleton shimmer animation */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.05) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 /* Sticky composer container at bottom of thread */

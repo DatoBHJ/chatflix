@@ -1341,8 +1341,8 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     enabled: shouldLoad && !!sourceImageUrl
   });
 
-  // 🚀 정확한 비율값 저장 (ChatGPT 방식)
-  const [exactAspectRatio, setExactAspectRatio] = useState<number>(1.0); // 기본값: 정사각형
+  // 🚀 VENICE: 비율 상태 제거 - 고정 컨테이너 사용
+  const [isVideoLoaded, setIsVideoLoaded] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -1387,14 +1387,11 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     if (isTouch) setControlsVisible(true);
   }, []);
 
+  // 🚀 VENICE: 비율 업데이트 없음 - 컨테이너 크기 고정
   const handleLoadedMetadata = useCallback(() => {
     const video = videoRef.current;
     if (video) {
-      if (video.videoWidth > 0 && video.videoHeight > 0) {
-        // 비디오 메타데이터에서 정확한 aspect ratio 감지 (ChatGPT 방식: 카테고리화 없이 정확한 값)
-        const ratio = video.videoWidth / video.videoHeight;
-        setExactAspectRatio(ratio);
-      }
+      setIsVideoLoaded(true);
       setDuration(video.duration);
     }
   }, []);
@@ -1669,51 +1666,22 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // 초기 aspect ratio 계산 (비디오 로드 전) - 이미지와 동일한 parseMediaDimensions 사용
-  const initialAspectRatio = useMemo(() => {
-    // 제공된 aspectRatio prop이 있으면 파싱
-    if (aspectRatio) {
-      try {
-        const [width, height] = aspectRatio.split('/').map(Number);
-        if (width && height) {
-          return width / height; // 정확한 비율 반환
-        }
-      } catch (e) {
-        // 파싱 실패 시 기본값 사용
-      }
-    }
-    
-    // 🚀 이미지와 동일한 방식: parseMediaDimensions로 URL에서 크기 정보 추출
-    const parsedDims = parseMediaDimensions(refreshedUrl || url);
-    if (parsedDims) {
-      return parsedDims.width / parsedDims.height; // 정확한 비율 반환
-    }
-    
-    return 1.0; // 기본값: 정사각형
-  }, [aspectRatio, refreshedUrl, url]);
-
-  // 감지된 aspect ratio가 있으면 사용, 없으면 초기값 사용
-  const finalAspectRatio = exactAspectRatio !== 1.0 ? exactAspectRatio : initialAspectRatio;
-
-  // 🚀 ChatGPT 패턴: 모든 중첩 요소에 동일한 aspect-ratio 적용
-  const aspectRatioStyle = `${finalAspectRatio} / 1`;
-
-  // 🚀 ChatGPT 방식: max-width만 제한하고 aspect-ratio로 높이 자동 계산 (이미지와 동일)
+  // 🚀 VENICE STYLE: 고정 컨테이너 크기 - aspect-ratio 사용 안 함
   const containerStyle: React.CSSProperties = useMemo(() => {
     if (isFullscreen) {
       return {
         width: '100vw',
         height: '100vh',
         maxWidth: 'none',
-        aspectRatio: aspectRatioStyle,
       };
     }
     return {
-      maxWidth: maxWidth || '400px',
+      maxWidth: maxWidth || '560px',
       width: '100%',
-      aspectRatio: aspectRatioStyle,
+      height: '450px',
+      backgroundColor: 'black',
     };
-  }, [aspectRatioStyle, maxWidth, isFullscreen]);
+  }, [maxWidth, isFullscreen]);
 
   return (
     <div 
@@ -1721,16 +1689,20 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
       className={`generated-video-container my-1 group relative ${showPromptOverlay ? 'cursor-default' : 'cursor-pointer'}`}
       style={containerStyle}
     >
-      {/* 🚀 ChatGPT 스타일: 내부 래퍼에도 동일한 aspect-ratio 적용 (레이아웃 안정성) */}
+      {/* 🚀 VENICE: Skeleton while loading */}
+      {!isVideoLoaded && (
+        <div className="absolute inset-0 skeleton-shimmer rounded-2xl" />
+      )}
+      
+      {/* 🚀 VENICE STYLE: 고정 컨테이너 + object-fit: contain */}
       <div 
         ref={containerRef}
-        className={`relative w-full h-full overflow-hidden bg-black transition-opacity duration-300 ${isFullscreen ? 'rounded-none' : 'rounded-2xl'} ${showPromptOverlay ? 'cursor-default opacity-0 pointer-events-none' : 'opacity-100'}`}
-        style={{ aspectRatio: aspectRatioStyle }}
+        className={`relative w-full h-full overflow-hidden bg-black transition-opacity duration-300 flex items-center justify-center ${isFullscreen ? 'rounded-none' : 'rounded-2xl'} ${showPromptOverlay ? 'cursor-default opacity-0 pointer-events-none' : 'opacity-100'}`}
         onClick={showPromptOverlay ? undefined : handleVideoClick}
       >
         <video 
           ref={videoRef}
-          src={refreshedUrl}
+          src={shouldLoad ? refreshedUrl : undefined}
           playsInline
           muted={isMuted}
           loop={isLooping}
@@ -1739,9 +1711,8 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
           onEnded={handleEnded}
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
-          className={`w-full h-full ${isFullscreen ? 'object-contain' : 'object-cover'}`}
+          className={`max-w-full max-h-full object-contain transition-opacity duration-200 ${isVideoLoaded ? 'opacity-100' : 'opacity-0'}`}
           preload="metadata"
-          style={{ aspectRatio: aspectRatioStyle }}
           onContextMenu={(e) => {
             // Sync loop state when user changes via right-click context menu
             setTimeout(() => {

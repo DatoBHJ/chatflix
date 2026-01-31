@@ -9,8 +9,8 @@ import { categorizeAspectRatio, parseImageDimensions, getAspectCategory } from '
 import { useUrlRefresh } from '../hooks/useUrlRefresh';
 import { ImageModal, type ImageModalImage } from './ImageModal';
 
-// Simple image component with loading state (avoid circular import)
-// 🚀 ChatGPT STYLE: max-width 제한 + aspect-ratio CSS로 정확한 비율 유지
+// 🚀 VENICE STYLE: 고정 컨테이너 크기로 레이아웃 시프트 완전 방지
+// 핵심: 컨테이너 크기가 이미지 로드 전후로 절대 변하지 않음
 const SimpleImageWithLoading = memo(function SimpleImageWithLoadingComponent({ 
   src, 
   alt, 
@@ -38,8 +38,6 @@ const SimpleImageWithLoading = memo(function SimpleImageWithLoadingComponent({
 }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState(false);
-  // 🚀 정확한 비율값 저장 (카테고리화 X) - ChatGPT 방식
-  const [exactAspectRatio, setExactAspectRatio] = useState<number | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   
   // Save 상태
@@ -69,47 +67,28 @@ const SimpleImageWithLoading = memo(function SimpleImageWithLoadingComponent({
     };
   }, []);
   
-  // 🚀 INSTANT LOAD: 화면 근처(200px)에서 이미지 로드 시작 - 초기 로딩 최대화
   const { ref: lazyRef, shouldLoad } = useLazyMedia();
 
-  // sourceImageUrl 자동 갱신
   const { refreshedUrl: refreshedSourceImageUrl } = useUrlRefresh({
     url: sourceImageUrl || '',
     enabled: shouldLoad && !!sourceImageUrl
   });
 
-  // 🚀 URL 해시에서 크기 정보 먼저 파싱 - 즉시 aspect-ratio 설정
-  useEffect(() => {
-    const parsedDims = parseImageDimensions(src);
-    if (parsedDims) {
-      // 정확한 비율값 사용 (ChatGPT: 1.5 / 1 형태)
-      setExactAspectRatio(parsedDims.width / parsedDims.height);
-    }
-  }, [src]);
-
-  // Check if image is already cached (only when shouldLoad is true)
+  // 🚀 VENICE: 이미지 캐시 체크 (로딩 상태만 업데이트, 컨테이너 크기 변경 없음)
   useEffect(() => {
     if (shouldLoad && src) {
       const img = new globalThis.Image();
       img.src = src;
       if (img.complete) {
         setIsLoaded(true);
-        // 캐시된 이미지의 정확한 aspect ratio 감지
-        if (img.naturalWidth > 0 && img.naturalHeight > 0 && !exactAspectRatio) {
-          setExactAspectRatio(img.naturalWidth / img.naturalHeight);
-        }
       }
     }
-  }, [src, shouldLoad, exactAspectRatio]);
+  }, [src, shouldLoad]);
 
-  // 이미지 로드 시 정확한 aspect ratio 감지
-  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+  // 🚀 VENICE: 로드 완료만 표시 (컨테이너 크기 변경 없음)
+  const handleImageLoad = useCallback(() => {
     setIsLoaded(true);
-    const img = e.currentTarget;
-    if (img.naturalWidth > 0 && img.naturalHeight > 0 && !exactAspectRatio) {
-      setExactAspectRatio(img.naturalWidth / img.naturalHeight);
-    }
-  }, [exactAspectRatio]);
+  }, []);
 
   // 다운로드 핸들러
   const handleDownload = useCallback(async (e: React.MouseEvent) => {
@@ -178,21 +157,14 @@ const SimpleImageWithLoading = memo(function SimpleImageWithLoadingComponent({
     }
   }, [prompt]);
 
-  // 🚀 ChatGPT 방식: max-width만 제한하고 aspect-ratio로 높이 자동 계산
-  // width/height 픽셀값을 직접 설정하지 않음!
-  // 모든 hooks는 early return 전에 호출되어야 함
-  const containerStyle: React.CSSProperties = useMemo(() => {
-    return {
-      ...style,
-      maxWidth: '400px',
-      width: '100%',
-      // aspect-ratio CSS 속성으로 정확한 비율 유지 (ChatGPT 방식)
-      aspectRatio: exactAspectRatio ? `${exactAspectRatio} / 1` : '1 / 1',
-    };
-  }, [exactAspectRatio, style]);
-
-  // 🚀 ChatGPT 패턴: 모든 중첩 요소에 동일한 aspect-ratio 적용
-  const aspectRatioStyle = exactAspectRatio ? `${exactAspectRatio} / 1` : '1 / 1';
+  // 🚀 VENICE STYLE: 고정 컨테이너 크기 - 이미지 로드 전후로 절대 변하지 않음
+  const containerStyle: React.CSSProperties = useMemo(() => ({
+    ...style,
+    maxWidth: '560px',
+    width: '100%',
+    height: '450px',
+    backgroundColor: 'rgb(38, 38, 38)',
+  }), [style]);
 
   if (error) {
     return null;
@@ -204,16 +176,18 @@ const SimpleImageWithLoading = memo(function SimpleImageWithLoadingComponent({
       className="generated-image-container relative rounded-2xl overflow-hidden"
       style={containerStyle}
     >
-      {/* 🚀 ChatGPT 스타일: 내부 래퍼에도 동일한 aspect-ratio 적용 (레이아웃 안정성) */}
-      <div 
-        className="relative w-full h-full overflow-hidden"
-        style={{ aspectRatio: aspectRatioStyle }}
-      >
+      {/* 🚀 VENICE: Skeleton shimmer while loading */}
+      {!isLoaded && (
+        <div className="absolute inset-0 skeleton-shimmer" />
+      )}
+      
+      {/* 🚀 VENICE: 이미지는 고정 컨테이너 안에서 object-fit: contain으로 표시 */}
+      <div className="relative w-full h-full flex items-center justify-center">
         <img
           ref={imgRef}
-          src={src}
+          src={shouldLoad ? src : undefined}
           alt={alt}
-          className={`w-full h-full object-cover ${onImageClick ? 'cursor-pointer' : ''} ${className}`}
+          className={`max-w-full max-h-full object-contain transition-opacity duration-200 ${isLoaded ? 'opacity-100' : 'opacity-0'} ${onImageClick ? 'cursor-pointer' : ''} ${className}`}
           onClick={onImageClick}
           onLoad={handleImageLoad}
           onError={() => {
@@ -225,7 +199,6 @@ const SimpleImageWithLoading = memo(function SimpleImageWithLoadingComponent({
           style={{ 
             border: 'none', 
             outline: 'none',
-            aspectRatio: aspectRatioStyle
           }}
         />
       </div>
@@ -828,7 +801,7 @@ export const ImageGalleryStack = memo(function ImageGalleryStackComponent({
             key={index} 
             className="cursor-pointer"
             style={{
-              maxWidth: '400px'
+              maxWidth: '560px'
             }}
             onClick={() => {
               if (onSingleImageClick) {
@@ -867,19 +840,19 @@ export const ImageGalleryStack = memo(function ImageGalleryStackComponent({
   
   // 🚀 비율에 따른 높이 배수 계산 (400px 기준으로 스케일)
   const heightMultiplier = baseRatioCategory === 'portrait' ? 1.33 : baseRatioCategory === 'landscape' ? 0.75 : 1;
-  const baseItemWidth = isMobile ? 280 : 340; // 400px 기준으로 스택 크기 조정
+  const baseItemWidth = isMobile ? 280 : 360; // 스택 시 개별 이미지 크기 (단일 미디어와 비례)
   const stackItemHeight = baseItemWidth * heightMultiplier;
-  const stackContainerHeight = stackItemHeight + 70; // 라벨과 오프셋 여유 공간
+  const stackContainerHeight = stackItemHeight + 70;
 
   return (
     <>
-      {/* Stacked Preview - 크기 및 비율 정형화 적용 (400px 기준) */}
+      {/* Stacked Preview */}
       <div 
         className="apple-image-stack cursor-pointer"
         onClick={openGalleryGrid}
         style={{
           position: 'relative',
-          width: isMobile ? '320px' : '380px', // 400px 기준으로 스택 너비 조정
+          width: isMobile ? '320px' : '400px',
           height: `${stackContainerHeight}px`
         }}
       >

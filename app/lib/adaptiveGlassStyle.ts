@@ -49,6 +49,28 @@ export function getAdaptiveGlassBackgroundColor(): { backgroundColor: string; bo
 }
 
 /**
+ * 아바타/아이콘 전용 글라스 스타일 (채팅 메시지 좌측 모델 아이콘)
+ * - contain: paint 환경에서 잘리지 않도록 그림자를 아이콘 근처로 한정
+ * - 메시지 버블을 가리지 않음
+ */
+export function getAdaptiveGlassAvatarStyle(): Record<string, string> {
+  if (typeof window === 'undefined') {
+    return { backgroundColor: 'transparent', boxShadow: 'none' };
+  }
+  const blurStyle = getAdaptiveGlassStyleBlur();
+  const isDark = getInitialTheme();
+  const compactShadow = isDark
+    ? (blurStyle.boxShadow as string)
+    : '0 4px 12px rgba(0, 0, 0, 0.15)';
+  const { backgroundColor } = getAdaptiveGlassBackgroundColor();
+  return {
+    ...blurStyle,
+    backgroundColor,
+    boxShadow: compactShadow,
+  };
+}
+
+/**
  * Determine if current route has background image based on pathname
  * @param pathname - Current route pathname
  * @returns boolean indicating if background image should be present

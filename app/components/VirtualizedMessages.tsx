@@ -1282,14 +1282,12 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
             // auto는 즉시 위치 조정으로 더 안정적
             return isLoading ? 'auto' : 'smooth';
           }}
-          // 🚀 SCROLL FIX: ResizeObserver에서 requestAnimationFrame 건너뛰기
-          // 아이템 크기 변경을 즉시 처리하여 스크롤 버벅임 감소
+          // 🚀 VENICE: ResizeObserver 즉시 처리
           skipAnimationFrameInResizeObserver={true}
-          // 🚀 SCROLL OPTIMIZATION: 기본 아이템 높이 추정 (레이아웃 점프 감소)
-          // 미디어 포함 메시지(400px) 고려하여 200으로 증가
-          defaultItemHeight={200}
-          // 🚀 SCROLL OPTIMIZATION: 뷰포트 밖 프리렌더 영역 확대 (스무스 스크롤)
-          increaseViewportBy={{ top: 500, bottom: 500 }}
+          // 🚀 VENICE: 고정 미디어 컨테이너(450px) 기준 높이 추정
+          defaultItemHeight={550}
+          // 🚀 VENICE: overscan 최소화 (동시 렌더링 아이템 수 제한)
+          increaseViewportBy={{ top: 200, bottom: 200 }}
           // 🚀 STANDARD: 안정적인 아이템 키 생성
           computeItemKey={(index, item) => item?.id || `item-${index}`}
           // 🚀 STANDARD: atBottomThreshold로 하단 판정 기준 설정
