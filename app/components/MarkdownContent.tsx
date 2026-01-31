@@ -1755,8 +1755,8 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
           </div>
         )}
 
-        {/* Bottom Controls Overlay - visible on group-hover (desktop) or when controlsVisible (mobile tap) */}
-        <div className={`absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 via-black/40 to-transparent transition-opacity duration-300 pointer-events-none z-20 ${controlsVisible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+        {/* Bottom Controls Overlay - visible on group-hover (desktop) or when controlsVisible (mobile tap); pointer-events match visibility so touches reach buttons on mobile */}
+        <div className={`absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 via-black/40 to-transparent transition-opacity duration-300 z-20 ${controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
           <div className={`absolute bottom-0 left-0 right-0 p-4 ${controlsVisible ? 'pointer-events-auto' : 'pointer-events-none group-hover:pointer-events-auto'}`}>
             {/* Progress Bar */}
             <div 
