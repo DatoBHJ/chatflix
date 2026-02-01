@@ -122,6 +122,7 @@ html, body {
   padding-left: var(--thread-content-margin);
   padding-right: var(--thread-content-margin);
   width: 100%;
+  overflow: visible; /* 🚀 FIX: 아바타 그림자 잘림 방지 */
 }
 
 /* Scroll anchoring: 메시지별 스크롤 앵커 지원 */
@@ -134,13 +135,13 @@ html, body {
 .thread-content {
   overflow-anchor: auto;
   /* 화면 밖 메시지 렌더링 최적화 - 브라우저가 자동으로 스킵 */
-  content-visibility: auto;
+  /* content-visibility: auto; */ /* 🚀 FIX: 아바타 그림자 잘림 방지 (그림자가 영역 밖으로 나가는 경우 clipping 발생 방지) */
   contain-intrinsic-size: auto 200px; /* 예상 높이 힌트로 레이아웃 시프트 최소화 */
 }
 
 /* 마지막 메시지나 스트리밍 중인 메시지는 항상 렌더링 */
 .thread-content.message-always-visible {
-  content-visibility: visible;
+  /* content-visibility: visible; */
 }
 
 /* Simple messages container - no virtualization */

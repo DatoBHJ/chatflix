@@ -209,10 +209,11 @@ const AssistantAvatar = ({ modelId, onClick }: { modelId: string; onClick?: () =
   return (
     <div 
       onClick={onClick}
-      className="shrink-0 flex items-center justify-center rounded-full overflow-hidden transition-all duration-200 hover:scale-110 active:scale-95 cursor-pointer w-12 h-12"
+      className="shrink-0 flex items-center justify-center rounded-full transition-all duration-200 hover:scale-110 active:scale-95 cursor-pointer w-12 h-12"
       style={{
         ...getAdaptiveGlassStyleBlur(),
         ...getAdaptiveGlassBackgroundColor(),
+        overflow: 'visible', // 🚀 FIX: 그림자 잘림 방지 (overflow-hidden 제거)
       }}
     >
       {providerLogoSrc && (
@@ -2754,7 +2755,7 @@ const Message = memo(function MessageComponent({
           <>
             <div className="flex items-end gap-5 group/assistant relative max-w-full assistant-message-container">
               {!isMobile && (
-                <div ref={avatarRef} className="shrink-0 -mb-1 z-10 avatar-container -ml-12 sm:-ml-16">
+                <div ref={avatarRef} className="shrink-0 -mb-1 z-10 avatar-container -ml-12 sm:-ml-16" style={{ overflow: 'visible' }}>
                   <AssistantAvatar 
                     modelId={displayModel || ''} 
                     onClick={() => setShowActionsDesktop(!showActionsDesktop)}
