@@ -341,6 +341,9 @@ export default function Canvas({
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
   const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
 
+  // Image-to-video pending: aspect ratio per index (measured on img load)
+  const [pendingImageAspectRatios, setPendingImageAspectRatios] = useState<Record<number, number>>({});
+
   // Mobile detection
   useEffect(() => {
     const checkIfMobile = () => {
@@ -1839,11 +1842,26 @@ export default function Canvas({
                       className="border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-xl overflow-hidden shadow-sm bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)] relative min-h-[200px]"
                     >
                       {isImageToVideo ? (
-                        <div className="relative w-full aspect-video">
+                        <div
+                          className="relative w-full"
+                          style={{
+                            aspectRatio: pendingImageAspectRatios[index] != null
+                              ? `${pendingImageAspectRatios[index]} / 1`
+                              : '16 / 9',
+                          }}
+                        >
                           <img
                             src={sourceImage}
                             alt="Source image"
                             className="w-full h-full object-contain block"
+                            onLoad={(e) => {
+                              const el = e.currentTarget;
+                              const w = el.naturalWidth;
+                              const h = el.naturalHeight;
+                              if (w && h) {
+                                setPendingImageAspectRatios((prev) => ({ ...prev, [index]: w / h }));
+                              }
+                            }}
                           />
                           <div className="prompt-overlay absolute inset-0 bg-black/75 backdrop-blur-md text-white p-6 flex flex-col justify-center items-center text-center opacity-100 transition-opacity duration-300 z-20">
                             <div 
