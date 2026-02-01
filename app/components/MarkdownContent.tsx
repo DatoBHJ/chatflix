@@ -1510,25 +1510,6 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     }
   }, []);
 
-  // 스트리밍/캐시: loadedmetadata 이벤트를 놓친 경우 video.readyState로 썸네일 표시 동기화
-  useEffect(() => {
-    if (!refreshedUrl || !shouldLoad) return;
-    const video = videoRef.current;
-    if (!video) return;
-    const syncFromReadyState = () => {
-      if (video.readyState >= 2) {
-        setIsVideoLoaded(true);
-      }
-    };
-    syncFromReadyState();
-    video.addEventListener('loadeddata', syncFromReadyState);
-    video.addEventListener('canplay', syncFromReadyState);
-    return () => {
-      video.removeEventListener('loadeddata', syncFromReadyState);
-      video.removeEventListener('canplay', syncFromReadyState);
-    };
-  }, [refreshedUrl, shouldLoad]);
-
   // 전체화면 상태 감지
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -3006,7 +2987,7 @@ function MarkdownContentComponent({
         const aspectRatio = dimensions ? `${dimensions.width}/${dimensions.height}` : undefined;
         
         return (
-          <div key={href} className="my-1">
+          <div className="my-1">
             <VideoGalleryStack
               videos={[{
                 src: href,
