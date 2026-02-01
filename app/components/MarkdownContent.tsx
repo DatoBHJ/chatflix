@@ -1329,7 +1329,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
   prompt?: string;
   sourceImageUrl?: string;
   onSourceImageClick?: (imageUrl: string) => void;
-}): React.ReactElement {
+}): React.ReactElement | null {
   // 🚀 INSTANT LOAD: 화면 근처(200px)에서 비디오 로드 시작 - 초기 로딩 최대화
   const { ref: lazyRef, shouldLoad } = useLazyMedia();
   
@@ -1396,14 +1396,24 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     if (isTouch) setControlsVisible(true);
   }, []);
 
-  // 🚀 근본적 해결: URL에서 크기 정보 먼저 추출, 없으면 메타데이터로 빠른 측정
+  // 🚀 근본적 해결: URL에서 크기 정보 먼저 추출 (refreshedUrl 또는 prop url), 없으면 메타데이터로 빠른 측정
   // 측정된 비율은 initialVideoAspectRatio에 저장되어 컨테이너 크기가 한 번만 설정됨
   const [initialVideoAspectRatio, setInitialVideoAspectRatio] = useState<number | null>(() => {
-    if (!refreshedUrl) return null;
-    const dimensions = parseMediaDimensions(refreshedUrl);
+    const fromRefreshed = refreshedUrl ? parseMediaDimensions(refreshedUrl) : null;
+    const fromUrl = url ? parseMediaDimensions(url) : null;
+    const dimensions = fromRefreshed ?? fromUrl;
     return dimensions ? dimensions.width / dimensions.height : null;
   });
   const preloadVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  // refreshedUrl이 나중에 채워질 때 URL에서 비율 재시도 (초기 비율 조기 확보)
+  useEffect(() => {
+    if (!refreshedUrl || initialVideoAspectRatio !== null) return;
+    const dimensions = parseMediaDimensions(refreshedUrl);
+    if (dimensions && dimensions.width > 0 && dimensions.height > 0) {
+      setInitialVideoAspectRatio(dimensions.width / dimensions.height);
+    }
+  }, [refreshedUrl, initialVideoAspectRatio]);
 
   // iOS Safari 감지 상태
   const [isIOS] = useState(() => isIOSSafari());
@@ -1809,62 +1819,9 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     return baseStyle;
   }, [maxWidth, isFullscreen, initialVideoAspectRatio]);
 
-  // 비율 미확정 시: 고정 비율(16/9) 없이 로딩 플레이스홀더만 표시 (레이아웃 시프트 방지)
-  const loadingPlaceholderStyle: React.CSSProperties = useMemo(() => ({
-    maxWidth: maxWidth || '100%',
-    width: '100%',
-    minHeight: 120,
-    backgroundColor: 'black',
-    transform: 'translateZ(0)',
-    isolation: 'isolate',
-  }), [maxWidth]);
-
+  // 비율 미확정 시: 아무것도 렌더하지 않음 (레이아웃 시프트 방지 — 비율 확보 후 한 번만 렌더)
   if (initialVideoAspectRatio === null) {
-    return (
-      <div 
-        ref={lazyRef}
-        className={`generated-video-container my-1 group relative ${showPromptOverlay ? 'cursor-default' : 'cursor-pointer'}`}
-        style={loadingPlaceholderStyle}
-      >
-        <div className="absolute inset-0 skeleton-shimmer rounded-2xl" />
-        {prompt && isMounted ? createPortal(
-          <div 
-            className={`fixed inset-0 z-[9999] text-white bg-black transition-all duration-200 ${showPromptOverlay ? 'opacity-100 pointer-events-auto visible' : 'opacity-0 pointer-events-none invisible'}`}
-            style={{ top: 0, left: 0, right: 0, bottom: 0, width: '100vw', minWidth: '100vw', height: '100vh', minHeight: '100vh', overflow: 'hidden' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="absolute inset-0 z-0 bg-black" />
-            {showPromptOverlay && (
-              <div className="absolute z-0 overflow-hidden animate-in fade-in duration-500" style={{ top: 0, left: 0, right: 0, bottom: 0, width: '100vw', minWidth: '100vw', height: '100vh', minHeight: '100vh' }}>
-                <video src={refreshedUrl} className="absolute" style={{ top: 0, left: 0, width: '100vw', minWidth: '100vw', height: '100vh', minHeight: '100vh', objectFit: 'cover', filter: (isMobile || isTouchDevice) ? 'brightness(0.3) blur(10px)' : 'brightness(0.3) blur(20px)', transform: 'scale(1.1)', objectPosition: 'center', willChange: 'transform' }} muted loop autoPlay={!(isMobile || isTouchDevice)} playsInline />
-              </div>
-            )}
-            <div className={`relative w-full h-full flex flex-col justify-center items-center text-center z-20 p-6 ${showPromptOverlay ? 'animate-in fade-in zoom-in-95 duration-300' : ''}`}>
-              <button className={`absolute ${isMobile ? 'bottom-6 right-4' : 'top-4 right-4'} z-30 w-12 h-12 rounded-full flex items-center justify-center cursor-pointer`} style={{ color: 'white', backgroundColor: '#007AFF', border: '1px solid #007AFF', boxShadow: '0 8px 40px rgba(0, 122, 255, 0.3), 0 4px 20px rgba(0, 122, 255, 0.2), 0 2px 8px rgba(0, 122, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2)' }} onClick={(e) => { e.stopPropagation(); setShowPromptOverlay(false); }} aria-label="Close prompt overlay"><Check size={18} /></button>
-              <div className="flex flex-col items-center w-full flex-1 min-h-0">
-                <div className="w-full flex justify-center flex-1 min-h-0 overflow-hidden pt-10 sm:pt-28 pb-22 sm:pb-28">
-                  <div className="max-w-3xl w-full h-full overflow-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-2 flex flex-col items-start justify-start">
-                    {sourceImageUrl && (
-                      <div className="mb-3 flex justify-center w-full">
-                        <img src={refreshedSourceImageUrl || sourceImageUrl} alt="Source image" className="max-w-[150px] max-h-[150px] object-contain rounded-lg" style={{ maxWidth: '150px', maxHeight: '150px' }} />
-                      </div>
-                    )}
-                    <div className="text-base md:text-lg font-medium leading-relaxed text-white w-full text-left py-8 whitespace-pre-wrap">{prompt}</div>
-                  </div>
-                </div>
-              </div>
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2">
-                <button onClick={(e) => { e.stopPropagation(); handleCopyPrompt(e); }} className="px-4 py-2.5 rounded-full text-white transition-colors cursor-pointer flex items-center gap-2" style={getAdaptiveGlassStyleBlur()} aria-label="Copy">
-                  {copied ? <Check size={18} /> : <Copy size={18} />}
-                  <span className="text-sm font-medium">{copied ? 'Copied!' : 'Copy'}</span>
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body
-        ) : null}
-      </div>
-    );
+    return null;
   }
 
   return (
