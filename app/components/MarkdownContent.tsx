@@ -32,6 +32,9 @@ const isIOSSafari = () => {
   return isIOS && isSafari;
 };
 
+// Fallback poster so single video area is not black before decode (iOS)
+const VIDEO_POSTER_PLACEHOLDER = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiPjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMxYTFhMWEiLz48L3N2Zz4=';
+
 // Dynamically import MermaidDiagram for client-side rendering
 const MermaidDiagram = dynamic(() => import('./Mermaid'), {
   ssr: false,
@@ -1353,6 +1356,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
 
   // 🚀 VENICE: 비율 상태 제거 - 고정 컨테이너 사용
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+  const [posterDataUrl, setPosterDataUrl] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -1416,6 +1420,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     return null;
   });
   const preloadVideoRef = useRef<HTMLVideoElement | null>(null);
+  const loadRetriedRef = useRef(false);
 
   // iOS Safari 감지 상태
   const [isIOS] = useState(() => isIOSSafari());
@@ -1439,6 +1444,18 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
         const videoHeight = video.videoHeight;
         if (videoWidth > 0 && videoHeight > 0) {
           setInitialVideoAspectRatio(videoWidth / videoHeight);
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = videoWidth;
+            canvas.height = videoHeight;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(video, 0, 0);
+              setPosterDataUrl(canvas.toDataURL('image/jpeg', 0.7));
+            }
+          } catch {
+            // ignore capture failures
+          }
         }
         cleanup();
       };
@@ -1483,6 +1500,22 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     }
   }, [shouldLoad, refreshedUrl, initialVideoAspectRatio, isIOS]);
 
+  // iOS Safari: visible <video> must receive explicit load() when src becomes available
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !shouldLoad || !refreshedUrl) return;
+    loadRetriedRef.current = false;
+    video.load();
+  }, [shouldLoad, refreshedUrl]);
+
+  // iOS Safari: retry load() once on error to avoid silent failures
+  const handleVideoError = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || !isIOS || loadRetriedRef.current) return;
+    loadRetriedRef.current = true;
+    video.load();
+  }, [isIOS]);
+
   // 비디오 메타데이터 로드 시 실제 비율 계산 (fallback)
   const handleLoadedMetadata = useCallback(() => {
     const video = videoRef.current;
@@ -1521,16 +1554,6 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
       setDuration(video.duration);
     }
   }, []);
-
-  // 모바일: 메타데이터 이벤트가 발생하지 않아도 3초 후 비디오 표시
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (!isVideoLoaded && shouldLoad) {
-        setIsVideoLoaded(true);
-      }
-    }, 3000);
-    return () => clearTimeout(timeoutId);
-  }, [shouldLoad, isVideoLoaded]);
 
   // 전체화면 상태 감지
   useEffect(() => {
@@ -1865,25 +1888,20 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
       >
         <video 
           ref={videoRef}
-          src={shouldLoad ? refreshedUrl : undefined}
-          crossOrigin="anonymous"
+          src={shouldLoad && refreshedUrl ? refreshedUrl : ''}
+          poster={posterDataUrl || VIDEO_POSTER_PLACEHOLDER}
           playsInline
           // @ts-ignore - webkit-playsinline for older iOS Safari
           webkit-playsinline="true"
           muted={isMuted}
           loop={isLooping}
           onLoadedMetadata={handleLoadedMetadata}
-          onLoadedData={() => setIsVideoLoaded(true)}
           onCanPlay={handleCanPlay}
           onDurationChange={handleDurationChange}
           onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
           onEnded={handleEnded}
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
-          onError={(e) => {
-            console.debug('Video load error:', e);
-            setIsVideoLoaded(true);
-          }}
           className={`w-full h-full object-cover transition-opacity duration-200 ${isVideoLoaded ? 'opacity-100' : 'opacity-0'}`}
           style={{
             objectFit: 'cover',
@@ -1892,6 +1910,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
           }}
           // iOS Safari에서는 preload="auto"가 더 안정적
           preload={isIOS ? 'auto' : 'metadata'}
+          onError={handleVideoError}
           onContextMenu={(e) => {
             // Sync loop state when user changes via right-click context menu
             setTimeout(() => {

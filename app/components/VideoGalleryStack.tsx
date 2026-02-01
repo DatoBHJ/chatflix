@@ -44,7 +44,7 @@ const VideoStackThumbnail = memo(function VideoStackThumbnailComponent({
     enabled: true
   });
 
-  // iOS Safari에서 비디오 로드 처리
+  // iOS Safari: explicit load() when src is set (mount and URL updates)
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !refreshedUrl) return;
@@ -57,36 +57,21 @@ const VideoStackThumbnail = memo(function VideoStackThumbnailComponent({
       setIsLoaded(true);
     };
 
-    // iOS Safari에서는 canplay 이벤트가 더 안정적
     video.addEventListener('loadeddata', handleLoadedData);
     video.addEventListener('canplay', handleCanPlay);
 
-    // iOS Safari에서 비디오 로드 강제
-    if (isIOS) {
-      video.load();
-    }
+    video.load();
 
     return () => {
       video.removeEventListener('loadeddata', handleLoadedData);
       video.removeEventListener('canplay', handleCanPlay);
     };
-  }, [refreshedUrl, isIOS]);
-
-  // 모바일: 메타데이터 이벤트가 발생하지 않아도 3초 후 썸네일 표시
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (!isLoaded && refreshedUrl) {
-        setIsLoaded(true);
-      }
-    }, 3000);
-    return () => clearTimeout(timeoutId);
-  }, [refreshedUrl, isLoaded]);
+  }, [refreshedUrl]);
 
   return (
     <video
       ref={videoRef}
-      src={refreshedUrl}
-      crossOrigin="anonymous"
+      src={refreshedUrl || ''}
       style={{
         ...style,
         opacity: isLoaded ? 1 : 0,
@@ -99,7 +84,6 @@ const VideoStackThumbnail = memo(function VideoStackThumbnailComponent({
       playsInline
       // @ts-ignore - webkit-playsinline for older iOS
       webkit-playsinline="true"
-      onError={() => setIsLoaded(true)}
     />
   );
 });

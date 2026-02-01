@@ -18,6 +18,9 @@ const isIOSSafari = () => {
   return isIOS && isSafari;
 };
 
+// Fallback poster so video area is not black before decode (iOS)
+const VIDEO_POSTER_PLACEHOLDER = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiPjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMxYTFhMWEiLz48L3N2Zz4=';
+
 interface PhotoVideoPlayerProps {
   url: string;
   aspectRatio?: string;
@@ -41,6 +44,14 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
 }: PhotoVideoPlayerProps) {
   // 🚀 INSTANT LOAD: 화면 근처(200px)에서 비디오 로드 시작
   const { ref: lazyRef, shouldLoad } = useLazyMedia();
+
+  // Main video URL refresh (signed URLs)
+  const { refreshedUrl } = useUrlRefresh({
+    url,
+    chatId,
+    messageId,
+    enabled: shouldLoad
+  });
   
   // Source image URL refresh
   const { refreshedUrl: refreshedSourceImageUrl } = useUrlRefresh({
@@ -52,6 +63,7 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
   const [exactAspectRatio, setExactAspectRatio] = useState<number>(1.0); // 기본값: 정사각형
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const loadRetriedRef = useRef(false);
   
   // Custom Controls State
   const [isPlaying, setIsPlaying] = useState(false);
@@ -106,6 +118,22 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
 
   // iOS Safari 감지
   const [isIOS] = useState(() => isIOSSafari());
+
+  // iOS Safari: visible <video> must receive explicit load() when src becomes available
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !shouldLoad || !refreshedUrl) return;
+    loadRetriedRef.current = false;
+    video.load();
+  }, [shouldLoad, refreshedUrl]);
+
+  // iOS Safari: retry load() once on error to avoid silent failures
+  const handleVideoError = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || !isIOS || loadRetriedRef.current) return;
+    loadRetriedRef.current = true;
+    video.load();
+  }, [isIOS]);
 
   const handleLoadedMetadata = useCallback(() => {
     const video = videoRef.current;
@@ -425,7 +453,8 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
       >
         <video 
           ref={videoRef}
-          src={shouldLoad ? url : undefined}
+          src={shouldLoad && refreshedUrl ? refreshedUrl : ''}
+          poster={VIDEO_POSTER_PLACEHOLDER}
           playsInline
           // @ts-ignore - webkit-playsinline for older iOS Safari
           webkit-playsinline="true"
@@ -441,6 +470,7 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
           className={`w-full h-full ${isFullscreen ? 'object-contain' : 'object-cover'}`}
           // iOS Safari에서는 preload="auto"가 더 안정적
           preload={isIOS ? 'auto' : 'metadata'}
+          onError={handleVideoError}
           style={{ aspectRatio: aspectRatioStyle }}
           onContextMenu={(e) => {
             // Sync loop state when user changes via right-click context menu
