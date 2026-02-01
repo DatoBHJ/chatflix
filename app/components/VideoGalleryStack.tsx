@@ -72,10 +72,21 @@ const VideoStackThumbnail = memo(function VideoStackThumbnailComponent({
     };
   }, [refreshedUrl, isIOS]);
 
+  // 모바일: 메타데이터 이벤트가 발생하지 않아도 3초 후 썸네일 표시
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (!isLoaded && refreshedUrl) {
+        setIsLoaded(true);
+      }
+    }, 3000);
+    return () => clearTimeout(timeoutId);
+  }, [refreshedUrl, isLoaded]);
+
   return (
     <video
       ref={videoRef}
       src={refreshedUrl}
+      crossOrigin="anonymous"
       style={{
         ...style,
         opacity: isLoaded ? 1 : 0,
@@ -88,6 +99,7 @@ const VideoStackThumbnail = memo(function VideoStackThumbnailComponent({
       playsInline
       // @ts-ignore - webkit-playsinline for older iOS
       webkit-playsinline="true"
+      onError={() => setIsLoaded(true)}
     />
   );
 });

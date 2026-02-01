@@ -1522,6 +1522,16 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     }
   }, []);
 
+  // 모바일: 메타데이터 이벤트가 발생하지 않아도 3초 후 비디오 표시
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (!isVideoLoaded && shouldLoad) {
+        setIsVideoLoaded(true);
+      }
+    }, 3000);
+    return () => clearTimeout(timeoutId);
+  }, [shouldLoad, isVideoLoaded]);
+
   // 전체화면 상태 감지
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -1856,18 +1866,24 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
         <video 
           ref={videoRef}
           src={shouldLoad ? refreshedUrl : undefined}
+          crossOrigin="anonymous"
           playsInline
           // @ts-ignore - webkit-playsinline for older iOS Safari
           webkit-playsinline="true"
           muted={isMuted}
           loop={isLooping}
           onLoadedMetadata={handleLoadedMetadata}
+          onLoadedData={() => setIsVideoLoaded(true)}
           onCanPlay={handleCanPlay}
           onDurationChange={handleDurationChange}
           onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
           onEnded={handleEnded}
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
+          onError={(e) => {
+            console.debug('Video load error:', e);
+            setIsVideoLoaded(true);
+          }}
           className={`w-full h-full object-cover transition-opacity duration-200 ${isVideoLoaded ? 'opacity-100' : 'opacity-0'}`}
           style={{
             objectFit: 'cover',
