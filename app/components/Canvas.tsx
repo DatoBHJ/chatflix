@@ -1842,65 +1842,39 @@ export default function Canvas({
                       className="border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-xl overflow-hidden shadow-sm bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)] relative min-h-[200px]"
                     >
                       {isImageToVideo ? (
-                        pendingImageAspectRatios[index] == null ? (
-                          <>
-                            <div className="relative w-full min-h-[200px] flex items-center justify-center overflow-hidden">
-                              <div
-                                className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent"
-                                style={{
-                                  backgroundSize: '200% 100%',
-                                  animation: 'shimmer 2s ease-in-out infinite'
-                                }}
-                              />
-                              <div className="prompt-overlay absolute inset-0 bg-black/75 backdrop-blur-md text-white p-6 flex flex-col justify-center items-center text-center opacity-100 transition-opacity duration-300 z-20">
-                                <div
-                                  className="text-base font-medium bg-linear-to-r from-transparent via-gray-300 to-transparent bg-clip-text text-transparent px-4"
-                                  style={{
-                                    backgroundSize: '200% 100%',
-                                    animation: 'shimmer 2s ease-in-out infinite'
-                                  }}
-                                >
-                                  {prompt}
-                                </div>
-                              </div>
-                            </div>
-                            <img
-                              src={sourceImage}
-                              alt=""
-                              className="absolute w-0 h-0 opacity-0 pointer-events-none"
-                              onLoad={(e) => {
-                                const el = e.currentTarget;
-                                const w = el.naturalWidth;
-                                const h = el.naturalHeight;
-                                if (w && h) {
-                                  setPendingImageAspectRatios((prev) => ({ ...prev, [index]: w / h }));
-                                }
+                        <div
+                          className="relative w-full"
+                          style={{
+                            aspectRatio: pendingImageAspectRatios[index] != null
+                              ? `${pendingImageAspectRatios[index]} / 1`
+                              : '16 / 9',
+                          }}
+                        >
+                          <img
+                            src={sourceImage}
+                            alt="Source image"
+                            className="w-full h-full object-contain block"
+                            onLoad={(e) => {
+                              const el = e.currentTarget;
+                              const w = el.naturalWidth;
+                              const h = el.naturalHeight;
+                              if (w && h) {
+                                setPendingImageAspectRatios((prev) => ({ ...prev, [index]: w / h }));
+                              }
+                            }}
+                          />
+                          <div className="prompt-overlay absolute inset-0 bg-black/75 backdrop-blur-md text-white p-6 flex flex-col justify-center items-center text-center opacity-100 transition-opacity duration-300 z-20">
+                            <div 
+                              className="text-base font-medium bg-linear-to-r from-transparent via-gray-300 to-transparent bg-clip-text text-transparent px-4"
+                              style={{
+                                backgroundSize: '200% 100%',
+                                animation: 'shimmer 2s ease-in-out infinite'
                               }}
-                            />
-                          </>
-                        ) : (
-                          <div
-                            className="relative w-full"
-                            style={{ aspectRatio: `${pendingImageAspectRatios[index]} / 1` }}
-                          >
-                            <img
-                              src={sourceImage}
-                              alt="Source image"
-                              className="w-full h-full object-contain block"
-                            />
-                            <div className="prompt-overlay absolute inset-0 bg-black/75 backdrop-blur-md text-white p-6 flex flex-col justify-center items-center text-center opacity-100 transition-opacity duration-300 z-20">
-                              <div
-                                className="text-base font-medium bg-linear-to-r from-transparent via-gray-300 to-transparent bg-clip-text text-transparent px-4"
-                                style={{
-                                  backgroundSize: '200% 100%',
-                                  animation: 'shimmer 2s ease-in-out infinite'
-                                }}
-                              >
-                                {prompt}
-                              </div>
+                            >
+                              {prompt}
                             </div>
                           </div>
-                        )
+                        </div>
                       ) : (
                         <>
                           <div className="absolute inset-0 bg-linear-to-br from-[color-mix(in_srgb,var(--foreground)_5%,transparent)] via-[color-mix(in_srgb,var(--foreground)_3%,transparent)] to-[color-mix(in_srgb,var(--foreground)_5%,transparent)]" />

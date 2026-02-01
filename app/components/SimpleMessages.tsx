@@ -543,11 +543,6 @@ export const SimpleMessages = memo(function SimpleMessages({
   const scrollPositionBeforeLoadRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null);
   const isInitialLoadCompleteRef = useRef(false);
   const userScrolledRef = useRef(false);
-  // Re-anchor: prepend 후 미디어 로드로 높이가 늘어나도 보이는 화면 고정
-  const RE_ANCHOR_MS = 3000;
-  const reAnchorUntilRef = useRef<number>(0);
-  const reAnchorPrevScrollHeightRef = useRef<number>(0);
-  const reAnchorIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const userScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastScrollTopRef = useRef(0);
 
@@ -1149,33 +1144,6 @@ export const SimpleMessages = memo(function SimpleMessages({
             // 정확한 스크롤 위치 복원
             containerRef.current.scrollTop = oldScrollTop + heightDiff;
             scrollPositionBeforeLoadRef.current = null;
-
-            // Re-anchor 구간 시작: 이후 미디어 로드로 높이가 늘어나면 scrollTop 재고정 (폴링)
-            reAnchorUntilRef.current = Date.now() + RE_ANCHOR_MS;
-            reAnchorPrevScrollHeightRef.current = containerRef.current.scrollHeight;
-            if (reAnchorIntervalRef.current) {
-              clearInterval(reAnchorIntervalRef.current);
-              reAnchorIntervalRef.current = null;
-            }
-            reAnchorIntervalRef.current = setInterval(() => {
-              const el = containerRef.current;
-              if (!el) return;
-              const until = reAnchorUntilRef.current;
-              if (!until || Date.now() >= until) {
-                if (reAnchorIntervalRef.current) {
-                  clearInterval(reAnchorIntervalRef.current);
-                  reAnchorIntervalRef.current = null;
-                }
-                reAnchorUntilRef.current = 0;
-                return;
-              }
-              const prev = reAnchorPrevScrollHeightRef.current;
-              const newH = el.scrollHeight;
-              if (newH > prev) {
-                el.scrollTop += newH - prev;
-                reAnchorPrevScrollHeightRef.current = newH;
-              }
-            }, 100);
             
             // 로딩 완료 후 즉시 다음 로드 체크 (연속 로드)
             if (hasMore && onLoadMore && isInitialLoadCompleteRef.current) {
@@ -1193,17 +1161,6 @@ export const SimpleMessages = memo(function SimpleMessages({
       });
     }
   }, [messages.length, isLoadingMore, hasMore, onLoadMore, handleLoadMore]);
-
-  // Re-anchor: prepend 후 일정 시간 동안 scrollHeight 증가 시 scrollTop 재고정 (미디어 로드로 화면 밀림 방지)
-  // ResizeObserver는 overflow 컨테이너에서 scrollHeight만 늘어날 때는 동작하지 않으므로 폴링 사용
-  useEffect(() => {
-    return () => {
-      if (reAnchorIntervalRef.current) {
-        clearInterval(reAnchorIntervalRef.current);
-        reAnchorIntervalRef.current = null;
-      }
-    };
-  }, []);
 
   // 스트리밍 중 하단 유지
   useEffect(() => {
