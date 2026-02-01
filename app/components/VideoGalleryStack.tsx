@@ -5,7 +5,6 @@ import { createPortal } from 'react-dom';
 import { X, LayoutGrid, Video } from 'lucide-react';
 import { DirectVideoEmbed } from './MarkdownContent';
 import { useUrlRefresh } from '@/app/hooks/useUrlRefresh';
-import { parseMediaDimensions } from '@/app/utils/imageUtils';
 
 interface VideoData {
   src: string;
@@ -22,17 +21,6 @@ const isIOSSafari = () => {
   const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS/.test(ua);
   return isIOS && isSafari;
 };
-
-// Parse numeric aspect ratio (width/height) from VideoData. Fallback 16/9.
-function getVideoAspectRatio(video: VideoData): number {
-  if (video.aspectRatio) {
-    const parts = video.aspectRatio.split(/[/:]/).map(Number);
-    if (parts.length >= 2 && parts[0] > 0 && parts[1] > 0) return parts[0] / parts[1];
-  }
-  const dims = parseMediaDimensions(video.src);
-  if (dims && dims.height > 0) return dims.width / dims.height;
-  return 16 / 9;
-}
 
 // 스택 미리보기용 비디오 썸네일 컴포넌트
 const VideoStackThumbnail = memo(function VideoStackThumbnailComponent({
@@ -175,19 +163,12 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
   const previewVideos = videos.slice(0, 5);
   const remainingCount = Math.max(0, videos.length - 5);
   
+  // 비디오 스택 높이 계산 (1:1 비율)
   const baseItemWidth = isMobile ? 280 : 340;
+  const stackItemHeight = baseItemWidth; // 1:1 비율
+  // 회전과 오프셋을 고려한 여유 공간 추가
   const extraPadding = 40;
-  const contentTop = 24 + extraPadding / 2;
-
-  // Per-video aspect ratio (width/height); fallback 16/9
-  const previewAspectRatios = previewVideos.map((v) => getVideoAspectRatio(v));
-  const itemHeights = previewAspectRatios.map((ratio) => baseItemWidth / ratio);
-
-  // Container height so all stacked cards fit: contentTop + max(itemHeight_i + offsetY_i) + 70
-  const maxStackBottom = Math.max(
-    ...itemHeights.map((h, i) => h + i * 5)
-  );
-  const stackContainerHeight = contentTop + maxStackBottom + 70;
+  const stackContainerHeight = stackItemHeight + 70 + extraPadding;
   const stackContainerWidth = isMobile ? 320 + extraPadding : 380 + extraPadding;
 
   return (
@@ -213,7 +194,6 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
         {previewVideos.map((video, index) => {
           const stackIndex = previewVideos.length - 1 - index;
           const zIndexValue = previewVideos.length - index;
-          const itemHeight = itemHeights[index];
           
           const rotation = (index - 2) * 2.5; 
           const offsetX = (index - 2) * 10; 
@@ -226,10 +206,10 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
               className="apple-image-stack-item"
               style={{
                 position: 'absolute',
-                top: `${contentTop}px`,
+                top: `${24 + extraPadding / 2}px`,
                 left: '50%',
                 width: `${baseItemWidth}px`,
-                height: `${itemHeight}px`,
+                height: `${stackItemHeight}px`,
                 transform: `translateX(-50%) translateX(${offsetX}px) translateY(${offsetY}px) rotate(${rotation}deg) scale(${scale})`,
                 zIndex: zIndexValue,
                 borderRadius: '16px',
@@ -245,7 +225,8 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
                 style={{
                   width: '100%',
                   height: '100%',
-                  objectFit: 'cover'
+                  objectFit: 'cover',
+                  aspectRatio: '1 / 1'
                 }}
               />
             </div>
