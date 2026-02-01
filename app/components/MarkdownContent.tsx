@@ -1397,12 +1397,23 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     if (isTouch) setControlsVisible(true);
   }, []);
 
-  // 🚀 근본적 해결: URL에서 크기 정보 먼저 추출, 없으면 메타데이터로 빠른 측정
+  // 🚀 근본적 해결: URL에서 크기 정보 먼저 추출, 없으면 prop aspectRatio, 없으면 메타데이터로 빠른 측정
   // 측정된 비율은 initialVideoAspectRatio에 저장되어 컨테이너 크기가 한 번만 설정됨
   const [initialVideoAspectRatio, setInitialVideoAspectRatio] = useState<number | null>(() => {
-    if (!refreshedUrl) return null;
-    const dimensions = parseMediaDimensions(refreshedUrl);
-    return dimensions ? dimensions.width / dimensions.height : null;
+    if (refreshedUrl) {
+      const dimensions = parseMediaDimensions(refreshedUrl);
+      if (dimensions) return dimensions.width / dimensions.height;
+    }
+    // 부모가 넘긴 aspectRatio prop 사용 (이미지와 동일하게 "16/9" 등 문자열)
+    if (aspectRatio) {
+      try {
+        const [w, h] = aspectRatio.split('/').map(Number);
+        if (w > 0 && h > 0) return w / h;
+      } catch {
+        // ignore
+      }
+    }
+    return null;
   });
   const preloadVideoRef = useRef<HTMLVideoElement | null>(null);
 
