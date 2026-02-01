@@ -1329,7 +1329,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
   prompt?: string;
   sourceImageUrl?: string;
   onSourceImageClick?: (imageUrl: string) => void;
-}) {
+}): React.ReactElement {
   // 🚀 INSTANT LOAD: 화면 근처(200px)에서 비디오 로드 시작 - 초기 로딩 최대화
   const { ref: lazyRef, shouldLoad } = useLazyMedia();
   
@@ -1809,15 +1809,71 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     return baseStyle;
   }, [maxWidth, isFullscreen, initialVideoAspectRatio]);
 
+  // 비율 미확정 시: 고정 비율(16/9) 없이 로딩 플레이스홀더만 표시 (레이아웃 시프트 방지)
+  const loadingPlaceholderStyle: React.CSSProperties = useMemo(() => ({
+    maxWidth: maxWidth || '100%',
+    width: '100%',
+    minHeight: 120,
+    backgroundColor: 'black',
+    transform: 'translateZ(0)',
+    isolation: 'isolate',
+  }), [maxWidth]);
+
+  if (initialVideoAspectRatio === null) {
+    return (
+      <div 
+        ref={lazyRef}
+        className={`generated-video-container my-1 group relative ${showPromptOverlay ? 'cursor-default' : 'cursor-pointer'}`}
+        style={loadingPlaceholderStyle}
+      >
+        <div className="absolute inset-0 skeleton-shimmer rounded-2xl" />
+        {prompt && isMounted ? createPortal(
+          <div 
+            className={`fixed inset-0 z-[9999] text-white bg-black transition-all duration-200 ${showPromptOverlay ? 'opacity-100 pointer-events-auto visible' : 'opacity-0 pointer-events-none invisible'}`}
+            style={{ top: 0, left: 0, right: 0, bottom: 0, width: '100vw', minWidth: '100vw', height: '100vh', minHeight: '100vh', overflow: 'hidden' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="absolute inset-0 z-0 bg-black" />
+            {showPromptOverlay && (
+              <div className="absolute z-0 overflow-hidden animate-in fade-in duration-500" style={{ top: 0, left: 0, right: 0, bottom: 0, width: '100vw', minWidth: '100vw', height: '100vh', minHeight: '100vh' }}>
+                <video src={refreshedUrl} className="absolute" style={{ top: 0, left: 0, width: '100vw', minWidth: '100vw', height: '100vh', minHeight: '100vh', objectFit: 'cover', filter: (isMobile || isTouchDevice) ? 'brightness(0.3) blur(10px)' : 'brightness(0.3) blur(20px)', transform: 'scale(1.1)', objectPosition: 'center', willChange: 'transform' }} muted loop autoPlay={!(isMobile || isTouchDevice)} playsInline />
+              </div>
+            )}
+            <div className={`relative w-full h-full flex flex-col justify-center items-center text-center z-20 p-6 ${showPromptOverlay ? 'animate-in fade-in zoom-in-95 duration-300' : ''}`}>
+              <button className={`absolute ${isMobile ? 'bottom-6 right-4' : 'top-4 right-4'} z-30 w-12 h-12 rounded-full flex items-center justify-center cursor-pointer`} style={{ color: 'white', backgroundColor: '#007AFF', border: '1px solid #007AFF', boxShadow: '0 8px 40px rgba(0, 122, 255, 0.3), 0 4px 20px rgba(0, 122, 255, 0.2), 0 2px 8px rgba(0, 122, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2)' }} onClick={(e) => { e.stopPropagation(); setShowPromptOverlay(false); }} aria-label="Close prompt overlay"><Check size={18} /></button>
+              <div className="flex flex-col items-center w-full flex-1 min-h-0">
+                <div className="w-full flex justify-center flex-1 min-h-0 overflow-hidden pt-10 sm:pt-28 pb-22 sm:pb-28">
+                  <div className="max-w-3xl w-full h-full overflow-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-2 flex flex-col items-start justify-start">
+                    {sourceImageUrl && (
+                      <div className="mb-3 flex justify-center w-full">
+                        <img src={refreshedSourceImageUrl || sourceImageUrl} alt="Source image" className="max-w-[150px] max-h-[150px] object-contain rounded-lg" style={{ maxWidth: '150px', maxHeight: '150px' }} />
+                      </div>
+                    )}
+                    <div className="text-base md:text-lg font-medium leading-relaxed text-white w-full text-left py-8 whitespace-pre-wrap">{prompt}</div>
+                  </div>
+                </div>
+              </div>
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2">
+                <button onClick={(e) => { e.stopPropagation(); handleCopyPrompt(e); }} className="px-4 py-2.5 rounded-full text-white transition-colors cursor-pointer flex items-center gap-2" style={getAdaptiveGlassStyleBlur()} aria-label="Copy">
+                  {copied ? <Check size={18} /> : <Copy size={18} />}
+                  <span className="text-sm font-medium">{copied ? 'Copied!' : 'Copy'}</span>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div 
       ref={lazyRef}
       className={`generated-video-container my-1 group relative ${showPromptOverlay ? 'cursor-default' : 'cursor-pointer'}`}
       style={{
         ...containerStyle,
-        // GPU 가속으로 레이아웃 변경 성능 향상
         transform: 'translateZ(0)',
-        // 레이아웃 격리로 부모에 영향 최소화
         isolation: 'isolate',
       }}
     >
@@ -1825,44 +1881,44 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
       {!isVideoLoaded && (
         <div className="absolute inset-0 skeleton-shimmer rounded-2xl" />
       )}
-      
+
       {/* 🚀 비디오가 컨테이너를 꽉 채우도록 표시 */}
       <div 
         ref={containerRef}
-        className={`relative w-full h-full overflow-hidden bg-black transition-opacity duration-300 ${isFullscreen ? 'rounded-none' : 'rounded-2xl'} ${showPromptOverlay ? 'cursor-default opacity-0 pointer-events-none' : 'opacity-100'}`}
-        onClick={showPromptOverlay ? undefined : handleVideoClick}
-      >
-        <video 
-          ref={videoRef}
-          src={shouldLoad ? refreshedUrl : undefined}
-          playsInline
-          // @ts-ignore - webkit-playsinline for older iOS Safari
-          webkit-playsinline="true"
-          muted={isMuted}
-          loop
-          onLoadedMetadata={handleLoadedMetadata}
-          onCanPlay={handleCanPlay}
-          onDurationChange={handleDurationChange}
-          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-          onEnded={handleEnded}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          className={`w-full h-full object-cover transition-opacity duration-200 ${isVideoLoaded ? 'opacity-100' : 'opacity-0'}`}
-          style={{
-            objectFit: 'cover',
-            width: '100%',
-            height: '100%',
-          }}
-          // iOS Safari에서는 preload="auto"가 더 안정적
-          preload={isIOS ? 'auto' : 'metadata'}
-        >
-          Your browser does not support the video tag.
-        </video>
-        
-        {/* Custom Overlays */}
-        
-        {/* Center Play Button - Visible when paused */}
-        {!isPlaying && !isRefreshing && (
+            className={`relative w-full h-full overflow-hidden bg-black transition-opacity duration-300 ${isFullscreen ? 'rounded-none' : 'rounded-2xl'} ${showPromptOverlay ? 'cursor-default opacity-0 pointer-events-none' : 'opacity-100'}`}
+            onClick={showPromptOverlay ? undefined : handleVideoClick}
+          >
+            <video 
+              ref={videoRef}
+              src={shouldLoad ? refreshedUrl : undefined}
+              playsInline
+              // @ts-ignore - webkit-playsinline for older iOS Safari
+              webkit-playsinline="true"
+              muted={isMuted}
+              loop
+              onLoadedMetadata={handleLoadedMetadata}
+              onCanPlay={handleCanPlay}
+              onDurationChange={handleDurationChange}
+              onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+              onEnded={handleEnded}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              className={`w-full h-full object-cover transition-opacity duration-200 ${isVideoLoaded ? 'opacity-100' : 'opacity-0'}`}
+              style={{
+                objectFit: 'cover',
+                width: '100%',
+                height: '100%',
+              }}
+              // iOS Safari에서는 preload="auto"가 더 안정적
+              preload={isIOS ? 'auto' : 'metadata'}
+            >
+              Your browser does not support the video tag.
+            </video>
+
+            {/* Custom Overlays */}
+
+            {/* Center Play Button - Visible when paused */}
+            {!isPlaying && !isRefreshing && (
           <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-auto" onClick={togglePlay}>
             <div className="w-16 h-16 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white transition-all hover:scale-105 hover:bg-black/50">
               <Play size={32} fill="white" className="ml-1 opacity-95" />
@@ -1995,9 +2051,10 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
             <div className="w-8 h-8 border-2 border-white/20 border-t-white/80 rounded-full animate-spin" />
           </div>
         )}
+      </div>
 
-        {/* 프롬프트 오버레이 - 항상 마운트하되 가시성만 조절하여 즉각적인 반응성 확보 (채팅창 배경 노출 방지) */}
-        {prompt && isMounted ? createPortal(
+      {/* 프롬프트 오버레이 - 항상 마운트하되 가시성만 조절하여 즉각적인 반응성 확보 (채팅창 배경 노출 방지) */}
+      {prompt && isMounted ? createPortal(
           <div 
             className={`fixed inset-0 z-[9999] text-white bg-black transition-all duration-200 ${showPromptOverlay ? 'opacity-100 pointer-events-auto visible' : 'opacity-0 pointer-events-none invisible'}`}
             style={{
@@ -2124,7 +2181,6 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
           </div>,
           document.body
         ) : null}
-      </div>
     </div>
   );
 });
