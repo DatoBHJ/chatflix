@@ -361,6 +361,7 @@ interface MarkdownContentProps {
   userId?: string; // 🚀 FEATURE: For URL refreshing
   promptMap?: { [key: string]: string }; // 🚀 FEATURE: Prompt map for image prompts
   sourceImageMap?: { [key: string]: string }; // 🚀 FEATURE: Source image map for video prompts
+  mediaDimensionsMap?: { [key: string]: { width: number; height: number } }; // layout: reserve exact space before media load
 }
 
 // 더 적극적으로 마크다운 구조를 분할하는 함수 - 구분선(---)을 기준으로 메시지 그룹 분할
@@ -1396,9 +1397,20 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     if (isTouch) setControlsVisible(true);
   }, []);
 
-  // 🚀 근본적 해결: URL에서 크기 정보 먼저 추출 (refreshedUrl 또는 prop url), 없으면 메타데이터로 빠른 측정
-  // 측정된 비율은 initialVideoAspectRatio에 저장되어 컨테이너 크기가 한 번만 설정됨
+  // Parse aspect ratio string "16/9" or "16:9" to number (for layout stability: prop first)
+  const parseAspectRatioProp = (ar: string | undefined): number | null => {
+    if (!ar || typeof ar !== 'string') return null;
+    const parts = ar.split(/[/:]/).map((n) => parseInt(n.trim(), 10));
+    if (parts.length >= 2 && !Number.isNaN(parts[0]) && !Number.isNaN(parts[1]) && parts[0] > 0 && parts[1] > 0) {
+      return parts[0] / parts[1];
+    }
+    return null;
+  };
+
+  // 🚀 prop → URL (refreshedUrl / url) → metadata; once set, container size never changes
   const [initialVideoAspectRatio, setInitialVideoAspectRatio] = useState<number | null>(() => {
+    const fromProp = parseAspectRatioProp(aspectRatio);
+    if (fromProp != null) return fromProp;
     const fromRefreshed = refreshedUrl ? parseMediaDimensions(refreshedUrl) : null;
     const fromUrl = url ? parseMediaDimensions(url) : null;
     const dimensions = fromRefreshed ?? fromUrl;
@@ -1406,14 +1418,20 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
   });
   const preloadVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  // refreshedUrl이 나중에 채워질 때 URL에서 비율 재시도 (초기 비율 조기 확보)
+  // When refreshedUrl fills in and we still have no ratio: try prop first, then URL parse
   useEffect(() => {
-    if (!refreshedUrl || initialVideoAspectRatio !== null) return;
+    if (initialVideoAspectRatio !== null) return;
+    const fromProp = parseAspectRatioProp(aspectRatio);
+    if (fromProp != null) {
+      setInitialVideoAspectRatio(fromProp);
+      return;
+    }
+    if (!refreshedUrl) return;
     const dimensions = parseMediaDimensions(refreshedUrl);
     if (dimensions && dimensions.width > 0 && dimensions.height > 0) {
       setInitialVideoAspectRatio(dimensions.width / dimensions.height);
     }
-  }, [refreshedUrl, initialVideoAspectRatio]);
+  }, [refreshedUrl, initialVideoAspectRatio, aspectRatio]);
 
   // iOS Safari 감지 상태
   const [isIOS] = useState(() => isIOSSafari());
@@ -2160,7 +2178,8 @@ function MarkdownContentComponent({
   chatId,
   userId,
   promptMap = {},
-  sourceImageMap = {}
+  sourceImageMap = {},
+  mediaDimensionsMap = {}
 }: MarkdownContentProps) {
 
   // Image modal state
@@ -2411,11 +2430,16 @@ function MarkdownContentComponent({
     return segmentContent(processedContent);
   }, [processedContent, enableSegmentation]);
 
-  // Extract all images from content for gallery functionality
+  // Extract all images from content for gallery functionality (include aspectRatio from mediaDimensionsMap for layout stability)
   const allImages = useMemo(() => {
-    const images: { src: string; alt: string; originalMatch?: string; prompt?: string }[] = [];
+    const images: { src: string; alt: string; originalMatch?: string; prompt?: string; aspectRatio?: string }[] = [];
     
-    // Extract images from markdown image syntax (these are already processed from IMAGE_ID)
+    const getAspectRatio = (src: string): string | undefined => {
+      const dims = mediaDimensionsMap && mediaDimensionsMap[src];
+      if (dims && dims.width > 0 && dims.height > 0) return `${dims.width}/${dims.height}`;
+      return undefined;
+    };
+
     const markdownImageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
     let match;
     while ((match = markdownImageRegex.exec(processedContent)) !== null) {
@@ -2425,57 +2449,57 @@ function MarkdownContentComponent({
         src, 
         alt: alt || `Image ${images.length + 1}`,
         originalMatch: fullMatch,
-        prompt
+        prompt,
+        aspectRatio: getAspectRatio(src)
       });
     }
     
-    // Extract Supabase storage image URLs (both custom domain and default domain)
     const supabaseImageRegex = /(https:\/\/[^\s/]+\/storage\/v1\/object\/(public\/gemini-images|sign\/generated-images)\/[^\s)]+)/g;
     while ((match = supabaseImageRegex.exec(processedContent)) !== null) {
       const src = match[1];
-      // Avoid duplicates
       if (!images.find(img => img.src === src)) {
         const prompt = promptMap[src] || undefined;
         images.push({ 
           src, 
           alt: `Generated image ${images.length + 1}`,
           originalMatch: match[0],
-          prompt
+          prompt,
+          aspectRatio: getAspectRatio(src)
         });
       }
     }
     
     console.log('Extracted images for gallery:', images);
     return images;
-  }, [processedContent, promptMap]);
+  }, [processedContent, promptMap, mediaDimensionsMap]);
 
-  // Extract all videos from content for gallery functionality
+  // Extract all videos from content for gallery functionality (aspectRatio: mediaDimensionsMap first, then URL parse)
   const allVideos = useMemo(() => {
     const videos: { src: string; prompt?: string; sourceImageUrl?: string; aspectRatio?: string }[] = [];
     
-    // Extract video URLs from markdown links and direct URLs
+    const getAspectRatio = (src: string): string | undefined => {
+      const dims = mediaDimensionsMap && mediaDimensionsMap[src];
+      if (dims && dims.width > 0 && dims.height > 0) return `${dims.width}/${dims.height}`;
+      const dimensions = parseMediaDimensions(src);
+      return dimensions ? `${dimensions.width}/${dimensions.height}` : undefined;
+    };
+
     const videoUrlRegex = /(https?:\/\/[^\s"'<>)]+\.(mp4|webm|mov)|https?:\/\/[^\s"'<>)]*generated-videos[^\s"'<>)]+)/gi;
     let match;
     while ((match = videoUrlRegex.exec(processedContent)) !== null) {
       const src = match[1];
-      // Avoid duplicates
       if (!videos.find(v => v.src === src)) {
         const prompt = promptMap[src] || undefined;
         const sourceImageUrl = sourceImageMap && sourceImageMap[src] ? sourceImageMap[src] : undefined;
-        // Extract aspect ratio from URL if available
-        const dimensions = parseMediaDimensions(src);
-        const aspectRatio = dimensions ? `${dimensions.width}/${dimensions.height}` : undefined;
-        
         videos.push({ 
           src,
           prompt,
           sourceImageUrl,
-          aspectRatio
+          aspectRatio: getAspectRatio(src)
         });
       }
     }
     
-    // Also check for video links in markdown link syntax
     const markdownLinkRegex = /\[([^\]]*)\]\(([^)]+)\)/g;
     while ((match = markdownLinkRegex.exec(processedContent)) !== null) {
       const [, linkText, href] = match;
@@ -2489,21 +2513,18 @@ function MarkdownContentComponent({
       if (isVideoFile && !videos.find(v => v.src === href)) {
         const prompt = promptMap[href] || undefined;
         const sourceImageUrl = sourceImageMap && sourceImageMap[href] ? sourceImageMap[href] : undefined;
-        const dimensions = parseMediaDimensions(href);
-        const aspectRatio = dimensions ? `${dimensions.width}/${dimensions.height}` : undefined;
-        
         videos.push({ 
           src: href,
           prompt,
           sourceImageUrl,
-          aspectRatio
+          aspectRatio: getAspectRatio(href)
         });
       }
     }
     
     console.log('Extracted videos for gallery:', videos);
     return videos;
-  }, [processedContent, promptMap, sourceImageMap]);
+  }, [processedContent, promptMap, sourceImageMap, mediaDimensionsMap]);
 
 
 
@@ -2923,6 +2944,7 @@ function MarkdownContentComponent({
       );
       const imagePrompt = imageData?.prompt;
       const imageSourceImageUrl = sourceImageMap ? sourceImageMap[src] : undefined;
+      const imageAspectRatio = imageData?.aspectRatio ?? (mediaDimensionsMap?.[src] ? `${mediaDimensionsMap[src].width}/${mediaDimensionsMap[src].height}` : undefined);
       
       // ImageGalleryStack을 사용하여 단일 이미지도 렌더링
       return (
@@ -2942,7 +2964,8 @@ function MarkdownContentComponent({
               src: src,
               alt: alt || "Image",
               prompt: imagePrompt,
-              sourceImageUrl: imageSourceImageUrl
+              sourceImageUrl: imageSourceImageUrl,
+              aspectRatio: imageAspectRatio
             }]}
             onSingleImageClick={(imageSrc, imageAlt, allImagesArray, imageIndex) => {
               const foundIndex = allImages.findIndex(img => 

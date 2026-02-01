@@ -80,6 +80,7 @@ interface MessageProps {
   linkPreviewData?: Record<string, LinkCardData>
   promptMap?: { [key: string]: string }
   sourceImageMap?: { [key: string]: string }
+  mediaDimensionsMap?: { [key: string]: { width: number; height: number } }
   isBookmarked?: boolean
   onBookmarkToggle?: (messageId: string, shouldBookmark: boolean) => Promise<void>
   isBookmarksLoading?: boolean
@@ -311,7 +312,8 @@ const areMessagePropsEqual = (prevProps: any, nextProps: any) => {
     prevProps.titleMap === nextProps.titleMap &&
     prevProps.linkPreviewData === nextProps.linkPreviewData &&
     prevProps.promptMap === nextProps.promptMap &&
-    prevProps.sourceImageMap === nextProps.sourceImageMap;
+    prevProps.sourceImageMap === nextProps.sourceImageMap &&
+    prevProps.mediaDimensionsMap === nextProps.mediaDimensionsMap;
   
   // 모든 핵심 필드가 같으면 리렌더링 방지
   return messageCoreEqual && otherPropsEqual;
@@ -361,6 +363,7 @@ const Message = memo(function MessageComponent({
   linkPreviewData = {},
   promptMap = {},
   sourceImageMap = {},
+  mediaDimensionsMap = {},
   isBookmarked,
   onBookmarkToggle,
   isBookmarksLoading,
@@ -2905,6 +2908,7 @@ const Message = memo(function MessageComponent({
                             userId={user?.id}
                             promptMap={promptMap}
                             sourceImageMap={sourceImageMap}
+                            mediaDimensionsMap={mediaDimensionsMap}
                           />
                         </div>
                       </div>
@@ -3267,10 +3271,10 @@ const Message = memo(function MessageComponent({
                 
                   {message.parts ? (
                     processedParts?.map((part: any, index: number) => (
-                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id}/>
+                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap}/>
                     ))
                   ) : (
-                    (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id}/>
+                    (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap}/>
                   )}
                   
                   <div className={!!structuredDescription ? 'mb-4' : ''}>
@@ -3434,6 +3438,9 @@ const Message = memo(function MessageComponent({
                                   messageId={message.id}
                                   chatId={chatId}
                                   userId={user?.id}
+                                  promptMap={promptMap}
+                                  sourceImageMap={sourceImageMap}
+                                  mediaDimensionsMap={mediaDimensionsMap}
                                 />
                               </div>
                             </div>
@@ -3664,10 +3671,10 @@ const Message = memo(function MessageComponent({
                   
                     {message.parts ? (
                       processedParts?.map((part: any, index: number) => (
-                        part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={true} noTail={true} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id}/>
+                        part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={true} noTail={true} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap}/>
                       ))
                     ) : (
-                      (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={true} noTail={true} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id}/>
+                      (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={true} noTail={true} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap}/>
                     )}
                       
                       <FilesPreview

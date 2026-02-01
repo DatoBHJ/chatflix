@@ -11,6 +11,15 @@ import { ImageModal, type ImageModalImage } from './ImageModal';
 
 // 🚀 VENICE STYLE: 고정 컨테이너 크기로 레이아웃 시프트 완전 방지
 // 핵심: 컨테이너 크기가 이미지 로드 전후로 절대 변하지 않음
+function parseAspectRatioString(ar: string): number | null {
+  if (!ar || typeof ar !== 'string') return null;
+  const parts = ar.split(/[/:]/).map((n) => parseInt(n.trim(), 10));
+  if (parts.length >= 2 && !Number.isNaN(parts[0]) && !Number.isNaN(parts[1]) && parts[0] > 0 && parts[1] > 0) {
+    return parts[0] / parts[1];
+  }
+  return null;
+}
+
 const SimpleImageWithLoading = memo(function SimpleImageWithLoadingComponent({ 
   src, 
   alt, 
@@ -22,7 +31,8 @@ const SimpleImageWithLoading = memo(function SimpleImageWithLoadingComponent({
   sourceImageUrl,
   onSourceImageClick,
   chatId,
-  messageId
+  messageId,
+  aspectRatio: aspectRatioProp
 }: { 
   src: string; 
   alt: string; 
@@ -35,6 +45,7 @@ const SimpleImageWithLoading = memo(function SimpleImageWithLoadingComponent({
   onSourceImageClick?: (imageUrl: string) => void;
   chatId?: string;
   messageId?: string;
+  aspectRatio?: string; // e.g. "16/9" for layout stability (prop first, then URL, then measure)
 }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState(false);
@@ -74,9 +85,10 @@ const SimpleImageWithLoading = memo(function SimpleImageWithLoadingComponent({
     enabled: shouldLoad && !!sourceImageUrl
   });
 
-  // 🚀 근본적 해결: URL에서 크기 정보 먼저 추출, 없으면 숨겨진 이미지로 빠른 측정
-  // 측정된 비율은 initialAspectRatio에 저장되어 컨테이너 크기가 한 번만 설정됨
+  // 🚀 prop → URL → hidden image measure; once set, container size never changes
   const [initialAspectRatio, setInitialAspectRatio] = useState<number | null>(() => {
+    const fromProp = aspectRatioProp ? parseAspectRatioString(aspectRatioProp) : null;
+    if (fromProp != null) return fromProp;
     if (!src) return null;
     const dimensions = parseMediaDimensions(src);
     return dimensions ? dimensions.width / dimensions.height : null;
@@ -426,6 +438,7 @@ interface ImageData {
   originalMatch?: string;
   prompt?: string;
   sourceImageUrl?: string;
+  aspectRatio?: string; // e.g. "16/9" for layout stability (reserve space before load)
 }
 
 // 갤러리 그리드 아이템 컴포넌트 (각각 자체 Save 상태 관리)
@@ -891,6 +904,7 @@ export const ImageGalleryStack = memo(function ImageGalleryStackComponent({
               showHoverActions={true}
               prompt={image.prompt}
               sourceImageUrl={image.sourceImageUrl}
+              aspectRatio={image.aspectRatio}
               onSourceImageClick={onSourceImageClick}
               chatId={chatId}
               messageId={messageId}

@@ -355,6 +355,71 @@ const MessageItem = memo(function MessageItem({
     return map;
   }, [wan25VideoData?.generatedVideos, geminiImageData?.generatedImages, seedreamImageData?.generatedImages, qwenImageData?.generatedImages, (message as any).parts]);
 
+  // url -> { width, height } for layout stability (reserve exact space before media load)
+  const mediaDimensionsMap = useMemo(() => {
+    const map: Record<string, { width: number; height: number }> = {};
+    const parseSize = (size: string): { width: number; height: number } | null => {
+      if (!size || typeof size !== 'string') return null;
+      const parts = size.split(/[x*×]/i).map((n) => parseInt(n.trim(), 10));
+      if (parts.length >= 2 && !Number.isNaN(parts[0]) && !Number.isNaN(parts[1]) && parts[0] > 0 && parts[1] > 0) {
+        return { width: parts[0], height: parts[1] };
+      }
+      return null;
+    };
+    const parseAspectRatio = (ar: string): { width: number; height: number } | null => {
+      if (!ar || typeof ar !== 'string') return null;
+      const parts = ar.split(/[/:]/).map((n) => parseInt(n.trim(), 10));
+      if (parts.length >= 2 && !Number.isNaN(parts[0]) && !Number.isNaN(parts[1]) && parts[0] > 0 && parts[1] > 0) {
+        return { width: parts[0], height: parts[1] };
+      }
+      return null;
+    };
+
+    (message as any).experimental_attachments?.forEach((att: any) => {
+      if (!att?.url) return;
+      const w = att.metadata?.width;
+      const h = att.metadata?.height;
+      if (typeof w === 'number' && typeof h === 'number' && w > 0 && h > 0) {
+        map[att.url] = { width: w, height: h };
+      }
+    });
+
+    geminiImageData?.generatedImages?.forEach((image: any) => {
+      if (!image.imageUrl || map[image.imageUrl]) return;
+      const dims = (image.metadata && typeof image.metadata.width === 'number' && typeof image.metadata.height === 'number')
+        ? { width: image.metadata.width, height: image.metadata.height }
+        : (image.size && parseSize(image.size)) || (image.aspectRatio && parseAspectRatio(image.aspectRatio));
+      if (dims) map[image.imageUrl] = dims;
+    });
+    seedreamImageData?.generatedImages?.forEach((image: any) => {
+      if (!image.imageUrl || map[image.imageUrl]) return;
+      const dims = (image.width != null && image.height != null) ? { width: image.width, height: image.height }
+        : (image.size && parseSize(image.size)) || (image.aspectRatio && parseAspectRatio(image.aspectRatio));
+      if (dims) map[image.imageUrl] = dims;
+    });
+    qwenImageData?.generatedImages?.forEach((image: any) => {
+      if (!image.imageUrl || map[image.imageUrl]) return;
+      const dims = (image.width != null && image.height != null) ? { width: image.width, height: image.height }
+        : (image.size && parseSize(image.size)) || (image.aspectRatio && parseAspectRatio(image.aspectRatio));
+      if (dims) map[image.imageUrl] = dims;
+    });
+    imageGeneratorData?.generatedImages?.forEach((image: any) => {
+      if (!image.imageUrl || map[image.imageUrl]) return;
+      const dims = (image.width != null && image.height != null) ? { width: image.width, height: image.height }
+        : (image.size && parseSize(image.size)) || (image.aspectRatio && parseAspectRatio(image.aspectRatio));
+      if (dims) map[image.imageUrl] = dims;
+    });
+    wan25VideoData?.generatedVideos?.forEach((video: any) => {
+      if (!video.videoUrl || map[video.videoUrl]) return;
+      const dims = (video.width != null && video.height != null) ? { width: video.width, height: video.height }
+        : (video.size && parseSize(video.size)) || (video.aspectRatio && parseAspectRatio(video.aspectRatio))
+        || (video.resolution && parseSize(video.resolution));
+      if (dims) map[video.videoUrl] = dims;
+    });
+
+    return map;
+  }, [(message as any).experimental_attachments, geminiImageData?.generatedImages, seedreamImageData?.generatedImages, qwenImageData?.generatedImages, imageGeneratorData?.generatedImages, wan25VideoData?.generatedVideos]);
+
   const maps = useMemo(() => {
     return { 
       imageMap: combinedImageMap, 
@@ -364,9 +429,10 @@ const MessageItem = memo(function MessageItem({
       linkPreviewData, 
       videoMap: combinedVideoMap, 
       promptMap,
-      sourceImageMap
+      sourceImageMap,
+      mediaDimensionsMap
     };
-  }, [combinedImageMap, linkMap, thumbnailMap, titleMap, linkPreviewData, combinedVideoMap, promptMap, sourceImageMap]);
+  }, [combinedImageMap, linkMap, thumbnailMap, titleMap, linkPreviewData, combinedVideoMap, promptMap, sourceImageMap, mediaDimensionsMap]);
 
   const showTimestamp = useMemo(() => {
     if (!previousMessage) return false;
@@ -453,6 +519,7 @@ const MessageItem = memo(function MessageItem({
             linkPreviewData={maps.linkPreviewData}
             promptMap={maps.promptMap}
             sourceImageMap={maps.sourceImageMap}
+            mediaDimensionsMap={maps.mediaDimensionsMap}
             isBookmarked={bookmarkedMessageIds.has(message.id)}
             onBookmarkToggle={handleBookmarkToggle}
             isBookmarksLoading={isBookmarksLoading}
