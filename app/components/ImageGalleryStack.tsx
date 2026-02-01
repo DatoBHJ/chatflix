@@ -560,7 +560,7 @@ const GalleryGridItem = memo(function GalleryGridItemComponent({
 
   return (
     <div 
-      className={`generated-image-container relative cursor-pointer overflow-hidden rounded-xl bg-neutral-800 transition-transform hover:scale-[1.02] active:scale-[0.98] ${
+      className={`generated-image-container relative cursor-pointer overflow-hidden rounded-xl bg-neutral-800 transition-transform hover:scale-[1.02] active:scale-[0.98] w-full min-w-full ${
         ratioType === 'portrait' ? 'aspect-[3/4]' : 
         ratioType === 'landscape' ? 'aspect-[4/3]' : 'aspect-square'
       }`}
@@ -1028,10 +1028,10 @@ export const ImageGalleryStack = memo(function ImageGalleryStackComponent({
 
           {/* Grid - 정형화된 비율 적용 */}
           <div 
-            className="absolute inset-0 overflow-y-auto pt-20 pb-12 px-4"
+            className={`absolute inset-0 overflow-y-auto pt-20 pb-12 ${isMobile ? 'px-0' : 'px-4'}`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="grid grid-cols-2 gap-3 max-w-3xl mx-auto">
+            <div className={`grid ${isMobile ? 'grid-cols-1 w-full px-4' : 'grid-cols-2 max-w-3xl'} gap-3 mx-auto justify-items-center`}>
               {images.map((image, index) => (
                 <GalleryGridItem
                   key={index}
