@@ -59,7 +59,6 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
   const [volume, setVolume] = useState(0); // 0-1, starts at 0 when muted
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [isLooping, setIsLooping] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   
@@ -263,15 +262,6 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
     }
   }, []);
 
-  const toggleLoop = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    const video = videoRef.current;
-    if (!video) return;
-
-    video.loop = !video.loop;
-    setIsLooping(video.loop);
-  }, []);
-
   const handleDownload = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!url) return;
@@ -430,7 +420,7 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
           // @ts-ignore - webkit-playsinline for older iOS Safari
           webkit-playsinline="true"
           muted={isMuted}
-          loop={isLooping}
+          loop
           onLoadedMetadata={handleLoadedMetadata}
           onCanPlay={handleCanPlay}
           onDurationChange={handleDurationChange}
@@ -442,15 +432,6 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
           // iOS Safari에서는 preload="auto"가 더 안정적
           preload={isIOS ? 'auto' : 'metadata'}
           style={{ aspectRatio: aspectRatioStyle }}
-          onContextMenu={(e) => {
-            // Sync loop state when user changes via right-click context menu
-            setTimeout(() => {
-              const video = videoRef.current;
-              if (video) {
-                setIsLooping(video.loop);
-              }
-            }, 100);
-          }}
         >
           Your browser does not support the video tag.
         </video>
@@ -572,22 +553,6 @@ export const PhotoVideoPlayer = memo(function PhotoVideoPlayerComponent({
                   </button>
                 )}
 
-                {/* Loop Toggle */}
-                <button 
-                  onClick={toggleLoop} 
-                  className={`hover:scale-110 transition-transform p-1 relative ${isLooping ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17 2l4 4-4 4" />
-                    <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
-                    <path d="M7 22l-4-4 4-4" />
-                    <path d="M21 13v1a4 4 0 0 1-4 4H3" />
-                    {isLooping && (
-                      <text x="12" y="14" textAnchor="middle" fontSize="8" fill="currentColor" stroke="none" fontWeight="bold">1</text>
-                    )}
-                  </svg>
-                </button>
-                
                 {/* Fullscreen */}
                 <button onClick={toggleFullScreen} className="hover:scale-110 transition-transform p-1 opacity-80 hover:opacity-100">
                   <Maximize size={18} />
