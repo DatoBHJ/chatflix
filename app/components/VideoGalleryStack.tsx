@@ -5,12 +5,24 @@ import { createPortal } from 'react-dom';
 import { X, LayoutGrid, Video } from 'lucide-react';
 import { DirectVideoEmbed } from './MarkdownContent';
 import { useUrlRefresh } from '@/app/hooks/useUrlRefresh';
+import { parseMediaDimensions } from '@/app/utils/imageUtils';
 
 interface VideoData {
   src: string;
   prompt?: string;
   sourceImageUrl?: string;
   aspectRatio?: string;
+}
+
+// Parse numeric aspect ratio (width/height) from VideoData. Fallback 16/9.
+function getVideoAspectRatio(video: VideoData): number {
+  if (video.aspectRatio) {
+    const parts = video.aspectRatio.split(/[/:]/).map(Number);
+    if (parts.length >= 2 && parts[0] > 0 && parts[1] > 0) return parts[0] / parts[1];
+  }
+  const dims = parseMediaDimensions(video.src);
+  if (dims && dims.height > 0) return dims.width / dims.height;
+  return 16 / 9;
 }
 
 // iOS Safari 감지 (iOS 또는 iPadOS Safari)
@@ -26,21 +38,41 @@ const isIOSSafari = () => {
 const VideoStackThumbnail = memo(function VideoStackThumbnailComponent({
   src,
   style,
-  className
+  className,
+  index,
+  onAspectRatioMeasured
 }: {
   src: string;
   style: React.CSSProperties;
   className?: string;
+  index?: number;
+  onAspectRatioMeasured?: (index: number, ratio: number) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isIOS] = useState(() => isIOSSafari());
-  
+  const hasReportedRatio = useRef(false);
+
   // URL refresh for signed URLs
   const { refreshedUrl } = useUrlRefresh({
     url: src,
     enabled: true
   });
+
+  useEffect(() => {
+    hasReportedRatio.current = false;
+  }, [src, refreshedUrl]);
+
+  const handleLoadedMetadata = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || hasReportedRatio.current || typeof index !== 'number' || !onAspectRatioMeasured) return;
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    if (w > 0 && h > 0) {
+      hasReportedRatio.current = true;
+      onAspectRatioMeasured(index, w / h);
+    }
+  }, [index, onAspectRatioMeasured]);
 
   // iOS Safari에서 비디오 로드 처리
   useEffect(() => {
@@ -74,6 +106,7 @@ const VideoStackThumbnail = memo(function VideoStackThumbnailComponent({
     <video
       ref={videoRef}
       src={refreshedUrl}
+      onLoadedMetadata={handleLoadedMetadata}
       style={{
         ...style,
         opacity: isLoaded ? 1 : 0,
@@ -109,6 +142,11 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
 }: VideoGalleryStackProps) {
   const [showGalleryGrid, setShowGalleryGrid] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [measuredRatios, setMeasuredRatios] = useState<Record<number, number>>({});
+
+  const onAspectRatioMeasured = useCallback((index: number, ratio: number) => {
+    setMeasuredRatios((prev) => ({ ...prev, [index]: ratio }));
+  }, []);
 
   useEffect(() => {
     setIsMounted(true);
@@ -162,13 +200,21 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
   // 2개 이상: 쌓여있는 스타일로 표시, 클릭하면 모달 열림
   const previewVideos = videos.slice(0, 5);
   const remainingCount = Math.max(0, videos.length - 5);
-  
-  // 비디오 스택 높이 계산 (1:1 비율)
+
   const baseItemWidth = isMobile ? 280 : 340;
-  const stackItemHeight = baseItemWidth; // 1:1 비율
-  // 회전과 오프셋을 고려한 여유 공간 추가
   const extraPadding = 40;
-  const stackContainerHeight = stackItemHeight + 70 + extraPadding;
+  const contentTop = 24 + extraPadding / 2;
+
+  // Display ratio: measured from video metadata when available, else from props/URL, else 16/9
+  const displayRatios = previewVideos.map((video, index) =>
+    measuredRatios[index] ?? getVideoAspectRatio(video)
+  );
+  const itemHeights = displayRatios.map((ratio) => baseItemWidth / ratio);
+
+  const maxStackBottom = Math.max(
+    ...itemHeights.map((h, i) => h + i * 5)
+  );
+  const stackContainerHeight = contentTop + maxStackBottom + 70;
   const stackContainerWidth = isMobile ? 320 + extraPadding : 380 + extraPadding;
 
   return (
@@ -194,7 +240,8 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
         {previewVideos.map((video, index) => {
           const stackIndex = previewVideos.length - 1 - index;
           const zIndexValue = previewVideos.length - index;
-          
+          const itemHeight = itemHeights[index];
+
           const rotation = (index - 2) * 2.5; 
           const offsetX = (index - 2) * 10; 
           const offsetY = index * 5;
@@ -206,10 +253,10 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
               className="apple-image-stack-item"
               style={{
                 position: 'absolute',
-                top: `${24 + extraPadding / 2}px`,
+                top: `${contentTop}px`,
                 left: '50%',
                 width: `${baseItemWidth}px`,
-                height: `${stackItemHeight}px`,
+                height: `${itemHeight}px`,
                 transform: `translateX(-50%) translateX(${offsetX}px) translateY(${offsetY}px) rotate(${rotation}deg) scale(${scale})`,
                 zIndex: zIndexValue,
                 borderRadius: '16px',
@@ -222,11 +269,12 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
             >
               <VideoStackThumbnail
                 src={video.src}
+                index={index}
+                onAspectRatioMeasured={onAspectRatioMeasured}
                 style={{
                   width: '100%',
                   height: '100%',
-                  objectFit: 'cover',
-                  aspectRatio: '1 / 1'
+                  objectFit: 'cover'
                 }}
               />
             </div>
