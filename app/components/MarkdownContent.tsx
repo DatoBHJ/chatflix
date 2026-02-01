@@ -1878,9 +1878,9 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
               onEnded={handleEnded}
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}
-              className={`w-full h-full object-cover transition-opacity duration-200 ${isVideoLoaded ? 'opacity-100' : 'opacity-0'}`}
+              className={`w-full h-full ${isFullscreen ? 'object-contain' : 'object-cover'} transition-opacity duration-200 ${isVideoLoaded ? 'opacity-100' : 'opacity-0'}`}
               style={{
-                objectFit: 'cover',
+                objectFit: isFullscreen ? 'contain' : 'cover',
                 width: '100%',
                 height: '100%',
               }}
