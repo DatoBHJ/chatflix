@@ -3964,7 +3964,7 @@ export function createWan25VideoTool(dataStream?: any, userId?: string, allMessa
     model: z.enum(['text-to-video', 'image-to-video']).describe('Video generation mode. text-to-video creates videos from text prompts, image-to-video animates static images.'),
     imageUrl: z.string().optional().describe('Image reference for image-to-video: use "uploaded_image_N" (e.g., uploaded_image_1) for user uploads or "generated_image_N" for AI-generated images. When provided, creates video from the image.'),
     size: z.string().optional().describe('Video size for text-to-video mode in format "width*height" (e.g., "1280*720", "720*1280", "960*960"). Supported formats: "832*480", "480*832", "624*624", "1280*720", "720*1280", "960*960", "1088*832", "832*1088", "1920*1080", "1080*1920", "1440*1440", "1632*1248", "1248*1632". Only used for text-to-video mode.'),
-    resolution: z.enum(['480p', '720p', '1080p']).optional().describe('Video resolution for image-to-video mode. 480p for fast preview, 720p for balanced quality, 1080p for high quality. Default: 1080p for image-to-video. Only used for image-to-video mode.'),
+    resolution: z.enum(['480p', '720p', '1080p']).describe('Video resolution. Required for image-to-video mode (480p/720p/1080p). For text-to-video this value is ignored; use size instead.'),
     duration: z.enum(['5', '10']).optional().describe('Video duration in seconds. Options: 5 or 10. Default: 5'),
     negative_prompt: z.string().optional().describe('Negative prompt describing what to exclude from the generation. Use this to specify unwanted elements, styles, or characteristics.'),
     seed: z.number().optional().describe('Random seed for reproducible generation. -1 for random. Default: -1')
@@ -4180,6 +4180,17 @@ export function createWan25VideoTool(dataStream?: any, userId?: string, allMessa
         };
 
       } catch (error) {
+        console.error('[WAN25_VIDEO] Error:', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          errorStack: error instanceof Error ? error.stack : undefined,
+          prompt,
+          model,
+          resolution,
+          imageUrl,
+          size,
+          duration
+        });
+
         if (dataStream) {
           dataStream.write({
             type: 'data-wan25_video_error',
