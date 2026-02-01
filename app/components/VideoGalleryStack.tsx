@@ -5,8 +5,6 @@ import { createPortal } from 'react-dom';
 import { X, LayoutGrid, Video } from 'lucide-react';
 import { DirectVideoEmbed } from './MarkdownContent';
 import { useUrlRefresh } from '@/app/hooks/useUrlRefresh';
-import { parseMediaDimensions } from '@/app/utils/imageUtils';
-import { getAdaptiveGlassStyleBlur, getIconClassName } from '@/app/lib/adaptiveGlassStyle';
 
 interface VideoData {
   src: string;
@@ -44,7 +42,7 @@ const VideoStackThumbnail = memo(function VideoStackThumbnailComponent({
     enabled: true
   });
 
-  // iOS Safari: explicit load() when src is set (mount and URL updates)
+  // iOS Safari에서 비디오 로드 처리
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !refreshedUrl) return;
@@ -57,21 +55,25 @@ const VideoStackThumbnail = memo(function VideoStackThumbnailComponent({
       setIsLoaded(true);
     };
 
+    // iOS Safari에서는 canplay 이벤트가 더 안정적
     video.addEventListener('loadeddata', handleLoadedData);
     video.addEventListener('canplay', handleCanPlay);
 
-    video.load();
+    // iOS Safari에서 비디오 로드 강제
+    if (isIOS) {
+      video.load();
+    }
 
     return () => {
       video.removeEventListener('loadeddata', handleLoadedData);
       video.removeEventListener('canplay', handleCanPlay);
     };
-  }, [refreshedUrl]);
+  }, [refreshedUrl, isIOS]);
 
   return (
     <video
       ref={videoRef}
-      src={refreshedUrl || ''}
+      src={refreshedUrl}
       style={{
         ...style,
         opacity: isLoaded ? 1 : 0,
@@ -161,61 +163,9 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
   const previewVideos = videos.slice(0, 5);
   const remainingCount = Math.max(0, videos.length - 5);
   
-  // 🚀 prop/URL에서 알 수 있는 비율 (video.size 또는 URL 크기 정보)
-  const ratioFromPropOrUrl = (() => {
-    const first = videos[0];
-    if (!first) return null;
-    if (first.aspectRatio) {
-      try {
-        const [w, h] = first.aspectRatio.split('/').map(Number);
-        if (w > 0 && h > 0) return w / h;
-      } catch {
-        // ignore
-      }
-    }
-    const dimensions = parseMediaDimensions(first.src);
-    return dimensions ? dimensions.width / dimensions.height : null;
-  })();
-  
-  // video.size가 없을 때: 첫 번째 비디오 메타데이터를 로드해 실제 비율 사용
-  const [detectedStackRatio, setDetectedStackRatio] = useState<number | null>(null);
-  useEffect(() => {
-    if (ratioFromPropOrUrl != null || videos.length < 2 || !videos[0]?.src) return;
-    setDetectedStackRatio(null);
-    const video = document.createElement('video');
-    video.preload = 'metadata';
-    video.muted = true;
-    video.playsInline = true;
-    video.src = videos[0].src;
-    const onLoaded = () => {
-      if (video.videoWidth > 0 && video.videoHeight > 0) {
-        setDetectedStackRatio(video.videoWidth / video.videoHeight);
-      }
-      video.src = '';
-      video.load();
-    };
-    video.addEventListener('loadedmetadata', onLoaded);
-    video.addEventListener('error', () => {
-      video.src = '';
-      video.load();
-    });
-    return () => {
-      video.removeEventListener('loadedmetadata', onLoaded);
-      video.removeEventListener('error', () => {});
-      if (video.src) {
-        video.src = '';
-        video.load();
-      }
-    };
-  }, [videos.length, videos[0]?.src, ratioFromPropOrUrl]);
-  
-  const DEFAULT_VIDEO_RATIO = 16 / 9;
-  const firstVideoRatio = ratioFromPropOrUrl ?? detectedStackRatio ?? DEFAULT_VIDEO_RATIO;
-  const baseRatioCategory: 'portrait' | 'landscape' | 'square' =
-    firstVideoRatio < 0.8 ? 'portrait' : firstVideoRatio > 1.2 ? 'landscape' : 'square';
-  const heightMultiplier = baseRatioCategory === 'portrait' ? 1.33 : baseRatioCategory === 'landscape' ? 0.75 : 1;
+  // 비디오 스택 높이 계산 (1:1 비율)
   const baseItemWidth = isMobile ? 280 : 340;
-  const stackItemHeight = baseItemWidth * heightMultiplier;
+  const stackItemHeight = baseItemWidth; // 1:1 비율
   // 회전과 오프셋을 고려한 여유 공간 추가
   const extraPadding = 40;
   const stackContainerHeight = stackItemHeight + 70 + extraPadding;
@@ -275,7 +225,8 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
                 style={{
                   width: '100%',
                   height: '100%',
-                  objectFit: 'cover'
+                  objectFit: 'cover',
+                  aspectRatio: '1 / 1'
                 }}
               />
             </div>
@@ -300,15 +251,14 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
           <div className="absolute top-0 left-0 right-0 flex items-center justify-center p-4 z-10">
             <span className="text-white text-lg font-medium">{videos.length} Videos</span>
             <button 
-              className="absolute top-4 right-4 p-2 rounded-full text-white transition-colors cursor-pointer z-10"
-              style={getAdaptiveGlassStyleBlur()}
+              className="absolute top-4 right-4 bg-black/40 hover:bg-black/60 p-2 rounded-full text-white transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
                 closeGalleryGrid();
               }}
               aria-label="Close gallery"
             >
-              <X size={24} className={getIconClassName(true)} />
+              <X size={24} />
             </button>
           </div>
 

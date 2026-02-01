@@ -1001,15 +1001,14 @@ export const ImageGalleryStack = memo(function ImageGalleryStackComponent({
           <div className="absolute top-0 left-0 right-0 flex items-center justify-center p-4 z-10">
             <span className="text-white text-lg font-medium">{images.length} Photos</span>
             <button 
-              className="absolute top-4 right-4 p-2 rounded-full text-white transition-colors cursor-pointer z-10"
-              style={getAdaptiveGlassStyleBlur()}
+              className="absolute top-4 right-4 bg-black/40 hover:bg-black/60 p-2 rounded-full text-white transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
                 closeGalleryGrid();
               }}
               aria-label="Close gallery"
             >
-              <X size={24} className={getIconClassName(true)} />
+              <X size={24} />
             </button>
           </div>
 
