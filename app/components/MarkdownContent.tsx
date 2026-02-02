@@ -2696,6 +2696,7 @@ function MarkdownContentComponent({
     const parts = [];
     let lastIndex = 0;
     let match;
+    const urlCounts: Record<string, number> = {};
 
     while ((match = generalUrlRegex.exec(text)) !== null) {
       const url = match[1];
@@ -2712,9 +2713,12 @@ function MarkdownContentComponent({
         parts.push(text.slice(lastIndex, match.index));
       }
       
+      const count = (urlCounts[url] || 0) + 1;
+      urlCounts[url] = count;
+
       parts.push({
         type: 'general_link',
-        key: match.index,
+        key: `${url}-${count}`,
         url: url
       });
       
@@ -2905,19 +2909,6 @@ function MarkdownContentComponent({
                 );
                 } else if (part.type === 'general_link' && 'url' in part) {
                   const url = part.url as string;
-                  if (isStreaming) {
-                    return (
-                      <a
-                        key={part.key}
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[var(--foreground)] border-b border-[var(--muted)] hover:border-[var(--foreground)] transition-colors break-all"
-                      >
-                        {url}
-                      </a>
-                    );
-                  }
                   return (
                     <div key={part.key} className="my-0.5">
                       <LinkPreview url={url} isStreaming={isStreaming} />
@@ -3147,19 +3138,6 @@ function MarkdownContentComponent({
       
       // Regular link rendering with LinkPreview
       if (href && typeof href === 'string' && (href.startsWith('http://') || href.startsWith('https://'))) {
-        if (isStreaming) {
-          return (
-            <a 
-              href={href} 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="text-[var(--foreground)] border-b border-[var(--muted)] hover:border-[var(--foreground)] transition-colors break-all"
-              {...props}
-            >
-              {children}
-            </a>
-          );
-        }
         return (
           <div className="my-0.5 w-full" style={{ 
             maxWidth: '400px',
@@ -3652,7 +3630,7 @@ function MarkdownContentComponent({
       }
       return <code className="font-mono text-sm">${value}$</code>;
     },
-  }), [styleImageUrls, extractText, handleCopy, openImageModal, searchTerm, messageType]);
+  }), [styleImageUrls, extractText, handleCopy, openImageModal, searchTerm, messageType, isStreaming]);
 
   // Memoize the remarkPlugins and rehypePlugins
   // singleTilde: false로 설정하여 단일 틸드(~)가 취소선으로 해석되지 않도록 함
