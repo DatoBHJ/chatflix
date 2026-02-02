@@ -221,21 +221,28 @@ export const InlineToolPreview = memo(function InlineToolPreview({
       const topic = toolArgs?.engines?.[0] || toolArgs?.topic || toolArgs?.engine || 'google';
       return getTopicName(topic);
     }
-    // wan25_video: model에 따라 동적 이름
+    // wan25_video: model에 따라 동적 이름 (toolResult 우선 - forcedModel 반영)
     if (toolName === 'wan25_video') {
-      return toolArgs?.model === 'image-to-video' 
-        ? 'Wan 2.5 Image to Video' 
+      const model = toolResult?.model ?? toolArgs?.model;
+      const isImageToVideo =
+        toolResult?.isImageToVideo ??
+        toolResult?.videos?.[0]?.isImageToVideo ??
+        model === 'image-to-video';
+      return isImageToVideo
+        ? 'Wan 2.5 Image to Video'
         : 'Wan 2.5 Text to Video';
     }
-    // grok_video: model에 따라 동적 이름
+    // grok_video: model에 따라 동적 이름 (toolResult 우선 - forcedModel 반영, flicker 방지)
     if (toolName === 'grok_video') {
-      const model = toolArgs?.model;
-      if (model === 'video-edit') return 'Grok Video to Video';
-      if (model === 'image-to-video') return 'Grok Image to Video';
+      const model = toolResult?.model ?? toolArgs?.model;
+      const isVideoEdit = toolResult?.isVideoEdit ?? model === 'video-edit';
+      const isImageToVideo = toolResult?.isImageToVideo ?? model === 'image-to-video';
+      if (isVideoEdit) return 'Grok Video to Video';
+      if (isImageToVideo) return 'Grok Image to Video';
       return 'Grok Text to Video';
     }
     return TOOL_DISPLAY_NAMES[toolName] || toolName;
-  }, [toolName, toolArgs]);
+  }, [toolName, toolArgs, toolResult]);
 
   const icon = getToolIcon(toolName, toolArgs, toolResult); // Pass toolArgs and toolResult for topic-based icons
   const canvasToolType = getCanvasToolType(toolName, toolArgs, toolResult); // Pass toolArgs and toolResult for topic-based routing

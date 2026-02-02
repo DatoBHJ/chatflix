@@ -3067,31 +3067,49 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   'grok_video': 'Grok Imagine Video',
 };
 
+function getDisplayNameForTool(toolName: string, args: any, result: any | null): string {
+  if (toolName === 'wan25_video') {
+    const model = result?.model ?? args?.model;
+    const isImageToVideo =
+      result?.isImageToVideo ?? result?.videos?.[0]?.isImageToVideo ?? model === 'image-to-video';
+    return isImageToVideo ? 'Wan 2.5 Image to Video' : 'Wan 2.5 Text to Video';
+  }
+  if (toolName === 'grok_video') {
+    const model = result?.model ?? args?.model;
+    const isVideoEdit = result?.isVideoEdit ?? model === 'video-edit';
+    const isImageToVideo = result?.isImageToVideo ?? model === 'image-to-video';
+    if (isVideoEdit) return 'Grok Video to Video';
+    if (isImageToVideo) return 'Grok Image to Video';
+    return 'Grok Text to Video';
+  }
+  return TOOL_DISPLAY_NAMES[toolName] || toolName;
+}
+
 export const getToolDataFromPart = (
   toolCall: { toolName: string; args: any; toolCallId: string },
   toolResult: { result: any; toolCallId: string } | null
 ): ToolPartData => {
   const toolName = toolCall.toolName;
-  const displayName = TOOL_DISPLAY_NAMES[toolName] || toolName;
-  
+  const result = toolResult?.result ?? null;
+  const displayName = getDisplayNameForTool(toolName, toolCall.args, result);
+
   let status: 'processing' | 'completed' | 'error' = 'processing';
-  
+
   if (toolResult) {
-    // Check if result indicates an error
     if (toolResult.result?.error) {
       status = 'error';
     } else {
       status = 'completed';
     }
   }
-  
+
   return {
     toolName,
     displayName,
     args: toolCall.args,
-    result: toolResult?.result || null,
+    result,
     status,
   };
-  };
+};
 
 

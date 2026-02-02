@@ -2240,6 +2240,11 @@ const Message = memo(function MessageComponent({
       geminiImageData, seedreamImageData, qwenImageData, wan25VideoData, grokVideoData, twitterSearchData, 
       youTubeSearchData, youTubeLinkAnalysisData, googleSearchData]);
 
+  const hasInlineToolPreview = useMemo(() => {
+    if (!useInterleavedMode) return false;
+    return segments.some((segment) => segment.type === 'tool');
+  }, [useInterleavedMode, segments]);
+
   // Check if message has rate limit status annotation
   const rateLimitAnnotation = useMemo(() => {
     if (!message.annotations) return null;
@@ -2778,9 +2783,9 @@ const Message = memo(function MessageComponent({
                     className="flex justify-start"
                     style={{
                       // 🚀 SCROLL STABILITY: 조건에 따라 높이/마진 조절
-                      height: (isStreaming && !hasAnyRenderableContent && !structuredDescription) ? 'auto' : 0,
-                      marginBottom: (isStreaming && !hasAnyRenderableContent && !structuredDescription) ? '0.5rem' : 0,
-                      opacity: (isStreaming && !hasAnyRenderableContent && !structuredDescription) ? 1 : 0,
+                      height: (isStreaming && !hasAnyRenderableContent && !structuredDescription && !hasInlineToolPreview) ? 'auto' : 0,
+                      marginBottom: (isStreaming && !hasAnyRenderableContent && !structuredDescription && !hasInlineToolPreview) ? '0.5rem' : 0,
+                      opacity: (isStreaming && !hasAnyRenderableContent && !structuredDescription && !hasInlineToolPreview) ? 1 : 0,
                       // 🚀 FIX: overflow: 'visible'로 변경하여 bubble tail 표시 허용
                       // imessage-receive-bubble의 ::before, ::after는 bubble 밖에 위치 (left: -8px, -26px)
                       overflow: 'visible',
@@ -2804,6 +2809,12 @@ const Message = memo(function MessageComponent({
           {/* 🚀 인터리브 모드: 세그먼트 기반 렌더링 (Cursor 스타일) */}
           {useInterleavedMode && segments.length > 0 ? (
             <div className="interleaved-message-container" ref={interleavedContainerRef}>
+              {/*
+                Resolve video tool mode during processing:
+                - toolArgs.model can be missing when UI forces a mode (e.g., grok_video_edit)
+                - data-* started annotations include the effective model for Grok
+                - use these to avoid showing "text-to-video" before the real mode is known
+              */}
               {segments.map((segment, idx) => {
                 const isLastSegment = idx === segments.length - 1;
                 const nextSegment = segments[idx + 1];
@@ -2925,6 +2936,55 @@ const Message = memo(function MessageComponent({
                   const toolContent = segment.content as ToolSegmentContent;
                   const toolName = toolContent.call.toolName;
                   const toolArgs = toolContent.call.args;
+                  const resolvedToolArgs = (() => {
+                    if (!toolArgs || toolArgs.model) return toolArgs;
+                    if (!Array.isArray(message.parts) || message.parts.length === 0) return toolArgs;
+                    const prompt = toolArgs.prompt;
+                    if (toolName === 'grok_video') {
+                      const startPart = message.parts.find(
+                        (p: any) =>
+                          p?.type === 'data-grok_video_started' &&
+                          (!prompt || p?.data?.prompt === prompt)
+                      );
+                      const startedModel = startPart?.data?.model;
+                      if (startedModel) return { ...toolArgs, model: startedModel };
+                      const isVideoEdit = message.parts.find(
+                        (p: any) =>
+                          p?.type === 'data-grok_video_complete' &&
+                          (!prompt || p?.data?.prompt === prompt) &&
+                          p?.data?.isVideoEdit
+                      );
+                      if (isVideoEdit) return { ...toolArgs, model: 'video-edit' };
+                      const isImageToVideo = message.parts.find(
+                        (p: any) =>
+                          p?.type === 'data-grok_video_complete' &&
+                          (!prompt || p?.data?.prompt === prompt) &&
+                          p?.data?.isImageToVideo
+                      );
+                      if (isImageToVideo) return { ...toolArgs, model: 'image-to-video' };
+                    }
+                    if (toolName === 'wan25_video') {
+                      const startPart = message.parts.find(
+                        (p: any) =>
+                          p?.type === 'data-wan25_video_started' &&
+                          (!prompt || p?.data?.prompt === prompt)
+                      );
+                      const startedModel = startPart?.data?.model;
+                      if (startedModel) return { ...toolArgs, model: startedModel };
+                      const completePart = message.parts.find(
+                        (p: any) =>
+                          p?.type === 'data-wan25_video_complete' &&
+                          (!prompt || p?.data?.prompt === prompt)
+                      );
+                      if (typeof completePart?.data?.isImageToVideo === 'boolean') {
+                        return {
+                          ...toolArgs,
+                          model: completePart.data.isImageToVideo ? 'image-to-video' : 'text-to-video'
+                        };
+                      }
+                    }
+                    return toolArgs;
+                  })();
                   
                   // 🚀 web_search/multi_search의 경우 topics 배열이 여러 개면 각 topic별로 별도 렌더링
                   const isMultiTopicSearch = (toolName === 'web_search' || toolName === 'multi_search') && 
@@ -3021,7 +3081,7 @@ const Message = memo(function MessageComponent({
                                 <InlineToolPreview
                                   toolName={toolName}
                                   toolArgs={{
-                                    ...toolArgs,
+                                    ...resolvedToolArgs,
                                     topics: [topic], // 단일 topic만 전달
                                     topic: topic, // topic도 개별로 설정
                                     queries: topicQueries.length > 0 ? topicQueries : (toolArgs.queries || []), // 해당 topic의 queries만 전달
@@ -3079,7 +3139,7 @@ const Message = memo(function MessageComponent({
                                 <InlineToolPreview
                                   toolName={toolName}
                                   toolArgs={{
-                                    ...toolArgs,
+                                    ...resolvedToolArgs,
                                     engines: [engine], // 단일 engine만 전달
                                     queries: correspondingQuery ? [correspondingQuery] : (toolArgs.queries || []), // 해당 인덱스의 쿼리만
                                     query: correspondingQuery || toolArgs.query, // 단일 쿼리도 설정
@@ -3138,7 +3198,7 @@ const Message = memo(function MessageComponent({
                                 <InlineToolPreview
                                   toolName={toolName}
                                   toolArgs={{
-                                    ...toolArgs,
+                                    ...resolvedToolArgs,
                                     queries: [query], // 단일 쿼리만 전달
                                     query: query, // 단일 쿼리 필드도 설정
                                     engines: [correspondingEngine], // 해당 인덱스의 엔진 또는 기본값
@@ -3187,7 +3247,7 @@ const Message = memo(function MessageComponent({
                       >
                         <InlineToolPreview
                           toolName={toolName}
-                          toolArgs={toolArgs}
+                          toolArgs={resolvedToolArgs}
                           toolResult={toolContent.result?.result}
                           messageId={message.id}
                           togglePanel={togglePanel}
@@ -3457,6 +3517,55 @@ const Message = memo(function MessageComponent({
                         const toolContent = segment.content as ToolSegmentContent;
                         const toolName = toolContent.call.toolName;
                         const toolArgs = toolContent.call.args;
+                        const resolvedToolArgs = (() => {
+                          if (!toolArgs || toolArgs.model) return toolArgs;
+                          if (!Array.isArray(message.parts) || message.parts.length === 0) return toolArgs;
+                          const prompt = toolArgs.prompt;
+                          if (toolName === 'grok_video') {
+                            const startPart = message.parts.find(
+                              (p: any) =>
+                                p?.type === 'data-grok_video_started' &&
+                                (!prompt || p?.data?.prompt === prompt)
+                            );
+                            const startedModel = startPart?.data?.model;
+                            if (startedModel) return { ...toolArgs, model: startedModel };
+                            const isVideoEdit = message.parts.find(
+                              (p: any) =>
+                                p?.type === 'data-grok_video_complete' &&
+                                (!prompt || p?.data?.prompt === prompt) &&
+                                p?.data?.isVideoEdit
+                            );
+                            if (isVideoEdit) return { ...toolArgs, model: 'video-edit' };
+                            const isImageToVideo = message.parts.find(
+                              (p: any) =>
+                                p?.type === 'data-grok_video_complete' &&
+                                (!prompt || p?.data?.prompt === prompt) &&
+                                p?.data?.isImageToVideo
+                            );
+                            if (isImageToVideo) return { ...toolArgs, model: 'image-to-video' };
+                          }
+                          if (toolName === 'wan25_video') {
+                            const startPart = message.parts.find(
+                              (p: any) =>
+                                p?.type === 'data-wan25_video_started' &&
+                                (!prompt || p?.data?.prompt === prompt)
+                            );
+                            const startedModel = startPart?.data?.model;
+                            if (startedModel) return { ...toolArgs, model: startedModel };
+                            const completePart = message.parts.find(
+                              (p: any) =>
+                                p?.type === 'data-wan25_video_complete' &&
+                                (!prompt || p?.data?.prompt === prompt)
+                            );
+                            if (typeof completePart?.data?.isImageToVideo === 'boolean') {
+                              return {
+                                ...toolArgs,
+                                model: completePart.data.isImageToVideo ? 'image-to-video' : 'text-to-video'
+                              };
+                            }
+                          }
+                          return toolArgs;
+                        })();
                         
                         const isMultiTopicSearch = (toolName === 'web_search' || toolName === 'multi_search') && 
                                                   toolArgs?.topics && 
@@ -3523,7 +3632,7 @@ const Message = memo(function MessageComponent({
                                       <InlineToolPreview
                                         toolName={toolName}
                                         toolArgs={{
-                                          ...toolArgs,
+                                          ...resolvedToolArgs,
                                           topics: [topic],
                                           topic: topic,
                                           queries: topicQueries.length > 0 ? topicQueries : (toolArgs.queries || []),
@@ -3560,7 +3669,7 @@ const Message = memo(function MessageComponent({
                                       <InlineToolPreview
                                         toolName={toolName}
                                         toolArgs={{
-                                          ...toolArgs,
+                                          ...resolvedToolArgs,
                                           engines: [engine],
                                           queries: correspondingQuery ? [correspondingQuery] : (toolArgs.queries || []),
                                           query: correspondingQuery || toolArgs.query,
@@ -3598,7 +3707,7 @@ const Message = memo(function MessageComponent({
                                 <InlineToolPreview
                                   toolName={toolName}
                                   toolArgs={{
-                                    ...toolArgs,
+                                    ...resolvedToolArgs,
                                     queries: [query],
                                     query: query,
                                     engines: [correspondingEngine],
@@ -3628,7 +3737,7 @@ const Message = memo(function MessageComponent({
                             <div className={`imessage-receive-bubble no-tail ${!toolHasTail ? 'no-tail' : ''}`}>
                               <InlineToolPreview
                                 toolName={toolName}
-                                toolArgs={toolArgs}
+                                toolArgs={resolvedToolArgs}
                                 toolResult={toolContent.result?.result}
                                 messageId={message.id}
                                 togglePanel={togglePanel}

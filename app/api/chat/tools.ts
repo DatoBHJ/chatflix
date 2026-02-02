@@ -4020,7 +4020,16 @@ export function createWan25VideoTool(dataStream?: any, userId?: string, allMessa
           dataStream.write({
             type: 'data-wan25_video_started',
             id: `ann-wan25-start-${Date.now()}`,
-            data: { prompt, model, imageUrl, resolvedImageUrl: actualImageUrl, size, resolution, duration, started: true }
+            data: {
+              prompt,
+              model: effectiveModel,
+              imageUrl,
+              resolvedImageUrl: actualImageUrl,
+              size,
+              resolution,
+              duration,
+              started: true
+            }
           });
         }
 
