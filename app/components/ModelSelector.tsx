@@ -1,5 +1,6 @@
 import React, { Dispatch, SetStateAction, useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { Tooltip } from 'react-tooltip';
 import { getEnabledModels, getModelVariantId, isChatflixModel } from '@/lib/models/config';
 import Image from 'next/image';
 import type { ModelConfig } from '@/lib/models/config';
@@ -80,6 +81,7 @@ export function ModelSelector({
   const [isClosing, setIsClosing] = useState(false);
   const [showElements, setShowElements] = useState({ modal: false, title: false, content: false });
   const [view, setView] = useState<'sidebar' | 'list'>('list');
+  const [openTooltipId, setOpenTooltipId] = useState<string | null>(null);
 
   useEffect(() => {
     setView('list');
@@ -182,6 +184,23 @@ export function ModelSelector({
       setCurrentTranslateY(0);
     }
   }, [isMobile, isDragging, currentTranslateY, handleClose]);
+
+  // 모바일에서 Chatflix 툴팁이 열려있을 때 외부 클릭 시 닫기 (도구 선택창과 동일)
+  useEffect(() => {
+    if (!isOpen || !isMobile || !openTooltipId) return;
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('[data-tooltip-id="model-selector-tooltip"]') && !target.closest('[data-tooltip-is-open]')) {
+        setOpenTooltipId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isOpen, isMobile, openTooltipId]);
 
   const allModels = useMemo(() => getEnabledModels(), []);
 
@@ -352,36 +371,58 @@ export function ModelSelector({
             )}
                       </div>
                     </div>
-        <div className={`flex-1 min-w-0 py-3 ${!isSelected && !isLast ? 'border-b border-black/5 dark:border-white/5' : ''}`}>
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className={`font-semibold text-[17px] truncate ${isSelected ? 'text-white' : 'text-black dark:text-white'}`}>
-                {model.name}
-                            </span>
-              {model.isNew && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider shrink-0 ${
-                  isSelected ? 'bg-white/20 text-white' : 'bg-blue-500/10 text-blue-500'
-                }`}>New</span>
-            )}
-                    </div>
-                    
-            {sortCriteria !== 'default' && (
-              <div className="shrink-0 w-24 flex justify-end">
-                {sortCriteria === 'intelligenceIndex' && model.intelligenceIndex && 
-                  renderStatBar(model.intelligenceIndex, isSelected ? 'bg-white' : 'bg-purple-500')}
-                {sortCriteria === 'tps' && model.tps && 
-                  renderStatBar(model.tps, isSelected ? 'bg-white' : 'bg-yellow-500')}
-                {sortCriteria === 'latency' && model.latency && 
-                  renderStatBar(model.latency, isSelected ? 'bg-white' : 'bg-blue-500')}
-                {sortCriteria === 'contextWindow' && model.contextWindow && 
-                  renderStatBar(model.contextWindow, isSelected ? 'bg-white' : 'bg-green-500')}
-                            </div>
-                    )}
-                  </div>
-          <div className={`text-[13px] truncate mt-0.5 ${isSelected ? 'text-white/70' : 'text-black/30 dark:text-white/30'}`}>
-            {model.creator || model.provider}
-                </div>
+        <div className={`flex-1 min-w-0 min-h-[64px] flex items-center gap-2 ${!isSelected && !isLast ? 'border-b border-black/5 dark:border-white/5' : ''}`}>
+          <div className="flex-1 min-w-0 flex items-center">
+            <div className="flex items-center justify-between gap-2 w-full">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={`font-semibold text-[17px] truncate ${isSelected ? 'text-white' : 'text-black dark:text-white'}`}>
+                  {model.name}
+                </span>
+                {model.isNew && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider shrink-0 ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-blue-500/10 text-blue-500'
+                  }`}>New</span>
+                )}
               </div>
+              {sortCriteria !== 'default' && (
+                <div className="shrink-0 w-24 flex justify-end">
+                  {sortCriteria === 'intelligenceIndex' && model.intelligenceIndex && 
+                    renderStatBar(model.intelligenceIndex, isSelected ? 'bg-white' : 'bg-purple-500')}
+                  {sortCriteria === 'tps' && model.tps && 
+                    renderStatBar(model.tps, isSelected ? 'bg-white' : 'bg-yellow-500')}
+                  {sortCriteria === 'latency' && model.latency && 
+                    renderStatBar(model.latency, isSelected ? 'bg-white' : 'bg-blue-500')}
+                  {sortCriteria === 'contextWindow' && model.contextWindow && 
+                    renderStatBar(model.contextWindow, isSelected ? 'bg-white' : 'bg-green-500')}
+                </div>
+              )}
+            </div>
+          </div>
+          {isChatflixModel(model.id) && model.description && (
+            <div
+              className="shrink-0 flex items-center justify-center self-center"
+              data-tooltip-id="model-selector-tooltip"
+              data-tool-id={variantId}
+              data-tooltip-content={model.description}
+              data-tooltip-is-open={isMobile && openTooltipId === variantId}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isMobile) {
+                  setOpenTooltipId(prev => prev === variantId ? null : variantId);
+                }
+              }}
+            >
+              <div
+                className="rounded-full p-0.5 cursor-pointer flex items-center justify-center"
+                style={{ backgroundColor: 'transparent' }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5" style={{ color: isSelected ? 'rgba(255,255,255,0.7)' : 'color-mix(in srgb, var(--foreground) 40%, transparent)' }}>
+                  <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          )}
+        </div>
                         </button>
     );
   };
@@ -835,7 +876,41 @@ export function ModelSelector({
                                 </div>
                                     </div>
 
-      {mounted && createPortal(ModalContent, document.body)}
+      {mounted && typeof document !== 'undefined' && createPortal(
+        <>
+          {ModalContent}
+          <Tooltip
+            key={`model-tooltip-${openTooltipId || 'none'}`}
+            id="model-selector-tooltip"
+            anchorSelect={isMobile && openTooltipId ? `[data-tool-id="${openTooltipId}"]` : '[data-tooltip-id="model-selector-tooltip"]'}
+            place="right"
+            offset={15}
+            delayShow={isMobile ? 0 : 200}
+            delayHide={100}
+            noArrow={true}
+            opacity={1}
+            clickable={true}
+            isOpen={isMobile ? openTooltipId !== null : undefined}
+            openEvents={isMobile ? {} : undefined}
+            style={{
+              backgroundColor: (isDark || hasBackgroundImage) ? 'rgba(0, 0, 0, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+              border: (isDark || hasBackgroundImage) ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(0, 0, 0, 0.1)',
+              boxShadow: (isDark || hasBackgroundImage) ? '0 8px 32px rgba(0, 0, 0, 0.6)' : '0 8px 32px rgba(0, 0, 0, 0.2)',
+              borderRadius: '12px',
+              padding: '12px 16px',
+              fontSize: '13px',
+              fontWeight: 500,
+              maxWidth: '240px',
+              color: (isDark || hasBackgroundImage) ? '#ffffff' : '#000000',
+              zIndex: 99999999,
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              lineHeight: '1.5',
+            }}
+          />
+        </>,
+        document.body
+      )}
     </div>
   );
 }
