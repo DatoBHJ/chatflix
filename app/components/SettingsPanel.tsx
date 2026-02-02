@@ -499,7 +499,7 @@ export function SettingsPanel({ isOpen, onClose, user, handleDeleteAllChats: pro
                     </button>
                     <div className="px-4 py-3 flex items-center justify-between border-t border-white/5">
                       <span className="text-[17px] text-white">Software Version</span>
-                      <span className="text-[17px] text-white/30">0.2.0</span>
+                      <span className="text-[17px] text-white/30">0.3.0</span>
                     </div>
                   </IOSGroup>
                 </>
