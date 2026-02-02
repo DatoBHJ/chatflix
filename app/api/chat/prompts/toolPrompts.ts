@@ -8,6 +8,7 @@ export const toolPrompts = {
 #### Web Search (Exa)
 
 **1. Capabilities and Output Protocol**
+- **Search query language**: Prefer English for search queries to get broader and more accurate results. For region-specific content (e.g. Korean companies, Japanese docs), use that language for queries.
 - Specs:
   - The tool uses neural search with autoprompt, includes text and summary by default
   - QUERY LIMIT: Use 1-4 queries per tool call (never exceed 4)
@@ -47,6 +48,7 @@ export const toolPrompts = {
   - **CRITICAL: queries FORMAT**: When passing multiple queries, use actual array format: ["query1", "query2"]. NEVER use JSON string format like '["query1","query2"]'
 
 **2. Search Strategy**
+- **Search query language**: Prefer English for search queries to get broader and more accurate results. For region-specific topics use that language for queries. Use \`hl\` (and optionally \`gl\`/location) to align result language: e.g. hl=en for broad coverage, hl=ko for Korean results when relevant.
 - Use natural language queries
 - Supports multiple queries in one call (use arrays)
 - Include location parameters for local results (restaurants, weather, etc.)
@@ -78,6 +80,7 @@ export const toolPrompts = {
 - **CRITICAL**: Twitter search is NOT Google search. NEVER use long descriptive phrases or full sentences. ONLY use individual words or short keyword combinations.
 
 **2. Query Strategy: Word-Only Search**
+- **Search query language**: Prefer English for query keywords to get broader coverage. For region-specific topics use that language for query keywords. (Do not rely on lang: filter for language—write the query itself in English or the target region's language.)
 - **MANDATORY**: Break down queries into individual words. Use ONLY keywords, NEVER phrases.
 - **GOOD**: Single words ("API", "update"), keyword pairs ("Apify API"), Boolean OR (\`(Instagram OR Scraper)\`)
 - **BAD**: "What is the latest update about Apify API" ❌ → Use: "Apify API update" or ["Apify", "API", "update"] ✅
@@ -132,6 +135,7 @@ export const toolPrompts = {
 #### YouTube Search
 
 **1. Capabilities and Output Protocol**
+- **Search query language**: Prefer English (or the target region's language when it fits the content) for the search query.
 - Specs:
   - Keep queries specific to video content
   - Include relevant keywords and creator names if known

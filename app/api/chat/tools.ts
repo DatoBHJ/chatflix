@@ -452,7 +452,8 @@ const toolDefinitions = {
       engines: 'Optional. The search engines to use. Can be a single engine or array matching queries. Options: "google" (web search), "google_images" (image search), "google_videos" (video search). Default is "google".',
       maxResults: 'Optional. Maximum number of results to return per query. For google search, default is 10. For google_images, this parameter is ignored (all images sent to client, LLM context limited to 20). Can be a single number or array matching queries.',
       locations: 'Optional. The locations from where you want the searches to originate (e.g., "New York", "London", "Tokyo"). Can be a single location or array matching queries.',
-      gls: 'Optional. The country codes for search results (e.g., "us", "uk", "jp"). Can be a single code or array matching queries. Default is "us".'
+      gls: 'Optional. The country codes for search results (e.g., "us", "uk", "jp"). Can be a single code or array matching queries. Default is "us".',
+      hls: 'Optional. Interface/result language code(s) (e.g. "en", "ko", "ja"). Single value or array matching queries. Default "en" for broader coverage.'
     }
   },
   twitterSearch: {
@@ -1636,6 +1637,15 @@ export function createGoogleSearchTool(dataStream: any, forcedEngine?: string) {
       .optional()
       .transform((v) => (v === undefined ? undefined : Array.isArray(v) ? v : [v]))
       .describe(toolDefinitions.googleSearch.inputSchema.gls),
+    // Accept string or array; coerce to array
+    hls: z
+      .union([
+        z.array(z.string()),
+        z.string()
+      ])
+      .optional()
+      .transform((v) => (v === undefined ? undefined : Array.isArray(v) ? v : [v]))
+      .describe(toolDefinitions.googleSearch.inputSchema.hls),
   });
 
   type GoogleSearchInput = {
@@ -1644,6 +1654,7 @@ export function createGoogleSearchTool(dataStream: any, forcedEngine?: string) {
     maxResults?: number[];
     locations?: string[];
     gls?: string[];
+    hls?: string[];
   };
   type GoogleSearchOutput = {
     searchId: string;
@@ -1670,7 +1681,7 @@ export function createGoogleSearchTool(dataStream: any, forcedEngine?: string) {
     description: toolDefinitions.googleSearch.description,
     inputSchema: googleSearchInputSchema as unknown as z.ZodType<GoogleSearchInput>,
     execute: async (input: GoogleSearchInput) => {
-      const { queries, engines, maxResults, locations, gls } = input;
+      const { queries, engines, maxResults, locations, gls, hls } = input;
       
       // 강제로 지정된 엔진이 있으면 해당 엔진만 사용
       const finalEngines = forcedEngine ? 
@@ -1692,6 +1703,7 @@ export function createGoogleSearchTool(dataStream: any, forcedEngine?: string) {
           const currentMaxResults = (maxResults && maxResults[index]) || maxResults?.[0];
           const currentLocation = (locations && locations[index]) || locations?.[0];
           const currentGl = (gls && gls[index]) || gls?.[0] || 'us';
+          const currentHl = (hls && hls[index]) || hls?.[0] || 'en';
           
           try {
             // Google 검색 시작 신호 전송
@@ -1724,6 +1736,9 @@ export function createGoogleSearchTool(dataStream: any, forcedEngine?: string) {
             }
             if (currentGl) {
               searchParams.append('gl', currentGl);
+            }
+            if (currentHl) {
+              searchParams.append('hl', currentHl);
             }
             
             const response = await fetch(`${searchUrl}?${searchParams}`);
