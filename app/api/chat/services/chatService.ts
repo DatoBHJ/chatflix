@@ -749,7 +749,7 @@ Focus on being genuinely helpful and let the conversation flow naturally.`;
 
 **1. Grok Imagine Video (grok_video) Strengths**
 - Best-in-class instruction following; text-to-video, image-to-video, and video-edit.
-- Always use Grok first for video generation and editing unless uncensored content is required.
+- Always use Grok first for video generation and editing 
 
 **2. Content Policy & Uncensored Requests (CRITICAL)**
 - **Note**: Wan 2.5 (wan25_video) has no or minimal content censorship.

@@ -655,11 +655,22 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     console.error('[EDIT-IMAGE] Error:', error)
+    const message = error instanceof Error ? error.message : 'Unknown error occurred'
+    // Expired Supabase signed URL (24h TTL) returns 400 / InvalidJWT
+    const isExpiredImageUrl =
+      message.includes('Bad Request') ||
+      message.includes('Failed to fetch image') ||
+      message.includes('Failed to download image') ||
+      message.includes('InvalidJWT') ||
+      message.includes('exp claim')
+    if (isExpiredImageUrl) {
+      return NextResponse.json(
+        { error: 'Image link expired. Please refresh the page and try again.', success: false },
+        { status: 400 }
+      )
+    }
     return NextResponse.json(
-      { 
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
-        success: false 
-      },
+      { error: message, success: false },
       { status: 500 }
     )
   }

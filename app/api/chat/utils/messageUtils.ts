@@ -20,7 +20,6 @@ const formatFileTextForPrompt = (filename: string | undefined, content: string) 
   return `Filename: ${filename || 'unknown'}\nContent:\n\`\`\`\n${text}\n\`\`\``;
 };
 
-
 export const fetchFileContent = async (
   url: string,
   fileType?: string

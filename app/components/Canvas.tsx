@@ -367,8 +367,8 @@ export default function Canvas({
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
   const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
 
-  // Image-to-video pending: aspect ratio per index (measured on img load)
-  const [pendingImageAspectRatios, setPendingImageAspectRatios] = useState<Record<number, number>>({});
+  // Image-to-video pending: aspect ratio per tool+index (measured on img load). Keys: wan-0, grok-0, etc.
+  const [pendingImageAspectRatios, setPendingImageAspectRatios] = useState<Record<string, number>>({});
 
   // Mobile detection
   useEffect(() => {
@@ -1868,7 +1868,7 @@ export default function Canvas({
                       className="border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-xl overflow-hidden shadow-sm bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)] relative min-h-[200px]"
                     >
                       {isImageToVideo ? (
-                        pendingImageAspectRatios[index] == null ? (
+                        pendingImageAspectRatios[`wan-${index}`] == null ? (
                           <>
                             <div className="relative w-full min-h-[200px] flex items-center justify-center overflow-hidden">
                               <div
@@ -1899,7 +1899,7 @@ export default function Canvas({
                                 const w = el.naturalWidth;
                                 const h = el.naturalHeight;
                                 if (w && h) {
-                                  setPendingImageAspectRatios((prev) => ({ ...prev, [index]: w / h }));
+                                  setPendingImageAspectRatios((prev) => ({ ...prev, [`wan-${index}`]: w / h }));
                                 }
                               }}
                             />
@@ -1907,7 +1907,7 @@ export default function Canvas({
                         ) : (
                           <div
                             className="relative w-full"
-                            style={{ aspectRatio: `${pendingImageAspectRatios[index]} / 1` }}
+                            style={{ aspectRatio: `${pendingImageAspectRatios[`wan-${index}`]} / 1` }}
                           >
                             <img
                               src={sourceImage}
@@ -2025,19 +2025,117 @@ export default function Canvas({
             )}
             {grokVideoData.pendingCount && grokVideoData.pendingCount > 0 && grokVideoData.pendingPrompts && grokVideoData.pendingPrompts.length > 0 ? (
               <div className={`grid gap-5 ${grokVideoData.generatedVideos && grokVideoData.generatedVideos.length > 0 ? 'mt-5' : ''} ${(grokVideoData.startedCount || grokVideoData.generatedVideos?.length || 0) === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
-                {grokVideoData.pendingPrompts.map((prompt: string, index: number) => (
-                  <div 
-                    key={`pending-grok-prompt-${index}`}
-                    className="border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-xl overflow-hidden shadow-sm bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)] relative min-h-[200px]"
-                  >
-                    <div className="absolute inset-0 bg-linear-to-br from-[color-mix(in_srgb,var(--foreground)_5%,transparent)] via-[color-mix(in_srgb,var(--foreground)_3%,transparent)] to-[color-mix(in_srgb,var(--foreground)_5%,transparent)]" />
-                    <div className="prompt-overlay absolute inset-0 bg-black/75 backdrop-blur-md text-white p-6 flex flex-col justify-center items-center text-center opacity-100 transition-opacity duration-300 z-20">
-                      <div className="text-base font-medium bg-linear-to-r from-transparent via-gray-300 to-transparent bg-clip-text text-transparent px-4" style={{ backgroundSize: '200% 100%', animation: 'shimmer 2s ease-in-out infinite' }}>
-                        {prompt}
-                      </div>
+                {grokVideoData.pendingPrompts.map((prompt: string, index: number) => {
+                  const sourceImage = grokVideoData.pendingSourceImages?.[index];
+                  const sourceVideo = grokVideoData.pendingSourceVideos?.[index];
+                  const isImageToVideo = !!sourceImage;
+                  const isVideoEdit = !!sourceVideo;
+
+                  return (
+                    <div 
+                      key={`pending-grok-prompt-${index}`}
+                      className="border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-xl overflow-hidden shadow-sm bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)] relative min-h-[200px]"
+                    >
+                      {isImageToVideo ? (
+                        pendingImageAspectRatios[`grok-${index}`] == null ? (
+                          <>
+                            <div className="relative w-full min-h-[200px] flex items-center justify-center overflow-hidden">
+                              <div
+                                className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent"
+                                style={{
+                                  backgroundSize: '200% 100%',
+                                  animation: 'shimmer 2s ease-in-out infinite'
+                                }}
+                              />
+                              <div className="prompt-overlay absolute inset-0 bg-black/75 backdrop-blur-md text-white p-6 flex flex-col justify-center items-center text-center opacity-100 transition-opacity duration-300 z-20">
+                                <div
+                                  className="text-base font-medium bg-linear-to-r from-transparent via-gray-300 to-transparent bg-clip-text text-transparent px-4"
+                                  style={{
+                                    backgroundSize: '200% 100%',
+                                    animation: 'shimmer 2s ease-in-out infinite'
+                                  }}
+                                >
+                                  {prompt}
+                                </div>
+                              </div>
+                            </div>
+                            <img
+                              src={sourceImage}
+                              alt=""
+                              className="absolute w-0 h-0 opacity-0 pointer-events-none"
+                              onLoad={(e) => {
+                                const el = e.currentTarget;
+                                const w = el.naturalWidth;
+                                const h = el.naturalHeight;
+                                if (w && h) {
+                                  setPendingImageAspectRatios((prev) => ({ ...prev, [`grok-${index}`]: w / h }));
+                                }
+                              }}
+                            />
+                          </>
+                        ) : (
+                          <div
+                            className="relative w-full"
+                            style={{ aspectRatio: `${pendingImageAspectRatios[`grok-${index}`]} / 1` }}
+                          >
+                            <img
+                              src={sourceImage}
+                              alt="Source image"
+                              className="w-full h-full object-contain block"
+                            />
+                            <div className="prompt-overlay absolute inset-0 bg-black/75 backdrop-blur-md text-white p-6 flex flex-col justify-center items-center text-center opacity-100 transition-opacity duration-300 z-20">
+                              <div
+                                className="text-base font-medium bg-linear-to-r from-transparent via-gray-300 to-transparent bg-clip-text text-transparent px-4"
+                                style={{
+                                  backgroundSize: '200% 100%',
+                                  animation: 'shimmer 2s ease-in-out infinite'
+                                }}
+                              >
+                                {prompt}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      ) : isVideoEdit ? (
+                        <div className="relative w-full aspect-video overflow-hidden">
+                          <video
+                            src={sourceVideo}
+                            muted
+                            loop
+                            playsInline
+                            className="w-full h-full object-contain block"
+                          />
+                          <div className="prompt-overlay absolute inset-0 bg-black/75 backdrop-blur-md text-white p-6 flex flex-col justify-center items-center text-center opacity-100 transition-opacity duration-300 z-20">
+                            <div
+                              className="text-base font-medium bg-linear-to-r from-transparent via-gray-300 to-transparent bg-clip-text text-transparent px-4"
+                              style={{
+                                backgroundSize: '200% 100%',
+                                animation: 'shimmer 2s ease-in-out infinite'
+                              }}
+                            >
+                              {prompt}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="absolute inset-0 bg-linear-to-br from-[color-mix(in_srgb,var(--foreground)_5%,transparent)] via-[color-mix(in_srgb,var(--foreground)_3%,transparent)] to-[color-mix(in_srgb,var(--foreground)_5%,transparent)]" />
+                          <div className="prompt-overlay absolute inset-0 bg-black/75 backdrop-blur-md text-white p-6 flex flex-col justify-center items-center text-center opacity-100 transition-opacity duration-300 z-20">
+                            <div
+                              className="text-base font-medium bg-linear-to-r from-transparent via-gray-300 to-transparent bg-clip-text text-transparent px-4"
+                              style={{
+                                backgroundSize: '200% 100%',
+                                animation: 'shimmer 2s ease-in-out infinite'
+                              }}
+                            >
+                              {prompt}
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : grokVideoData.pendingCount && grokVideoData.pendingCount > 0 ? (
               <div className={`grid gap-5 ${grokVideoData.generatedVideos && grokVideoData.generatedVideos.length > 0 ? 'mt-5' : ''} ${(grokVideoData.startedCount || grokVideoData.generatedVideos?.length || 0) === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>

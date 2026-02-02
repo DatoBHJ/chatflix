@@ -55,6 +55,44 @@ async function uploadImageToSupabase(uint8Array: Uint8Array, userId: string, pre
   return { path: filePath, url: signedData.signedUrl };
 }
 
+/** Resolve a fresh signed URL for generated images. Use when url may be expired (Supabase 24h TTL). */
+async function resolveGeneratedImageUrl(imgData: { url: string; path: string }): Promise<string> {
+  if (!imgData.path || !imgData.url) return imgData.url;
+  const isSupabaseSigned =
+    imgData.url.includes('supabase.co/storage') &&
+    (imgData.url.includes('/object/sign/') || imgData.url.includes('token='));
+  if (!isSupabaseSigned) return imgData.url;
+  try {
+    const { createClient } = await import('@/utils/supabase/server');
+    const supabase = await createClient();
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from('generated-images')
+      .createSignedUrl(imgData.path, 24 * 60 * 60);
+    if (signedError || !signedData?.signedUrl) return imgData.url;
+    return signedData.signedUrl;
+  } catch {
+    return imgData.url;
+  }
+}
+
+/** Resolve a fresh signed URL for chat_attachments (uploaded images). Use when url may be expired or corrupted (custom domain, 24h TTL). */
+async function resolveUploadedImageUrl(url: string): Promise<string> {
+  if (!url || !url.includes('/storage/v1/object/sign/') || !url.includes('chat_attachments/')) return url;
+  const path = url.split('chat_attachments/')[1]?.split('?')[0];
+  if (!path) return url;
+  try {
+    const { createClient } = await import('@/utils/supabase/server');
+    const supabase = await createClient();
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from('chat_attachments')
+      .createSignedUrl(path, 24 * 60 * 60);
+    if (signedError || !signedData?.signedUrl) return url;
+    return signedData.signedUrl;
+  } catch {
+    return url;
+  }
+}
+
 // Utility helpers
 const ensureUrlProtocol = (value?: string) => {
   if (!value) return value;
@@ -2545,7 +2583,7 @@ export function createGeminiImageTool(dataStream?: any, userId?: string, allMess
             if (url.startsWith('uploaded_image_')) {
               const resolvedUrl = imageMap?.get(url);
               if (resolvedUrl) {
-                actualEditImageUrls.push(resolvedUrl);
+                actualEditImageUrls.push(await resolveUploadedImageUrl(resolvedUrl));
               } else {
                 throw new Error(`Image reference "${url}" not found in conversation history`);
               }
@@ -2553,7 +2591,7 @@ export function createGeminiImageTool(dataStream?: any, userId?: string, allMess
               // Generated image reference
               const imgData = generatedImageMap?.get(url);
               if (imgData) {
-                actualEditImageUrls.push(imgData.url);
+                actualEditImageUrls.push(await resolveGeneratedImageUrl(imgData));
               } else {
                 throw new Error(`Generated image reference "${url}" not found in conversation history`);
               }
@@ -3017,38 +3055,20 @@ export function createSeedreamImageTool(dataStream?: any, userId?: string, allMe
             if (url.startsWith('uploaded_image_')) {
               const resolvedUrl = imageMap?.get(url);
               if (resolvedUrl) {
-                actualEditImageUrls.push(resolvedUrl);
+                actualEditImageUrls.push(await resolveUploadedImageUrl(resolvedUrl));
               } else {
                 throw new Error(`Image reference "${url}" not found in conversation history`);
               }
             } else if (url.startsWith('generated_image_')) {
-              // Generated image reference
+              // Generated image reference (always resolve fresh URL when path exists to avoid expired JWT)
               const imgData = generatedImageMap?.get(url);
-              
               if (imgData) {
-                // URL이 없거나 만료된 경우 path로부터 새로 생성
-                let finalUrl = imgData.url;
-                if (!finalUrl || !finalUrl.includes('token=') || finalUrl.includes('querystring must have required property')) {
-                  if (imgData.path) {
-                    try {
-                      const { createClient } = await import('@/utils/supabase/server');
-                      const supabase = await createClient();
-                      const { data: signedData, error: signedError } = await supabase.storage
-                        .from('generated-images')
-                        .createSignedUrl(imgData.path, 24 * 60 * 60);
-                      
-                      if (signedData?.signedUrl && !signedError) {
-                        finalUrl = signedData.signedUrl;
-                        generatedImageMap?.set(url, { url: finalUrl, path: imgData.path });
-                      }
-                    } catch (error: any) {
-                      // Silence error
-                    }
-                  }
-                }
-                
+                const finalUrl = await resolveGeneratedImageUrl(imgData);
                 if (finalUrl) {
                   actualEditImageUrls.push(finalUrl);
+                  if (imgData.path && finalUrl !== imgData.url) {
+                    generatedImageMap?.set(url, { url: finalUrl, path: imgData.path });
+                  }
                 } else {
                   throw new Error(`Generated image reference "${url}" has no valid URL`);
                 }
@@ -3576,38 +3596,20 @@ export function createQwenImageTool(dataStream?: any, userId?: string, allMessag
             if (url.startsWith('uploaded_image_')) {
               const resolvedUrl = imageMap?.get(url);
               if (resolvedUrl) {
-                actualEditImageUrls.push(resolvedUrl);
+                actualEditImageUrls.push(await resolveUploadedImageUrl(resolvedUrl));
               } else {
                 throw new Error(`Image reference "${url}" not found in conversation history`);
               }
             } else if (url.startsWith('generated_image_')) {
-              // Generated image reference
+              // Generated image reference (always resolve fresh URL when path exists to avoid expired JWT)
               const imgData = generatedImageMap?.get(url);
-              
               if (imgData) {
-                // URL이 없거나 만료된 경우 path로부터 새로 생성
-                let finalUrl = imgData.url;
-                if (!finalUrl || !finalUrl.includes('token=') || finalUrl.includes('querystring must have required property')) {
-                  if (imgData.path) {
-                    try {
-                      const { createClient } = await import('@/utils/supabase/server');
-                      const supabase = await createClient();
-                      const { data: signedData, error: signedError } = await supabase.storage
-                        .from('generated-images')
-                        .createSignedUrl(imgData.path, 24 * 60 * 60);
-                      
-                      if (signedData?.signedUrl && !signedError) {
-                        finalUrl = signedData.signedUrl;
-                        generatedImageMap?.set(url, { url: finalUrl, path: imgData.path });
-                      }
-                    } catch (error: any) {
-                      // Silence error
-                    }
-                  }
-                }
-                
+                const finalUrl = await resolveGeneratedImageUrl(imgData);
                 if (finalUrl) {
                   actualEditImageUrls.push(finalUrl);
+                  if (imgData.path && finalUrl !== imgData.url) {
+                    generatedImageMap?.set(url, { url: finalUrl, path: imgData.path });
+                  }
                 } else {
                   throw new Error(`Generated image reference "${url}" has no valid URL`);
                 }
@@ -3990,14 +3992,14 @@ export function createWan25VideoTool(dataStream?: any, userId?: string, allMessa
           if (imageUrl.startsWith('uploaded_image_')) {
             const resolvedUrl = imageMap?.get(imageUrl);
             if (resolvedUrl) {
-              actualImageUrl = resolvedUrl;
+              actualImageUrl = await resolveUploadedImageUrl(resolvedUrl);
             } else {
               throw new Error(`Image reference "${imageUrl}" not found in conversation history`);
             }
           } else if (imageUrl.startsWith('generated_image_')) {
             const imgData = generatedImageMap?.get(imageUrl);
             if (imgData) {
-              actualImageUrl = imgData.url;
+              actualImageUrl = await resolveGeneratedImageUrl(imgData);
             } else {
               throw new Error(`Generated image reference "${imageUrl}" not found in conversation history`);
             }
@@ -4448,11 +4450,13 @@ export function createGrokVideoTool(
         let actualImageUrl: string | undefined;
         if (imageUrl) {
           if (imageUrl.startsWith('uploaded_image_')) {
-            actualImageUrl = imageMap?.get(imageUrl) ?? undefined;
-            if (!actualImageUrl) throw new Error(`Image reference "${imageUrl}" not found`);
+            const resolvedUrl = imageMap?.get(imageUrl) ?? undefined;
+            if (!resolvedUrl) throw new Error(`Image reference "${imageUrl}" not found`);
+            actualImageUrl = await resolveUploadedImageUrl(resolvedUrl);
           } else if (imageUrl.startsWith('generated_image_')) {
-            actualImageUrl = generatedImageMap?.get(imageUrl)?.url;
-            if (!actualImageUrl) throw new Error(`Generated image reference "${imageUrl}" not found`);
+            const imgData = generatedImageMap?.get(imageUrl);
+            if (!imgData) throw new Error(`Generated image reference "${imageUrl}" not found`);
+            actualImageUrl = await resolveGeneratedImageUrl(imgData);
           } else {
             actualImageUrl = imageUrl;
           }

@@ -24,6 +24,7 @@ import {
   processMessagesForAI,
   removeExtraContentFromMessages,
 } from './utils/messageUtils';
+import { refreshChatAttachmentUrlsInMessages } from './utils/refreshChatAttachmentUrls';
 import { 
   TOOL_REGISTRY,
   getAvailableTools,
@@ -480,8 +481,10 @@ export async function POST(req: Request): Promise<Response> {
             isAnonymousUser
           );
           
+          // chat_attachments signed URL 갱신 (AI SDK 다운로드 시 400 InvalidJWT 방지)
+          const messagesWithFreshUrls = await refreshChatAttachmentUrlsInMessages(compressedMessages);
           // 🔧 AI SDK v5: 공통 메시지 처리 함수 사용 (도구 유무와 관계없이 동일)
-          const finalMessagesForExecution = await processMessagesForAI(compressedMessages, executionModelId);
+          const finalMessagesForExecution = await processMessagesForAI(messagesWithFreshUrls, executionModelId);
           
           // 🔥 Fireworks API 호환성: extra_content 제거 (API 호출 직전 최종 정리)
           const cleanedMessages = removeExtraContentFromMessages(finalMessagesForExecution, executionModelId);
@@ -642,8 +645,10 @@ export async function POST(req: Request): Promise<Response> {
             isAnonymousUser
           );
           
+          // chat_attachments signed URL 갱신 (AI SDK 다운로드 시 400 InvalidJWT 방지)
+          const messagesWithFreshUrls = await refreshChatAttachmentUrlsInMessages(compressedMessages);
           // 🔧 AI SDK v5: 공통 메시지 처리 함수 사용
-          const messages: ModelMessage[] = await processMessagesForAI(compressedMessages, executionModelId);
+          const messages: ModelMessage[] = await processMessagesForAI(messagesWithFreshUrls, executionModelId);
           
           // 🔥 Fireworks API 호환성: extra_content 제거 (API 호출 직전 최종 정리)
           const cleanedMessages = removeExtraContentFromMessages(messages, executionModelId);

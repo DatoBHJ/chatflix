@@ -245,8 +245,8 @@ export async function POST(req: NextRequest) {
           attachments.map(async (attachment: any) => {
             const url = attachment.url;
             
-            // Supabase Storage URL이 아니면 갱신 불필요
-            if (!url || !url.includes('supabase.co/storage/v1/object/sign/')) {
+            // Supabase Storage signed URL이 아니면 갱신 불필요 (custom domain 포함: auth.chatflix.app 등)
+            if (!url || !url.includes('/storage/v1/object/sign/')) {
               return attachment;
             }
 
