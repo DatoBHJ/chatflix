@@ -1278,7 +1278,7 @@ export function ChatInput({
                     }}
                   >
                     <div className="p-4">
-                      <div className="max-h-[calc(100vh-220px)] sm:max-h-[500px] md:max-h-[500px] overflow-y-auto scrollbar-minimal">
+                      <div className="max-h-[calc(100vh-220px)] sm:max-h-[500px] md:max-h-[500px] overflow-y-auto no-scrollbar">
                         {/* Tool Explanation Section */}
                         <div 
                           className="mb-6 rounded-[12px] p-4"
