@@ -131,6 +131,9 @@ export function BackgroundSettingsModal({
     }
   }, [isOpen, isMobile])
 
+  // 배경 세팅창에 표시하지 않을 카테고리 (파일/메타데이터는 유지, UI에서만 숨김)
+  const HIDDEN_WALLPAPER_KEYS = ['251113 seoul', '251115 football', '251115 Camp Nou'] as const
+
   const fetchChatflixImages = useCallback(async () => {
     setChatflixLoading(true)
     setChatflixError(false)
@@ -138,12 +141,14 @@ export function BackgroundSettingsModal({
       const res = await fetch('/wallpaper/Chatflix bg/images_metadata.json')
       if (!res.ok) throw new Error('Failed to fetch')
       const data: Record<string, { path: string; filename?: string }[] | unknown> = await res.json()
-      const flat = Object.entries(data).flatMap(([, arr]) =>
-        (Array.isArray(arr) ? arr : []).map((o) => ({
-          ...o,
-          url: `/wallpaper/Chatflix bg/${o.path}`
-        }))
-      )
+      const flat = Object.entries(data)
+        .filter(([key]) => !HIDDEN_WALLPAPER_KEYS.includes(key as (typeof HIDDEN_WALLPAPER_KEYS)[number]))
+        .flatMap(([, arr]) =>
+          (Array.isArray(arr) ? arr : []).map((o) => ({
+            ...o,
+            url: `/wallpaper/Chatflix bg/${o.path}`
+          }))
+        )
       setChatflixImages(flat)
     } catch {
       setChatflixError(true)
