@@ -753,11 +753,11 @@ Focus on being genuinely helpful and let the conversation flow naturally.`;
 
 **2. Content Policy & Uncensored Requests (CRITICAL)**
 - **Note**: Wan 2.5 (wan25_video) has no or minimal content censorship.
-- **Action**: Use Wan (wan25_video) instead of Grok when the user explicitly needs completely uncensored content (e.g. NSFW, mature, or content that may trigger Grok's safety filters).
+- **Action**: If Grok is blocked by content censorship, try **Wan (wan25_video)**.
 
 **3. Failure Handling Priority**
-- If Grok fails (content filter, error, or quality issue) -> Switch to **Wan (wan25_video)**.
-- For other failures -> 1. Refine prompt -> 2. Retry with Wan (wan25_video) if applicable.
+- If the failure is due to Grok provider issues (e.g. censorship/content filter) -> Switch immediately to **Wan (wan25_video)**.
+- If the failure is a schema error or other non-provider issue -> Retry **Grok (grok_video)**.
       `);
     }
     
