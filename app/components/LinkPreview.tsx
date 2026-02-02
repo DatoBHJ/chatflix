@@ -43,6 +43,7 @@ interface LinkPreviewProps {
   isVideoLink?: boolean; // 🚀 FEATURE: Indicates if this is a video link
   videoDuration?: string; // 🚀 FEATURE: Video duration for video links
   prefetchedData?: LinkCardData | null;
+  isStreaming?: boolean;
 }
 
 export const LinkPreview = ({
@@ -51,7 +52,8 @@ export const LinkPreview = ({
   searchApiTitle,
   isVideoLink = false,
   videoDuration,
-  prefetchedData
+  prefetchedData,
+  isStreaming = false
 }: LinkPreviewProps) => {
   if (prefetchedData) {
     return (
@@ -101,7 +103,7 @@ export const LinkPreview = ({
   }
 
   useEffect(() => {
-    if (!shouldLoad) return;
+    if (!shouldLoad || isStreaming) return;
 
     const fetchMetadata = async () => {
       try {
@@ -180,10 +182,10 @@ export const LinkPreview = ({
     };
 
     fetchMetadata();
-  }, [shouldLoad, url, thumbnailUrl, searchApiTitle]);
+  }, [shouldLoad, url, thumbnailUrl, searchApiTitle, isStreaming]);
 
   useEffect(() => {
-    if (metadata?.image) {
+    if (!isStreaming && metadata?.image) {
       const colorThief = new ColorThief();
       const img = new Image();
       img.crossOrigin = 'Anonymous';

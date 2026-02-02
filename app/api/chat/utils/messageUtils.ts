@@ -733,6 +733,21 @@ function summarizeToolResults(
   return summaries.filter(s => s).join('\n\n');
 }
 
+function summarizeToolOutputForAnthropic(part: any): string {
+  const toolName = typeof part.type === 'string' ? part.type.replace(/^tool-/, '') : 'tool';
+  if (!part.output) {
+    return `[Tool ${toolName}]`;
+  }
+
+  try {
+    const raw = JSON.stringify(part.output);
+    const truncated = raw.length > 1500 ? `${raw.slice(0, 1500)}...` : raw;
+    return `[Tool ${toolName} output]\n${truncated}`;
+  } catch (error) {
+    return `[Tool ${toolName} output unavailable]`;
+  }
+}
+
 /**
  * 공통 메시지 처리 함수 - 에이전트 모드와 일반 모드에서 공통으로 사용
  */
@@ -751,9 +766,45 @@ export async function processMessagesForAI(messagesWithTokens: any[], model?: st
     model.includes('kimi-k2') ||
     getProviderFromModel(model) === 'fireworks'
   );
+
+  // 🧠 Anthropic 모델인지 확인 (tool_use/tool_result 제약 대응)
+  const isAnthropic = model && (
+    model.startsWith('claude') ||
+    model.includes('anthropic') ||
+    getProviderFromModel(model) === 'anthropic'
+  );
   
   // 1️⃣ 먼저 전체 메시지에서 전역 이미지 ID 맵 생성
   const globalImageIdMap = buildGlobalImageIdMap(messagesWithTokens);
+
+  // 🧹 toolCallId 정규화 (Anthropic tool_use.id 규칙 준수)
+  const toolCallIdMap = new Map<string, string>();
+  const usedToolCallIds = new Set<string>();
+  const normalizeToolCallId = (rawId: string, fallbackKey: string) => {
+    const trimmed = rawId.trim();
+    const mapKey = trimmed || rawId;
+    const existing = toolCallIdMap.get(mapKey);
+    if (existing) {
+      return existing;
+    }
+
+    let base = trimmed.replace(/[^a-zA-Z0-9_-]/g, '_');
+    if (!base) {
+      base = `tool_${fallbackKey}`;
+    }
+
+    let candidate = base;
+    let counter = 1;
+    while (usedToolCallIds.has(candidate)) {
+      candidate = `${base}_${counter++}`;
+    }
+
+    usedToolCallIds.add(candidate);
+    if (trimmed) {
+      toolCallIdMap.set(mapKey, candidate);
+    }
+    return candidate;
+  };
   
   // 2️⃣ 최근 2개 메시지 중 tool_results가 있는 메시지 필터링
   const RECENT_TOOL_RESULTS_COUNT = 2;
@@ -764,7 +815,7 @@ export async function processMessagesForAI(messagesWithTokens: any[], model?: st
   );
   
   // 코드파일/텍스트파일을 텍스트로 변환 (UI는 파일로 유지)
-  const processedMessages = await Promise.all(messagesWithTokens.map(async (msg: any) => {
+  const processedMessages = await Promise.all(messagesWithTokens.map(async (msg: any, messageIndex: number) => {
     if (!msg.parts || !Array.isArray(msg.parts)) {
       return msg;
     }
@@ -776,19 +827,39 @@ export async function processMessagesForAI(messagesWithTokens: any[], model?: st
       (p.type && typeof p.type === 'string' && p.type.startsWith('tool-'))
     );
     
-    const processedParts = await Promise.all(msg.parts.map(async (part: any) => {
+    const processedParts = await Promise.all(msg.parts.map(async (part: any, partIndex: number) => {
+      const normalizedToolCallId = typeof part.toolCallId === 'string'
+        ? normalizeToolCallId(part.toolCallId, `${messageIndex}_${partIndex}`)
+        : part.toolCallId;
+      const normalizedPart = part.toolCallId
+        ? { ...part, toolCallId: normalizedToolCallId }
+        : part;
+
+      // 🧠 Anthropic 호환성: history 내 tool_use/tool_result 제거
+      if (isAnthropic && normalizedPart.type && typeof normalizedPart.type === 'string') {
+        if (normalizedPart.type.startsWith('tool-')) {
+          return {
+            type: 'text',
+            text: summarizeToolOutputForAnthropic(normalizedPart)
+          };
+        }
+        if (normalizedPart.type === 'tool-call' || normalizedPart.type === 'tool-result') {
+          return null;
+        }
+      }
+
       // 🚀 Anthropic API 호환성: 완료되지 않은 tool call 제거
       // AI SDK v5 형식: type이 "tool-"로 시작하고 toolCallId가 있는 경우
-      if (part.type && typeof part.type === 'string' && part.type.startsWith('tool-')) {
+      if (normalizedPart.type && typeof normalizedPart.type === 'string' && normalizedPart.type.startsWith('tool-')) {
         // 완료되지 않은 tool call 제거
         // 조건: toolCallId가 있고, output이 없거나 state가 "input-available"인 경우
         // 이는 Anthropic API의 tool_use/tool_result 요구사항을 위반할 수 있음
         // Anthropic은 tool_use가 있으면 반드시 다음 메시지에 tool_result가 있어야 함
         // 주의: output이 없으면 완료되지 않은 것으로 간주 (state와 관계없이)
-        if (part.toolCallId && !part.output) {
+        if (normalizedPart.toolCallId && !normalizedPart.output) {
           // state가 명시적으로 "output-available"이 아니면 제거
           // (state가 없거나 "input-available"이면 제거)
-          if (!part.state || part.state !== 'output-available') {
+          if (!normalizedPart.state || normalizedPart.state !== 'output-available') {
             return null;
           }
         }
@@ -796,16 +867,16 @@ export async function processMessagesForAI(messagesWithTokens: any[], model?: st
         // 🚀 Gemini API 호환성: thought_signature 보존
         // Gemini 모델에서는 function call에 thought_signature가 필수
         // part에 thought_signature가 있으면 보존하고, 없으면 providerMetadata에서 찾아서 추가
-        if (isGemini && part.input) {
+        if (isGemini && normalizedPart.input) {
           // thought_signature가 이미 있으면 그대로 유지
-          if (part.thought_signature) {
-            return part;
+          if (normalizedPart.thought_signature) {
+            return normalizedPart;
           }
           // providerMetadata에서 thought_signature 찾기
-          if (part.providerMetadata?.google?.thought_signature) {
+          if (normalizedPart.providerMetadata?.google?.thought_signature) {
             return {
-              ...part,
-              thought_signature: part.providerMetadata.google.thought_signature
+              ...normalizedPart,
+              thought_signature: normalizedPart.providerMetadata.google.thought_signature
             };
           }
           // 히스토리에서 가져온 메시지에 thought_signature가 없는 경우
@@ -817,29 +888,29 @@ export async function processMessagesForAI(messagesWithTokens: any[], model?: st
         // 🔥 Fireworks API 호환성: callProviderMetadata 제거
         // Fireworks 모델에서는 callProviderMetadata가 extra_content로 변환되어 에러 발생
         // Gemini에서 온 메시지의 callProviderMetadata를 Fireworks 모델 사용 시 제거
-        if (isFireworks && part.callProviderMetadata) {
-          const { callProviderMetadata, ...cleanedPart } = part;
+        if (isFireworks && normalizedPart.callProviderMetadata) {
+          const { callProviderMetadata, ...cleanedPart } = normalizedPart;
           return cleanedPart;
         }
         
         // 완료된 tool call은 유지 (convertToModelMessages가 tool_use/tool_result로 변환함)
         // 완료된 tool call은 output이 있거나 state가 "output-available"임
-        return part;
+        return normalizedPart;
       }
       
       // tool-call과 tool-result는 제거 (streamText의 tools 파라미터로 도구 호출 가능)
       // 단, AI SDK v5 형식의 tool-* 타입은 위에서 처리됨
-      if (part.type === 'tool-call' || part.type === 'tool-result') {
+      if (normalizedPart.type === 'tool-call' || normalizedPart.type === 'tool-result') {
         return null;
       }
       
       // GPT-5의 경우 reasoning 데이터는 그대로 유지
-      if (part.type === 'reasoning') {
+      if (normalizedPart.type === 'reasoning') {
         if (isGPT5) {
           // function_call이 있거나 reasoning part에 providerMetadata itemId가 있는 경우, 
           // 빈 reasoning이라도 유지해야 함 (OpenAI API 에러 방지)
-          const hasReasoningId = part.providerMetadata?.openai?.itemId && 
-                                 part.providerMetadata.openai.itemId.startsWith('rs_');
+          const hasReasoningId = normalizedPart.providerMetadata?.openai?.itemId && 
+                                 normalizedPart.providerMetadata.openai.itemId.startsWith('rs_');
           
           // 🚀 메시지에 tool-call이 있고 reasoning part가 있으면, 
           // tool-call이 해당 reasoning을 참조할 수 있으므로 항상 유지
@@ -847,19 +918,19 @@ export async function processMessagesForAI(messagesWithTokens: any[], model?: st
           if (hasFunctionCall || hasReasoningId) {
             // function_call이 있거나 reasoning ID가 있으면 빈 텍스트라도 포함하여 유지
             return {
-              ...part,
-              text: part.text || part.reasoningText || '',
-              reasoningText: part.reasoningText || part.text || ''
+              ...normalizedPart,
+              text: normalizedPart.text || normalizedPart.reasoningText || '',
+              reasoningText: normalizedPart.reasoningText || normalizedPart.text || ''
             };
           }
           // function_call이 없고 reasoning ID도 없고 텍스트도 없으면 null 반환 (나중에 필터링됨)
-          if (!part.text || part.text.trim().length === 0) {
+          if (!normalizedPart.text || normalizedPart.text.trim().length === 0) {
             return null;
           }
-          return part; // GPT-5에서는 reasoning 데이터 유지
+          return normalizedPart; // GPT-5에서는 reasoning 데이터 유지
         } else {
           // 다른 모델의 경우 reasoning을 text로 변환
-          const reasoningText = part.reasoningText || part.text || '';
+          const reasoningText = normalizedPart.reasoningText || normalizedPart.text || '';
           if (!reasoningText.trim()) {
             return null; // 빈 텍스트는 필터링
           }
@@ -871,29 +942,29 @@ export async function processMessagesForAI(messagesWithTokens: any[], model?: st
       }
       
       // AI SDK v4 형식 이미지를 v5 형식으로 변환
-      if (part.type === 'image' && part.image) {
+      if (normalizedPart.type === 'image' && normalizedPart.image) {
         // experimental_attachments에서 정확한 mediaType과 filename 찾기
         const attachment = msg.experimental_attachments?.find((att: any) => 
-          att.url === part.image || att.url.includes(part.image) || part.image.includes(att.url)
+          att.url === normalizedPart.image || att.url.includes(normalizedPart.image) || normalizedPart.image.includes(att.url)
         );
         
         return {
           type: 'file',
-          url: part.image,
+          url: normalizedPart.image,
           mediaType: attachment?.contentType || 'image/png',
           filename: attachment?.name || 'image'
         };
       }
       
-      if (part.type === 'file' && part.url) {
+      if (normalizedPart.type === 'file' && normalizedPart.url) {
         // PDF는 그대로 유지
-        if (part.mediaType === 'application/pdf') {
-          return part;
+        if (normalizedPart.mediaType === 'application/pdf') {
+          return normalizedPart;
         }
         
         // 이미지도 그대로 유지
-        if (part.mediaType && part.mediaType.startsWith('image/')) {
-          return part;
+        if (normalizedPart.mediaType && normalizedPart.mediaType.startsWith('image/')) {
+          return normalizedPart;
         }
         
         // 코드파일/텍스트파일 (mediaType이 없거나 빈 문자열인 경우 포함)
@@ -922,7 +993,7 @@ export async function processMessagesForAI(messagesWithTokens: any[], model?: st
           };
         }
       }
-      return part;
+      return normalizedPart;
     }));
     
     // null 값 (빈 reasoning part 등)을 필터링

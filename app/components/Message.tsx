@@ -2522,8 +2522,10 @@ const Message = memo(function MessageComponent({
                       }
                     });
                     
+                    if (isStreaming) return null;
+                    
                     return validUrls.map((url: string, index: number) => (
-                      <LinkPreview key={`${message.id}-url-${index}`} url={url} />
+                      <LinkPreview key={`${message.id}-url-${index}`} url={url} isStreaming={isStreaming} />
                     ));
                   })()}
                   {(hasTextContent) && (

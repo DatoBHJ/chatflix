@@ -2904,9 +2904,23 @@ function MarkdownContentComponent({
                   />
                 );
                 } else if (part.type === 'general_link' && 'url' in part) {
+                  const url = part.url as string;
+                  if (isStreaming) {
+                    return (
+                      <a
+                        key={part.key}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[var(--foreground)] border-b border-[var(--muted)] hover:border-[var(--foreground)] transition-colors break-all"
+                      >
+                        {url}
+                      </a>
+                    );
+                  }
                   return (
                     <div key={part.key} className="my-0.5">
-                      <LinkPreview url={part.url as string} />
+                      <LinkPreview url={url} isStreaming={isStreaming} />
                     </div>
                   );
                 }
@@ -3133,13 +3147,26 @@ function MarkdownContentComponent({
       
       // Regular link rendering with LinkPreview
       if (href && typeof href === 'string' && (href.startsWith('http://') || href.startsWith('https://'))) {
+        if (isStreaming) {
+          return (
+            <a 
+              href={href} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-[var(--foreground)] border-b border-[var(--muted)] hover:border-[var(--foreground)] transition-colors break-all"
+              {...props}
+            >
+              {children}
+            </a>
+          );
+        }
         return (
           <div className="my-0.5 w-full" style={{ 
             maxWidth: '400px',
             minWidth: '300px',
             width: '100%'
           }}>
-            <LinkPreview url={href} thumbnailUrl={thumbnailUrl} searchApiTitle={searchApiTitle} prefetchedData={linkPreviewData?.[href]} />
+            <LinkPreview url={href} thumbnailUrl={thumbnailUrl} searchApiTitle={searchApiTitle} prefetchedData={linkPreviewData?.[href]} isStreaming={isStreaming} />
           </div>
         );
       }
@@ -3558,77 +3585,19 @@ function MarkdownContentComponent({
         {highlightSearchTermInChildren(children, searchTerm, { messageType })}
       </blockquote>
     ),
-    ul: ({ children, ...props }) => {
-      const ulRef = useRef<HTMLUListElement>(null);
-      const [isNested, setIsNested] = useState(false);
-      const [isSafari, setIsSafari] = useState(false);
-      
-      useEffect(() => {
-        if (ulRef.current) {
-          // Check if this ul is inside a li element
-          const parentLi = ulRef.current.closest('li');
-          setIsNested(!!parentLi);
-        }
-        
-        // Detect Safari browser
-        const ua = navigator.userAgent;
-        const isSafariBrowser = /^((?!chrome|android).)*safari/i.test(ua);
-        setIsSafari(isSafariBrowser);
-      }, []);
-      
-      return (
-        <ul
-          ref={ulRef}
-          className={`my-4 list-disc list-outside ${
-            isNested ? 'pl-2' : isSafari ? 'pl-[1.3rem] md:pl-[1.4rem]' : 'pl-[1.3rem] md:pl-[0.9rem]'
-          }`}
-          {...props}
-        >
-          {children}
-        </ul>
-      );
-    },
-    ol: ({ children, ...props }) => {
-      const olRef = useRef<HTMLOListElement>(null);
-      const [isNested, setIsNested] = useState(false);
-      const [isSafari, setIsSafari] = useState(false);
-      
-      useEffect(() => {
-        if (olRef.current) {
-          // Check if this ol is inside a li element
-          const parentLi = olRef.current.closest('li');
-          setIsNested(!!parentLi);
-        }
-        
-        // Detect Safari browser
-        const ua = navigator.userAgent;
-        const isSafariBrowser = /^((?!chrome|android).)*safari/i.test(ua);
-        setIsSafari(isSafariBrowser);
-      }, []);
-      
-      return (
-        <ol 
-          ref={olRef}
-          className={`my-4 list-decimal list-outside ${
-            isNested ? 'pl-2' : isSafari ? 'pl-[1.5rem] md:pl-[1.6rem]' : 'pl-[1.5rem] md:pl-[1.1rem]'
-          }`}
-          {...props}
-        >
-          {children}
-        </ol>
-      );
-    },
+    ul: ({ children, ...props }) => (
+      <ul {...props}>
+        {children}
+      </ul>
+    ),
+    ol: ({ children, ...props }) => (
+      <ol {...props}>
+        {children}
+      </ol>
+    ),
     li: ({ children, ...props }) => (
-      <li className="my-0 break-words leading-tight" style={{ 
-        listStylePosition: 'outside',
-        paddingLeft: '0.25rem'
-      }} {...props}>
+      <li className="break-words" {...props}>
         {highlightSearchTermInChildren(children, searchTerm, { messageType })}
-        <style jsx>{`
-          li ul, li ol {
-            padding-left: 0.5rem !important;
-          }
-        `}</style>
       </li>
     ),
     h1: ({ children, ...props }) => (
