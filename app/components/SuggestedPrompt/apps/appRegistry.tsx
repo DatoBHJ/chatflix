@@ -266,6 +266,15 @@ export const ALL_APPS: AppMeta[] = [
     path: '', 
     isFullAppIcon: true
   },
+  // {
+  //   id: 'trending',
+  //   label: 'Trending',
+  //   icon: TrendingUp,
+  //   path: '',
+  //   isWidget: false,
+  //   gradient: 'linear-gradient(0deg, rgba(17, 153, 142, 0.75) 0%, rgba(56, 239, 125, 0.75) 100%)',
+  //   iconColor: '#FFFFFF'
+  // },
   // Widgets
   { id: 'glass-trends-widget', label: 'Trending', icon: TrendingUp, path: '', isWidget: true },
   { id: 'onthisday-widget', label: 'On This Day', icon: Clock, path: '', isWidget: true },

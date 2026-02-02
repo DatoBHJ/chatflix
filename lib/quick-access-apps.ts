@@ -48,6 +48,7 @@ export const VALID_APP_IDS: string[] = [
   'photos',
   'pensieve',
   'settings',
+  'trending',
   'onthisday-widget',
   'random-fact-widget',
   'daily-joke-widget',

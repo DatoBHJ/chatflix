@@ -4,7 +4,7 @@
 import React, { memo, useMemo, useCallback, useState, useRef } from 'react';
 import { Calculator, Link2, ImageIcon, Search, Youtube, Video } from 'lucide-react';
 import { SiGoogle } from 'react-icons/si';
-import { XLogo, YouTubeLogo, WanAiLogo, SeedreamLogo } from './CanvasFolder/CanvasLogo';
+import { XLogo, YouTubeLogo, WanAiLogo, SeedreamLogo, XaiLogo } from './CanvasFolder/CanvasLogo';
 import { getTopicIconComponent, getTopicName, getTopicIcon } from './MultiSearch';
 
 // Shimmer animation styles
@@ -35,6 +35,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   'youtube_link_analyzer': 'YouTube Analyzer',
   'google_search': 'Google Search',
   'wan25_video': 'Wan 2.5 Video',
+  'grok_video': 'Grok Imagine Video',
 };
 
 // Tool name to icon mapping
@@ -86,6 +87,8 @@ const getToolIcon = (toolName: string, toolArgs?: any, toolResult?: any) => {
       return <XLogo size={iconProps.size} />;
     case 'wan25_video':
       return <WanAiLogo size={iconProps.size} />;
+    case 'grok_video':
+      return <XaiLogo size={iconProps.size} />;
     default:
       return <Search {...iconProps} />;
   }
@@ -132,6 +135,8 @@ const getCanvasToolType = (toolName: string, toolArgs?: any, toolResult?: any): 
       return 'youtube-analyzer';
     case 'wan25_video':
       return 'wan25-video';
+    case 'grok_video':
+      return 'grok-video';
     default:
       return toolName;
   }
@@ -177,7 +182,7 @@ export const InlineToolPreview = memo(function InlineToolPreview({
     }
     
     // 비디오 생성 도구: success 필드와 실제 비디오 데이터 확인
-    if (toolName === 'wan25_video') {
+    if (toolName === 'wan25_video' || toolName === 'grok_video') {
       if (toolResult) {
         if (toolResult.success === false) {
           return 'error';
@@ -221,6 +226,13 @@ export const InlineToolPreview = memo(function InlineToolPreview({
       return toolArgs?.model === 'image-to-video' 
         ? 'Wan 2.5 Image to Video' 
         : 'Wan 2.5 Text to Video';
+    }
+    // grok_video: model에 따라 동적 이름
+    if (toolName === 'grok_video') {
+      const model = toolArgs?.model;
+      if (model === 'video-edit') return 'Grok Video to Video';
+      if (model === 'image-to-video') return 'Grok Image to Video';
+      return 'Grok Text to Video';
     }
     return TOOL_DISPLAY_NAMES[toolName] || toolName;
   }, [toolName, toolArgs]);

@@ -62,8 +62,8 @@ interface MessageProps {
   geminiImageData?: any
   seedreamImageData?: any
   qwenImageData?: any
-  wan25VideoData?: any
-
+  wan25VideoData?: any;
+  grokVideoData?: any;
   twitterSearchData?: any
   youTubeSearchData?: any
   youTubeLinkAnalysisData?: any
@@ -234,10 +234,10 @@ const AssistantAvatar = ({ modelId, onClick }: { modelId: string; onClick?: () =
 const areMessagePropsEqual = (prevProps: any, nextProps: any) => {
   // message.annotations의 progress만 변경된 경우 무시
   const prevAnnotationsWithoutProgress = (prevProps.message?.annotations || []).filter(
-    (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress'
+    (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress'
   );
   const nextAnnotationsWithoutProgress = (nextProps.message?.annotations || []).filter(
-    (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress'
+    (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress'
   );
   
   // annotations (progress 제외) 비교
@@ -245,10 +245,10 @@ const areMessagePropsEqual = (prevProps: any, nextProps: any) => {
   
   // message.parts의 실제 내용 비교 (progress annotation 제외)
   const prevPartsWithoutProgress = (prevProps.message?.parts || []).filter(
-    (p: any) => p?.type !== 'data-wan25_video_progress'
+    (p: any) => p?.type !== 'data-wan25_video_progress' && p?.type !== 'data-grok_video_progress'
   );
   const nextPartsWithoutProgress = (nextProps.message?.parts || []).filter(
-    (p: any) => p?.type !== 'data-wan25_video_progress'
+    (p: any) => p?.type !== 'data-wan25_video_progress' && p?.type !== 'data-grok_video_progress'
   );
   const partsEqual = JSON.stringify(prevPartsWithoutProgress) === JSON.stringify(nextPartsWithoutProgress);
   
@@ -264,6 +264,8 @@ const areMessagePropsEqual = (prevProps: any, nextProps: any) => {
   // wan25VideoData 비교 (progress는 더 이상 사용하지 않으므로 전체 비교)
   const wan25VideoDataPropsEqual = 
     JSON.stringify(prevProps.wan25VideoData) === JSON.stringify(nextProps.wan25VideoData);
+  const grokVideoDataPropsEqual = 
+    JSON.stringify(prevProps.grokVideoData) === JSON.stringify(nextProps.grokVideoData);
   
   // 다른 props 비교 (toolData는 참조 비교 - 내용이 같으면 참조도 같음)
   const otherPropsEqual = 
@@ -294,6 +296,7 @@ const areMessagePropsEqual = (prevProps: any, nextProps: any) => {
     prevProps.youTubeLinkAnalysisData === nextProps.youTubeLinkAnalysisData &&
     prevProps.googleSearchData === nextProps.googleSearchData &&
     wan25VideoDataPropsEqual &&
+    grokVideoDataPropsEqual &&
     // 함수 props는 참조 비교
     prevProps.onRegenerate === nextProps.onRegenerate &&
     prevProps.onCopy === nextProps.onCopy &&
@@ -346,6 +349,7 @@ const Message = memo(function MessageComponent({
   seedreamImageData,
   qwenImageData,
   wan25VideoData,
+  grokVideoData,
 
   twitterSearchData,
   youTubeSearchData,
@@ -539,7 +543,7 @@ const Message = memo(function MessageComponent({
   const videoPartsKey = useMemo(() => {
     if (!message.parts || !Array.isArray(message.parts)) return '';
     const videoParts = message.parts.filter(
-      (p: any) => p?.type?.startsWith('tool-wan25_') || p?.type === 'data-wan25_video_complete'
+      (p: any) => p?.type?.startsWith('tool-wan25_') || p?.type === 'data-wan25_video_complete' || p?.type?.startsWith('tool-grok_') || p?.type === 'data-grok_video_complete'
     );
     return JSON.stringify(videoParts);
   }, [message.parts]);
@@ -2227,13 +2231,13 @@ const Message = memo(function MessageComponent({
     
     // 🚀 도구 프리뷰 데이터가 있는 경우도 렌더링할 컨텐츠가 있는 것으로 간주
     if (webSearchData || mathCalculationData || linkReaderData || imageGeneratorData || 
-        geminiImageData || seedreamImageData || qwenImageData || wan25VideoData || twitterSearchData || 
+        geminiImageData || seedreamImageData || qwenImageData || wan25VideoData || grokVideoData || twitterSearchData || 
         youTubeSearchData || youTubeLinkAnalysisData || googleSearchData) return true;
 
     return false;
   }, [message, structuredDescription, hasAttachments, 
       webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, 
-      geminiImageData, seedreamImageData, qwenImageData, wan25VideoData, twitterSearchData, 
+      geminiImageData, seedreamImageData, qwenImageData, wan25VideoData, grokVideoData, twitterSearchData, 
       youTubeSearchData, youTubeLinkAnalysisData, googleSearchData]);
 
   // Check if message has rate limit status annotation
@@ -2302,6 +2306,7 @@ const Message = memo(function MessageComponent({
         seedreamImageData={seedreamImageData}
         qwenImageData={qwenImageData}
         wan25VideoData={wan25VideoData}
+        grokVideoData={grokVideoData}
         twitterSearchData={twitterSearchData}
         youTubeSearchData={youTubeSearchData}
         youTubeLinkAnalysisData={youTubeLinkAnalysisData}

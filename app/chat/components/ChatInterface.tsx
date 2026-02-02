@@ -15,7 +15,7 @@ import { getChatflixLogo } from '@/lib/models/logoUtils';
 import { SimpleMessages } from '@/app/components/SimpleMessages';
 import { SidePanel } from '@/app/components/SidePanel';
 import { ChatInputArea } from './ChatInputArea';
-import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getGoogleSearchData } from '@/app/hooks/toolFunction';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getGoogleSearchData, getWan25VideoData, getGrokVideoData } from '@/app/hooks/toolFunction';
 import { Annotation } from '@/app/lib/messageUtils';
 import { nanoid } from 'nanoid';
 import { DragDropOverlay } from '@/app/components/ChatInput/DragDropOverlay';
@@ -1247,6 +1247,8 @@ export default function ChatInterface({
       getImageGeneratorData(message) || 
       getGeminiImageData(message) ||
       getSeedreamImageData(message) ||
+      getWan25VideoData(message) ||
+      getGrokVideoData(message) ||
       getYouTubeSearchData(message) || 
       getYouTubeLinkAnalysisData(message) || 
       getGoogleSearchData(message) ||

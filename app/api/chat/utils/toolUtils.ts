@@ -10,6 +10,7 @@ import {
   // createQwenImageTool,
   createTwitterSearchTool,
   createWan25VideoTool,
+  createGrokVideoTool,
 } from '../tools';
 
 // 🆕 도구 레지스트리 - 모든 도구를 중앙에서 관리
@@ -68,6 +69,11 @@ export const TOOL_REGISTRY = {
     createFn: (dataStream: any, userId: string, messages: any[], chatId?: string, forcedModel?: 'text-to-video' | 'image-to-video') => createWan25VideoTool(dataStream, userId, messages, chatId, forcedModel),
     resultKey: 'wan25VideoResults',
     description: 'Alibaba Wan 2.5 video generation (text-to-video & image-to-video)'
+  },
+  'grok_video': {
+    createFn: (dataStream: any, userId: string, messages: any[], chatId?: string, forcedModel?: 'text-to-video' | 'image-to-video' | 'video-edit') => createGrokVideoTool(dataStream, userId, messages, chatId, forcedModel),
+    resultKey: 'grokVideoResults',
+    description: 'xAI Grok Imagine video generation & editing (text-to-video, image-to-video, video-edit)'
   }
 } as const;
 
@@ -102,7 +108,8 @@ export function collectToolResults(tools: Record<string, any>, toolNames: string
       'gemini_image_tool': 'generatedImages',
       'seedream_image_tool': 'generatedImages',
       // 'qwen_image_edit': 'generatedImages',
-      'wan25_video': 'generatedVideos'
+      'wan25_video': 'generatedVideos',
+      'grok_video': 'generatedVideos'
     };
     
     const resultKey = resultMap[toolName] || 'results';

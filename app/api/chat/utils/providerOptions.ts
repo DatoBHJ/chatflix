@@ -174,9 +174,9 @@ export function getProviderOptions(
     providerOptions.google = googleOptions;
   }
 
-  // Fireworks Provider Options (Kimi K2.5)
+  // Fireworks Provider Options (Kimi K2.5, DeepSeek V3.2)
   // https://fireworks.ai/models/fireworks/kimi-k2p5 — use thinking: { type: 'disabled' } for non-reasoning
-  if (modelConfig?.provider === 'fireworks' && modelConfig.id.includes('kimi-k2p5')) {
+  if (modelConfig?.provider === 'fireworks' && (modelConfig.id.includes('kimi-k2p5') || modelConfig.id.includes('deepseek-v3p2'))) {
     if (modelConfig.reasoning === false || modelConfig.reasoningEffort === 'none') {
       // Non-reasoning: do not use reasoning_effort and thinking together (causes error)
       providerOptions.fireworks = {

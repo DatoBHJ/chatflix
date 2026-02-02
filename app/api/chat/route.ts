@@ -379,6 +379,15 @@ export async function POST(req: Request): Promise<Response> {
               // Wan 2.5 Image to Video 선택 시 처리
               selectedActiveTools = ['wan25_video'] as Array<keyof typeof TOOL_REGISTRY>;
               (writer as any)._selectedWan25VideoModel = 'image-to-video';
+            } else if (selectedTool === 'grok_text_to_video') {
+              selectedActiveTools = ['grok_video'] as Array<keyof typeof TOOL_REGISTRY>;
+              (writer as any)._selectedGrokVideoModel = 'text-to-video';
+            } else if (selectedTool === 'grok_image_to_video') {
+              selectedActiveTools = ['grok_video'] as Array<keyof typeof TOOL_REGISTRY>;
+              (writer as any)._selectedGrokVideoModel = 'image-to-video';
+            } else if (selectedTool === 'grok_video_edit') {
+              selectedActiveTools = ['grok_video'] as Array<keyof typeof TOOL_REGISTRY>;
+              (writer as any)._selectedGrokVideoModel = 'video-edit';
             } else {
               // 일반 도구인 경우
               selectedActiveTools = [selectedTool] as Array<keyof typeof TOOL_REGISTRY>;
@@ -442,6 +451,8 @@ export async function POST(req: Request): Promise<Response> {
                 // ? (config.createFn as any)(writer, user?.id || anonymousUserId, messagesWithTokens, chatId) // chatId 추가
                 : toolName === 'wan25_video'
                 ? (config.createFn as any)(writer, user?.id || anonymousUserId, messagesWithTokens, chatId, (writer as any)._selectedWan25VideoModel) // forcedModel 전달
+                : toolName === 'grok_video'
+                ? (config.createFn as any)(writer, user?.id || anonymousUserId, messagesWithTokens, chatId, (writer as any)._selectedGrokVideoModel) // forcedModel 전달
                 : (config.createFn as any)(writer)
             ])
           );

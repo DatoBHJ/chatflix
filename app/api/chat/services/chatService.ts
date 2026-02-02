@@ -600,7 +600,8 @@ Focus on being genuinely helpful and let the conversation flow naturally.`;
         'google_search': 'googleSearch',
         'youtube_search': 'youtubeSearch',
         'twitter_search': 'twitterSearch',
-        'wan25_video': 'wan25VideoTool'
+        'wan25_video': 'wan25VideoTool',
+        'grok_video': 'grokVideoTool'
       };
       
       return toolMapping[toolName] || null;
@@ -611,10 +612,13 @@ Focus on being genuinely helpful and let the conversation flow naturally.`;
     // const imageTools = ['gemini_image_tool', 'seedream_image_tool', 'qwen_image_edit'];
     // 검색 도구 목록
     const searchTools = ['google_search', 'web_search', 'twitter_search', 'youtube_search'];
+    // 비디오 도구 목록
+    const videoTools = ['grok_video', 'wan25_video'];
     
     const selectedTools = options.selectedTools || [];
     const hasMultipleImageTools = selectedTools.filter(t => imageTools.includes(t)).length > 1;
     const hasMultipleSearchTools = selectedTools.filter(t => searchTools.includes(t)).length > 1;
+    const hasMultipleVideoTools = selectedTools.filter(t => videoTools.includes(t)).length > 1;
     
     let searchToolSelectionStrategyAdded = false;
     
@@ -736,9 +740,40 @@ Focus on being genuinely helpful and let the conversation flow naturally.`;
       }
     });
     
-    // 5. 나머지 도구들 처리
+    // 5. 비디오 도구 선택 전략 추가 (여러 비디오 도구일 때)
+    if (hasMultipleVideoTools) {
+      toolSpecificPrompts.push(`
+### Video Generation & Editing Tool Selection Strategy
+
+**DEFAULT: Use Grok Imagine Video (grok_video) FIRST for all video generation and editing tasks.**
+
+**1. Grok Imagine Video (grok_video) Strengths**
+- Best-in-class instruction following; text-to-video, image-to-video, and video-edit.
+- Always use Grok first for video generation and editing unless uncensored content is required.
+
+**2. Content Policy & Uncensored Requests (CRITICAL)**
+- **Note**: Wan 2.5 (wan25_video) has no or minimal content censorship.
+- **Action**: Use Wan (wan25_video) instead of Grok when the user explicitly needs completely uncensored content (e.g. NSFW, mature, or content that may trigger Grok's safety filters).
+
+**3. Failure Handling Priority**
+- If Grok fails (content filter, error, or quality issue) -> Switch to **Wan (wan25_video)**.
+- For other failures -> 1. Refine prompt -> 2. Retry with Wan (wan25_video) if applicable.
+      `);
+    }
+    
+    // 6. 각 비디오 도구 상세 지침 추가
+    videoTools.forEach(toolName => {
+      if (selectedTools.includes(toolName)) {
+        const toolKey = mapToolName(toolName);
+        if (toolKey && toolPrompts[toolKey]) {
+          toolSpecificPrompts.push(toolPrompts[toolKey]);
+        }
+      }
+    });
+    
+    // 7. 나머지 도구들 처리
     selectedTools.forEach(toolName => {
-      if (!imageTools.includes(toolName) && !searchTools.includes(toolName)) {
+      if (!imageTools.includes(toolName) && !searchTools.includes(toolName) && !videoTools.includes(toolName)) {
         const toolKey = mapToolName(toolName);
         if (toolKey && toolPrompts[toolKey]) {
           toolSpecificPrompts.push(toolPrompts[toolKey]);

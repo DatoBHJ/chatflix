@@ -7,7 +7,7 @@ import { getAdaptiveGlassStyleBlur, getIconClassName } from '@/app/lib/adaptiveG
 import { createPortal } from 'react-dom';
 import { Tweet } from 'react-tweet';
 import { SiGoogle } from 'react-icons/si';
-import { XLogo, YouTubeLogo, WanAiLogo, SeedreamLogo } from './CanvasFolder/CanvasLogo';
+import { XLogo, YouTubeLogo, WanAiLogo, SeedreamLogo, XaiLogo } from './CanvasFolder/CanvasLogo';
 import { YouTubeVideo, VideoWithRefresh } from './CanvasFolder/toolComponent';
 import { DirectVideoEmbed } from './MarkdownContent';
 import { ImageGalleryStack } from './ImageGalleryStack';
@@ -100,6 +100,29 @@ type CanvasProps = {
     pendingCount?: number;
     pendingPrompts?: string[];
     pendingSourceImages?: string[];
+    errorCount?: number;
+  } | null;
+  grokVideoData?: {
+    generatedVideos: {
+      videoUrl: string;
+      prompt: string;
+      timestamp: string;
+      resolution?: string;
+      duration?: number;
+      aspect_ratio?: string;
+      isImageToVideo?: boolean;
+      isVideoEdit?: boolean;
+      sourceImageUrl?: string;
+      sourceVideoUrl?: string;
+      path?: string;
+    }[];
+    status?: 'processing' | 'completed' | 'error';
+    startedCount?: number;
+    pendingCount?: number;
+    pendingPrompts?: string[];
+    pendingSourceImages?: string[];
+    pendingSourceVideos?: string[];
+    isVideoEdit?: boolean;
     errorCount?: number;
   } | null;
 
@@ -200,6 +223,7 @@ export default function Canvas({
   seedreamImageData,
   qwenImageData,
   wan25VideoData,
+  grokVideoData,
   twitterSearchData, 
   youTubeSearchData, 
   youTubeLinkAnalysisData,
@@ -290,6 +314,7 @@ export default function Canvas({
   const [seedreamExpanded, setSeedreamExpanded] = useState(true);
   const [qwenExpanded, setQwenExpanded] = useState(true);
   const [wan25Expanded, setWan25Expanded] = useState(true);
+  const [grokExpanded, setGrokExpanded] = useState(true);
 
   const [youTubeSearchExpanded, setYouTubeSearchExpanded] = useState(true);
   const [youTubeLinkAnalysisExpanded, setYouTubeLinkAnalysisExpanded] = useState(true);
@@ -322,6 +347,7 @@ export default function Canvas({
   const toggleSeedreamImages = () => setSeedreamExpanded(!seedreamExpanded);
   const toggleQwenImages = () => setQwenExpanded(!qwenExpanded);
   const toggleWan25Video = () => setWan25Expanded(!wan25Expanded);
+  const toggleGrokVideo = () => setGrokExpanded(!grokExpanded);
 
   const toggleYouTubeSearch = () => setYouTubeSearchExpanded(!youTubeSearchExpanded);
   const toggleYouTubeLinkAnalysis = () => setYouTubeLinkAnalysisExpanded(!youTubeLinkAnalysisExpanded);
@@ -529,7 +555,7 @@ export default function Canvas({
   };
 
   // Don't render if there's no data to display
-  const shouldRender = !!(mergedSearchData || mathCalculationData || linkReaderData || imageGeneratorData || geminiImageData || seedreamImageData || qwenImageData || wan25VideoData || youTubeSearchData || youTubeLinkAnalysisData);
+  const shouldRender = !!(mergedSearchData || mathCalculationData || linkReaderData || imageGeneratorData || geminiImageData || seedreamImageData || qwenImageData || wan25VideoData || grokVideoData || youTubeSearchData || youTubeLinkAnalysisData);
   
   if (!shouldRender) {
     return null;
@@ -1949,6 +1975,83 @@ export default function Canvas({
                 </div>
               ) : null
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Grok Imagine Video Results */}
+      {(!selectedTool || selectedTool === 'grok-video') && grokVideoData && (
+        <div className="">
+          {!selectedTool && (
+            <div 
+              className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
+              onClick={toggleGrokVideo}
+            >
+              <div className="flex items-center gap-2.5">
+                <XaiLogo size={16} className="text-(--foreground)" />
+                <h2 className="font-medium text-left tracking-tight">
+                  {grokVideoData.isVideoEdit ? 'Grok Video to Video' : (grokVideoData.generatedVideos?.some(v => v.isImageToVideo) || (grokVideoData.pendingSourceImages && grokVideoData.pendingSourceImages.length > 0)) ? 'Grok Image to Video' : 'Grok Text to Video'}
+                </h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-(--foreground)/5 text-(--muted)">
+                  {grokVideoData.generatedVideos?.length || 0}
+                </span>
+                {grokExpanded ? <ChevronUp className="h-4 w-4 text-(--muted)" /> : <ChevronDown className="h-4 w-4 text-(--muted)" />}
+              </div>
+            </div>
+          )}
+          <div 
+            className="overflow-hidden transition-all duration-300 ease-in-out"
+            style={{ 
+              maxHeight: grokExpanded ? '2000px' : '0',
+              opacity: grokExpanded ? 1 : 0,
+              paddingTop: grokExpanded ? '0.5rem' : '0'
+            }}
+          >
+            {grokVideoData.generatedVideos && grokVideoData.generatedVideos.length > 0 && (
+              <VideoGalleryStack
+                videos={grokVideoData.generatedVideos.map((video) => ({
+                  src: video.videoUrl,
+                  prompt: video.prompt,
+                  sourceImageUrl: video.sourceImageUrl,
+                  aspectRatio: video.aspect_ratio ? video.aspect_ratio.replace(':', '/') : undefined
+                }))}
+                messageId={messageId}
+                chatId={chatId}
+                userId={userId}
+                isMobile={isMobile}
+              />
+            )}
+            {grokVideoData.pendingCount && grokVideoData.pendingCount > 0 && grokVideoData.pendingPrompts && grokVideoData.pendingPrompts.length > 0 ? (
+              <div className={`grid gap-5 ${grokVideoData.generatedVideos && grokVideoData.generatedVideos.length > 0 ? 'mt-5' : ''} ${(grokVideoData.startedCount || grokVideoData.generatedVideos?.length || 0) === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
+                {grokVideoData.pendingPrompts.map((prompt: string, index: number) => (
+                  <div 
+                    key={`pending-grok-prompt-${index}`}
+                    className="border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-xl overflow-hidden shadow-sm bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)] relative min-h-[200px]"
+                  >
+                    <div className="absolute inset-0 bg-linear-to-br from-[color-mix(in_srgb,var(--foreground)_5%,transparent)] via-[color-mix(in_srgb,var(--foreground)_3%,transparent)] to-[color-mix(in_srgb,var(--foreground)_5%,transparent)]" />
+                    <div className="prompt-overlay absolute inset-0 bg-black/75 backdrop-blur-md text-white p-6 flex flex-col justify-center items-center text-center opacity-100 transition-opacity duration-300 z-20">
+                      <div className="text-base font-medium bg-linear-to-r from-transparent via-gray-300 to-transparent bg-clip-text text-transparent px-4" style={{ backgroundSize: '200% 100%', animation: 'shimmer 2s ease-in-out infinite' }}>
+                        {prompt}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : grokVideoData.pendingCount && grokVideoData.pendingCount > 0 ? (
+              <div className={`grid gap-5 ${grokVideoData.generatedVideos && grokVideoData.generatedVideos.length > 0 ? 'mt-5' : ''} ${(grokVideoData.startedCount || grokVideoData.generatedVideos?.length || 0) === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
+                {Array.from({ length: grokVideoData.pendingCount }).map((_, index) => (
+                  <div key={`pending-grok-skeleton-${index}`} className="border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-xl overflow-hidden shadow-sm bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+                    <div className="relative aspect-video bg-black/50 overflow-hidden flex items-center justify-center">
+                      <div className="w-full h-full relative overflow-hidden">
+                        <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent" style={{ backgroundSize: '200% 100%', animation: 'shimmer 2s ease-in-out infinite' }} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
       )}

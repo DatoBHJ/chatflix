@@ -81,6 +81,22 @@ async function refreshGeneratedImages(supabase: any, tool_results: any): Promise
     );
   }
   
+  // Refresh Grok videos
+  if (refreshed.grokVideoResults && Array.isArray(refreshed.grokVideoResults)) {
+    refreshed.grokVideoResults = await Promise.all(
+      refreshed.grokVideoResults.map(async (vid: any) => {
+        const updates: any = { ...vid };
+        if (vid.path && vid.bucket === 'generated-videos') {
+          const { data: signedData } = await supabase.storage
+            .from('generated-videos')
+            .createSignedUrl(vid.path, 24 * 60 * 60);
+          if (signedData?.signedUrl) updates.videoUrl = signedData.signedUrl;
+        }
+        return updates;
+      })
+    );
+  }
+  
   return refreshed;
 }
 
@@ -118,8 +134,8 @@ async function refreshPartsUrls(supabase: any, parts: any[]): Promise<{ parts: a
       };
     }
     
-    // 2. tool-wan25_* 처리 (output.videos)
-    if (part.type?.startsWith('tool-wan25_') && part.output?.videos && Array.isArray(part.output.videos)) {
+    // 2. tool-wan25_* / tool-grok_* 처리 (output.videos)
+    if ((part.type?.startsWith('tool-wan25_') || part.type?.startsWith('tool-grok_')) && part.output?.videos && Array.isArray(part.output.videos)) {
       const refreshedVideos = await Promise.all(part.output.videos.map(async (vid: any) => {
         if (vid.path && (vid.bucket === 'generated-videos' || vid.videoUrl?.includes('generated-videos'))) {
           const { data: signedData, error } = await supabase.storage
@@ -155,8 +171,8 @@ async function refreshPartsUrls(supabase: any, parts: any[]): Promise<{ parts: a
       }
     }
     
-    // 4. data-wan25_video_complete 처리
-    if (part.type === 'data-wan25_video_complete' && part.data?.path) {
+    // 4. data-wan25_video_complete / data-grok_video_complete 처리
+    if ((part.type === 'data-wan25_video_complete' || part.type === 'data-grok_video_complete') && part.data?.path) {
       const { data: signedData, error } = await supabase.storage
         .from('generated-videos')
         .createSignedUrl(part.data.path, 24 * 60 * 60);

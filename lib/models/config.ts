@@ -873,6 +873,58 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   maxOutputTokens: 8192,      // Added: Official API Limit
 },
 
+// 📅 DeepSeek V3.2 (Fireworks) Thinking
+{
+  id: 'accounts/fireworks/models/deepseek-v3p2',
+  name: 'DeepSeek V3.2 Thinking',
+  cutoff: 'Sep 2025',
+  abbreviation: 'DSV3.2-FW',
+  country: 'CHINA',
+  provider: 'fireworks',
+  creator: 'deepseek',
+  supportsVision: false,
+  supportsPDFs: false,
+  rateLimit: {
+    level: 'level2',
+  },
+  isEnabled: true,
+  isActivated: true,
+  isAgentEnabled: true,
+  reasoning: true,
+  contextWindow: 160000,
+  maxOutputTokens: 20480,
+  // Metrics from https://artificialanalysis.ai/models/deepseek-v3-2-reasoning/providers (Fireworks)
+  tps: 217.3, // artificialanalysis.ai: Fireworks #2 (217.3 t/s)
+  latency: 3.02, // Estimated; Fireworks not in top-5 latency list on page
+  intelligenceIndex: 42, // Same model as official DeepSeek V3.2 (Thinking)
+},
+// 📅 DeepSeek V3.2 (Fireworks) Non-reasoning
+{
+  id: 'accounts/fireworks/models/deepseek-v3p2',
+  name: 'DeepSeek V3.2',
+  cutoff: 'Sep 2025',
+  abbreviation: 'DSV3.2-FW-NR',
+  country: 'CHINA',
+  provider: 'fireworks',
+  creator: 'deepseek',
+  supportsVision: false,
+  supportsPDFs: false,
+  rateLimit: {
+    level: 'level2',
+  },
+  isEnabled: true,
+  isActivated: true,
+  isAgentEnabled: true,
+  reasoning: false,
+  reasoningEffort: 'none',
+  contextWindow: 160000,
+  maxOutputTokens: 20480,
+  // Metrics from https://artificialanalysis.ai/models/deepseek-v3-2/providers (Fireworks)
+  tps: 222.9, // artificialanalysis.ai: Fireworks #2 (222.9 t/s)
+  latency: 2.39, // artificialanalysis.ai: Fireworks #2 (2.39 s)
+  intelligenceIndex: 32, // Same model as official DeepSeek V3.2 (Chat)
+},
+
 // 📅 Kimi K2
 {
   id: 'moonshotai/kimi-k2-instruct-0905',
@@ -1050,32 +1102,30 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   maxOutputTokens: 16000, // From config (verify at official xAI documentation)
 },
 // 📅 Grok 4.1 Fast
-// {
-//   id: 'grok-4-1-fast-non-reasoning',
-//   name: 'Grok 4.1 Fast',
-//   // cutoff: 'Jul 2025',
-//   // pro: true,
-//   abbreviation: 'G4.1-F',
-//   country: 'US',
-//   provider: 'xai',
-//   supportsVision: true,
-//   // censored: false,
-//   rateLimit: {
-//     level: 'level3',
-//   },
-//   supportsPDFs: false,
-//   isEnabled: true,
-//   isActivated: true,
-//   isAgentEnabled: true,
-//   // Metrics: https://artificialanalysis.ai/models/grok-4-1-fast-non-reasoning/providers and main page both returned timeout/error
-//   // Note: Grok 4 Fast (Non-reasoning) exists on artificialanalysis.ai, but Grok 4.1 Fast (Non-reasoning) data is not yet available
-//   // Unable to verify metrics from artificialanalysis.ai - using estimated values
-//   contextWindow: 2000000, // From config (verify at artificialanalysis.ai when available)
-//   tps: 265, // From config (verify at artificialanalysis.ai when available)
-//   intelligenceIndex: 38, // From config (verify at artificialanalysis.ai when available)
-//   latency: 0.7, // From config (verify at artificialanalysis.ai when available)
-//   maxOutputTokens: 16000, // From config (verify at official xAI documentation)
-// },
+{
+  id: 'grok-4-1-fast-non-reasoning',
+  name: 'Grok 4.1 Fast',
+  // cutoff: 'Jul 2025',
+  // pro: true,
+  abbreviation: 'G4.1-F',
+  country: 'US',
+  provider: 'xai',
+  supportsVision: true,
+  // censored: false,
+  rateLimit: {
+    level: 'level3',
+  },
+  supportsPDFs: false,
+  isEnabled: true,
+  isActivated: true,
+  isAgentEnabled: true,
+  // Metrics from https://artificialanalysis.ai/models/grok-4-1-fast/providers (xAI)
+  contextWindow: 2000000, // 2M tokens (xAI / multiple sources)
+  tps: 121.1, // artificialanalysis.ai: xAI 121.1 t/s
+  latency: 0.74, // artificialanalysis.ai: xAI 0.74s time to first token
+  intelligenceIndex: 24, // artificialanalysis.ai Intelligence Index (non-reasoning)
+  maxOutputTokens: 16000, // Reported 8k–30k by source; 16k per Oracle/playground
+},
 // 📅 Grok Code Fast 1
 {
   id: 'grok-code-fast-1',

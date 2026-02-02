@@ -872,7 +872,7 @@ function SortableWidgetItem({
       </div>
         {/* Widget label (same style as apps) */}
         <div
-          className="absolute inset-x-0 -bottom-7 text-center pointer-events-none"
+          className="absolute inset-x-0 -bottom-6 text-center pointer-events-none"
           style={{ color: 'rgba(255, 255, 255)', textShadow: 'none' }}
         >
           <span className="text-xs sm:text-xs font-bold inline-block px-2">
@@ -1083,7 +1083,7 @@ function SortableAppItem({
       {!isDock && (
         <span
           ref={textRef}
-          className={`text-xs sm:text-xs font-bold mt-2 transition-colors duration-300 text-center relative 
+          className={`text-xs sm:text-xs font-bold mt-1 transition-colors duration-300 text-center relative 
             lg:opacity-0 lg:group-hover:opacity-0 pointer-events-none lg:pointer-events-none`}
           style={{
             ...getTextStyle(hasBackgroundImage),
@@ -1291,7 +1291,22 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
   const [fullscreenWidgetId, setFullscreenWidgetId] = useState<string | null>(null);
   const fullscreenWidget = useMemo(() => {
     if (!fullscreenWidgetId) return null;
-    return visibleApps.find((app) => app.id === fullscreenWidgetId) || null;
+    const found = visibleApps.find((app) => app.id === fullscreenWidgetId);
+    if (found) return found;
+    // Opened from Trending app: widget may not be on home. Build from registry.
+    if (fullscreenWidgetId === 'glass-trends-widget') {
+      const meta = ALL_APPS.find((a) => a.id === 'glass-trends-widget');
+      if (meta) {
+        return {
+          id: meta.id,
+          label: meta.label,
+          icon: meta.icon,
+          path: meta.path,
+          isWidget: true,
+        } as App;
+      }
+    }
+    return null;
   }, [fullscreenWidgetId, visibleApps]);
   const closeFullscreenWidget = useCallback(() => {
     setFullscreenWidgetId(null);
@@ -1337,7 +1352,8 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
   useEffect(() => {
     if (!fullscreenWidgetId) return;
     const exists = visibleApps.some((app) => app.id === fullscreenWidgetId);
-    if (!exists) {
+    // Keep modal open when opened from Trending app (glass-trends-widget has fallback from ALL_APPS)
+    if (!exists && fullscreenWidgetId !== 'glass-trends-widget') {
       setFullscreenWidgetId(null);
     }
   }, [fullscreenWidgetId, visibleApps]);
@@ -1372,7 +1388,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
       
       // 모바일 (iPhone 등 작은 화면) - 4열 그리드
       if (deviceType === 'mobile') {
-        const mobileGap = 12; // gap-3 (12px) - 공간 최적화를 위해 간격 축소
+        const mobileGap = 28; // gap-7 (28px) - 그리드 간격 추가 확대 (24 -> 28)
         const labelHeight = 12; // 앱/위젯 제목 높이 (공간 최적화 반영)
         const availableWidth = width - 32; // 모바일 좌우 패딩 축소 (48 -> 32)
         
@@ -3171,6 +3187,12 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
           detail: { updateId: newestUpdate.id, timestamp: newestUpdate.timestamp }
         }));
       }
+    }
+
+    // Handle Trending app click - open same expanded widget modal as widget tap
+    if (app.id === 'trending') {
+      setFullscreenWidgetId('glass-trends-widget');
+      return;
     }
     
     router.push(app.path);
@@ -5318,7 +5340,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                           gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
                           // 모바일/태블릿: 12px (모바일) 또는 16px (태블릿), 데스크탑: 예전 로직 (16px 또는 28px)
                           gap: (() => {
-                            if (deviceType === 'mobile') return '12px'; // gap-3 - 공간 최적화
+                            if (deviceType === 'mobile') return '28px'; // gap-7 - 그리드 간격 추가 확대 (24 -> 28)
                             if (deviceType === 'tablet') return '16px'; // 태블릿은 약간 더 넓은 간격
                             // 데스크탑: 예전 로직 (16px 또는 28px)
                             if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
@@ -5331,7 +5353,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                             ? {
                                 // 각 행의 높이 = 셀 크기 + 라벨 높이 (제목 영역 확보)
                                 gridTemplateRows: `repeat(${rows}, ${(widgetGridConfig.cellSize || 86) + (widgetGridConfig.labelHeight || 12)}px)`,
-                                maxHeight: `calc(${rows} * ${(widgetGridConfig.cellSize || 86) + (widgetGridConfig.labelHeight || 12)}px + ${rows - 1} * ${deviceType === 'tablet' ? 16 : 12}px)`, // 간격 반영
+                                maxHeight: `calc(${rows} * ${(widgetGridConfig.cellSize || 86) + (widgetGridConfig.labelHeight || 12)}px + ${rows - 1} * ${deviceType === 'tablet' ? 16 : 28}px)`, // 간격 반영 (모바일 24 -> 28)
                                 // overflow: 'hidden', // flex-1 활용을 위해 overflow hidden 제거
                               }
                             : {
@@ -5566,7 +5588,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
 
                   {/* Page Indicators (Mobile/Tablet) - 그리드와 도크 사이에 배치 */}
                   {isMobileOrTablet && widgetsList.length > 0 && (
-                    <div className="flex justify-center items-center gap-2 mt-0 mb-0">
+                    <div className="flex justify-center items-center gap-2 mb-3 mt-0">
                       {Array.from({ length: Math.max(totalPages, 1) }).map((_, index) => (
                         <button
                           key={index}
@@ -5717,7 +5739,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                             />
                           </div>
                           <span
-                            className="text-xs sm:text-xs font-bold mt-2"
+                            className="text-xs sm:text-xs font-bold mt-1"
                             style={getTextStyle(hasBackgroundImage)}
                           >
                             {app.label}
@@ -5923,10 +5945,10 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                         } ${getIconClassName(hasBackgroundImage)}`}
                       />
                     </div>
-                    <span
-                      className="text-xs sm:text-xs font-bold mt-2"
-                      style={getTextStyle(hasBackgroundImage)}
-                    >
+                      <span
+                        className="text-xs sm:text-xs font-bold mt-1"
+                        style={getTextStyle(hasBackgroundImage)}
+                      >
                       {app.label}
                     </span>
                   </div>

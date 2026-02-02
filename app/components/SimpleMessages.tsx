@@ -4,7 +4,7 @@ import { UIMessage as AIMessage } from 'ai'
 import { User } from '@supabase/supabase-js'
 import React, { useState, useEffect, useCallback, memo, useRef, useMemo } from 'react'
 import { Message as MessageComponent } from '@/app/components/Message'
-import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getTwitterSearchData, getWan25VideoData } from '@/app/hooks/toolFunction';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getTwitterSearchData, getWan25VideoData, getGrokVideoData } from '@/app/hooks/toolFunction';
 import { formatMessageGroupTimestamp } from '@/app/lib/messageGroupTimeUtils';
 import { createClient } from '@/utils/supabase/client';
 import { linkMetaEntryToCardData } from '@/app/lib/linkCardUtils';
@@ -23,19 +23,19 @@ interface ContextSummaryData {
 // OPTIMIZATION: 커스텀 비교 함수로 progress annotation만 변경될 때 리렌더링 방지
 const areMessageItemPropsEqual = (prevProps: any, nextProps: any) => {
   const prevAnnotationsWithoutProgress = (prevProps.message?.annotations || []).filter(
-    (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress'
+    (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress'
   );
   const nextAnnotationsWithoutProgress = (nextProps.message?.annotations || []).filter(
-    (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress'
+    (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress'
   );
   
   const annotationsEqual = JSON.stringify(prevAnnotationsWithoutProgress) === JSON.stringify(nextAnnotationsWithoutProgress);
   
   const prevPartsWithoutProgress = (prevProps.message?.parts || []).filter(
-    (p: any) => p?.type !== 'data-wan25_video_progress'
+    (p: any) => p?.type !== 'data-wan25_video_progress' && p?.type !== 'data-grok_video_progress'
   );
   const nextPartsWithoutProgress = (nextProps.message?.parts || []).filter(
-    (p: any) => p?.type !== 'data-wan25_video_progress'
+    (p: any) => p?.type !== 'data-wan25_video_progress' && p?.type !== 'data-grok_video_progress'
   );
   const partsEqual = JSON.stringify(prevPartsWithoutProgress) === JSON.stringify(nextPartsWithoutProgress);
   
@@ -121,7 +121,7 @@ const MessageItem = memo(function MessageItem({
 }: any) {
   const messageKey = useMemo(() => {
     const annotationsWithoutProgress = (message.annotations || []).filter(
-      (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress'
+      (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress'
     );
     return JSON.stringify({
       id: message.id,
@@ -134,7 +134,7 @@ const MessageItem = memo(function MessageItem({
     message.parts, 
     (message as any).tool_results,
     JSON.stringify((message.annotations || []).filter(
-      (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress'
+      (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress'
     ))
   ]);
 
@@ -151,7 +151,8 @@ const MessageItem = memo(function MessageItem({
       linkReaderData: getLinkReaderData(message),
       youTubeSearchData: getYouTubeSearchData(message),
       youTubeLinkAnalysisData: getYouTubeLinkAnalysisData(message),
-      wan25VideoData: getWan25VideoData(message)
+      wan25VideoData: getWan25VideoData(message),
+      grokVideoData: getGrokVideoData(message)
     };
   }, [messageKey, message]);
 
@@ -167,7 +168,8 @@ const MessageItem = memo(function MessageItem({
     linkReaderData,
     youTubeSearchData,
     youTubeLinkAnalysisData,
-    wan25VideoData
+    wan25VideoData,
+    grokVideoData
   } = toolData;
 
   const combinedImageMap = useMemo(() => {
@@ -261,9 +263,17 @@ const MessageItem = memo(function MessageItem({
           acc[videoKey] = video.size ? { url: video.videoUrl, size: video.size } : video.videoUrl;
         }
         return acc;
+      }, {}) || {}),
+      ...(grokVideoData?.generatedVideos?.reduce((acc: any, video: any) => {
+        if (video.path) {
+          const fileName = video.path.split('/').pop();
+          const videoKey = fileName.replace(/\.[^/.]+$/, '');
+          acc[videoKey] = video.videoUrl;
+        }
+        return acc;
       }, {}) || {})
     };
-  }, [globalVideoMap, wan25VideoData?.generatedVideos]);
+  }, [globalVideoMap, wan25VideoData?.generatedVideos, grokVideoData?.generatedVideos]);
 
   const promptMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -298,13 +308,25 @@ const MessageItem = memo(function MessageItem({
       }
     });
 
+    grokVideoData?.generatedVideos?.forEach((video: any) => {
+      if (video.videoUrl && video.prompt) {
+        map[video.videoUrl] = video.prompt;
+      }
+    });
+
     return map;
-  }, [geminiImageData?.generatedImages, seedreamImageData?.generatedImages, qwenImageData?.generatedImages, imageGeneratorData?.generatedImages, wan25VideoData?.generatedVideos]);
+  }, [geminiImageData?.generatedImages, seedreamImageData?.generatedImages, qwenImageData?.generatedImages, imageGeneratorData?.generatedImages, wan25VideoData?.generatedVideos, grokVideoData?.generatedVideos]);
 
   const sourceImageMap = useMemo(() => {
     const map: Record<string, string> = {};
     
     wan25VideoData?.generatedVideos?.forEach((video: any) => {
+      if (video.videoUrl && video.sourceImageUrl) {
+        map[video.videoUrl] = video.sourceImageUrl;
+      }
+    });
+
+    grokVideoData?.generatedVideos?.forEach((video: any) => {
       if (video.videoUrl && video.sourceImageUrl) {
         map[video.videoUrl] = video.sourceImageUrl;
       }
@@ -353,7 +375,7 @@ const MessageItem = memo(function MessageItem({
     }
 
     return map;
-  }, [wan25VideoData?.generatedVideos, geminiImageData?.generatedImages, seedreamImageData?.generatedImages, qwenImageData?.generatedImages, (message as any).parts]);
+  }, [wan25VideoData?.generatedVideos, grokVideoData?.generatedVideos, geminiImageData?.generatedImages, seedreamImageData?.generatedImages, qwenImageData?.generatedImages, (message as any).parts]);
 
   // url -> { width, height } for layout stability (reserve exact space before media load)
   const mediaDimensionsMap = useMemo(() => {
@@ -507,6 +529,7 @@ const MessageItem = memo(function MessageItem({
             youTubeLinkAnalysisData={youTubeLinkAnalysisData}
             googleSearchData={googleSearchData}
             wan25VideoData={wan25VideoData}
+            grokVideoData={grokVideoData}
             user={user}
             handleFollowUpQuestionClick={handleFollowUpQuestionClick}
             allMessages={allMessages}
@@ -727,7 +750,7 @@ export const SimpleMessages = memo(function SimpleMessages({
     return messages.map(msg => {
       if (!msg.parts || !Array.isArray(msg.parts)) return '';
       const videoParts = msg.parts.filter(
-        (p: any) => p?.type?.startsWith('tool-wan25_') || p?.type === 'data-wan25_video_complete'
+        (p: any) => p?.type?.startsWith('tool-wan25_') || p?.type === 'data-wan25_video_complete' || p?.type?.startsWith('tool-grok_') || p?.type === 'data-grok_video_complete'
       );
       return JSON.stringify(videoParts);
     });
@@ -743,7 +766,7 @@ export const SimpleMessages = memo(function SimpleMessages({
       
       if (message.parts && Array.isArray(message.parts)) {
         for (const part of message.parts) {
-          if (part.type?.startsWith('tool-wan25_') && part.output?.videos && Array.isArray(part.output.videos)) {
+          if ((part.type?.startsWith('tool-wan25_') || part.type?.startsWith('tool-grok_')) && part.output?.videos && Array.isArray(part.output.videos)) {
             const result = part.output;
             if (result && result.success !== false) {
               for (const vid of result.videos) {
@@ -766,19 +789,17 @@ export const SimpleMessages = memo(function SimpleMessages({
             }
           }
           
-          if (part.type === 'data-wan25_video_complete') {
+          if ((part.type === 'data-wan25_video_complete' || part.type === 'data-grok_video_complete') && part.data?.videoUrl) {
             const data = part.data;
-            if (data?.videoUrl) {
-              const dedupKey = data.path || data.videoUrl;
-              if (!seenPaths.has(dedupKey)) {
-                seenPaths.add(dedupKey);
-                const videoData = data.size ? { url: data.videoUrl, size: data.size } : data.videoUrl;
-                videoMap[`generated_video_${generatedVideoIndex++}`] = videoData;
-                if (data.path) {
-                  const filenameId = extractFilenameId(data.path);
-                  if (filenameId && !videoMap[filenameId]) {
-                    videoMap[filenameId] = videoData;
-                  }
+            const dedupKey = data.path || data.videoUrl;
+            if (!seenPaths.has(dedupKey)) {
+              seenPaths.add(dedupKey);
+              const videoData = data.size ? { url: data.videoUrl, size: data.size } : data.videoUrl;
+              videoMap[`generated_video_${generatedVideoIndex++}`] = videoData;
+              if (data.path) {
+                const filenameId = extractFilenameId(data.path);
+                if (filenameId && !videoMap[filenameId]) {
+                  videoMap[filenameId] = videoData;
                 }
               }
             }
@@ -786,11 +807,15 @@ export const SimpleMessages = memo(function SimpleMessages({
         }
       }
       
-      if (!foundInParts && message.tool_results?.wan25VideoResults) {
-        const results = message.tool_results.wan25VideoResults;
-        if (Array.isArray(results)) {
-          for (const vid of results) {
-            if (vid.videoUrl) {
+      if (!foundInParts && (message.tool_results?.wan25VideoResults || message.tool_results?.grokVideoResults)) {
+        const wan25 = message.tool_results?.wan25VideoResults;
+        const grok = message.tool_results?.grokVideoResults;
+        const list = [...(Array.isArray(wan25) ? wan25 : []), ...(Array.isArray(grok) ? grok : [])];
+        for (const vid of list) {
+          if (vid.videoUrl) {
+            const dedupKey = vid.path || vid.videoUrl;
+            if (!seenPaths.has(dedupKey)) {
+              seenPaths.add(dedupKey);
               const videoData = vid.size ? { url: vid.videoUrl, size: vid.size } : vid.videoUrl;
               videoMap[`generated_video_${generatedVideoIndex++}`] = videoData;
               if (vid.path) {

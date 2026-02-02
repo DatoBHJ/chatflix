@@ -3,7 +3,7 @@
 import { UIMessage } from 'ai'
 import Canvas from '@/app/components/Canvas';
 import { StructuredResponse } from '@/app/components/StructuredResponse';
-import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getWan25VideoData } from '@/app/hooks/toolFunction';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getWan25VideoData, getGrokVideoData } from '@/app/hooks/toolFunction';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 // import { AttachmentTextViewer } from './AttachmentTextViewer';
@@ -111,6 +111,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   const youTubeLinkAnalysisData = activeMessage ? getYouTubeLinkAnalysisData(activeMessage) : null;
   const googleSearchData = activeMessage ? getGoogleSearchData(activeMessage) : null;
   const wan25VideoData = activeMessage ? getWan25VideoData(activeMessage) : null;
+  const grokVideoData = activeMessage ? getGrokVideoData(activeMessage) : null;
 
   // Helper function to get topic display name (moved before useMemo)
   const getTopicDisplayName = (topic: string): string => {
@@ -229,6 +230,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           case 'youtube-search': return 'YouTube Search';
           case 'youtube-analyzer': return 'YouTube Analyzer';
           case 'wan25-video': return wan25VideoData?.isImageToVideo ? 'Wan 2.5 Image to Video' : 'Wan 2.5 Text to Video';
+          case 'grok-video': return grokVideoData?.isVideoEdit ? 'Grok Video to Video' : (grokVideoData?.isImageToVideo ? 'Grok Image to Video' : 'Grok Text to Video');
           default: return 'Canvas Results';
         }
       }
@@ -243,6 +245,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
       if (youTubeSearchData) return 'YouTube Search';
       if (youTubeLinkAnalysisData) return 'YouTube Analysis';
       if (wan25VideoData) return wan25VideoData.isImageToVideo ? 'Wan 2.5 Image to Video' : 'Wan 2.5 Text to Video';
+      if (grokVideoData) return grokVideoData.isVideoEdit ? 'Grok Video to Video' : (grokVideoData.isImageToVideo ? 'Grok Image to Video' : 'Grok Text to Video');
       
       return 'Canvas';
     }
@@ -255,7 +258,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
     return null;
   }, [
     panelData,
-    wan25VideoData
+    wan25VideoData,
+    grokVideoData
   ]);
 
   // Early return when no panel is visible
@@ -379,6 +383,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           seedreamImageData={seedreamImageData}
           qwenImageData={qwenImageData}
           wan25VideoData={wan25VideoData}
+          grokVideoData={grokVideoData}
           twitterSearchData={twitterSearchData}
           youTubeSearchData={youTubeSearchData}
           youTubeLinkAnalysisData={youTubeLinkAnalysisData}

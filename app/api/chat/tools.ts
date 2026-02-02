@@ -4156,6 +4156,9 @@ export function createWan25VideoTool(dataStream?: any, userId?: string, allMessa
 
             generatedVideos.push(videoResult);
 
+            // 디버깅: 생성된 비디오 풀링크 출력 (링크로 직접 확인용)
+            console.log('[WAN25_VIDEO] 생성된 비디오 풀링크 (반드시 풀링크):', videoResult.videoUrl);
+
             if (dataStream) {
               dataStream.write({
                 type: 'data-wan25_video_complete',
@@ -4212,4 +4215,396 @@ export function createWan25VideoTool(dataStream?: any, userId?: string, allMessa
   });
 
   return Object.assign(wan25VideoTool, { generatedVideos });
+}
+
+// xAI Grok Imagine 비디오 생성/편집 도구
+// Wan 패턴 + video-edit: 대화 내 이전 비디오(grok/wan25) 참조로 편집
+export function createGrokVideoTool(
+  dataStream?: any,
+  userId?: string,
+  allMessages: any[] = [],
+  chatId?: string,
+  forcedModel?: 'text-to-video' | 'image-to-video' | 'video-edit'
+) {
+  const generatedVideos: Array<{
+    videoUrl: string;
+    prompt: string;
+    timestamp: string;
+    path?: string;
+    bucket?: string;
+    resolution?: string;
+    duration?: number;
+    aspect_ratio?: string;
+    isImageToVideo?: boolean;
+    isVideoEdit?: boolean;
+    sourceImageUrl?: string;
+    sourceVideoUrl?: string;
+  }> = [];
+
+  let imageMap: Map<string, string> | null = null;
+  let generatedImageMap: Map<string, { url: string; path: string }> | null = null;
+  let imageMapsInitialized = false;
+  let videoMap: Map<string, string> | null = null;
+  let videoMapsInitialized = false;
+
+  async function ensureImageMapsInitialized() {
+    if (imageMapsInitialized) return;
+    if (chatId && userId) {
+      const dbMessages = await fetchAllChatMessagesFromDB(chatId, userId);
+      let messagesToProcess = dbMessages;
+      if (allMessages.length > 0) {
+        const dbMessageIds = new Set(dbMessages.map(m => m.id).filter(Boolean));
+        const newMessages = allMessages.filter(m => m.id && !dbMessageIds.has(m.id));
+        if (newMessages.length > 0) {
+          messagesToProcess = [...dbMessages, ...newMessages];
+        } else if (dbMessages.length === 0) {
+          messagesToProcess = allMessages;
+        }
+      }
+      if (messagesToProcess.length > 0) {
+        const maps = buildImageMapsFromDBMessages(messagesToProcess);
+        imageMap = maps.imageMap;
+        generatedImageMap = maps.generatedImageMap;
+        imageMapsInitialized = true;
+        return;
+      }
+    }
+    imageMap = new Map<string, string>();
+    generatedImageMap = new Map<string, { url: string; path: string }>();
+    let uploadedImageIndex = 1;
+    let generatedImageIndex = 1;
+    for (const message of allMessages) {
+      let foundInParts = false;
+      if (message.experimental_attachments && Array.isArray(message.experimental_attachments)) {
+        for (const attachment of message.experimental_attachments) {
+          if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
+            imageMap.set(`uploaded_image_${uploadedImageIndex++}`, attachment.url);
+          }
+        }
+      }
+      if (message.parts && Array.isArray(message.parts)) {
+        for (const part of message.parts) {
+          if (part.type === 'file' && part.mediaType?.startsWith('image/')) {
+            if (part.url || part.data) {
+              imageMap.set(`uploaded_image_${uploadedImageIndex++}`, part.url || part.data);
+            }
+          }
+          const imageToolNames = ['gemini_image_tool', 'seedream_image_tool', 'qwen_image_edit'];
+          const isImageToolResult = imageToolNames.some(toolName =>
+            part.type === `tool-${toolName}` || (part.type === 'tool-result' && part.toolName === toolName)
+          );
+          if (isImageToolResult && part.state === 'output-available' && part.output) {
+            const result = part.output?.value || part.output;
+            if (result && result.success !== false) {
+              const images = Array.isArray(result) ? result : (result.images || (result.imageUrl ? [result] : []));
+              for (const img of images) {
+                if (img.imageUrl && img.path) {
+                  generatedImageMap.set(`generated_image_${generatedImageIndex++}`, { url: img.imageUrl, path: img.path });
+                  foundInParts = true;
+                }
+              }
+            }
+          }
+        }
+      }
+      if (!foundInParts && message.tool_results) {
+        const results = message.tool_results.geminiImageResults || message.tool_results.seedreamImageResults || message.tool_results.qwenImageResults;
+        if (Array.isArray(results)) {
+          for (const img of results) {
+            if (img.imageUrl && img.path) {
+              generatedImageMap.set(`generated_image_${generatedImageIndex++}`, { url: img.imageUrl, path: img.path });
+            }
+          }
+        }
+      }
+    }
+    imageMapsInitialized = true;
+  }
+
+  async function ensureVideoMapInitialized() {
+    if (videoMapsInitialized) return;
+    const { createClient } = await import('@/utils/supabase/server');
+    const supabase = await createClient();
+    let messagesToProcess = allMessages;
+    if (chatId && userId) {
+      const dbMessages = await fetchAllChatMessagesFromDB(chatId, userId);
+      if (dbMessages.length > 0) {
+        const dbMessageIds = new Set(dbMessages.map(m => m.id).filter(Boolean));
+        const newMessages = allMessages.filter(m => m.id && !dbMessageIds.has(m.id));
+        messagesToProcess = newMessages.length > 0 ? [...dbMessages, ...newMessages] : dbMessages.length > 0 ? dbMessages : allMessages;
+      }
+    }
+    videoMap = new Map<string, string>();
+    let generatedVideoIndex = 1;
+    const seenPaths = new Set<string>();
+
+    function extractFilenameId(path: string): string | null {
+      if (!path) return null;
+      const filename = path.split('/').pop();
+      return filename ? filename.replace(/\.[^.]+$/, '') : null;
+    }
+
+    for (const msg of messagesToProcess) {
+      let foundInParts = false;
+      if (msg.parts && Array.isArray(msg.parts)) {
+        for (const part of msg.parts) {
+          if ((part.type?.startsWith('tool-wan25_') || part.type?.startsWith('tool-grok_')) && part.output?.videos && Array.isArray(part.output.videos)) {
+            const result = part.output;
+            if (result && result.success !== false) {
+              for (const vid of result.videos) {
+                if (vid.path && !seenPaths.has(vid.path)) {
+                  seenPaths.add(vid.path);
+                  const { data: signedData } = await supabase.storage.from('generated-videos').createSignedUrl(vid.path, 24 * 60 * 60);
+                  if (signedData?.signedUrl) {
+                    videoMap!.set(`generated_video_${generatedVideoIndex++}`, signedData.signedUrl);
+                    const fid = extractFilenameId(vid.path);
+                    if (fid) videoMap!.set(fid, signedData.signedUrl);
+                  }
+                  foundInParts = true;
+                }
+              }
+            }
+          }
+          if ((part.type === 'data-wan25_video_complete' || part.type === 'data-grok_video_complete') && part.data?.path) {
+            const path = part.data.path;
+            if (!seenPaths.has(path)) {
+              seenPaths.add(path);
+              const { data: signedData } = await supabase.storage.from('generated-videos').createSignedUrl(path, 24 * 60 * 60);
+              if (signedData?.signedUrl) {
+                videoMap!.set(`generated_video_${generatedVideoIndex++}`, signedData.signedUrl);
+                const fid = extractFilenameId(path);
+                if (fid) videoMap!.set(fid, signedData.signedUrl);
+              }
+            }
+          }
+        }
+      }
+      if (!foundInParts && msg.tool_results) {
+        const wan25 = msg.tool_results.wan25VideoResults;
+        const grok = msg.tool_results.grokVideoResults;
+        const list = Array.isArray(wan25) ? wan25 : [];
+        const grokList = Array.isArray(grok) ? grok : [];
+        for (const vid of [...list, ...grokList]) {
+          if (vid.path && !seenPaths.has(vid.path)) {
+            seenPaths.add(vid.path);
+            const { data: signedData } = await supabase.storage.from('generated-videos').createSignedUrl(vid.path, 24 * 60 * 60);
+            if (signedData?.signedUrl) {
+              videoMap!.set(`generated_video_${generatedVideoIndex++}`, signedData.signedUrl);
+              const fid = extractFilenameId(vid.path);
+              if (fid) videoMap!.set(fid, signedData.signedUrl);
+            }
+          }
+        }
+      }
+    }
+    videoMapsInitialized = true;
+  }
+
+  async function uploadVideoToSupabase(uint8Array: Uint8Array, userId: string): Promise<{ path: string; url: string }> {
+    const { createClient } = await import('@/utils/supabase/server');
+    const supabase = await createClient();
+    const fileName = `grok_${Date.now()}_${Math.random().toString(36).slice(2)}.mp4`;
+    const filePath = `${userId}/${fileName}`;
+    const { error } = await supabase.storage.from('generated-videos').upload(filePath, uint8Array, { contentType: 'video/mp4' });
+    if (error) throw new Error(`Failed to upload video: ${error.message}`);
+    const { data: signedData, error: signedError } = await supabase.storage.from('generated-videos').createSignedUrl(filePath, 24 * 60 * 60);
+    if (signedError || !signedData?.signedUrl) throw new Error(`Failed to create signed URL: ${signedError?.message || 'Unknown error'}`);
+    return { path: filePath, url: signedData.signedUrl };
+  }
+
+  async function downloadVideo(url: string): Promise<Uint8Array> {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Failed to download video: ${response.statusText}`);
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
+  const XAI_API_BASE = 'https://api.x.ai/v1';
+  const XAI_POLL_INTERVAL = 2000;
+  const XAI_MAX_POLL_TIME = 300000; // 5 min
+
+  const grokVideoInputSchema = z.object({
+    prompt: z.string().describe('Text description of the video to generate or edit. Be detailed about motion, scene, and style.'),
+    model: z.enum(['text-to-video', 'image-to-video', 'video-edit']).describe('Mode: text-to-video (from scratch), image-to-video (animate image), video-edit (edit existing video from conversation).'),
+    imageUrl: z.string().optional().describe('For image-to-video: use uploaded_image_N or generated_image_N.'),
+    videoUrl: z.string().optional().describe('For video-edit: use generated_video_N or filename id (e.g. grok_1760_xxx, wan25_1760_xxx) from conversation.'),
+    duration: z.number().min(1).max(15).optional().describe('Video duration in seconds (1-15). Not used for video-edit.'),
+    aspect_ratio: z.enum(['16:9', '4:3', '1:1', '9:16', '3:4', '3:2', '2:3']).optional().describe('Aspect ratio. Default 16:9.'),
+    resolution: z.enum(['720p', '480p']).optional().describe('Resolution. Default 720p.'),
+  });
+
+  type GrokVideoInput = z.infer<typeof grokVideoInputSchema>;
+
+  const grokVideoTool = tool<GrokVideoInput, unknown>({
+    description: 'Generate or edit videos using xAI Grok Imagine. Supports text-to-video, image-to-video, and video-edit (modify existing video from conversation). Duration 1-15s. Use videoUrl for edit mode (generated_video_N or filename id).',
+    inputSchema: grokVideoInputSchema,
+    execute: async ({ model, prompt, imageUrl, videoUrl, duration, aspect_ratio, resolution }: GrokVideoInput) => {
+      try {
+        const effectiveModel = forcedModel || model;
+        await ensureImageMapsInitialized();
+        if (effectiveModel === 'video-edit') {
+          await ensureVideoMapInitialized();
+        }
+
+        let actualImageUrl: string | undefined;
+        if (imageUrl) {
+          if (imageUrl.startsWith('uploaded_image_')) {
+            actualImageUrl = imageMap?.get(imageUrl) ?? undefined;
+            if (!actualImageUrl) throw new Error(`Image reference "${imageUrl}" not found`);
+          } else if (imageUrl.startsWith('generated_image_')) {
+            actualImageUrl = generatedImageMap?.get(imageUrl)?.url;
+            if (!actualImageUrl) throw new Error(`Generated image reference "${imageUrl}" not found`);
+          } else {
+            actualImageUrl = imageUrl;
+          }
+        }
+
+        let actualVideoUrl: string | undefined;
+        if (effectiveModel === 'video-edit' && videoUrl) {
+          actualVideoUrl = videoMap?.get(videoUrl) ?? (videoUrl.startsWith('http') ? videoUrl : undefined);
+          if (!actualVideoUrl) throw new Error(`Video reference "${videoUrl}" not found in conversation. Use generated_video_N or a previous video filename id.`);
+        }
+
+        if (actualImageUrl) {
+          logImageMapping('GROK_VIDEO', prompt, imageUrl, [actualImageUrl]);
+        }
+
+        const isImageToVideo = effectiveModel === 'image-to-video';
+        const isVideoEdit = effectiveModel === 'video-edit';
+
+        if (dataStream) {
+          dataStream.write({
+            type: 'data-grok_video_started',
+            id: `ann-grok-start-${Date.now()}`,
+            data: { prompt, model: effectiveModel, imageUrl, resolvedImageUrl: actualImageUrl, videoUrl, resolvedVideoUrl: actualVideoUrl, duration, aspect_ratio, resolution, started: true },
+          });
+        }
+
+        const apiKey = process.env.XAI_API_KEY;
+        if (!apiKey) throw new Error('XAI_API_KEY is not set');
+
+        let requestId: string;
+
+        if (isVideoEdit) {
+          const editRes = await fetch(`${XAI_API_BASE}/videos/edits`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify({ prompt, video: { url: actualVideoUrl }, model: 'grok-imagine-video' }),
+          });
+          if (!editRes.ok) throw new Error(`xAI edit API error: ${editRes.status} - ${await editRes.text()}`);
+          const editData = await editRes.json();
+          requestId = editData.request_id;
+          if (!requestId) throw new Error('xAI did not return request_id');
+        } else {
+          const body: Record<string, unknown> = {
+            prompt,
+            model: 'grok-imagine-video',
+            ...(duration != null && { duration }),
+            ...(aspect_ratio && { aspect_ratio }),
+            ...(resolution && { resolution }),
+          };
+          if (isImageToVideo && actualImageUrl) {
+            body.image = { url: actualImageUrl };
+          }
+          const genRes = await fetch(`${XAI_API_BASE}/videos/generations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify(body),
+          });
+          if (!genRes.ok) throw new Error(`xAI generations API error: ${genRes.status} - ${await genRes.text()}`);
+          const genData = await genRes.json();
+          requestId = genData.request_id;
+          if (!requestId) throw new Error('xAI did not return request_id');
+        }
+
+        const pollStartTime = Date.now();
+        let lastStatus = 'processing';
+        let lastProgressUpdate = 0;
+        let videoUrlResult: string | null = null;
+
+        while (Date.now() - pollStartTime < XAI_MAX_POLL_TIME) {
+          const pollRes = await fetch(`${XAI_API_BASE}/videos/${requestId}`, {
+            headers: { 'Authorization': `Bearer ${apiKey}` },
+          });
+          if (!pollRes.ok) throw new Error(`xAI poll error: ${pollRes.status} - ${await pollRes.text()}`);
+          const pollData = await pollRes.json();
+          const status = pollData.status ?? pollData.state;
+          const elapsedSeconds = Math.floor((Date.now() - pollStartTime) / 1000);
+          if (dataStream && (status !== lastStatus || elapsedSeconds - lastProgressUpdate >= 10)) {
+            dataStream.write({
+              type: 'data-grok_video_progress',
+              id: `ann-grok-progress-${Date.now()}`,
+              data: { status, elapsedSeconds, requestId },
+            });
+            lastStatus = status;
+            lastProgressUpdate = elapsedSeconds;
+          }
+          // URL 체크: pollData.video.url (중첩 구조), pollData.url, pollData.video_url 모두 확인
+          const url = pollData.video?.url ?? pollData.url ?? pollData.video_url;
+          // 완료 조건: status가 'completed'/'succeeded'이거나, status가 없지만 URL이 존재하는 경우
+          // (실제 API 응답: status 없이 video.url만 있는 경우가 있음)
+          if (status === 'completed' || status === 'succeeded' || (!status && url)) {
+            if (url) {
+              videoUrlResult = url;
+              break;
+            }
+          }
+          if (status === 'failed') throw new Error(`xAI video failed: ${JSON.stringify(pollData)}`);
+          await new Promise(r => setTimeout(r, XAI_POLL_INTERVAL));
+        }
+
+        if (!videoUrlResult) {
+          const elapsed = Math.floor((Date.now() - pollStartTime) / 1000);
+          throw new Error(`xAI video timed out or no URL. Elapsed: ${elapsed}s. Request ID: ${requestId}`);
+        }
+
+        const videoData = await downloadVideo(videoUrlResult);
+        const { path, url } = await uploadVideoToSupabase(videoData, userId || 'anonymous');
+        const videoResult = {
+          videoUrl: url,
+          path,
+          bucket: 'generated-videos',
+          prompt,
+          timestamp: new Date().toISOString(),
+          resolution,
+          duration: duration ?? undefined,
+          aspect_ratio,
+          isImageToVideo,
+          isVideoEdit,
+          sourceImageUrl: actualImageUrl,
+          sourceVideoUrl: actualVideoUrl,
+        };
+        generatedVideos.push(videoResult);
+        if (dataStream) {
+          dataStream.write({
+            type: 'data-grok_video_complete',
+            id: `ann-grok-complete-${Date.now()}`,
+            data: videoResult,
+          });
+        }
+        return {
+          success: true,
+          videos: [videoResult],
+          count: 1,
+          prompt,
+          model: effectiveModel,
+          resolution,
+          duration,
+          aspect_ratio,
+        };
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : 'Unknown error';
+        console.error('[GROK_VIDEO] Error:', errMsg);
+        if (dataStream) {
+          dataStream.write({
+            type: 'data-grok_video_error',
+            id: `ann-grok-error-${Date.now()}`,
+            data: { error: errMsg, prompt },
+          });
+        }
+        return { success: false, error: errMsg, prompt };
+      }
+    },
+  });
+
+  return Object.assign(grokVideoTool, { generatedVideos });
 }

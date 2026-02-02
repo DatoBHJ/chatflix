@@ -359,4 +359,63 @@ Use these concepts to create dynamic and visually stunning videos.
 - **TIMING**: Show the result immediately when available - don't wait for additional processing or explanation
   `,
 
+  grokVideoTool: `
+#### xAI Grok Imagine Video Tool
+
+**1. Capabilities and Output Protocol**
+- Specs:
+  - Models: text-to-video (from scratch), image-to-video (animate image, requires imageUrl), video-edit (edit existing video from conversation, requires videoUrl)
+  - Video duration: 1-15 seconds for generation. For video-edit: duration is not user-specified; the edited video keeps the original video's length (API behavior).
+  - Image reference IDs (image-to-video): uploaded_image_N, generated_image_N
+  - Video reference IDs (video-edit): generated_video_N or filename id (e.g. grok_1760_xxx, wan25_1760_xxx) from previous messages. Input video must be at most 8.7 seconds (API limit).
+
+**2. Creative Toolkit: Motion and Style**
+Use these concepts to create or edit dynamic videos. Grok Imagine has strong instruction-following; be specific in prompts.
+
+- Motion Control:
+  * Camera: Panning, Tilting, Zoom in/out, Dolly, Crane, Tracking shot; Timelapse, Pull back, Pan up/right.
+  * Subject: Dynamic movement, slow-motion, fluid transitions, expressive gestures, object interactions, visual continuity.
+- Scene and Style:
+  * Visual Style: Cinematic, Photorealistic, Anime, Cyberpunk, 3D Animation, Vintage film; Restyle options: Block, Retro, Origami, Watercolor, Mosaic, Sketches to Life.
+  * Atmosphere: Dramatic lighting, particles, volumetric fog, vibrant colors; scene mood (e.g. golden hour, autumn, winter, fog, sunset, cloudy).
+- Video Edit (video-edit only): Describe the change precisely. Supported edit types:
+  * Add/remove/swap objects (e.g. "Add rain in the background", "Remove the person", "Swap the ball for a cube").
+  * Scene control (e.g. "Change to sunset", "Add fog").
+  * Object control (e.g. "Make the ball larger", "Change the shirt color").
+  * Restyle (e.g. "Make it look like anime", "Apply watercolor style").
+
+**3. Direction and Constraints (Core Logic)**
+- Model Selection:
+  * Use "text-to-video" for creating scenes from scratch.
+  * Use "image-to-video" for animating static images (requires imageUrl).
+  * Use "video-edit" for modifying an existing video from the conversation (requires videoUrl; reference previous grok or wan25 video by generated_video_N or filename id).
+- Prompting: Be detailed and explicit. For edit, describe exactly what to change (instruction-following is a strength).
+- videoUrl (video-edit only): Use generated_video_N or the video filename id from a prior result (e.g. grok_1760501931670_abc123, wan25_1760501931670_xyz789). Source video must be at most 8.7 seconds (API limit). Input must be a direct, publicly accessible video URL (tool resolves IDs).
+
+**4. Technical Syntax Rules**
+- imageUrl (image-to-video only): Single image reference. uploaded_image_N, generated_image_N.
+- videoUrl (video-edit only): Single video reference from conversation. generated_video_N or filename id (grok_..., wan25_...). Source video max length 8.7 seconds.
+- duration: 1-15 seconds. Optional; only for text-to-video and image-to-video. Not used for video-edit (edited output keeps original duration).
+- aspect_ratio: Optional. One of 16:9, 4:3, 1:1, 9:16, 3:4, 3:2, 2:3. Default 16:9.
+- resolution: Optional. 720p or 480p. Default 720p.
+
+**5. Execution Workflow**
+1. Identify the task: Generate (text-to-video), Animate image (image-to-video), or Edit video (video-edit).
+2. For video-edit: Identify which previous video to edit (generated_video_1, grok_..., wan25_...).
+3. Craft a detailed prompt.
+4. Call grok_video with the correct model and parameters.
+5. **IMMEDIATE DISPLAY**: As soon as the tool result is available, display the VIDEO_ID FIRST (see below).
+
+**6. CRITICAL - VIDEO_ID FORMAT**
+- **MANDATORY**: Always include VIDEO_ID placeholder in your response IMMEDIATELY when tool result is available
+- **PRIORITY**: Display the VIDEO_ID FIRST, before any explanatory text
+- **FORMAT**: [VIDEO_ID:grok_timestamp_random] (extract from tool result path)
+- **EXAMPLE**: [VIDEO_ID:grok_1760501931670_mpfzipm7pe]
+- **PLACEMENT**: On its own line at the very beginning when result is ready
+- **DO NOT**: Use markdown syntax or full URLs
+- **EXTRACTION**: Extract the ID from the tool result's file path (filename without extension)
+- **PURPOSE**: Videos are shown in the Canvas panel; you MUST also include VIDEO_ID for the chat bubble
+- **TIMING**: Show the result immediately when available - don't wait for additional processing or explanation
+  `,
+
 };

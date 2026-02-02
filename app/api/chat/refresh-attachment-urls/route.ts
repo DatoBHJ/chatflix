@@ -179,6 +179,42 @@ async function refreshGeneratedImages(supabase: any, tool_results: any): Promise
     );
   }
   
+  // Refresh Grok videos
+  if (refreshed.grokVideoResults && Array.isArray(refreshed.grokVideoResults)) {
+    refreshed.grokVideoResults = await Promise.all(
+      refreshed.grokVideoResults.map(async (vid: any) => {
+        const updates: any = {};
+        if (vid.path && vid.bucket === 'generated-videos') {
+          const { data: signedData } = await supabase.storage
+            .from('generated-videos')
+            .createSignedUrl(vid.path, 24 * 60 * 60);
+          if (signedData?.signedUrl) updates.videoUrl = signedData.signedUrl;
+        }
+        if (vid.sourceImageUrl && vid.sourceImageUrl.includes('generated-images')) {
+          const imagePathMatch = vid.sourceImageUrl.match(/generated-images\/(.+?)\?/);
+          if (imagePathMatch?.[1]) {
+            const imagePath = decodeURIComponent(imagePathMatch[1]);
+            const { data: signedData } = await supabase.storage
+              .from('generated-images')
+              .createSignedUrl(imagePath, 24 * 60 * 60);
+            if (signedData?.signedUrl) updates.sourceImageUrl = signedData.signedUrl;
+          }
+        }
+        if (vid.sourceVideoUrl && vid.sourceVideoUrl.includes('generated-videos')) {
+          const videoPathMatch = vid.sourceVideoUrl.match(/generated-videos\/(.+?)\?/);
+          if (videoPathMatch?.[1]) {
+            const videoPath = decodeURIComponent(videoPathMatch[1]);
+            const { data: signedData } = await supabase.storage
+              .from('generated-videos')
+              .createSignedUrl(videoPath, 24 * 60 * 60);
+            if (signedData?.signedUrl) updates.sourceVideoUrl = signedData.signedUrl;
+          }
+        }
+        return Object.keys(updates).length > 0 ? { ...vid, ...updates } : vid;
+      })
+    );
+  }
+  
   return refreshed;
 }
 
@@ -260,8 +296,8 @@ async function refreshPartsUrls(supabase: any, parts: any[]): Promise<{ parts: a
       };
     }
     
-    // 2. tool-wan25_* 비디오 도구 결과 처리 (output.videos)
-    if (part.type?.startsWith('tool-wan25_') && part.output?.videos && Array.isArray(part.output.videos)) {
+    // 2. tool-wan25_* / tool-grok_* 비디오 도구 결과 처리 (output.videos)
+    if ((part.type?.startsWith('tool-wan25_') || part.type?.startsWith('tool-grok_')) && part.output?.videos && Array.isArray(part.output.videos)) {
       const refreshedVideos = await Promise.all(part.output.videos.map(async (vid: any) => {
         const updates: any = {};
         
@@ -364,36 +400,42 @@ async function refreshPartsUrls(supabase: any, parts: any[]): Promise<{ parts: a
       }
     }
     
-    // 4. data-wan25_video_complete annotation 처리
-    if (part.type === 'data-wan25_video_complete' && part.data?.path) {
+    // 4. data-wan25_video_complete / data-grok_video_complete annotation 처리
+    if ((part.type === 'data-wan25_video_complete' || part.type === 'data-grok_video_complete') && part.data?.path) {
       const updates: any = {};
-      
-      // videoUrl 갱신 (기존)
-      const { data: signedData, error } = await supabase.storage
+      const { data: signedData } = await supabase.storage
         .from('generated-videos')
         .createSignedUrl(part.data.path, 24 * 60 * 60);
-      
       if (signedData?.signedUrl && signedData.signedUrl !== part.data.videoUrl) {
         changed = true;
         updates.videoUrl = signedData.signedUrl;
       }
-      
-      // sourceImageUrl 갱신 (새로 추가)
       if (part.data.sourceImageUrl && part.data.sourceImageUrl.includes('generated-images')) {
         const imagePathMatch = part.data.sourceImageUrl.match(/generated-images\/(.+?)\?/);
-        if (imagePathMatch && imagePathMatch[1]) {
+        if (imagePathMatch?.[1]) {
           const imagePath = decodeURIComponent(imagePathMatch[1]);
-          const { data: imageSignedData, error } = await supabase.storage
+          const { data: imageSignedData } = await supabase.storage
             .from('generated-images')
             .createSignedUrl(imagePath, 24 * 60 * 60);
-          
           if (imageSignedData?.signedUrl && imageSignedData.signedUrl !== part.data.sourceImageUrl) {
             changed = true;
             updates.sourceImageUrl = imageSignedData.signedUrl;
           }
         }
       }
-      
+      if (part.data.sourceVideoUrl && part.data.sourceVideoUrl.includes('generated-videos')) {
+        const videoPathMatch = part.data.sourceVideoUrl.match(/generated-videos\/(.+?)\?/);
+        if (videoPathMatch?.[1]) {
+          const videoPath = decodeURIComponent(videoPathMatch[1]);
+          const { data: videoSignedData } = await supabase.storage
+            .from('generated-videos')
+            .createSignedUrl(videoPath, 24 * 60 * 60);
+          if (videoSignedData?.signedUrl && videoSignedData.signedUrl !== part.data.sourceVideoUrl) {
+            changed = true;
+            updates.sourceVideoUrl = videoSignedData.signedUrl;
+          }
+        }
+      }
       if (Object.keys(updates).length > 0) {
         return {
           ...part,

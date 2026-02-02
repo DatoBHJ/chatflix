@@ -24,7 +24,7 @@ import { estimateTokenCount, estimateMultiModalTokens, estimateFileTokens, estim
 import { getAdaptiveGlassStyleClean, getAdaptiveGlassStyleBlur, getAdaptiveGlassBackgroundColor, getIconClassName as getIconClassNameUtil, getTextStyle } from '@/app/lib/adaptiveGlassStyle';
 import { getChatflixLogo } from '@/lib/models/logoUtils';
 import { OnboardingRenderer } from '@/app/components/Onboarding/OnboardingRenderer';
-import { XLogo, WanAiLogo, SeedreamLogo } from '../CanvasFolder/CanvasLogo';
+import { XLogo, WanAiLogo, SeedreamLogo, XaiLogo } from '../CanvasFolder/CanvasLogo';
 import { useContentEditableImage } from '@/app/hooks/useContentEditableImage';
 import { FileSelectionPopover } from './FileSelectionPopover';
 import { PhotoSelectionModal } from './PhotoSelectionModal';
@@ -56,6 +56,9 @@ export const TOOLS: ToolDefinition[] = [
   { id: 'seedream_image_tool', icon: <SeedreamLogo size={18} />, name: 'Seedream 4.5', description: 'The new uncensored image model from Bytedance', category: 'ai-generation', background: 'linear-gradient(0deg, #355691 0%, #83D0CB 100%)', placeholder: { mobile: 'Generate or edit images in 4K', desktop: 'Generate or edit images in 4K' }, hasInfoIcon: true },
   { id: 'wan25_text_to_video', icon: <WanAiLogo size={18} />, name: 'Wan 2.5 Text to Video', description: 'Uncensored Text-to-Video model (Audio included)', category: 'ai-generation', background: 'linear-gradient(0deg, #654ea3 0%, #eaafc8 100%)', placeholder: { mobile: 'Describe a video to generate', desktop: 'Describe a video to generate' }, hasInfoIcon: true },
   { id: 'wan25_image_to_video', icon: <WanAiLogo size={18} />, name: 'Wan 2.5 Image to Video', description: 'Uncensored Image-to-Video model (Audio included)', category: 'ai-generation', background: 'linear-gradient(0deg, #654ea3 0%, #eaafc8 100%)', placeholder: { mobile: 'Bring this image to life', desktop: 'Bring this image to life' }, hasInfoIcon: true },
+  { id: 'grok_text_to_video', icon: <XaiLogo size={18} />, name: 'Grok Text to Video', description: 'xAI Grok Imagine text-to-video (1–15s)', category: 'ai-generation', background: 'linear-gradient(0deg, #1a1a1a 0%, #2a2a2a 100%)', placeholder: { mobile: 'Describe a video to generate', desktop: 'Describe a video to generate' }, hasInfoIcon: true },
+  { id: 'grok_image_to_video', icon: <XaiLogo size={18} />, name: 'Grok Image to Video', description: 'xAI Grok Imagine animate image to video', category: 'ai-generation', background: 'linear-gradient(0deg, #1a1a1a 0%, #2a2a2a 100%)', placeholder: { mobile: 'Bring this image to life', desktop: 'Bring this image to life' }, hasInfoIcon: true },
+  { id: 'grok_video_edit', icon: <XaiLogo size={18} />, name: 'Grok Video to Video', description: 'xAI Grok Imagine edit existing video from conversation', category: 'ai-generation', background: 'linear-gradient(0deg, #1a1a1a 0%, #2a2a2a 100%)', placeholder: { mobile: 'Describe changes to the video', desktop: 'Describe changes to the video' }, hasInfoIcon: true },
   { id: 'link_reader', icon: <Link strokeWidth={1.8} />, name: 'Link Reader', description: 'Read web page content', category: 'utility', background: 'linear-gradient(0deg, #56ab2f 0%, #a8e063 100%)', placeholder: { mobile: 'Paste a URL to read', desktop: 'Paste a URL to read' } },
   { id: 'youtube_search', icon: <Youtube strokeWidth={1.8} />, name: 'YouTube Search', description: 'Search YouTube videos', category: 'search', background: 'linear-gradient(0deg, #DC2626 0%, #F87171 100%)', placeholder: { mobile: 'Search YouTube videos', desktop: 'Search cooking tutorials for beginners' } },
   { id: 'youtube_link_analyzer', icon: <Youtube strokeWidth={1.8} />, name: 'YouTube Analyzer', description: 'Analyze YouTube videos', category: 'utility', background: 'linear-gradient(0deg, #DC2626 0%, #F87171 100%)', placeholder: { mobile: 'Paste YouTube URL to analyze', desktop: 'Paste YouTube URL to analyze' } },
@@ -1436,7 +1439,7 @@ export function ChatInput({
                                             className: `text-white ${tool.smallIcon ? "h-3 w-3" : "h-3.5 w-3.5"}`,
                                             size: tool.smallIcon ? 12 : 14
                                           })}
-                                          {(tool.id === 'wan25_text_to_video' || tool.id === 'wan25_image_to_video') && (
+                                          {(tool.id === 'wan25_text_to_video' || tool.id === 'wan25_image_to_video' || tool.id === 'grok_text_to_video' || tool.id === 'grok_image_to_video' || tool.id === 'grok_video_edit') && (
                                             <div 
                                               className="absolute -bottom-1 -right-2 text-[7.5px] font-bold px-1 py-0.5 rounded-full leading-none whitespace-nowrap"
                                               style={{

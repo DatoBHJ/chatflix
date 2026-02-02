@@ -2835,6 +2835,208 @@ export const getWan25VideoData = (message: UIMessage): {
   return null;
 };
 
+// Extract Grok video data from message tool_results and streaming annotations
+export const getGrokVideoData = (message: UIMessage): {
+  generatedVideos: {
+    videoUrl: string;
+    prompt: string;
+    timestamp: string;
+    resolution?: string;
+    duration?: number;
+    aspect_ratio?: string;
+    isImageToVideo?: boolean;
+    isVideoEdit?: boolean;
+    sourceImageUrl?: string;
+    sourceVideoUrl?: string;
+    path?: string;
+  }[];
+  status?: 'processing' | 'completed' | 'error';
+  startedCount?: number;
+  pendingCount?: number;
+  pendingPrompts?: string[];
+  pendingSourceImages?: string[];
+  pendingSourceVideos?: string[];
+  errorCount?: number;
+  failedVideos?: Array<{ prompt: string; error: string }>;
+  isImageToVideo: boolean;
+  isVideoEdit: boolean;
+  progress?: { status: string; elapsedSeconds: number; requestId: string };
+} | null => {
+  if ((message as any).tool_results?.grokVideoResults) {
+    const generatedVideos = (message as any).tool_results.grokVideoResults;
+    if (Array.isArray(generatedVideos) && generatedVideos.length > 0) {
+      const isImageToVideo = generatedVideos.some((v: any) => v.isImageToVideo);
+      const isVideoEdit = generatedVideos.some((v: any) => v.isVideoEdit);
+      return { generatedVideos, isImageToVideo, isVideoEdit, status: 'completed' as const };
+    }
+  }
+  let videosFromToolResults: any[] = [];
+  let errorCount = 0;
+  let failedVideos: Array<{ prompt: string; error: string }> = [];
+  if ((message as any).parts && Array.isArray((message as any).parts)) {
+    const toolResultParts = ((message as any).parts as any[])
+      .filter((p: any) => {
+        const isToolResult = p?.type === 'tool-result' || p?.type?.startsWith('tool-grok_');
+        const isGrokTool = p?.toolName === 'grok_video' || p?.type?.includes('grok_');
+        return isToolResult && isGrokTool;
+      });
+    for (const part of toolResultParts) {
+      const result = part.output?.value || part.output || part.result;
+      if (result?.success === false) {
+        errorCount++;
+        failedVideos.push({ prompt: result.prompt || 'Unknown prompt', error: result.error || 'Unknown error' });
+        continue;
+      }
+      if (result?.videos && Array.isArray(result.videos)) {
+        for (const vid of result.videos) {
+          if (vid.videoUrl && vid.path) {
+            videosFromToolResults.push({
+              videoUrl: vid.videoUrl,
+              path: vid.path,
+              prompt: vid.prompt || result.prompt,
+              timestamp: vid.timestamp || new Date().toISOString(),
+              resolution: vid.resolution,
+              duration: vid.duration,
+              aspect_ratio: vid.aspect_ratio,
+              isImageToVideo: vid.isImageToVideo,
+              isVideoEdit: vid.isVideoEdit,
+              sourceImageUrl: vid.sourceImageUrl,
+              sourceVideoUrl: vid.sourceVideoUrl,
+            });
+          }
+        }
+      }
+    }
+    if (videosFromToolResults.length > 0) {
+      const hasImageToVideo = videosFromToolResults.some((v: any) => v.isImageToVideo);
+      const hasVideoEdit = videosFromToolResults.some((v: any) => v.isVideoEdit);
+      return {
+        generatedVideos: videosFromToolResults,
+        status: 'completed' as const,
+        errorCount,
+        failedVideos: failedVideos.length > 0 ? failedVideos : undefined,
+        isImageToVideo: hasImageToVideo,
+        isVideoEdit: hasVideoEdit,
+      };
+    }
+  }
+  let videoAnnotations: any[] = [];
+  let startedCount = 0;
+  let pendingPrompts: string[] = [];
+  let pendingSourceImages: string[] = [];
+  let pendingSourceVideos: string[] = [];
+  let hasImageToVideoStreaming = false;
+  let hasVideoEditStreaming = false;
+  let progressData: { status: string; elapsedSeconds: number; requestId: string } | undefined;
+  if ((message as any).annotations) {
+    const completeAnnotations = (((message as any).annotations) as any[])
+      .filter((a: any) => a && typeof a === 'object' && (a.type === 'grok_video_complete' || a.type === 'data-grok_video_complete'))
+      .map((a: any) => a.data)
+      .filter(Boolean);
+    videoAnnotations = [...videoAnnotations, ...completeAnnotations];
+    if (completeAnnotations.some((v: any) => v.isImageToVideo)) hasImageToVideoStreaming = true;
+    if (completeAnnotations.some((v: any) => v.isVideoEdit)) hasVideoEditStreaming = true;
+    const startAnnotations = (((message as any).annotations) as any[])
+      .filter((a: any) => a && typeof a === 'object' && (a.type === 'grok_video_started' || a.type === 'data-grok_video_started'));
+    startedCount = startAnnotations.length;
+    startAnnotations.forEach((a: any) => {
+      if (a.data?.prompt) pendingPrompts.push(a.data.prompt);
+      if (a.data?.resolvedImageUrl) {
+        pendingSourceImages.push(a.data.resolvedImageUrl);
+        hasImageToVideoStreaming = true;
+      } else pendingSourceImages.push('');
+      if (a.data?.resolvedVideoUrl) {
+        pendingSourceVideos.push(a.data.resolvedVideoUrl);
+        hasVideoEditStreaming = true;
+      } else pendingSourceVideos.push('');
+    });
+    const progressAnnotations = (((message as any).annotations) as any[])
+      .filter((a: any) => a && typeof a === 'object' && (a.type === 'grok_video_progress' || a.type === 'data-grok_video_progress'));
+    if (progressAnnotations.length > 0) {
+      const latest = progressAnnotations[progressAnnotations.length - 1];
+      if (latest.data?.status && typeof latest.data.elapsedSeconds === 'number' && latest.data.requestId) {
+        progressData = { status: latest.data.status, elapsedSeconds: latest.data.elapsedSeconds, requestId: latest.data.requestId };
+      }
+    }
+  }
+  if ((message as any).parts && Array.isArray((message as any).parts)) {
+    const videoParts = ((message as any).parts as any[]).filter((p: any) => p?.type === 'data-grok_video_complete');
+    const videoStartParts = ((message as any).parts as any[]).filter((p: any) => p?.type === 'data-grok_video_started');
+    if (videoParts.some((p: any) => p.data?.isImageToVideo)) hasImageToVideoStreaming = true;
+    if (videoParts.some((p: any) => p.data?.isVideoEdit)) hasVideoEditStreaming = true;
+    if (videoStartParts.some((p: any) => p.data?.resolvedImageUrl)) hasImageToVideoStreaming = true;
+    if (videoStartParts.some((p: any) => p.data?.resolvedVideoUrl)) hasVideoEditStreaming = true;
+    const errorParts = ((message as any).parts as any[]).filter((p: any) => p?.type === 'data-grok_video_error');
+    for (const errorPart of errorParts) {
+      if (errorPart.data) {
+        failedVideos.push({ prompt: errorPart.data.prompt || 'Unknown prompt', error: errorPart.data.error || 'Unknown error' });
+        errorCount++;
+      }
+    }
+    const progressParts = ((message as any).parts as any[]).filter((p: any) => p?.type === 'data-grok_video_progress');
+    if (progressParts.length > 0) {
+      const latest = progressParts[progressParts.length - 1];
+      if (latest.data?.status && typeof latest.data.elapsedSeconds === 'number' && latest.data.requestId) {
+        progressData = { status: latest.data.status, elapsedSeconds: latest.data.elapsedSeconds, requestId: latest.data.requestId };
+      }
+    }
+    videoAnnotations = [...videoAnnotations, ...videoParts.map((p: any) => p.data).filter(Boolean)];
+    startedCount = Math.max(startedCount, videoStartParts.length);
+    videoStartParts.forEach((p: any) => {
+      const prompt = p.data?.prompt;
+      const sourceImage = p.data?.resolvedImageUrl || '';
+      const sourceVideo = p.data?.resolvedVideoUrl || '';
+      if (prompt && !pendingPrompts.includes(prompt)) {
+        pendingPrompts.push(prompt);
+        pendingSourceImages.push(sourceImage);
+        pendingSourceVideos.push(sourceVideo);
+        if (sourceImage) hasImageToVideoStreaming = true;
+        if (sourceVideo) hasVideoEditStreaming = true;
+      }
+    });
+  }
+  if (startedCount > 0 || videoAnnotations.length > 0) {
+    const completedCount = videoAnnotations.length;
+    const pendingCount = Math.max(0, startedCount - completedCount);
+    const isImageToVideo = hasImageToVideoStreaming || videoAnnotations.some((v: any) => v.isImageToVideo);
+    const isVideoEdit = hasVideoEditStreaming || videoAnnotations.some((v: any) => v.isVideoEdit);
+    return {
+      generatedVideos: videoAnnotations,
+      status: (completedCount > 0 && pendingCount === 0 ? 'completed' : 'processing') as 'completed' | 'processing',
+      startedCount,
+      pendingCount,
+      pendingPrompts,
+      pendingSourceImages,
+      pendingSourceVideos,
+      errorCount: errorCount > 0 ? errorCount : undefined,
+      failedVideos: failedVideos.length > 0 ? failedVideos : undefined,
+      isImageToVideo,
+      isVideoEdit,
+      progress: progressData,
+    };
+  }
+  if (errorCount > 0) {
+    let isVideoEditError = false;
+    if ((message as any).parts && Array.isArray((message as any).parts)) {
+      const toolResultParts = ((message as any).parts as any[]).filter((p: any) => {
+        const isToolResult = p?.type === 'tool-result' || p?.type?.startsWith('tool-grok_');
+        const isGrokTool = p?.toolName === 'grok_video' || p?.type?.includes('grok_');
+        return isToolResult && isGrokTool;
+      });
+      isVideoEditError = toolResultParts.some((p: any) => p.output?.isVideoEdit || p.input?.model === 'video-edit');
+    }
+    return {
+      generatedVideos: [],
+      errorCount,
+      failedVideos: failedVideos.length > 0 ? failedVideos : undefined,
+      status: 'error' as const,
+      isImageToVideo: false,
+      isVideoEdit: isVideoEditError,
+    };
+  }
+  return null;
+};
+
 /**
  * Extract tool data from a tool-call/tool-result pair for InlineToolPreview
  * Used in interleaved rendering mode
@@ -2862,6 +3064,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   'youtube_link_analyzer': 'YouTube Analyzer',
   'google_search': 'Google Search',
   'wan25_video': 'Wan 2.5 Video',
+  'grok_video': 'Grok Imagine Video',
 };
 
 export const getToolDataFromPart = (

@@ -35,6 +35,7 @@ interface UnifiedInfoPanelProps {
   seedreamImageData?: any;
   qwenImageData?: any;
   wan25VideoData?: any;
+  grokVideoData?: any;
   twitterSearchData?: any;
   youTubeSearchData?: any;
   youTubeLinkAnalysisData?: any;
@@ -218,6 +219,7 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
   seedreamImageData,
   qwenImageData,
   wan25VideoData,
+  grokVideoData,
   twitterSearchData,
   youTubeSearchData,
   youTubeLinkAnalysisData,

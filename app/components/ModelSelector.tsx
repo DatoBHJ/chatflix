@@ -194,11 +194,11 @@ export function ModelSelector({
 
       switch (activeFilter) {
         case 'chatflix': return isChatflixModel(model.id);
-        case 'openai': return model.provider === 'openai' && !isChatflixModel(model.id);
-        case 'anthropic': return model.provider === 'anthropic' && !isChatflixModel(model.id);
-        case 'google': return model.provider === 'google' && !isChatflixModel(model.id);
-        case 'deepseek': return model.provider === 'deepseek' && !isChatflixModel(model.id);
-        case 'xai': return model.provider === 'xai' && !isChatflixModel(model.id);
+        case 'openai': return (model.creator === 'openai' || model.provider === 'openai') && !isChatflixModel(model.id);
+        case 'anthropic': return (model.creator === 'anthropic' || model.provider === 'anthropic') && !isChatflixModel(model.id);
+        case 'google': return (model.creator === 'google' || model.provider === 'google') && !isChatflixModel(model.id);
+        case 'deepseek': return (model.creator === 'deepseek' || model.provider === 'deepseek') && !isChatflixModel(model.id);
+        case 'xai': return (model.creator === 'xai' || model.provider === 'xai') && !isChatflixModel(model.id);
         case 'moonshot': return (model.creator === 'moonshot' || (model.provider as string) === 'moonshot') && !isChatflixModel(model.id);
         case 'vision': return model.supportsVision === true;
         case 'reasoning': return model.reasoning === true;
@@ -339,7 +339,7 @@ export function ModelSelector({
                 {model.name[0]}
                 </div>
                       )}
-            {model.id === 'accounts/fireworks/models/kimi-k2p5' && (
+            {model.id === 'accounts/fireworks/models/deepseek-v3p2' && (
               <div 
                 className="absolute -bottom-0.5 right-0 text-[8px] font-bold px-1 py-0.5 rounded-full leading-none whitespace-nowrap"
                 style={{
@@ -392,14 +392,14 @@ export function ModelSelector({
     { id: 'reasoning', label: 'Reasoning', icon: <Lightbulb size={18} className="text-purple-500" /> },
     { id: 'fast', label: 'Fast Models', icon: <Zap size={18} className="text-yellow-500" /> },
   ];
-  const providerFilterGroups: { id: FilterGroup; label: string; icon: React.ReactNode }[] = [
+  const creatorFilterGroups: { id: FilterGroup; label: string; icon: React.ReactNode }[] = [
     { id: 'chatflix', label: 'Chatflix', icon: null },
-    { id: 'openai', label: 'OpenAI', icon: <Image src={getProviderLogo('openai')} alt="OpenAI" width={14} height={14} /> },
     { id: 'anthropic', label: 'Anthropic', icon: <Image src={getProviderLogo('anthropic')} alt="Anthropic" width={14} height={14} /> },
-    { id: 'google', label: 'Google', icon: <Image src={getProviderLogo('google')} alt="Google" width={14} height={14} /> },
     { id: 'deepseek', label: 'DeepSeek', icon: <Image src={getProviderLogo('deepseek')} alt="DeepSeek" width={14} height={14} /> },
-    { id: 'xai', label: 'xAI (Grok)', icon: <Image src={getProviderLogo('xai')} alt="xAI" width={14} height={14} /> },
+    { id: 'google', label: 'Google', icon: <Image src={getProviderLogo('google')} alt="Google" width={14} height={14} /> },
     { id: 'moonshot', label: 'Moonshot', icon: <Image src={getProviderLogo('moonshot')} alt="Moonshot" width={14} height={14} /> },
+    { id: 'openai', label: 'OpenAI', icon: <Image src={getProviderLogo('openai')} alt="OpenAI" width={14} height={14} /> },
+    { id: 'xai', label: 'xAI', icon: <Image src={getProviderLogo('xai')} alt="xAI" width={14} height={14} /> },
   ];
 
   const renderFilterButton = (group: { id: FilterGroup; label: string; icon: React.ReactNode }) => (
@@ -450,7 +450,7 @@ export function ModelSelector({
 
   if (!mounted) return null;
 
-  const filterGroups = [allModelGroup, ...featureFilterGroups, ...providerFilterGroups];
+  const filterGroups = [allModelGroup, ...featureFilterGroups, ...creatorFilterGroups];
 
   const ModalContent = (
     <div 
@@ -585,7 +585,7 @@ export function ModelSelector({
                   </div>
                   {/* Providers */}
                   <div className="flex flex-col gap-0.5">
-                    {providerFilterGroups.map((group) => (
+                    {creatorFilterGroups.map((group) => (
                       <div key={group.id}>{renderFilterButton(group)}</div>
                     ))}
                   </div>
@@ -676,7 +676,7 @@ export function ModelSelector({
                 </div>
                 {/* Providers */}
                 <div className="flex flex-col gap-0.5">
-                  {providerFilterGroups.map((group) => (
+                  {creatorFilterGroups.map((group) => (
                     <div key={group.id}>{renderFilterButton(group)}</div>
                   ))}
                 </div>

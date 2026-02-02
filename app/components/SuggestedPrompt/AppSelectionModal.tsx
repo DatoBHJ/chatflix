@@ -189,7 +189,7 @@ function ModalAppItem({
       </div>
       <span
         ref={textRef}
-        className="text-xs sm:text-xs font-bold mt-2 transition-colors duration-300 text-center"
+        className="text-xs sm:text-xs font-bold mt-1 transition-colors duration-300 text-center"
         style={{
           ...getTextStyle(),
           zIndex: 10,
@@ -319,7 +319,7 @@ function ModalWidgetItem({
           {renderWidgetContent(widget, hasBackgroundImage)}
         </div>
       </div>
-      <div className="text-center mt-2">
+      <div className="text-center mt-1">
         <span
           className="text-xs sm:text-xs font-bold transition-colors duration-300"
           style={{

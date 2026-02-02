@@ -5,7 +5,7 @@
 // import React, { useState, useEffect, useCallback, memo, useRef, useMemo, useDeferredValue } from 'react'
 // import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
 // import { Message as MessageComponent } from '@/app/components/Message'
-// import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getTwitterSearchData, getWan25VideoData } from '@/app/hooks/toolFunction';
+// import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getTwitterSearchData, getWan25VideoData, getGrokVideoData } from '@/app/hooks/toolFunction';
 // import { formatMessageGroupTimestamp } from '@/app/lib/messageGroupTimeUtils';
 // import { createClient } from '@/utils/supabase/client';
 // import { linkMetaEntryToCardData } from '@/app/lib/linkCardUtils';
@@ -166,7 +166,8 @@
 //       linkReaderData: getLinkReaderData(message),
 //       youTubeSearchData: getYouTubeSearchData(message),
 //       youTubeLinkAnalysisData: getYouTubeLinkAnalysisData(message),
-//       wan25VideoData: getWan25VideoData(message)
+//       wan25VideoData: getWan25VideoData(message),
+//       grokVideoData: getGrokVideoData(message)
 //     };
 //   }, [messageKey, message]); // messageKey가 변경되지 않으면 재계산 방지 (progress annotation 제외)
 
@@ -182,7 +183,8 @@
 //     linkReaderData,
 //     youTubeSearchData,
 //     youTubeLinkAnalysisData,
-//     wan25VideoData
+//     wan25VideoData,
+//     grokVideoData
 //   } = toolData;
 
 
@@ -280,9 +282,17 @@
 //           acc[videoKey] = video.size ? { url: video.videoUrl, size: video.size } : video.videoUrl;
 //         }
 //         return acc;
+//       }, {}) || {}),
+//       ...(grokVideoData?.generatedVideos?.reduce((acc: any, video: any) => {
+//         if (video.path) {
+//           const fileName = video.path.split('/').pop();
+//           const videoKey = fileName.replace(/\.[^/.]+$/, '');
+//           acc[videoKey] = video.videoUrl;
+//         }
+//         return acc;
 //       }, {}) || {})
 //     };
-//   }, [globalVideoMap, wan25VideoData?.generatedVideos]);
+//   }, [globalVideoMap, wan25VideoData?.generatedVideos, grokVideoData?.generatedVideos]);
 
 //   const promptMap = useMemo(() => {
 //     const map: Record<string, string> = {};
@@ -475,6 +485,7 @@
 //             youTubeLinkAnalysisData={youTubeLinkAnalysisData}
 //             googleSearchData={googleSearchData}
 //             wan25VideoData={wan25VideoData}
+//             grokVideoData={grokVideoData}
 //             user={user}
 //             handleFollowUpQuestionClick={handleFollowUpQuestionClick}
 //             allMessages={allMessages}
@@ -724,7 +735,7 @@
 //       if (!msg.parts || !Array.isArray(msg.parts)) return '';
 //       // progress annotation 제외하고 직렬화 (비디오 관련 parts만 포함)
 //       const videoParts = msg.parts.filter(
-//         (p: any) => p?.type?.startsWith('tool-wan25_') || p?.type === 'data-wan25_video_complete'
+//         (p: any) => p?.type?.startsWith('tool-wan25_') || p?.type === 'data-wan25_video_complete' || p?.type?.startsWith('tool-grok_') || p?.type === 'data-grok_video_complete'
 //       );
 //       return JSON.stringify(videoParts);
 //     });

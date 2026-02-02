@@ -96,7 +96,7 @@ export default function HomeScreen() {
         
         {/* Quick Access Apps - iOS 스타일 그리드 (내부에서 레이아웃 관리) */}
         {(user?.id || !user) && (
-          <div className="flex-1 sm:flex-initial pb-4 sm:pb-16 pt-4 sm:pt-0">
+          <div className="flex-1 sm:flex-initial pb-0 sm:pb-16 pt-4 sm:pt-0">
             <QuickAccessApps 
               isDarkMode={isDarkMode}
               user={user || undefined}
