@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import type { CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -57,35 +57,36 @@ const isIPad = (): boolean => {
 };
 
 // Returns current viewport/environment type, not a stable device ID. Used to key storage and API per device type.
-const getEnvironmentDeviceType = (): DeviceType => {
+// Exported for HomeScreen to prefetch quick-access-apps by device before first paint.
+export const getEnvironmentDeviceType = (): DeviceType => {
   if (typeof window === 'undefined') return 'desktop';
-  
+
   const minDim = Math.min(window.innerWidth, window.innerHeight);
   const isSmallScreen = minDim <= 600;
-  
+
   // iPad 감지 (터치 + 큰 화면)
   if (isIPad() && minDim > 600) {
     return 'tablet';
   }
-  
+
   // 작은 화면 (iPhone 등)
   if (isSmallScreen) {
     return 'mobile';
   }
-  
+
   // 중간 크기 화면의 터치 디바이스 (Android 폰 등)
   const isCoarsePointer = window.matchMedia?.('(pointer: coarse)').matches;
   const hasMultipleTouchPoints = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1;
-  
+
   if (minDim <= 900 && (isCoarsePointer || hasMultipleTouchPoints)) {
     return 'mobile';
   }
-  
+
   // 터치 태블릿 (Android 태블릿 등)
   if (minDim <= 1024 && (isCoarsePointer || hasMultipleTouchPoints)) {
     return 'tablet';
   }
-  
+
   return 'desktop';
 };
 
@@ -106,6 +107,8 @@ interface QuickAccessAppsProps {
   user?: { id?: string };
   onPromptClick?: (prompt: string) => void;
   verticalOffset?: number; // 상하 여백 값 (px)
+  /** Preloaded apps from parent (e.g. HomeScreen) to avoid layout shift. When set, first paint uses this. */
+  initialApps?: StoredAppType[] | null;
 }
 
 interface VisionWidgetOverlayProps {
@@ -948,11 +951,11 @@ function SortableAppItem({
 
   // 편집 모드가 아닐 때만 long press 이벤트 핸들러 적용
   // 데스크탑에서는 마우스 이벤트 제거 (우클릭만 허용)
-  // 버튼/링크 등 인터랙티브 요소 위에서는 롱 프레스 시작 안 함 → 합성 click이 버튼에 전달되도록
+  // 버튼/링크 위 터치 시 롱프레스 스킵(합성 click 전달) — 단, 도커는 터치 영역이 전부 버튼이므로 버튼 위에서도 롱프레스 허용
   const longPressHandlers = !isEditMode ? {
     ...(isTouchDevice ? {
       onTouchStart: (e: React.TouchEvent) => {
-        if ((e.target as HTMLElement).closest('button, a, input, textarea, select, [role="button"]')) return;
+        if (!isDock && (e.target as HTMLElement).closest('button, a, input, textarea, select, [role="button"]')) return;
         handleLongPressStart(undefined, { x: e.touches[0].clientX, y: e.touches[0].clientY });
       },
       onTouchEnd: handleLongPressEnd,
@@ -961,7 +964,7 @@ function SortableAppItem({
     // 터치 디바이스에서만 마우스 이벤트 허용 (하이브리드 디바이스 대응)
     ...(isTouchDevice ? {
       onMouseDown: (e: React.MouseEvent) => {
-        if ((e.target as HTMLElement).closest('button, a, input, textarea, select, [role="button"]')) return;
+        if (!isDock && (e.target as HTMLElement).closest('button, a, input, textarea, select, [role="button"]')) return;
         handleLongPressStart(undefined, { x: e.clientX, y: e.clientY });
       },
       onMouseUp: handleLongPressEnd,
@@ -1201,9 +1204,12 @@ const normalizeWidgetSize = (size: any, deviceType: DeviceType): { width: number
   return undefined;
 };
 
-export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffset = 0 }: QuickAccessAppsProps) {
+export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffset = 0, initialApps: initialAppsProp = null }: QuickAccessAppsProps) {
   const router = useRouter();
-  
+
+  // When parent passes initialApps, we apply them in useLayoutEffect before paint to prevent layout shift.
+  const initialAppsProcessedRef = useRef(false);
+
   // QuickAccessApps is always on home view which has background image
   const hasBackgroundImage = true;
 
@@ -1215,7 +1221,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
   const [activeAppId, setActiveAppId] = useState<string | null>(null);
   const [activeWidgetId, setActiveWidgetId] = useState<string | null>(null);
   const [removingAppId, setRemovingAppId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!(initialAppsProp != null && Array.isArray(initialAppsProp)));
   const [migrationCompleted, setMigrationCompleted] = useState(false);
 
   // DnD Kit sensors - iOS/모바일 환경에서도 작동하도록 설정
@@ -2595,10 +2601,62 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
     }
   }, [user?.id]);
 
-  // Load visible apps from API or localStorage
+  // Apply initialApps before first paint to prevent layout shift (parent prefetched quick-access-apps).
+  useLayoutEffect(() => {
+    if (
+      initialAppsProp == null ||
+      !Array.isArray(initialAppsProp) ||
+      initialAppsProcessedRef.current
+    ) {
+      return;
+    }
+    initialAppsProcessedRef.current = true;
+    const deviceType = getDeviceType();
+    const rawItems = initialAppsProp as (string | { id: string; slotIndex?: any; size?: any; dockIndex?: any })[];
+    const apps = rawItems
+      .map((item) => {
+        const id = typeof item === 'string' ? item : item.id;
+        if (!VALID_APP_IDS.includes(id)) return null;
+        const slotIndex = typeof item === 'object' ? item.slotIndex : undefined;
+        const dockIndex = typeof item === 'object' ? item.dockIndex : undefined;
+        const size = typeof item === 'object' ? item.size : undefined;
+        const app = allAvailableApps.find((a) => a.id === id);
+        if (!app) return null;
+        const appWithData: App = { ...app };
+        const normalizedSlotIndex = normalizeSlotIndex(slotIndex, deviceType);
+        if (normalizedSlotIndex !== undefined) appWithData.slotIndex = normalizedSlotIndex;
+        const normalizedDockIndex = normalizeDockIndex(dockIndex);
+        if (normalizedDockIndex !== undefined) appWithData.dockIndex = normalizedDockIndex;
+        const normalizedSize = normalizeWidgetSize(size, deviceType);
+        if (normalizedSize) appWithData.size = normalizedSize;
+        return appWithData;
+      })
+      .filter(Boolean) as App[];
+    const hasAddApp = apps.some((a) => a.id === 'add-app');
+    const finalApps = hasAddApp ? apps : [allAvailableApps.find((a) => a.id === 'add-app')!, ...apps];
+    const adjustedFinalApps = finalApps.map((app) => {
+      if (app.isWidget) {
+        return adjustWidgetSizeForGrid(app, deviceType, widgetGridConfig);
+      }
+      return app;
+    });
+    const appsWithSlots = assignSlotIndexes(adjustedFinalApps);
+    setVisibleApps(fixDuplicateSlotIndexes(appsWithSlots));
+    setIsLoading(false);
+  }, [
+    initialAppsProp,
+    assignSlotIndexes,
+    fixDuplicateSlotIndexes,
+    adjustWidgetSizeForGrid,
+    widgetGridConfig,
+  ]);
+
+  // Load visible apps from API or localStorage (skipped when initialApps was applied; still runs for migration)
   useEffect(() => {
     const loadVisibleApps = async () => {
-      setIsLoading(true);
+      if (!(initialAppsProp != null && Array.isArray(initialAppsProp))) {
+        setIsLoading(true);
+      }
       const deviceType = getDeviceType();
       const storageKey = buildDeviceStorageKey(DEVICE_STORAGE_KEY_PREFIX, deviceType);
       const cacheKey = buildDeviceStorageKey(DEVICE_CACHE_KEY_PREFIX, deviceType);
@@ -3059,7 +3117,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
     };
 
     loadVisibleApps();
-  }, [user?.id, migrationCompleted, saveAppsToAPI, assignSlotIndexes, fixDuplicateSlotIndexes, adjustWidgetSizeForGrid, widgetGridConfig]);
+  }, [user?.id, migrationCompleted, saveAppsToAPI, assignSlotIndexes, fixDuplicateSlotIndexes, adjustWidgetSizeForGrid, widgetGridConfig, initialAppsProp]);
 
   // Save to API/localStorage whenever visibleApps changes
   useEffect(() => {

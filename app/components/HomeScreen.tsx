@@ -1,26 +1,49 @@
 'use client'
 
-import { useEffect, useMemo, useCallback } from 'react';
+import { useEffect, useMemo, useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/lib/AuthContext';
-import { QuickAccessApps } from '@/app/components/SuggestedPrompt/QuickAccessApps';
+import { QuickAccessApps, getEnvironmentDeviceType } from '@/app/components/SuggestedPrompt/QuickAccessApps';
 import { useDarkMode } from '@/app/hooks/useDarkMode';
 import { ChatflixLoadingScreen } from './ChatflixLoadingScreen';
 import { useBackgroundImage } from '@/app/hooks/useBackgroundImage';
 import { useBackgroundImageBrightness } from '@/app/hooks/useBackgroundImageBrightness';
 import { useLoading } from '@/app/lib/LoadingContext';
+import type { StoredApp } from '@/lib/quick-access-apps';
 
 export default function HomeScreen() {
   const { user } = useAuth();
   const isDarkMode = useDarkMode();
   const router = useRouter();
-  
+  const [quickAccessAppsData, setQuickAccessAppsData] = useState<{ apps: StoredApp[] } | null>(null);
+
+  // Prefetch quick-access-apps so layout is ready before first paint (no layout shift)
+  useEffect(() => {
+    const deviceType = getEnvironmentDeviceType();
+    let cancelled = false;
+    fetch(`/api/quick-access-apps?deviceType=${deviceType}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) {
+          setQuickAccessAppsData({ apps: Array.isArray(data?.apps) ? data.apps : [] });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setQuickAccessAppsData({ apps: [] });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // 위젯에서 프롬프트 클릭 시 /chat으로 리디렉션
   const handlePromptClick = useCallback((prompt: string) => {
     const encodedPrompt = encodeURIComponent(prompt);
     router.push(`/chat?prompt=${encodedPrompt}`);
   }, [router]);
-  
+
   // Background management using shared hook
   const {
     currentBackground,
@@ -31,14 +54,14 @@ export default function HomeScreen() {
     preload: true,
     useSupabase: false
   });
-  
+
   // Update global loading state
   const { setIsLoading } = useLoading();
-  
+
   useEffect(() => {
     setIsLoading(isBackgroundLoading);
   }, [isBackgroundLoading, setIsLoading]);
-  
+
   // Calculate background image brightness for overlay
   const { isVeryDark, isVeryBright, brightness } = useBackgroundImageBrightness(
     currentBackground
@@ -55,8 +78,8 @@ export default function HomeScreen() {
     return undefined;
   }, [isVeryDark, isVeryBright, brightness]);
 
-  // Show loading screen while background is loading
-  if (isBackgroundLoading) {
+  // Show loading until both background and quick-access-apps are ready (prevents layout shift)
+  if (isBackgroundLoading || quickAccessAppsData === null) {
     return <ChatflixLoadingScreen />;
   }
 
@@ -94,14 +117,15 @@ export default function HomeScreen() {
         {/* Spacer for desktop - pushes content down on desktop if needed */}
         <div className="hidden sm:block sm:flex-1" />
         
-        {/* Quick Access Apps - iOS 스타일 그리드 (내부에서 레이아웃 관리) */}
+        {/* Quick Access Apps - iOS 스타일 그리드 (initialApps로 레이아웃 시프트 방지) */}
         {(user?.id || !user) && (
           <div className="flex-1 sm:flex-initial pb-0 sm:pb-16 pt-4 sm:pt-0">
-            <QuickAccessApps 
+            <QuickAccessApps
               isDarkMode={isDarkMode}
               user={user || undefined}
               onPromptClick={handlePromptClick}
-              verticalOffset={16} // pt-4 (16px) 에 대응
+              verticalOffset={16}
+              initialApps={quickAccessAppsData.apps}
             />
           </div>
         )}
