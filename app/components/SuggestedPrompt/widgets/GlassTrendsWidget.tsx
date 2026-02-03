@@ -1586,8 +1586,12 @@ export function GlassTrendsWidget({
         }
       `}
     >
-      {/* 부드러운 스크롤 영역 - Done 버튼과 입력 필드가 가리지 않도록 충분한 여백 확보 */}
-      <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 py-2 pb-40">
+      {/* 부드러운 스크롤 영역 - Done 버튼과 입력 필드가 가리지 않도록 충분한 여백 확보. 전체화면 시 닫기 버튼과 겹치지 않도록 상단 여백 추가 */}
+      <div
+        className={`flex-1 overflow-y-auto no-scrollbar space-y-4 py-2 pb-40 ${
+          isFullscreen ? 'pt-16 sm:pt-20' : ''
+        }`}
+      >
         {summaryLoading ? (
           <div className="flex items-center justify-center py-12 gap-2">
             <Loader2 size={20} className="animate-spin text-white/60" />
