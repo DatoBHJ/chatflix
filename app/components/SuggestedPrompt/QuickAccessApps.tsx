@@ -204,7 +204,7 @@ function VisionWidgetOverlay({
         >
           <div className="relative mx-auto w-full h-full">
             <div
-              className="w-full h-full widget-content-wrapper rounded-none overflow-visible"
+              className="w-full h-full rounded-none overflow-visible"
               style={{
                 ...widgetShellStyle,
                 height: '100dvh',
@@ -767,33 +767,24 @@ function SortableWidgetItem({
         </>
       )}
       
-      {/* Widget Content */}
-      <div 
-        className="w-full h-full widget-content-wrapper rounded-[24px] overflow-visible"
+      {/* Widget Content - height reduced so label fits inside grid cell */}
+      <div
+        ref={widgetRef}
+        className="w-full rounded-[24px] overflow-hidden"
         style={{
-          height: '100%',
+          height: 'calc(100% - 1.5rem)',
           boxSizing: 'border-box',
           ...(() => {
             const glassStyle = getAdaptiveGlassStyleBlur() as ReturnType<
               typeof getAdaptiveGlassStyleBlur
             > & { overflow?: string };
             const { overflow: _glassOverflow, ...safeGlassStyle } = glassStyle;
-            // boxShadow에서 inset 부분 제거 (상단 선 제거)
             const boxShadow = glassStyle.boxShadow;
-            const boxShadowWithoutInset = boxShadow 
-              // ? boxShadow.replace(/,\s*inset\s+[^,]+/gi, '').replace(/inset\s+[^,]+,\s*/gi, '')
-              // : undefined;
+            const boxShadowWithoutInset = boxShadow;
             return {
               ...safeGlassStyle,
               boxShadow: boxShadowWithoutInset,
-              border: 'none', // border는 위젯 컴포넌트 자체에 적용되므로 중복 방지
-              overflow: 'visible', // 그림자가 잘리지 않도록
-              // 위젯에 특별하게 배경색 적용
-              // backgroundColor: 'rgba(255, 255, 255, 0.3)',
-              // backgroundColor: isBackgroundDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(255, 255, 255, 0.3)',
-              // 더 강력한 블러 효과 적용
-              // backdropFilter: 'blur(20px)',
-              // WebkitBackdropFilter: 'blur(20px)',
+              border: 'none',
             };
           })(),
         }}
@@ -819,41 +810,30 @@ function SortableWidgetItem({
             if (duration >= 250 || moved) return;
             const el = touch ? document.elementFromPoint(touch.clientX, touch.clientY) : null;
             if (el?.closest('button, a, input, textarea, select, [role="button"]')) return;
-            e.preventDefault(); // 합성 click 방지 (한 번만 확대되도록)
+            e.preventDefault();
             const originRect = widgetRef.current?.getBoundingClientRect();
             onWidgetActivate(widget, originRect ?? undefined);
           },
         } : {})}
         onClick={(e) => {
           if (isEditMode) {
-            // 편집 모드: 클릭한 요소가 인터랙티브한지 확인
             const target = e.target as HTMLElement;
             const isInteractive = target.closest('button, a, input, textarea, select, [role="button"]');
-            
             if (!isInteractive) {
-              // 위젯 long press로 방금 편집 모드에 진입한 경우 Safari의 자동 click 이벤트 무시
               if (justEnteredEditModeFromWidget && justEnteredEditModeFromWidget()) {
                 e.stopPropagation();
                 return;
               }
-              // 빈 공간 클릭 → 이벤트 전파 → 편집 모드 종료
               return;
             }
-            // 인터랙티브 요소 클릭 → 전파 차단 (실수 방지)
             e.stopPropagation();
           } else {
-            // 일반 모드: 위젯 기능 정상 작동
-            // 클릭한 요소가 인터랙티브한지 확인 (버튼, 링크 등)
             const target = e.target as HTMLElement;
             const isInteractive = target.closest('button, a, input, textarea, select, [role="button"]');
-            
-            // 인터랙티브 요소를 클릭한 경우 위젯 확대 방지
             if (isInteractive) {
-            e.stopPropagation();
+              e.stopPropagation();
               return;
             }
-            
-            // 빈 공간 클릭 시에만 위젯 확대
             e.stopPropagation();
             if (!isDragging && !isResizing && onWidgetActivate) {
               const originRect = widgetRef.current?.getBoundingClientRect();
@@ -862,23 +842,14 @@ function SortableWidgetItem({
           }
         }}
       >
-        <div 
-          ref={widgetRef}
-          className="w-full h-full overflow-hidden rounded-[24px]"
-          style={{
-            width: '100%',
-            height: '100%',
-          }}
-        >
-          {renderWidgetContent(widget, hasBackgroundImage)}
-        </div>
+        {renderWidgetContent(widget, hasBackgroundImage)}
       </div>
-        {/* Widget label (same style as apps) */}
+        {/* Widget label - same size/style as app label (text-xs font-bold) */}
         <div
-          className="absolute inset-x-0 -bottom-6 text-center pointer-events-none"
+          className="absolute inset-x-0 bottom-0 text-center pointer-events-none min-h-6 flex items-center justify-center"
           style={{ color: 'rgba(255, 255, 255)', textShadow: 'none' }}
         >
-          <span className="text-xs sm:text-xs font-bold inline-block px-2">
+          <span className="text-xs font-bold">
             {widget.label}
           </span>
         </div>
