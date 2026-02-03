@@ -496,18 +496,25 @@ function extractReferencedImageIds(message: any): Set<string> {
  * 도구 결과 요약 함수들 - AI 컨텍스트 토큰 절감을 위한 최소 메타데이터 추출
  */
 
-// Twitter 검색 요약: 검색어, 결과 개수, linkId만
+// Twitter 검색 요약: 검색어, 결과 개수, linkId만 (단일 객체 또는 배열 지원)
 function summarizeTwitterSearch(results: any): string {
-  const searches = results.searches || [];
-  const lines = [`[Twitter Search: ${results.searchId}]`];
-  
-  searches.forEach((search: any, i: number) => {
-    lines.push(`Query ${i+1}: "${search.query}" (${search.totalResults} results)`);
-    (search.results || []).forEach((tweet: any) => {
-      lines.push(`  - ${tweet.linkId}: @${tweet.author?.username || 'unknown'}`);
+  const items = Array.isArray(results) ? results : results ? [results] : [];
+  if (items.length === 0) return '';
+
+  const lines: string[] = [];
+  items.forEach((result: any) => {
+    const searches = result?.searches || [];
+    lines.push(`[Twitter Search: ${result?.searchId ?? '—'}]`);
+    searches.forEach((search: any, i: number) => {
+      const count = (search.results || []).length;
+      lines.push(`Query ${i + 1}: "${search.query}" (${count} results)`);
+      (search.results || []).forEach((tweet: any) => {
+        const author = tweet.authorInfo?.username ?? (typeof tweet.author === 'string' ? tweet.author : null) ?? 'unknown';
+        lines.push(`  - ${tweet.linkId}: @${author.replace(/^@/, '')}`);
+      });
     });
   });
-  
+
   return lines.join('\n');
 }
 

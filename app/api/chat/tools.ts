@@ -448,7 +448,7 @@ const toolDefinitions = {
   googleSearch: {
     description: 'Search Google using SearchAPI for comprehensive web search results. This tool provides access to Google\'s search index with location and language customization. Supports both web search and image search.',
     inputSchema: {
-      queries: 'The search queries to send to Google. Can be a single query string or an array of queries. Each query can be anything you would use in a regular Google search.',
+      queries: 'The search queries to send to Google. Can be a single query string or an array of queries. Each query can include Google operators in the query string, e.g. site:example.com, inurl:docs, intitle:keyword, filetype:pdf, "exact phrase", -exclude, OR.',
       engines: 'Optional. The search engines to use. Can be a single engine or array matching queries. Options: "google" (web search), "google_images" (image search), "google_videos" (video search). Default is "google".',
       maxResults: 'Optional. Maximum number of results to return per query. For google search, default is 10. For google_images, this parameter is ignored (all images sent to client, LLM context limited to 20). Can be a single number or array matching queries.',
       locations: 'Optional. The locations from where you want the searches to originate (e.g., "New York", "London", "Tokyo"). Can be a single location or array matching queries.',
@@ -457,9 +457,9 @@ const toolDefinitions = {
     }
   },
   twitterSearch: {
-    description: 'Advanced X (Twitter) search powered by twitterapi.io. Supports the full Twitter advanced search syntax (boolean operators, filters, date ranges, engagement thresholds, geo, lists) and lets you choose between Latest or Top ranking plus cursor-based pagination.',
+    description: 'Advanced X (Twitter) search powered by twitterapi.io. Full advanced search syntax: boolean (A OR B), "exact phrases", -negations, and operators e.g. within_time:24h, min_faves:, filter:images, filter:news, filter:videos, from:, lang:, since:/until:, geocode:, list:. Use Latest for real-time, Top for high-engagement. Cursor-based pagination supported.',
     inputSchema: {
-      query: 'Complete Twitter advanced search query string. Combine operators such as from:, to:, @mentions, hashtags, "exact phrases", (A OR B), -negations, filter:images, lang:, since:/until:, min_faves:, geocode:, list:, etc.',
+      query: 'Twitter advanced search query string. E.g. (S&P500 OR Dow) within_time:24h min_faves:20 -filter:retweets. Use operators: from:, to:, @user, "phrase", (A OR B), -term, filter:images|videos|news|links, min_faves:, min_retweets:, lang:, since:/until:, within_time:2d|6h|5m, geocode:, list:, url:, source: (spaces as _), $cashtag, #hashtag.',
       queryType: 'Search ranking to target. Use "Latest" for chronological results or "Top" for high-engagement tweets. Default is Latest.',
       cursor: 'Optional pagination cursor returned by the previous response. Pass it to fetch the next page of tweets when has_next_page is true.'
     }

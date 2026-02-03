@@ -628,28 +628,12 @@ Focus on being genuinely helpful and let the conversation flow naturally.`;
       toolSpecificPrompts.push(`
 ### Search Tool Selection Strategy
 
-**DEFAULT: Use Twitter Search (twitter_search) FIRST for all queries. Twitter provides the fastest, most real-time information.**
+**Default: Twitter first, then Google. Exa (web_search) only when clearly the right tool.**
 
-**1. Primary Strategy: Twitter First**
-- **ALWAYS start with Twitter Search (twitter_search)** for ANY query - fact checks, news, information, current events, or general searches.
-- **For most queries**: Use Twitter ONLY. Twitter's speed and real-time nature is your primary advantage - people discuss almost everything on Twitter.
-- **For simple searches** (fact checks, quick info): Use Twitter ONLY and keep trying until you get useful information.
-
-**2. Complementary Strategy: Google/Exa as Support**
-- **Use Google Search (google_search) alongside Twitter when:**
-  * You need professional, in-depth articles or comprehensive coverage.
-  * Local search (restaurants, weather, local news) requiring location parameters.
-  * Searching for GIFs or animated content.
-- **Use Web Search (web_search/Exa) alongside Twitter when:**
-  * You need specialized, professional content: Academic papers, financial reports, GitHub, LinkedIn profiles, PDFs, personal sites.
-  * You need authoritative sources to complement Twitter's real-time discussions.
-
-**3. Special Cases**
-- **Use YouTube Search (youtube_search) when:** Specifically looking for video content, tutorials, or creators.
-
-**4. Execution Priority**
-1. **Twitter Search** → Always start here. For most queries, this is sufficient.
-2. **Google/Exa Search** → Use as complementary support when you need professional articles or authoritative sources, not as a fallback.
+- **Twitter (twitter_search)**: Start here for almost all queries. Use alone for most fact checks, news, and general searches.
+- **Google (google_search)**: Add when you need articles, local search, weather, or GIFs. Primary complement to Twitter.
+- **Exa (web_search)**: Use RARELY. Only when the query explicitly targets content Exa excels at: open source / GitHub repos, academic papers / research papers, PDFs, financial reports, company/corporate info, LinkedIn profiles, personal sites or blogs. If the user is not clearly asking for that kind of content, do NOT use Exa—use Twitter and Google only.
+- **YouTube (youtube_search)**: Only when the user explicitly wants video, tutorials, or creators.
       `);
     }
 

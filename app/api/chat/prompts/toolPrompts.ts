@@ -44,18 +44,25 @@ export const toolPrompts = {
 - Specs:
   - This tool provides access to Google's organic search results and images
   - Safe search is disabled by default to allow unrestricted search results
-  - Location and country parameters can be used to customize search results
+  - Location and language parameters can be used to customize search results
   - **CRITICAL: queries FORMAT**: When passing multiple queries, use actual array format: ["query1", "query2"]. NEVER use JSON string format like '["query1","query2"]'
+- **Search query language**: Prefer English for search queries to get broader and more accurate results. For region-specific topics use that language for queries. Use \`hl\` (and optionally \`gl\`/location) to align result language: e.g. hl=en for broad coverage, hl=ko for Korean results when relevant.
 
 **2. Search Strategy**
-- **Search query language**: Prefer English for search queries to get broader and more accurate results. For region-specific topics use that language for queries. Use \`hl\` (and optionally \`gl\`/location) to align result language: e.g. hl=en for broad coverage, hl=ko for Korean results when relevant.
-- Use natural language queries
-- Supports multiple queries in one call (use arrays)
-- Include location parameters for local results (restaurants, weather, etc.)
-- Use country codes for region-specific results
+- Run a broad query plus one or more narrow queries (e.g. with \`site:\` or \`filetype:\`) in parallel for better coverage
+- **Engine choice**: \`google\` for web; \`google_images\` for images/GIFs; \`google_videos\` for video. Same topic can use web + images in one call (different entries in queries/engines)
+- Use \`locations\`, \`gl\`/\`hl\` for local results (restaurants, weather, regional news). Keep \`hl\` and query language consistent
 - **GIF and animated content**: Use Google Search for all GIF searches (e.g., "funny cat gif")
 
-**3. Link & Image Formatting**
+**3. Google Query Operators (use inside the query string)**
+- \`site:domain.com\` - Restrict to a site (e.g. \`site:github.com React hooks\`, \`site:reddit.com best laptop 2024\`)
+- \`inurl:keyword\` - URL contains keyword (e.g. \`inurl:docs API reference\`)
+- \`intitle:keyword\` - Title contains keyword (e.g. \`intitle:tutorial Next.js\`)
+- \`filetype:ext\` - File type (e.g. \`filetype:pdf machine learning\`)
+- \`"exact phrase"\`, \`-keyword\` (exclude), \`OR\` (e.g. \`Python OR Ruby tutorial\`)
+- **When to use**: "From ~ site" / "~에서 나온 자료" → \`site:도메인\` + keywords. "Official docs" / "문서만" → \`site:해당사이트\` or \`inurl:docs\`. "PDF only" / "논문 PDF" → \`filetype:pdf\` + keywords. "Title contains ~" → \`intitle:키워드\`. Include these operators in the query string when they match user intent.
+
+**4. Link & Image Formatting**
 - **LINK ID USAGE**: ALWAYS use link IDs - NEVER use full URLs
 - **FORMATS**:
   - Web search: [LINK_ID:google_link_searchId_index_resultIndex]
@@ -64,71 +71,56 @@ export const toolPrompts = {
 - **PLACEMENT**: Place link IDs on separate lines (plain text only, no bold)
 - **IMAGE DISPLAY**: Use [IMAGE_ID:unique_id] on separate lines for images from search results.
 
-**4. Execution Workflow**
-1. Construct natural language queries with appropriate parameters.
-2. Call google_search with correct query format (array for multiple queries).
-3. Format results using link IDs and image IDs as specified.
+**5. Execution Workflow**
+1. Infer user intent; if they want a specific site, file type, or title match, add \`site:\`/\`filetype:\`/\`intitle:\` (etc.) to the query string.
+2. Run at least one broad query and, when useful, one or more targeted queries (with operators) in parallel.
+3. Call google_search with correct query format (array for multiple queries) and appropriate engines/locations/hl.
+4. Format results using link IDs and image IDs as specified.
   `,
 
   twitterSearch: `
 #### Twitter Search
 
 **1. Capabilities and Output Protocol**
-- Specs:
-  - QueryType: "Latest" (chronological) or "Top" (high engagement)
-  - Supports Twitter advanced-search operators and filters
-- **CRITICAL**: Twitter search is NOT Google search. NEVER use long descriptive phrases or full sentences. ONLY use individual words or short keyword combinations.
+- Specs: QueryType "Latest" (chronological) or "Top" (high engagement). Full Twitter advanced-search operators supported.
+- **CRITICAL**: Twitter search is NOT Google search. Use ONLY keywords or short combinations, NEVER full sentences.
+- **Search query language**: Prefer English for broader coverage; for region-specific topics use that language in the query.
 
-**2. Query Strategy: Word-Only Search**
-- **Search query language**: Prefer English for query keywords to get broader coverage. For region-specific topics use that language for query keywords. (Do not rely on lang: filter for language—write the query itself in English or the target region's language.)
-- **MANDATORY**: Break down queries into individual words. Use ONLY keywords, NEVER phrases.
-- **GOOD**: Single words ("API", "update"), keyword pairs ("Apify API"), Boolean OR (\`(Instagram OR Scraper)\`)
-- **BAD**: "What is the latest update about Apify API" ❌ → Use: "Apify API update" or ["Apify", "API", "update"] ✅
-- **Query construction**: 
-  * Extract core words from the query (1-3 words max per query)
-  * Use Boolean operators: OR, AND, parentheses for grouping
-  * Use exclusions: -minus to exclude terms
-  * NEVER write queries as questions or descriptive sentences
+**2. Query Volume & Diversity (CRITICAL)**
+- Run **6–12+** distinct (query, queryType) combinations for complex topics—not just 2–3.
+- Same topic, many variants: different keyword combinations, \`"exact phrase"\`, with/without \`filter:images\` or \`min_faves\`, multilingual when relevant.
+- **Strategy pairing**: For each conceptual query run **both** (1) QueryType Top, (2) QueryType Latest (add \`min_faves:10\` or \`min_faves:50\` when you want quality recent tweets). Same keywords = run as two calls: one Top, one Latest.
+- **Avoid duplicates**: Each call must differ in query text, filters, or QueryType.
 
-**3. Parallel Multi-Word Search (CRITICAL)**
-- **ALWAYS break complex queries into multiple parallel word-based searches**
-- Example: For "latest news about AI developments"
-  * Run parallel queries: ["AI", "news", "latest"], ["AI", "developments"], ["artificial intelligence", "update"]
-- **Strategy**: Extract different word combinations and run them in parallel to maximize coverage
-- Use array of queries: ["word1", "word2 word3", "word4 OR word5"]
-- **CRITICAL: Avoid Duplicate Queries**
-  * Before creating parallel queries, check for duplicates
-  * Each query in the array must be unique (different word combinations or filters)
-  * Do not create multiple queries with identical keywords - vary word combinations, filters, or QueryTypes instead
+**3. User Intent → Operators (match query to scenario)**
+- **Real-time/news**: \`within_time:24h\` or \`6h\`, \`filter:news\`, \`lang:ko\`/\`lang:en\`, \`-filter:retweets\`, Latest.
+- **Person/account**: \`from:username\`, \`to:username\`, \`@user -from:user\`, \`filter:verified\`, \`-filter:replies\`.
+- **Time range**: \`within_time:24h\`/\`6h\`/\`5m\`, \`since:YYYY-MM-DD\` \`until:YYYY-MM-DD\`.
+- **Viral/engagement**: \`min_retweets:N\`, \`min_faves:N\`, \`filter:has_engagement\`, QueryType **Top**.
+- **Media**: \`filter:images\`, \`filter:videos\`, \`filter:links\`, \`card_name:animated_gif\` for GIFs.
+- **Tweet type**: \`-filter:retweets -filter:replies\` for originals only; \`filter:replies\` or \`filter:quote\` when needed.
+- **Other**: \`lang:ko\`/\`lang:en\`, \`url:domain.com\`, \`source:Twitter_for_iOS\` (spaces as \`_\`), \`$NVDA\` (cashtag), \`#hashtag\`, \`"exact phrase"\`, \`(A OR B)\` (OR in uppercase), \`-term\` to exclude. Max ~22 operators per query; hyphen in domain/source → use underscore.
 
-**4. Advanced Filtering & QueryType Diversity**
-- **MANDATORY**: Use filters and QueryType strategically for comprehensive results
-- **Filters to use**:
-  * \`filter:images\` - For visual content
-  * \`filter:videos\` - For video content
-  * \`min_faves:10\`, \`min_retweets:5\` - For quality content
-  * \`lang:en\`, \`lang:ko\` - For language-specific results
-  * \`from:username\` - For specific accounts
-  * \`since:YYYY-MM-DD\`, \`until:YYYY-MM-DD\` - For date ranges
-  * \`-filter:retweets\` - Exclude retweets
-- **QueryType Strategy**:
-  * **"Latest"**: Use for breaking news, real-time events (last few hours), trending topics
-  * **"Top"**: Use for quality content, popular discussions (last 24-48h)
-  * **CRITICAL**: Run BOTH QueryTypes in parallel when possible - "Latest" for speed, "Top" for quality
-  * Use \`within_time:24h\` or \`within_time:7d\` with "Top" for time-bounded quality results
-- **Diversity**: Vary filters and QueryTypes across parallel searches to get comprehensive coverage
+**4. Advanced Filtering (combine to vary queries)**
+- Time: \`within_time:2d\`/\`6h\`/\`5m\`, \`since:\`/\`until:\`
+- Engagement: \`min_faves:10\`/\`50\`, \`min_retweets:N\`, \`min_replies:N\`, \`filter:has_engagement\`
+- Media: \`filter:images\`, \`filter:videos\`, \`filter:links\`, \`filter:news\`
+- Type: \`-filter:retweets\`, \`-filter:replies\`, \`from:\`, \`filter:verified\`
+- Use these in combination so parallel searches differ by operators, not just keywords.
 
-**5. Link Formatting**
-- **LINK ID FORMAT**: [LINK_ID:twitter_link_<tweetId>] (plain text only, no bold)
-- **PLACEMENT**: Place link IDs on separate lines between sections.
-- Include 1-3 highly relevant tweets only if they provide significant value.
+**5. Bad vs Good Example**
+- **Bad**: 3 calls only, no operators—e.g. \`"US stock market today" (Latest)\`, \`"S&P500 Nasdaq Dow" (Top)\`, \`"미국 증시 오늘" (Latest)\`.
+- **Good** (same topic, 10+ strategic calls): \`(S&P500 OR Nasdaq OR Dow) within_time:24h\` (Latest + Top); \`"US stocks" min_faves:20 within_time:24h\` (Latest); \`"stock market" min_retweets:50\` (Top); \`filter:news (stock OR market) within_time:24h lang:en\` (Latest); \`"stock market" filter:images within_time:24h\` (Top); \`미국 증시\` (Latest); \`주식 시장\` (Top); \`(S&P500 OR Dow) -filter:retweets\` (Latest). Aim for this level of variety and operator use.
 
-**6. Execution Workflow**
-1. Extract core words from the query (NEVER use full sentences).
-2. Create multiple parallel word-based queries (different word combinations).
-3. Apply diverse filters and QueryTypes across parallel searches ("Latest" + "Top").
-4. Run parallel searches with varied filters to maximize coverage.
-5. Format results using link IDs as specified.
+**6. Link Formatting**
+- **LINK ID FORMAT**: [LINK_ID:twitter_link_<tweetId>] (plain text only, no bold). Place on separate lines. Include 1–3 highly relevant tweets when they add value.
+
+**7. Execution Workflow**
+1. Infer user intent and pick scenario-appropriate operators (time, engagement, media, person, etc.).
+2. Build many query variants (keyword combos, exact phrases, filters, languages).
+3. For each variant run a **pair**: one with QueryType Top, one with Latest (add \`min_faves\` on Latest when useful).
+4. Execute 6–12+ distinct (query, queryType) calls in parallel; no duplicate queries.
+5. Format results with link IDs as specified.
   `,
 
   youtubeSearch: `
