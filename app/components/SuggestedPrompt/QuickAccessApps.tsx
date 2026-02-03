@@ -5158,7 +5158,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
           const updated = prev.map(app => {
             if (app.id === dragged.id) {
               return registryApp
-                ? { ...registryApp, ...app, dockIndex: dockIdx, slotIndex: undefined }
+                ? { ...registryApp, dockIndex: dockIdx, slotIndex: undefined }
                 : { ...app, dockIndex: dockIdx, slotIndex: undefined };
             }
             // 도크 충돌 시 기존 앱은 그대로 두고, 중복만 방지
