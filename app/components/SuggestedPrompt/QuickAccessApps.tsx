@@ -976,9 +976,9 @@ function SortableAppItem({
               ? Math.abs(touch.clientX - t.x) > 10 || Math.abs(touch.clientY - t.y) > 10
               : false;
             if (duration < 250 && !moved) {
-              onAppClick(app);
-              e.preventDefault();
               e.stopPropagation();
+              e.preventDefault();
+              onAppClick(app);
             }
           }
         }
