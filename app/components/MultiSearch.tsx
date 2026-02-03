@@ -23,10 +23,10 @@ import {
   FileText,
   BookOpen,
   Video,
-  Play,
-  TrendingUp
+  Play
 } from 'lucide-react';
 import { SiGoogle, SiLinkedin } from 'react-icons/si';
+import { BiSolidBank } from 'react-icons/bi';
 import { YouTubeEmbed, TikTokEmbed, TwitterEmbed, InstagramEmbed } from './MarkdownContent';
 import { LinkPreview } from './LinkPreview';
 import { LinkResultCard } from './LinkResultCard';
@@ -340,8 +340,8 @@ export const getTopicIconComponent = (topicIcon: string) => {
       return <Building {...iconProps} />;
     case 'bar-chart':
       return <BarChart3 {...iconProps} />;
-    case 'trending-up':
-      return <TrendingUp {...iconProps} />;
+    case 'bank':
+      return <BiSolidBank size={iconProps.size} />;
     case 'file-text':
       return <FileText {...iconProps} />;
     case 'twitter':
@@ -366,7 +366,7 @@ export const getTopicIcon = (topic: string): string => {
   switch (topic) {
     case 'github': return 'github';
     case 'news': return 'newspaper';
-    case 'financial report': return 'trending-up';
+    case 'financial report': return 'bank';
     case 'company': return 'building';
     case 'research paper': return 'book-open';
     case 'pdf': return 'file-text';

@@ -179,7 +179,7 @@ export const getWebSearchResults = (message: UIMessage) => {
         case 'company':
           return 'building'; // Company icon
         case 'financial report':
-          return 'bar-chart'; // Financial report icon
+          return 'bank'; // Financial report icon
         case 'pdf':
           return 'file-text'; // PDF icon
         case 'tweet':

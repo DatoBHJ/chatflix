@@ -9,8 +9,9 @@ import { ChatInputProps } from './types';
 import { useChatInputStyles } from './ChatInputStyles';
 import { FilePreview, fileHelpers } from './FileUpload';
 import { ErrorToast } from './DragDropOverlay';
-import { Search, Calculator, Link, Image, FileText, Plus, BarChart3, Building, BookOpen, Github, User, Youtube, Palette, Video, Info, Wrench, TrendingUp } from 'lucide-react';
+import { Search, Calculator, Link, Image, FileText, Plus, BarChart3, Building, BookOpen, Github, User, Youtube, Palette, Video, Info, Wrench } from 'lucide-react';
 import { SiGoogle, SiLinkedin } from 'react-icons/si';
+import { BiSolidBank } from 'react-icons/bi';
 import NextImage from 'next/image'; 
 import { FileMetadata } from '@/lib/types';
 import { 
@@ -66,7 +67,7 @@ export const TOOLS: ToolDefinition[] = [
   { id: 'web_search:personal site', icon: <User strokeWidth={1.8} />, name: 'Personal Site Search', description: 'Find personal websites and blogs', category: 'search', background: 'linear-gradient(0deg, #1CD8D2 0%, #93EDC7 100%)', placeholder: { mobile: 'Search personal websites', desktop: 'Find life coach for work stress' } },
   { id: 'web_search:linkedin profile', icon: <SiLinkedin strokeWidth={0.5} className="h-[0.375rem] w-[0.375rem]" />, name: 'LinkedIn Profile Search', description: 'Search LinkedIn profiles', category: 'search', background: 'linear-gradient(0deg, #0072ff 0%, #00c6ff 100%)', placeholder: { mobile: 'Search LinkedIn profiles', desktop: 'Find best computer scientist at Berkeley' }, smallIcon: true },
   { id: 'web_search:company', icon: <Building strokeWidth={1.8} />, name: 'Company Search', description: 'Find company information', category: 'search', background: 'linear-gradient(0deg, #8a92a5 0%, #b8c0d0 100%)', placeholder: { mobile: 'Search companies', desktop: 'Find company making space travel cheaper' } },
-  { id: 'web_search:financial report', icon: <TrendingUp strokeWidth={1.8} />, name: 'Financial Report Search', description: 'Search financial data and reports', category: 'search', background: 'linear-gradient(0deg, #11998e 0%, #38ef7d 100%)', placeholder: { mobile: 'Search financial reports', desktop: 'Search Apple\'s revenue growth reports' } },
+  { id: 'web_search:financial report', icon: <BiSolidBank size={18} />, name: 'Financial Report Search', description: 'Search financial data and reports', category: 'search', background: 'linear-gradient(0deg, #11998e 0%, #38ef7d 100%)', placeholder: { mobile: 'Search financial reports', desktop: 'Search Apple\'s revenue growth reports' } },
   { id: 'web_search:research paper', icon: <BookOpen strokeWidth={1.8} />, name: 'Research Paper Search', description: 'Find academic research papers', category: 'search', background: 'linear-gradient(0deg, #9333EA 0%, #C084FC 100%)', placeholder: { mobile: 'Search research papers', desktop: 'Find papers about embeddings' } },
   { id: 'web_search:pdf', icon: <FileText strokeWidth={1.8} />, name: 'PDF Search', description: 'Search PDF documents', category: 'search', background: 'linear-gradient(0deg, #991B1B 0%, #DC2626 100%)', placeholder: { mobile: 'Search PDF documents', desktop: 'Search government UFO documents' } },
   { id: 'calculator', icon: <Calculator strokeWidth={1.8} />, name: 'Calculator', description: 'Mathematical calculations', category: 'utility', background: 'linear-gradient(0deg, #F2994A 0%, #F2C94C 100%)', placeholder: { mobile: 'Calculate mortgage payment 500k 30yr 4.5%', desktop: 'Calculate mortgage payment 500k 30yr 4.5%' } },
