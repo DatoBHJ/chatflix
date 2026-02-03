@@ -5149,14 +5149,17 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
 
     const overId = over.id as string;
 
-    // 도크 드롭
+    // 도크 드롭 (레지스트리 병합으로 icon/gradient 등 디자인 정보 보장)
     if (overId.startsWith('dock-slot-')) {
       const dockIdx = parseInt(overId.replace('dock-slot-', ''), 10);
       if (!Number.isNaN(dockIdx)) {
+        const registryApp = allAvailableApps.find(a => a.id === dragged.id);
         setVisibleApps(prev => {
           const updated = prev.map(app => {
             if (app.id === dragged.id) {
-              return { ...app, dockIndex: dockIdx, slotIndex: undefined };
+              return registryApp
+                ? { ...registryApp, ...app, dockIndex: dockIdx, slotIndex: undefined }
+                : { ...app, dockIndex: dockIdx, slotIndex: undefined };
             }
             // 도크 충돌 시 기존 앱은 그대로 두고, 중복만 방지
             if (!app.isWidget && app.dockIndex === dockIdx && app.id !== dragged.id) {
