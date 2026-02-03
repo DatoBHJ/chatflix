@@ -64,7 +64,7 @@ export default function HomeScreen() {
     <main className="flex-1 relative h-screen flex flex-col">
       {/* Background Image with Glass Effect */}
       <div 
-        className="fixed inset-0 bg-cover bg-center bg-no-repeat min-h-screen w-full"
+        className="fixed inset-0 bg-cover bg-center bg-no-repeat w-full"
         style={{
           backgroundImage: currentBackground ? `url("${currentBackground.replace(/"/g, '\\"')}")` : undefined,
           zIndex: 0
@@ -74,7 +74,7 @@ export default function HomeScreen() {
       {/* image-based color overlay on background image */}
       {overlayColor && (
         <div 
-          className="fixed inset-0 min-h-screen w-full pointer-events-none"
+          className="fixed inset-0 w-full pointer-events-none"
           style={{
             backgroundColor: overlayColor,
             zIndex: 0.5
