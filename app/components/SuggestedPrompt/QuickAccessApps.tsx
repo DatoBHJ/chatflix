@@ -1636,6 +1636,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
   // Prevent edit mode cancellation immediately after resize/drag operations
   const justFinishedResize = useRef(false);
   const justFinishedDrag = useRef(false);
+  const widgetGridContainerRef = useRef<HTMLDivElement>(null);
   
   // Callback to handle ref ready for onboarding tooltips
   const handleOnboardingRefReady = useCallback((appId: string, element: HTMLDivElement | null) => {
@@ -3845,16 +3846,19 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
     const currentSlotIndex = startSlotIndex ?? widget.slotIndex ?? 0;
     
     // resizePreview를 먼저 설정하여 isResizing이 true가 되기 전에 값이 준비되도록 함
-    // 앱 그리드 기준으로 계산 (앱과 동일)
+    // 데스크탑: 실제 그리드와 동일한 gap(28)/행높이(180) 사용
     const deviceTypeForPreview = getDeviceType();
-    const APP_CELL_HEIGHT = 86; // 앱 셀 높이 (64px 아이콘 + 22px 텍스트)
-    const gapSizeForPreview = deviceTypeForPreview === 'mobile' 
+    const cellHeightForPreview = deviceTypeForPreview === 'mobile'
+      ? 86  // 앱 셀 높이 (모바일)
+      : 180; // 데스크탑: gridAutoRows 180px와 동일
+    const gapSizeForPreview = deviceTypeForPreview === 'mobile'
       ? 4  // gap-1 (앱과 동일)
-      : (typeof window !== 'undefined' && window.innerWidth >= 1024 ? 32 : 16); // gap-8 또는 gap-4
+      : (typeof window !== 'undefined' && window.innerWidth >= 1024 ? 28 : 16); // 데스크탑 28px, 그리드와 동일
     const horizontalPaddingForPreview = deviceTypeForPreview === 'mobile' ? 32 : 96;
-    const availableWidthForPreview = typeof window !== 'undefined' ? window.innerWidth - horizontalPaddingForPreview : 800;
+    const availableWidthForPreview = (deviceTypeForPreview !== 'mobile' && widgetGridContainerRef.current)
+      ? widgetGridContainerRef.current.getBoundingClientRect().width
+      : (typeof window !== 'undefined' ? window.innerWidth - horizontalPaddingForPreview : 800);
     const cellWidthForPreview = (availableWidthForPreview - (widgetGridConfig.columns - 1) * gapSizeForPreview) / widgetGridConfig.columns;
-    const cellHeightForPreview = APP_CELL_HEIGHT;
     
     const startPixelWidth = actualWidgetSize.width * cellWidthForPreview + (actualWidgetSize.width - 1) * gapSizeForPreview;
     const startPixelHeight = actualWidgetSize.height * cellHeightForPreview + (actualWidgetSize.height - 1) * gapSizeForPreview;
@@ -3888,17 +3892,18 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
       setHasResizeMovement(true);
     }
 
-    // 2. 그리드 치수 정보 가져오기 (앱 그리드 기준)
+    // 2. 그리드 치수 정보 가져오기 (데스크탑: 실제 그리드와 동일 gap 28 / 행높이 180)
     const deviceType = getDeviceType();
-    const APP_CELL_HEIGHT = 86; // 앱 셀 높이
-    const gapSize = deviceType === 'mobile' 
+    const cellHeight = deviceType === 'mobile' ? 86 : 180; // 데스크탑: gridAutoRows 180px와 동일
+    const gapSize = deviceType === 'mobile'
       ? 4  // gap-1 (앱과 동일)
-      : (typeof window !== 'undefined' && window.innerWidth >= 1024 ? 32 : 16); // gap-8 또는 gap-4
-    
+      : (typeof window !== 'undefined' && window.innerWidth >= 1024 ? 28 : 16); // 데스크탑 28px, 그리드와 동일
+
     const horizontalPadding = deviceType === 'mobile' ? 32 : 96;
-    const availableWidth = window.innerWidth - horizontalPadding;
+    const availableWidth = (deviceType !== 'mobile' && widgetGridContainerRef.current)
+      ? widgetGridContainerRef.current.getBoundingClientRect().width
+      : window.innerWidth - horizontalPadding;
     const cellWidth = (availableWidth - (widgetGridConfig.columns - 1) * gapSize) / widgetGridConfig.columns;
-    const cellHeight = APP_CELL_HEIGHT;
 
     // 3. 시작 시점의 픽셀 크기 계산
     const startPixelWidth = resizeStartSize.width * cellWidth + (resizeStartSize.width - 1) * gapSize;
@@ -3961,17 +3966,18 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
       return;
     }
 
-    // 1. 그리드 설정 가져오기 (앱 그리드 기준)
+    // 1. 그리드 설정 가져오기 (데스크탑: 실제 그리드와 동일 gap 28 / 행높이 180)
     const { columns, rows, widgetsPerPage } = widgetGridConfig;
-    const APP_CELL_HEIGHT = 86; // 앱 셀 높이
-    const gapSize = deviceType === 'mobile' 
+    const cellHeight = deviceType === 'mobile' ? 86 : 180; // 데스크탑: gridAutoRows 180px와 동일
+    const gapSize = deviceType === 'mobile'
       ? 4  // gap-1 (앱과 동일)
-      : (typeof window !== 'undefined' && window.innerWidth >= 1024 ? 32 : 16); // gap-8 또는 gap-4
-    
+      : (typeof window !== 'undefined' && window.innerWidth >= 1024 ? 28 : 16); // 데스크탑 28px, 그리드와 동일
+
     const horizontalPadding = deviceType === 'mobile' ? 32 : 96;
-    const availableWidth = window.innerWidth - horizontalPadding;
+    const availableWidth = (deviceType !== 'mobile' && widgetGridContainerRef.current)
+      ? widgetGridContainerRef.current.getBoundingClientRect().width
+      : window.innerWidth - horizontalPadding;
     const cellWidth = (availableWidth - (columns - 1) * gapSize) / columns;
-    const cellHeight = APP_CELL_HEIGHT;
 
     // 2. 최종 크기(Grid Unit) 계산 (반올림)
     // 모바일: 최소 4x2, 데스크탑: 예전 로직 (1x1 허용)
@@ -5444,6 +5450,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                       strategy={rectSortingStrategy}
                     >
                       <div 
+                        ref={widgetGridContainerRef}
                         className="flex-1 grid content-start" 
                         style={{ 
                           gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
