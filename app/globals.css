@@ -1284,6 +1284,15 @@ body {
   box-sizing: border-box;
 }
 
+/* Full viewport fixed layer for iOS Safari (workaround for viewport-fit=cover + fixed) */
+.full-viewport-fixed {
+  position: fixed;
+  inset: 0;
+  height: 100vh;
+  height: 100dvh;
+  min-height: -webkit-fill-available;
+}
+
 /* 미래지향적 스크롤바 스타일 */
 .scrollbar-thin::-webkit-scrollbar {
   width: 4px;

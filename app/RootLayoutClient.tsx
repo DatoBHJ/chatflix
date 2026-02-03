@@ -16,6 +16,7 @@ import { handleDeleteAllChats as deleteAllChats } from './lib/chatUtils'
 import { useTheme } from 'next-themes'
 import { getAdaptiveGlassStyleBlur } from '@/app/lib/adaptiveGlassStyle'
 import { ChatflixLoadingScreen } from './components/ChatflixLoadingScreen'
+import { HomePageBackground } from './components/HomePageBackground'
 import { GlassDistortionFilters } from './lib/GlassDistortionFilters'
 import { LoadingProvider, useLoading } from './lib/LoadingContext'
 
@@ -182,25 +183,28 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   
   return (
     <SidebarContext.Provider value={{ isSidebarOpen, toggleSidebar, isAccountOpen, setIsAccountOpen, isHovering, isMobile, isSelectionMode, setIsSelectionMode, /* isPromptEditMode, setIsPromptEditMode */ }}>
-      <div
-        className={`flex h-screen safe-area-container text-foreground overflow-x-hidden ${isLoginPage ? '' : 'bg-background'}`}
-        style={{ minHeight: '100dvh' }}
-      >
-        {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
-        <GlassDistortionFilters />
+      <div style={{ position: 'relative', minHeight: '100dvh' }}>
+        {pathname === '/' && <HomePageBackground user={displayUser} />}
+        <div
+          className={`flex h-screen safe-area-container text-foreground overflow-x-hidden ${isLoginPage ? '' : 'bg-background'}`}
+          style={{ minHeight: '100dvh' }}
+        >
+          {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
+          <GlassDistortionFilters />
 
-        <Toaster position="top-right" richColors />
-        <Announcement
-          announcements={announcements || []}
-          onClose={hideAnnouncement}
-        />
+          <Toaster position="top-right" richColors />
+          <Announcement
+            announcements={announcements || []}
+            onClose={hideAnnouncement}
+          />
 
-        {/* Main Content */}
-        <div className="flex-1">
-          {children}
+          {/* Main Content */}
+          <div className="flex-1">
+            {children}
+          </div>
+
+          <div id="portal-root"></div>
         </div>
-
-        <div id="portal-root"></div>
       </div>
     </SidebarContext.Provider>
   )
