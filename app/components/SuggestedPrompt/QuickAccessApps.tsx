@@ -24,6 +24,7 @@ import {
   DragEndEvent,
   DragStartEvent,
   DragMoveEvent,
+  DragOverEvent,
   DragOverlay,
   useDroppable,
 } from '@dnd-kit/core';
@@ -1213,6 +1214,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
   const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false);
   const [activeAppId, setActiveAppId] = useState<string | null>(null);
   const [activeWidgetId, setActiveWidgetId] = useState<string | null>(null);
+  const [previewOverId, setPreviewOverId] = useState<string | null>(null);
   const [removingAppId, setRemovingAppId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(!(initialAppsProp != null && Array.isArray(initialAppsProp)));
   const [migrationCompleted, setMigrationCompleted] = useState(false);
@@ -5031,11 +5033,90 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
     }
   };
 
+  // 미리보기용 앱 목록 계산 (드래그 중 over 기준, state 변경 없음)
+  const getPreviewApps = useCallback((apps: App[], draggedId: string, overId: string, page: number): App[] => {
+    const deviceType: DeviceType = 'mobile';
+    const dragged = apps.find(app => app.id === draggedId);
+    if (!dragged || dragged.isWidget) return apps;
+
+    if (overId.startsWith('dock-slot-')) {
+      const dockIdx = parseInt(overId.replace('dock-slot-', ''), 10);
+      if (Number.isNaN(dockIdx)) return apps;
+      return apps.map(app => {
+        if (app.id === draggedId) return { ...app, dockIndex: dockIdx, slotIndex: undefined };
+        if (!app.isWidget && app.dockIndex === dockIdx && app.id !== draggedId)
+          return { ...app, dockIndex: undefined, slotIndex: app.slotIndex };
+        return app;
+      });
+    }
+
+    const targetItem = apps.find(app => app.id === overId);
+    if (targetItem && !targetItem.isWidget && typeof targetItem.dockIndex === 'number') {
+      const targetDockIndex = targetItem.dockIndex;
+      const draggedDockIndex = dragged.dockIndex;
+      if (draggedDockIndex === targetDockIndex) return apps;
+      if (typeof draggedDockIndex === 'number') {
+        return apps.map(app => {
+          if (app.id === draggedId) return { ...app, dockIndex: targetDockIndex, slotIndex: undefined };
+          if (app.id === targetItem.id) return { ...app, dockIndex: draggedDockIndex, slotIndex: undefined };
+          return app;
+        });
+      }
+      const updated = apps.map(app => {
+        if (app.id === draggedId) return { ...app, dockIndex: targetDockIndex, slotIndex: undefined };
+        if (app.id === targetItem.id) return { ...app, dockIndex: undefined, slotIndex: undefined };
+        return app;
+      });
+      const dockAppsPreview = updated.filter(a => !a.isWidget && typeof a.dockIndex === 'number');
+      const gridItemsPreview = updated.filter(a => a.isWidget || a.dockIndex === undefined);
+      const packed = packMobileGridItems(gridItemsPreview);
+      const byId = new Map([...dockAppsPreview, ...packed].map(a => [a.id, a]));
+      return apps.map(app => byId.get(app.id) ?? app);
+    }
+
+    let targetSlotIndex: number | null = null;
+    if (overId.startsWith('slot-')) {
+      const localIndex = parseInt(overId.replace('slot-', ''), 10);
+      if (!Number.isNaN(localIndex))
+        targetSlotIndex = page * widgetGridConfig.widgetsPerPage + localIndex;
+    } else if (targetItem && typeof targetItem.slotIndex === 'number') {
+      targetSlotIndex = targetItem.slotIndex;
+    }
+    if (targetSlotIndex === null) return apps;
+
+    const updatedApp: App = { ...dragged, slotIndex: targetSlotIndex, dockIndex: undefined, size: { width: 1, height: 1 } };
+    const newOccupied = getWidgetOccupiedSlots(updatedApp, deviceType, widgetGridConfig);
+    const hasCollision = apps.some(app => {
+      if (app.id === updatedApp.id) return false;
+      if (app.slotIndex === undefined) return false;
+      const occupied = getWidgetOccupiedSlots(app, deviceType, widgetGridConfig);
+      return newOccupied.some(s => occupied.includes(s));
+    });
+    const withinBounds = isWidgetWithinPageBoundaries(updatedApp, deviceType, widgetGridConfig);
+
+    if (!hasCollision && withinBounds)
+      return apps.map(app => app.id === updatedApp.id ? updatedApp : app);
+    const dockAppsPreview = apps.filter(a => !a.isWidget && typeof a.dockIndex === 'number');
+    const gridItemsPreview = apps
+      .filter(a => a.isWidget || a.dockIndex === undefined)
+      .map(item => item.id === updatedApp.id ? updatedApp : item);
+    const packed = packMobileGridItems(gridItemsPreview);
+    const byId = new Map([...dockAppsPreview, ...packed].map(a => [a.id, a]));
+    return apps.map(app => byId.get(app.id) ?? app);
+  }, [widgetGridConfig, packMobileGridItems, getWidgetOccupiedSlots, isWidgetWithinPageBoundaries]);
+
+  const handleMobileDragOver = useCallback((event: DragOverEvent) => {
+    const id = event.over?.id;
+    setPreviewOverId(id != null ? String(id) : null);
+  }, []);
+
   // 모바일 통합 드래그 종료: 위젯은 기존 로직 재사용, 앱은 도크/그리드 간 이동 처리
   const handleMobileDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     const deviceType: DeviceType = 'mobile';
     const dragged = visibleApps.find(app => app.id === active.id);
+
+    setPreviewOverId(null);
 
     // 포인터 리스너 해제
     if (pointerListenersRef.current) {
@@ -5100,7 +5181,10 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
           .filter(a => a.isWidget || a.dockIndex === undefined)
           .map(item => item.id === updatedWidget.id ? updatedWidget : item);
         const packed = packMobileGridItems(gridItems);
-        setVisibleApps([...dockApps, ...packed]);
+        setVisibleApps(prev => {
+          const byId = new Map([...dockApps, ...packed].map(a => [a.id, a]));
+          return prev.map(app => byId.get(app.id) ?? app);
+        });
       }
 
       setActiveAppId(null);
@@ -5121,7 +5205,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
 
     const overId = over.id as string;
 
-    // 도크 드롭
+    // 도크 드롭 - 빈 도크 슬롯에 드롭
     if (overId.startsWith('dock-slot-')) {
       const dockIdx = parseInt(overId.replace('dock-slot-', ''), 10);
       if (!Number.isNaN(dockIdx)) {
@@ -5130,15 +5214,62 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
             if (app.id === dragged.id) {
               return { ...app, dockIndex: dockIdx, slotIndex: undefined };
             }
-            // 도크 충돌 시 기존 앱은 그대로 두고, 중복만 방지
+            // 도크 충돌 시 기존 앱은 그리드로 이동하되, slotIndex는 유지 시도
             if (!app.isWidget && app.dockIndex === dockIdx && app.id !== dragged.id) {
-              return { ...app, dockIndex: undefined };
+              return { ...app, dockIndex: undefined, slotIndex: app.slotIndex };
             }
             return app;
           });
           return updated;
         });
       }
+      setActiveAppId(null);
+      return;
+    }
+
+    // 도크 앱을 다른 도크 앱 위에 드롭 - 도크 간 이동 또는 그리드 앱 → 도크 앱
+    const targetItem = visibleApps.find(app => app.id === overId);
+    if (targetItem && !targetItem.isWidget && typeof targetItem.dockIndex === 'number') {
+      const targetDockIndex = targetItem.dockIndex;
+      const draggedDockIndex = dragged.dockIndex;
+
+      if (draggedDockIndex === targetDockIndex) {
+        setActiveAppId(null);
+        return;
+      }
+
+      // 도크 앱 간 교환: 두 앱의 dockIndex만 바꿈 (다른 앱 변경 없음)
+      if (typeof draggedDockIndex === 'number') {
+        setVisibleApps(prev => prev.map(app => {
+          if (app.id === dragged.id) {
+            return { ...app, dockIndex: targetDockIndex, slotIndex: undefined };
+          }
+          if (app.id === targetItem.id) {
+            return { ...app, dockIndex: draggedDockIndex, slotIndex: undefined };
+          }
+          return app;
+        }));
+        setActiveAppId(null);
+        return;
+      }
+
+      // 그리드 앱을 도크 앱 위에 드롭: 드래그 앱은 도크로, 도크 앱은 그리드로 (최소 재배치, 순서 유지)
+      setVisibleApps(prev => {
+        const updated = prev.map(app => {
+          if (app.id === dragged.id) {
+            return { ...app, dockIndex: targetDockIndex, slotIndex: undefined };
+          }
+          if (app.id === targetItem.id) {
+            return { ...app, dockIndex: undefined, slotIndex: undefined };
+          }
+          return app;
+        });
+        const dockApps = updated.filter(a => !a.isWidget && typeof a.dockIndex === 'number');
+        const gridItems = updated.filter(a => a.isWidget || a.dockIndex === undefined);
+        const packed = packMobileGridItems(gridItems);
+        const byId = new Map([...dockApps, ...packed].map(a => [a.id, a]));
+        return prev.map(app => byId.get(app.id) ?? app);
+      });
       setActiveAppId(null);
       return;
     }
@@ -5187,7 +5318,10 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
         .filter(a => a.isWidget || a.dockIndex === undefined)
         .map(item => item.id === updatedApp.id ? updatedApp : item);
       const packed = packMobileGridItems(gridItems);
-      setVisibleApps([...dockApps, ...packed]);
+      setVisibleApps(prev => {
+        const byId = new Map([...dockApps, ...packed].map(a => [a.id, a]));
+        return prev.map(app => byId.get(app.id) ?? app);
+      });
     }
 
     setActiveAppId(null);
@@ -5300,13 +5434,17 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
       <div className="quick-access-no-callout w-full h-full mx-auto relative z-15 px-4 sm:px-8 flex flex-col" onClick={handleBackgroundClick}>
         {/* Widgets Section - 반응형 그리드 */}
         {onPromptClick && (getDeviceType() !== 'desktop' || visibleApps.filter(app => app.isWidget).length > 0) && (() => {
-    const widgetsList = visibleApps.filter(app => app.isWidget || app.dockIndex === undefined);
-    const gridApps = visibleApps.filter(app => !app.isWidget && app.dockIndex === undefined);
-    const dockApps = visibleApps.filter(app => !app.isWidget && typeof app.dockIndex === 'number');
-          
+          const deviceType = getDeviceType();
+          const isMobileOrTablet = deviceType !== 'desktop';
+          const displayApps = (isMobileOrTablet && activeAppId && previewOverId)
+            ? getPreviewApps(visibleApps, activeAppId, previewOverId, widgetPage)
+            : visibleApps;
+          const widgetsList = displayApps.filter(app => app.isWidget || app.dockIndex === undefined);
+          const gridApps = displayApps.filter(app => !app.isWidget && app.dockIndex === undefined);
+          const dockApps = displayApps.filter(app => !app.isWidget && typeof app.dockIndex === 'number');
+
           // Calculate total pages based on maximum slotIndex (디바이스별)
           // 위젯이 확대되었을 때 차지하는 모든 슬롯 중 최대값 고려
-          const deviceType = getDeviceType();
           let maxSlotIndex = -1;
           widgetsList.forEach(widget => {
             const slotIndex = widget.slotIndex;
@@ -5329,9 +5467,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
             : 0;
             
           const { columns, rows, widgetsPerPage } = widgetGridConfig;
-          
-          const isMobileOrTablet = deviceType !== 'desktop';
-          
+
           return (
             <div 
               className={`flex-1 flex flex-col ${isMobileOrTablet ? 'mb-0' : 'mb-6'} ${isEditMode ? 'quick-access-edit-mode' : ''}`}
@@ -5374,6 +5510,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
                   collisionDetection={widgetCollisionDetection}
                   onDragStart={isMobileOrTablet ? handleMobileDragStart : handleWidgetDragStart}
                   onDragMove={handleWidgetDragMove}
+                  onDragOver={isMobileOrTablet ? handleMobileDragOver : undefined}
                   onDragEnd={isMobileOrTablet ? handleMobileDragEnd : handleWidgetDragEnd}
                 >
                   <div 
