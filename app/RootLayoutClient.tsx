@@ -186,7 +186,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
       <div style={{ position: 'relative', minHeight: '100dvh' }}>
         {pathname === '/' && <HomePageBackground user={displayUser} />}
         <div
-          className={`flex h-screen safe-area-container text-foreground overflow-x-hidden ${isLoginPage ? '' : 'bg-background'}`}
+          className={`flex h-screen safe-area-container text-foreground overflow-x-hidden ${isLoginPage || pathname === '/' ? '' : 'bg-background'}`}
           style={{ minHeight: '100dvh' }}
         >
           {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}

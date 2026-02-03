@@ -1287,9 +1287,18 @@ body {
 /* Full viewport fixed layer for iOS Safari (workaround for viewport-fit=cover + fixed) */
 .full-viewport-fixed {
   position: fixed;
-  inset: 0;
-  height: 100vh;
-  height: 100dvh;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* safe area 밖까지 확장 */
+  top: calc(0px - env(safe-area-inset-top, 0px));
+  left: calc(0px - env(safe-area-inset-left, 0px));
+  right: calc(0px - env(safe-area-inset-right, 0px));
+  bottom: calc(0px - env(safe-area-inset-bottom, 0px));
+  /* 높이는 safe area 포함 */
+  height: calc(100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px));
+  height: calc(100dvh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px));
   min-height: -webkit-fill-available;
 }
 

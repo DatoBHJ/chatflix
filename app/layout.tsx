@@ -72,7 +72,7 @@ export const metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'default',
+    statusBarStyle: 'black-translucent',
     title: 'Chatflix.app',
   },
   icons: {
