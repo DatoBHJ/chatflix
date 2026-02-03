@@ -3680,6 +3680,20 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   user-select: none;
 }
 
+/* iOS Safari: 위젯 내부 버튼 탭 반응 개선 (300ms 지연 제거) */
+.widget-content-wrapper button,
+.widget-content-wrapper a[role="button"],
+.widget-content-wrapper [role="button"] {
+  touch-action: manipulation;
+}
+
+/* 편집 모드에서는 위젯 버튼도 드래그 등을 위해 touch-action: none 유지 */
+.quick-access-edit-mode .widget-content-wrapper button,
+.quick-access-edit-mode .widget-content-wrapper a[role="button"],
+.quick-access-edit-mode .widget-content-wrapper [role="button"] {
+  touch-action: none;
+}
+
 /* 드래그 중인 아이템의 커서 스타일 */
 [data-dnd-kit-dragging="true"] {
   cursor: grabbing !important;

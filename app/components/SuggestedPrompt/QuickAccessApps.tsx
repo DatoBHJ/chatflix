@@ -805,6 +805,8 @@ function SortableWidgetItem({
             }
           },
           onTouchEnd: (e: React.TouchEvent) => {
+            // 터치가 시작된 요소가 버튼/링크 등이면 합성 click을 막지 않음 (iOS Safari 대응)
+            if ((e.target as HTMLElement).closest('button, a, input, textarea, select, [role="button"]')) return;
             const t = widgetTapTouchStart.current;
             widgetTapTouchStart.current = null;
             if (!t || !onWidgetActivate || isEditMode || isDragging || isResizing) return;
