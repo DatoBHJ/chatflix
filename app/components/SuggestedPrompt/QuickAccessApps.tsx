@@ -109,6 +109,10 @@ interface QuickAccessAppsProps {
   verticalOffset?: number; // 상하 여백 값 (px)
   /** Preloaded apps from parent (e.g. HomeScreen) to avoid layout shift. When set, first paint uses this. */
   initialApps?: StoredAppType[] | null;
+  /** Background URL from parent (HomeScreen) so settings panel can show it immediately when opened. */
+  backgroundUrl?: string;
+  /** When true, settings panel should not open until this becomes false (prevents blue flash / widgets showing through). */
+  isBackgroundLoading?: boolean;
 }
 
 interface VisionWidgetOverlayProps {
@@ -1197,7 +1201,7 @@ const normalizeWidgetSize = (size: any, deviceType: DeviceType): { width: number
   return undefined;
 };
 
-export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffset = 0, initialApps: initialAppsProp = null }: QuickAccessAppsProps) {
+export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffset = 0, initialApps: initialAppsProp = null, backgroundUrl, isBackgroundLoading = false }: QuickAccessAppsProps) {
   const router = useRouter();
 
   // When parent passes initialApps, we apply them in useLayoutEffect before paint to prevent layout shift.
@@ -1211,6 +1215,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
   const [visibleApps, setVisibleApps] = useState<App[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false);
+  const [pendingOpenSettings, setPendingOpenSettings] = useState(false);
   const [activeAppId, setActiveAppId] = useState<string | null>(null);
   const [activeWidgetId, setActiveWidgetId] = useState<string | null>(null);
   const [removingAppId, setRemovingAppId] = useState<string | null>(null);
@@ -1323,6 +1328,14 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
     },
     [activeWidgetId, isEditMode, resizingWidgetId]
   );
+
+  // Open settings panel when background finishes loading and user had requested to open it
+  useEffect(() => {
+    if (pendingOpenSettings && !isBackgroundLoading) {
+      setPendingOpenSettings(false);
+      setIsSettingsPanelOpen(true);
+    }
+  }, [pendingOpenSettings, isBackgroundLoading]);
 
   useEffect(() => {
     if (!fullscreenWidgetId) return;
@@ -3214,9 +3227,13 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
       return;
     }
     
-    // Handle Settings app click - open settings panel
+    // Handle Settings app click - open settings panel only after background is ready (avoids blue flash / widgets showing through)
     if (app.id === 'settings') {
-      setIsSettingsPanelOpen(true);
+      if (isBackgroundLoading) {
+        setPendingOpenSettings(true);
+      } else {
+        setIsSettingsPanelOpen(true);
+      }
       return;
     }
     
@@ -6041,6 +6058,7 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
         isOpen={isSettingsPanelOpen}
         onClose={() => setIsSettingsPanelOpen(false)}
         user={user}
+        initialBackgroundUrl={backgroundUrl}
       />
     </>
   );

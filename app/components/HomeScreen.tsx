@@ -126,6 +126,8 @@ export default function HomeScreen() {
               onPromptClick={handlePromptClick}
               verticalOffset={16}
               initialApps={quickAccessAppsData.apps}
+              backgroundUrl={currentBackground}
+              isBackgroundLoading={isBackgroundLoading}
             />
           </div>
         )}

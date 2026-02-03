@@ -102,9 +102,11 @@ export interface SettingsPanelProps {
   onClose: () => void
   user?: any
   handleDeleteAllChats?: () => Promise<void>
+  /** When set, used for first paint so background shows immediately without waiting for hook (avoids blue flash). */
+  initialBackgroundUrl?: string
 }
 
-export function SettingsPanel({ isOpen, onClose, user, handleDeleteAllChats: providedHandleDeleteAllChats }: SettingsPanelProps) {
+export function SettingsPanel({ isOpen, onClose, user, handleDeleteAllChats: providedHandleDeleteAllChats, initialBackgroundUrl }: SettingsPanelProps) {
   const router = useRouter()
   const supabase = createClient()
   
@@ -401,13 +403,17 @@ export function SettingsPanel({ isOpen, onClose, user, handleDeleteAllChats: pro
 
   if (!isOpen) return null
 
+  // Prefer initialBackgroundUrl so first paint matches home and avoids blue flash / widgets showing through
+  const displayBackgroundUrl = initialBackgroundUrl || currentBackground
+
   return (
     <>
       <div className="fixed inset-0 z-80 text-white pointer-events-auto">
         <div 
           className="fixed inset-0 bg-cover bg-center bg-no-repeat w-full" 
           style={{ 
-            backgroundImage: currentBackground ? `url("${currentBackground.replace(/"/g, '\\"')}")` : undefined,
+            backgroundColor: 'rgba(0,0,0,0.95)',
+            backgroundImage: displayBackgroundUrl ? `url("${displayBackgroundUrl.replace(/"/g, '\\"')}")` : undefined,
             zIndex: 0 
           }} 
         />
