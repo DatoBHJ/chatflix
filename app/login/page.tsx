@@ -360,30 +360,45 @@ export default function LoginPage() {
     <div className="min-h-screen flex flex-col relative">
       {/* Background Image Layer */}
       <div 
-        className="fixed inset-0 bg-cover bg-center bg-no-repeat min-h-screen w-full pointer-events-none"
+        className="fixed bg-cover bg-center bg-no-repeat w-full pointer-events-none"
         style={{
           backgroundImage: currentBackground ? `url("${currentBackground.replace(/"/g, '\\"')}")` : undefined,
-          zIndex: 0
+          zIndex: 0,
+          top: 'calc(-1 * env(safe-area-inset-top, 0px))',
+          right: 'calc(-1 * env(safe-area-inset-right, 0px))',
+          bottom: 'calc(-1 * env(safe-area-inset-bottom, 0px))',
+          left: 'calc(-1 * env(safe-area-inset-left, 0px))',
+          minHeight: 'calc(100dvh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px))'
         }}
       />
       
       {/* Blur overlay */}
       <div 
-        className="fixed inset-0 min-h-screen w-full pointer-events-none"
+        className="fixed w-full pointer-events-none"
         style={{
           backdropFilter: 'blur(40px)',
           WebkitBackdropFilter: 'blur(40px)',
-          zIndex: 1
+          zIndex: 1,
+          top: 'calc(-1 * env(safe-area-inset-top, 0px))',
+          right: 'calc(-1 * env(safe-area-inset-right, 0px))',
+          bottom: 'calc(-1 * env(safe-area-inset-bottom, 0px))',
+          left: 'calc(-1 * env(safe-area-inset-left, 0px))',
+          minHeight: 'calc(100dvh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px))'
         }}
       />
       
       {/* Color overlay for very dark or very bright backgrounds */}
       {overlayColor && (
         <div 
-          className="fixed inset-0 min-h-screen w-full pointer-events-none"
+          className="fixed w-full pointer-events-none"
           style={{
             backgroundColor: overlayColor,
-            zIndex: 2
+            zIndex: 2,
+            top: 'calc(-1 * env(safe-area-inset-top, 0px))',
+            right: 'calc(-1 * env(safe-area-inset-right, 0px))',
+            bottom: 'calc(-1 * env(safe-area-inset-bottom, 0px))',
+            left: 'calc(-1 * env(safe-area-inset-left, 0px))',
+            minHeight: 'calc(100dvh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px))'
           }}
         />
       )}
