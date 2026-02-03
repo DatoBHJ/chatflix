@@ -978,6 +978,7 @@ function SortableAppItem({
             if (duration < 250 && !moved) {
               onAppClick(app);
               e.preventDefault();
+              e.stopPropagation();
             }
           }
         }
