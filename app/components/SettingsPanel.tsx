@@ -135,7 +135,7 @@ export function SettingsPanel({ isOpen, onClose, user, handleDeleteAllChats: pro
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const { currentBackground, backgroundType, backgroundId, refreshBackground } = useBackgroundImage(user?.id, { refreshOnMount: true, preload: true, useSupabase: false })
+  const { currentBackground, backgroundType, backgroundId, refreshBackground, isBackgroundLoading } = useBackgroundImage(user?.id, { refreshOnMount: true, preload: true, useSupabase: false })
   const { isVeryDark, isVeryBright } = useBackgroundImageBrightness(currentBackground)
 
   const overlayColor = useMemo(() => {
@@ -401,6 +401,23 @@ export function SettingsPanel({ isOpen, onClose, user, handleDeleteAllChats: pro
 
   if (!isOpen) return null
 
+  // 배경 이미지 로드 전에는 로딩 오버레이만 표시해 파란색 깜빡임 방지
+  if (isBackgroundLoading) {
+    return (
+      <div
+        className="fixed inset-0 z-80 text-white pointer-events-auto"
+        role="dialog"
+        aria-label="Loading settings"
+      >
+        <div className="fixed inset-0 w-full" style={{ backgroundColor: '#1e1e23', zIndex: 0 }} />
+        <div className="absolute inset-0 z-10" onClick={onClose} aria-hidden />
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 20 }}>
+          <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <>
       <div className="fixed inset-0 z-80 text-white pointer-events-auto">
@@ -408,6 +425,7 @@ export function SettingsPanel({ isOpen, onClose, user, handleDeleteAllChats: pro
           className="fixed inset-0 bg-cover bg-center bg-no-repeat w-full" 
           style={{ 
             backgroundImage: currentBackground ? `url("${currentBackground.replace(/"/g, '\\"')}")` : undefined,
+            backgroundColor: !currentBackground ? '#1e1e23' : undefined,
             zIndex: 0 
           }} 
         />
