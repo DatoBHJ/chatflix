@@ -949,22 +949,18 @@ function SortableAppItem({
   const Icon = app.icon;
   const isAddButton = app.id === 'add-app';
 
-  // 편집 모드가 아닐 때만 long press 이벤트 핸들러 적용
+  // 편집 모드가 아닐 때만 long press 이벤트 핸들러 적용 (앱 아이콘/버튼 위에서도 롱프레스 허용)
   // 데스크탑에서는 마우스 이벤트 제거 (우클릭만 허용)
-  // 버튼/링크 위 터치 시 롱프레스 스킵(합성 click 전달) — 단, 도커는 터치 영역이 전부 버튼이므로 버튼 위에서도 롱프레스 허용
   const longPressHandlers = !isEditMode ? {
     ...(isTouchDevice ? {
       onTouchStart: (e: React.TouchEvent) => {
-        if (!isDock && (e.target as HTMLElement).closest('button, a, input, textarea, select, [role="button"]')) return;
         handleLongPressStart(undefined, { x: e.touches[0].clientX, y: e.touches[0].clientY });
       },
       onTouchEnd: handleLongPressEnd,
     } : {}),
-    // 데스크탑에서는 onMouseDown, onMouseUp, onMouseLeave 제거
     // 터치 디바이스에서만 마우스 이벤트 허용 (하이브리드 디바이스 대응)
     ...(isTouchDevice ? {
       onMouseDown: (e: React.MouseEvent) => {
-        if (!isDock && (e.target as HTMLElement).closest('button, a, input, textarea, select, [role="button"]')) return;
         handleLongPressStart(undefined, { x: e.clientX, y: e.clientY });
       },
       onMouseUp: handleLongPressEnd,
@@ -2383,6 +2379,11 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
     });
     nonWidgets.forEach(app => {
       if (result.some(a => a.id === app.id)) return;
+      // 이미 그리드에 둔 앱(slotIndex 있음)은 도크에 넣지 않음 (도크→그리드 이동 유지)
+      if (typeof app.slotIndex === 'number') {
+        result.push({ ...app, dockIndex: undefined });
+        return;
+      }
       if (dockUsed.size < maxDock) {
         // 남는 도크 슬롯에 채움
         const freeDock = [0,1,2,3].find(idx => !dockUsed.has(idx));
@@ -2555,16 +2556,16 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
           ...(fixedSize ? { size: fixedSize } : {})
         };
       }
-      // 모바일에서 일반 앱도 slotIndex 저장
-      if (!app.isWidget && deviceType === 'mobile' && app.slotIndex !== undefined) {
+      // 모바일/태블릿에서 일반 앱 slotIndex·dockIndex 저장
+      if (!app.isWidget && (deviceType === 'mobile' || deviceType === 'tablet') && app.slotIndex !== undefined) {
         return { 
           id: app.id,
           slotIndex: app.slotIndex,
           ...(app.dockIndex !== undefined ? { dockIndex: app.dockIndex } : {})
         };
       }
-      // 도크에만 있는 앱
-      if (!app.isWidget && deviceType === 'mobile' && app.dockIndex !== undefined) {
+      // 도크에만 있는 앱 (모바일/태블릿)
+      if (!app.isWidget && (deviceType === 'mobile' || deviceType === 'tablet') && app.dockIndex !== undefined) {
         return {
           id: app.id,
           dockIndex: app.dockIndex
