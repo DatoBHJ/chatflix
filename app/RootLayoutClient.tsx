@@ -182,25 +182,26 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   
   return (
     <SidebarContext.Provider value={{ isSidebarOpen, toggleSidebar, isAccountOpen, setIsAccountOpen, isHovering, isMobile, isSelectionMode, setIsSelectionMode, /* isPromptEditMode, setIsPromptEditMode */ }}>
-            <div className={`flex h-screen text-foreground overflow-x-hidden ${isLoginPage ? '' : 'bg-background'}`} style={{ minHeight: '100dvh' }}>
-      
-      {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
-      <GlassDistortionFilters />
+      <div
+        className={`flex h-screen safe-area-container text-foreground overflow-x-hidden ${isLoginPage ? '' : 'bg-background'}`}
+        style={{ minHeight: '100dvh' }}
+      >
+        {/* SVG 필터 정의: 유리 질감 왜곡 효과 */}
+        <GlassDistortionFilters />
 
-      <Toaster position="top-right" richColors />
-      <Announcement
-        announcements={announcements || []}
-        onClose={hideAnnouncement}
-      />
+        <Toaster position="top-right" richColors />
+        <Announcement
+          announcements={announcements || []}
+          onClose={hideAnnouncement}
+        />
 
         {/* Main Content */}
         <div className="flex-1">
-        {children}
-      </div>
+          {children}
+        </div>
 
-      
-      <div id="portal-root"></div>
-    </div>
+        <div id="portal-root"></div>
+      </div>
     </SidebarContext.Provider>
   )
 }

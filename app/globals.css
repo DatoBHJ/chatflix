@@ -47,23 +47,6 @@ html, body {
   padding: 0;
 }
 
-/* iOS Safari safe area: extend html/body to cover full screen */
-html {
-  background: var(--background);
-}
-
-/* Utility class for backgrounds that should extend into safe areas */
-.bg-safe-area-extend {
-  top: calc(-1 * env(safe-area-inset-top, 0px));
-  right: calc(-1 * env(safe-area-inset-right, 0px));
-  bottom: calc(-1 * env(safe-area-inset-bottom, 0px));
-  left: calc(-1 * env(safe-area-inset-left, 0px));
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-left: env(safe-area-inset-left, 0px);
-}
-
 /* Hide scrollbar for Chrome, Safari and Opera */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
@@ -1287,8 +1270,18 @@ body {
   letter-spacing: -0.015em;
   overflow-x: hidden;
   min-height: 100vh;
+  min-height: 100svh;
   min-height: 100dvh; /* Dynamic viewport height for mobile */
   overscroll-behavior-y: none; /* Prevent rubber-band scroll effect */
+}
+
+/* Safe-area padding for iOS Safari viewport-fit=cover */
+.safe-area-container {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  box-sizing: border-box;
 }
 
 /* 미래지향적 스크롤바 스타일 */

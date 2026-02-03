@@ -64,30 +64,20 @@ export default function HomeScreen() {
     <main className="flex-1 relative h-screen flex flex-col">
       {/* Background Image with Glass Effect */}
       <div 
-        className="fixed bg-cover bg-center bg-no-repeat w-full"
+        className="fixed inset-0 bg-cover bg-center bg-no-repeat min-h-screen w-full"
         style={{
           backgroundImage: currentBackground ? `url("${currentBackground.replace(/"/g, '\\"')}")` : undefined,
-          zIndex: 0,
-          top: 'calc(-1 * env(safe-area-inset-top, 0px))',
-          right: 'calc(-1 * env(safe-area-inset-right, 0px))',
-          bottom: 'calc(-1 * env(safe-area-inset-bottom, 0px))',
-          left: 'calc(-1 * env(safe-area-inset-left, 0px))',
-          minHeight: 'calc(100dvh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px))'
+          zIndex: 0
         }}
       />
       
       {/* image-based color overlay on background image */}
       {overlayColor && (
         <div 
-          className="fixed w-full pointer-events-none"
+          className="fixed inset-0 min-h-screen w-full pointer-events-none"
           style={{
             backgroundColor: overlayColor,
-            zIndex: 0.5,
-            top: 'calc(-1 * env(safe-area-inset-top, 0px))',
-            right: 'calc(-1 * env(safe-area-inset-right, 0px))',
-            bottom: 'calc(-1 * env(safe-area-inset-bottom, 0px))',
-            left: 'calc(-1 * env(safe-area-inset-left, 0px))',
-            minHeight: 'calc(100dvh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px))'
+            zIndex: 0.5
           }}
         />
       )}
