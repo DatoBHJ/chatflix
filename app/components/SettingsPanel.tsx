@@ -102,11 +102,9 @@ export interface SettingsPanelProps {
   onClose: () => void
   user?: any
   handleDeleteAllChats?: () => Promise<void>
-  /** When set, used for first paint so background shows immediately without waiting for hook (avoids blue flash). */
-  initialBackgroundUrl?: string
 }
 
-export function SettingsPanel({ isOpen, onClose, user, handleDeleteAllChats: providedHandleDeleteAllChats, initialBackgroundUrl }: SettingsPanelProps) {
+export function SettingsPanel({ isOpen, onClose, user, handleDeleteAllChats: providedHandleDeleteAllChats }: SettingsPanelProps) {
   const router = useRouter()
   const supabase = createClient()
   
@@ -403,21 +401,16 @@ export function SettingsPanel({ isOpen, onClose, user, handleDeleteAllChats: pro
 
   if (!isOpen) return null
 
-  // Prefer initialBackgroundUrl so first paint matches home and avoids blue flash / widgets showing through
-  const displayBackgroundUrl = initialBackgroundUrl || currentBackground
-
   return (
     <>
-      <div className="fixed inset-0 z-80 text-white pointer-events-auto" style={{ backgroundColor: 'rgba(0,0,0,0.98)' }}>
-        {displayBackgroundUrl && (
-          <img
-            src={displayBackgroundUrl}
-            alt=""
-            className="fixed inset-0 w-full h-full object-cover"
-            style={{ zIndex: 0 }}
-            fetchPriority="high"
-          />
-        )}
+      <div className="fixed inset-0 z-80 text-white pointer-events-auto">
+        <div 
+          className="fixed inset-0 bg-cover bg-center bg-no-repeat w-full" 
+          style={{ 
+            backgroundImage: currentBackground ? `url("${currentBackground.replace(/"/g, '\\"')}")` : undefined,
+            zIndex: 0 
+          }} 
+        />
         <div className="fixed inset-0 w-full" style={{ backdropFilter: 'blur(40px)', WebkitBackdropFilter: 'blur(40px)', backgroundColor: overlayColor || 'rgba(0,0,0,0.2)', zIndex: 0.5 }} />
         <div className="absolute inset-0 z-10" onClick={onClose} />
         
