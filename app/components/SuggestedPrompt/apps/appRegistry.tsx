@@ -276,7 +276,7 @@ export const ALL_APPS: AppMeta[] = [
   //   iconColor: '#FFFFFF'
   // },
   // Widgets
-  { id: 'glass-trends-widget', label: 'Trending', icon: TrendingUp, path: '', isWidget: true },
+  { id: 'glass-trends-widget', label: 'Google Trending', icon: TrendingUp, path: '', isWidget: true },
   { id: 'onthisday-widget', label: 'On This Day', icon: Clock, path: '', isWidget: true },
   { id: 'random-fact-widget', label: 'Random Fact', icon: Lightbulb, path: '', isWidget: true },
   { id: 'daily-joke-widget', label: 'Daily Joke', icon: Smile, path: '', isWidget: true },
