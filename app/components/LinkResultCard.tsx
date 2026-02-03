@@ -37,9 +37,10 @@ interface LinkResultCardProps {
   data: LinkCardData;
   variant?: 'default' | 'compact';
   className?: string;
+  hideThumbnail?: boolean;
 }
 
-export const LinkResultCard = ({ data, variant = 'default', className }: LinkResultCardProps) => {
+export const LinkResultCard = ({ data, variant = 'default', className, hideThumbnail }: LinkResultCardProps) => {
   const [thumbnailError, setThumbnailError] = useState(false);
 
   const normalizedData = useMemo(() => {
@@ -77,34 +78,36 @@ export const LinkResultCard = ({ data, variant = 'default', className }: LinkRes
   const summaryClass = variant === 'compact' ? 'text-sm' : 'text-base';
 
   return (
-    <article className={`group h-full ${className || ''}`}>
+    <article className={`h-full ${className || ''}`}>
       <a
         href={data.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex flex-col h-full rounded-2xl border border-[var(--subtle-divider)] bg-[var(--background)] overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-[#007AFF]"
+        className="flex flex-col h-full rounded-2xl border border-[var(--subtle-divider)] bg-[var(--background)] overflow-hidden cursor-pointer"
       >
-        <div className={`relative ${heroHeight} bg-[var(--accent)]`}>
-          {hasThumbnail ? (
-            <img
-              src={data.thumbnail || ''}
-              alt={data.title || data.metadata?.title || extractDomain(data.url)}
-              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-              loading="lazy"
-              referrerPolicy="no-referrer"
-              onError={() => setThumbnailError(true)}
-            />
-          ) : (
-            <div
-              className="absolute inset-0 flex items-center justify-center text-white text-center px-6"
-              style={{ backgroundImage: normalizedData.fallbackGradient }}
-            >
-              <p className="text-xl md:text-2xl font-bold tracking-wide uppercase opacity-90">
-                {normalizedData.domainLabel}
-              </p>
-            </div>
-          )}
-        </div>
+        {!hideThumbnail && (
+          <div className={`relative ${heroHeight} bg-[var(--accent)]`}>
+            {hasThumbnail ? (
+              <img
+                src={data.thumbnail || ''}
+                alt={data.title || data.metadata?.title || extractDomain(data.url)}
+                className="h-full w-full object-cover"
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                onError={() => setThumbnailError(true)}
+              />
+            ) : (
+              <div
+                className="absolute inset-0 flex items-center justify-center text-white text-center px-6"
+                style={{ backgroundImage: normalizedData.fallbackGradient }}
+              >
+                <p className="text-xl md:text-2xl font-bold tracking-wide uppercase opacity-90">
+                  {normalizedData.domainLabel}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className={`flex flex-col ${gapSpacing} ${textPadding}`}>
           <div className="text-[12px] uppercase tracking-[0.2em] text-[var(--muted)] flex flex-wrap items-center gap-3">

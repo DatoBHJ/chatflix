@@ -44,6 +44,7 @@ interface LinkPreviewProps {
   videoDuration?: string; // 🚀 FEATURE: Video duration for video links
   prefetchedData?: LinkCardData | null;
   isStreaming?: boolean;
+  hideThumbnail?: boolean;
 }
 
 export const LinkPreview = ({
@@ -53,12 +54,13 @@ export const LinkPreview = ({
   isVideoLink = false,
   videoDuration,
   prefetchedData,
-  isStreaming = false
+  isStreaming = false,
+  hideThumbnail = false
 }: LinkPreviewProps) => {
   if (prefetchedData) {
     return (
       // <div className="imessage-link-preview">
-        <LinkResultCard data={prefetchedData} variant="compact" />
+        <LinkResultCard data={prefetchedData} variant="compact" hideThumbnail={hideThumbnail} />
       // </div>
     );
   }
@@ -231,75 +233,78 @@ export const LinkPreview = ({
   return (
     <div ref={ref}>
       <a href={displayMetadata?.url || url} target="_blank" rel="noopener noreferrer" className="imessage-link-preview">
-        <div className="relative bg-gray-100 dark:bg-[#262626]" style={{ 
-          height: '100px',
-          width: '100%',
-          borderRadius: '8px 8px 0 0',
-          overflow: 'hidden'
-        }}>
-          {hasImage ? (
-            <img 
-              src={displayMetadata.image} 
-              alt={displayTitle} 
-              className="preview-image"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover'
-              }}
-              onError={() => {
-                setImageLoadError(true);
-              }}
-              onLoad={() => setImageLoadError(false)}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full bg-gray-100 dark:bg-[#262626]" style={{ width: '100%' }}>
-              <div className="text-center" style={{ width: '100%', padding: '12px' }}>
-                <div className="w-10 h-10 mx-auto mb-2 bg-gray-300 dark:bg-[#404040] rounded-full flex items-center justify-center">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-600 dark:text-[#999999]">
-                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        {!hideThumbnail && (
+          <div className="relative bg-gray-100 dark:bg-[#262626]" style={{ 
+            height: '100px',
+            width: '100%',
+            borderRadius: '8px 8px 0 0',
+            overflow: 'hidden'
+          }}>
+            {hasImage ? (
+              <img 
+                src={displayMetadata.image} 
+                alt={displayTitle} 
+                className="preview-image"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover'
+                }}
+                onError={() => {
+                  setImageLoadError(true);
+                }}
+                onLoad={() => setImageLoadError(false)}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full bg-gray-100 dark:bg-[#262626]" style={{ width: '100%' }}>
+                <div className="text-center" style={{ width: '100%', padding: '12px' }}>
+                  <div className="w-10 h-10 mx-auto mb-2 bg-gray-300 dark:bg-[#404040] rounded-full flex items-center justify-center">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-600 dark:text-[#999999]">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                    </svg>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-[#999999] font-medium" style={{ 
+                    wordBreak: 'break-all',
+                    lineHeight: '1.2'
+                  }}>
+                    {getDomainName(url)}
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {isVideoLink && hasImage && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="bg-black/60 rounded-full p-3">
+                  <svg 
+                    width="24" 
+                    height="24" 
+                    viewBox="0 0 24 24" 
+                    fill="white"
+                    className="ml-1"
+                  >
+                    <path d="M8 5v14l11-7z"/>
                   </svg>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-[#999999] font-medium" style={{ 
-                  wordBreak: 'break-all',
-                  lineHeight: '1.2'
-                }}>
-                  {getDomainName(url)}
-                </p>
               </div>
-            </div>
-          )}
-          
-          {isVideoLink && hasImage && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="bg-black/60 rounded-full p-3">
-                <svg 
-                  width="24" 
-                  height="24" 
-                  viewBox="0 0 24 24" 
-                  fill="white"
-                  className="ml-1"
-                >
-                  <path d="M8 5v14l11-7z"/>
-                </svg>
+            )}
+            
+            {isVideoLink && videoDuration && hasImage && (
+              <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-1 rounded">
+                {videoDuration}
               </div>
-            </div>
-          )}
-          
-          {isVideoLink && videoDuration && hasImage && (
-            <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-1 rounded">
-              {videoDuration}
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
         
         <div 
           className="preview-content"
           style={{
             ...(colors ? { backgroundColor: colors.background } : {}),
             padding: '10px 14px',
-            minHeight: '48px'
+            minHeight: '48px',
+            ...(hideThumbnail ? { borderRadius: '8px 8px 8px 8px' } : {})
           }}
         >
           <p 

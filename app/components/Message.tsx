@@ -2525,7 +2525,7 @@ const Message = memo(function MessageComponent({
                     if (isStreaming) return null;
                     
                     return validUrls.map((url: string, index: number) => (
-                      <LinkPreview key={`${message.id}-url-${index}`} url={url} isStreaming={isStreaming} />
+                      <LinkPreview key={`${message.id}-url-${index}`} url={url} isStreaming={isStreaming} hideThumbnail />
                     ));
                   })()}
                   {(hasTextContent) && (
@@ -2927,6 +2927,7 @@ const Message = memo(function MessageComponent({
                             promptMap={promptMap}
                             sourceImageMap={sourceImageMap}
                             mediaDimensionsMap={mediaDimensionsMap}
+                            hideLinkThumbnail
                           />
                         </div>
                       </div>
@@ -3338,10 +3339,10 @@ const Message = memo(function MessageComponent({
                 
                   {message.parts ? (
                     processedParts?.map((part: any, index: number) => (
-                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap}/>
+                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap} hideLinkThumbnail/>
                     ))
                   ) : (
-                    (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap}/>
+                    (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap} hideLinkThumbnail/>
                   )}
                   
                   <div className={!!structuredDescription ? 'mb-4' : ''}>
@@ -3508,6 +3509,7 @@ const Message = memo(function MessageComponent({
                                   promptMap={promptMap}
                                   sourceImageMap={sourceImageMap}
                                   mediaDimensionsMap={mediaDimensionsMap}
+                                  hideLinkThumbnail
                                 />
                               </div>
                             </div>
@@ -3787,12 +3789,12 @@ const Message = memo(function MessageComponent({
                   
                     {message.parts ? (
                       processedParts?.map((part: any, index: number) => (
-                        part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={true} noTail={true} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap}/>
+part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={true} noTail={true} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap} hideLinkThumbnail/>
                       ))
                     ) : (
-                      (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={true} noTail={true} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap}/>
+                      (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={true} noTail={true} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap} hideLinkThumbnail/>
                     )}
-                      
+                    
                       <FilesPreview
                         messageId={message.id}
                         togglePanel={togglePanel}

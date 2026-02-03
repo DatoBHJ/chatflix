@@ -362,6 +362,7 @@ interface MarkdownContentProps {
   promptMap?: { [key: string]: string }; // 🚀 FEATURE: Prompt map for image prompts
   sourceImageMap?: { [key: string]: string }; // 🚀 FEATURE: Source image map for video prompts
   mediaDimensionsMap?: { [key: string]: { width: number; height: number } }; // layout: reserve exact space before media load
+  hideLinkThumbnail?: boolean;
 }
 
 // 더 적극적으로 마크다운 구조를 분할하는 함수 - 구분선(---)을 기준으로 메시지 그룹 분할
@@ -2179,7 +2180,8 @@ function MarkdownContentComponent({
   userId,
   promptMap = {},
   sourceImageMap = {},
-  mediaDimensionsMap = {}
+  mediaDimensionsMap = {},
+  hideLinkThumbnail = false
 }: MarkdownContentProps) {
 
   // Image modal state
@@ -2911,7 +2913,7 @@ function MarkdownContentComponent({
                   const url = part.url as string;
                   return (
                     <div key={part.key} className="my-0.5">
-                      <LinkPreview url={url} isStreaming={isStreaming} />
+                      <LinkPreview url={url} isStreaming={isStreaming} hideThumbnail={hideLinkThumbnail} />
                     </div>
                   );
                 }
@@ -3144,7 +3146,7 @@ function MarkdownContentComponent({
             minWidth: '300px',
             width: '100%'
           }}>
-            <LinkPreview url={href} thumbnailUrl={thumbnailUrl} searchApiTitle={searchApiTitle} prefetchedData={linkPreviewData?.[href]} isStreaming={isStreaming} />
+            <LinkPreview url={href} thumbnailUrl={thumbnailUrl} searchApiTitle={searchApiTitle} prefetchedData={linkPreviewData?.[href]} isStreaming={isStreaming} hideThumbnail={hideLinkThumbnail} />
           </div>
         );
       }
