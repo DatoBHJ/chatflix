@@ -92,20 +92,6 @@ export const ONBOARDING_FEATURES: OnboardingFeature[] = [
     },
   },
 
-  // Quick Access - Daily Joke Widget Content Warning
-  {
-    key: 'daily_joke_widget_content_warning',
-    location: 'quick-access',
-    displayType: 'tooltip',
-    title: 'Content Warning',
-    description: 'This widget may contain jokes about race, religion, or other sensitive topics and might not be funny for everyone',
-    tooltipPosition: 'top',
-    selector: '[data-onboarding-target="daily-joke-widget"]',
-    condition: (context?: any) => {
-      return context?.widgetId === 'daily-joke-widget';
-    },
-  },
-
   // Quick Access - Trending Widget Chatflix Explain
   {
     key: 'glass_trends_chatflix_explain',

@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Smile } from 'lucide-react';
 import { getAdaptiveGlassStyleBlur } from '@/app/lib/adaptiveGlassStyle';
 import { createWidgetStyleHelpers, shouldSkipBrightnessSampling } from './index';
 import { useElementBackgroundBrightness } from '@/app/hooks/useBackgroundBrightness';
-import { useOnboarding } from '@/app/components/Onboarding/OnboardingProvider';
 import { WidgetHeader } from './WidgetHeader';
 
 interface DailyJokeWidgetProps {
@@ -33,7 +32,6 @@ export function DailyJokeWidget({
   const [joke, setJoke] = useState<JokeData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isPunchlineRevealed, setIsPunchlineRevealed] = useState(false);
   
   // Refs for cleanup
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -47,40 +45,6 @@ export function DailyJokeWidget({
   }, []);
   
   const lastFetchedDateRef = useRef<string | null>(null);
-  
-  // Load reveal state from localStorage
-  const loadRevealState = useCallback(() => {
-    try {
-      const todayStr = getTodayDateStr();
-      const key = `daily-joke-revealed-${todayStr}`;
-      const saved = localStorage.getItem(key);
-      if (saved === 'true') {
-        setIsPunchlineRevealed(true);
-      } else {
-        setIsPunchlineRevealed(false);
-      }
-    } catch (error) {
-      console.warn('Failed to load reveal state:', error);
-      setIsPunchlineRevealed(false);
-    }
-  }, [getTodayDateStr]);
-  
-  // Save reveal state to localStorage
-  const saveRevealState = useCallback((revealed: boolean) => {
-    try {
-      const todayStr = getTodayDateStr();
-      const key = `daily-joke-revealed-${todayStr}`;
-      localStorage.setItem(key, revealed ? 'true' : 'false');
-    } catch (error) {
-      console.warn('Failed to save reveal state:', error);
-    }
-  }, [getTodayDateStr]);
-  
-  // Handle reveal button click
-  const handleRevealPunchline = useCallback(() => {
-    setIsPunchlineRevealed(true);
-    saveRevealState(true);
-  }, [saveRevealState]);
 
   const fetchData = useCallback(async (retry: number = 0) => {
     // Cancel previous request if exists
@@ -146,11 +110,6 @@ export function DailyJokeWidget({
     }
   }, [getTodayDateStr]);
 
-  // Load reveal state on mount and when date changes
-  useEffect(() => {
-    loadRevealState();
-  }, [loadRevealState]);
-
   // Initial fetch on mount and date change check
   useEffect(() => {
     fetchData();
@@ -162,8 +121,6 @@ export function DailyJokeWidget({
       if (currentDateStr !== lastFetchedDateRef.current) {
         lastFetchedDateRef.current = currentDateStr;
         fetchData();
-        // Reset reveal state when date changes
-        loadRevealState();
       }
     }, 60000); // Check every minute
     
@@ -172,7 +129,7 @@ export function DailyJokeWidget({
         clearInterval(dateCheckIntervalRef.current);
       }
     };
-  }, [fetchData, getTodayDateStr, loadRevealState]);
+  }, [fetchData, getTodayDateStr]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -189,21 +146,6 @@ export function DailyJokeWidget({
     };
   }, []);
 
-  // Onboarding check for content warning
-  const { getUnseenFeatures, markFeatureAsSeen } = useOnboarding();
-  const unseenFeatures = useMemo(() => {
-    return getUnseenFeatures('quick-access', { widgetId: 'daily-joke-widget' });
-  }, [getUnseenFeatures]);
-  const shouldShowWarning = unseenFeatures.some(f => f.key === 'daily_joke_widget_content_warning');
-  const contentWarningFeature = unseenFeatures.find(f => f.key === 'daily_joke_widget_content_warning');
-  
-  // Handle dismiss warning
-  const handleDismissWarning = useCallback(async () => {
-    if (contentWarningFeature) {
-      await markFeatureAsSeen(contentWarningFeature.key);
-    }
-  }, [contentWarningFeature, markFeatureAsSeen]);
-  
   // Separate brightness sampling for header and content
   const headerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -245,14 +187,13 @@ export function DailyJokeWidget({
 
   return (
     <div 
-      data-onboarding-target="daily-joke-widget"
       className="w-full h-full transition-all duration-200 p-0 overflow-visible flex flex-col relative"
       style={getWidgetContainerStyle()}
     >
       {/* Header */}
       {isFullscreen ? (
         <div className="pt-20 px-4 pb-0">
-          <div className="mb-2 flex-shrink-0 text-center">
+          <div className="mb-2 shrink-0 text-center">
             <WidgetHeader
               ref={headerRef}
               className="bg-transparent border-none justify-center"
@@ -274,122 +215,66 @@ export function DailyJokeWidget({
       ) : (
         <WidgetHeader
           ref={headerRef}
-          className="mb-2 flex-shrink-0"
+          className="mb-2 shrink-0"
           icon={<Smile className={`w-4 h-4 ${getHeaderIconClassName()}`} />}
           title="Daily Joke 😂"
           titleStyle={getHeaderTextStyle()}
         />
       )}
 
-      <div className={`flex-1 min-h-0 flex flex-col px-4 pb-4 ${isFullscreen ? 'mt-4' : ''}`}>
-        {/* Content - Show warning overlay or joke content */}
-        {shouldShowWarning ? (
-          // Warning overlay
-          <div ref={contentRef} className="flex-1 min-h-0 flex flex-col overflow-hidden">
-            <div className="w-full flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-start px-4 py-4">
+      <div className={`flex-1 min-h-0 flex flex-col px-4 ${isFullscreen ? 'mt-4' : ''}`}>
+        {/* Content */}
+        <div ref={contentRef} className="flex-1 min-h-0 overflow-y-auto flex items-start justify-center">
+          {isLoading ? (
+            <div className="w-full space-y-3 pt-2">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div 
+                  key={index} 
+                  className="h-6 bg-white/10 rounded-lg animate-pulse" 
+                />
+              ))}
+            </div>
+          ) : error && !joke ? (
+            <div className="flex items-center justify-center py-4 w-full">
+              <p className="text-sm opacity-70 text-center" style={getContentTextStyle()}>
+                {error}
+              </p>
+            </div>
+          ) : !joke ? (
+            <div className="flex items-center justify-center py-4 w-full">
+              <p className="text-sm opacity-70 text-center" style={getContentTextStyle()}>
+                No joke available
+              </p>
+            </div>
+          ) : joke.type === 'single' ? (
+            <div className="w-full py-4">
               <p 
                 className="text-base sm:text-md opacity-95 leading-relaxed font-medium text-center"
                 style={getContentTextStyle()}
               >
-                {contentWarningFeature?.description}
+                {joke.text || 'No joke available'}
               </p>
             </div>
-            {/* Got it button - fixed at bottom */}
-            <div className="w-full pt-5 sm:pt-6 flex-shrink-0">
-              <button
-                onClick={handleDismissWarning}
-                className="w-full py-3.5 px-7 sm:py-4 sm:px-8 rounded-full font-semibold text-base transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-                style={{
-                  ...getAdaptiveGlassStyleBlur(),
-                  ...getContentTextStyle(),
-                }}
+          ) : (
+            <div className="w-full space-y-3 py-4">
+              <p 
+                className="text-base sm:text-md opacity-95 leading-relaxed font-medium text-center"
+                style={getContentTextStyle()}
               >
-                Got it
-              </button>
+                {joke.setup || ''}
+              </p>
+              <p 
+                className="text-base sm:text-md opacity-95 leading-relaxed font-medium text-center"
+                style={getContentTextStyle()}
+              >
+                {joke.delivery || ''}
+              </p>
             </div>
-          </div>
-        ) : (
-          // Normal joke content
-          <div ref={contentRef} className="flex-1 min-h-0 overflow-y-auto flex items-start justify-center">
-            {isLoading ? (
-              <div className="w-full space-y-3 pt-2">
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <div 
-                    key={index} 
-                    className="h-6 bg-white/10 rounded-lg animate-pulse" 
-                  />
-                ))}
-              </div>
-            ) : error && !joke ? (
-              <div className="flex items-center justify-center py-4 w-full">
-                <p className="text-sm opacity-70 text-center" style={getContentTextStyle()}>
-                  {error}
-                </p>
-              </div>
-            ) : !joke ? (
-              <div className="flex items-center justify-center py-4 w-full">
-                <p className="text-sm opacity-70 text-center" style={getContentTextStyle()}>
-                  No joke available
-                </p>
-              </div>
-            ) : joke.type === 'single' ? (
-              // Single joke display
-              <div className="w-full py-4">
-                <p 
-                  className="text-base sm:text-md opacity-95 leading-relaxed font-medium text-center"
-                  style={getContentTextStyle()}
-                >
-                  {joke.text || 'No joke available'}
-                </p>
-              </div>
-            ) : (
-              // Twopart joke display
-              <div className="w-full space-y-3 py-4">
-                <p 
-                  className="text-base sm:text-md opacity-95 leading-relaxed font-medium text-center"
-                  style={getContentTextStyle()}
-                >
-                  {joke.setup || ''}
-                </p>
-                {isPunchlineRevealed ? (
-                  <p 
-                    className="text-base sm:text-md opacity-95 leading-relaxed font-medium text-center transition-opacity duration-300"
-                    style={getContentTextStyle()}
-                  >
-                    {joke.delivery || ''}
-                  </p>
-                ) : (
-                  <div className="flex items-center justify-center pt-2">
-                    <button
-                      onClick={handleRevealPunchline}
-                      className="group relative px-6 py-3 rounded-full font-semibold text-base transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
-                      style={{
-                        ...getAdaptiveGlassStyleBlur(),
-                        ...getContentTextStyle(),
-                        border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)'}`,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <span className="flex items-center gap-2">
-                        <span className="text-lg">💥</span>
-                        <span>Punchline</span>
-                        <span className="text-lg group-hover:translate-x-1 transition-transform duration-300">👀</span>
-                      </span>
-                      <span 
-                        className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-20 transition-opacity duration-300 blur-xl"
-                        style={{
-                          background: isDarkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)',
-                        }}
-                      />
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </div>
+        {/* 하단 여백: 겉에서 공간 확보 (스크롤 영역과 분리) */}
+        <div className="shrink-0 min-h-6 sm:min-h-8" aria-hidden="true" />
       </div>
     </div>
   );
 }
-

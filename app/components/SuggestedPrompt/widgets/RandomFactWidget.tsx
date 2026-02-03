@@ -189,7 +189,7 @@ export function RandomFactWidget({
       {/* Header */}
       {isFullscreen ? (
         <div className="pt-20 px-4 pb-0">
-          <div className="mb-2 flex-shrink-0 text-center">
+          <div className="mb-2 shrink-0 text-center">
             <WidgetHeader
               ref={headerRef}
               className="bg-transparent border-none justify-center"
@@ -211,14 +211,14 @@ export function RandomFactWidget({
       ) : (
         <WidgetHeader
           ref={headerRef}
-          className="mb-2 flex-shrink-0"
+          className="mb-2 shrink-0"
           icon={<Lightbulb className={`w-4 h-4 ${getHeaderIconClassName()}`} />}
           title="Daily Did You Know? 🤔"
           titleStyle={getHeaderTextStyle()}
         />
       )}
 
-      <div className={`flex-1 flex flex-col px-4 pb-4 ${isFullscreen ? 'mt-4' : ''}`}>
+      <div className={`flex-1 min-h-0 flex flex-col px-4 ${isFullscreen ? 'mt-4' : ''}`}>
         {/* Content */}
         <div ref={contentRef} className="flex-1 min-h-0 overflow-y-auto flex items-start justify-center">
           {isLoading ? (
@@ -253,6 +253,8 @@ export function RandomFactWidget({
             </div>
           )}
         </div>
+        {/* 하단 여백: 겉에서 공간 확보 (스크롤 영역과 분리) */}
+        <div className="shrink-0 min-h-6 sm:min-h-8" aria-hidden="true" />
       </div>
     </div>
   );
