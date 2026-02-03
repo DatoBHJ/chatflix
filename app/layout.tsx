@@ -11,7 +11,6 @@ export const viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  viewportFit: 'cover',
   themeColor: '#ffffff',
   colorScheme: 'light dark',
 }
@@ -72,7 +71,7 @@ export const metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
+    statusBarStyle: 'default',
     title: 'Chatflix.app',
   },
   icons: {

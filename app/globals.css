@@ -1270,36 +1270,8 @@ body {
   letter-spacing: -0.015em;
   overflow-x: hidden;
   min-height: 100vh;
-  min-height: 100svh;
   min-height: 100dvh; /* Dynamic viewport height for mobile */
   overscroll-behavior-y: none; /* Prevent rubber-band scroll effect */
-}
-
-/* Safe-area padding for iOS Safari viewport-fit=cover */
-.safe-area-container {
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-left: env(safe-area-inset-left, 0px);
-  box-sizing: border-box;
-}
-
-/* Full viewport fixed layer for iOS Safari (workaround for viewport-fit=cover + fixed) */
-.full-viewport-fixed {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  /* safe area 밖까지 확장 */
-  top: calc(0px - env(safe-area-inset-top, 0px));
-  left: calc(0px - env(safe-area-inset-left, 0px));
-  right: calc(0px - env(safe-area-inset-right, 0px));
-  bottom: calc(0px - env(safe-area-inset-bottom, 0px));
-  /* 높이는 safe area 포함 */
-  height: calc(100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px));
-  height: calc(100dvh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px));
-  min-height: -webkit-fill-available;
 }
 
 /* 미래지향적 스크롤바 스타일 */
