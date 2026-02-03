@@ -939,6 +939,7 @@ function SortableAppItem({
   const hasBackgroundImage = true;
   const iconBoxRef = useRef<HTMLButtonElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
+  const appTapTouchStart = useRef<{ time: number; x: number; y: number } | null>(null);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -954,9 +955,33 @@ function SortableAppItem({
   const longPressHandlers = !isEditMode ? {
     ...(isTouchDevice ? {
       onTouchStart: (e: React.TouchEvent) => {
+        if (e.touches.length > 0) {
+          appTapTouchStart.current = {
+            time: Date.now(),
+            x: e.touches[0].clientX,
+            y: e.touches[0].clientY,
+          };
+        }
         handleLongPressStart(undefined, { x: e.touches[0].clientX, y: e.touches[0].clientY });
       },
-      onTouchEnd: handleLongPressEnd,
+      onTouchEnd: (e: React.TouchEvent) => {
+        handleLongPressEnd();
+        if (isTouchDevice && !isEditMode) {
+          const t = appTapTouchStart.current;
+          appTapTouchStart.current = null;
+          if (t) {
+            const duration = Date.now() - t.time;
+            const touch = e.changedTouches?.[0];
+            const moved = touch
+              ? Math.abs(touch.clientX - t.x) > 10 || Math.abs(touch.clientY - t.y) > 10
+              : false;
+            if (duration < 250 && !moved) {
+              onAppClick(app);
+              e.preventDefault();
+            }
+          }
+        }
+      },
     } : {}),
     // 터치 디바이스에서만 마우스 이벤트 허용 (하이브리드 디바이스 대응)
     ...(isTouchDevice ? {
