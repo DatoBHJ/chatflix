@@ -625,6 +625,23 @@ export const convertMessage = (msg: DatabaseMessage): ExtendedMessage => {
     });
   }
   
+  // DB에 parts로만 저장된 이미지 보존 — experimental_attachments가 없을 때만 추가
+  // (저장 시 둘 다 있으면 동일 이미지가 중복되므로, experimental_attachments가 이미 있으면 dbParts 이미지는 건너뜀)
+  const hasImageAttachments = msg.experimental_attachments?.some?.(
+    (a: any) => a.fileType === 'image' || a.contentType?.startsWith?.('image/')
+  );
+  if (!hasImageAttachments && dbParts && Array.isArray(dbParts)) {
+    for (const part of dbParts) {
+      if (part.type === 'image' && (part.image || part.url)) {
+        parts.push({
+          type: 'image',
+          image: part.image || part.url,
+          metadata: part.metadata
+        });
+      }
+    }
+  }
+  
   // 모든 메시지에 parts 배열 추가 (AI SDK 5 요구사항)
   baseMessage.parts = parts;
 

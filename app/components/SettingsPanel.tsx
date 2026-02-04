@@ -491,8 +491,15 @@ export function SettingsPanel({ isOpen, onClose, user, handleDeleteAllChats: pro
 
                   <IOSGroup title="About">
                     <button 
-                      onClick={() => router.push('/privacy')}
+                      onClick={() => router.push('/pwa-guide')}
                       className="w-full px-4 py-3 flex items-center justify-between active:bg-white/10 transition-colors text-left"
+                    >
+                      <span className="text-[17px] text-white font-normal">Install as app (PWA)</span>
+                      <ChevronRight size={18} className="text-white/15" />
+                    </button>
+                    <button 
+                      onClick={() => router.push('/privacy')}
+                      className="w-full px-4 py-3 flex items-center justify-between active:bg-white/10 transition-colors text-left border-t border-white/5"
                     >
                       <span className="text-[17px] text-white font-normal">Privacy & Terms</span>
                       <ChevronRight size={18} className="text-white/15" />

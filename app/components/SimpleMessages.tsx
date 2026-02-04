@@ -651,23 +651,31 @@ export const SimpleMessages = memo(function SimpleMessages({
     
     for (const message of messages) {
       let foundInParts = false;
-      
+      const partsUrls: string[] = [];
+      const expUrls: string[] = [];
+      if (message.parts && Array.isArray(message.parts)) {
+        for (const part of message.parts) {
+          if (part.type === 'file' && part.mediaType?.startsWith('image/') && (part.url || part.data)) {
+            partsUrls.push(part.url || part.data);
+          } else if (part.type === 'image' && (part.image || part.url)) {
+            partsUrls.push(part.image || part.url);
+          }
+        }
+      }
       if (message.experimental_attachments && Array.isArray(message.experimental_attachments)) {
         for (const attachment of message.experimental_attachments) {
           if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
-            imageMap[`uploaded_image_${uploadedImageIndex++}`] = attachment.url;
+            expUrls.push(attachment.url);
           }
         }
+      }
+      const uploadUrls = expUrls.length > partsUrls.length ? expUrls : partsUrls;
+      for (const url of uploadUrls) {
+        imageMap[`uploaded_image_${uploadedImageIndex++}`] = url;
       }
       
       if (message.parts && Array.isArray(message.parts)) {
         for (const part of message.parts) {
-          if (part.type === 'file' && part.mediaType?.startsWith('image/')) {
-            if (part.url || part.data) {
-              imageMap[`uploaded_image_${uploadedImageIndex++}`] = part.url || part.data;
-            }
-          }
-          
           const imageToolNames = ['gemini_image_tool', 'seedream_image_tool', 'qwen_image_edit'];
           const isToolResult = imageToolNames.some(toolName => 
             part.type === `tool-${toolName}` ||

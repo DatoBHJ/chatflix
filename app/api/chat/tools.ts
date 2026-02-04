@@ -311,28 +311,35 @@ function buildImageMapsFromDBMessages(dbMessages: any[]): {
   for (const msg of dbMessages) {
     // 🔧 중복 방지: parts에서 생성된 이미지를 찾았는지 추적
     let foundGeneratedInParts = false;
+    // 🔧 메시지당 업로드 이미지: parts vs experimental_attachments 중 더 많은 쪽 사용 (불일치 시 undercount 방지)
+    const partsUrls: string[] = [];
+    const expUrls: string[] = [];
     
-    // 1. experimental_attachments에서 업로드된 이미지 추출
-    if (msg.experimental_attachments && Array.isArray(msg.experimental_attachments)) {
-      for (const attachment of msg.experimental_attachments) {
-        if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
-          const key = `uploaded_image_${uploadedImageIndex++}`;
-          imageMap.set(key, attachment.url);
+    if (msg.parts && Array.isArray(msg.parts)) {
+      for (const part of msg.parts) {
+        if (part.type === 'file' && part.mediaType?.startsWith('image/') && (part.url || part.data)) {
+          partsUrls.push(part.url || part.data);
+        } else if (part.type === 'image' && (part.image || part.url)) {
+          partsUrls.push(part.image || part.url);
         }
       }
     }
+    if (msg.experimental_attachments && Array.isArray(msg.experimental_attachments)) {
+      for (const attachment of msg.experimental_attachments) {
+        if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
+          expUrls.push(attachment.url);
+        }
+      }
+    }
+    const useExp = expUrls.length > partsUrls.length;
+    const uploadUrls = useExp ? expUrls : partsUrls;
+    for (const url of uploadUrls) {
+      imageMap.set(`uploaded_image_${uploadedImageIndex++}`, url);
+    }
     
-    // 2. parts 배열에서 이미지 추출 (PRIMARY SOURCE)
+    // 1. parts 배열에서 생성된 이미지 추출
     if (msg.parts && Array.isArray(msg.parts)) {
       for (const part of msg.parts) {
-        // 업로드된 파일 이미지
-        if (part.type === 'file' && part.mediaType?.startsWith('image/')) {
-          if (part.url || part.data) {
-            const key = `uploaded_image_${uploadedImageIndex++}`;
-            imageMap.set(key, part.url || part.data);
-          }
-        }
-        
         // 생성된 이미지 (tool results)
         const imageToolNames = ['gemini_image_tool', 'seedream_image_tool', 'qwen_image_edit'];
         const isImageToolResult = imageToolNames.some(toolName => 
@@ -356,14 +363,16 @@ function buildImageMapsFromDBMessages(dbMessages: any[]): {
       }
     }
     
-    // 3. content 배열에서 이미지 추출 (레거시 - 업로드 이미지만)
-    if (msg.content && Array.isArray(msg.content)) {
+    // 2. content 배열 (레거시 - parts/exp_att 둘 다 비었을 때만)
+    if (uploadUrls.length === 0 && msg.content && Array.isArray(msg.content)) {
       for (const contentItem of msg.content) {
         if (contentItem.type === 'file' && contentItem.mediaType?.startsWith('image/')) {
           const url = contentItem.data || contentItem.url;
           if (url) {
             imageMap.set(`uploaded_image_${uploadedImageIndex++}`, url);
           }
+        } else if (contentItem.type === 'image' && (contentItem.image || contentItem.url)) {
+          imageMap.set(`uploaded_image_${uploadedImageIndex++}`, contentItem.image || contentItem.url);
         }
       }
     }
@@ -2463,23 +2472,32 @@ export function createGeminiImageTool(dataStream?: any, userId?: string, allMess
     
     for (const message of allMessages) {
       let foundInParts = false;
-
-      if (message.experimental_attachments && Array.isArray(message.experimental_attachments)) {
-        for (const attachment of message.experimental_attachments) {
-          if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
-            imageMap.set(`uploaded_image_${uploadedImageIndex++}`, attachment.url);
+      const partsUrls: string[] = [];
+      const expUrls: string[] = [];
+      if (message.parts && Array.isArray(message.parts)) {
+        for (const part of message.parts) {
+          if (part.type === 'file' && part.mediaType?.startsWith('image/') && (part.url || part.data)) {
+            partsUrls.push(part.url || part.data);
+          } else if (part.type === 'image' && (part.image || part.url)) {
+            partsUrls.push(part.image || part.url);
           }
         }
       }
-      
+      if (message.experimental_attachments && Array.isArray(message.experimental_attachments)) {
+        for (const attachment of message.experimental_attachments) {
+          if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
+            expUrls.push(attachment.url);
+          }
+        }
+      }
+      const useExp = expUrls.length > partsUrls.length;
+      const uploadUrls = useExp ? expUrls : partsUrls;
+      for (const url of uploadUrls) {
+        imageMap.set(`uploaded_image_${uploadedImageIndex++}`, url);
+      }
+
       if (message.parts && Array.isArray(message.parts)) {
         for (const part of message.parts) {
-          if (part.type === 'file' && part.mediaType?.startsWith('image/')) {
-            if (part.url || part.data) {
-              imageMap.set(`uploaded_image_${uploadedImageIndex++}`, part.url || part.data);
-            }
-          }
-          
           const imageToolNames = ['gemini_image_tool', 'seedream_image_tool', 'qwen_image_edit'];
           const isImageToolResult = imageToolNames.some(toolName => 
             part.type === `tool-${toolName}` ||
@@ -2502,13 +2520,15 @@ export function createGeminiImageTool(dataStream?: any, userId?: string, allMess
       }
       
       if (!foundInParts) {
-        if (message.content && Array.isArray(message.content)) {
+        if (uploadUrls.length === 0 && message.content && Array.isArray(message.content)) {
           for (const contentItem of message.content) {
             if (contentItem.type === 'file' && contentItem.mediaType?.startsWith('image/')) {
               const url = contentItem.data || contentItem.url;
               if (url) {
                 imageMap.set(`uploaded_image_${uploadedImageIndex++}`, url);
               }
+            } else if (contentItem.type === 'image' && (contentItem.image || contentItem.url)) {
+              imageMap.set(`uploaded_image_${uploadedImageIndex++}`, contentItem.image || contentItem.url);
             }
           }
         }
@@ -2938,25 +2958,32 @@ export function createSeedreamImageTool(dataStream?: any, userId?: string, allMe
     
     for (const message of allMessages) {
       let foundInParts = false;
-
-      if (message.experimental_attachments && Array.isArray(message.experimental_attachments)) {
-        for (const attachment of message.experimental_attachments) {
-          if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
-            const key = `uploaded_image_${uploadedImageIndex++}`;
-            imageMap.set(key, attachment.url);
+      const partsUrls: string[] = [];
+      const expUrls: string[] = [];
+      if (message.parts && Array.isArray(message.parts)) {
+        for (const part of message.parts) {
+          if (part.type === 'file' && part.mediaType?.startsWith('image/') && (part.url || part.data)) {
+            partsUrls.push(part.url || part.data);
+          } else if (part.type === 'image' && (part.image || part.url)) {
+            partsUrls.push(part.image || part.url);
           }
         }
       }
-      
+      if (message.experimental_attachments && Array.isArray(message.experimental_attachments)) {
+        for (const attachment of message.experimental_attachments) {
+          if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
+            expUrls.push(attachment.url);
+          }
+        }
+      }
+      const useExp = expUrls.length > partsUrls.length;
+      const uploadUrls = useExp ? expUrls : partsUrls;
+      for (const url of uploadUrls) {
+        imageMap.set(`uploaded_image_${uploadedImageIndex++}`, url);
+      }
+
       if (message.parts && Array.isArray(message.parts)) {
         for (const part of message.parts) {
-          if (part.type === 'file' && part.mediaType?.startsWith('image/')) {
-            if (part.url || part.data) {
-              const key = `uploaded_image_${uploadedImageIndex++}`;
-              imageMap.set(key, part.url || part.data);
-            }
-          }
-          
           const imageToolNames = ['gemini_image_tool', 'seedream_image_tool', 'qwen_image_edit'];
           const isImageToolResult = imageToolNames.some(toolName => 
             part.type === `tool-${toolName}` ||
@@ -2980,7 +3007,7 @@ export function createSeedreamImageTool(dataStream?: any, userId?: string, allMe
       }
       
       if (!foundInParts) {
-        if (message.content && Array.isArray(message.content)) {
+        if (uploadUrls.length === 0 && message.content && Array.isArray(message.content)) {
           for (const contentItem of message.content) {
             if (contentItem.type === 'file' && contentItem.mediaType?.startsWith('image/')) {
               const url = contentItem.data || contentItem.url;
@@ -3516,23 +3543,32 @@ export function createQwenImageTool(dataStream?: any, userId?: string, allMessag
     
     for (const message of allMessages) {
       let foundInParts = false;
-
-      if (message.experimental_attachments && Array.isArray(message.experimental_attachments)) {
-        for (const attachment of message.experimental_attachments) {
-          if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
-            imageMap.set(`uploaded_image_${uploadedImageIndex++}`, attachment.url);
+      const partsUrls: string[] = [];
+      const expUrls: string[] = [];
+      if (message.parts && Array.isArray(message.parts)) {
+        for (const part of message.parts) {
+          if (part.type === 'file' && part.mediaType?.startsWith('image/') && (part.url || part.data)) {
+            partsUrls.push(part.url || part.data);
+          } else if (part.type === 'image' && (part.image || part.url)) {
+            partsUrls.push(part.image || part.url);
           }
         }
       }
-      
+      if (message.experimental_attachments && Array.isArray(message.experimental_attachments)) {
+        for (const attachment of message.experimental_attachments) {
+          if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
+            expUrls.push(attachment.url);
+          }
+        }
+      }
+      const useExp = expUrls.length > partsUrls.length;
+      const uploadUrls = useExp ? expUrls : partsUrls;
+      for (const url of uploadUrls) {
+        imageMap.set(`uploaded_image_${uploadedImageIndex++}`, url);
+      }
+
       if (message.parts && Array.isArray(message.parts)) {
         for (const part of message.parts) {
-          if (part.type === 'file' && part.mediaType?.startsWith('image/')) {
-            if (part.url || part.data) {
-              imageMap.set(`uploaded_image_${uploadedImageIndex++}`, part.url || part.data);
-            }
-          }
-          
           const imageToolNames = ['gemini_image_tool', 'seedream_image_tool', 'qwen_image_edit'];
           const isImageToolResult = imageToolNames.some(toolName => 
             part.type === `tool-${toolName}` ||
@@ -3847,23 +3883,32 @@ export function createWan25VideoTool(dataStream?: any, userId?: string, allMessa
     
     for (const message of allMessages) {
       let foundInParts = false;
-
-      if (message.experimental_attachments && Array.isArray(message.experimental_attachments)) {
-        for (const attachment of message.experimental_attachments) {
-          if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
-            imageMap.set(`uploaded_image_${uploadedImageIndex++}`, attachment.url);
+      const partsUrls: string[] = [];
+      const expUrls: string[] = [];
+      if (message.parts && Array.isArray(message.parts)) {
+        for (const part of message.parts) {
+          if (part.type === 'file' && part.mediaType?.startsWith('image/') && (part.url || part.data)) {
+            partsUrls.push(part.url || part.data);
+          } else if (part.type === 'image' && (part.image || part.url)) {
+            partsUrls.push(part.image || part.url);
           }
         }
       }
-      
+      if (message.experimental_attachments && Array.isArray(message.experimental_attachments)) {
+        for (const attachment of message.experimental_attachments) {
+          if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
+            expUrls.push(attachment.url);
+          }
+        }
+      }
+      const useExp = expUrls.length > partsUrls.length;
+      const uploadUrls = useExp ? expUrls : partsUrls;
+      for (const url of uploadUrls) {
+        imageMap.set(`uploaded_image_${uploadedImageIndex++}`, url);
+      }
+
       if (message.parts && Array.isArray(message.parts)) {
         for (const part of message.parts) {
-          if (part.type === 'file' && part.mediaType?.startsWith('image/')) {
-            if (part.url || part.data) {
-              imageMap.set(`uploaded_image_${uploadedImageIndex++}`, part.url || part.data);
-            }
-          }
-          
           const imageToolNames = ['gemini_image_tool', 'seedream_image_tool', 'qwen_image_edit'];
           const isImageToolResult = imageToolNames.some(toolName => 
             part.type === `tool-${toolName}` ||
@@ -4301,20 +4346,31 @@ export function createGrokVideoTool(
     let generatedImageIndex = 1;
     for (const message of allMessages) {
       let foundInParts = false;
-      if (message.experimental_attachments && Array.isArray(message.experimental_attachments)) {
-        for (const attachment of message.experimental_attachments) {
-          if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
-            imageMap.set(`uploaded_image_${uploadedImageIndex++}`, attachment.url);
+      const partsUrls: string[] = [];
+      const expUrls: string[] = [];
+      if (message.parts && Array.isArray(message.parts)) {
+        for (const part of message.parts) {
+          if (part.type === 'file' && part.mediaType?.startsWith('image/') && (part.url || part.data)) {
+            partsUrls.push(part.url || part.data);
+          } else if (part.type === 'image' && (part.image || part.url)) {
+            partsUrls.push(part.image || part.url);
           }
         }
       }
+      if (message.experimental_attachments && Array.isArray(message.experimental_attachments)) {
+        for (const attachment of message.experimental_attachments) {
+          if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
+            expUrls.push(attachment.url);
+          }
+        }
+      }
+      const useExp = expUrls.length > partsUrls.length;
+      const uploadUrls = useExp ? expUrls : partsUrls;
+      for (const url of uploadUrls) {
+        imageMap.set(`uploaded_image_${uploadedImageIndex++}`, url);
+      }
       if (message.parts && Array.isArray(message.parts)) {
         for (const part of message.parts) {
-          if (part.type === 'file' && part.mediaType?.startsWith('image/')) {
-            if (part.url || part.data) {
-              imageMap.set(`uploaded_image_${uploadedImageIndex++}`, part.url || part.data);
-            }
-          }
           const imageToolNames = ['gemini_image_tool', 'seedream_image_tool', 'qwen_image_edit'];
           const isImageToolResult = imageToolNames.some(toolName =>
             part.type === `tool-${toolName}` || (part.type === 'tool-result' && part.toolName === toolName)

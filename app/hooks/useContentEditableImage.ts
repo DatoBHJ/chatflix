@@ -43,7 +43,32 @@ export function useContentEditableImage() {
       container.contentEditable = 'false';
       container.style.display = 'block';
       container.style.margin = '6px 0';
-      container.style.userSelect = 'none';
+      container.style.userSelect = 'text'; // 텍스트 선택 가능하도록 변경
+      container.style.position = 'relative';
+      container.setAttribute('data-image-container-id', imageId);
+      
+      // Add click handler to allow cursor positioning around image (no preventDefault for natural behavior)
+      container.addEventListener('click', (e) => {
+        const selection = window.getSelection();
+        if (!selection || !contentEditableRef.current) return;
+        
+        const rect = container.getBoundingClientRect();
+        const clickX = e.clientX;
+        const containerCenterX = rect.left + rect.width / 2;
+        
+        const range = document.createRange();
+        if (clickX < containerCenterX) {
+          range.setStartBefore(container);
+          range.collapse(true);
+        } else {
+          range.setStartAfter(container);
+          range.collapse(true);
+        }
+        
+        selection.removeAllRanges();
+        selection.addRange(range);
+        contentEditableRef.current.focus();
+      });
       
       const img = document.createElement('img');
       img.src = blobUrl;
@@ -72,48 +97,158 @@ export function useContentEditableImage() {
       
       const selection = window.getSelection();
       
+      // Use execCommand('insertHTML') to ensure undo stack recording
+      // This is the most reliable way to make browser record DOM manipulation in undo history
+      // We'll convert the container to HTML string, insert it, then fix cursor position
+      // Add zero-width space before and after image to allow cursor positioning between images
+      const br = document.createElement('br');
+      const tempDiv = document.createElement('div');
+      const zeroWidthSpaceBefore = document.createTextNode('\u200B');
+      const zeroWidthSpaceAfter = document.createTextNode('\u200B');
+      tempDiv.appendChild(zeroWidthSpaceBefore.cloneNode(true));
+      tempDiv.appendChild(container.cloneNode(true));
+      tempDiv.appendChild(zeroWidthSpaceAfter.cloneNode(true));
+      tempDiv.appendChild(br.cloneNode(true));
+      const htmlString = tempDiv.innerHTML;
+      
+      // Helper function to re-attach click handler to inserted container
+      const attachClickHandler = (insertedContainer: HTMLElement) => {
+        insertedContainer.addEventListener('click', (e) => {
+          const sel = window.getSelection();
+          if (!sel || !contentEditableRef.current) return;
+          
+          const rect = insertedContainer.getBoundingClientRect();
+          const clickX = e.clientX;
+          const containerCenterX = rect.left + rect.width / 2;
+          
+          // Find zero-width space nodes before and after container
+          const prevSibling = insertedContainer.previousSibling;
+          const nextSibling = insertedContainer.nextSibling;
+          
+          const r = document.createRange();
+          if (clickX < containerCenterX) {
+            // Click on left side - place cursor before image
+            // Use zero-width space before if exists, otherwise before container
+            if (prevSibling && prevSibling.nodeType === Node.TEXT_NODE && prevSibling.textContent === '\u200B') {
+              r.setStart(prevSibling, 0);
+            } else {
+              r.setStartBefore(insertedContainer);
+            }
+            r.collapse(true);
+          } else {
+            // Click on right side - place cursor after image
+            // Use zero-width space after if exists, otherwise after container
+            if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE && nextSibling.textContent === '\u200B') {
+              r.setStart(nextSibling, 1);
+            } else {
+              r.setStartAfter(insertedContainer);
+            }
+            r.collapse(true);
+          }
+          
+          sel.removeAllRanges();
+          sel.addRange(r);
+          contentEditableRef.current.focus();
+        });
+      };
+      
+      // Helper function to set cursor after the BR tag that follows the inserted container
+      const setCursorAfterBr = (insertedContainer: HTMLElement | null) => {
+        if (!insertedContainer) return;
+        
+        // Find the BR tag that immediately follows the inserted container
+        const nextSibling = insertedContainer.nextSibling;
+        if (nextSibling && nextSibling.nodeType === Node.ELEMENT_NODE && (nextSibling as HTMLElement).tagName === 'BR') {
+          const br = nextSibling as HTMLElement;
+          const newRange = document.createRange();
+          newRange.setStartAfter(br);
+          newRange.collapse(true);
+          const sel = window.getSelection();
+          if (sel) {
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          }
+        } else {
+          // If BR is not found as next sibling, try to find it or create one
+          // Fallback: set cursor after the container itself
+          const newRange = document.createRange();
+          newRange.setStartAfter(insertedContainer);
+          newRange.collapse(true);
+          const sel = window.getSelection();
+          if (sel) {
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          }
+        }
+      };
+      
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
         
         if (contentEditableRef.current.contains(range.commonAncestorContainer)) {
-            range.deleteContents();
+            // Insert at cursor position using execCommand (preserves undo stack)
+            if (!range.collapsed) {
+              range.deleteContents();
+            }
             
-            // If we are inside a text node, inserting a block element (div) might split it or be invalid in some contexts.
-            // But usually browsers handle inserting block into contenteditable div fine.
-            range.insertNode(container);
-            
-            // Insert a new line (div with br) after the image
-            const newLine = document.createElement('div');
-            newLine.appendChild(document.createElement('br'));
-            
-            range.setStartAfter(container);
-            range.insertNode(newLine);
-            
-            // Move cursor to the start of the new line
-            range.setStart(newLine, 0);
+            // Set selection to collapsed range for insertion
             range.collapse(true);
-            
             selection.removeAllRanges();
             selection.addRange(range);
+            
+            // Use execCommand to insert HTML (this is recorded in undo stack)
+            document.execCommand('insertHTML', false, htmlString);
+            
+            // Re-attach event listener to the newly inserted container
+            const insertedContainer = contentEditableRef.current.querySelector(`[data-image-container-id="${imageId}"]`) as HTMLElement;
+            if (insertedContainer) {
+              attachClickHandler(insertedContainer);
+              // Set cursor position after BR tag
+              setCursorAfterBr(insertedContainer);
+            }
         } else {
-            // Append to end if selection is outside
-            contentEditableRef.current.appendChild(container);
-            const newLine = document.createElement('div');
-            newLine.appendChild(document.createElement('br'));
-            contentEditableRef.current.appendChild(newLine);
+            // Append to end - move cursor to end first
+            const endRange = document.createRange();
+            endRange.selectNodeContents(contentEditableRef.current);
+            endRange.collapse(false);
+            selection.removeAllRanges();
+            selection.addRange(endRange);
+            
+            // Use execCommand to insert HTML (this is recorded in undo stack)
+            document.execCommand('insertHTML', false, htmlString);
+            
+            // Re-attach event listener to the newly inserted container
+            const insertedContainer = contentEditableRef.current.querySelector(`[data-image-container-id="${imageId}"]`) as HTMLElement;
+            if (insertedContainer) {
+              attachClickHandler(insertedContainer);
+              // Set cursor position after BR tag
+              setCursorAfterBr(insertedContainer);
+            }
         }
       } else {
-        contentEditableRef.current.appendChild(container);
-        const newLine = document.createElement('div');
-        newLine.appendChild(document.createElement('br'));
-        contentEditableRef.current.appendChild(newLine);
+        // No selection - append to end
+        const endRange = document.createRange();
+        endRange.selectNodeContents(contentEditableRef.current);
+        endRange.collapse(false);
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(endRange);
+        }
+        
+        // Use execCommand to insert HTML (this is recorded in undo stack)
+        document.execCommand('insertHTML', false, htmlString);
+        
+        // Re-attach event listener to the newly inserted container
+        const insertedContainer = contentEditableRef.current.querySelector(`[data-image-container-id="${imageId}"]`) as HTMLElement;
+        if (insertedContainer) {
+          attachClickHandler(insertedContainer);
+          // Set cursor position after BR tag
+          setCursorAfterBr(insertedContainer);
+        }
       }
       
       contentEditableRef.current.focus();
-      
-      // Trigger input event
-      const inputEvent = new Event('input', { bubbles: true });
-      contentEditableRef.current.dispatchEvent(inputEvent);
 
       // Force scroll to bottom immediately after insertion
       requestAnimationFrame(() => {
@@ -184,7 +319,10 @@ export function useContentEditableImage() {
     let node;
     while (node = walker.nextNode()) {
       if (node.nodeType === Node.TEXT_NODE) {
-        text += node.textContent || '';
+        const textContent = node.textContent || '';
+        // Filter out zero-width spaces used for cursor positioning (empty text nodes are fine)
+        const filteredText = textContent.replace(/\u200B/g, '');
+        text += filteredText;
       } else if (node.nodeType === Node.ELEMENT_NODE) {
         const img = node as HTMLImageElement;
         const imageId = img.getAttribute('data-image-id');

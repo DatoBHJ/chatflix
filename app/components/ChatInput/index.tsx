@@ -407,15 +407,19 @@ export function ChatInput({
 
   // 입력 이벤트 핸들러
   const handleInput = () => {
-    if (!inputRef.current || isSubmittingRef.current) return;
+    if (!inputRef.current) return;
     
     // DOM 내용을 즉시 확인하여 placeholder 겹침 방지
+    // isLoading 상태에서도 placeholder가 사라지도록 항상 업데이트
     const currentContent = inputRef.current.innerText || '';
     const normalizedContent = currentContent === '\n' ? '' : currentContent;
     setDomContent(normalizedContent);
     
-    // 타이핑은 항상 즉시 반영 - 디바운싱 제거
-    debouncedInputHandler();
+    // isSubmittingRef 체크는 debouncedInputHandler에서만 수행
+    // isLoading일 때는 입력만 하고 제출은 하지 않음
+    if (!isSubmittingRef.current) {
+      debouncedInputHandler();
+    }
   };
 
   // 입력 필드 클리어 - 완전한 클리어 함수 (동기적 DOM 업데이트 보장)
@@ -484,32 +488,28 @@ export function ChatInput({
     let imageCount = 0;
     
     allMessages.forEach(msg => {
-      // 1. experimental_attachments
-      if (msg.experimental_attachments && Array.isArray(msg.experimental_attachments)) {
-        msg.experimental_attachments.forEach((attachment: any) => {
-          if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
-            imageCount++;
-          }
-        });
-      }
-      
-      // 2. parts
+      // 메시지당 parts vs experimental_attachments 중 더 많은 쪽 사용 (불일치 시 undercount 방지)
+      let partsCount = 0;
+      let expCount = 0;
       if (msg.parts && Array.isArray(msg.parts)) {
         msg.parts.forEach((part: any) => {
-          if (part.type === 'file' && part.mediaType?.startsWith('image/')) {
-            imageCount++;
-          }
+          if (part.type === 'file' && part.mediaType?.startsWith('image/')) partsCount++;
+          else if (part.type === 'image') partsCount++;
         });
       }
-
-      // 3. content (레거시)
+      if (msg.experimental_attachments && Array.isArray(msg.experimental_attachments)) {
+        msg.experimental_attachments.forEach((attachment: any) => {
+          if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') expCount++;
+        });
+      }
+      let contentCount = 0;
       if (msg.content && Array.isArray(msg.content)) {
         msg.content.forEach((contentItem: any) => {
-          if (contentItem.type === 'file' && contentItem.mediaType?.startsWith('image/')) {
-            imageCount++;
-          }
+          if (contentItem.type === 'file' && contentItem.mediaType?.startsWith('image/')) contentCount++;
+          else if (contentItem.type === 'image') contentCount++;
         });
       }
+      imageCount += Math.max(partsCount, expCount, contentCount);
     });
 
     return imageCount + 1;
@@ -648,97 +648,6 @@ export function ChatInput({
 
 
 
-  // 개선된 키보드 이벤트 핸들러
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Enter') {
-      if (e.shiftKey) {
-        // Shift+Enter: 줄바꿈 적용
-        e.preventDefault();
-        
-        // 현재 선택 범위 및 커서 위치 가져오기
-        const selection = window.getSelection();
-        const range = selection?.getRangeAt(0);
-        
-        if (range && inputRef.current) {
-          // 줄바꿈 요소 생성
-          const br = document.createElement('br');
-          range.deleteContents();
-          range.insertNode(br);
-          
-          // 커서 위치 조정
-          range.setStartAfter(br);
-          range.setEndAfter(br);
-          selection?.removeAllRanges();
-          selection?.addRange(range);
-          
-          // 입력 변경 이벤트 발생
-          debouncedInputHandler();
-
-          // 스크롤 최하단으로 이동 (줄바꿈 시)
-          requestAnimationFrame(() => {
-            if (inputRef.current) {
-              inputRef.current.scrollTop = inputRef.current.scrollHeight;
-            }
-          });
-        }
-      } else {
-        // 일반 Enter: 메시지 제출 - 직접 함수 호출로 이벤트 큐 건너뛰기
-        e.preventDefault();
-        if (!isSubmittingRef.current && !isLoading) {
-          // 중요: requestAnimationFrame 사용하여 다음 렌더링 프레임에 제출 처리
-          requestAnimationFrame(() => {
-            submitMessage();
-          });
-        }
-      }
-    } else if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
-      // Command+A (전체 선택) 최적화
-      e.preventDefault();
-      optimizedSelectAll();
-    } else if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
-      // Command+X (잘라내기) 최적화
-      handleOptimizedCut();
-    } else if (e.key === 'Backspace' || e.key === 'Delete') {
-      // Check for Select All + Delete scenario
-      const selection = window.getSelection();
-      
-      if (inputRef.current && selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        
-        // Check if the entire content is selected (inputRef.current as container)
-        // This commonly happens with Cmd+A (optimizedSelectAll uses selectNodeContents)
-        const isAllSelected = 
-          range.commonAncestorContainer === inputRef.current &&
-          range.startOffset === 0 &&
-          range.endOffset === inputRef.current.childNodes.length;
-
-        // Also check if selection covers effectively all content (text length match)
-        const textLength = inputRef.current.innerText.replace(/\n/g, '').length;
-        const selectedLength = selection.toString().replace(/\n/g, '').length;
-        const isTextAllSelected = textLength > 0 && textLength === selectedLength;
-
-        // If there are images and selection length is 0 but it's a range selection inside input, 
-        // it might be selecting just the image wrapper.
-        const hasImages = insertedImages.size > 0;
-        
-        if (isAllSelected || isTextAllSelected || (hasImages && isAllSelected)) {
-          e.preventDefault();
-          clearInput();
-          return;
-        }
-      }
-
-      const currentContent = inputRef.current?.innerText ?? '';
-      // Backspace로 모든 내용 지웠을 때 placeholder 다시 보이게
-      if (currentContent === '' || currentContent === '\n') {
-        // DOM 내용 state 즉시 업데이트
-        setDomContent('');
-        // When clearing input with backspace, ensure handler is called
-        debouncedInputHandler();
-      }
-    }
-  };
-
   // 전체 선택 최적화 함수
   const optimizedSelectAll = () => {
     if (!inputRef.current) return;
@@ -841,6 +750,422 @@ export function ChatInput({
     }
   };
 
+  // Helpers for image removal: remove image container and adjacent br tags (cursor placeholders)
+  // Note: This function is now only used for selection-based deletion
+  // For collapsed range deletion, we use Range API directly to preserve undo stack
+  const removeImageAndAdjacentEmptyNodes = (imageContainer: HTMLElement) => {
+    const prev = imageContainer.previousSibling;
+    const next = imageContainer.nextSibling;
+    // Remove empty text nodes or br tags used for cursor positioning
+    if (prev && prev.nodeType === Node.TEXT_NODE && (prev as Text).textContent === '') {
+      prev.remove();
+    }
+    if (next) {
+      const shouldRemove = (next.nodeType === Node.TEXT_NODE && (next as Text).textContent === '') || 
+                           (next.nodeType === Node.ELEMENT_NODE && (next as HTMLElement).tagName === 'BR');
+      if (shouldRemove) {
+        next.remove();
+      }
+    }
+    imageContainer.remove();
+  };
+
+  const placeCursorAfterRemoval = (
+    el: HTMLDivElement | null,
+    selection: Selection,
+    _removedContainer: HTMLElement,
+    nextNode?: Node | null,
+    prevNode?: Node | null
+  ) => {
+    if (!el || !selection) return;
+    const newRange = document.createRange();
+    if (nextNode && el.contains(nextNode)) {
+      if (nextNode.nodeType === Node.TEXT_NODE) newRange.setStart(nextNode, 0);
+      else newRange.setStartBefore(nextNode);
+      newRange.collapse(true);
+    } else if (prevNode && el.contains(prevNode)) {
+      if (prevNode.nodeType === Node.TEXT_NODE) newRange.setStart(prevNode, prevNode.textContent?.length || 0);
+      else newRange.setStartAfter(prevNode);
+      newRange.collapse(true);
+    } else {
+      const first = el.firstChild;
+      if (first) newRange.setStartBefore(first);
+      else newRange.selectNodeContents(el);
+      newRange.collapse(true);
+    }
+    selection.removeAllRanges();
+    selection.addRange(newRange);
+    el.focus();
+  };
+
+  // 개선된 키보드 이벤트 핸들러
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter') {
+      if (e.shiftKey) {
+        // Shift+Enter: 줄바꿈 적용
+        e.preventDefault();
+        
+        // 현재 선택 범위 및 커서 위치 가져오기
+        const selection = window.getSelection();
+        const range = selection?.getRangeAt(0);
+        
+        if (range && inputRef.current) {
+          // 줄바꿈 요소 생성
+          const br = document.createElement('br');
+          range.deleteContents();
+          range.insertNode(br);
+          
+          // 커서 위치 조정
+          range.setStartAfter(br);
+          range.setEndAfter(br);
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          
+          // 입력 변경 이벤트 발생
+          debouncedInputHandler();
+
+          // 스크롤 최하단으로 이동 (줄바꿈 시)
+          requestAnimationFrame(() => {
+            if (inputRef.current) {
+              inputRef.current.scrollTop = inputRef.current.scrollHeight;
+            }
+          });
+        }
+      } else {
+        // 일반 Enter: 메시지 제출 - 직접 함수 호출로 이벤트 큐 건너뛰기
+        e.preventDefault();
+        if (!isSubmittingRef.current && !isLoading) {
+          // 중요: requestAnimationFrame 사용하여 다음 렌더링 프레임에 제출 처리
+          requestAnimationFrame(() => {
+            submitMessage();
+          });
+        }
+      }
+    } else if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+      // Command+A (전체 선택) 최적화
+      e.preventDefault();
+      optimizedSelectAll();
+    } else if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
+      // Command+X (잘라내기) 최적화
+      handleOptimizedCut();
+    } else if (e.key === 'Backspace' || e.key === 'Delete') {
+      // Check for Select All + Delete scenario
+      const selection = window.getSelection();
+      
+      if (inputRef.current && selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        
+        // Check if the entire content is selected (inputRef.current as container)
+        // This commonly happens with Cmd+A (optimizedSelectAll uses selectNodeContents)
+        const isAllSelected = 
+          range.commonAncestorContainer === inputRef.current &&
+          range.startOffset === 0 &&
+          range.endOffset === inputRef.current.childNodes.length;
+
+        // Also check if selection covers effectively all content (text length match)
+        const textLength = inputRef.current.innerText.replace(/\n/g, '').length;
+        const selectedLength = selection.toString().replace(/\n/g, '').length;
+        const isTextAllSelected = textLength > 0 && textLength === selectedLength;
+
+        // If there are images and selection length is 0 but it's a range selection inside input, 
+        // it might be selecting just the image wrapper.
+        const hasImages = insertedImages.size > 0;
+        
+        if (isAllSelected || isTextAllSelected || (hasImages && isAllSelected)) {
+          e.preventDefault();
+          clearInput();
+          return;
+        }
+
+        // Handle image deletion when cursor is before/after image or image is selected
+        if (!range.collapsed) {
+          // Check if selection contains an image
+          const container = range.commonAncestorContainer;
+          let imageContainer: HTMLElement | null = null;
+          
+          if (container.nodeType === Node.ELEMENT_NODE) {
+            const element = container as HTMLElement;
+            // Check if the container itself is an image container
+            if (element.hasAttribute('data-image-container-id')) {
+              imageContainer = element;
+            } else {
+              // Check if selection contains an image container
+              imageContainer = element.closest('[data-image-container-id]') as HTMLElement;
+            }
+          } else {
+            // For text nodes, check parent
+            const parent = container.parentElement;
+            if (parent) {
+              if (parent.hasAttribute('data-image-container-id')) {
+                imageContainer = parent;
+              } else {
+                imageContainer = parent.closest('[data-image-container-id]') as HTMLElement;
+              }
+            }
+          }
+          
+          if (imageContainer) {
+            e.preventDefault();
+            const imageId = imageContainer.getAttribute('data-image-container-id');
+            const img = imageContainer.querySelector('img[data-image-id]') as HTMLImageElement;
+            const actualImageId = img?.getAttribute('data-image-id') || imageId;
+            
+            if (actualImageId) {
+              const nextNode = imageContainer.nextSibling;
+              const prevNode = imageContainer.previousSibling;
+              
+              // Use Range API to delete image container and adjacent nodes atomically (single undo entry)
+              // This ensures the deletion is recorded as one operation in undo history
+              const deleteRange = document.createRange();
+              
+              // Include empty text node before image if it exists
+              let startNode: Node = imageContainer;
+              if (prevNode && prevNode.nodeType === Node.TEXT_NODE && (prevNode as Text).textContent === '') {
+                startNode = prevNode;
+              }
+              deleteRange.setStartBefore(startNode);
+              
+              // Include BR tag after image if it exists
+              let endNode: Node = imageContainer;
+              if (nextNode && nextNode.nodeType === Node.ELEMENT_NODE && (nextNode as HTMLElement).tagName === 'BR') {
+                endNode = nextNode;
+              } else if (nextNode && nextNode.nodeType === Node.TEXT_NODE && (nextNode as Text).textContent === '') {
+                endNode = nextNode;
+              }
+              deleteRange.setEndAfter(endNode);
+              
+              // Single atomic deletion (preserves undo stack)
+              deleteRange.deleteContents();
+              
+              setInsertedImages(prev => {
+                const next = new Map(prev);
+                const imageData = next.get(actualImageId);
+                if (imageData) {
+                  URL.revokeObjectURL(imageData.blobUrl);
+                  next.delete(actualImageId);
+                }
+                return next;
+              });
+              syncImagesWithDOM();
+              debouncedInputHandler();
+              placeCursorAfterRemoval(inputRef.current, selection, imageContainer, nextNode, prevNode);
+              return;
+            }
+          }
+        } else {
+          // Collapsed range: Backspace should delete what's immediately before cursor
+          // Priority: 1) Text before cursor in same node, 2) Previous sibling (BR/text), 3) Image before BR
+          
+          const container = range.commonAncestorContainer;
+          let imageContainer: HTMLElement | null = null;
+          
+          if (e.key === 'Backspace') {
+            // Rule 1: If cursor is inside a text node with offset > 0, delete text (let browser handle it)
+            if (container.nodeType === Node.TEXT_NODE) {
+              const offset = range.startOffset;
+              if (offset > 0) {
+                // There's text before cursor in same node - let browser delete it naturally
+                // Don't preventDefault, don't delete image
+                return; // Let browser handle text deletion
+              }
+              // Cursor is at start of text node (offset 0) - check what's before this text node
+              const parent = container.parentElement;
+              if (parent && parent === inputRef.current) {
+                const siblings = Array.from(parent.childNodes);
+                const idx = siblings.indexOf(container as ChildNode);
+                // Look for image before this text node
+                for (let i = idx - 1; i >= 0; i--) {
+                  const s = siblings[i];
+                  if (s.nodeType === Node.ELEMENT_NODE) {
+                    const el = s as HTMLElement;
+                    if (el.hasAttribute('data-image-container-id')) {
+                      imageContainer = el;
+                      break;
+                    }
+                    if (el.tagName === 'BR') continue; // Skip BR, continue looking
+                    break; // Other element, stop
+                  }
+                  if (s.nodeType === Node.TEXT_NODE && ((s as Text).textContent || '').trim().length > 0) {
+                    break; // Text node with content, stop
+                  }
+                }
+              }
+            } 
+            // Rule 2: If cursor is right after BR tag, check if previous sibling is image
+            else if (container.nodeType === Node.ELEMENT_NODE && (container as HTMLElement).tagName === 'BR') {
+              const br = container as HTMLElement;
+              const prev = br.previousSibling;
+              if (prev && prev.nodeType === Node.ELEMENT_NODE) {
+                const el = prev as HTMLElement;
+                if (el.hasAttribute('data-image-container-id')) {
+                  imageContainer = el;
+                }
+              }
+            }
+            // Rule 3: If cursor is at boundary of input div, check last child
+            else if (container === inputRef.current) {
+              const offset = range.startOffset;
+              if (offset > 0 && offset <= container.childNodes.length) {
+                const nodeBefore = container.childNodes[offset - 1];
+                if (nodeBefore.nodeType === Node.ELEMENT_NODE) {
+                  const el = nodeBefore as HTMLElement;
+                  if (el.hasAttribute('data-image-container-id')) {
+                    imageContainer = el;
+                  } else if (el.tagName === 'BR') {
+                    // Cursor is right after BR, check BR's previous sibling
+                    const prev = el.previousSibling;
+                    if (prev && prev.nodeType === Node.ELEMENT_NODE) {
+                      const prevEl = prev as HTMLElement;
+                      if (prevEl.hasAttribute('data-image-container-id')) {
+                        imageContainer = prevEl;
+                      }
+                    }
+                  }
+                }
+              } else if (container.childNodes.length > 0) {
+                const lastChild = container.lastChild;
+                if (lastChild && lastChild.nodeType === Node.ELEMENT_NODE) {
+                  const el = lastChild as HTMLElement;
+                  if (el.hasAttribute('data-image-container-id')) {
+                    imageContainer = el;
+                  } else if (el.tagName === 'BR') {
+                    const prev = el.previousSibling;
+                    if (prev && prev.nodeType === Node.ELEMENT_NODE) {
+                      const prevEl = prev as HTMLElement;
+                      if (prevEl.hasAttribute('data-image-container-id')) {
+                        imageContainer = prevEl;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Final check: Only delete image if there's NO text immediately after cursor
+            if (imageContainer) {
+              // Check if there's any text after cursor that should be deleted first
+              let hasTextAfter = false;
+              
+              // Check current node if it's a text node
+              if (container.nodeType === Node.TEXT_NODE && range.startOffset < (container as Text).textContent!.length) {
+                hasTextAfter = true;
+              }
+              // Check if cursor is after BR and there's text node after BR
+              else if (container.nodeType === Node.ELEMENT_NODE && (container as HTMLElement).tagName === 'BR') {
+                const br = container as HTMLElement;
+                const next = br.nextSibling;
+                if (next && next.nodeType === Node.TEXT_NODE && ((next as Text).textContent || '').trim().length > 0) {
+                  hasTextAfter = true;
+                }
+              }
+              // Check if container is input div and there's text at cursor position
+              else if (container === inputRef.current) {
+                const offset = range.startOffset;
+                if (offset < container.childNodes.length) {
+                  const nodeAtOffset = container.childNodes[offset];
+                  if (nodeAtOffset && nodeAtOffset.nodeType === Node.TEXT_NODE) {
+                    hasTextAfter = true;
+                  }
+                }
+              }
+              
+              if (hasTextAfter) {
+                imageContainer = null; // Don't delete image, let browser delete text first
+              }
+            }
+          } else if (e.key === 'Delete') {
+            // Delete key: delete what's immediately after cursor
+            if (container.nodeType === Node.TEXT_NODE) {
+              const offset = range.startOffset;
+              const textNode = container as Text;
+              if (offset < textNode.textContent!.length) {
+                // There's text after cursor - let browser handle it
+                return;
+              }
+            }
+            // Find image after cursor
+            const parent = container.parentElement;
+            if (parent && parent === inputRef.current) {
+              const siblings = Array.from(parent.childNodes);
+              const idx = siblings.indexOf(container as ChildNode);
+              for (let i = idx + 1; i < siblings.length; i++) {
+                const s = siblings[i];
+                if (s.nodeType === Node.ELEMENT_NODE) {
+                  const el = s as HTMLElement;
+                  if (el.hasAttribute('data-image-container-id')) {
+                    imageContainer = el;
+                    break;
+                  }
+                  if (el.tagName === 'BR') continue;
+                  break;
+                }
+                if (s.nodeType === Node.TEXT_NODE && ((s as Text).textContent || '').trim().length > 0) {
+                  break;
+                }
+              }
+            }
+          }
+
+          if (imageContainer) {
+            e.preventDefault();
+            const img = imageContainer.querySelector('img[data-image-id]') as HTMLImageElement;
+            const actualImageId = img?.getAttribute('data-image-id') || imageContainer.getAttribute('data-image-container-id');
+            if (actualImageId) {
+              const nextNode = imageContainer.nextSibling;
+              const prevNode = imageContainer.previousSibling;
+              
+              // Use Range API to delete image container and adjacent nodes atomically (single undo entry)
+              // This ensures the deletion is recorded as one operation in undo history
+              const deleteRange = document.createRange();
+              
+              // Include empty text node before image if it exists
+              let startNode: Node = imageContainer;
+              if (prevNode && prevNode.nodeType === Node.TEXT_NODE && (prevNode as Text).textContent === '') {
+                startNode = prevNode;
+              }
+              deleteRange.setStartBefore(startNode);
+              
+              // Include BR tag after image if it exists
+              let endNode: Node = imageContainer;
+              if (nextNode && nextNode.nodeType === Node.ELEMENT_NODE && (nextNode as HTMLElement).tagName === 'BR') {
+                endNode = nextNode;
+              } else if (nextNode && nextNode.nodeType === Node.TEXT_NODE && (nextNode as Text).textContent === '') {
+                endNode = nextNode;
+              }
+              deleteRange.setEndAfter(endNode);
+              
+              // Single atomic deletion (preserves undo stack)
+              deleteRange.deleteContents();
+              
+              setInsertedImages(prev => {
+                const next = new Map(prev);
+                const imageData = next.get(actualImageId);
+                if (imageData) {
+                  URL.revokeObjectURL(imageData.blobUrl);
+                  next.delete(actualImageId);
+                }
+                return next;
+              });
+              syncImagesWithDOM();
+              debouncedInputHandler();
+              placeCursorAfterRemoval(inputRef.current, selection, imageContainer, nextNode, prevNode);
+              return;
+            }
+          }
+        }
+      }
+
+      const currentContent = inputRef.current?.innerText ?? '';
+      // Backspace로 모든 내용 지웠을 때 placeholder 다시 보이게
+      if (currentContent === '' || currentContent === '\n') {
+        // DOM 내용 state 즉시 업데이트
+        setDomContent('');
+        // When clearing input with backspace, ensure handler is called
+        debouncedInputHandler();
+      }
+    }
+  };
+
 
 
   // 언마운트 시 URL 정리 및 Safari 클래스 정리
@@ -858,6 +1183,12 @@ export function ChatInput({
   useEffect(() => {
     if (!inputRef.current) return;
     
+    // 드래그 선택 중인지 추적하는 변수
+    let isDragging = false;
+    let mouseDownTime = 0;
+    let mouseDownX = 0;
+    let mouseDownY = 0;
+    
     // 선택 시작 시 대용량 텍스트 처리에 최적화된 동작
     const handleSelectionStart = () => {
       if (inputRef.current && inputRef.current.innerText && 
@@ -874,14 +1205,162 @@ export function ChatInput({
       }
     };
     
+    // 마우스 다운 핸들러: 드래그 시작 감지
+    const handleMouseDown = (e: MouseEvent) => {
+      isDragging = false;
+      mouseDownTime = Date.now();
+      mouseDownX = e.clientX;
+      mouseDownY = e.clientY;
+    };
+    
+    // 마우스 이동 핸들러: 드래그 중인지 확인
+    const handleMouseMove = (e: MouseEvent) => {
+      if (mouseDownTime > 0) {
+        const deltaX = Math.abs(e.clientX - mouseDownX);
+        const deltaY = Math.abs(e.clientY - mouseDownY);
+        // 마우스가 3픽셀 이상 이동하면 드래그로 간주
+        if (deltaX > 3 || deltaY > 3) {
+          isDragging = true;
+        }
+      }
+    };
+    
+    // 마우스 업 핸들러: 드래그 종료
+    const handleMouseUp = () => {
+      mouseDownTime = 0;
+      // 약간의 지연 후 isDragging 초기화 (클릭 핸들러가 실행되기 전에)
+      setTimeout(() => {
+        isDragging = false;
+      }, 10);
+    };
+    
+    // 클릭 핸들러: 이미지 사이를 클릭했을 때 커서를 배치할 수 있도록 함
+    // 단, 드래그 선택 중일 때는 실행하지 않음
+    const handleClick = (e: MouseEvent) => {
+      if (!inputRef.current) return;
+      
+      // 드래그 선택 중이면 클릭 핸들러 실행하지 않음 (브라우저 기본 선택 동작 사용)
+      if (isDragging) {
+        return;
+      }
+      
+      // 클릭 시간이 너무 짧으면 드래그가 아닌 클릭으로 간주
+      const clickDuration = Date.now() - mouseDownTime;
+      if (clickDuration > 200) {
+        // 클릭이 너무 길면 드래그로 간주
+        return;
+      }
+      
+      const target = e.target as HTMLElement;
+      const selection = window.getSelection();
+      if (!selection) return;
+      
+      // 선택된 텍스트가 있으면 클릭 핸들러 실행하지 않음 (선택 유지)
+      if (selection.toString().length > 0) {
+        return;
+      }
+      
+      // 이미지 컨테이너를 직접 클릭한 경우는 이미지 컨테이너의 핸들러가 처리하도록 함
+      if (target.closest('[data-image-container-id]') === target) {
+        return;
+      }
+      
+      // contentEditable div 자체나 그 내부를 클릭한 경우
+      if (target === inputRef.current || inputRef.current.contains(target)) {
+        // caretRangeFromPoint를 사용하여 정확한 클릭 위치에 커서 배치
+        try {
+          const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+          if (range && inputRef.current.contains(range.commonAncestorContainer)) {
+            const container = range.commonAncestorContainer;
+            
+            // 이미지 컨테이너를 클릭한 경우는 이미지 컨테이너의 핸들러가 처리하도록 함
+            if (container.nodeType === Node.ELEMENT_NODE && 
+                (container as HTMLElement).hasAttribute('data-image-container-id')) {
+              return;
+            }
+            
+            // 텍스트 노드를 클릭한 경우 - 커서 배치
+            if (container.nodeType === Node.TEXT_NODE) {
+              selection.removeAllRanges();
+              selection.addRange(range);
+              return;
+            }
+            
+            // contentEditable div 자체를 클릭한 경우
+            if (container === inputRef.current) {
+              const offset = range.startOffset;
+              const parent = inputRef.current;
+              
+              // 클릭한 위치가 두 이미지 사이인지 확인
+              if (offset > 0 && offset < parent.childNodes.length) {
+                const nodeBefore = parent.childNodes[offset - 1];
+                const nodeAfter = parent.childNodes[offset];
+                
+                const isBeforeImage = nodeBefore && nodeBefore.nodeType === Node.ELEMENT_NODE && 
+                  (nodeBefore as HTMLElement).hasAttribute('data-image-container-id');
+                const isAfterImage = nodeAfter && nodeAfter.nodeType === Node.ELEMENT_NODE && 
+                  (nodeAfter as HTMLElement).hasAttribute('data-image-container-id');
+                
+                // 이미지 사이를 클릭한 경우
+                if (isBeforeImage && isAfterImage) {
+                  // 이미지 사이에 zero-width space 텍스트 노드가 있는지 확인
+                  let textNodeBetween: Text | null = null;
+                  for (let i = 0; i < parent.childNodes.length; i++) {
+                    const node = parent.childNodes[i];
+                    if (node === nodeBefore) {
+                      // nodeBefore 다음 노드를 확인
+                      if (i + 1 < parent.childNodes.length) {
+                        const nextNode = parent.childNodes[i + 1];
+                        if (nextNode.nodeType === Node.TEXT_NODE && 
+                            (nextNode as Text).textContent === '\u200B') {
+                          textNodeBetween = nextNode as Text;
+                          break;
+                        }
+                      }
+                    }
+                  }
+                  
+                  if (!textNodeBetween) {
+                    // zero-width space 텍스트 노드가 없으면 생성
+                    textNodeBetween = document.createTextNode('\u200B');
+                    parent.insertBefore(textNodeBetween, nodeAfter);
+                  }
+                  
+                  // 커서를 텍스트 노드에 배치
+                  const newRange = document.createRange();
+                  newRange.setStart(textNodeBetween, 0);
+                  newRange.collapse(true);
+                  selection.removeAllRanges();
+                  selection.addRange(newRange);
+                  return;
+                }
+              }
+              
+              // 일반적인 경우 - 브라우저 기본 동작 사용
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }
+          }
+        } catch (err) {
+          // caretRangeFromPoint가 지원되지 않는 경우 무시
+        }
+      }
+    };
+    
     // 이벤트 리스너 등록
     inputRef.current.addEventListener('selectstart', handleSelectionStart);
-    inputRef.current.addEventListener('mouseup', handleSelectionEnd);
+    inputRef.current.addEventListener('mousedown', handleMouseDown);
+    inputRef.current.addEventListener('mousemove', handleMouseMove);
+    inputRef.current.addEventListener('mouseup', handleMouseUp);
+    inputRef.current.addEventListener('click', handleClick);
     
     // 클린업 함수
     return () => {
       inputRef.current?.removeEventListener('selectstart', handleSelectionStart);
-      inputRef.current?.removeEventListener('mouseup', handleSelectionEnd);
+      inputRef.current?.removeEventListener('mousedown', handleMouseDown);
+      inputRef.current?.removeEventListener('mousemove', handleMouseMove);
+      inputRef.current?.removeEventListener('mouseup', handleMouseUp);
+      inputRef.current?.removeEventListener('click', handleClick);
     };
   }, []);
 

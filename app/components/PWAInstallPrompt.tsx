@@ -1,74 +1,96 @@
 'use client'
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { getAdaptiveGlassStyleBlur, getInitialTheme } from '@/app/lib/adaptiveGlassStyle';
+
+const LIGHT_MODE_SHADOW = '0 20px 40px -10px rgba(0,0,0,0.35), 0 40px 80px -20px rgba(0,0,0,0.25)';
 
 export function PWAInstallPrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const [glassStyle, setGlassStyle] = useState<React.CSSProperties>({});
+  const [isLight, setIsLight] = useState(false);
 
   useEffect(() => {
-    // iOS 디바이스 체크
-    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-    setIsIOS(isIOSDevice);
-
-    // PWA가 이미 설치되었는지 확인
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-    
-    // 모바일 기기이고 PWA가 설치되지 않았을 때만 프롬프트 표시
-    if ((isIOSDevice || /Android/i.test(navigator.userAgent)) && !isStandalone) {
+    if (isStandalone) return;
+
+    const show = () => {
       setShowPrompt(true);
-      // 애니메이션을 위해 약간의 딜레이 후 표시
-      setTimeout(() => setIsVisible(true), 100);
+      requestAnimationFrame(() => setIsVisible(true));
+    };
+
+    if (document.readyState === 'complete') {
+      show();
+    } else {
+      window.addEventListener('load', show);
+      // Hydration 시점에 load가 이미 지났을 수 있어, 지연 후 한 번 더 시도
+      const fallback = setTimeout(show, 500);
+      return () => {
+        clearTimeout(fallback);
+        window.removeEventListener('load', show);
+      };
     }
   }, []);
 
+  useEffect(() => {
+    if (!showPrompt) return;
+    const apply = () => {
+      setGlassStyle(getAdaptiveGlassStyleBlur());
+      setIsLight(!getInitialTheme());
+    };
+    apply();
+    const onResize = () => apply();
+    const observer = new MutationObserver(apply);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      observer.disconnect();
+    };
+  }, [showPrompt]);
+
   const handleClose = () => {
     setIsVisible(false);
-    // 페이드 아웃 애니메이션 후 완전히 제거
     setTimeout(() => setShowPrompt(false), 300);
   };
 
   if (!showPrompt) return null;
 
   return (
-    <div className={`fixed inset-x-4 top-4 z-[70] transition-all duration-300 ease-in-out ${
-      isVisible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'
-    }`}>
-      <div className="relative bg-[#1C1C1E] rounded-2xl overflow-hidden shadow-2xl">
-        <div className="px-5 py-4">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <h2 className="text-white text-lg font-normal tracking-tight mb-2">Install chatflix.app</h2>
-              <p className="text-[#8E8E93] text-sm leading-relaxed">
-                {isIOS ? (
-                  <span className="flex items-center gap-2">
-                    Tap
-                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg ">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                        <path d="M13 5.41V17a1 1 0 0 1-2 0V5.41l-3.3 3.3a1 1 0 0 1-1.4-1.42l5-5a1 1 0 0 1 1.4 0l5 5a1 1 0 1 1-1.4 1.42L13 5.4zM3 17a1 1 0 0 1 2 0v3h14v-3a1 1 0 0 1 2 0v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3z"/>
-                      </svg>
-                    </span>
-                    and then "Add to Home Screen"
-                  </span>
-                ) 
-                : (
-                  <span className="flex items-center gap-2">
-                    Tap the menu
-                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                      </svg>
-                    </span>
-                    and then "Add to Home Screen"
-                  </span>
-                )
-                }
-              </p>
+    <div
+      className={`fixed top-[18px] z-[70] w-[calc(100vw-32px)] max-w-[360px] left-1/2 -translate-x-1/2 md:left-auto md:right-[18px] transition-all duration-300 ease-out ${
+        isVisible
+          ? 'translate-y-0 opacity-100 md:translate-x-0'
+          : '-translate-y-full opacity-0 md:translate-y-0 md:translate-x-full'
+      }`}
+    >
+      <div
+        className="relative overflow-hidden rounded-[14px]"
+        style={{
+          ...glassStyle,
+          backgroundColor: glassStyle.backgroundColor ?? 'rgba(0,0,0,0.1)',
+          boxShadow: isLight ? LIGHT_MODE_SHADOW : glassStyle.boxShadow,
+        }}
+      >
+        <div className="px-4 pt-2.5 pb-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-[15px] font-semibold text-white leading-tight">
+                Install chatflix.app
+              </h2>
+              <Link
+                href="/pwa-guide"
+                onClick={handleClose}
+                className="mt-1 inline-block text-[13px] font-medium text-[var(--chat-input-primary)] underline active:opacity-80"
+              >
+                View installation guide
+              </Link>
             </div>
             <button
               onClick={handleClose}
-              className="p-2 -m-2 text-[#8E8E93] hover:text-white transition-colors"
+              className="shrink-0 p-1.5 -m-1.5 rounded-full text-white/80 hover:text-white active:opacity-70 transition-colors"
               aria-label="Close"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">

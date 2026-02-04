@@ -32,7 +32,12 @@ const isImageAttachment = (attachment: Attachment) => {
   if (contentType.startsWith('image/')) {
     return true;
   }
-  return attachment.fileType === 'image';
+  if (attachment.fileType === 'image') {
+    return true;
+  }
+  // contentType/fileType 누락 시 확장자로 이미지 여부 판별 (parts vs experimental_attachments 불일치 방지)
+  const name = attachment.name || '';
+  return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name);
 };
 
 const createMessageParts = (text: string, attachments: Attachment[] = []) => {
