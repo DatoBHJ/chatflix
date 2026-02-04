@@ -13,8 +13,43 @@ export function PWAInstallPrompt() {
   const [isLight, setIsLight] = useState(false);
 
   useEffect(() => {
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-    if (isStandalone) return;
+    // PWA 설치 여부를 여러 방법으로 확인
+    const checkIfInstalled = () => {
+      // 1. display-mode: standalone 체크 (가장 일반적)
+      if (window.matchMedia('(display-mode: standalone)').matches) return true;
+      
+      // 2. display-mode: fullscreen 체크 (일부 브라우저)
+      if (window.matchMedia('(display-mode: fullscreen)').matches) return true;
+      
+      // 3. display-mode: minimal-ui 체크
+      if (window.matchMedia('(display-mode: minimal-ui)').matches) return true;
+      
+      // 4. iOS Safari standalone 체크
+      if ((window.navigator as any).standalone === true) return true;
+      
+      // 5. 브라우저 모드가 아닌 경우 (standalone, fullscreen, minimal-ui 중 하나)
+      const displayMode = window.matchMedia('(display-mode: browser)').matches;
+      if (!displayMode) return true;
+      
+      return false;
+    };
+
+    // 이미 설치되어 있으면 프롬프트 표시 안 함
+    if (checkIfInstalled()) return;
+
+    // 사용자가 이전에 닫은 기록이 있으면 표시 안 함 (24시간 동안)
+    const dismissedKey = 'pwa-install-prompt-dismissed';
+    const dismissedTime = localStorage.getItem(dismissedKey);
+    if (dismissedTime) {
+      const dismissed = parseInt(dismissedTime, 10);
+      const now = Date.now();
+      // 24시간 이내에 닫았다면 다시 표시 안 함
+      if (now - dismissed < 24 * 60 * 60 * 1000) {
+        return;
+      }
+      // 24시간이 지났으면 기록 삭제
+      localStorage.removeItem(dismissedKey);
+    }
 
     const show = () => {
       setShowPrompt(true);
@@ -52,6 +87,8 @@ export function PWAInstallPrompt() {
   }, [showPrompt]);
 
   const handleClose = () => {
+    // 닫은 시간을 localStorage에 저장 (24시간 동안 다시 표시 안 함)
+    localStorage.setItem('pwa-install-prompt-dismissed', Date.now().toString());
     setIsVisible(false);
     setTimeout(() => setShowPrompt(false), 300);
   };
