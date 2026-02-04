@@ -743,7 +743,8 @@ export async function POST(req: Request): Promise<Response> {
       if (isAnonymousUser) {
         return;
       }
-      
+      if (abortedByClient) return;
+
       if (!chatId || !user?.id) {
         return;
       }
