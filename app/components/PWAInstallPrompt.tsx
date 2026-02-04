@@ -78,7 +78,7 @@ export function PWAInstallPrompt() {
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <h2 className="text-[15px] font-semibold text-white leading-tight">
-                Install chatflix.app
+                Install Chatflix
               </h2>
               <Link
                 href="/pwa-guide"

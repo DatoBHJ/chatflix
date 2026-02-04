@@ -94,7 +94,7 @@ export default function PWAGuidePage() {
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-3">
             <img src={logoSrc} alt="Chatflix" className="h-8 w-8" />
-            <span className="text-lg font-semibold text-[var(--foreground)]">PWA Guide</span>
+            <span className="text-lg font-semibold text-[var(--foreground)]">App Install Guide</span>
           </Link>
           <nav className="hidden md:flex items-center gap-8">
             {navItems.map((item) => (
@@ -143,17 +143,12 @@ export default function PWAGuidePage() {
         <section className="relative overflow-hidden bg-gradient-to-b from-[color-mix(in_srgb,var(--accent)_40%,transparent)] to-[var(--background)]">
           <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
             <div className="text-center">
-              <div className="inline-flex items-center rounded-full bg-[var(--accent)] px-4 py-1.5 text-sm font-medium text-[var(--foreground)] mb-8">
-                <span className="flex h-2 w-2 rounded-full bg-[var(--chat-input-primary)] mr-2" />
-                Progressive Web App
-              </div>
               <h1 className="text-4xl font-bold tracking-tight text-[var(--foreground)] sm:text-5xl lg:text-6xl mb-6">
-                Install as a <span className="text-[var(--chat-input-primary)]">PWA</span>
+                Install as an <span className="text-[var(--chat-input-primary)]">App</span>
               </h1>
               <p className="mx-auto max-w-2xl text-lg text-[var(--muted)] mb-10">
-                You can install this app as a Progressive Web App on your computer, tablet, or
-                mobile device. A PWA runs off your browser but looks and feels like a traditional
-                app, giving you a more seamless and optimized experience.
+                You can install this app on your computer, tablet, or mobile device. 
+                It works just like a regular app, giving you a faster and more convenient experience without having to open your browser every time.
               </p>
               <div className="flex flex-wrap justify-center gap-4 mb-12">
                 <a
@@ -371,7 +366,7 @@ export default function PWAGuidePage() {
           <div className="flex flex-col items-center gap-8">
             <div className="flex items-center gap-3">
               <img src={logoSrc} alt="Chatflix" className="h-10 w-10" />
-              <span className="text-xl font-semibold text-[var(--foreground)]">PWA Guide</span>
+              <span className="text-xl font-semibold text-[var(--foreground)]">App Install Guide</span>
             </div>
             <div className="flex flex-wrap justify-center gap-8 text-sm text-[var(--muted)]">
               <a href="#ios" onClick={handleAnchorClick} className="hover:text-[var(--chat-input-primary)] transition-colors">
