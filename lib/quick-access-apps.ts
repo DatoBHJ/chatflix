@@ -15,7 +15,8 @@ export const DEFAULT_QUICK_ACCESS_APPS_DESKTOP: StoredApp[] = [
   { id: 'messages' },
   { id: 'photos' },
   { id: 'settings' },
-  { id: 'glass-trends-widget', size: { width: 2, height: 3 }, slotIndex: 1 },
+  { id: 'glass-trends-widget', size: { width: 1, height: 1 }, slotIndex: 1 },
+  { id: 'daily-joke-widget', size: { width: 1, height: 1 }, slotIndex: 2 },
 ];
 
 export const DEFAULT_QUICK_ACCESS_APPS_MOBILE: StoredApp[] = [
