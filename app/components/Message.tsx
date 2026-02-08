@@ -31,6 +31,7 @@ import { TypingIndicator } from './TypingIndicator';
 import type { LinkCardData } from '@/app/types/linkPreview';
 import { usePartsRenderer, type RenderSegment, type ToolSegmentContent } from '@/app/hooks/usePartsRenderer';
 import { InlineToolPreview } from './InlineToolPreview';
+import { getRunCodeData } from '../hooks/toolFunction';
 import { getWebSearchResults, getGoogleSearchData } from '@/app/hooks/toolFunction';
 import { getAdaptiveGlassStyleBlur, getAdaptiveGlassBackgroundColor, getTextStyle, getInitialTheme } from '@/app/lib/adaptiveGlassStyle';
 
@@ -158,6 +159,8 @@ function UserMessageContent({
 }
 
 // 검색 도구 여부 확인 함수
+const isOutcomeFileTool = (name: string) => ['write_file', 'apply_edits', 'read_file', 'delete_file', 'grep_file', 'get_file_info'].includes(name);
+
 const isSearchTool = (name: string) => [
   'web_search',
   'multi_search',
@@ -3225,6 +3228,24 @@ const Message = memo(function MessageComponent({
                   // 단일 도구 또는 단일 topic/engine/query인 경우 기존 로직
                   const toolHasTail = !(isSearchTool(toolName) && nextIsSearch);
                   const toolMargin = (toolHasTail && (!isLastSegment || hasSubsequentContent)) ? "mb-4" : "";
+
+                          // write_file / apply_edits / run_python_code: diff card without bubble wrapper
+                          if (isOutcomeFileTool(toolName) || toolName === 'run_python_code') {
+                            const runCodeData = toolName === 'run_python_code' ? getRunCodeData(message) : null;
+                            return (
+                              <div key={`segment-tool-${idx}`} className={`relative ${toolMargin}`}>
+                                <InlineToolPreview
+                                  toolName={toolName}
+                                  toolArgs={resolvedToolArgs}
+                                  toolResult={toolName === 'run_python_code' ? runCodeData : toolContent.result?.result}
+                                  messageId={message.id}
+                                  togglePanel={togglePanel}
+                                  activePanel={activePanel}
+                                  isProcessing={!toolContent.result && !runCodeData}
+                                />
+                              </div>
+                            );
+                          }
 
                   return (
                     <div key={`segment-tool-${idx}`} className={`relative ${toolMargin}`}>

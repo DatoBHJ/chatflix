@@ -625,18 +625,28 @@ export const convertMessage = (msg: DatabaseMessage): ExtendedMessage => {
     });
   }
   
-  // DB에 parts로만 저장된 이미지 보존 — experimental_attachments가 없을 때만 추가
-  // (저장 시 둘 다 있으면 동일 이미지가 중복되므로, experimental_attachments가 이미 있으면 dbParts 이미지는 건너뜀)
+  // DB에 parts로만 저장된 이미지/파일 보존 — experimental_attachments가 없을 때 추가
+  // (저장 시 둘 다 있으면 동일 항목이 중복되므로, experimental_attachments가 이미 있으면 dbParts는 건너뜀)
   const hasImageAttachments = msg.experimental_attachments?.some?.(
     (a: any) => a.fileType === 'image' || a.contentType?.startsWith?.('image/')
   );
-  if (!hasImageAttachments && dbParts && Array.isArray(dbParts)) {
+  const hasFileAttachments = msg.experimental_attachments?.some?.(
+    (a: any) => a.fileType !== 'image' && !a.contentType?.startsWith?.('image/')
+  );
+  if (dbParts && Array.isArray(dbParts)) {
     for (const part of dbParts) {
-      if (part.type === 'image' && (part.image || part.url)) {
+      if (part.type === 'image' && (part.image || part.url) && !hasImageAttachments) {
         parts.push({
           type: 'image',
           image: part.image || part.url,
           metadata: part.metadata
+        });
+      } else if (part.type === 'file' && part.url && !hasFileAttachments) {
+        parts.push({
+          type: 'file',
+          url: part.url,
+          mediaType: part.mediaType || 'application/octet-stream',
+          filename: part.filename
         });
       }
     }

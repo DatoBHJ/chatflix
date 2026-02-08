@@ -46,9 +46,10 @@ export async function refreshChatAttachmentUrlsInMessages(messages: any[]): Prom
               const imageUrl = await resolveChatAttachmentUrl(part.image, supabase);
               return imageUrl !== part.image ? { ...part, image: imageUrl } : part;
             }
-            if (part.type === 'file' && part.url && part.mediaType?.startsWith?.('image/')) {
-              const imageUrl = await resolveChatAttachmentUrl(part.url, supabase);
-              return imageUrl !== part.url ? { ...part, url: imageUrl } : part;
+            // Refresh all file parts (images, CSV, code, etc.) so DB-loaded messages have valid URLs
+            if (part.type === 'file' && part.url) {
+              const fileUrl = await resolveChatAttachmentUrl(part.url, supabase);
+              return fileUrl !== part.url ? { ...part, url: fileUrl } : part;
             }
             return part;
           })

@@ -1,8 +1,11 @@
 import React, { useState, useMemo, useEffect, memo, useRef, useCallback } from 'react';
+import dynamic from 'next/dynamic';
+import { e2bChartToChartJs } from '@/app/utils/e2bChartToChartJs';
+import { e2bChartToEChartsOption } from '@/app/utils/e2bChartToECharts';
 import MultiSearch from './MultiSearch';
 import MathCalculation from './MathCalculation';
 import LinkReader from './LinkReader';
-import { ChevronUp, ChevronDown, Brain, Link2, Image as ImageIcon, AlertTriangle, X, ChevronLeft, ChevronRight, ExternalLink, Search, Calculator, BookOpen, FileSearch, Youtube, Database, Video, Loader2, Share, ScrollText, Info, Check, Copy, Bookmark, Download } from 'lucide-react';
+import { ChevronUp, ChevronDown, Brain, Link2, Image as ImageIcon, AlertTriangle, X, ChevronLeft, ChevronRight, ExternalLink, Search, Calculator, BookOpen, FileSearch, FileText, Code2, Youtube, Database, Video, Loader2, Share, ScrollText, Info, Check, Copy, Bookmark, Download, RotateCcw } from 'lucide-react';
 import { getAdaptiveGlassStyleBlur, getIconClassName } from '@/app/lib/adaptiveGlassStyle';
 import { createPortal } from 'react-dom';
 import { Tweet } from 'react-tweet';
@@ -10,11 +13,83 @@ import { SiGoogle } from 'react-icons/si';
 import { XLogo, YouTubeLogo, WanAiLogo, SeedreamLogo, XaiLogo } from './CanvasFolder/CanvasLogo';
 import { YouTubeVideo, VideoWithRefresh } from './CanvasFolder/toolComponent';
 import { DirectVideoEmbed } from './MarkdownContent';
+import { CanvasPreviewMarkdown } from './CanvasPreviewMarkdown';
 import { ImageGalleryStack } from './ImageGalleryStack';
 import { VideoGalleryStack } from './VideoGalleryStack';
 import type { LinkMetaEntry } from '@/app/types/linkPreview';
+import type { FileEditData, FileEditFileEntry, RunCodeData } from '@/app/hooks/toolFunction';
 import { useUrlRefresh } from '../hooks/useUrlRefresh';
 import { ImageModal, type ImageModalImage } from './ImageModal';
+import { computeDiffHunks, computeFullFileSegments, type DiffSummary, type ChangeBlock } from '@/app/utils/diffUtils';
+
+// File path → language for CanvasPreviewMarkdown code blocks (mirrors AttachmentTextViewer)
+function getLanguageFromPath(path?: string): string {
+  if (!path) return 'text';
+  const ext = path.split('.').pop()?.toLowerCase();
+  if (!ext) return 'text';
+  const languageMap: Record<string, string> = {
+    js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript',
+    py: 'python', java: 'java', c: 'c', cpp: 'cpp', cs: 'csharp', go: 'go',
+    rb: 'ruby', php: 'php', swift: 'swift', kt: 'kotlin', rs: 'rust',
+    html: 'html', css: 'css', json: 'json', xml: 'xml', md: 'markdown',
+    sql: 'sql', sh: 'bash', yml: 'yaml', yaml: 'yaml', toml: 'toml',
+    ini: 'ini', cfg: 'ini', conf: 'ini', log: 'text',
+  };
+  return languageMap[ext] ?? 'text';
+}
+
+function isCSVPath(path?: string): boolean {
+  if (!path) return false;
+  const lower = path.toLowerCase();
+  return lower.endsWith('.csv') || lower.endsWith('.tsv');
+}
+
+/** Parse CSV/TSV into rows (handles quoted fields and "" escape). */
+function parseCSV(content: string, path?: string): string[][] {
+  const isTsv = path?.toLowerCase().endsWith('.tsv');
+  const delimiter = isTsv ? '\t' : ',';
+  const lines = content.split(/\r?\n/);
+  const rows: string[][] = [];
+
+  for (const line of lines) {
+    const row: string[] = [];
+    let i = 0;
+    while (i < line.length) {
+      if (line[i] === '"') {
+        let cell = '';
+        i++;
+        while (i < line.length) {
+          if (line[i] === '"') {
+            if (line[i + 1] === '"') {
+              cell += '"';
+              i += 2;
+            } else {
+              i++;
+              break;
+            }
+          } else {
+            cell += line[i];
+            i++;
+          }
+        }
+        row.push(cell);
+      } else {
+        let end = line.indexOf(delimiter, i);
+        if (end === -1) end = line.length;
+        row.push(line.slice(i, end).trim());
+        i = end + 1;
+      }
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+const DynamicChart = dynamic(() => import('./charts/DynamicChart'), { ssr: false });
+const E2BChartECharts = dynamic(
+  () => import('./charts/E2BChartECharts').then((m) => ({ default: m.E2BChartECharts })),
+  { ssr: false }
+);
 
 type CanvasProps = {
   webSearchData: {
@@ -201,6 +276,8 @@ type CanvasProps = {
     annotations: any[];
     results: any[];
   } | null;
+  fileEditData?: FileEditData | null;
+  runCodeData?: RunCodeData | null;
   isCompact?: boolean;
   selectedTool?: string;
   selectedItem?: string;
@@ -209,6 +286,631 @@ type CanvasProps = {
   chatId?: string;
   userId?: string;
 };
+
+// ── CanvasReadFileView: Full file content via CanvasPreviewMarkdown ──────────
+// Fetches full file from workspace and renders as markdown or syntax-highlighted code block.
+function CanvasReadFileView({ entry, chatId }: { entry: FileEditFileEntry; chatId?: string }) {
+  const [fullContent, setFullContent] = useState<string | null>(null);
+
+  const fetchFullContent = useCallback(async () => {
+    if (!chatId || !entry.path) return;
+    try {
+      const res = await fetch(`/api/chat/workspace-file-content?chatId=${encodeURIComponent(chatId)}&path=${encodeURIComponent(entry.path)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setFullContent(typeof data.content === 'string' ? data.content : null);
+      } else {
+        setFullContent(null);
+      }
+    } catch {
+      setFullContent(null);
+    }
+  }, [chatId, entry.path]);
+
+  useEffect(() => {
+    fetchFullContent();
+  }, [fetchFullContent]);
+
+  const displayContent = fullContent ?? entry.content ?? '';
+  const contentToCopyOrDownload = fullContent ?? entry.content ?? '';
+  const isCSV = isCSVPath(entry.path);
+  const csvRows = useMemo(() => (isCSV && displayContent ? parseCSV(displayContent, entry.path) : null), [isCSV, displayContent, entry.path]);
+
+  const highlightLineNumbers = useMemo(() => {
+    const start = entry.startLine;
+    const end = entry.endLine;
+    if (typeof start !== 'number' || typeof end !== 'number' || start > end) return undefined;
+    const set = new Set<number>();
+    for (let i = start; i <= end; i++) set.add(i);
+    return set.size > 0 ? set : undefined;
+  }, [entry.startLine, entry.endLine]);
+  const scrollToLine = useMemo(() => {
+    if (!highlightLineNumbers || highlightLineNumbers.size === 0) return undefined;
+    let min = Infinity;
+    highlightLineNumbers.forEach((lineNo) => {
+      if (lineNo < min) min = lineNo;
+    });
+    return Number.isFinite(min) ? min : undefined;
+  }, [highlightLineNumbers]);
+
+  if (!entry.success && entry.error) {
+    return <p className="text-sm text-red-500">{entry.error}</p>;
+  }
+
+  return (
+    <>
+      <div className="flex items-center gap-3 mb-3">
+        <button
+          type="button"
+          onClick={() => navigator.clipboard.writeText(contentToCopyOrDownload)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all"
+        >
+          <Copy size={14} /> Copy
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const name = entry.path.replace(/^.*\//, '') || 'download.txt';
+            const blob = new Blob([contentToCopyOrDownload], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = name;
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all"
+        >
+          <Download size={14} /> Download
+        </button>
+      </div>
+      {fullContent === null && !entry.content && (
+        <p className="text-sm text-(--muted)">Loading file…</p>
+      )}
+      {displayContent && !isCSV && (
+        <div className="p-6 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+          <CanvasPreviewMarkdown
+            isMainFile={true}
+            highlightLineNumbers={highlightLineNumbers}
+            scrollToLine={scrollToLine}
+            content={entry.path?.toLowerCase().endsWith('.md')
+              ? displayContent
+              : `\`\`\`${getLanguageFromPath(entry.path)}\n${displayContent}\n\`\`\``}
+          />
+        </div>
+      )}
+      {displayContent && isCSV && csvRows && csvRows.length > 0 && (
+        <div className="overflow-x-auto rounded-lg border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-(--muted/20)">
+          <table className="w-full text-xs md:text-[13px] border-collapse">
+            <thead>
+              <tr>
+                {csvRows[0].map((cell, j) => (
+                  <th
+                    key={j}
+                    className="text-left font-medium px-3 py-2 border-b border-[color-mix(in_srgb,var(--foreground)_15%,transparent)] bg-(--muted/30) text-(--foreground)"
+                  >
+                    {cell}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {csvRows.slice(1).map((row, i) => (
+                <tr
+                  key={i}
+                  className="border-b border-[color-mix(in_srgb,var(--foreground)_8%,transparent)] last:border-b-0 hover:bg-(--muted/20)"
+                >
+                  {row.map((cell, j) => (
+                    <td
+                      key={j}
+                      className="px-3 py-2 text-(--foreground) whitespace-nowrap max-w-[200px] truncate"
+                      title={cell}
+                    >
+                      {cell}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── CanvasGrepFileView: Full file with highlighted matching lines ──────────
+// Fetches full file from workspace and highlights lines in entry.matches.
+function CanvasGrepFileView({ entry, chatId }: { entry: FileEditFileEntry; chatId?: string }) {
+  const [fullContent, setFullContent] = useState<string | null>(null);
+
+  const fetchFullContent = useCallback(async () => {
+    if (!chatId || !entry.path) return;
+    try {
+      const res = await fetch(`/api/chat/workspace-file-content?chatId=${encodeURIComponent(chatId)}&path=${encodeURIComponent(entry.path)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setFullContent(typeof data.content === 'string' ? data.content : null);
+      } else {
+        setFullContent(null);
+      }
+    } catch {
+      setFullContent(null);
+    }
+  }, [chatId, entry.path]);
+
+  useEffect(() => {
+    fetchFullContent();
+  }, [fetchFullContent]);
+
+  const contentToCopyOrDownload = fullContent ?? '';
+
+  const matchLineNumbers = useMemo(() => {
+    if (!entry.matches || entry.matches.length === 0) return undefined;
+    const set = new Set(entry.matches.map((m) => m.lineNumber));
+    return set.size > 0 ? set : undefined;
+  }, [entry.matches]);
+  const scrollToLine = useMemo(() => {
+    if (!matchLineNumbers || matchLineNumbers.size === 0) return undefined;
+    let min = Infinity;
+    matchLineNumbers.forEach((lineNo) => {
+      if (lineNo < min) min = lineNo;
+    });
+    return Number.isFinite(min) ? min : undefined;
+  }, [matchLineNumbers]);
+
+  if (!entry.success && entry.error) {
+    return <p className="text-sm text-red-500">{entry.error}</p>;
+  }
+
+  return (
+    <>
+      <div className="flex items-center gap-3 mb-3">
+        <button
+          type="button"
+          onClick={() => navigator.clipboard.writeText(contentToCopyOrDownload)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all"
+        >
+          <Copy size={14} /> Copy
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const name = entry.path.replace(/^.*\//, '') || 'download.txt';
+            const blob = new Blob([contentToCopyOrDownload], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = name;
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all"
+        >
+          <Download size={14} /> Download
+        </button>
+      </div>
+      {fullContent === null && (
+        <p className="text-sm text-(--muted)">Loading file…</p>
+      )}
+      {fullContent != null && fullContent.length > 0 && (
+        <div className="p-6 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+          <CanvasPreviewMarkdown
+            isMainFile={true}
+            highlightLineNumbers={matchLineNumbers}
+            scrollToLine={scrollToLine}
+            content={entry.path?.toLowerCase().endsWith('.md')
+              ? fullContent
+              : `\`\`\`${getLanguageFromPath(entry.path)}\n${fullContent}\n\`\`\``}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── CanvasDiffView: Full-file diff with per-change Accept/Reject ──────────
+// Fetches the CURRENT file content from the DB so the diff always reflects
+// the actual applied state, even after page refresh.
+function CanvasDiffView({ entry, chatId }: { entry: FileEditFileEntry; chatId?: string }) {
+  // ── localStorage persistence keys ──
+  const storageKey = useMemo(() => {
+    if (!entry.path) return null;
+    return `diff-rejected:${chatId || ''}:${entry.toolName}:${entry.path}`;
+  }, [chatId, entry.toolName, entry.path]);
+
+  const acceptedStorageKey = useMemo(() => {
+    if (!entry.path) return null;
+    return `diff-accepted:${chatId || ''}:${entry.toolName}:${entry.path}`;
+  }, [chatId, entry.toolName, entry.path]);
+
+  // rejectedBlocks: set of block IDs explicitly rejected.
+  const [rejectedBlocks, setRejectedBlocks] = useState<Set<string>>(() => {
+    if (!storageKey) return new Set();
+    try {
+      const stored = localStorage.getItem(storageKey);
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
+
+  // acceptedBlocks: set of block IDs explicitly accepted (show final content only, no diff).
+  const [acceptedBlocks, setAcceptedBlocks] = useState<Set<string>>(() => {
+    if (!acceptedStorageKey) return new Set();
+    try {
+      const stored = localStorage.getItem(acceptedStorageKey);
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
+
+  // Persist to localStorage
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      if (rejectedBlocks.size === 0) {
+        localStorage.removeItem(storageKey);
+      } else {
+        localStorage.setItem(storageKey, JSON.stringify([...rejectedBlocks]));
+      }
+    } catch { /* quota exceeded */ }
+  }, [rejectedBlocks, storageKey]);
+
+  useEffect(() => {
+    if (!acceptedStorageKey) return;
+    try {
+      if (acceptedBlocks.size === 0) {
+        localStorage.removeItem(acceptedStorageKey);
+      } else {
+        localStorage.setItem(acceptedStorageKey, JSON.stringify([...acceptedBlocks]));
+      }
+    } catch { /* quota exceeded */ }
+  }, [acceptedBlocks, acceptedStorageKey]);
+
+  // Queued DB write ref – allows debouncing rapid clicks without blocking UI
+  const writeRef = useRef<AbortController | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const [currentContent, setCurrentContent] = useState<string | null | undefined>(undefined);
+
+  const proposedContent: string | undefined = entry.toolName === 'write_file'
+    ? (entry.content ?? entry.input?.content)
+    : entry.content;
+
+  const originalContent: string | null = entry.originalContent !== undefined
+    ? (entry.originalContent ?? null)
+    : null;
+
+  // ── Fetch current file from DB ──
+  const fetchCurrentContent = useCallback(async () => {
+    if (!chatId || !entry.path) return;
+    try {
+      const res = await fetch(`/api/chat/workspace-file-content?chatId=${encodeURIComponent(chatId)}&path=${encodeURIComponent(entry.path)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentContent(typeof data.content === 'string' ? data.content : null);
+      } else { setCurrentContent(null); }
+    } catch { setCurrentContent(null); }
+  }, [chatId, entry.path]);
+
+  useEffect(() => { fetchCurrentContent(); }, [fetchCurrentContent]);
+
+  const displayContent: string | undefined = (currentContent !== undefined && currentContent !== null)
+    ? currentContent
+    : proposedContent ?? entry.input?.content;
+
+  // ── Static Diff: original vs AI's initial proposal ──
+  // This diff stays stable even when the user makes local edits.
+  const diffData: DiffSummary | null = useMemo(() => {
+    if (entry.originalContent === undefined) return null;
+    if (typeof proposedContent !== 'string') return null;
+    return computeDiffHunks(originalContent, proposedContent, 3);
+  }, [originalContent, proposedContent, entry.originalContent]);
+
+  // ── Full File Segments ──
+  // Interleave the static diff with context lines to show the entire file.
+  const allSegments = useMemo(() => {
+    if (!diffData || !originalContent || !proposedContent) return null;
+    return computeFullFileSegments(originalContent, proposedContent, diffData.hunks);
+  }, [diffData, originalContent, proposedContent]);
+
+  const allBlockIds = useMemo(() => {
+    if (!allSegments) return [];
+    return allSegments.filter(s => s.type === 'change').map(s => (s as { type: 'change'; block: ChangeBlock }).block.id);
+  }, [allSegments]);
+
+  // ── Computed Live Content (what the user actually sees on screen) ──
+  const liveContent = useMemo(() => {
+    if (!proposedContent || !allSegments) return displayContent;
+    
+    const lines: string[] = [];
+    for (const seg of allSegments) {
+      if (seg.type === 'context') {
+        for (const line of seg.lines) {
+          lines.push(line.content);
+        }
+      } else {
+        if (rejectedBlocks.has(seg.block.id)) {
+          // Revert to original
+          lines.push(...seg.block.lines.filter(l => l.type === 'removed').map(l => l.content));
+        } else {
+          // Keep proposed
+          for (const line of seg.block.lines) {
+            if (line.type === 'added') {
+              lines.push(line.content);
+            }
+          }
+        }
+      }
+    }
+    return lines.join('\n');
+  }, [proposedContent, allSegments, rejectedBlocks, displayContent]);
+
+  // ── Optimistic DB write ──
+  const syncToDb = useCallback(async (rejected: Set<string>) => {
+    if (!chatId || !originalContent || !proposedContent || !allSegments) return;
+    
+    writeRef.current?.abort();
+    const controller = new AbortController();
+    writeRef.current = controller;
+    setIsSyncing(true);
+    try {
+      const lines: string[] = [];
+      for (const seg of allSegments) {
+        if (seg.type === 'context') {
+          for (const line of seg.lines) {
+            lines.push(line.content);
+          }
+        } else {
+          if (rejected.has(seg.block.id)) {
+            lines.push(...seg.block.lines.filter(l => l.type === 'removed').map(l => l.content));
+          } else {
+            for (const line of seg.block.lines) {
+              if (line.type === 'added') {
+                lines.push(line.content);
+              }
+            }
+          }
+        }
+      }
+      const content = lines.join('\n');
+      
+      await fetch('/api/chat/revert-hunks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId, path: entry.path, content }),
+        signal: controller.signal,
+      });
+      if (!controller.signal.aborted) setCurrentContent(content);
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      console.error('Failed to sync file:', err);
+    } finally {
+      if (!controller.signal.aborted) setIsSyncing(false);
+    }
+  }, [chatId, entry.path, originalContent, proposedContent, allSegments]);
+
+  const handleReject = useCallback((blockId: string) => {
+    setRejectedBlocks(prev => {
+      const next = new Set(prev);
+      next.add(blockId);
+      syncToDb(next);
+      return next;
+    });
+  }, [syncToDb]);
+
+  const handleUndo = useCallback((blockId: string) => {
+    setRejectedBlocks(prev => {
+      const next = new Set(prev);
+      next.delete(blockId);
+      syncToDb(next);
+      return next;
+    });
+  }, [syncToDb]);
+
+  const handleRejectAll = useCallback(() => {
+    const next = new Set(allBlockIds);
+    setRejectedBlocks(next);
+    syncToDb(next);
+  }, [allBlockIds, syncToDb]);
+
+  const handleRestoreAll = useCallback(() => {
+    if (rejectedBlocks.size > 0) {
+      setRejectedBlocks(new Set<string>());
+      syncToDb(new Set());
+    }
+    if (acceptedBlocks.size > 0) {
+      setAcceptedBlocks(new Set<string>());
+    }
+  }, [syncToDb, rejectedBlocks.size, acceptedBlocks.size]);
+
+  const handleAccept = useCallback((blockId: string) => {
+    setAcceptedBlocks(prev => {
+      const next = new Set(prev);
+      next.add(blockId);
+      return next;
+    });
+  }, []);
+
+  const handleUndoAccept = useCallback((blockId: string) => {
+    setAcceptedBlocks(prev => {
+      const next = new Set(prev);
+      next.delete(blockId);
+      return next;
+    });
+  }, []);
+
+  const handleAcceptAll = useCallback(() => {
+    const toAccept = allBlockIds.filter(id => !rejectedBlocks.has(id));
+    setAcceptedBlocks(prev => {
+      const next = new Set(prev);
+      toAccept.forEach(id => next.add(id));
+      return next;
+    });
+  }, [allBlockIds, rejectedBlocks]);
+
+  const rejectedCount = allBlockIds.filter(id => rejectedBlocks.has(id)).length;
+  const hasAnyRejected = rejectedCount > 0;
+  const allRejected = rejectedCount === allBlockIds.length && allBlockIds.length > 0;
+  const pendingBlockIds = allBlockIds.filter(id => !rejectedBlocks.has(id));
+  const acceptedCount = pendingBlockIds.filter(id => acceptedBlocks.has(id)).length;
+  const allAccepted = pendingBlockIds.length > 0 && acceptedCount === pendingBlockIds.length;
+  const hasAnyAccepted = acceptedBlocks.size > 0;
+
+  const finalDownloadContent = liveContent || displayContent || '';
+
+  // Build preview content with removed lines shown before Accept
+  const previewContentWithDiff = useMemo<{ content: string; lineDiffMap: Map<number, 'added' | 'removed' | 'context'> | null }>(() => {
+    if (!allSegments || !finalDownloadContent) {
+      return { content: finalDownloadContent, lineDiffMap: null };
+    }
+    
+    const lines: string[] = [];
+    const lineDiffMap = new Map<number, 'added' | 'removed' | 'context'>();
+    let lineNo = 1;
+    
+    for (const seg of allSegments) {
+      if (seg.type === 'context') {
+        for (const line of seg.lines) {
+          lines.push(line.content);
+          lineDiffMap.set(lineNo, 'context');
+          lineNo++;
+        }
+      } else {
+        const block = seg.block;
+        const isRejected = rejectedBlocks.has(block.id);
+        const isAccepted = acceptedBlocks.has(block.id);
+        
+        if (isAccepted) {
+          // Accepted: only added lines
+          for (const line of block.lines) {
+            if (line.type === 'added') {
+              lines.push(line.content);
+              lineDiffMap.set(lineNo, 'added');
+              lineNo++;
+            }
+          }
+        } else if (isRejected) {
+          // Rejected: only removed lines
+          for (const line of block.lines) {
+            if (line.type === 'removed') {
+              lines.push(line.content);
+              lineDiffMap.set(lineNo, 'removed');
+              lineNo++;
+            }
+          }
+        } else {
+          // Not accepted yet: show removed lines first, then added lines
+          for (const line of block.lines) {
+            if (line.type === 'removed') {
+              lines.push(line.content);
+              lineDiffMap.set(lineNo, 'removed');
+              lineNo++;
+            }
+          }
+          for (const line of block.lines) {
+            if (line.type === 'added') {
+              lines.push(line.content);
+              lineDiffMap.set(lineNo, 'added');
+              lineNo++;
+            }
+          }
+        }
+      }
+    }
+    
+    return { content: lines.join('\n'), lineDiffMap };
+  }, [allSegments, finalDownloadContent, rejectedBlocks, acceptedBlocks]);
+
+  const previewLineDiffMap = previewContentWithDiff.lineDiffMap;
+  const previewContent = previewContentWithDiff.content;
+
+  if (!entry.success && entry.error) return <p className="text-sm text-red-500">{entry.error}</p>;
+  if (currentContent === undefined && chatId && entry.path) return <div className="p-4 text-xs text-(--muted)">Loading current file...</div>;
+
+  if (!diffData || !allSegments || typeof displayContent !== 'string') {
+    const fallback = displayContent ?? proposedContent ?? entry.input?.content;
+    return fallback ? (
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+        <button type="button" onClick={() => navigator.clipboard.writeText(fallback)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all">
+          <Copy size={14} /> Copy
+        </button>
+        <button type="button" onClick={() => { const n = entry.path.replace(/^.*\//, '') || 'download.txt'; const b = new Blob([fallback], { type: 'text/plain;charset=utf-8' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = n; a.click(); URL.revokeObjectURL(u); }} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all">
+          <Download size={14} /> Download
+        </button>
+      </div>
+        <div className="p-6 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+          <CanvasPreviewMarkdown
+            content={entry.path?.toLowerCase().endsWith('.md')
+              ? fallback
+              : `\`\`\`${getLanguageFromPath(entry.path)}\n${fallback}\n\`\`\``}
+          />
+        </div>
+      </div>
+    ) : null;
+  }
+
+  return (
+    <div className="diff-canvas-view">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        {diffData && (
+          <span className="text-xs text-(--muted)">
+            <span className="text-green-500">+{diffData.additions}</span>{' '}
+            <span className="text-red-400">-{diffData.deletions}</span>
+          </span>
+        )}
+        {isSyncing && <span className="diff-sync-dot" title="Saving..." />}
+        <div className="flex-1" />
+        <button type="button" className={`diff-btn-action diff-btn-accept-all ${allAccepted || allRejected ? 'diff-btn-disabled' : ''}`} onClick={handleAcceptAll} disabled={allAccepted || allRejected}>
+          <Check size={14} /> Accept All
+        </button>
+        <button type="button" className={`diff-btn-action diff-btn-reject-all ${allRejected || allAccepted ? 'diff-btn-disabled' : ''}`} onClick={handleRejectAll} disabled={allRejected || allAccepted}>
+          <X size={14} /> Reject All
+        </button>
+        <button type="button" className={`diff-btn-action diff-btn-restore ${!hasAnyRejected && !hasAnyAccepted ? 'diff-btn-disabled' : ''}`} onClick={handleRestoreAll} disabled={!hasAnyRejected && !hasAnyAccepted}>
+          <RotateCcw size={14} /> Undo All
+        </button>
+        <button type="button" onClick={() => navigator.clipboard.writeText(finalDownloadContent)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all">
+          <Copy size={14} /> Copy
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const name = entry.path.replace(/^.*\//, '') || 'download.txt';
+            const blob = new Blob([finalDownloadContent], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = name; a.click();
+            URL.revokeObjectURL(url);
+          }}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all"
+        >
+          <Download size={14} /> Download
+        </button>
+      </div>
+
+      <div className="rounded-lg border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] overflow-hidden">
+        <div className="p-6 bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+          <CanvasPreviewMarkdown
+            isMainFile={true}
+            content={entry.path?.toLowerCase().endsWith('.md')
+              ? previewContent
+              : `\`\`\`${getLanguageFromPath(entry.path)}\n${previewContent}\n\`\`\``}
+            diffSegments={allSegments.length > 0 ? allSegments : undefined}
+            previewLineDiffMap={previewLineDiffMap}
+            rejectedBlocks={rejectedBlocks}
+            acceptedBlocks={acceptedBlocks}
+            onReject={handleReject}
+            onAccept={handleAccept}
+            onUndo={handleUndo}
+            onUndoAccept={handleUndoAccept}
+          />
+        </div>
+      </div>
+
+      {entry.truncated && <p className="text-xs text-(--muted) mt-1">Content truncated for display.</p>}
+    </div>
+  );
+}
 
 /**
  * Canvas Component - An integrated container to display multiple tool results
@@ -228,6 +930,8 @@ export default function Canvas({
   youTubeSearchData, 
   youTubeLinkAnalysisData,
   googleSearchData,
+  fileEditData,
+  runCodeData,
   isCompact = false,
   selectedTool,
   selectedItem,
@@ -555,7 +1259,7 @@ export default function Canvas({
   };
 
   // Don't render if there's no data to display
-  const shouldRender = !!(mergedSearchData || mathCalculationData || linkReaderData || imageGeneratorData || geminiImageData || seedreamImageData || qwenImageData || wan25VideoData || grokVideoData || youTubeSearchData || youTubeLinkAnalysisData);
+  const shouldRender = !!(mergedSearchData || mathCalculationData || linkReaderData || imageGeneratorData || geminiImageData || seedreamImageData || qwenImageData || wan25VideoData || grokVideoData || youTubeSearchData || youTubeLinkAnalysisData || fileEditData || runCodeData);
   
   if (!shouldRender) {
     return null;
@@ -2150,6 +2854,211 @@ export default function Canvas({
                 ))}
               </div>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* File edit (read_file, write_file, get_file_info, list_workspace, delete_file, grep_file, apply_edits) - styled like attachment viewer */}
+      {(!selectedTool || selectedTool.startsWith?.('file-edit:')) && fileEditData && fileEditData.files.length > 0 && (
+        <div className="">
+          {!selectedTool && (
+            <div className={`flex items-center gap-2.5 ${headerClasses}`}>
+              <FileText className="h-4 w-4 text-(--foreground)" strokeWidth={1.5} />
+              <h2 className="font-medium text-left tracking-tight">File</h2>
+            </div>
+          )}
+          <div className="space-y-4">
+            {fileEditData.files
+              .filter((f) => {
+                const selectedFileTool =
+                  selectedTool?.startsWith?.('file-edit:')
+                    ? selectedTool.slice('file-edit:'.length)
+                    : null;
+                const matchesPath = !selectedItem || f.path === selectedItem;
+                const matchesTool = !selectedFileTool || f.toolName === selectedFileTool;
+                return matchesPath && matchesTool;
+              })
+              .map((entry, idx) => (
+                <div key={`file-edit-${idx}-${entry.path || entry.toolName}`} className="rounded-lg border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-(--background) overflow-hidden">
+                  <div className="px-4 py-2.5 text-sm font-medium text-(--foreground) border-b border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] truncate" title={entry.path || undefined}>
+                    {entry.toolName === 'list_workspace' && !entry.path ? 'Workspace' : entry.path}
+                  </div>
+                  <div className="p-4">
+                    {entry.toolName === 'read_file' && (
+                      <CanvasReadFileView entry={entry} chatId={chatId} />
+                    )}
+                    {entry.toolName === 'write_file' && (
+                      <CanvasDiffView entry={entry} chatId={chatId} />
+                    )}
+                    {entry.toolName === 'get_file_info' && (
+                      <>
+                        {entry.success && (
+                          <dl className="text-sm space-y-1">
+                            {typeof entry.size === 'number' && <><dt className="text-(--muted)">Size</dt><dd>{entry.size} bytes</dd></>}
+                          </dl>
+                        )}
+                        {!entry.success && entry.error && <p className="text-sm text-red-500">{entry.error}</p>}
+                      </>
+                    )}
+                    {entry.toolName === 'list_workspace' && (
+                      <>
+                        {entry.success && entry.entries && entry.entries.length > 0 && (
+                          <ul className="text-sm space-y-1 list-disc list-inside">
+                            {entry.entries.map((e, i) => (
+                              <li key={i}>{e.path || e.name} {e.isDir ? '(dir)' : ''}</li>
+                            ))}
+                          </ul>
+                        )}
+                        {entry.success && (!entry.entries || entry.entries.length === 0) && <p className="text-sm text-(--muted)">No entries.</p>}
+                        {!entry.success && entry.error && <p className="text-sm text-red-500">{entry.error}</p>}
+                      </>
+                    )}
+                    {entry.toolName === 'delete_file' && (
+                      <>
+                        {entry.success && <p className="text-sm text-(--muted)">Deleted.</p>}
+                        {!entry.success && entry.error && <p className="text-sm text-red-500">{entry.error}</p>}
+                      </>
+                    )}
+                    {entry.toolName === 'grep_file' && (
+                      <CanvasGrepFileView entry={entry} chatId={chatId} />
+                    )}
+                    {entry.toolName === 'apply_edits' && (
+                      <CanvasDiffView entry={entry} chatId={chatId} />
+                    )}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Run Python code (run_python_code) - Clean terminal UI */}
+      {(!selectedTool || selectedTool === 'run-code') && runCodeData && (
+        <div className="space-y-4">
+          {!selectedTool && (
+            <div className={`flex items-center gap-2.5 ${headerClasses}`}>
+              <Code2 className="h-4 w-4 text-(--foreground)" strokeWidth={1.5} />
+              <h2 className="font-medium text-left tracking-tight">Code output</h2>
+            </div>
+          )}
+          
+          <div className="rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] overflow-hidden">
+            {/* Console output: stdout / stderr / error */}
+            {(runCodeData.error || runCodeData.stdout.length > 0 || runCodeData.stderr.length > 0) && (
+              <div className="canvas-terminal-console">
+                {runCodeData.error && (
+                  <div className="canvas-terminal-error">
+                    <span className="canvas-terminal-error-label">
+                      {runCodeData.error.name ?? 'Error'}
+                    </span>
+                    <span className="canvas-terminal-error-msg">
+                      {runCodeData.error.value ?? ''}
+                    </span>
+                    {Array.isArray(runCodeData.error.traceback) && runCodeData.error.traceback.length > 0 && (
+                      <pre className="canvas-terminal-traceback">
+                        {runCodeData.error.traceback.join('\n')}
+                      </pre>
+                    )}
+                  </div>
+                )}
+                {runCodeData.stdout.length > 0 && (
+                  <pre className="canvas-terminal-stdout">{runCodeData.stdout.join('')}</pre>
+                )}
+                {runCodeData.stderr.length > 0 && (
+                  <pre className="canvas-terminal-stderr">{runCodeData.stderr.join('')}</pre>
+                )}
+              </div>
+            )}
+
+            {/* Results: charts, images, text, html */}
+            {runCodeData.results.length > 0 && (
+              <div className="space-y-0">
+                {runCodeData.results.map((r, idx) => {
+                  const hasChart = !!r.chart;
+                  const hasPng = !!r.png || !!r.jpeg;
+                  const echartsOption = hasChart ? e2bChartToEChartsOption(r.chart) : null;
+                  const showECharts = echartsOption != null;
+                  const chartConfig = !showECharts && hasChart ? e2bChartToChartJs(r.chart) : null;
+                  const showChartJs = chartConfig != null;
+                  const showInteractive = showECharts || showChartJs;
+                  const chartCount = runCodeData.results.filter((x: any) => x.chart || x.png || x.jpeg).length;
+                  const resultLabel = showInteractive || hasPng
+                    ? (chartCount > 1 ? `Figure ${runCodeData.results.filter((x: any, i: number) => (x.chart || x.png || x.jpeg) && i <= idx).length}` : 'Figure')
+                    : r.html
+                      ? 'HTML'
+                      : 'Result';
+                  
+                  return (
+                    <div key={idx} className="group relative border-t border-[color-mix(in_srgb,var(--foreground)_8%,transparent)]">
+                      {/* Result label bar */}
+                      <div className="flex items-center justify-between px-4 py-2 bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)]">
+                        <span className="text-xs font-medium text-(--muted) tracking-wide">{resultLabel}</span>
+                        {(hasPng || (r.jpeg && !r.png)) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const link = document.createElement('a');
+                              link.href = r.png ? `data:image/png;base64,${r.png}` : `data:image/jpeg;base64,${r.jpeg}`;
+                              link.download = `figure-${idx + 1}.${r.png ? 'png' : 'jpg'}`;
+                              link.click();
+                            }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 text-(--muted) hover:text-(--foreground)"
+                            title="Download"
+                          >
+                            <Download size={13} />
+                          </button>
+                        )}
+                      </div>
+                      
+                      {/* Result content */}
+                      <div className="bg-(--background)">
+                        {showECharts && (
+                          <div className="relative min-h-[340px] w-full p-4">
+                            <E2BChartECharts option={echartsOption!} chartIndex={idx} />
+                          </div>
+                        )}
+                        {showChartJs && (
+                          <div className="relative min-h-[340px] w-full p-4">
+                            <DynamicChart chartConfig={chartConfig!} />
+                          </div>
+                        )}
+                        {!showInteractive && r.png && (
+                          <div className="p-4 flex items-center justify-center">
+                            <img 
+                              src={`data:image/png;base64,${r.png}`} 
+                              alt={resultLabel} 
+                              className="max-w-full h-auto rounded-lg" 
+                            />
+                          </div>
+                        )}
+                        {!showInteractive && r.jpeg && !r.png && (
+                          <div className="p-4 flex items-center justify-center">
+                            <img 
+                              src={`data:image/jpeg;base64,${r.jpeg}`} 
+                              alt={resultLabel} 
+                              className="max-w-full h-auto rounded-lg" 
+                            />
+                          </div>
+                        )}
+                        {r.html && (
+                          <div className="p-4 overflow-auto custom-scrollbar max-h-[500px]" dangerouslySetInnerHTML={{ __html: r.html }} />
+                        )}
+                        {r.text && !hasChart && !hasPng && !r.html && (
+                          <pre className="canvas-terminal-stdout">{r.text}</pre>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!runCodeData.error && runCodeData.stdout.length === 0 && runCodeData.stderr.length === 0 && runCodeData.results.length === 0 && (
+              <div className="px-5 py-8 text-center text-xs text-(--muted)">
+                No output
+              </div>
+            )}
           </div>
         </div>
       )}

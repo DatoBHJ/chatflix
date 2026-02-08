@@ -22,7 +22,7 @@ import {
 // Constants
 const MAX_SUMMARY_TOKENS = 32000;
 const RECENT_MESSAGE_COUNT = 4;
-const CONTEXT_THRESHOLD_RATIO = 0.8;
+const CONTEXT_THRESHOLD_RATIO = 0.7;
 
 // Types
 export interface SummaryData {
@@ -84,10 +84,15 @@ function extractTextContent(message: any): string {
           return part.text;
         } else if (part.type === 'tool-result') {
           // tool-result의 결과 텍스트 포함
-          const resultText = typeof part.result === 'string' 
-            ? part.result 
+          const resultText = typeof part.result === 'string'
+            ? part.result
             : JSON.stringify(part.result);
           return `[Tool: ${part.toolName}] ${resultText.slice(0, 1000)}`;
+        } else if (part.type && typeof part.type === 'string' && part.type.startsWith('tool-') && part.output != null) {
+          // tool-* parts (e.g. tool-run_python_code): do not stringify output (can be huge base64/chart); short label only
+          const toolName = part.type.replace(/^tool-/, '');
+          const n = Array.isArray(part.output?.results) ? (part.output as { results: unknown[] }).results.length : undefined;
+          return n !== undefined ? `[Tool: ${toolName}] ${n} result(s).` : `[Tool: ${toolName}] (output omitted).`;
         }
         return '';
       })
@@ -114,18 +119,18 @@ function extractTextContent(message: any): string {
   if (message.tool_results && typeof message.tool_results === 'object') {
     const toolResultsText = Object.entries(message.tool_results)
       .map(([toolName, result]: [string, any]) => {
-        // token_usage는 제외
         if (toolName === 'token_usage') return '';
-        
-        const resultStr = typeof result === 'string' 
-          ? result 
+        // runCodeResults can be huge (base64/chart); avoid stringifying for summary
+        if (toolName === 'runCodeResults' && Array.isArray(result)) {
+          return `[Tool: run_python_code] ${result.length} result(s).`;
+        }
+        const resultStr = typeof result === 'string'
+          ? result
           : JSON.stringify(result);
-        // 각 도구 결과를 최대 1000자로 제한
         return `[Tool: ${toolName}] ${resultStr.slice(0, 1000)}`;
       })
       .filter(Boolean)
       .join('\n');
-    
     if (toolResultsText) {
       textContent += (textContent ? '\n' : '') + toolResultsText;
     }

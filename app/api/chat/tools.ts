@@ -473,7 +473,531 @@ const toolDefinitions = {
       cursor: 'Optional pagination cursor returned by the previous response. Pass it to fetch the next page of tweets when has_next_page is true.'
     }
   },
+  read_file: {
+    description: 'Read the contents of a file from the workspace sandbox. Use absolute paths (e.g. /home/user/workspace/file.py). Refer to the path and content blocks in the user message when present. For large files, returns at most 12k characters; use startLine/endLine to read a specific section. Response includes totalLines so you can request the next range (e.g. startLine: 301, endLine: 600).',
+    inputSchema: {
+      path: 'Absolute path to the file in the sandbox (e.g. /home/user/workspace/main.py).',
+      startLine: 'Optional 1-based start line. If provided with endLine, only this line range is returned (still capped at 12k chars).',
+      endLine: 'Optional 1-based end line. Use with startLine to read a specific section (e.g. startLine: 280, endLine: 320).'
+    }
+  },
+  write_file: {
+    description: 'Write or overwrite a file in the workspace sandbox. Use absolute paths. Creates parent directories if needed. Use the same path format as in the workspace context.',
+    inputSchema: {
+      path: 'Absolute path where to write the file (e.g. /home/user/workspace/script.py).',
+      content: 'Full text content to write to the file.'
+    }
+  },
+  get_file_info: {
+    description: 'Get metadata for a file or directory in the workspace (existence, type, size, permissions, modifiedTime).',
+    inputSchema: {
+      path: 'Absolute path to the file or directory in the sandbox.'
+    }
+  },
+  list_workspace: {
+    description: 'List paths of files currently tracked in the workspace (files uploaded or created via write_file).',
+    inputSchema: {}
+  },
+  delete_file: {
+    description: 'Delete a file from the workspace sandbox. Use absolute paths (e.g. /home/user/workspace/file.txt). Only deletes files that exist in the workspace context.',
+    inputSchema: {
+      path: 'Absolute path to the file to delete in the sandbox (e.g. /home/user/workspace/main.py).'
+    }
+  },
+  grep_file: {
+    description: 'Search inside a file for a pattern and return matching line numbers and line content. Use this before read_file or apply_edits to find which lines or ranges to change (e.g. all comment lines, all lines containing \'TODO\', or regex like \'#.*\'). Avoids reading the whole file into context.',
+    inputSchema: {
+      path: 'Absolute path to the file in the sandbox (e.g. /home/user/workspace/main.py).',
+      pattern: 'Search pattern: literal string (e.g. "#") or regex in slashes (e.g. "/#.*/").',
+      useRegex: 'If true, pattern is treated as a regular expression. Default false (literal substring match).',
+      contextLines: 'Optional. Number of lines before and after each match to include (0 = match only). E.g. 1 returns match plus one line above and below.',
+      maxResults: 'Optional. Maximum number of matches to return (default 200). Prevents huge output.'
+    }
+  },
+  apply_edits: {
+    description: 'Apply multiple line-range edits to a file without loading the entire file into context. Use after grep_file or read_file to find ranges to change. Each edit replaces lines startLine through endLine (1-based) with newContent. Edits are applied in reverse order so line numbers remain valid. Use for tasks like \'remove all comments\' or \'change every occurrence\' across a large file.',
+    inputSchema: {
+      path: 'Absolute path to the file in the sandbox.',
+      edits: 'Array of { startLine, endLine, newContent }. 1-based line numbers. newContent can be empty string to delete lines.'
+    }
+  },
+  run_python_code: {
+    description: 'Run Python code in the workspace sandbox. Use for data analysis, CSV processing, or charts. Workspace files are under /home/user/workspace/. Use pandas, matplotlib, etc. For charts, end with plt.show() or display(plt.gcf()).',
+    inputSchema: {
+      code: 'The Python code to execute (e.g. import pandas as pd; df = pd.read_csv("/home/user/workspace/data.csv"); print(df.head())).'
+    }
+  },
 };
+
+// --- File edit tools (E2B sandbox) ---
+import type { SupabaseClient } from '@/app/api/chat/lib/sandboxService';
+import { getOrCreateSandbox, addWorkspacePath, getWorkspacePaths, saveWorkspaceFile, removeWorkspacePath, deleteWorkspaceFile, WORKSPACE_BASE } from '@/app/api/chat/lib/sandboxService';
+import { truncateFileText } from '@/app/api/chat/utils/messageUtils';
+
+export function createReadFileTool(
+  dataStream: { write: (data: unknown) => void },
+  chatId: string,
+  supabase: SupabaseClient
+) {
+  return tool({
+    description: toolDefinitions.read_file.description,
+    inputSchema: z.object({
+      path: z.string().describe(toolDefinitions.read_file.inputSchema.path),
+      startLine: z.number().optional().describe(toolDefinitions.read_file.inputSchema.startLine),
+      endLine: z.number().optional().describe(toolDefinitions.read_file.inputSchema.endLine),
+    }),
+    execute: async ({ path, startLine, endLine }) => {
+      const sandbox = await getOrCreateSandbox(chatId, supabase);
+      try {
+        const fullContent = await sandbox.files.read(path);
+        const lines = fullContent.split('\n');
+        const totalLines = lines.length;
+        let content: string;
+        if (startLine != null && endLine != null) {
+          const start = Math.max(0, startLine - 1);
+          const end = Math.min(lines.length, endLine);
+          content = lines.slice(start, end).join('\n');
+        } else {
+          content = fullContent;
+        }
+        const { text, truncated } = truncateFileText(content);
+        const result = {
+          path,
+          content: text,
+          success: true as const,
+          totalLines,
+          truncated,
+          ...(startLine != null && endLine != null ? { startLine, endLine } : {}),
+        };
+        dataStream.write({
+          type: 'data-file_read',
+          id: `file-read-${Date.now()}`,
+          data: result,
+        });
+        return result;
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        dataStream.write({
+          type: 'data-file_read',
+          id: `file-read-${Date.now()}`,
+          data: { path, error: message, success: false },
+        });
+        return { path, error: message, success: false };
+      }
+    },
+  });
+}
+
+export function createWriteFileTool(
+  dataStream: { write: (data: unknown) => void },
+  chatId: string,
+  supabase: SupabaseClient
+) {
+  return tool({
+    description: toolDefinitions.write_file.description,
+    inputSchema: z.object({
+      path: z.string().describe(toolDefinitions.write_file.inputSchema.path),
+      content: z.string().describe(toolDefinitions.write_file.inputSchema.content),
+    }),
+    execute: async ({ path, content }) => {
+      const sandbox = await getOrCreateSandbox(chatId, supabase);
+      try {
+        // Read original content before writing (null if file doesn't exist)
+        let originalContent: string | null = null;
+        try { originalContent = await sandbox.files.read(path); } catch { /* new file */ }
+
+        await sandbox.files.write(path, content);
+        await addWorkspacePath(chatId, path, supabase);
+        await saveWorkspaceFile(chatId, path, content, supabase);
+        const bytes = Buffer.byteLength(content, 'utf8');
+        const maxLen = 300_000;
+        const truncOrig = originalContent != null && originalContent.length > maxLen ? originalContent.slice(0, maxLen) : originalContent;
+        const truncContent = content.length > maxLen ? content.slice(0, maxLen) : content;
+        dataStream.write({
+          type: 'data-file_written',
+          id: `file-written-${Date.now()}`,
+          data: { path, bytes, success: true, originalContent: truncOrig, content: truncContent },
+        });
+        return { path, bytes, success: true, originalContent: truncOrig, content: truncContent };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        dataStream.write({
+          type: 'data-file_written',
+          id: `file-written-${Date.now()}`,
+          data: { path, error: message, success: false },
+        });
+        return { path, error: message, success: false };
+      }
+    },
+  });
+}
+
+const GREP_MAX_RESULTS_DEFAULT = 200;
+
+export function createGrepFileTool(
+  dataStream: { write: (data: unknown) => void },
+  chatId: string,
+  supabase: SupabaseClient
+) {
+  return tool({
+    description: toolDefinitions.grep_file.description,
+    inputSchema: z.object({
+      path: z.string().describe(toolDefinitions.grep_file.inputSchema.path),
+      pattern: z.string().describe(toolDefinitions.grep_file.inputSchema.pattern),
+      useRegex: z.boolean().optional().describe(toolDefinitions.grep_file.inputSchema.useRegex),
+      contextLines: z.number().optional().describe(toolDefinitions.grep_file.inputSchema.contextLines),
+      maxResults: z.number().optional().describe(toolDefinitions.grep_file.inputSchema.maxResults),
+    }),
+    execute: async ({ path, pattern, useRegex = false, contextLines = 0, maxResults = GREP_MAX_RESULTS_DEFAULT }) => {
+      const sandbox = await getOrCreateSandbox(chatId, supabase);
+      try {
+        const content = await sandbox.files.read(path);
+        const lines = content.split('\n');
+        const totalLines = lines.length;
+        const regex = useRegex ? new RegExp(pattern.replace(/^\/|\/$/g, '')) : null;
+        const matches: { lineNumber: number; line: string }[] = [];
+        for (let i = 0; i < lines.length && matches.length < maxResults; i++) {
+          const line = lines[i];
+          const matched = regex ? regex.test(line) : line.includes(pattern);
+          if (matched) matches.push({ lineNumber: i + 1, line });
+        }
+        let output: string;
+        let truncated = false;
+        if (contextLines > 0 && matches.length > 0) {
+          const ranges: { startLine: number; endLine: number; lines: string[] }[] = [];
+          const used = new Set<number>();
+          for (const m of matches) {
+            const start = Math.max(0, m.lineNumber - 1 - contextLines);
+            const end = Math.min(lines.length, m.lineNumber + contextLines);
+            const key = `${start}-${end}`;
+            if (used.has(start)) continue;
+            used.add(start);
+            ranges.push({
+              startLine: start + 1,
+              endLine: end,
+              lines: lines.slice(start, end),
+            });
+          }
+          output = ranges.map(r => `Lines ${r.startLine}-${r.endLine}:\n${r.lines.join('\n')}`).join('\n\n');
+        } else {
+          output = matches.map(m => `${m.lineNumber}: ${m.line}`).join('\n');
+        }
+        const { text, truncated: didTruncate } = truncateFileText(output);
+        truncated = didTruncate;
+        const result = {
+          path,
+          totalLines,
+          matches,
+          output: text,
+          truncated,
+          success: true as const,
+        };
+        dataStream.write({
+          type: 'data-grep_file',
+          id: `grep-file-${Date.now()}`,
+          data: result,
+        });
+        return result;
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        dataStream.write({
+          type: 'data-grep_file',
+          id: `grep-file-${Date.now()}`,
+          data: { path, error: message, success: false },
+        });
+        return { path, error: message, success: false };
+      }
+    },
+  });
+}
+
+export function createApplyEditsTool(
+  dataStream: { write: (data: unknown) => void },
+  chatId: string,
+  supabase: SupabaseClient
+) {
+  return tool({
+    description: toolDefinitions.apply_edits.description,
+    inputSchema: z.object({
+      path: z.string().describe(toolDefinitions.apply_edits.inputSchema.path),
+      edits: z.array(z.object({
+        startLine: z.number().describe('1-based start line (inclusive)'),
+        endLine: z.number().describe('1-based end line (inclusive)'),
+        newContent: z.string().describe('Replacement content; use empty string to delete the lines'),
+      })).describe(toolDefinitions.apply_edits.inputSchema.edits),
+    }),
+    execute: async ({ path, edits }) => {
+      const sandbox = await getOrCreateSandbox(chatId, supabase);
+      try {
+        const content = await sandbox.files.read(path);
+        const originalContent = content; // preserve original before edits
+        const lines = content.split('\n');
+        const sortedEdits = [...edits].sort((a, b) => b.startLine - a.startLine);
+        for (const edit of sortedEdits) {
+          const start = Math.max(0, edit.startLine - 1);
+          const count = Math.min(lines.length - start, edit.endLine - edit.startLine + 1);
+          const newLines = edit.newContent ? edit.newContent.split('\n') : [];
+          lines.splice(start, count, ...newLines);
+        }
+        const newContent = lines.join('\n');
+        await sandbox.files.write(path, newContent);
+        await addWorkspacePath(chatId, path, supabase);
+        await saveWorkspaceFile(chatId, path, newContent, supabase);
+        const maxContentLen = 300_000;
+        const truncated = newContent.length > maxContentLen;
+        const contentForUi = truncated ? newContent.slice(0, maxContentLen) : newContent;
+        const origTruncated = originalContent.length > maxContentLen;
+        const origForUi = origTruncated ? originalContent.slice(0, maxContentLen) : originalContent;
+        const result = { path, applied: edits.length, success: true as const, content: contentForUi, originalContent: origForUi, truncated: truncated || undefined };
+        dataStream.write({
+          type: 'data-apply_edits',
+          id: `apply-edits-${Date.now()}`,
+          data: result,
+        });
+        return result;
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        dataStream.write({
+          type: 'data-apply_edits',
+          id: `apply-edits-${Date.now()}`,
+          data: { path, error: message, success: false },
+        });
+        return { path, error: message, success: false };
+      }
+    },
+  });
+}
+
+export function createGetFileInfoTool(
+  dataStream: { write: (data: unknown) => void },
+  chatId: string,
+  supabase: SupabaseClient
+) {
+  return tool({
+    description: toolDefinitions.get_file_info.description,
+    inputSchema: z.object({
+      path: z.string().describe(toolDefinitions.get_file_info.inputSchema.path),
+    }),
+    execute: async ({ path }) => {
+      const sandbox = await getOrCreateSandbox(chatId, supabase);
+      try {
+        const info = await sandbox.files.getInfo(path);
+        dataStream.write({
+          type: 'data-file_info',
+          id: `file-info-${Date.now()}`,
+          data: { path, info, success: true },
+        });
+        return { path, info, success: true };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        dataStream.write({
+          type: 'data-file_info',
+          id: `file-info-${Date.now()}`,
+          data: { path, error: message, success: false },
+        });
+        return { path, error: message, success: false };
+      }
+    },
+  });
+}
+
+export function createListWorkspaceTool(
+  dataStream: { write: (data: unknown) => void },
+  chatId: string,
+  supabase: SupabaseClient
+) {
+  return tool({
+    description: toolDefinitions.list_workspace.description,
+    inputSchema: z.object({}),
+    execute: async () => {
+      try {
+        const paths = await getWorkspacePaths(chatId, supabase);
+        dataStream.write({
+          type: 'data-list_workspace',
+          id: `list-workspace-${Date.now()}`,
+          data: { paths, success: true },
+        });
+        return { paths, success: true };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        dataStream.write({
+          type: 'data-list_workspace',
+          id: `list-workspace-${Date.now()}`,
+          data: { error: message, success: false },
+        });
+        return { error: message, success: false };
+      }
+    },
+  });
+}
+
+export function createDeleteFileTool(
+  dataStream: { write: (data: unknown) => void },
+  chatId: string,
+  supabase: SupabaseClient
+) {
+  return tool({
+    description: toolDefinitions.delete_file.description,
+    inputSchema: z.object({
+      path: z.string().describe(toolDefinitions.delete_file.inputSchema.path),
+    }),
+    execute: async ({ path }) => {
+      const sandbox = await getOrCreateSandbox(chatId, supabase);
+      try {
+        await sandbox.files.remove(path);
+        await removeWorkspacePath(chatId, path, supabase);
+        await deleteWorkspaceFile(chatId, path, supabase);
+        dataStream.write({
+          type: 'data-file_deleted',
+          id: `file-deleted-${Date.now()}`,
+          data: { path, success: true },
+        });
+        return { path, success: true };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        dataStream.write({
+          type: 'data-file_deleted',
+          id: `file-deleted-${Date.now()}`,
+          data: { path, error: message, success: false },
+        });
+        return { path, error: message, success: false };
+      }
+    },
+  });
+}
+
+const RUN_CODE_TIMEOUT_MS = 90_000;
+
+function serializeResult(r: { text?: string; html?: string; markdown?: string; svg?: string; png?: string; jpeg?: string; chart?: unknown; json?: unknown }): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (r.text !== undefined) out.text = r.text;
+  if (r.html !== undefined) out.html = r.html;
+  if (r.markdown !== undefined) out.markdown = r.markdown;
+  if (r.svg !== undefined) out.svg = r.svg;
+  if (r.png !== undefined) out.png = r.png;
+  if (r.jpeg !== undefined) out.jpeg = r.jpeg;
+  if (r.chart !== undefined) out.chart = r.chart;
+  if (r.json !== undefined) out.json = r.json;
+  return out;
+}
+
+export function createRunPythonCodeTool(
+  dataStream: { write: (data: unknown) => void },
+  chatId: string,
+  supabase: SupabaseClient
+) {
+  const runCodeResults: any[] = [];
+  const runCodeTool = tool({
+    description: toolDefinitions.run_python_code.description,
+    inputSchema: z.object({
+      code: z.string().describe(toolDefinitions.run_python_code.inputSchema.code),
+    }),
+    execute: async ({ code }) => {
+      const sandbox = await getOrCreateSandbox(chatId, supabase);
+      let context: { id: string; language: string; cwd: string } | undefined;
+      try {
+        context = await sandbox.createCodeContext({
+          cwd: WORKSPACE_BASE,
+          language: 'python',
+          requestTimeoutMs: 60_000,
+        });
+      } catch {
+        // Proceed without context (code can still use absolute paths)
+      }
+      const runOpts: {
+        context?: { id: string; language: string; cwd: string };
+        timeoutMs: number;
+        onStdout?: (output: { line: string }) => void;
+        onStderr?: (output: { line: string }) => void;
+      } = {
+        timeoutMs: RUN_CODE_TIMEOUT_MS,
+      };
+      if (context) runOpts.context = context;
+      runOpts.onStdout = (output) => {
+        dataStream.write({
+          type: 'data-run_code_stdout',
+          id: `run-code-stdout-${Date.now()}`,
+          data: { line: output.line ?? output },
+        });
+      };
+      runOpts.onStderr = (output) => {
+        dataStream.write({
+          type: 'data-run_code_stderr',
+          id: `run-code-stderr-${Date.now()}`,
+          data: { line: (output as { line?: string }).line ?? output },
+        });
+      };
+      try {
+        const execution = await sandbox.runCode(code, runOpts);
+        const stdout = Array.isArray(execution.logs?.stdout) ? execution.logs.stdout : [];
+        const stderr = Array.isArray(execution.logs?.stderr) ? execution.logs.stderr : [];
+        const results = (execution.results ?? []).map((r: unknown) => serializeResult((r as Record<string, unknown>) || {}));
+        const err = execution.error;
+        const errorPayload = err
+          ? {
+              name: err.name,
+              value: err.value,
+              traceback: typeof err.traceback === 'string' ? [err.traceback] : (Array.isArray(err.traceback) ? err.traceback : []),
+            }
+          : undefined;
+        const success = !err;
+        const payload: { success: boolean; stdout: string[]; stderr: string[]; results: unknown[]; error?: unknown } = {
+          success,
+          stdout,
+          stderr,
+          results,
+          error: errorPayload,
+        };
+        runCodeResults.push({ ...payload, stdout: [...payload.stdout], stderr: [...payload.stderr], results: payload.results.slice() });
+        const stdoutStr = payload.stdout.join('\n');
+        const stderrStr = payload.stderr.join('\n');
+        if (stdoutStr.length > 0) {
+          const truncated = truncateFileText(stdoutStr);
+          if (truncated.truncated) payload.stdout = [truncated.text];
+        }
+        if (stderrStr.length > 0) {
+          const truncated = truncateFileText(stderrStr);
+          if (truncated.truncated) payload.stderr = [truncated.text];
+        }
+        dataStream.write({
+          type: 'data-run_code_complete',
+          id: `run-code-complete-${Date.now()}`,
+          data: payload,
+        });
+
+        const minimalError = errorPayload
+          ? {
+              name: errorPayload.name,
+              value: typeof errorPayload.value === 'string'
+                ? errorPayload.value.slice(0, 500)
+                : errorPayload.value,
+              traceback: Array.isArray(errorPayload.traceback)
+                ? errorPayload.traceback.slice(0, 5)
+                : undefined,
+            }
+          : undefined;
+
+        const minimalPayload: { success: boolean; results: Array<{ summary: string }>; error?: unknown } = {
+          success,
+          results: [{ summary: 'Output shown to user.' }],
+          ...(minimalError && { error: minimalError }),
+        };
+
+        return minimalPayload;
+      } finally {
+        if (context) {
+          try {
+            await sandbox.removeCodeContext(context);
+          } catch {
+            // ignore
+          }
+        }
+      }
+    },
+  });
+  return Object.assign(runCodeTool, { runCodeResults });
+}
+
 // Web Search 도구 생성 함수
 export function createWebSearchTool(dataStream: any, forcedTopic?: string) {
   // 검색 결과를 저장할 배열

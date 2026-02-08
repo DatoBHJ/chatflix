@@ -6,11 +6,18 @@ import { z } from 'zod';
 
 export const generateMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-const truncateFileText = (content: string) => {
-  // 제한 없이 전체 내용 반환
+export const MAX_FILE_CONTENT_CHARS = 12000;
+/** Suffix appended when file content is truncated; strip this for display and show line-based highlight instead. */
+export const FILE_TRUNCATION_SUFFIX = '\n...[truncated, use read_file in workspace if available]';
+const TRUNCATION_SUFFIX = FILE_TRUNCATION_SUFFIX;
+
+export const truncateFileText = (content: string) => {
+  if (content.length <= MAX_FILE_CONTENT_CHARS) {
+    return { text: content, truncated: false };
+  }
   return {
-    text: content,
-    truncated: false,
+    text: content.slice(0, MAX_FILE_CONTENT_CHARS) + TRUNCATION_SUFFIX,
+    truncated: true,
   };
 };
 
@@ -726,11 +733,20 @@ function summarizeToolResults(
     }
   }
   
+  // 코드 실행 (run_python_code): 결과 개수/유형만 한 줄로
+  if (toolResults.runCodeResults && Array.isArray(toolResults.runCodeResults)) {
+    const arr = toolResults.runCodeResults as Array<{ text?: string; html?: string; png?: string; jpeg?: string; chart?: unknown }>;
+    const labels = arr.map((r) => runCodeResultOneLineSummary(r));
+    const n = labels.length;
+    const desc = n === 0 ? 'no outputs' : n === 1 ? labels[0] : `${n} results (${[...new Set(labels)].join(', ')})`;
+    summaries.push(`Code execution: ${desc}.`);
+  }
+  
   // 기타 도구 결과가 있으면 간단히 언급만
   const handledKeys = [
     'twitterSearchResults', 'googleSearchResults', 'youtubeSearchResults',
     'webSearchResults', 'linkReaderResults', 'geminiImageResults', 
-    'seedreamImageResults', 'qwenImageResults', 'structuredResponse', 'token_usage'
+    'seedreamImageResults', 'qwenImageResults', 'runCodeResults', 'structuredResponse', 'token_usage'
   ];
   const otherKeys = Object.keys(toolResults).filter(k => !handledKeys.includes(k));
   if (otherKeys.length > 0) {
@@ -738,6 +754,16 @@ function summarizeToolResults(
   }
   
   return summaries.filter(s => s).join('\n\n');
+}
+
+/** One-line label for a single run_python_code result item (no base64/chart data). */
+function runCodeResultOneLineSummary(r: { text?: string; html?: string; png?: string; jpeg?: string; chart?: unknown }): string {
+  if (!r || typeof r !== 'object') return 'output';
+  if (r.chart != null) return 'chart';
+  if (r.png != null || r.jpeg != null) return 'figure';
+  if (r.html != null) return 'html';
+  if (r.text != null) return 'text';
+  return 'output';
 }
 
 function summarizeToolOutputForAnthropic(part: any): string {
@@ -757,8 +783,12 @@ function summarizeToolOutputForAnthropic(part: any): string {
 
 /**
  * 공통 메시지 처리 함수 - 에이전트 모드와 일반 모드에서 공통으로 사용
+ * (워크스페이스 파일 컨텍스트는 API route에서 주입 후 이 함수에 넘김)
  */
-export async function processMessagesForAI(messagesWithTokens: any[], model?: string): Promise<ModelMessage[]> {
+export async function processMessagesForAI(
+  messagesWithTokens: any[],
+  model?: string
+): Promise<ModelMessage[]> {
   
   // GPT-5 모델인지 확인
   const isGPT5 = model && model.startsWith('gpt-5') && model !== 'gpt-5-chat-latest';
@@ -898,6 +928,23 @@ export async function processMessagesForAI(messagesWithTokens: any[], model?: st
         if (isFireworks && normalizedPart.callProviderMetadata) {
           const { callProviderMetadata, ...cleanedPart } = normalizedPart;
           return cleanedPart;
+        }
+        
+        // read_file 도구 결과: 다음 턴 재전송 시 content를 12k로 잘라 prompt too long 방지 (이중 안전장치)
+        if (normalizedPart.type === 'tool-read_file' && typeof normalizedPart.output?.content === 'string') {
+          const truncated = truncateFileText(normalizedPart.output.content);
+          return {
+            ...normalizedPart,
+            output: { ...normalizedPart.output, content: truncated.text },
+          };
+        }
+        
+        // run_python_code 도구 결과: LLM 컨텍스트에서 제거하고 짧은 안내 문구만 남김.
+        if (normalizedPart.type === 'tool-run_python_code' && normalizedPart.output) {
+          return {
+            type: 'text',
+            text: '[run_python_code] Output shown to user.',
+          };
         }
         
         // 완료된 tool call은 유지 (convertToModelMessages가 tool_use/tool_result로 변환함)

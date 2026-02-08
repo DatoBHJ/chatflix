@@ -2,10 +2,35 @@
 'use client';
 
 import React, { memo, useMemo, useCallback, useState, useRef } from 'react';
-import { Calculator, Link2, ImageIcon, Search, Youtube, Video } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { Calculator, Link2, ImageIcon, Search, Youtube, Video, FileText, Code2, Copy, Download } from 'lucide-react';
 import { SiGoogle } from 'react-icons/si';
+import { getIcon } from 'material-file-icons';
 import { XLogo, YouTubeLogo, WanAiLogo, SeedreamLogo, XaiLogo } from './CanvasFolder/CanvasLogo';
 import { getTopicIconComponent, getTopicName, getTopicIcon } from './MultiSearch';
+import { fileHelpers } from './ChatInput/FileUpload';
+import { e2bChartToEChartsOption } from '@/app/utils/e2bChartToECharts';
+import { computeDiffHunks, type DiffSummary } from '@/app/utils/diffUtils';
+
+const E2BChartEChartsInline = dynamic(
+  () => import('./charts/E2BChartECharts').then((m) => ({ default: m.E2BChartECharts })),
+  { ssr: false }
+);
+
+// Outcome file tools (write/edit) - UI as result/attachment style
+const OUTCOME_FILE_TOOLS = ['write_file', 'apply_edits', 'read_file', 'delete_file', 'grep_file', 'get_file_info'] as const;
+const isOutcomeFileTool = (name: string): boolean =>
+  (OUTCOME_FILE_TOOLS as readonly string[]).includes(name);
+const isFileToolName = (name: string): boolean =>
+  ([
+    'read_file',
+    'grep_file',
+    'get_file_info',
+    'list_workspace',
+    'delete_file',
+    'write_file',
+    'apply_edits',
+  ] as readonly string[]).includes(name);
 
 // Shimmer animation styles
 const shimmerStyles = `
@@ -36,6 +61,14 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   'google_search': 'Google Search',
   'wan25_video': 'Wan 2.5 Video',
   'grok_video': 'Grok Imagine Video',
+  'read_file': 'Read file',
+  'write_file': 'Write file',
+  'get_file_info': 'File info',
+  'list_workspace': 'List workspace',
+  'delete_file': 'Delete file',
+  'grep_file': 'Search in file',
+  'apply_edits': 'Apply edits',
+  'run_python_code': 'Run code',
 };
 
 // Tool name to icon mapping
@@ -89,6 +122,16 @@ const getToolIcon = (toolName: string, toolArgs?: any, toolResult?: any) => {
       return <WanAiLogo size={iconProps.size} />;
     case 'grok_video':
       return <XaiLogo size={iconProps.size} />;
+    case 'read_file':
+    case 'write_file':
+    case 'get_file_info':
+    case 'list_workspace':
+    case 'delete_file':
+    case 'grep_file':
+    case 'apply_edits':
+      return <FileText {...iconProps} />;
+    case 'run_python_code':
+      return <Code2 {...iconProps} />;
     default:
       return <Search {...iconProps} />;
   }
@@ -137,6 +180,16 @@ const getCanvasToolType = (toolName: string, toolArgs?: any, toolResult?: any): 
       return 'wan25-video';
     case 'grok_video':
       return 'grok-video';
+    case 'read_file':
+    case 'write_file':
+    case 'get_file_info':
+    case 'list_workspace':
+    case 'delete_file':
+    case 'grep_file':
+    case 'apply_edits':
+      return `file-edit:${toolName}`;
+    case 'run_python_code':
+      return 'run-code';
     default:
       return toolName;
   }
@@ -178,6 +231,21 @@ export const InlineToolPreview = memo(function InlineToolPreview({
                         (toolResult.images && toolResult.images.length > 0);
         return hasImage ? 'completed' : 'processing';
       }
+      return 'processing';
+    }
+    
+    // 파일 편집 도구
+    if (toolName === 'read_file' || toolName === 'write_file' || toolName === 'get_file_info' || toolName === 'list_workspace' || toolName === 'delete_file' || toolName === 'grep_file' || toolName === 'apply_edits') {
+      if (toolResult) return toolResult.success === false ? 'error' : 'completed';
+      return 'processing';
+    }
+    // 코드 실행 도구
+    if (toolName === 'run_python_code') {
+      // toolResult가 있으면 성공 여부에 따라 상태 결정
+      if (toolResult) return toolResult.success === false ? 'error' : 'completed';
+      
+      // toolResult가 없더라도 message.parts에 관련 데이터가 있으면 completed로 간주
+      // (일부 환경에서 tool_results 대신 parts에 결과가 포함되는 경우 대응)
       return 'processing';
     }
     
@@ -292,6 +360,10 @@ export const InlineToolPreview = memo(function InlineToolPreview({
         ? toolArgs.prompt.substring(0, 50) + '...' 
         : toolArgs.prompt;
     }
+    if (toolArgs.path) {
+      const p = toolArgs.path as string;
+      return p.length > 40 ? p.slice(0, 40) + '…' : p;
+    }
     return '';
   }, [toolArgs]);
 
@@ -329,6 +401,10 @@ export const InlineToolPreview = memo(function InlineToolPreview({
     // For calculator: use expression
     if ((toolName === 'calculator' || toolName === 'math_calculation') && toolArgs.expression) {
       return toolArgs.expression;
+    }
+    
+    if ((toolName === 'read_file' || toolName === 'write_file' || toolName === 'get_file_info' || toolName === 'delete_file' || toolName === 'grep_file' || toolName === 'apply_edits') && toolArgs.path) {
+      return toolArgs.path;
     }
     
     return undefined;
@@ -418,6 +494,388 @@ export const InlineToolPreview = memo(function InlineToolPreview({
                    activePanel?.type === 'canvas' && 
                    activePanel?.toolType === canvasToolType;
 
+  const filePath = toolResult?.path ?? toolArgs?.path ?? '';
+  const fileName = filePath ? filePath.replace(/^.*\//, '') || 'file' : 'file';
+  const fileBubbleTitle = toolName === 'list_workspace' ? 'Workspace' : fileName;
+  const iconNameForBubble = toolName === 'list_workspace' ? 'workspace' : fileName;
+
+  const fileBubbleSubtitle = useMemo(() => {
+    if (status === 'processing') return '…';
+    if (toolName === 'read_file') {
+      const start = toolArgs?.startLine ?? toolResult?.startLine;
+      const end = toolArgs?.endLine ?? toolResult?.endLine;
+      if (typeof start === 'number' && typeof end === 'number') return `L${start}-${end}`;
+      if (typeof toolResult?.content === 'string') return fileHelpers.formatFileSize(new Blob([toolResult.content]).size);
+      return '—';
+    }
+    if (toolName === 'write_file') {
+      if (typeof toolArgs?.content === 'string') return fileHelpers.formatFileSize(new Blob([toolArgs.content]).size);
+      return '—';
+    }
+    if (toolName === 'apply_edits') {
+      if (typeof toolResult?.content === 'string') return fileHelpers.formatFileSize(new Blob([toolResult.content]).size);
+      return '—';
+    }
+    if (toolName === 'get_file_info') {
+      const size = typeof toolResult?.size === 'number' ? toolResult.size : (toolResult?.info && typeof (toolResult.info as any).size === 'number' ? (toolResult.info as any).size : undefined);
+      if (size != null) return fileHelpers.formatFileSize(size);
+      return filePath ? filePath : '—';
+    }
+    if (toolName === 'list_workspace') {
+      const list = Array.isArray(toolResult?.paths) ? toolResult.paths : toolResult?.entries;
+      const n = Array.isArray(list) ? list.length : 0;
+      return `${n} entr${n === 1 ? 'y' : 'ies'}`;
+    }
+    if (toolName === 'delete_file') {
+      if (toolResult?.success === false && toolResult?.error) return toolResult.error;
+      return 'Deleted';
+    }
+    if (toolName === 'grep_file') {
+      const matches = toolResult?.matches;
+      const n = Array.isArray(matches) ? matches.length : (typeof toolResult?.matchesCount === 'number' ? toolResult.matchesCount : 0);
+      const lines = typeof toolResult?.totalLines === 'number' ? ` · ${toolResult.totalLines} lines` : '';
+      return `${n} match(es)${lines}`;
+    }
+    return '—';
+  }, [status, toolName, toolArgs, toolResult, filePath]);
+
+  const hasFileBubbleDownload =
+    (toolName === 'write_file' && typeof toolArgs?.content === 'string') ||
+    (toolName === 'apply_edits' && typeof toolResult?.content === 'string') ||
+    (toolName === 'read_file' && typeof toolResult?.content === 'string') ||
+    (toolName === 'grep_file' && (typeof (toolResult?.output ?? toolResult?.content) === 'string'));
+
+  const handleFileDownload = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    let content: string | undefined;
+    let name = fileName || 'download.txt';
+    if (toolName === 'write_file') content = toolArgs?.content;
+    else if (toolName === 'apply_edits' || toolName === 'read_file') content = toolResult?.content;
+    else if (toolName === 'grep_file') content = toolResult?.output ?? toolResult?.content;
+    if (typeof content !== 'string') return;
+    if (toolName === 'grep_file') name = (fileName || 'grep') + '.txt';
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [toolName, toolArgs, toolResult, fileName]);
+
+  const inlineSubtitle = useMemo(() => {
+    if (isFileToolName(toolName) && !isOutcomeFileTool(toolName)) {
+      if (displayText && fileBubbleSubtitle && fileBubbleSubtitle !== '—') {
+        return `${displayText} · ${fileBubbleSubtitle}`;
+      }
+      return displayText || (fileBubbleSubtitle !== '—' ? fileBubbleSubtitle : '');
+    }
+    return displayText;
+  }, [toolName, displayText, fileBubbleSubtitle]);
+
+  // Outcome: use same labels as canvas panel title (TOOL_DISPLAY_NAMES) for consistency
+  const outcomeActionLabel = useMemo(() => {
+    return TOOL_DISPLAY_NAMES[toolName] ?? 'Processed';
+  }, [toolName]);
+  const outcomeSubtitle = fileBubbleSubtitle !== '—' ? `${outcomeActionLabel} · ${fileBubbleSubtitle}` : outcomeActionLabel;
+
+  // run_python_code: compact outcome preview when results include chart/png
+  const runCodeResults = useMemo(() => {
+    if (Array.isArray(toolResult?.results)) return toolResult.results;
+    // toolResult가 null이거나 results가 없을 때, toolResult 자체가 runCodeResults 배열인 경우 대응
+    if (toolName === 'run_python_code' && Array.isArray(toolResult)) {
+      const last = toolResult[toolResult.length - 1];
+      return last?.results || [];
+    }
+    return [];
+  }, [toolResult, toolName]);
+
+  const runCodeStdout = useMemo(() => {
+    if (Array.isArray(toolResult?.stdout)) return toolResult.stdout;
+    if (toolName === 'run_python_code' && Array.isArray(toolResult)) {
+      const last = toolResult[toolResult.length - 1];
+      return last?.stdout || [];
+    }
+    return [];
+  }, [toolResult, toolName]);
+
+  const runCodeStderr = useMemo(() => {
+    if (Array.isArray(toolResult?.stderr)) return toolResult.stderr;
+    if (toolName === 'run_python_code' && Array.isArray(toolResult)) {
+      const last = toolResult[toolResult.length - 1];
+      return last?.stderr || [];
+    }
+    return [];
+  }, [toolResult, toolName]);
+
+  const runCodeHasChartOrPng = runCodeResults.some((r: any) => r?.png || r?.jpeg || r?.chart);
+  const runCodeFirstPng = runCodeResults.find((r: any) => r?.png || r?.jpeg);
+  const runCodePngCount = runCodeResults.filter((r: any) => r?.png || r?.jpeg).length;
+  const runCodeSubtitle = useMemo(() => {
+    if (status === 'processing') return '…';
+    if (runCodePngCount > 0) return runCodePngCount === 1 ? '1 chart' : `${runCodePngCount} figures`;
+    if (runCodeResults.some((r: any) => r?.chart)) return '1 chart';
+    if (runCodeResults.some((r: any) => r?.text || r?.html)) return 'Text output';
+    if (runCodeStdout.length > 0 || runCodeStderr.length > 0) return 'Output';
+    return 'Output';
+  }, [status, runCodePngCount, runCodeResults, runCodeStdout, runCodeStderr]);
+
+  if (toolName === 'run_python_code') {
+    const codeIcon = getToolIcon(toolName, toolArgs, toolResult);
+    const runCodeFirstChartResult = runCodeResults.find((r: any) => r?.chart);
+    const runCodeEChartsOption = runCodeFirstChartResult ? e2bChartToEChartsOption(runCodeFirstChartResult.chart) : null;
+    
+    // Determine best content to show
+    const hasChartPreview = runCodeFirstPng || runCodeEChartsOption;
+    const hasConsoleOutput = runCodeStdout.length > 0 || runCodeStderr.length > 0;
+    
+    return (
+      <>
+        <style>{shimmerStyles}</style>
+        <div
+          className="diff-inline-preview"
+          onClick={handleClick}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onTouchMove={handleTouchMove}
+          style={{ cursor: togglePanel ? 'pointer' : 'default', touchAction: 'manipulation' }}
+        >
+          {/* Header - same style as file tools */}
+          <div className="diff-header">
+            <div className="shrink-0 text-(--muted)">{codeIcon}</div>
+            <span className="diff-filename">Code output</span>
+            {status === 'processing' ? (
+              <span
+                className="text-xs font-medium shrink-0 bg-linear-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent"
+                style={{ backgroundSize: '200% 100%', animation: 'shimmer 2s ease-in-out infinite' }}
+              >
+                Running…
+              </span>
+            ) : (
+              <span className="text-xs text-(--muted) shrink-0">{runCodeSubtitle}</span>
+            )}
+            {status === 'processing' && <span className="inline-tool-status-dot shrink-0" />}
+            {status === 'completed' && (
+              <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+            {status === 'error' && (
+              <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+          </div>
+
+          {/* Content preview */}
+          {hasChartPreview ? (
+            runCodeFirstPng && (runCodeFirstPng.png || runCodeFirstPng.jpeg) ? (
+              <div className="p-2.5">
+                <div className="rounded-lg overflow-hidden bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] flex items-center justify-center" style={{ maxHeight: 140 }}>
+                  <img
+                    src={runCodeFirstPng.png ? `data:image/png;base64,${runCodeFirstPng.png}` : `data:image/jpeg;base64,${runCodeFirstPng.jpeg}`}
+                    alt="Chart"
+                    className="max-w-full max-h-[140px] object-contain"
+                  />
+                </div>
+              </div>
+            ) : runCodeEChartsOption ? (
+              <div className="p-2.5">
+                <div className="rounded-lg overflow-hidden bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)]">
+                  <E2BChartEChartsInline option={runCodeEChartsOption} height={120} hideSaveButton />
+                </div>
+              </div>
+            ) : null
+          ) : hasConsoleOutput ? (
+            <div className="diff-code">
+              {runCodeStdout.slice(0, 4).map((line: string, li: number) => (
+                <div key={`stdout-${li}`} className="diff-line">
+                  <span className="diff-line-num">{li + 1}</span>
+                  <span className="diff-line-sign" />
+                  <span className="diff-line-text">{line}</span>
+                </div>
+              ))}
+              {runCodeStderr.slice(0, 2).map((line: string, li: number) => (
+                <div key={`stderr-${li}`} className="diff-line removed">
+                  <span className="diff-line-num">!</span>
+                  <span className="diff-line-sign" />
+                  <span className="diff-line-text">{line}</span>
+                </div>
+              ))}
+              {(runCodeStdout.length > 4 || runCodeStderr.length > 2) && (
+                <div className="diff-hunk-sep">+{(runCodeStdout.length - 4) + (runCodeStderr.length - 2)} more lines</div>
+              )}
+            </div>
+          ) : status === 'processing' && toolArgs?.code ? (
+            <div className="diff-code diff-streaming">
+              {toolArgs.code.split('\n').slice(0, 4).map((line: string, li: number) => (
+                <div key={`code-${li}`} className="diff-line">
+                  <span className="diff-line-num">{li + 1}</span>
+                  <span className="diff-line-sign" />
+                  <span className="diff-line-text">{line}</span>
+                </div>
+              ))}
+              {toolArgs.code.split('\n').length > 4 && (
+                <div className="diff-hunk-sep">running…</div>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </>
+    );
+  }
+
+  // ── Diff preview for write_file / apply_edits ──
+  const INLINE_MAX_LINES = 8;
+
+  // Completed: compute real diff from originalContent + newContent
+  const diffData: DiffSummary | null = useMemo(() => {
+    if (!isOutcomeFileTool(toolName)) return null;
+    if (status !== 'completed') return null;
+    const hasOriginalField = toolResult && 'originalContent' in toolResult;
+    if (!hasOriginalField) return null;
+    const originalContent: string | null = toolResult.originalContent ?? null;
+    let newContent: string | undefined;
+    if (toolName === 'write_file') {
+      newContent = toolResult?.content ?? toolArgs?.content;
+    } else {
+      newContent = toolResult?.content;
+    }
+    if (typeof newContent !== 'string') return null;
+    return computeDiffHunks(originalContent, newContent, 2);
+  }, [toolName, toolArgs, toolResult, status]);
+
+  // For inline diff, only changed lines, limited count
+  const inlineDiffLines = useMemo(() => {
+    if (!diffData) return null;
+    const changedLines = diffData.hunks.flatMap(h =>
+      h.lines.filter(l => l.type === 'added' || l.type === 'removed')
+    );
+    if (changedLines.length === 0) return null;
+    const truncated = changedLines.length > INLINE_MAX_LINES;
+    return { lines: changedLines.slice(0, INLINE_MAX_LINES), truncated, total: changedLines.length };
+  }, [diffData]);
+
+  // Streaming preview: show content from toolArgs as it arrives (before result is ready)
+  const streamingLines = useMemo(() => {
+    if (!isOutcomeFileTool(toolName)) return null;
+    if (status !== 'processing') return null;
+    if (toolName === 'write_file' && typeof toolArgs?.content === 'string' && toolArgs.content.length > 0) {
+      const lines = toolArgs.content.split('\n');
+      const display = lines.slice(0, INLINE_MAX_LINES);
+      return { lines: display, total: lines.length, truncated: lines.length > INLINE_MAX_LINES };
+    }
+    if (toolName === 'apply_edits' && Array.isArray(toolArgs?.edits) && toolArgs.edits.length > 0) {
+      const editLines: string[] = [];
+      for (const edit of toolArgs.edits) {
+        if (edit.newContent) {
+          const nc = edit.newContent.split('\n');
+          editLines.push(...nc);
+        }
+      }
+      if (editLines.length > 0) {
+        const display = editLines.slice(0, INLINE_MAX_LINES);
+        return { lines: display, total: editLines.length, truncated: editLines.length > INLINE_MAX_LINES };
+      }
+    }
+    return null;
+  }, [toolName, toolArgs, status]);
+
+  if (isOutcomeFileTool(toolName)) {
+    const fileIcon = getIcon(iconNameForBubble);
+    const hasDiff = diffData && inlineDiffLines && inlineDiffLines.lines.length > 0;
+    const isStreaming = status === 'processing' && streamingLines;
+
+    return (
+      <>
+        <style>{shimmerStyles}</style>
+        <div
+          className="diff-inline-preview"
+          onClick={handleClick}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onTouchMove={handleTouchMove}
+          style={{ cursor: togglePanel ? 'pointer' : 'default', touchAction: 'manipulation' }}
+          title={filePath || undefined}
+        >
+          {/* Header: icon + filename + stats/status */}
+          <div className="diff-header">
+            <div className="shrink-0" style={{ width: 18, height: 18 }} dangerouslySetInnerHTML={{ __html: fileIcon.svg }} />
+            <span className="diff-filename">{fileBubbleTitle}</span>
+            {hasDiff ? (
+              <span className="diff-stats">
+                {diffData.additions > 0 && <span className="diff-stat-add">+{diffData.additions}</span>}
+                {diffData.deletions > 0 && <span className="diff-stat-del">-{diffData.deletions}</span>}
+              </span>
+            ) : status === 'processing' ? (
+              <span
+                className="text-xs font-medium shrink-0 bg-linear-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent"
+                style={{ backgroundSize: '200% 100%', animation: 'shimmer 2s ease-in-out infinite' }}
+              >
+                {toolName === 'write_file' ? 'Writing…' : 
+                 toolName === 'apply_edits' ? 'Editing…' :
+                 toolName === 'read_file' ? 'Reading…' :
+                 toolName === 'delete_file' ? 'Deleting…' :
+                 toolName === 'grep_file' ? 'Grepping…' :
+                 'Processing…'}
+              </span>
+            ) : (
+              <span className="text-xs text-(--muted) shrink-0">{outcomeSubtitle}</span>
+            )}
+            {status === 'processing' && <span className="inline-tool-status-dot shrink-0" />}
+            {status === 'completed' && (
+              <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+            {status === 'error' && (
+              <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+          </div>
+
+          {/* Streaming preview: show code as it arrives */}
+          {isStreaming && (
+            <div className="diff-code diff-streaming">
+              {streamingLines.lines.map((line: string, li: number) => (
+                <div key={`stream-${li}`} className="diff-line added">
+                  <span className="diff-line-num">{li + 1}</span>
+                  <span className="diff-line-sign">+</span>
+                  <span className="diff-line-text">{line}</span>
+                </div>
+              ))}
+              {streamingLines.truncated && (
+                <div className="diff-hunk-sep">+{streamingLines.total - INLINE_MAX_LINES} more lines</div>
+              )}
+            </div>
+          )}
+
+          {/* Completed diff: only changed lines, limited */}
+          {hasDiff && (
+            <div className="diff-code">
+              {inlineDiffLines.lines.map((line, li) => (
+                <div key={`inline-${li}`} className={`diff-line ${line.type}`}>
+                  <span className="diff-line-num">
+                    {line.type === 'removed' ? (line.oldLineNo ?? '') : (line.newLineNo ?? '')}
+                  </span>
+                  <span className="diff-line-sign">
+                    {line.type === 'added' ? '+' : '-'}
+                  </span>
+                  <span className="diff-line-text">{line.content}</span>
+                </div>
+              ))}
+              {inlineDiffLines.truncated && (
+                <div className="diff-hunk-sep">+{inlineDiffLines.total - INLINE_MAX_LINES} more changes</div>
+              )}
+            </div>
+          )}
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <style>{shimmerStyles}</style>
@@ -452,9 +910,9 @@ export const InlineToolPreview = memo(function InlineToolPreview({
           </span>
           
           {/* Display text */}
-          {displayText && (
+          {inlineSubtitle && (
             <span className="text-xs text-(--muted) truncate shrink min-w-0">
-              {displayText}
+              {inlineSubtitle}
             </span>
           )}
           

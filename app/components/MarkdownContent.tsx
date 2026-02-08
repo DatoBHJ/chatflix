@@ -3539,30 +3539,10 @@ function MarkdownContentComponent({
       );
     },
     table: ({ children, ...props }: React.PropsWithChildren<ExtraProps>) => {
-      // Count columns to determine if we need mobile optimization
-      const tableRef = useRef<HTMLTableElement>(null);
-      const [isWideTable, setIsWideTable] = useState(false);
-
-      useEffect(() => {
-        if (tableRef.current) {
-          const table = tableRef.current;
-          const firstRow = table.querySelector('tr');
-          const firstRowCells = firstRow ? firstRow.querySelectorAll('th, td').length : 0;
-          
-          // Consider it a wide table if it has more than 3 columns or if any cell content is long
-          const hasLongContent = Array.from(table.querySelectorAll('td, th')).some(cell => 
-            cell.textContent && cell.textContent.length > 20
-          );
-          
-          setIsWideTable(firstRowCells > 3 || hasLongContent);
-        }
-      }, [children]);
-
       return (
         <div className="responsive-table-container my-4 max-w-full">
-          <div className={`table-wrapper ${isWideTable ? 'wide-table' : ''}`}>
+          <div className="table-wrapper wide-table">
             <table 
-              ref={tableRef}
               className="responsive-table border-collapse" 
               {...props}
             >
@@ -3573,15 +3553,15 @@ function MarkdownContentComponent({
       );
     },
     th: ({ children, ...props }) => (
-      <th className="table-header bg-[var(--accent)] font-medium text-[var(--muted)] uppercase tracking-wider p-2 sm:p-3 border border-[var(--accent)] text-left min-w-0" {...props}>
-        <div className="break-words text-sm sm:text-base">
+      <th className="table-header bg-[var(--accent)] font-medium text-[var(--muted)] uppercase tracking-wider p-2 sm:p-3 border border-[var(--accent)] text-left" {...props}>
+        <div className="text-sm sm:text-base">
           {highlightSearchTermInChildren(children, searchTerm, { messageType })}
         </div>
       </th>
     ),
     td: ({ children, ...props }) => (
-      <td className="table-cell p-2 sm:p-3 border border-[var(--accent)] min-w-0" {...props}>
-        <div className="break-words text-sm sm:text-base">
+      <td className="table-cell p-2 sm:p-3 border border-[var(--accent)]" {...props}>
+        <div className="text-sm sm:text-base">
           {highlightSearchTermInChildren(children, searchTerm, { messageType })}
         </div>
       </td>

@@ -9,7 +9,7 @@ import { ChatInputProps } from './types';
 import { useChatInputStyles } from './ChatInputStyles';
 import { FilePreview, fileHelpers } from './FileUpload';
 import { ErrorToast } from './DragDropOverlay';
-import { Search, Calculator, Link, Image, FileText, Plus, BarChart3, Building, BookOpen, Github, User, Youtube, Palette, Video, Info, Wrench } from 'lucide-react';
+import { Search, Calculator, Link, Image, FileText, Plus, BarChart3, Building, BookOpen, Github, User, Youtube, Palette, Video, Info, Wrench, Code2, FolderOpen } from 'lucide-react';
 import { SiGoogle, SiLinkedin } from 'react-icons/si';
 import { BiSolidBank } from 'react-icons/bi';
 import NextImage from 'next/image'; 
@@ -71,6 +71,8 @@ export const TOOLS: ToolDefinition[] = [
   { id: 'web_search:research paper', icon: <BookOpen strokeWidth={1.8} />, name: 'Research Paper Search', description: 'Find academic research papers', category: 'search', background: 'linear-gradient(0deg, #9333EA 0%, #C084FC 100%)', placeholder: { mobile: 'Search research papers', desktop: 'Find papers about embeddings' } },
   { id: 'web_search:pdf', icon: <FileText strokeWidth={1.8} />, name: 'PDF Search', description: 'Search PDF documents', category: 'search', background: 'linear-gradient(0deg, #991B1B 0%, #DC2626 100%)', placeholder: { mobile: 'Search PDF documents', desktop: 'Search government UFO documents' } },
   { id: 'calculator', icon: <Calculator strokeWidth={1.8} />, name: 'Calculator', description: 'Mathematical calculations', category: 'utility', background: 'linear-gradient(0deg, #F2994A 0%, #F2C94C 100%)', placeholder: { mobile: 'Calculate mortgage payment 500k 30yr 4.5%', desktop: 'Calculate mortgage payment 500k 30yr 4.5%' } },
+  { id: 'run_python_code', icon: <Code2 strokeWidth={1.8} />, name: 'Run code', description: 'Run Python in the workspace for data analysis and charts', category: 'utility', background: 'linear-gradient(0deg, #334155 0%, #64748b 100%)', placeholder: { mobile: 'Run Python, analyze data, plot charts', desktop: 'Run Python, analyze data, plot charts' } },
+  { id: 'workspace', icon: <FolderOpen strokeWidth={1.8} />, name: 'Workspace', description: 'Read, write, and edit files in this chat workspace', category: 'utility', background: 'linear-gradient(0deg, #0f766e 0%, #14b8a6 100%)', placeholder: { mobile: 'Read, create, or edit files in this chat', desktop: 'Read, create, or edit files in this chat' } },
 ];
 
 // 카테고리별 도구 분류 자동 생성
@@ -1630,10 +1632,10 @@ export function ChatInput({
           <input
             type="file"
             accept={supportsPDFs
-              ? "image/*,text/*,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust" 
+              ? "image/*,text/*,text/csv,.csv,application/csv,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust" 
               : (supportsVision 
-                ? "image/*,text/*,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust" 
-                : "text/*,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust")}            
+                ? "image/*,text/*,text/csv,.csv,application/csv,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust" 
+                : "text/*,text/csv,.csv,application/csv,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust")}            
             onChange={(e) => { if (e.target.files) { handleFiles(e.target.files); } }}
             ref={fileInputRef}
             className="hidden"
@@ -1919,7 +1921,7 @@ export function ChatInput({
                                             className: `text-white ${tool.smallIcon ? "h-3 w-3" : "h-3.5 w-3.5"}`,
                                             size: tool.smallIcon ? 12 : 14
                                           })}
-                                          {(tool.id === 'wan25_text_to_video' || tool.id === 'wan25_image_to_video' || tool.id === 'grok_text_to_video' || tool.id === 'grok_image_to_video' || tool.id === 'grok_video_edit') && (
+                                          {(tool.id === 'wan25_text_to_video' || tool.id === 'wan25_image_to_video' || tool.id === 'grok_text_to_video' || tool.id === 'grok_image_to_video' || tool.id === 'grok_video_edit' || tool.id === 'run_python_code' || tool.id === 'workspace') && (
                                             <div 
                                               className="absolute -bottom-1 -right-2 text-[7.5px] font-bold px-1 py-0.5 rounded-full leading-none whitespace-nowrap"
                                               style={{

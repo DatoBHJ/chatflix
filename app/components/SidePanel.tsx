@@ -3,7 +3,7 @@
 import { UIMessage } from 'ai'
 import Canvas from '@/app/components/Canvas';
 import { StructuredResponse } from '@/app/components/StructuredResponse';
-import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getWan25VideoData, getGrokVideoData } from '@/app/hooks/toolFunction';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getWan25VideoData, getGrokVideoData, getFileEditData, getRunCodeData } from '@/app/hooks/toolFunction';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 // import { AttachmentTextViewer } from './AttachmentTextViewer';
@@ -112,6 +112,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   const googleSearchData = activeMessage ? getGoogleSearchData(activeMessage) : null;
   const wan25VideoData = activeMessage ? getWan25VideoData(activeMessage) : null;
   const grokVideoData = activeMessage ? getGrokVideoData(activeMessage) : null;
+  const fileEditData = activeMessage ? getFileEditData(activeMessage) : null;
+  const runCodeData = activeMessage ? getRunCodeData(activeMessage) : null;
 
   // Helper function to get topic display name (moved before useMemo)
   const getTopicDisplayName = (topic: string): string => {
@@ -231,7 +233,20 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           case 'youtube-analyzer': return 'YouTube Analyzer';
           case 'wan25-video': return wan25VideoData?.isImageToVideo ? 'Wan 2.5 Image to Video' : 'Wan 2.5 Text to Video';
           case 'grok-video': return grokVideoData?.isVideoEdit ? 'Grok Video to Video' : (grokVideoData?.isImageToVideo ? 'Grok Image to Video' : 'Grok Text to Video');
-          default: return 'Canvas Results';
+          case 'run-code': return 'Code output';
+          default:
+            if (panelData.toolType?.startsWith('file-edit:')) {
+              const sub = panelData.toolType.replace('file-edit:', '');
+              if (sub === 'read_file') return 'Read file';
+              if (sub === 'write_file') return 'Write file';
+              if (sub === 'get_file_info') return 'File info';
+              if (sub === 'list_workspace') return 'List workspace';
+              if (sub === 'delete_file') return 'Delete file';
+              if (sub === 'grep_file') return 'Search in file';
+              if (sub === 'apply_edits') return 'Apply edits';
+              return 'File';
+            }
+            return 'Results';
         }
       }
       
@@ -246,6 +261,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
       if (youTubeLinkAnalysisData) return 'YouTube Analysis';
       if (wan25VideoData) return wan25VideoData.isImageToVideo ? 'Wan 2.5 Image to Video' : 'Wan 2.5 Text to Video';
       if (grokVideoData) return grokVideoData.isVideoEdit ? 'Grok Video to Video' : (grokVideoData.isImageToVideo ? 'Grok Image to Video' : 'Grok Text to Video');
+      if (fileEditData) return 'File';
+      if (runCodeData) return 'Code output';
       
       return 'Canvas';
     }
@@ -259,7 +276,20 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   }, [
     panelData,
     wan25VideoData,
-    grokVideoData
+    grokVideoData,
+    fileEditData,
+    runCodeData,
+    webSearchData,
+    googleSearchData,
+    twitterSearchData,
+    mathCalculationData,
+    linkReaderData,
+    imageGeneratorData,
+    geminiImageData,
+    seedreamImageData,
+    qwenImageData,
+    youTubeSearchData,
+    youTubeLinkAnalysisData
   ]);
 
   // Early return when no panel is visible
@@ -388,6 +418,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           youTubeSearchData={youTubeSearchData}
           youTubeLinkAnalysisData={youTubeLinkAnalysisData}
           googleSearchData={googleSearchData}
+          fileEditData={fileEditData}
+          runCodeData={runCodeData}
                     isCompact={false}
                     selectedTool={nonNullPanelData.toolType}
                     selectedItem={nonNullPanelData.fileName}

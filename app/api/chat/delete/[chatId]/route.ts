@@ -157,7 +157,19 @@ export async function DELETE(
       }
     }
 
-    // 6. 메시지 테이블 삭제
+    // 6. 해당 채팅의 북마크 삭제
+    const { error: deleteBookmarksError } = await supabase
+      .from('message_bookmarks')
+      .delete()
+      .eq('chat_session_id', chatId)
+      .eq('user_id', user.id);
+
+    if (deleteBookmarksError) {
+      console.error('Error deleting message_bookmarks:', deleteBookmarksError);
+      return NextResponse.json({ error: 'Failed to delete bookmarks' }, { status: 500 });
+    }
+
+    // 7. 메시지 테이블 삭제
     const { error: deleteMessagesError } = await supabase
       .from('messages')
       .delete()
@@ -169,7 +181,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Failed to delete messages' }, { status: 500 });
     }
 
-    // 7. chat_sessions 테이블 삭제
+    // 8. chat_sessions 테이블 삭제
     const { error: deleteChatError } = await supabase
       .from('chat_sessions')
       .delete()
@@ -181,7 +193,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Failed to delete chat session' }, { status: 500 });
     }
 
-    // 8. 성공 응답 (Storage 에러가 있어도 DB 삭제는 성공으로 간주)
+    // 9. 성공 응답 (Storage 에러가 있어도 DB 삭제는 성공으로 간주)
     const response: any = { 
       success: true, 
       message: 'Chat deleted successfully',

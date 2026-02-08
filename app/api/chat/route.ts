@@ -16,7 +16,8 @@ import { getModelById, getModelByIdWithReasoningEffort, parseModelVariantId, res
 import { 
   saveCompletedMessages,
   buildSystemPrompt,
-  getCachedUserMemory
+  getCachedUserMemory,
+  getFileEditToolIds
 } from './services/chatService';
 import {
   getProviderFromModel,
@@ -389,6 +390,8 @@ export async function POST(req: Request): Promise<Response> {
             } else if (selectedTool === 'grok_video_edit') {
               selectedActiveTools = ['grok_video'] as Array<keyof typeof TOOL_REGISTRY>;
               (writer as any)._selectedGrokVideoModel = 'video-edit';
+            } else if (selectedTool === 'workspace') {
+              selectedActiveTools = getFileEditToolIds() as Array<keyof typeof TOOL_REGISTRY>;
             } else {
               // 일반 도구인 경우
               selectedActiveTools = [selectedTool] as Array<keyof typeof TOOL_REGISTRY>;
@@ -454,6 +457,8 @@ export async function POST(req: Request): Promise<Response> {
                 ? (config.createFn as any)(writer, user?.id || anonymousUserId, messagesWithTokens, chatId, (writer as any)._selectedWan25VideoModel) // forcedModel 전달
                 : toolName === 'grok_video'
                 ? (config.createFn as any)(writer, user?.id || anonymousUserId, messagesWithTokens, chatId, (writer as any)._selectedGrokVideoModel) // forcedModel 전달
+                : [...getFileEditToolIds(), 'run_python_code'].includes(toolName)
+                ? (config.createFn as any)(writer, chatId, supabase) // file-edit / code run: sandbox per chat
                 : (config.createFn as any)(writer)
             ])
           );
@@ -483,8 +488,47 @@ export async function POST(req: Request): Promise<Response> {
           
           // chat_attachments signed URL 갱신 (AI SDK 다운로드 시 400 InvalidJWT 방지)
           const messagesWithFreshUrls = await refreshChatAttachmentUrlsInMessages(compressedMessages);
+          // 파일 편집/코드 실행 도구 사용 시: 사용자 첨부 파일을 샌드박스에 업로드하고 워크스페이스 경로 추적
+          const fileAndCodeToolIds = [...getFileEditToolIds(), 'run_python_code'];
+          const hasFileEditTools = selectedActiveTools.some((t: string) => fileAndCodeToolIds.includes(t));
+          let messagesForProcess = messagesWithFreshUrls;
+          if (hasFileEditTools && messagesWithFreshUrls.length > 0) {
+            const { uploadMessageAttachmentsToSandbox, getWorkspaceContextText, workspacePathForFilename } = await import('./lib/sandboxService');
+            const lastUserMessage = [...messagesWithFreshUrls].reverse().find((m: any) => m.role === 'user');
+            if (lastUserMessage) {
+              await uploadMessageAttachmentsToSandbox(chatId, lastUserMessage, supabase);
+            }
+            messagesForProcess = messagesWithFreshUrls.map((m: any) => ({ ...m, parts: Array.isArray(m.parts) ? [...m.parts] : m.parts }));
+            let lastUserMsgIdx = -1;
+            for (let i = messagesForProcess.length - 1; i >= 0; i--) {
+              const msg = messagesForProcess[i];
+              if (msg.role === 'user' && msg.parts && Array.isArray(msg.parts)) {
+                lastUserMsgIdx = i;
+                const isTextOrCodePart = (part: { type?: string; mediaType?: string; filename?: string }) => {
+                  if (part.type !== 'file') return false;
+                  const ct = (part.mediaType || '').toLowerCase();
+                  const name = part.filename || '';
+                  if (ct.startsWith('image/') || ct === 'application/pdf') return false;
+                  const codeExt = /\.(js|ts|jsx|tsx|py|java|c|cpp|cs|go|rb|php|html|css|sql|scala|swift|kt|rs|dart|json|xml|yaml|yml|md|txt|csv)$/i;
+                  return !!name.match(codeExt) || ct.includes('text/') || ct.includes('javascript') || ct.includes('json');
+                };
+                msg.parts = msg.parts.map((part: any) => {
+                  if (isTextOrCodePart(part)) {
+                    const path = workspacePathForFilename(part.filename || 'file');
+                    return { type: 'text', text: `Attached file in workspace: ${path}. Use read_file("${path}") to read content.` };
+                  }
+                  return part;
+                });
+                break;
+              }
+            }
+            const workspaceText = await getWorkspaceContextText(chatId, supabase);
+            if (workspaceText && lastUserMsgIdx >= 0 && messagesForProcess[lastUserMsgIdx].parts) {
+              messagesForProcess[lastUserMsgIdx].parts.push({ type: 'text', text: workspaceText });
+            }
+          }
           // 🔧 AI SDK v5: 공통 메시지 처리 함수 사용 (도구 유무와 관계없이 동일)
-          const finalMessagesForExecution = await processMessagesForAI(messagesWithFreshUrls, executionModelId);
+          const finalMessagesForExecution = await processMessagesForAI(messagesForProcess, executionModelId);
           
           // 🔥 Fireworks API 호환성: extra_content 제거 (API 호출 직전 최종 정리)
           const cleanedMessages = removeExtraContentFromMessages(finalMessagesForExecution, executionModelId);

@@ -11,6 +11,14 @@ import {
   createTwitterSearchTool,
   createWan25VideoTool,
   createGrokVideoTool,
+  createReadFileTool,
+  createWriteFileTool,
+  createGetFileInfoTool,
+  createListWorkspaceTool,
+  createDeleteFileTool,
+  createGrepFileTool,
+  createApplyEditsTool,
+  createRunPythonCodeTool,
 } from '../tools';
 
 // 🆕 도구 레지스트리 - 모든 도구를 중앙에서 관리
@@ -74,6 +82,46 @@ export const TOOL_REGISTRY = {
     createFn: (dataStream: any, userId: string, messages: any[], chatId?: string, forcedModel?: 'text-to-video' | 'image-to-video' | 'video-edit') => createGrokVideoTool(dataStream, userId, messages, chatId, forcedModel),
     resultKey: 'grokVideoResults',
     description: 'xAI Grok Imagine video generation & editing (text-to-video, image-to-video, video-edit)'
+  },
+  'read_file': {
+    createFn: (dataStream: any, chatId: string, supabase: Awaited<ReturnType<typeof import('@/utils/supabase/server').createClient>>) => createReadFileTool(dataStream, chatId, supabase),
+    resultKey: 'fileReadResults',
+    description: 'Read file contents from the workspace sandbox'
+  },
+  'write_file': {
+    createFn: (dataStream: any, chatId: string, supabase: Awaited<ReturnType<typeof import('@/utils/supabase/server').createClient>>) => createWriteFileTool(dataStream, chatId, supabase),
+    resultKey: 'fileWriteResults',
+    description: 'Write or overwrite a file in the workspace sandbox'
+  },
+  'get_file_info': {
+    createFn: (dataStream: any, chatId: string, supabase: Awaited<ReturnType<typeof import('@/utils/supabase/server').createClient>>) => createGetFileInfoTool(dataStream, chatId, supabase),
+    resultKey: 'fileInfoResults',
+    description: 'Get file or directory metadata in the workspace'
+  },
+  'list_workspace': {
+    createFn: (dataStream: any, chatId: string, supabase: Awaited<ReturnType<typeof import('@/utils/supabase/server').createClient>>) => createListWorkspaceTool(dataStream, chatId, supabase),
+    resultKey: 'listWorkspaceResults',
+    description: 'List workspace file paths'
+  },
+  'delete_file': {
+    createFn: (dataStream: any, chatId: string, supabase: Awaited<ReturnType<typeof import('@/utils/supabase/server').createClient>>) => createDeleteFileTool(dataStream, chatId, supabase),
+    resultKey: 'fileDeleteResults',
+    description: 'Delete a file from the workspace sandbox'
+  },
+  'grep_file': {
+    createFn: (dataStream: any, chatId: string, supabase: Awaited<ReturnType<typeof import('@/utils/supabase/server').createClient>>) => createGrepFileTool(dataStream, chatId, supabase),
+    resultKey: 'grepFileResults',
+    description: 'Search inside a file for a pattern (line numbers and content)'
+  },
+  'apply_edits': {
+    createFn: (dataStream: any, chatId: string, supabase: Awaited<ReturnType<typeof import('@/utils/supabase/server').createClient>>) => createApplyEditsTool(dataStream, chatId, supabase),
+    resultKey: 'applyEditsResults',
+    description: 'Apply multiple line-range edits to a file'
+  },
+  'run_python_code': {
+    createFn: (dataStream: any, chatId: string, supabase: Awaited<ReturnType<typeof import('@/utils/supabase/server').createClient>>) => createRunPythonCodeTool(dataStream, chatId, supabase),
+    resultKey: 'runCodeResults',
+    description: 'Run Python code for data analysis and charts in the workspace sandbox'
   }
 } as const;
 
@@ -109,7 +157,8 @@ export function collectToolResults(tools: Record<string, any>, toolNames: string
       'seedream_image_tool': 'generatedImages',
       // 'qwen_image_edit': 'generatedImages',
       'wan25_video': 'generatedVideos',
-      'grok_video': 'generatedVideos'
+      'grok_video': 'generatedVideos',
+      'run_python_code': 'runCodeResults'
     };
     
     const resultKey = resultMap[toolName] || 'results';

@@ -3085,6 +3085,198 @@ function getDisplayNameForTool(toolName: string, args: any, result: any | null):
   return TOOL_DISPLAY_NAMES[toolName] || toolName;
 }
 
+const FILE_EDIT_PART_TYPES = ['tool-read_file', 'tool-write_file', 'tool-get_file_info', 'tool-list_workspace', 'tool-delete_file', 'tool-grep_file', 'tool-apply_edits'] as const;
+
+export type FileEditFileEntry = {
+  toolName: string;
+  path: string;
+  content?: string;
+  /** Original file content before write/edit (null = new file) */
+  originalContent?: string | null;
+  success: boolean;
+  error?: string;
+  size?: number;
+  entries?: Array<{ name: string; path: string; isDir?: boolean }>;
+  input?: { path?: string; content?: string };
+  /** grep_file: formatted output, totalLines, truncated, matches count */
+  output?: string;
+  totalLines?: number;
+  truncated?: boolean;
+  matchesCount?: number;
+  /** grep_file: matching lines for full-file highlight */
+  matches?: { lineNumber: number; line: string }[];
+  /** apply_edits: number of edits applied */
+  applied?: number;
+  /** read_file: line range read (1-based) */
+  startLine?: number;
+  endLine?: number;
+};
+
+export type FileEditData = {
+  files: FileEditFileEntry[];
+};
+
+/** Map tool part type to the matching data part type (result in next part when loading from DB). */
+const TOOL_TO_DATA_PART: Record<string, string> = {
+  write_file: 'data-file_written',
+  apply_edits: 'data-apply_edits',
+  read_file: 'data-file_read',
+  grep_file: 'data-grep_file',
+  delete_file: 'data-file_deleted',
+};
+
+/** Extract file-edit tool results (read_file, write_file, get_file_info, list_workspace) from message.parts for Canvas. */
+export const getFileEditData = (message: UIMessage): FileEditData | null => {
+  if (!message) return null;
+  const parts = (message as any).parts;
+  if (!Array.isArray(parts)) return null;
+
+  const files: FileEditFileEntry[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const type = part?.type;
+    if (!type || !FILE_EDIT_PART_TYPES.includes(type as any)) continue;
+
+    const toolName = type.replace('tool-', '');
+    let raw = part.output?.value ?? part.output ?? part.result ?? null;
+    // When loading from DB, result can be in the next part (e.g. data-file_written, data-apply_edits)
+    if (!raw && i + 1 < parts.length) {
+      const next = parts[i + 1];
+      const expectedDataPart = TOOL_TO_DATA_PART[toolName];
+      if (expectedDataPart && next?.type === expectedDataPart && next.data) {
+        raw = next.data;
+      }
+    }
+    const path = raw?.path ?? part.input?.path ?? '';
+    const success = raw?.success === true;
+    const error = typeof raw?.error === 'string' ? raw.error : undefined;
+    const content = typeof raw?.content === 'string' ? raw.content : undefined;
+    const size = typeof raw?.size === 'number' ? raw.size : undefined;
+    const entries = Array.isArray(raw?.entries) ? raw.entries : undefined;
+    const output = typeof raw?.output === 'string' ? raw.output : undefined;
+    const totalLines = typeof raw?.totalLines === 'number' ? raw.totalLines : undefined;
+    const truncated = raw?.truncated === true;
+    const matchesCount = Array.isArray(raw?.matches) ? raw.matches.length : undefined;
+    const matches = Array.isArray(raw?.matches) ? raw.matches : undefined;
+    const applied = typeof raw?.applied === 'number' ? raw.applied : undefined;
+    const originalContent = raw?.originalContent !== undefined ? raw.originalContent : undefined;
+    const startLine = typeof raw?.startLine === 'number' ? raw.startLine : part.input?.startLine;
+    const endLine = typeof raw?.endLine === 'number' ? raw.endLine : part.input?.endLine;
+
+    const entry: FileEditFileEntry = {
+      toolName,
+      path,
+      content,
+      originalContent,
+      success,
+      error,
+      size,
+      entries,
+      input: part.input,
+      output,
+      totalLines,
+      truncated,
+      matchesCount,
+      matches,
+      applied,
+      startLine,
+      endLine,
+    };
+    const existingIdx = files.findIndex((f) => f.toolName === toolName && f.path === path);
+    if (existingIdx >= 0) {
+      files[existingIdx] = entry;
+    } else {
+      files.push(entry);
+    }
+  }
+  if (files.length === 0) return null;
+  return { files };
+};
+
+const RUN_CODE_PART_TYPES = ['tool-run_python_code'] as const;
+
+export type RunCodeResultItem = {
+  text?: string;
+  html?: string;
+  png?: string;
+  jpeg?: string;
+  chart?: unknown;
+  json?: unknown;
+};
+
+export type RunCodeData = {
+  stdout: string[];
+  stderr: string[];
+  results: RunCodeResultItem[];
+  error?: { name?: string; value?: string; traceback?: string[] };
+  success: boolean;
+};
+
+function parseRunCodeRaw(raw: any): RunCodeData {
+  const stdout = Array.isArray(raw.stdout) ? raw.stdout : [];
+  const stderr = Array.isArray(raw.stderr) ? raw.stderr : [];
+  const results = Array.isArray(raw.results)
+    ? raw.results.map((r: unknown) => {
+        const x = (r as Record<string, unknown>) || {};
+        const item: RunCodeResultItem = {};
+        if (typeof x.text === 'string') item.text = x.text;
+        if (typeof x.html === 'string') item.html = x.html;
+        if (typeof x.png === 'string') item.png = x.png;
+        if (typeof x.jpeg === 'string') item.jpeg = x.jpeg;
+        if (x.chart !== undefined) item.chart = x.chart;
+        if (x.json !== undefined) item.json = x.json;
+        return item;
+      })
+    : [];
+  const err =
+    raw.error && typeof raw.error === 'object'
+      ? {
+          name: typeof (raw.error as any).name === 'string' ? (raw.error as any).name : undefined,
+          value: typeof (raw.error as any).value === 'string' ? (raw.error as any).value : undefined,
+          traceback: Array.isArray((raw.error as any).traceback) ? (raw.error as any).traceback : undefined,
+        }
+      : undefined;
+  const success = raw.success === true;
+  return { stdout, stderr, results, error: err, success };
+}
+
+/** Extract run_python_code tool results from message.parts for Canvas. Uses the last run_python_code part when multiple exist. Falls back to message.tool_results.runCodeResults when parts are missing or minimal (e.g. after refresh). */
+export const getRunCodeData = (message: UIMessage): RunCodeData | null => {
+  if (!message) return null;
+  const parts = (message as any).parts;
+  let out: RunCodeData | null = null;
+
+  if (Array.isArray(parts)) {
+    for (const part of parts) {
+      const type = part?.type;
+      if (!type) continue;
+
+      if (RUN_CODE_PART_TYPES.includes(type as any)) {
+        const raw = part.output?.value ?? part.output ?? part.result ?? null;
+        if (!raw) continue;
+        out = parseRunCodeRaw(raw);
+        continue;
+      }
+
+      if (type === 'data-run_code_complete') {
+        const raw = part.data ?? null;
+        if (!raw) continue;
+        out = parseRunCodeRaw(raw);
+      }
+    }
+  }
+
+  const isMinimal = out && out.results.length === 0 && out.stdout.length === 0 && out.stderr.length === 0 && !out.error;
+  if (out !== null && !isMinimal) return out;
+
+  const stored = (message as any).tool_results?.runCodeResults;
+  if (Array.isArray(stored) && stored.length > 0) {
+    const last = stored[stored.length - 1];
+    if (last && typeof last === 'object') return parseRunCodeRaw(last);
+  }
+  return out;
+};
+
 export const getToolDataFromPart = (
   toolCall: { toolName: string; args: any; toolCallId: string },
   toolResult: { result: any; toolCallId: string } | null

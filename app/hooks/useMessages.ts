@@ -436,6 +436,16 @@ export function useMessages(chatId: string, userId: string) {
       //   console.log('Subsequent messages deleted successfully');
       // }
 
+      const rollbackRes = await fetch('/api/chat/rollback-workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: actualChatId, upToSequenceNumber: existingMessage.sequence_number }),
+      });
+      if (!rollbackRes.ok) {
+        setIsSavingEdit(false);
+        return;
+      }
+
       // v5: 빈 어시스턴트 메시지 미리 생성하지 않음 - 스트림 완료 시 저장
 
       // Check if current model is rate limited
@@ -617,7 +627,7 @@ export function useMessages(chatId: string, userId: string) {
       if (messageError || !messageData) {
         // 데이터베이스에서 메시지를 찾지 못한 경우, 현재 메시지 인덱스 + 1을 sequence number로 사용
         // console.log('Message not found in database, using index-based sequence number')
-        sequenceNumber = messageIndex 
+        sequenceNumber = messageIndex + 1
       } else {
         sequenceNumber = messageData.sequence_number
         actualChatId = messageData.chat_session_id || chatId
@@ -634,6 +644,16 @@ export function useMessages(chatId: string, userId: string) {
       if (deleteError) {
         // console.error('Error deleting subsequent messages:', deleteError)
         return
+      }
+
+      const rollbackRes = await fetch('/api/chat/rollback-workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: actualChatId, upToSequenceNumber: sequenceNumber }),
+      });
+      if (!rollbackRes.ok) {
+        setIsRegenerating(false);
+        return;
       }
 
       // v5: 빈 어시스턴트 메시지 미리 생성하지 않음 - 스트림 완료 시 저장
