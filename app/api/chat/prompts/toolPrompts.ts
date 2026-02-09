@@ -271,7 +271,8 @@ Use these terms to elevate visual quality based on the user's intent. Seedream e
 
 - **Generation (no editImageUrl)**:
   * Write a clear scene description: subject + setting + lighting + style + key details.
-  * Use aspectRatio when you care about framing (e.g. "16:9", "9:16", "1:1").
+  * **Aspect ratio (MANDATORY constraint)**: Pass aspectRatio only from this list—1:1, 16:9, 9:16, 4:3, 3:4, 2:3, 3:2, 21:9. Any other ratio (e.g. 4:5, 5:4) will cause the API to fail. If the user requests an unsupported ratio, call the tool with the closest allowed ratio and briefly inform the user which ratios are supported.
+  * Otherwise use aspectRatio when you care about framing (e.g. "16:9", "9:16", "1:1").
 
 - **Editing / Compositing (editImageUrl provided)**:
   * By default, Seedream preserves the input image aspect ratio; only set aspectRatio if the user explicitly asks.
@@ -293,7 +294,7 @@ Use these terms to elevate visual quality based on the user's intent. Seedream e
 **5. Execution Workflow**
 1. Analyze user intent and character limit (max 2000).
 2. If **Edit**: identify the requested change; apply STRICT CONSISTENCY RULE; do not set aspectRatio unless user asks.
-3. If **Generation**: one image per call; use aspectRatio for framing when relevant.
+3. If **Generation**: one image per call; use aspectRatio for framing when relevant. Before calling: ensure aspectRatio is one of 1:1, 16:9, 9:16, 4:3, 3:4, 2:3, 3:2, 21:9—otherwise substitute the closest and inform the user.
 4. Select Creative Toolkit terms only when they align with the user's vision.
 5. Call seedream_image_tool with correct imageSize and editImageUrl syntax.
 6. **IMMEDIATE DISPLAY**: As soon as the tool result is available, display the IMAGE_ID FIRST (see below).
@@ -333,6 +334,7 @@ Use these concepts to create dynamic and visually stunning videos.
   * Use "image-to-video" for animating static images (requires imageUrl).
 - Prompting: Be highly detailed. Describe the specific motion, the environment, and the visual style in a narrative format.
 - Image-to-Video: Clearly state how the image should move or what action should take place.
+- **Size (text-to-video only, MANDATORY constraint)**: Pass size only from this list—832*480, 480*832, 624*624, 1280*720, 720*1280, 960*960, 1088*832, 832*1088, 1920*1080, 1080*1920, 1440*1440, 1632*1248, 1248*1632. Any other size or aspect (e.g. 21:9, 2560*1080) will cause the API to fail. If the user requests an unsupported size or ratio, call the tool with the closest allowed size and briefly inform the user which sizes are supported.
 
 **4. Technical Syntax Rules for imageUrl**
 - imageUrl (image-to-video only): Single image reference. See Specs for valid IDs (uploaded_image_N, generated_image_N, search_img_XXX, google_img_XXX).
@@ -343,7 +345,7 @@ Use these concepts to create dynamic and visually stunning videos.
 1. Identify the task: Generate new video (text-to-video) or Animate image (image-to-video).
 2. Analyze the desired motion and style based on user intent.
 3. Craft a detailed prompt including camera movement and subject action.
-4. Call wan25_video with the correct model and parameters.
+4. For text-to-video: ensure size is one of the allowed values; if the user asked for another ratio/size, use the closest from the list and inform the user. Then call wan25_video with the correct model and parameters.
 5. **IMMEDIATE DISPLAY**: As soon as the tool result is available, display the VIDEO_ID FIRST before any other text or explanation (see below).
 
 **6. CRITICAL - VIDEO_ID FORMAT**
