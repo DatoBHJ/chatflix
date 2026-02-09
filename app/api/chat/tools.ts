@@ -3584,7 +3584,7 @@ export function createSeedreamImageTool(dataStream?: any, userId?: string, allMe
       z.null()
     ]).optional().describe('Image reference(s): For user-uploaded images use "uploaded_image_N" (e.g., uploaded_image_1). For previously generated Seedream images, use "generated_image_N" (e.g., generated_image_1). For search images from web_search or google_search, use "search_img_XXX" or "google_img_XXX" (exact ID from search results). Can be a single string or array of up to 10 images.'),
     size: z.enum(['1K', '2K', '4K', 'custom']).optional().describe('Image resolution: 1K (1024px), 2K (2048px), 4K (4096px), or custom dimensions. Default: 2K'),
-    aspectRatio: z.string().optional().describe('Image aspect ratio. For editing: defaults to "match_input_image" (auto-preserves input ratio). For generation or override: use "1:1", "16:9", "9:16", "4:3" etc. Combined with size to calculate output dimensions.'),
+    aspectRatio: z.enum(['1:1', '16:9', '9:16', '4:3', '3:4', '2:3', '3:2', '21:9', 'match_input_image']).optional().describe('Image aspect ratio. For editing use "match_input_image". For generation use only: 1:1, 16:9, 9:16, 4:3, 3:4, 2:3, 3:2, 21:9.'),
     width: z.number().min(1024).max(4096).optional().describe('Custom image width (only used when size is "custom")'),
     height: z.number().min(1024).max(4096).optional().describe('Custom image height (only used when size is "custom")')
   });
