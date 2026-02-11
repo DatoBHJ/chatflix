@@ -336,7 +336,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           .from('messages')
           .select('chat_session_id, content')
           .in('chat_session_id', sessionIds)
-          .eq('role', 'user')
+          .eq('role', 'assistant')
           .order('created_at', { ascending: true })
         
         if (messagesData) {

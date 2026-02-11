@@ -5,7 +5,7 @@ import { ensureFreshAttachmentUrls } from '@/app/utils/attachmentUrlHelpers';
 import React, { memo, useCallback, useState, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import Image from 'next/image'
-import { IoCreateOutline, IoCopyOutline, IoCheckmarkOutline, IoBookmarkOutline, IoBookmark, IoDocumentTextOutline, IoClose } from 'react-icons/io5'
+import { IoCreateOutline, IoCopyOutline, IoCheckmarkOutline, IoBookmarkOutline, IoBookmark, IoDocumentTextOutline, IoClose, IoEllipsisHorizontal } from 'react-icons/io5'
 
 import { AttachmentPreview } from './Attachment'
 import { DragDropOverlay } from './ChatInput/DragDropOverlay'; 
@@ -65,6 +65,8 @@ interface MessageProps {
   qwenImageData?: any
   wan25VideoData?: any;
   grokVideoData?: any;
+  videoUpscalerData?: any;
+  imageUpscalerData?: any;
   twitterSearchData?: any
   youTubeSearchData?: any
   youTubeLinkAnalysisData?: any
@@ -86,6 +88,10 @@ interface MessageProps {
   onBookmarkToggle?: (messageId: string, shouldBookmark: boolean) => Promise<void>
   isBookmarksLoading?: boolean
   searchTerm?: string | null // 🚀 FEATURE: Search term for highlighting
+  isMessageSelectionMode?: boolean
+  isMessageSelected?: boolean
+  onEnterMessageSelectionMode?: (messageId: string) => void
+  onToggleMessageSelection?: (messageId: string) => void
 }
 
 function isReasoningComplete(message: any, isStreaming: boolean): boolean {
@@ -237,10 +243,10 @@ const AssistantAvatar = ({ modelId, onClick }: { modelId: string; onClick?: () =
 const areMessagePropsEqual = (prevProps: any, nextProps: any) => {
   // message.annotations의 progress만 변경된 경우 무시
   const prevAnnotationsWithoutProgress = (prevProps.message?.annotations || []).filter(
-    (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress'
+    (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress' && a?.type !== 'video_upscaler_progress' && a?.type !== 'data-video_upscaler_progress' && a?.type !== 'image_upscaler_progress' && a?.type !== 'data-image_upscaler_progress'
   );
   const nextAnnotationsWithoutProgress = (nextProps.message?.annotations || []).filter(
-    (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress'
+    (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress' && a?.type !== 'video_upscaler_progress' && a?.type !== 'data-video_upscaler_progress' && a?.type !== 'image_upscaler_progress' && a?.type !== 'data-image_upscaler_progress'
   );
   
   // annotations (progress 제외) 비교
@@ -248,10 +254,10 @@ const areMessagePropsEqual = (prevProps: any, nextProps: any) => {
   
   // message.parts의 실제 내용 비교 (progress annotation 제외)
   const prevPartsWithoutProgress = (prevProps.message?.parts || []).filter(
-    (p: any) => p?.type !== 'data-wan25_video_progress' && p?.type !== 'data-grok_video_progress'
+    (p: any) => p?.type !== 'data-wan25_video_progress' && p?.type !== 'data-grok_video_progress' && p?.type !== 'data-video_upscaler_progress' && p?.type !== 'data-image_upscaler_progress'
   );
   const nextPartsWithoutProgress = (nextProps.message?.parts || []).filter(
-    (p: any) => p?.type !== 'data-wan25_video_progress' && p?.type !== 'data-grok_video_progress'
+    (p: any) => p?.type !== 'data-wan25_video_progress' && p?.type !== 'data-grok_video_progress' && p?.type !== 'data-video_upscaler_progress' && p?.type !== 'data-image_upscaler_progress'
   );
   const partsEqual = JSON.stringify(prevPartsWithoutProgress) === JSON.stringify(nextPartsWithoutProgress);
   
@@ -269,6 +275,10 @@ const areMessagePropsEqual = (prevProps: any, nextProps: any) => {
     JSON.stringify(prevProps.wan25VideoData) === JSON.stringify(nextProps.wan25VideoData);
   const grokVideoDataPropsEqual = 
     JSON.stringify(prevProps.grokVideoData) === JSON.stringify(nextProps.grokVideoData);
+  const videoUpscalerDataPropsEqual =
+    JSON.stringify(prevProps.videoUpscalerData) === JSON.stringify(nextProps.videoUpscalerData);
+  const imageUpscalerDataPropsEqual =
+    JSON.stringify(prevProps.imageUpscalerData) === JSON.stringify(nextProps.imageUpscalerData);
   
   // 다른 props 비교 (toolData는 참조 비교 - 내용이 같으면 참조도 같음)
   const otherPropsEqual = 
@@ -300,6 +310,8 @@ const areMessagePropsEqual = (prevProps: any, nextProps: any) => {
     prevProps.googleSearchData === nextProps.googleSearchData &&
     wan25VideoDataPropsEqual &&
     grokVideoDataPropsEqual &&
+    videoUpscalerDataPropsEqual &&
+    imageUpscalerDataPropsEqual &&
     // 함수 props는 참조 비교
     prevProps.onRegenerate === nextProps.onRegenerate &&
     prevProps.onCopy === nextProps.onCopy &&
@@ -319,7 +331,11 @@ const areMessagePropsEqual = (prevProps: any, nextProps: any) => {
     prevProps.linkPreviewData === nextProps.linkPreviewData &&
     prevProps.promptMap === nextProps.promptMap &&
     prevProps.sourceImageMap === nextProps.sourceImageMap &&
-    prevProps.mediaDimensionsMap === nextProps.mediaDimensionsMap;
+    prevProps.mediaDimensionsMap === nextProps.mediaDimensionsMap &&
+    prevProps.isMessageSelectionMode === nextProps.isMessageSelectionMode &&
+    prevProps.isMessageSelected === nextProps.isMessageSelected &&
+    prevProps.onEnterMessageSelectionMode === nextProps.onEnterMessageSelectionMode &&
+    prevProps.onToggleMessageSelection === nextProps.onToggleMessageSelection;
   
   // 모든 핵심 필드가 같으면 리렌더링 방지
   return messageCoreEqual && otherPropsEqual;
@@ -353,6 +369,8 @@ const Message = memo(function MessageComponent({
   qwenImageData,
   wan25VideoData,
   grokVideoData,
+  videoUpscalerData,
+  imageUpscalerData,
 
   twitterSearchData,
   youTubeSearchData,
@@ -375,6 +393,10 @@ const Message = memo(function MessageComponent({
   onBookmarkToggle,
   isBookmarksLoading,
   searchTerm, // 🚀 FEATURE: Search term for highlighting
+  isMessageSelectionMode = false,
+  isMessageSelected = false,
+  onEnterMessageSelectionMode,
+  onToggleMessageSelection,
 }: MessageProps) {
 
   // 스트리밍 시작 시 모델 고정 (중간에 모델 변경 시 로고 변경 방지)
@@ -546,7 +568,7 @@ const Message = memo(function MessageComponent({
   const videoPartsKey = useMemo(() => {
     if (!message.parts || !Array.isArray(message.parts)) return '';
     const videoParts = message.parts.filter(
-      (p: any) => p?.type?.startsWith('tool-wan25_') || p?.type === 'data-wan25_video_complete' || p?.type?.startsWith('tool-grok_') || p?.type === 'data-grok_video_complete'
+      (p: any) => p?.type?.startsWith('tool-wan25_') || p?.type === 'data-wan25_video_complete' || p?.type?.startsWith('tool-grok_') || p?.type === 'data-grok_video_complete' || p?.type?.startsWith('tool-video_upscaler') || p?.type === 'data-video_upscaler_complete'
     );
     return JSON.stringify(videoParts);
   }, [message.parts]);
@@ -1214,6 +1236,29 @@ const Message = memo(function MessageComponent({
     (message as any)._hasStoredParts
   );
 
+  const preferredRunCodeToolCallId = useMemo(() => {
+    if (!Array.isArray(message.parts)) return undefined;
+    let lastRunToolCallId: string | undefined;
+    let lastSuccessfulRunToolCallId: string | undefined;
+
+    for (const part of message.parts as any[]) {
+      if (part?.type === 'tool-run_python_code' && typeof part.toolCallId === 'string') {
+        lastRunToolCallId = part.toolCallId;
+      }
+      if (part?.type === 'data-run_code_complete') {
+        const toolCallId = typeof part?.data?.toolCallId === 'string' ? part.data.toolCallId : undefined;
+        if (toolCallId) {
+          lastRunToolCallId = toolCallId;
+          if (part?.data?.success === true) {
+            lastSuccessfulRunToolCallId = toolCallId;
+          }
+        }
+      }
+    }
+
+    return lastSuccessfulRunToolCallId ?? lastRunToolCallId;
+  }, [message.parts]);
+
   const structuredMainResponse = useMemo(() => getStructuredResponseMainContent(message), [message]);
   const structuredDescription = useMemo(() => getStructuredResponseDescription(message), [message]);
   
@@ -1261,6 +1306,7 @@ const Message = memo(function MessageComponent({
   const [dropdownPosition, setDropdownPosition] = useState<'top' | 'bottom'>('top');
   const [bubbleTransform, setBubbleTransform] = useState('scale(1) translateY(0)');
   const [preCalculatedMenuPosition, setPreCalculatedMenuPosition] = useState<{top: string, left: string, right: string, display: string} | null>(null);
+  const isSelectionModeActive = isMessageSelectionMode && typeof onToggleMessageSelection === 'function';
   
   // 오버레이 메트릭스 상태 추가 (긴 메시지 축소용)
   const [overlayMetrics, setOverlayMetrics] = useState<{
@@ -1360,6 +1406,25 @@ const Message = memo(function MessageComponent({
       targetBubbleRef.current = null; // 🚀 FIX: targetBubbleRef 초기화
     }, 300); // 150ms (원본 메시지 페이드인) + 150ms (오버레이 페이드아웃)
   }, [clearAnimationTimeout, overlayMetrics]);
+
+  useEffect(() => {
+    if (!isSelectionModeActive) return;
+    if (longPressActive) {
+      handleLongPressCancel();
+    }
+    if (showActionsDesktop) {
+      setShowActionsDesktop(false);
+    }
+  }, [isSelectionModeActive, longPressActive, showActionsDesktop, handleLongPressCancel]);
+
+  const handleSelectionToggle = useCallback((e?: React.SyntheticEvent) => {
+    if (!isSelectionModeActive || !onToggleMessageSelection) return;
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    onToggleMessageSelection(message.id);
+  }, [isSelectionModeActive, onToggleMessageSelection, message.id]);
 
   // 메시지 컨텐츠를 순수 텍스트로 변환하는 함수
   const convertMessageToText = useCallback((message: any, preserveMarkdown?: boolean): string => {
@@ -1682,7 +1747,7 @@ const Message = memo(function MessageComponent({
       // 사용자 메시지: 하이브리드 접근 - 메시지 근처 우선, 화면 벗어날 때만 하단 고정
       if (dropdownPosition === 'bottom' && bubbleRef.current && isUser) {
         const rect = bubbleRef.current.getBoundingClientRect();
-        const menuHeight = 160; // 텍스트 선택 버튼 추가로 높이 증가
+        const menuHeight = 220; // 더보기 버튼 추가 반영
         const margin = 16;
         const viewportHeight = window.innerHeight;
         const menuBottomMargin = 20;
@@ -1723,7 +1788,7 @@ const Message = memo(function MessageComponent({
         if (overlayMetrics === null) {
           // 일반 메시지: 메뉴가 하단에 고정될 때만 메시지 이동
           const rect = aiBubbleRef.current.getBoundingClientRect();
-          const menuHeight = 200; // 텍스트 선택 버튼 추가로 높이 증가 (북마크 버튼 포함)
+          const menuHeight = 260; // 더보기 버튼 추가 반영
           const margin = 16;
           const viewportHeight = window.innerHeight;
           const menuBottomMargin = 40;
@@ -1821,6 +1886,7 @@ const Message = memo(function MessageComponent({
 
   // 터치 시작 핸들러 (사용자 메시지용)
   const handleUserTouchStart = (e: React.TouchEvent) => {
+    if (isSelectionModeActive) return;
     if (!isMobile || !isUser) return;
     
     // 스크롤 방지를 위한 preventDefault
@@ -1845,6 +1911,7 @@ const Message = memo(function MessageComponent({
 
   // 터치 시작 핸들러 (AI 메시지용) - iOS Safari 호환성 개선
   const handleAITouchStart = (e: React.TouchEvent, targetBubble?: HTMLElement | null) => {
+    if (isSelectionModeActive) return;
     if (!isMobile || !isAssistant) return;
     
     // iOS Safari: 하위 요소의 이벤트를 즉시 차단
@@ -1896,7 +1963,7 @@ const Message = memo(function MessageComponent({
     // 터치 시작 시점에 메뉴 위치 미리 계산 (glitch 방지)
     if (containerElement) {
       const rect = containerElement.getBoundingClientRect();
-      const menuHeight = 200; // 텍스트 선택 버튼 추가로 높이 증가 (북마크 버튼 포함)
+      const menuHeight = 260; // 더보기 버튼 추가 반영
       const margin = 16;
       const viewportHeight = window.innerHeight;
       const menuBottomMargin = 40;
@@ -2015,6 +2082,7 @@ const Message = memo(function MessageComponent({
 
   // 터치 종료 핸들러 (사용자 메시지용)
   const handleUserTouchEnd = (e: React.TouchEvent) => {
+    if (isSelectionModeActive) return;
     if (!isMobile || !isUser) return;
     
     e.preventDefault();
@@ -2045,6 +2113,7 @@ const Message = memo(function MessageComponent({
 
   // 터치 종료 핸들러 (AI 메시지용) - iOS Safari 호환성 개선
   const handleAITouchEnd = (e: React.TouchEvent, targetBubble?: HTMLElement | null) => {
+    if (isSelectionModeActive) return;
     if (!isMobile || !isAssistant) return;
     
     e.stopPropagation();
@@ -2094,6 +2163,7 @@ const Message = memo(function MessageComponent({
 
   // 터치 이동 핸들러 (스크롤 방지) - 사용자 메시지용
   const handleUserTouchMove = (e: React.TouchEvent) => {
+    if (isSelectionModeActive) return;
     if (!isMobile || !isUser) return;
     
     // 롱프레스 활성화 시 스크롤 완전 방지
@@ -2105,6 +2175,7 @@ const Message = memo(function MessageComponent({
 
   // 터치 이동 핸들러 (스크롤 방지) - AI 메시지용
   const handleAITouchMove = (e: React.TouchEvent, targetBubble?: HTMLElement | null) => {
+    if (isSelectionModeActive) return;
     if (!isMobile || !isAssistant) return;
     
     const currentY = e.touches[0].clientY;
@@ -2234,13 +2305,13 @@ const Message = memo(function MessageComponent({
     
     // 🚀 도구 프리뷰 데이터가 있는 경우도 렌더링할 컨텐츠가 있는 것으로 간주
     if (webSearchData || mathCalculationData || linkReaderData || imageGeneratorData || 
-        geminiImageData || seedreamImageData || qwenImageData || wan25VideoData || grokVideoData || twitterSearchData || 
+        geminiImageData || seedreamImageData || qwenImageData || wan25VideoData || grokVideoData || videoUpscalerData || imageUpscalerData || twitterSearchData || 
         youTubeSearchData || youTubeLinkAnalysisData || googleSearchData) return true;
 
     return false;
   }, [message, structuredDescription, hasAttachments, 
       webSearchData, mathCalculationData, linkReaderData, imageGeneratorData, 
-      geminiImageData, seedreamImageData, qwenImageData, wan25VideoData, grokVideoData, twitterSearchData, 
+      geminiImageData, seedreamImageData, qwenImageData, wan25VideoData, grokVideoData, videoUpscalerData, imageUpscalerData, twitterSearchData, 
       youTubeSearchData, youTubeLinkAnalysisData, googleSearchData]);
 
   const hasInlineToolPreview = useMemo(() => {
@@ -2405,7 +2476,31 @@ const Message = memo(function MessageComponent({
           </div>
         </div>
       )}
-      <div className={`flex ${isUser ? `justify-end` : `justify-start`} ${isUser ? 'mt-10 sm:mt-12 mb-0 sm:mb-10' : ''}`}>
+      <div
+        className={`relative flex ${isUser ? `justify-end` : `justify-start`} ${isUser ? 'mt-10 sm:mt-12 mb-0 sm:mb-10' : ''} ${isSelectionModeActive ? 'cursor-pointer' : ''} ${isSelectionModeActive && isUser ? 'pl-8' : ''}`}
+        onClick={isSelectionModeActive ? handleSelectionToggle : undefined}
+      >
+        {isSelectionModeActive && isUser && (
+          <div className="absolute left-0 top-1/2 z-30 -translate-y-1/2 sm:-left-16">
+            <div
+              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                isMessageSelected
+                  ? 'border-[#007AFF] bg-[#007AFF]'
+                  : 'border-(--muted) opacity-50'
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSelectionToggle();
+              }}
+            >
+              {isMessageSelected && (
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              )}
+            </div>
+          </div>
+        )}
         {isUser ? (
           <div className="w-full" style={{ minHeight: containerMinHeight }}>
             {isEditing ? (
@@ -2539,7 +2634,7 @@ const Message = memo(function MessageComponent({
                         onTouchStart={handleUserTouchStart}
                         onTouchEnd={handleUserTouchEnd}
                         onTouchMove={handleUserTouchMove}
-                        onClick={!isMobile ? (e) => {
+                        onClick={!isMobile && !isSelectionModeActive ? (e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           handleEditStartClick();
@@ -2549,7 +2644,7 @@ const Message = memo(function MessageComponent({
                     WebkitTouchCallout: 'none',
                     WebkitUserSelect: 'none',
                     userSelect: 'none',
-                    cursor: !isMobile ? 'pointer' : 'default',
+                    cursor: isSelectionModeActive ? 'pointer' : (!isMobile ? 'pointer' : 'default'),
                     transform: bubbleTransform,
                     transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
                     boxShadow: 'none',
@@ -2570,7 +2665,7 @@ const Message = memo(function MessageComponent({
                       </div>
                       
                       {/* 롱프레스 드롭다운: Portal 사용으로 DOM 계층 분리 */}
-                      {longPressActive && createPortal(
+                      {longPressActive && !isSelectionModeActive && createPortal(
                         <>
                           <div 
                             className="fixed w-48 chat-input-tooltip-backdrop rounded-2xl z-99999 overflow-hidden tool-selector"
@@ -2579,7 +2674,7 @@ const Message = memo(function MessageComponent({
                   ...(() => {
                     if (!bubbleRef.current) return { display: 'none' };
                     const rect = bubbleRef.current.getBoundingClientRect();
-                    const menuHeight = 160; // 텍스트 선택 버튼 추가로 높이 증가
+                    const menuHeight = 220; // 더보기 버튼 추가 반영
                     const margin = 16;
                     const viewportHeight = window.innerHeight;
                     const menuBottomMargin = 20;
@@ -2755,6 +2850,40 @@ const Message = memo(function MessageComponent({
                                 {isCopied ? 'Copied' : 'Copy'}
                               </span>
                             </button>
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.nativeEvent.stopImmediatePropagation();
+                                onEnterMessageSelectionMode?.(message.id);
+                                handleLongPressCancel();
+                              }}
+                              onTouchEnd={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.nativeEvent.stopImmediatePropagation();
+                                onEnterMessageSelectionMode?.(message.id);
+                                handleLongPressCancel();
+                              }}
+                              className="flex items-center gap-3 px-5 pb-4 transition-colors duration-150 rounded-xl tool-button"
+                              style={{
+                                '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
+                                '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
+                                WebkitTapHighlightColor: 'transparent',
+                                WebkitTouchCallout: 'none',
+                                WebkitUserSelect: 'none',
+                                userSelect: 'none'
+                              } as any}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                              onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
+                              onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                            >
+                              <div className="w-6 h-6 flex items-center justify-center">
+                                <IoEllipsisHorizontal size={20} style={{ color: 'var(--foreground)' }} />
+                              </div>
+                              <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>More</span>
+                            </button>
                           </div>
                         </div>
                         </>,
@@ -2772,12 +2901,35 @@ const Message = memo(function MessageComponent({
         ) : (
           <>
             <div className="flex items-end gap-5 group/assistant relative max-w-full assistant-message-container">
-              {!isMobile && (
+              {!isSelectionModeActive && !isMobile && (
                 <div ref={avatarRef} className="shrink-0 -mb-1 z-10 avatar-container -ml-12 sm:-ml-16" style={{ overflow: 'visible' }}>
-                  <AssistantAvatar 
-                    modelId={displayModel || ''} 
-                    onClick={() => setShowActionsDesktop(!showActionsDesktop)}
+                  <AssistantAvatar
+                    modelId={displayModel || ''}
+                    onClick={() => {
+                      if (isSelectionModeActive) return;
+                      setShowActionsDesktop(!showActionsDesktop);
+                    }}
                   />
+                </div>
+              )}
+              {isSelectionModeActive && (
+                <div
+                  className={`shrink-0 -mb-1 z-10 avatar-container ${isMobile ? 'ml-0 mr-1' : '-ml-12 sm:-ml-16'}`}
+                  style={{ overflow: 'visible' }}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                      isMessageSelected
+                        ? 'border-[#007AFF] bg-[#007AFF]'
+                        : 'border-(--muted) opacity-50'
+                    }`}
+                  >
+                    {isMessageSelected && (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                    )}
+                  </div>
                 </div>
               )}
               <div className="flex flex-col min-w-0 flex-1 assistant-bubbles-wrapper">
@@ -2820,7 +2972,9 @@ const Message = memo(function MessageComponent({
                 - data-* started annotations include the effective model for Grok
                 - use these to avoid showing "text-to-video" before the real mode is known
               */}
-              {segments.map((segment, idx) => {
+              {(() => {
+                let runCodeInvocationIndex = -1;
+                return segments.map((segment, idx) => {
                 const isLastSegment = idx === segments.length - 1;
                 const nextSegment = segments[idx + 1];
                 const isNextText = nextSegment?.type === 'text';
@@ -2941,7 +3095,15 @@ const Message = memo(function MessageComponent({
                 if (segment.type === 'tool') {
                   const toolContent = segment.content as ToolSegmentContent;
                   const toolName = toolContent.call.toolName;
+                  if (
+                    toolName === 'run_python_code' &&
+                    preferredRunCodeToolCallId &&
+                    toolContent.call.toolCallId !== preferredRunCodeToolCallId
+                  ) {
+                    return null;
+                  }
                   const toolArgs = toolContent.call.args;
+                  const runCodeIndex = toolName === 'run_python_code' ? ++runCodeInvocationIndex : null;
                   const resolvedToolArgs = (() => {
                     if (!toolArgs || toolArgs.model) return toolArgs;
                     if (!Array.isArray(message.parts) || message.parts.length === 0) return toolArgs;
@@ -3231,7 +3393,9 @@ const Message = memo(function MessageComponent({
 
                           // write_file / apply_edits / run_python_code: diff card without bubble wrapper
                           if (isOutcomeFileTool(toolName) || toolName === 'run_python_code') {
-                            const runCodeData = toolName === 'run_python_code' ? getRunCodeData(message) : null;
+                            const runCodeData = toolName === 'run_python_code'
+                              ? getRunCodeData(message, toolContent.call.toolCallId, runCodeIndex ?? undefined)
+                              : null;
                             return (
                               <div key={`segment-tool-${idx}`} className={`relative ${toolMargin}`}>
                                 <InlineToolPreview
@@ -3242,6 +3406,8 @@ const Message = memo(function MessageComponent({
                                   togglePanel={togglePanel}
                                   activePanel={activePanel}
                                   isProcessing={!toolContent.result && !runCodeData}
+                                  chatId={chatId}
+                                  toolCallId={toolContent.call.toolCallId}
                                 />
                               </div>
                             );
@@ -3289,7 +3455,8 @@ const Message = memo(function MessageComponent({
                 }
                 
                 return null;
-              })}
+                });
+              })()}
               
               {/* 첨부파일 (인터리브 모드에서도 표시) */}
               {hasAttachments && (
@@ -3387,7 +3554,7 @@ const Message = memo(function MessageComponent({
       </div>
 
       {/* 배경 블러 오버레이: 긴 메시지만 적용 */}
-          {longPressActive && overlayMetrics?.needsScaling && isAssistant && (overlayPhase === 'entering' || overlayPhase === 'active' || overlayPhase === 'exiting') && createPortal(
+          {longPressActive && !isSelectionModeActive && overlayMetrics?.needsScaling && isAssistant && (overlayPhase === 'entering' || overlayPhase === 'active' || overlayPhase === 'exiting') && createPortal(
             <div
               className="fixed inset-0 z-99998"
               style={{
@@ -3409,7 +3576,7 @@ const Message = memo(function MessageComponent({
           )}
 
           {/* 오버레이 렌더링: 긴 메시지만 적용 */}
-          {longPressActive && overlayMetrics?.needsScaling && isAssistant && (overlayPhase === 'entering' || overlayPhase === 'active' || overlayPhase === 'exiting') && createPortal(
+          {longPressActive && !isSelectionModeActive && overlayMetrics?.needsScaling && isAssistant && (overlayPhase === 'entering' || overlayPhase === 'active' || overlayPhase === 'exiting') && createPortal(
             <div
               className="fixed z-99999"
               style={{
@@ -3444,7 +3611,9 @@ const Message = memo(function MessageComponent({
                 {/* 인터리브 모드인 경우 세그먼트 기반 렌더링 */}
                 {useInterleavedMode && segments.length > 0 ? (
                   <div className="interleaved-message-container">
-                    {segments.map((segment, idx) => {
+                    {(() => {
+                      let runCodeInvocationIndex = -1;
+                      return segments.map((segment, idx) => {
                       const isLastSegment = idx === segments.length - 1;
                       const nextSegment = segments[idx + 1];
 
@@ -3541,6 +3710,13 @@ const Message = memo(function MessageComponent({
                       if (segment.type === 'tool') {
                         const toolContent = segment.content as ToolSegmentContent;
                         const toolName = toolContent.call.toolName;
+                        if (
+                          toolName === 'run_python_code' &&
+                          preferredRunCodeToolCallId &&
+                          toolContent.call.toolCallId !== preferredRunCodeToolCallId
+                        ) {
+                          return null;
+                        }
                         const toolArgs = toolContent.call.args;
                         const resolvedToolArgs = (() => {
                           if (!toolArgs || toolArgs.model) return toolArgs;
@@ -3775,7 +3951,8 @@ const Message = memo(function MessageComponent({
                       }
                       
                       return null;
-                    })}
+                      });
+                    })()}
                     
                     {hasAttachments && (
                       <div className="space-y-1 mb-2">
@@ -3836,7 +4013,7 @@ part.type === 'text' && <MarkdownContent key={index} content={part.text} enableS
           )}
 
           {/* 🚀 FIX: 일반 AI 메시지용 배경 오버레이 - 긴 메시지가 아닌 경우에도 배경 클릭으로 롱프레스 취소 가능 */}
-          {longPressActive && isAssistant && !overlayMetrics?.needsScaling && createPortal(
+          {longPressActive && !isSelectionModeActive && isAssistant && !overlayMetrics?.needsScaling && createPortal(
             <div
               className="fixed inset-0 z-99997"
               style={{
@@ -3855,7 +4032,7 @@ part.type === 'text' && <MarkdownContent key={index} content={part.text} enableS
           )}
 
           {/* AI 메시지용 롱프레스 드롭다운: Portal 사용으로 DOM 계층 분리 */}
-          {longPressActive && isAssistant && (overlayPhase === 'entering' || overlayPhase === 'active' || overlayPhase === 'exiting') && createPortal(
+          {longPressActive && !isSelectionModeActive && isAssistant && (overlayPhase === 'entering' || overlayPhase === 'active' || overlayPhase === 'exiting') && createPortal(
             <>
               <div 
                 className="fixed w-48 chat-input-tooltip-backdrop rounded-2xl z-100000 overflow-hidden tool-selector"
@@ -3876,7 +4053,7 @@ part.type === 'text' && <MarkdownContent key={index} content={part.text} enableS
                     
                     // fallback: 실시간 계산
                     const rect = bubbleForPosition.getBoundingClientRect();
-                    const menuHeight = 200; // 텍스트 선택 버튼 추가로 높이 증가 (북마크 버튼 포함)
+                    const menuHeight = 260; // 더보기 버튼 추가 반영
                     const margin = 16;
                     const viewportHeight = window.innerHeight;
                     const menuBottomMargin = 40;
@@ -4118,6 +4295,40 @@ part.type === 'text' && <MarkdownContent key={index} content={part.text} enableS
                       {isBookmarked ? 'Remove bookmark' : 'Bookmark'}
                     </span>
                   </button>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.nativeEvent.stopImmediatePropagation();
+                      onEnterMessageSelectionMode?.(message.id);
+                      handleLongPressCancel();
+                    }}
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.nativeEvent.stopImmediatePropagation();
+                      onEnterMessageSelectionMode?.(message.id);
+                      handleLongPressCancel();
+                    }}
+                    className="flex items-center gap-3 px-5 pb-4 transition-colors duration-150 rounded-xl tool-button"
+                    style={{
+                      '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
+                      '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
+                      WebkitTapHighlightColor: 'transparent',
+                      WebkitTouchCallout: 'none',
+                      WebkitUserSelect: 'none',
+                      userSelect: 'none'
+                    } as any}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    onMouseDown={(e) => e.currentTarget.style.backgroundColor = 'var(--active-bg)'}
+                    onMouseUp={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                  >
+                    <div className="w-6 h-6 flex items-center justify-center">
+                      <IoEllipsisHorizontal size={20} style={{ color: 'var(--foreground)' }} />
+                    </div>
+                    <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>More</span>
+                  </button>
               </div>
             </div>
           </>,
@@ -4128,7 +4339,7 @@ part.type === 'text' && <MarkdownContent key={index} content={part.text} enableS
   }
 </div>
       {/* 데스크탑 프로필 사진 클릭 시 모바일 스타일 드롭다운 메뉴 */}
-      {isAssistant && !isStreaming && !isMobile && showActionsDesktop && createPortal(
+      {isAssistant && !isStreaming && !isMobile && showActionsDesktop && !isSelectionModeActive && createPortal(
         <>
           {/* 배경 오버레이 */}
           <div
@@ -4151,7 +4362,7 @@ part.type === 'text' && <MarkdownContent key={index} content={part.text} enableS
               ...(() => {
                 if (!avatarRef.current) return { display: 'none' };
                 const rect = avatarRef.current.getBoundingClientRect();
-                const menuHeight = 200;
+                const menuHeight = 260;
                 const margin = 16;
                 const viewportHeight = window.innerHeight;
                 const menuBottomMargin = 40;
@@ -4326,6 +4537,30 @@ part.type === 'text' && <MarkdownContent key={index} content={part.text} enableS
                 </div>
                 <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                   {isBookmarked ? 'Remove bookmark' : 'Bookmark'}
+                </span>
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onEnterMessageSelectionMode?.(message.id);
+                  setShowActionsDesktop(false);
+                }}
+                className="flex items-center gap-3 px-5 pb-4 rounded-xl tool-button"
+                style={{
+                  WebkitTapHighlightColor: 'transparent',
+                  WebkitTouchCallout: 'none',
+                  WebkitUserSelect: 'none',
+                  userSelect: 'none',
+                  backgroundColor: 'transparent',
+                  cursor: 'pointer'
+                } as any}
+              >
+                <div className="w-6 h-6 flex items-center justify-center">
+                  <IoEllipsisHorizontal size={20} style={{ color: 'var(--foreground)' }} />
+                </div>
+                <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                  More
                 </span>
               </button>
             </div>

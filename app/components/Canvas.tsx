@@ -17,7 +17,7 @@ import { CanvasPreviewMarkdown } from './CanvasPreviewMarkdown';
 import { ImageGalleryStack } from './ImageGalleryStack';
 import { VideoGalleryStack } from './VideoGalleryStack';
 import type { LinkMetaEntry } from '@/app/types/linkPreview';
-import type { FileEditData, FileEditFileEntry, RunCodeData } from '@/app/hooks/toolFunction';
+import type { FileEditData, FileEditFileEntry, RunCodeData, RunCodeSyncedFile } from '@/app/hooks/toolFunction';
 import { useUrlRefresh } from '../hooks/useUrlRefresh';
 import { ImageModal, type ImageModalImage } from './ImageModal';
 import { computeDiffHunks, computeFullFileSegments, type DiffSummary, type ChangeBlock } from '@/app/utils/diffUtils';
@@ -200,6 +200,40 @@ type CanvasProps = {
     isVideoEdit?: boolean;
     errorCount?: number;
   } | null;
+  videoUpscalerData?: {
+    generatedVideos: {
+      videoUrl: string;
+      prompt: string;
+      timestamp: string;
+      targetResolution?: string;
+      sourceVideoUrl?: string;
+      sourceVideoRef?: string;
+      path?: string;
+    }[];
+    status?: 'processing' | 'completed' | 'error';
+    startedCount?: number;
+    pendingCount?: number;
+    pendingPrompts?: string[];
+    pendingSourceVideos?: string[];
+    errorCount?: number;
+  } | null;
+  imageUpscalerData?: {
+    generatedImages: {
+      imageUrl: string;
+      path?: string;
+      prompt: string;
+      timestamp: string;
+      targetResolution?: string;
+      sourceImageUrl?: string;
+      sourceImageRef?: string;
+    }[];
+    status?: 'processing' | 'completed' | 'error';
+    startedCount?: number;
+    pendingCount?: number;
+    pendingPrompts?: string[];
+    pendingSourceImages?: string[];
+    errorCount?: number;
+  } | null;
 
   twitterSearchData?: {
     result: any;
@@ -287,10 +321,119 @@ type CanvasProps = {
   userId?: string;
 };
 
+// ── CanvasBinaryFileView: Download card for binary files (pptx, xlsx, pdf, etc.) ──
+function CanvasBinaryFileView({ downloadUrl, filename }: { downloadUrl: string; filename: string }) {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  const typeLabel: Record<string, string> = {
+    pptx: 'PowerPoint', ppt: 'PowerPoint',
+    xlsx: 'Excel', xls: 'Excel',
+    docx: 'Word', doc: 'Word',
+    pdf: 'PDF', zip: 'ZIP', tar: 'Archive', gz: 'Archive',
+    png: 'Image', jpg: 'Image', jpeg: 'Image', gif: 'Image', webp: 'Image',
+    mp4: 'Video', mp3: 'Audio', wav: 'Audio',
+  };
+  const label = typeLabel[ext] || 'Binary';
+
+  return (
+    <div className="flex items-center gap-4 p-5 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+      <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)]">
+        <FileText size={24} className="text-(--muted)" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-(--foreground) truncate">{filename}</p>
+        <p className="text-xs text-(--muted)">{label} file (.{ext})</p>
+      </div>
+      <a
+        href={downloadUrl}
+        download={filename}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)] text-(--foreground) hover:bg-[color-mix(in_srgb,var(--foreground)_14%,transparent)] transition-all"
+      >
+        <Download size={14} /> Download
+      </a>
+    </div>
+  );
+}
+
+// ── CanvasRunCodeFileCard: Download card for files created by run_python_code ──
+export function CanvasRunCodeFileCard({ file, chatId }: { file: RunCodeSyncedFile; chatId?: string }) {
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const filename = file.path.replace(/^.*\//, '') || 'file';
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  const sizeStr = file.bytes >= 1024 * 1024
+    ? `${(file.bytes / (1024 * 1024)).toFixed(1)} MB`
+    : file.bytes >= 1024
+      ? `${(file.bytes / 1024).toFixed(1)} KB`
+      : `${file.bytes} B`;
+
+  const handleDownload = useCallback(async () => {
+    if (!chatId || !file.path) return;
+    if (file.isText) {
+      // Text file – fetch content and download as blob
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/chat/workspace-file-content?chatId=${encodeURIComponent(chatId)}&path=${encodeURIComponent(file.path)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.content === 'string') {
+            const blob = new Blob([data.content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+            URL.revokeObjectURL(url);
+          }
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    } else {
+      // Binary file – fetch download URL from API
+      if (downloadUrl) {
+        window.open(downloadUrl, '_blank');
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/chat/workspace-file-content?chatId=${encodeURIComponent(chatId)}&path=${encodeURIComponent(file.path)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.isBinary && data.downloadUrl) {
+            setDownloadUrl(data.downloadUrl);
+            window.open(data.downloadUrl, '_blank');
+          }
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+  }, [chatId, file.path, file.isText, filename, downloadUrl]);
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+      <div className="flex items-center justify-center w-9 h-9 rounded-md bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)]">
+        <FileText size={18} className="text-(--muted)" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-(--foreground) truncate">{filename}</p>
+        <p className="text-xs text-(--muted)">.{ext} {sizeStr}</p>
+      </div>
+      <button
+        type="button"
+        onClick={handleDownload}
+        disabled={loading}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)] text-(--foreground) hover:bg-[color-mix(in_srgb,var(--foreground)_14%,transparent)] transition-all disabled:opacity-50"
+      >
+        <Download size={14} /> {loading ? 'Loading...' : 'Download'}
+      </button>
+    </div>
+  );
+}
+
 // ── CanvasReadFileView: Full file content via CanvasPreviewMarkdown ──────────
 // Fetches full file from workspace and renders as markdown or syntax-highlighted code block.
+// For binary files (pptx, xlsx, etc.) shows a download card instead.
 function CanvasReadFileView({ entry, chatId }: { entry: FileEditFileEntry; chatId?: string }) {
   const [fullContent, setFullContent] = useState<string | null>(null);
+  const [binaryInfo, setBinaryInfo] = useState<{ downloadUrl: string; filename: string } | null>(null);
 
   const fetchFullContent = useCallback(async () => {
     if (!chatId || !entry.path) return;
@@ -298,7 +441,13 @@ function CanvasReadFileView({ entry, chatId }: { entry: FileEditFileEntry; chatI
       const res = await fetch(`/api/chat/workspace-file-content?chatId=${encodeURIComponent(chatId)}&path=${encodeURIComponent(entry.path)}`);
       if (res.ok) {
         const data = await res.json();
-        setFullContent(typeof data.content === 'string' ? data.content : null);
+        if (data.isBinary && data.downloadUrl) {
+          setBinaryInfo({ downloadUrl: data.downloadUrl, filename: data.filename || entry.path.replace(/^.*\//, '') });
+          setFullContent(null);
+        } else {
+          setFullContent(typeof data.content === 'string' ? data.content : null);
+          setBinaryInfo(null);
+        }
       } else {
         setFullContent(null);
       }
@@ -332,6 +481,11 @@ function CanvasReadFileView({ entry, chatId }: { entry: FileEditFileEntry; chatI
     });
     return Number.isFinite(min) ? min : undefined;
   }, [highlightLineNumbers]);
+
+  // Binary file – show download card
+  if (binaryInfo) {
+    return <CanvasBinaryFileView downloadUrl={binaryInfo.downloadUrl} filename={binaryInfo.filename} />;
+  }
 
   if (!entry.success && entry.error) {
     return <p className="text-sm text-red-500">{entry.error}</p>;
@@ -926,6 +1080,8 @@ export default function Canvas({
   qwenImageData,
   wan25VideoData,
   grokVideoData,
+  videoUpscalerData,
+  imageUpscalerData,
   twitterSearchData, 
   youTubeSearchData, 
   youTubeLinkAnalysisData,
@@ -1019,6 +1175,8 @@ export default function Canvas({
   const [qwenExpanded, setQwenExpanded] = useState(true);
   const [wan25Expanded, setWan25Expanded] = useState(true);
   const [grokExpanded, setGrokExpanded] = useState(true);
+  const [videoUpscalerExpanded, setVideoUpscalerExpanded] = useState(true);
+  const [imageUpscalerExpanded, setImageUpscalerExpanded] = useState(true);
 
   const [youTubeSearchExpanded, setYouTubeSearchExpanded] = useState(true);
   const [youTubeLinkAnalysisExpanded, setYouTubeLinkAnalysisExpanded] = useState(true);
@@ -1052,6 +1210,8 @@ export default function Canvas({
   const toggleQwenImages = () => setQwenExpanded(!qwenExpanded);
   const toggleWan25Video = () => setWan25Expanded(!wan25Expanded);
   const toggleGrokVideo = () => setGrokExpanded(!grokExpanded);
+  const toggleVideoUpscaler = () => setVideoUpscalerExpanded(!videoUpscalerExpanded);
+  const toggleImageUpscaler = () => setImageUpscalerExpanded(!imageUpscalerExpanded);
 
   const toggleYouTubeSearch = () => setYouTubeSearchExpanded(!youTubeSearchExpanded);
   const toggleYouTubeLinkAnalysis = () => setYouTubeLinkAnalysisExpanded(!youTubeLinkAnalysisExpanded);
@@ -1177,9 +1337,13 @@ export default function Canvas({
     () => sortImagesByOrder(qwenImageData?.generatedImages || []),
     [qwenImageData?.generatedImages, sortImagesByOrder]
   );
+  const orderedImageUpscalerImages = useMemo(
+    () => sortImagesByOrder((imageUpscalerData?.generatedImages || []).map((img: any) => ({ ...img, originalImageUrl: img.sourceImageUrl }))),
+    [imageUpscalerData?.generatedImages, sortImagesByOrder]
+  );
   const orderedAllImages = useMemo(
-    () => [...orderedImageGeneratorImages, ...orderedGeminiImages, ...orderedSeedreamImages, ...orderedQwenImages],
-    [orderedImageGeneratorImages, orderedGeminiImages, orderedSeedreamImages, orderedQwenImages]
+    () => [...orderedImageGeneratorImages, ...orderedGeminiImages, ...orderedSeedreamImages, ...orderedQwenImages, ...orderedImageUpscalerImages],
+    [orderedImageGeneratorImages, orderedGeminiImages, orderedSeedreamImages, orderedQwenImages, orderedImageUpscalerImages]
   );
   
   // 이미지를 ImageModalImage 형식으로 변환
@@ -1188,7 +1352,7 @@ export default function Canvas({
       src: img.imageUrl,
       alt: img.prompt || 'Generated image',
       prompt: img.prompt,
-      sourceImageUrl: img.originalImageUrl
+      sourceImageUrl: img.originalImageUrl ?? (img as any).sourceImageUrl
     }));
   }, [orderedAllImages]);
   
@@ -1259,7 +1423,7 @@ export default function Canvas({
   };
 
   // Don't render if there's no data to display
-  const shouldRender = !!(mergedSearchData || mathCalculationData || linkReaderData || imageGeneratorData || geminiImageData || seedreamImageData || qwenImageData || wan25VideoData || grokVideoData || youTubeSearchData || youTubeLinkAnalysisData || fileEditData || runCodeData);
+  const shouldRender = !!(mergedSearchData || mathCalculationData || linkReaderData || imageGeneratorData || geminiImageData || seedreamImageData || qwenImageData || wan25VideoData || grokVideoData || videoUpscalerData || imageUpscalerData || youTubeSearchData || youTubeLinkAnalysisData || fileEditData || runCodeData);
   
   if (!shouldRender) {
     return null;
@@ -2858,6 +3022,178 @@ export default function Canvas({
         </div>
       )}
 
+      {/* 4K Video Upscaler Results */}
+      {(!selectedTool || selectedTool === 'video-upscaler') && videoUpscalerData && (
+        <div className="">
+          {!selectedTool && (
+            <div
+              className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
+              onClick={toggleVideoUpscaler}
+            >
+              <div className="flex items-center gap-2.5">
+                <Video size={16} className="text-(--foreground)" />
+                <h2 className="font-medium text-left tracking-tight">4K Video Upscaler</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-(--foreground)/5 text-(--muted)">
+                  {videoUpscalerData.generatedVideos?.length || 0}
+                </span>
+                {videoUpscalerExpanded ? <ChevronUp className="h-4 w-4 text-(--muted)" /> : <ChevronDown className="h-4 w-4 text-(--muted)" />}
+              </div>
+            </div>
+          )}
+          <div
+            className="overflow-hidden transition-all duration-300 ease-in-out"
+            style={{
+              maxHeight: videoUpscalerExpanded ? '2000px' : '0',
+              opacity: videoUpscalerExpanded ? 1 : 0,
+              paddingTop: videoUpscalerExpanded ? '0.5rem' : '0'
+            }}
+          >
+            {videoUpscalerData.generatedVideos && videoUpscalerData.generatedVideos.length > 0 && (
+              <VideoGalleryStack
+                videos={videoUpscalerData.generatedVideos.map((video) => ({
+                  src: video.videoUrl,
+                  prompt: video.prompt,
+                  sourceVideoUrl: video.sourceVideoUrl,
+                }))}
+                messageId={messageId}
+                chatId={chatId}
+                userId={userId}
+                isMobile={isMobile}
+              />
+            )}
+            {videoUpscalerData.pendingCount && videoUpscalerData.pendingCount > 0 ? (
+              <div className={`grid gap-5 ${videoUpscalerData.generatedVideos && videoUpscalerData.generatedVideos.length > 0 ? 'mt-5' : ''} ${(videoUpscalerData.startedCount || videoUpscalerData.generatedVideos?.length || 0) === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
+                {(videoUpscalerData.pendingPrompts && videoUpscalerData.pendingPrompts.length > 0
+                  ? videoUpscalerData.pendingPrompts
+                  : Array.from({ length: videoUpscalerData.pendingCount }).map(() => '')
+                ).map((prompt: string, index: number) => (
+                  <div key={`pending-upscaler-${index}`} className="border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-xl overflow-hidden shadow-sm bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+                    {videoUpscalerData.pendingSourceVideos?.[index] ? (
+                      <div className="relative w-full aspect-video overflow-hidden">
+                        <video
+                          src={videoUpscalerData.pendingSourceVideos[index]}
+                          muted
+                          loop
+                          playsInline
+                          className="w-full h-full object-contain block"
+                        />
+                        <div className="prompt-overlay absolute inset-0 bg-black/75 backdrop-blur-md text-white p-6 flex flex-col justify-center items-center text-center opacity-100 transition-opacity duration-300 z-20">
+                          <div className="text-base font-medium bg-linear-to-r from-transparent via-gray-300 to-transparent bg-clip-text text-transparent px-4" style={{ backgroundSize: '200% 100%', animation: 'shimmer 2s ease-in-out infinite' }}>
+                            {prompt || 'Upscaling to 4K...'}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="relative aspect-video bg-black/50 overflow-hidden flex items-center justify-center">
+                        <div className="w-full h-full relative overflow-hidden">
+                          <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent" style={{ backgroundSize: '200% 100%', animation: 'shimmer 2s ease-in-out infinite' }} />
+                        </div>
+                        {prompt && (
+                          <div className="prompt-overlay absolute inset-0 bg-black/75 backdrop-blur-md text-white p-6 flex flex-col justify-center items-center text-center opacity-100 transition-opacity duration-300 z-20">
+                            <div className="text-base font-medium bg-linear-to-r from-transparent via-gray-300 to-transparent bg-clip-text text-transparent px-4" style={{ backgroundSize: '200% 100%', animation: 'shimmer 2s ease-in-out infinite' }}>
+                              {prompt}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* 8K Image Upscaler Results */}
+      {(!selectedTool || selectedTool === 'image-upscaler') && imageUpscalerData && (
+        <div className="">
+          {!selectedTool && (
+            <div
+              className={`flex items-center justify-between w-full ${headerClasses} cursor-pointer`}
+              onClick={toggleImageUpscaler}
+            >
+              <div className="flex items-center gap-2.5">
+                <ImageIcon size={16} className="text-(--foreground)" />
+                <h2 className="font-medium text-left tracking-tight">8K Image Upscaler</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-(--foreground)/5 text-(--muted)">
+                  {imageUpscalerData.generatedImages?.length || 0}
+                </span>
+                {imageUpscalerExpanded ? <ChevronUp className="h-4 w-4 text-(--muted)" /> : <ChevronDown className="h-4 w-4 text-(--muted)" />}
+              </div>
+            </div>
+          )}
+          <div
+            className="overflow-hidden transition-all duration-300 ease-in-out"
+            style={{
+              maxHeight: imageUpscalerExpanded ? '2000px' : '0',
+              opacity: imageUpscalerExpanded ? 1 : 0,
+              paddingTop: imageUpscalerExpanded ? '0.5rem' : '0'
+            }}
+          >
+            {imageUpscalerData.generatedImages && imageUpscalerData.generatedImages.length > 0 && (
+              <ImageGalleryStack
+                images={imageUpscalerData.generatedImages.map((img) => ({
+                  src: img.imageUrl,
+                  alt: img.prompt || 'Upscaled image',
+                  prompt: img.prompt,
+                  sourceImageUrl: img.sourceImageUrl,
+                }))}
+                onSingleImageClick={(src, alt, allImages, index) => {
+                  const globalIndex = orderedImageGeneratorImages.length + orderedGeminiImages.length + orderedSeedreamImages.length + orderedQwenImages.length + index;
+                  openImageViewer(globalIndex);
+                }}
+                isMobile={isMobile}
+                chatId={chatId}
+                messageId={messageId}
+              />
+            )}
+            {imageUpscalerData.pendingCount && imageUpscalerData.pendingCount > 0 ? (
+              <div className={`grid gap-5 ${imageUpscalerData.generatedImages && imageUpscalerData.generatedImages.length > 0 ? 'mt-5' : ''} ${(imageUpscalerData.startedCount || imageUpscalerData.generatedImages?.length || 0) === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
+                {(imageUpscalerData.pendingPrompts && imageUpscalerData.pendingPrompts.length > 0
+                  ? imageUpscalerData.pendingPrompts
+                  : Array.from({ length: imageUpscalerData.pendingCount }).map(() => '')
+                ).map((prompt: string, index: number) => (
+                  <div key={`pending-image-upscaler-${index}`} className="border border-[color-mix(in_srgb,var(--foreground)_7%,transparent)] rounded-xl overflow-hidden shadow-sm bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+                    {imageUpscalerData.pendingSourceImages?.[index] ? (
+                      <div className="relative w-full aspect-square max-h-[400px] overflow-hidden">
+                        <img
+                          src={imageUpscalerData.pendingSourceImages[index]}
+                          alt=""
+                          className="w-full h-full object-contain block"
+                        />
+                        <div className="prompt-overlay absolute inset-0 bg-black/75 backdrop-blur-md text-white p-6 flex flex-col justify-center items-center text-center opacity-100 transition-opacity duration-300 z-20">
+                          <div className="text-base font-medium bg-linear-to-r from-transparent via-gray-300 to-transparent bg-clip-text text-transparent px-4" style={{ backgroundSize: '200% 100%', animation: 'shimmer 2s ease-in-out infinite' }}>
+                            {prompt || 'Upscaling to 8K...'}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="relative aspect-square max-h-[400px] bg-black/50 overflow-hidden flex items-center justify-center">
+                        <div className="w-full h-full relative overflow-hidden">
+                          <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent" style={{ backgroundSize: '200% 100%', animation: 'shimmer 2s ease-in-out infinite' }} />
+                        </div>
+                        {prompt && (
+                          <div className="prompt-overlay absolute inset-0 bg-black/75 backdrop-blur-md text-white p-6 flex flex-col justify-center items-center text-center opacity-100 transition-opacity duration-300 z-20">
+                            <div className="text-base font-medium bg-linear-to-r from-transparent via-gray-300 to-transparent bg-clip-text text-transparent px-4" style={{ backgroundSize: '200% 100%', animation: 'shimmer 2s ease-in-out infinite' }}>
+                              {prompt}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
       {/* File edit (read_file, write_file, get_file_info, list_workspace, delete_file, grep_file, apply_edits) - styled like attachment viewer */}
       {(!selectedTool || selectedTool.startsWith?.('file-edit:')) && fileEditData && fileEditData.files.length > 0 && (
         <div className="">
@@ -2941,7 +3277,47 @@ export default function Canvas({
               <h2 className="font-medium text-left tracking-tight">Code output</h2>
             </div>
           )}
-          
+
+          {/* ── Streaming state: code is still running ── */}
+          {runCodeData.isStreaming ? (
+            <div className="rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] overflow-hidden">
+              {/* Source code being executed */}
+              {runCodeData.code && (
+                <div className="border-b border-[color-mix(in_srgb,var(--foreground)_8%,transparent)]">
+                  <div className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)]">
+                    <span className="text-xs font-medium text-(--muted) tracking-wide">Python</span>
+                  </div>
+                  <pre className="px-4 py-3 text-xs leading-relaxed overflow-x-auto custom-scrollbar max-h-[240px] text-(--foreground)/80 bg-(--background)">
+                    <code>{runCodeData.code}</code>
+                  </pre>
+                </div>
+              )}
+
+              {/* Live terminal output */}
+              {(runCodeData.stdout.length > 0 || runCodeData.stderr.length > 0) && (
+                <div className="canvas-terminal-console">
+                  {runCodeData.stdout.length > 0 && (
+                    <pre className="canvas-terminal-stdout">{runCodeData.stdout.join('')}</pre>
+                  )}
+                  {runCodeData.stderr.length > 0 && (
+                    <pre className="canvas-terminal-stderr">{runCodeData.stderr.join('')}</pre>
+                  )}
+                </div>
+              )}
+
+              {/* Running indicator */}
+              <div className={`flex items-center gap-2.5 px-4 py-3 bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)] ${runCodeData.code || runCodeData.stdout.length > 0 || runCodeData.stderr.length > 0 ? 'border-t border-[color-mix(in_srgb,var(--foreground)_6%,transparent)]' : ''}`}>
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-(--muted)" />
+                <span
+                  className="text-xs font-medium bg-linear-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent"
+                  style={{ backgroundSize: '200% 100%', animation: 'shimmer 2s ease-in-out infinite' }}
+                >
+                  Running...
+                </span>
+              </div>
+            </div>
+          ) : (
+            <>
           <div className="rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] overflow-hidden">
             {/* Console output: stdout / stderr / error */}
             {(runCodeData.error || runCodeData.stdout.length > 0 || runCodeData.stderr.length > 0) && (
@@ -2970,8 +3346,8 @@ export default function Canvas({
               </div>
             )}
 
-            {/* Results: charts, images, text, html */}
-            {runCodeData.results.length > 0 && (
+            {/* Results: charts, images, text, html – only show when execution succeeded */}
+            {!runCodeData.error && runCodeData.results.length > 0 && (
               <div className="space-y-0">
                 {runCodeData.results.map((r, idx) => {
                   const hasChart = !!r.chart;
@@ -3053,13 +3429,25 @@ export default function Canvas({
               </div>
             )}
 
-            {/* Empty state */}
+            {/* Empty state – only when no output at all (no error, no stdout, no results) */}
             {!runCodeData.error && runCodeData.stdout.length === 0 && runCodeData.stderr.length === 0 && runCodeData.results.length === 0 && (
               <div className="px-5 py-8 text-center text-xs text-(--muted)">
                 No output
               </div>
             )}
           </div>
+
+          {/* Files created by Python code – only show when execution succeeded */}
+          {!runCodeData.error && runCodeData.syncedFiles && runCodeData.syncedFiles.length > 0 && (
+            <div className="space-y-2 mt-3">
+              <p className="text-xs font-medium text-(--muted) px-1">Generated files</p>
+              {runCodeData.syncedFiles.map((sf, idx) => (
+                <CanvasRunCodeFileCard key={`synced-${idx}-${sf.path}`} file={sf} chatId={chatId} />
+              ))}
+            </div>
+          )}
+            </>
+          )}
         </div>
       )}
 

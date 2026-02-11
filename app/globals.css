@@ -1387,6 +1387,21 @@ body {
   /* max-w-6xl mx-auto 제거하여 전체 화면 너비 사용 */
 }
 
+/* Selection mode: align delete button with assistant avatar axis */
+.message-selection-delete-button {
+  left: max(1rem, calc((100vw - var(--thread-content-max-width)) / 2 + var(--thread-content-margin)));
+}
+
+.message-selection-close-button {
+  right: max(1rem, calc((100vw - var(--thread-content-max-width)) / 2 + var(--thread-content-margin)));
+}
+
+@media (min-width: 640px) {
+  .message-selection-delete-button {
+    left: max(1rem, calc((100vw - var(--thread-content-max-width)) / 2 + var(--thread-content-margin) - 4rem));
+  }
+}
+
 .message-group {
   @apply py-0.5 first:pt-0 last:pb-1 max-w-[calc(100vw-2rem)] mx-auto;
 }

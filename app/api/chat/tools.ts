@@ -28,7 +28,7 @@ async function convertImageToDataUri(url: string): Promise<string> {
 }
 
 // Supabase 업로드 헬퍼 (이미지)
-async function uploadImageToSupabase(uint8Array: Uint8Array, userId: string, prefix: string = 'image'): Promise<{ path: string, url: string }> {
+async function uploadImageToSupabase(uint8Array: Uint8Array, userId: string, prefix: string = 'image'): Promise<{ path: string, url: string, publicUrl: string }> {
   const { createClient } = await import('@/utils/supabase/server');
   const supabase = await createClient();
   
@@ -51,8 +51,12 @@ async function uploadImageToSupabase(uint8Array: Uint8Array, userId: string, pre
   if (signedError || !signedData?.signedUrl) {
     throw new Error(`Failed to create signed URL: ${signedError?.message || 'Unknown error'}`);
   }
+
+  // Build public URL for use in run_python_code (avoids AI manually constructing URLs with typo risk)
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const publicUrl = `${supabaseUrl}/storage/v1/object/public/generated-images/${filePath}`;
   
-  return { path: filePath, url: signedData.signedUrl };
+  return { path: filePath, url: signedData.signedUrl, publicUrl };
 }
 
 /** Resolve a fresh signed URL for generated images. Use when url may be expired (Supabase 24h TTL). */
@@ -75,8 +79,62 @@ async function resolveGeneratedImageUrl(imgData: { url: string; path: string }):
   }
 }
 
+function markImageGenerationStarted(dataStream?: any) {
+  if (!dataStream) return;
+  const streamAny = dataStream as any;
+  streamAny._imageGenerationInFlight = true;
+  streamAny._latestGeneratedImagePromise = new Promise<string | undefined>((resolve) => {
+    streamAny._resolveLatestGeneratedImage = resolve;
+  });
+}
+
+function markImageGenerationCompleted(dataStream?: any, imageUrl?: string, imagePath?: string) {
+  if (!dataStream) return;
+  const streamAny = dataStream as any;
+  if (imageUrl) streamAny._latestGeneratedImageUrl = imageUrl;
+  if (imagePath) streamAny._latestGeneratedImagePath = imagePath;
+  streamAny._imageGenerationInFlight = false;
+  if (typeof streamAny._resolveLatestGeneratedImage === 'function') {
+    streamAny._resolveLatestGeneratedImage(imageUrl);
+    streamAny._resolveLatestGeneratedImage = undefined;
+  }
+}
+
+async function getInTurnLatestGeneratedImageUrl(dataStream?: any): Promise<string | undefined> {
+  const streamAny = (dataStream as any) || {};
+  let latest = streamAny._latestGeneratedImageUrl as string | undefined;
+  if (latest && /^https?:\/\//i.test(latest)) {
+    return latest;
+  }
+  if (streamAny._imageGenerationInFlight && streamAny._latestGeneratedImagePromise) {
+    const awaited = await Promise.race([
+      streamAny._latestGeneratedImagePromise as Promise<string | undefined>,
+      new Promise<string | undefined>((resolve) => setTimeout(() => resolve(undefined), 90000)),
+    ]);
+    if (awaited && /^https?:\/\//i.test(awaited)) return awaited;
+  }
+  return undefined;
+}
+
 /** Resolve a fresh signed URL for chat_attachments (uploaded images). Use when url may be expired or corrupted (custom domain, 24h TTL). */
 async function resolveUploadedImageUrl(url: string): Promise<string> {
+  if (!url || !url.includes('/storage/v1/object/sign/') || !url.includes('chat_attachments/')) return url;
+  const path = url.split('chat_attachments/')[1]?.split('?')[0];
+  if (!path) return url;
+  try {
+    const { createClient } = await import('@/utils/supabase/server');
+    const supabase = await createClient();
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from('chat_attachments')
+      .createSignedUrl(path, 24 * 60 * 60);
+    if (signedError || !signedData?.signedUrl) return url;
+    return signedData.signedUrl;
+  } catch {
+    return url;
+  }
+}
+
+async function resolveUploadedVideoUrl(url: string): Promise<string> {
   if (!url || !url.includes('/storage/v1/object/sign/') || !url.includes('chat_attachments/')) return url;
   const path = url.split('chat_attachments/')[1]?.split('?')[0];
   if (!path) return url;
@@ -340,14 +398,14 @@ function buildImageMapsFromDBMessages(dbMessages: any[]): {
     // 1. parts 배열에서 생성된 이미지 추출
     if (msg.parts && Array.isArray(msg.parts)) {
       for (const part of msg.parts) {
-        // 생성된 이미지 (tool results)
-        const imageToolNames = ['gemini_image_tool', 'seedream_image_tool', 'qwen_image_edit'];
+        // 생성된 이미지 (tool results): gemini, seedream, qwen, image_upscaler
+        const imageToolNames = ['gemini_image_tool', 'seedream_image_tool', 'qwen_image_edit', 'image_upscaler'];
         const isImageToolResult = imageToolNames.some(toolName => 
           part.type === `tool-${toolName}` ||
           (part.type === 'tool-result' && part.toolName === toolName)
         );
         
-        if (isImageToolResult && part.state === 'output-available' && part.output) {
+        if (isImageToolResult && (part.state === 'output-available' || part.output) && part.output) {
           const result = part.output?.value || part.output;
           if (result && result.success !== false) {
             const images = Array.isArray(result) ? result : (result.images || (result.imageUrl ? [result] : []));
@@ -380,14 +438,16 @@ function buildImageMapsFromDBMessages(dbMessages: any[]): {
     // 4. tool_results에서 이미지 추출 (레거시 - parts에서 못 찾은 경우만!)
     // 🔧 FIX: foundGeneratedInParts가 true면 건너뛰어 중복 방지
     if (!foundGeneratedInParts && msg.tool_results) {
-      // Gemini & Seedream 결과
-      const results = msg.tool_results.geminiImageResults || msg.tool_results.seedreamImageResults || msg.tool_results.qwenImageResults;
-      if (Array.isArray(results)) {
-        for (const img of results) {
-          if (img.imageUrl && img.path) {
-            const key = `generated_image_${generatedImageIndex++}`;
-            generatedImageMap.set(key, { url: img.imageUrl, path: img.path });
-          }
+      const allImageResults = [
+        ...(Array.isArray(msg.tool_results.geminiImageResults) ? msg.tool_results.geminiImageResults : []),
+        ...(Array.isArray(msg.tool_results.seedreamImageResults) ? msg.tool_results.seedreamImageResults : []),
+        ...(Array.isArray(msg.tool_results.qwenImageResults) ? msg.tool_results.qwenImageResults : []),
+        ...(Array.isArray(msg.tool_results.imageUpscalerResults) ? msg.tool_results.imageUpscalerResults : []),
+      ];
+      for (const img of allImageResults) {
+        if (img.imageUrl && img.path) {
+          const key = `generated_image_${generatedImageIndex++}`;
+          generatedImageMap.set(key, { url: img.imageUrl, path: img.path });
         }
       }
     }
@@ -531,7 +591,7 @@ const toolDefinitions = {
 
 // --- File edit tools (E2B sandbox) ---
 import type { SupabaseClient } from '@/app/api/chat/lib/sandboxService';
-import { getOrCreateSandbox, addWorkspacePath, getWorkspacePaths, saveWorkspaceFile, removeWorkspacePath, deleteWorkspaceFile, WORKSPACE_BASE } from '@/app/api/chat/lib/sandboxService';
+import { getOrCreateSandbox, addWorkspacePath, getWorkspacePaths, saveWorkspaceFile, removeWorkspacePath, deleteWorkspaceFile, WORKSPACE_BASE, isTextFile, saveWorkspaceBinaryFile, MAX_BINARY_SYNC_BYTES } from '@/app/api/chat/lib/sandboxService';
 import { truncateFileText } from '@/app/api/chat/utils/messageUtils';
 
 export function createReadFileTool(
@@ -867,6 +927,19 @@ export function createDeleteFileTool(
 }
 
 const RUN_CODE_TIMEOUT_MS = 90_000;
+const PLAYWRIGHT_BOOTSTRAP_TIMEOUT_MS = 180_000;
+const PLAYWRIGHT_CODE_PATTERN = /\bplaywright\b|sync_playwright|async_playwright/;
+const preparedPlaywrightSandboxes = new Set<string>();
+const ANTIBOT_MARKERS = [
+  'attention required! | cloudflare',
+  'checking your browser',
+  'verify you are human',
+  'cf-chl',
+  'captcha',
+  'datadome',
+  'access denied',
+  'blocked',
+];
 
 function serializeResult(r: { text?: string; html?: string; markdown?: string; svg?: string; png?: string; jpeg?: string; chart?: unknown; json?: unknown }): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -881,19 +954,176 @@ function serializeResult(r: { text?: string; html?: string; markdown?: string; s
   return out;
 }
 
+function getRunCodeImageFingerprint(result: Record<string, unknown>): string | null {
+  const png = typeof result.png === 'string' ? result.png : null;
+  const jpeg = typeof result.jpeg === 'string' ? result.jpeg : null;
+  const image = png ?? jpeg;
+  if (!image) return null;
+  // Fast deterministic fingerprint without extra crypto dependency.
+  const head = image.slice(0, 512);
+  const tail = image.length > 512 ? image.slice(-512) : '';
+  return `${image.length}:${head}:${tail}`;
+}
+
+function hasRenderableRunCodeResult(result: Record<string, unknown>): boolean {
+  const keys: Array<keyof typeof result> = ['png', 'jpeg', 'chart', 'text', 'html', 'markdown', 'svg', 'json'];
+  return keys.some((key) => {
+    const value = result[key];
+    if (typeof value === 'string') return value.length > 0;
+    return value !== undefined && value !== null;
+  });
+}
+
+async function maybePreparePlaywrightRuntime(
+  sandbox: { sandboxId?: string; runCode: (code: string, options?: { timeoutMs?: number }) => Promise<{ error?: unknown }> },
+  code: string
+): Promise<void> {
+  if (!PLAYWRIGHT_CODE_PATTERN.test(code)) return;
+  const sandboxKey = sandbox.sandboxId || 'unknown-sandbox';
+  if (preparedPlaywrightSandboxes.has(sandboxKey)) return;
+
+  const bootstrapCode = `
+import os
+import shutil
+import subprocess
+import sys
+import importlib.util
+
+def _run(cmd):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, check=False)
+    except Exception as e:
+        return None
+
+playwright_installed = importlib.util.find_spec("playwright") is not None
+if not playwright_installed:
+    _run([sys.executable, "-m", "pip", "install", "-q", "playwright"])
+
+if shutil.which("playwright"):
+    _run(["playwright", "install", "chromium"])
+    if os.geteuid() == 0:
+        _run(["playwright", "install-deps", "chromium"])
+print("playwright bootstrap attempted")
+`;
+
+  try {
+    const prep = await sandbox.runCode(bootstrapCode, { timeoutMs: PLAYWRIGHT_BOOTSTRAP_TIMEOUT_MS });
+    if (!prep?.error) {
+      preparedPlaywrightSandboxes.add(sandboxKey);
+    }
+  } catch {
+    // Best-effort preflight: ignore and let user code run normally.
+  }
+}
+
+function rewritePlaywrightCodeForSandbox(code: string): { code: string; rewrites: string[] } {
+  if (!PLAYWRIGHT_CODE_PATTERN.test(code)) return { code, rewrites: [] };
+
+  let rewritten = code;
+  const rewrites: string[] = [];
+
+  const patterns: Array<{ regex: RegExp; to: string; note: string }> = [
+    {
+      regex: /wait_for_load_state\(\s*(['"])networkidle\1/g,
+      to: 'wait_for_load_state("domcontentloaded"',
+      note: 'wait_for_load_state(networkidle) -> domcontentloaded',
+    },
+    {
+      regex: /wait_until\s*=\s*(['"])networkidle\1/g,
+      to: 'wait_until="domcontentloaded"',
+      note: 'goto(wait_until=networkidle) -> domcontentloaded',
+    },
+  ];
+
+  for (const p of patterns) {
+    const before = rewritten;
+    rewritten = rewritten.replace(p.regex, p.to);
+    if (before !== rewritten) rewrites.push(p.note);
+  }
+
+  return { code: rewritten, rewrites };
+}
+
+function detectAntiBotFromExecution(stdout: string[], stderr: string[], results: unknown[]): string | null {
+  const resultText = results
+    .map((r) => {
+      if (typeof r === 'string') return r;
+      try {
+        return JSON.stringify(r);
+      } catch {
+        return '';
+      }
+    })
+    .join('\n')
+    .toLowerCase();
+
+  const haystack = `${stdout.join('\n')}\n${stderr.join('\n')}\n${resultText}`.toLowerCase();
+  const found = ANTIBOT_MARKERS.find((m) => haystack.includes(m));
+  return found || null;
+}
+
+function normalizeRunCodeResults(results: Record<string, unknown>[]): Record<string, unknown>[] {
+  const seenImageFingerprints = new Set<string>();
+  const normalized: Record<string, unknown>[] = [];
+
+  for (const raw of results) {
+    if (!raw || typeof raw !== 'object') continue;
+    const item: Record<string, unknown> = { ...raw };
+    const hasRasterImage = typeof item.png === 'string' || typeof item.jpeg === 'string';
+
+    // prefer_png policy: if a raster image exists for the same item, drop chart payload.
+    if (hasRasterImage && item.chart !== undefined) {
+      delete item.chart;
+    }
+
+    if (!hasRenderableRunCodeResult(item)) continue;
+
+    const fingerprint = getRunCodeImageFingerprint(item);
+    if (fingerprint) {
+      if (seenImageFingerprints.has(fingerprint)) continue;
+      seenImageFingerprints.add(fingerprint);
+    }
+
+    normalized.push(item);
+  }
+
+  return normalized;
+}
+
 export function createRunPythonCodeTool(
   dataStream: { write: (data: unknown) => void },
   chatId: string,
   supabase: SupabaseClient
 ) {
   const runCodeResults: any[] = [];
+  // Track files already synced across multiple invocations within the same request
+  // to prevent re-reporting the same files on every execution
+  const alreadySyncedPaths = new Set<string>();
   const runCodeTool = tool({
     description: toolDefinitions.run_python_code.description,
     inputSchema: z.object({
       code: z.string().describe(toolDefinitions.run_python_code.inputSchema.code),
     }),
-    execute: async ({ code }) => {
+    execute: async ({ code }, options) => {
+      const toolCallId = options.toolCallId;
       const sandbox = await getOrCreateSandbox(chatId, supabase);
+      const rewritten = rewritePlaywrightCodeForSandbox(code);
+      const codeToRun = rewritten.code;
+      if (rewritten.rewrites.length > 0) {
+        dataStream.write({
+          type: 'data-run_code_stdout',
+          id: `run-code-rewrite-${Date.now()}`,
+          data: {
+            toolCallId,
+            line: `[run_python_code] Applied Playwright safety rewrites: ${rewritten.rewrites.join(', ')}`,
+          },
+        });
+      }
+
+      await maybePreparePlaywrightRuntime(sandbox as unknown as {
+        sandboxId?: string;
+        runCode: (code: string, options?: { timeoutMs?: number }) => Promise<{ error?: unknown }>;
+      }, codeToRun);
       let context: { id: string; language: string; cwd: string } | undefined;
       try {
         context = await sandbox.createCodeContext({
@@ -917,30 +1147,40 @@ export function createRunPythonCodeTool(
         dataStream.write({
           type: 'data-run_code_stdout',
           id: `run-code-stdout-${Date.now()}`,
-          data: { line: output.line ?? output },
+          data: { toolCallId, line: output.line ?? output },
         });
       };
       runOpts.onStderr = (output) => {
         dataStream.write({
           type: 'data-run_code_stderr',
           id: `run-code-stderr-${Date.now()}`,
-          data: { line: (output as { line?: string }).line ?? output },
+          data: { toolCallId, line: (output as { line?: string }).line ?? output },
         });
       };
       try {
-        const execution = await sandbox.runCode(code, runOpts);
+        const execution = await sandbox.runCode(codeToRun, runOpts);
         const stdout = Array.isArray(execution.logs?.stdout) ? execution.logs.stdout : [];
         const stderr = Array.isArray(execution.logs?.stderr) ? execution.logs.stderr : [];
-        const results = (execution.results ?? []).map((r: unknown) => serializeResult((r as Record<string, unknown>) || {}));
+        const serializedResults = (execution.results ?? []).map((r: unknown) => serializeResult((r as Record<string, unknown>) || {}));
+        const results = normalizeRunCodeResults(serializedResults);
         const err = execution.error;
-        const errorPayload = err
+        let errorPayload = err
           ? {
               name: err.name,
               value: err.value,
               traceback: typeof err.traceback === 'string' ? [err.traceback] : (Array.isArray(err.traceback) ? err.traceback : []),
             }
           : undefined;
-        const success = !err;
+        let success = !err;
+        const antiBotMarker = detectAntiBotFromExecution(stdout, stderr, results);
+        if (success && antiBotMarker) {
+          success = false;
+          errorPayload = {
+            name: 'AntiBotBlocked',
+            value: `Detected anti-bot challenge marker: "${antiBotMarker}". Sandbox/headless traffic is likely blocked for this target.`,
+            traceback: [],
+          };
+        }
         const payload: { success: boolean; stdout: string[]; stderr: string[]; results: unknown[]; error?: unknown } = {
           success,
           stdout,
@@ -949,6 +1189,79 @@ export function createRunPythonCodeTool(
           error: errorPayload,
         };
         runCodeResults.push({ ...payload, stdout: [...payload.stdout], stderr: [...payload.stderr], results: payload.results.slice() });
+
+        // ── Sync new/modified files from sandbox back to DB ──
+        // Only sync files when code succeeded – failed runs should not report stale files
+        const syncedFiles: Array<{ path: string; isText: boolean; bytes: number }> = [];
+        if (success) {
+        try {
+          const existingPaths = new Set(await getWorkspacePaths(chatId, supabase));
+          // Also exclude files we already synced in earlier invocations within this request
+          // (covers cases where DB writes haven't propagated yet)
+          for (const p of alreadySyncedPaths) existingPaths.add(p);
+          // Recursively list workspace directory
+          const listRecursive = async (dir: string): Promise<string[]> => {
+            const entries = await sandbox.files.list(dir);
+            const paths: string[] = [];
+            for (const entry of entries) {
+              const fullPath = `${dir}/${entry.name}`;
+              if (entry.type === 'dir' || (entry as any).isDir) {
+                const sub = await listRecursive(fullPath);
+                paths.push(...sub);
+              } else {
+                paths.push(fullPath);
+              }
+            }
+            return paths;
+          };
+          const currentFiles = await listRecursive(WORKSPACE_BASE);
+          const newFiles = currentFiles.filter((p) => !existingPaths.has(p));
+
+          for (const filePath of newFiles) {
+            try {
+              if (isTextFile(filePath)) {
+                const textContent = await sandbox.files.read(filePath);
+                await addWorkspacePath(chatId, filePath, supabase);
+                await saveWorkspaceFile(chatId, filePath, textContent, supabase);
+                syncedFiles.push({ path: filePath, isText: true, bytes: Buffer.byteLength(textContent, 'utf8') });
+                alreadySyncedPaths.add(filePath);
+              } else {
+                // Binary file – read as bytes and upload to Storage
+                const binaryData = await sandbox.files.read(filePath, { format: 'bytes' }) as unknown as Uint8Array;
+                const sizeMB = (binaryData.byteLength / 1024 / 1024).toFixed(1);
+                if (binaryData.byteLength <= MAX_BINARY_SYNC_BYTES) {
+                  await addWorkspacePath(chatId, filePath, supabase);
+                  await saveWorkspaceBinaryFile(chatId, filePath, binaryData, supabase);
+                  syncedFiles.push({ path: filePath, isText: false, bytes: binaryData.byteLength });
+                  alreadySyncedPaths.add(filePath);
+                } else {
+                  // File exceeds upload limit – still notify the user it was created
+                  console.warn(`[run_python_code] Binary file too large for sync (${sizeMB} MB, limit ${MAX_BINARY_SYNC_BYTES / 1024 / 1024} MB): ${filePath}`);
+                  syncedFiles.push({ path: filePath, isText: false, bytes: binaryData.byteLength, skipped: true } as any);
+                  alreadySyncedPaths.add(filePath);
+                }
+              }
+            } catch (syncErr: any) {
+              const errMsg = syncErr?.message || String(syncErr);
+              console.warn(`[run_python_code] Failed to sync file ${filePath}:`, errMsg);
+              syncedFiles.push({ path: filePath, isText: false, bytes: 0, error: errMsg } as any);
+            }
+          }
+        } catch (listErr: any) {
+          // Non-fatal: workspace scanning failed but code execution result is still valid
+          console.warn('[run_python_code] Workspace file scan failed:', listErr?.message || listErr);
+        }
+
+        if (syncedFiles.length > 0) {
+          dataStream.write({
+            type: 'data-run_code_files_synced',
+            id: `run-code-files-synced-${Date.now()}`,
+            data: { toolCallId, files: syncedFiles },
+          });
+        }
+        } // end if (success)
+        // ── End file sync ──
+
         const stdoutStr = payload.stdout.join('\n');
         const stderrStr = payload.stderr.join('\n');
         if (stdoutStr.length > 0) {
@@ -962,7 +1275,7 @@ export function createRunPythonCodeTool(
         dataStream.write({
           type: 'data-run_code_complete',
           id: `run-code-complete-${Date.now()}`,
-          data: payload,
+          data: { ...payload, toolCallId },
         });
 
         const minimalError = errorPayload
@@ -984,6 +1297,40 @@ export function createRunPythonCodeTool(
         };
 
         return minimalPayload;
+      } catch (sandboxErr: any) {
+        // ── Handle sandbox-level exceptions (e.g., Jupyter kernel not available,
+        // sandbox connection lost, ContextRestarting, timeout) ──
+        const errMessage = sandboxErr?.message || String(sandboxErr);
+        console.error(`[run_python_code] sandbox.runCode() threw:`, errMessage);
+
+        const crashPayload = {
+          success: false,
+          stdout: [] as string[],
+          stderr: [] as string[],
+          results: [] as unknown[],
+          error: {
+            name: sandboxErr?.name || 'SandboxError',
+            value: errMessage.slice(0, 1000),
+            traceback: [],
+          },
+        };
+        runCodeResults.push(crashPayload);
+
+        dataStream.write({
+          type: 'data-run_code_complete',
+          id: `run-code-complete-${Date.now()}`,
+          data: { ...crashPayload, toolCallId },
+        });
+
+        return {
+          success: false,
+          results: [{ summary: 'Output shown to user.' }],
+          error: {
+            name: sandboxErr?.name || 'SandboxError',
+            value: errMessage.slice(0, 500),
+            traceback: [],
+          },
+        };
       } finally {
         if (context) {
           try {
@@ -3084,7 +3431,7 @@ export function createGeminiImageTool(dataStream?: any, userId?: string, allMess
   }
 
   // Supabase 업로드 헬퍼
-  async function uploadImageToSupabase(uint8Array: Uint8Array, userId: string): Promise<{ path: string, url: string }> {
+  async function uploadImageToSupabase(uint8Array: Uint8Array, userId: string): Promise<{ path: string, url: string, publicUrl: string }> {
     const { createClient } = await import('@/utils/supabase/server');
     const supabase = await createClient();
     
@@ -3107,8 +3454,12 @@ export function createGeminiImageTool(dataStream?: any, userId?: string, allMess
     if (signedError || !signedData?.signedUrl) {
       throw new Error(`Failed to create signed URL: ${signedError?.message || 'Unknown error'}`);
     }
+
+    // Build public URL for use in run_python_code (avoids AI manually constructing URLs with typo risk)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const publicUrl = `${supabaseUrl}/storage/v1/object/public/generated-images/${filePath}`;
     
-    return { path: filePath, url: signedData.signedUrl };
+    return { path: filePath, url: signedData.signedUrl, publicUrl };
   }
 
   const geminiImageInputSchema = z.object({
@@ -3152,7 +3503,12 @@ export function createGeminiImageTool(dataStream?: any, userId?: string, allMess
               if (imgData) {
                 actualEditImageUrls.push(await resolveGeneratedImageUrl(imgData));
               } else {
-                throw new Error(`Generated image reference "${url}" not found in conversation history`);
+                const inTurnLatestImageUrl = await getInTurnLatestGeneratedImageUrl(dataStream);
+                if (inTurnLatestImageUrl) {
+                  actualEditImageUrls.push(inTurnLatestImageUrl);
+                } else {
+                  throw new Error(`Generated image reference "${url}" not found in conversation history`);
+                }
               }
             } else if (url.startsWith('search_img_') || url.startsWith('google_img_')) {
               // Search image reference (from web_search or google_search)
@@ -3173,6 +3529,7 @@ export function createGeminiImageTool(dataStream?: any, userId?: string, allMess
 
         // 이미지 생성/편집 시작 신호 전송 (해결된 URL 포함)
         if (dataStream) {
+          markImageGenerationStarted(dataStream);
           dataStream.write({
             type: 'data-gemini_image_started',
             id: `ann-gemini-start-${Date.now()}`,
@@ -3325,7 +3682,7 @@ export function createGeminiImageTool(dataStream?: any, userId?: string, allMess
 
         
         // Supabase에 업로드 (새 private bucket 사용)
-        const { path, url } = await uploadImageToSupabase(imageData, userId || 'anonymous');
+        const { path, url, publicUrl } = await uploadImageToSupabase(imageData, userId || 'anonymous');
         
         // 생성된 이미지 추적
         generatedImageMap?.set(`generated_image_${generatedImageIndex}`, { url, path });
@@ -3334,6 +3691,7 @@ export function createGeminiImageTool(dataStream?: any, userId?: string, allMess
         // 도구 결과에 URL 저장 (스트리밍 시 프롬프트 모달에서 소스 이미지 표시를 위해 originalImageUrl 단수 필드도 포함)
         const imageResult = {
           imageUrl: url,
+          publicUrl,
           path: path,  // NEW: Store path for URL refresh
           bucket: 'generated-images',  // NEW: Store bucket name
           prompt,
@@ -3348,6 +3706,7 @@ export function createGeminiImageTool(dataStream?: any, userId?: string, allMess
         };
         
         generatedImages.push(imageResult);
+        markImageGenerationCompleted(dataStream, imageResult.imageUrl, imageResult.path);
 
         // 클라이언트에 완료 신호 전송
         if (dataStream) {
@@ -3361,6 +3720,7 @@ export function createGeminiImageTool(dataStream?: any, userId?: string, allMess
         return {
           success: true,
           imageUrl: url,
+          publicUrl,
           path: path,
           prompt,
           textResponse, // Include text in AI context
@@ -3370,6 +3730,7 @@ export function createGeminiImageTool(dataStream?: any, userId?: string, allMess
         };
 
       } catch (error) {
+        markImageGenerationCompleted(dataStream);
         // 디버깅 로그 출력
         console.error('[GEMINI_IMAGE] Error:', {
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -3399,7 +3760,29 @@ export function createGeminiImageTool(dataStream?: any, userId?: string, allMess
           editImageUrl
         };
       }
-    }
+    },
+    // Let the AI model see the generated image for self-review
+    toModelOutput: async ({ output }: { output: unknown }) => {
+      const result = output as any;
+      if (result?.success && result?.publicUrl) {
+        console.log(`[gemini_image_tool] toModelOutput: sending image-url to model (publicUrl: ${result.publicUrl})`);
+        return {
+          type: 'content' as const,
+          value: [
+            { type: 'text' as const, text: JSON.stringify({
+              success: result.success,
+              publicUrl: result.publicUrl,
+              path: result.path,
+              prompt: result.prompt,
+              textResponse: result.textResponse,
+            })},
+            { type: 'image-url' as const, url: result.publicUrl },
+          ],
+        };
+      }
+      console.log(`[gemini_image_tool] toModelOutput: fallback JSON (success: ${result?.success}, hasPublicUrl: ${!!result?.publicUrl})`);
+      return { type: 'json' as const, value: result };
+    },
   });
 
   // 도구와 생성된 이미지 리스트를 함께 반환
@@ -3639,7 +4022,12 @@ export function createSeedreamImageTool(dataStream?: any, userId?: string, allMe
                   throw new Error(`Generated image reference "${url}" has no valid URL`);
                 }
               } else {
-                throw new Error(`Generated image reference "${url}" not found in conversation history`);
+                const inTurnLatestImageUrl = await getInTurnLatestGeneratedImageUrl(dataStream);
+                if (inTurnLatestImageUrl) {
+                  actualEditImageUrls.push(inTurnLatestImageUrl);
+                } else {
+                  throw new Error(`Generated image reference "${url}" not found in conversation history`);
+                }
               }
             } else if (url.startsWith('search_img_') || url.startsWith('google_img_')) {
               // Search image reference (from web_search or google_search)
@@ -3660,6 +4048,7 @@ export function createSeedreamImageTool(dataStream?: any, userId?: string, allMe
 
         // 이미지 생성/편집 시작 신호 전송 (해결된 URL 포함)
         if (dataStream) {
+          markImageGenerationStarted(dataStream);
           dataStream.write({
             type: 'data-seedream_image_started',
             id: `ann-seedream-start-${Date.now()}`,
@@ -3926,7 +4315,7 @@ export function createSeedreamImageTool(dataStream?: any, userId?: string, allMe
           output.map(async (imageUrl: string, index: number) => {
             try {
               const imageData = await downloadImage(imageUrl);
-              const { path, url } = await uploadImageToSupabase(imageData, userId || 'anonymous', 'seedream');
+              const { path, url, publicUrl } = await uploadImageToSupabase(imageData, userId || 'anonymous', 'seedream');
               
               // 생성된 이미지 추적
               generatedImageMap?.set(`generated_image_${generatedImageIndex}`, { url, path });
@@ -3934,6 +4323,7 @@ export function createSeedreamImageTool(dataStream?: any, userId?: string, allMe
               
               const imageResult = {
                 imageUrl: url,
+                publicUrl,
                 path: path,  // NEW: Store path for URL refresh
                 bucket: 'generated-images',  // NEW: Store bucket name
                 prompt,
@@ -3946,6 +4336,7 @@ export function createSeedreamImageTool(dataStream?: any, userId?: string, allMe
               };
 
               generatedImages.push(imageResult);
+              markImageGenerationCompleted(dataStream, imageResult.imageUrl, imageResult.path);
 
               // 클라이언트에 이미지 생성 완료 신호 전송
               if (dataStream) {
@@ -3973,6 +4364,7 @@ export function createSeedreamImageTool(dataStream?: any, userId?: string, allMe
         };
 
       } catch (error) {
+        markImageGenerationCompleted(dataStream);
         // 디버깅 로그 출력
         console.error('[SEEDREAM_IMAGE] Error:', {
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -4002,7 +4394,35 @@ export function createSeedreamImageTool(dataStream?: any, userId?: string, allMe
           prompt
         };
       }
-    }
+    },
+    // Let the AI model see the generated image for self-review
+    toModelOutput: async ({ output }: { output: unknown }) => {
+      const result = output as any;
+      if (result?.success && result?.images?.[0]?.publicUrl) {
+        const imageUrls = result.images.map((img: any) => img.publicUrl);
+        console.log(`[seedream_image_tool] toModelOutput: sending ${imageUrls.length} image-url(s) to model`, imageUrls);
+        return {
+          type: 'content' as const,
+          value: [
+            { type: 'text' as const, text: JSON.stringify({
+              success: result.success,
+              images: result.images.map((img: any) => ({
+                publicUrl: img.publicUrl,
+                path: img.path,
+              })),
+              count: result.count,
+              prompt: result.prompt,
+            })},
+            ...result.images.map((img: any) => ({
+              type: 'image-url' as const,
+              url: img.publicUrl,
+            })),
+          ],
+        };
+      }
+      console.log(`[seedream_image_tool] toModelOutput: fallback JSON (success: ${result?.success})`);
+      return { type: 'json' as const, value: result };
+    },
   });
 
   // 도구와 생성된 이미지 리스트를 함께 반환
@@ -4189,7 +4609,12 @@ export function createQwenImageTool(dataStream?: any, userId?: string, allMessag
                   throw new Error(`Generated image reference "${url}" has no valid URL`);
                 }
               } else {
-                throw new Error(`Generated image reference "${url}" not found in conversation history`);
+                const inTurnLatestImageUrl = await getInTurnLatestGeneratedImageUrl(dataStream);
+                if (inTurnLatestImageUrl) {
+                  actualEditImageUrls.push(inTurnLatestImageUrl);
+                } else {
+                  throw new Error(`Generated image reference "${url}" not found in conversation history`);
+                }
               }
             } else if (url.startsWith('search_img_') || url.startsWith('google_img_')) {
               // Search image reference (from web_search or google_search)
@@ -4210,6 +4635,7 @@ export function createQwenImageTool(dataStream?: any, userId?: string, allMessag
 
         // 이미지 편집 시작 신호 전송 (해결된 URL 포함)
         if (dataStream) {
+          markImageGenerationStarted(dataStream);
           dataStream.write({
             type: 'data-qwen_image_started',
             id: `ann-qwen-start-${Date.now()}`,
@@ -4250,6 +4676,7 @@ export function createQwenImageTool(dataStream?: any, userId?: string, allMessag
 
         let finalImageUrl = Array.isArray(output) ? output[0] : output;
         let finalPath: string;
+        let finalPublicUrl: string = '';
 
         // ReadableStream인 경우 처리 (드문 경우지만 Pensieve에서 처리함)
         if (finalImageUrl instanceof ReadableStream) {
@@ -4267,16 +4694,19 @@ export function createQwenImageTool(dataStream?: any, userId?: string, allMessag
           const uploadRes = await uploadImageToSupabase(imageBuffer, userId || 'anonymous', 'qwen');
           finalImageUrl = uploadRes.url;
           finalPath = uploadRes.path;
+          finalPublicUrl = uploadRes.publicUrl;
         } else {
           // URL string인 경우
           const imageData = await downloadImage(finalImageUrl);
           const uploadRes = await uploadImageToSupabase(imageData, userId || 'anonymous', 'qwen');
           finalImageUrl = uploadRes.url;
           finalPath = uploadRes.path;
+          finalPublicUrl = uploadRes.publicUrl;
         }
 
         const imageResult = {
           imageUrl: finalImageUrl,
+          publicUrl: finalPublicUrl,
           path: finalPath,
           bucket: 'generated-images',
           prompt,
@@ -4291,6 +4721,7 @@ export function createQwenImageTool(dataStream?: any, userId?: string, allMessag
         generatedImageMap?.set(`generated_image_${generatedImageIndex}`, { url: finalImageUrl, path: finalPath });
         generatedImageIndex++;
         generatedImages.push(imageResult);
+        markImageGenerationCompleted(dataStream, imageResult.imageUrl, imageResult.path);
 
         // 클라이언트에 이미지 생성 완료 신호 전송
         if (dataStream) {
@@ -4310,6 +4741,7 @@ export function createQwenImageTool(dataStream?: any, userId?: string, allMessag
         };
 
       } catch (error) {
+        markImageGenerationCompleted(dataStream);
         // 디버깅 로그 출력
         console.error('[QWEN_IMAGE] Error:', {
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -4341,7 +4773,28 @@ export function createQwenImageTool(dataStream?: any, userId?: string, allMessag
           prompt
         };
       }
-    }
+    },
+    // Let the AI model see the generated image for self-review
+    toModelOutput: async ({ output }: { output: unknown }) => {
+      const result = output as any;
+      if (result?.success && result?.publicUrl) {
+        console.log(`[qwen_image_edit] toModelOutput: sending image-url to model (publicUrl: ${result.publicUrl})`);
+        return {
+          type: 'content' as const,
+          value: [
+            { type: 'text' as const, text: JSON.stringify({
+              success: result.success,
+              publicUrl: result.publicUrl,
+              path: result.path,
+              prompt: result.prompt,
+            })},
+            { type: 'image-url' as const, url: result.publicUrl },
+          ],
+        };
+      }
+      console.log(`[qwen_image_edit] toModelOutput: fallback JSON (success: ${result?.success}, hasPublicUrl: ${!!result?.publicUrl})`);
+      return { type: 'json' as const, value: result };
+    },
   });
 
   // 도구와 생성된 이미지 리스트를 함께 반환
@@ -4585,7 +5038,12 @@ export function createWan25VideoTool(dataStream?: any, userId?: string, allMessa
             if (imgData) {
               actualImageUrl = await resolveGeneratedImageUrl(imgData);
             } else {
-              throw new Error(`Generated image reference "${imageUrl}" not found in conversation history`);
+              const inTurnLatestImageUrl = await getInTurnLatestGeneratedImageUrl(dataStream);
+              if (inTurnLatestImageUrl) {
+                actualImageUrl = inTurnLatestImageUrl;
+              } else {
+                throw new Error(`Generated image reference "${imageUrl}" not found in conversation history`);
+              }
             }
           } else {
             actualImageUrl = imageUrl;
@@ -4601,6 +5059,11 @@ export function createWan25VideoTool(dataStream?: any, userId?: string, allMessa
         const isImageToVideo = effectiveModel === 'image-to-video';
 
         if (dataStream) {
+          const streamAny = dataStream as any;
+          streamAny._videoGenerationInFlight = true;
+          streamAny._latestGeneratedVideoPromise = new Promise<string | undefined>((resolve) => {
+            streamAny._resolveLatestGeneratedVideo = resolve;
+          });
           dataStream.write({
             type: 'data-wan25_video_started',
             id: `ann-wan25-start-${Date.now()}`,
@@ -4750,6 +5213,17 @@ export function createWan25VideoTool(dataStream?: any, userId?: string, allMessa
             };
 
             generatedVideos.push(videoResult);
+            if (dataStream) {
+              // Cross-tool handoff: allow immediate same-turn chaining by URL.
+              const streamAny = dataStream as any;
+              streamAny._latestGeneratedVideoUrl = videoResult.videoUrl;
+              streamAny._latestGeneratedVideoPath = videoResult.path;
+              streamAny._videoGenerationInFlight = false;
+              if (typeof streamAny._resolveLatestGeneratedVideo === 'function') {
+                streamAny._resolveLatestGeneratedVideo(videoResult.videoUrl);
+                streamAny._resolveLatestGeneratedVideo = undefined;
+              }
+            }
 
             // 디버깅: 생성된 비디오 풀링크 출력 (링크로 직접 확인용)
             console.log('[WAN25_VIDEO] 생성된 비디오 풀링크 (반드시 풀링크):', videoResult.videoUrl);
@@ -4778,6 +5252,14 @@ export function createWan25VideoTool(dataStream?: any, userId?: string, allMessa
         };
 
       } catch (error) {
+        if (dataStream) {
+          const streamAny = dataStream as any;
+          streamAny._videoGenerationInFlight = false;
+          if (typeof streamAny._resolveLatestGeneratedVideo === 'function') {
+            streamAny._resolveLatestGeneratedVideo(undefined);
+            streamAny._resolveLatestGeneratedVideo = undefined;
+          }
+        }
         console.error('[WAN25_VIDEO] Error:', {
           error: error instanceof Error ? error.message : 'Unknown error',
           errorStack: error instanceof Error ? error.stack : undefined,
@@ -4941,8 +5423,9 @@ export function createGrokVideoTool(
       }
     }
     videoMap = new Map<string, string>();
+    let uploadedVideoIndex = 1;
     let generatedVideoIndex = 1;
-    const seenPaths = new Set<string>();
+    const seenVideoKeys = new Set<string>();
 
     function extractFilenameId(path: string): string | null {
       if (!path) return null;
@@ -4950,38 +5433,99 @@ export function createGrokVideoTool(
       return filename ? filename.replace(/\.[^.]+$/, '') : null;
     }
 
+    function isVideoFilename(name?: string): boolean {
+      return Boolean(name && /\.(mp4|mov|avi|wmv|flv|mkv|webm)$/i.test(name));
+    }
+
     for (const msg of messagesToProcess) {
+      const partsUrls: string[] = [];
+      const expUrls: string[] = [];
+      if (msg.parts && Array.isArray(msg.parts)) {
+        for (const part of msg.parts) {
+          if (
+            part.type === 'file' &&
+            (part.url || part.data) &&
+            (part.mediaType?.startsWith('video/') || isVideoFilename(part.filename))
+          ) {
+            partsUrls.push(part.url || part.data);
+          }
+        }
+      }
+      if (msg.experimental_attachments && Array.isArray(msg.experimental_attachments)) {
+        for (const attachment of msg.experimental_attachments) {
+          if (
+            attachment.url &&
+            (
+              attachment.contentType?.startsWith('video/') ||
+              attachment.fileType === 'video' ||
+              isVideoFilename(attachment.name)
+            )
+          ) {
+            expUrls.push(attachment.url);
+          }
+        }
+      }
+      const useExp = expUrls.length > partsUrls.length;
+      const uploadUrls = useExp ? expUrls : partsUrls;
+      for (const url of uploadUrls) {
+        videoMap.set(`uploaded_video_${uploadedVideoIndex++}`, url);
+      }
+
       let foundInParts = false;
       if (msg.parts && Array.isArray(msg.parts)) {
         for (const part of msg.parts) {
-          if ((part.type?.startsWith('tool-wan25_') || part.type?.startsWith('tool-grok_')) && part.output?.videos && Array.isArray(part.output.videos)) {
-            const result = part.output;
+          const isVideoToolResult =
+            (part.type?.startsWith('tool-wan25_') ||
+              part.type?.startsWith('tool-grok_') ||
+              part.type?.startsWith('tool-video_upscaler') ||
+              (part.type === 'tool-result' &&
+                ['wan25_video', 'grok_video', 'video_upscaler'].includes(part.toolName)));
+
+          if (isVideoToolResult) {
+            const result = part.output?.value || part.output || part.result;
+            if (!result?.videos || !Array.isArray(result.videos)) continue;
             if (result && result.success !== false) {
               for (const vid of result.videos) {
-                if (vid.path && !seenPaths.has(vid.path)) {
-                  seenPaths.add(vid.path);
+                const dedupKey = vid.path || vid.videoUrl;
+                if (!dedupKey || seenVideoKeys.has(dedupKey)) continue;
+                seenVideoKeys.add(dedupKey);
+                if (vid.path) {
                   const { data: signedData } = await supabase.storage.from('generated-videos').createSignedUrl(vid.path, 24 * 60 * 60);
                   if (signedData?.signedUrl) {
                     videoMap!.set(`generated_video_${generatedVideoIndex++}`, signedData.signedUrl);
                     const fid = extractFilenameId(vid.path);
                     if (fid) videoMap!.set(fid, signedData.signedUrl);
                   }
-                  foundInParts = true;
+                } else if (vid.videoUrl) {
+                  videoMap!.set(`generated_video_${generatedVideoIndex++}`, vid.videoUrl);
                 }
+                foundInParts = true;
               }
             }
           }
-          if ((part.type === 'data-wan25_video_complete' || part.type === 'data-grok_video_complete') && part.data?.path) {
-            const path = part.data.path;
-            if (!seenPaths.has(path)) {
-              seenPaths.add(path);
+
+          if (
+            (part.type === 'data-wan25_video_complete' ||
+              part.type === 'data-grok_video_complete' ||
+              part.type === 'data-video_upscaler_complete') &&
+            (part.data?.path || part.data?.videoUrl)
+          ) {
+            const path = part.data?.path as string | undefined;
+            const directVideoUrl = part.data?.videoUrl as string | undefined;
+            const dedupKey = path || directVideoUrl;
+            if (!dedupKey || seenVideoKeys.has(dedupKey)) continue;
+            seenVideoKeys.add(dedupKey);
+            if (path) {
               const { data: signedData } = await supabase.storage.from('generated-videos').createSignedUrl(path, 24 * 60 * 60);
               if (signedData?.signedUrl) {
                 videoMap!.set(`generated_video_${generatedVideoIndex++}`, signedData.signedUrl);
                 const fid = extractFilenameId(path);
                 if (fid) videoMap!.set(fid, signedData.signedUrl);
               }
+            } else if (directVideoUrl) {
+              videoMap!.set(`generated_video_${generatedVideoIndex++}`, directVideoUrl);
             }
+            foundInParts = true;
           }
         }
       }
@@ -4990,15 +5534,20 @@ export function createGrokVideoTool(
         const grok = msg.tool_results.grokVideoResults;
         const list = Array.isArray(wan25) ? wan25 : [];
         const grokList = Array.isArray(grok) ? grok : [];
-        for (const vid of [...list, ...grokList]) {
-          if (vid.path && !seenPaths.has(vid.path)) {
-            seenPaths.add(vid.path);
+        const upscaledList = Array.isArray((msg.tool_results as any).videoUpscalerResults) ? (msg.tool_results as any).videoUpscalerResults : [];
+        for (const vid of [...list, ...grokList, ...upscaledList]) {
+          const dedupKey = vid.path || vid.videoUrl;
+          if (!dedupKey || seenVideoKeys.has(dedupKey)) continue;
+          seenVideoKeys.add(dedupKey);
+          if (vid.path) {
             const { data: signedData } = await supabase.storage.from('generated-videos').createSignedUrl(vid.path, 24 * 60 * 60);
             if (signedData?.signedUrl) {
               videoMap!.set(`generated_video_${generatedVideoIndex++}`, signedData.signedUrl);
               const fid = extractFilenameId(vid.path);
               if (fid) videoMap!.set(fid, signedData.signedUrl);
             }
+          } else if (vid.videoUrl) {
+            videoMap!.set(`generated_video_${generatedVideoIndex++}`, vid.videoUrl);
           }
         }
       }
@@ -5032,7 +5581,7 @@ export function createGrokVideoTool(
     prompt: z.string().describe('Text description of the video to generate or edit. Be detailed about motion, scene, and style.'),
     model: z.enum(['text-to-video', 'image-to-video', 'video-edit']).describe('Mode: text-to-video (from scratch), image-to-video (animate image), video-edit (edit existing video from conversation).'),
     imageUrl: z.string().optional().describe('For image-to-video: use uploaded_image_N or generated_image_N.'),
-    videoUrl: z.string().optional().describe('For video-edit: use generated_video_N or filename id (e.g. grok_1760_xxx, wan25_1760_xxx) from conversation.'),
+    videoUrl: z.string().optional().describe('For video-edit: use uploaded_video_N, generated_video_N, or filename id (e.g. grok_1760_xxx, wan25_1760_xxx) from conversation.'),
     duration: z.number().min(1).max(15).optional().describe('Video duration in seconds (1-15). Not used for video-edit.'),
     aspect_ratio: z.enum(['16:9', '4:3', '1:1', '9:16', '3:4', '3:2', '2:3']).optional().describe('Aspect ratio. Default 16:9.'),
     resolution: z.enum(['720p', '480p']).optional().describe('Resolution. Default 720p.'),
@@ -5041,7 +5590,7 @@ export function createGrokVideoTool(
   type GrokVideoInput = z.infer<typeof grokVideoInputSchema>;
 
   const grokVideoTool = tool<GrokVideoInput, unknown>({
-    description: 'Generate or edit videos using xAI Grok Imagine. Supports text-to-video, image-to-video, and video-edit (modify existing video from conversation). Duration 1-15s. Use videoUrl for edit mode (generated_video_N or filename id).',
+    description: 'Generate or edit videos using xAI Grok Imagine. Supports text-to-video, image-to-video, and video-edit (modify existing video from conversation). Duration 1-15s. Use videoUrl for edit mode (uploaded_video_N, generated_video_N, or filename id).',
     inputSchema: grokVideoInputSchema,
     execute: async ({ model, prompt, imageUrl, videoUrl, duration, aspect_ratio, resolution }: GrokVideoInput) => {
       try {
@@ -5059,8 +5608,13 @@ export function createGrokVideoTool(
             actualImageUrl = await resolveUploadedImageUrl(resolvedUrl);
           } else if (imageUrl.startsWith('generated_image_')) {
             const imgData = generatedImageMap?.get(imageUrl);
-            if (!imgData) throw new Error(`Generated image reference "${imageUrl}" not found`);
-            actualImageUrl = await resolveGeneratedImageUrl(imgData);
+            if (!imgData) {
+              const inTurnLatestImageUrl = await getInTurnLatestGeneratedImageUrl(dataStream);
+              if (!inTurnLatestImageUrl) throw new Error(`Generated image reference "${imageUrl}" not found`);
+              actualImageUrl = inTurnLatestImageUrl;
+            } else {
+              actualImageUrl = await resolveGeneratedImageUrl(imgData);
+            }
           } else {
             actualImageUrl = imageUrl;
           }
@@ -5069,7 +5623,22 @@ export function createGrokVideoTool(
         let actualVideoUrl: string | undefined;
         if (effectiveModel === 'video-edit' && videoUrl) {
           actualVideoUrl = videoMap?.get(videoUrl) ?? (videoUrl.startsWith('http') ? videoUrl : undefined);
-          if (!actualVideoUrl) throw new Error(`Video reference "${videoUrl}" not found in conversation. Use generated_video_N or a previous video filename id.`);
+          if (!actualVideoUrl && videoUrl.startsWith('generated_video_')) {
+            const streamAny = (dataStream as any) || {};
+            if (streamAny._videoGenerationInFlight && streamAny._latestGeneratedVideoPromise) {
+              const maybeLatestUrl = await Promise.race([
+                streamAny._latestGeneratedVideoPromise as Promise<string | undefined>,
+                new Promise<string | undefined>((resolve) => setTimeout(() => resolve(undefined), 90000)),
+              ]);
+              if (maybeLatestUrl && /^https?:\/\//i.test(maybeLatestUrl)) {
+                actualVideoUrl = maybeLatestUrl;
+              }
+            }
+          }
+          if (videoUrl.startsWith('uploaded_video_') && actualVideoUrl) {
+            actualVideoUrl = await resolveUploadedVideoUrl(actualVideoUrl);
+          }
+          if (!actualVideoUrl) throw new Error(`Video reference "${videoUrl}" not found in conversation. Use uploaded_video_N, generated_video_N, or a previous video filename id. If this video was created in the same turn, pass videos[0].videoUrl directly.`);
         }
 
         if (actualImageUrl) {
@@ -5080,6 +5649,11 @@ export function createGrokVideoTool(
         const isVideoEdit = effectiveModel === 'video-edit';
 
         if (dataStream) {
+          const streamAny = dataStream as any;
+          streamAny._videoGenerationInFlight = true;
+          streamAny._latestGeneratedVideoPromise = new Promise<string | undefined>((resolve) => {
+            streamAny._resolveLatestGeneratedVideo = resolve;
+          });
           dataStream.write({
             type: 'data-grok_video_started',
             id: `ann-grok-start-${Date.now()}`,
@@ -5183,6 +5757,17 @@ export function createGrokVideoTool(
         };
         generatedVideos.push(videoResult);
         if (dataStream) {
+          // Cross-tool handoff: allow immediate same-turn chaining by URL.
+          const streamAny = dataStream as any;
+          streamAny._latestGeneratedVideoUrl = videoResult.videoUrl;
+          streamAny._latestGeneratedVideoPath = videoResult.path;
+          streamAny._videoGenerationInFlight = false;
+          if (typeof streamAny._resolveLatestGeneratedVideo === 'function') {
+            streamAny._resolveLatestGeneratedVideo(videoResult.videoUrl);
+            streamAny._resolveLatestGeneratedVideo = undefined;
+          }
+        }
+        if (dataStream) {
           dataStream.write({
             type: 'data-grok_video_complete',
             id: `ann-grok-complete-${Date.now()}`,
@@ -5200,6 +5785,14 @@ export function createGrokVideoTool(
           aspect_ratio,
         };
       } catch (error) {
+        if (dataStream) {
+          const streamAny = dataStream as any;
+          streamAny._videoGenerationInFlight = false;
+          if (typeof streamAny._resolveLatestGeneratedVideo === 'function') {
+            streamAny._resolveLatestGeneratedVideo(undefined);
+            streamAny._resolveLatestGeneratedVideo = undefined;
+          }
+        }
         const errMsg = error instanceof Error ? error.message : 'Unknown error';
         console.error('[GROK_VIDEO] Error:', errMsg);
         if (dataStream) {
@@ -5215,4 +5808,845 @@ export function createGrokVideoTool(
   });
 
   return Object.assign(grokVideoTool, { generatedVideos });
+}
+
+// WaveSpeed FlashVSR 4K 고정 비디오 업스케일 도구
+export function createVideoUpscalerTool(
+  dataStream?: any,
+  userId?: string,
+  allMessages: any[] = [],
+  chatId?: string
+) {
+  const generatedVideos: Array<{
+    videoUrl: string;
+    prompt: string;
+    timestamp: string;
+    path?: string;
+    bucket?: string;
+    targetResolution: '4k';
+    sourceVideoUrl?: string;
+    sourceVideoRef?: string;
+    providerTaskId?: string;
+    inferenceMs?: number;
+  }> = [];
+
+  let videoMap: Map<string, string> | null = null;
+  let videoMapsInitialized = false;
+
+  async function ensureVideoMapInitialized() {
+    if (videoMapsInitialized) return;
+
+    const { createClient } = await import('@/utils/supabase/server');
+    const supabase = await createClient();
+
+    let messagesToProcess = allMessages;
+    if (chatId && userId) {
+      const dbMessages = await fetchAllChatMessagesFromDB(chatId, userId);
+      if (dbMessages.length > 0) {
+        const dbMessageIds = new Set(dbMessages.map(m => m.id).filter(Boolean));
+        const newMessages = allMessages.filter(m => m.id && !dbMessageIds.has(m.id));
+        messagesToProcess = newMessages.length > 0 ? [...dbMessages, ...newMessages] : dbMessages;
+      }
+    }
+
+    videoMap = new Map<string, string>();
+    let uploadedVideoIndex = 1;
+    let generatedVideoIndex = 1;
+    const seenVideoKeys = new Set<string>();
+
+    const extractFilenameId = (path: string): string | null => {
+      if (!path) return null;
+      const filename = path.split('/').pop();
+      return filename ? filename.replace(/\.[^.]+$/, '') : null;
+    };
+
+    const isVideoFilename = (name?: string): boolean => {
+      return Boolean(name && /\.(mp4|mov|avi|wmv|flv|mkv|webm)$/i.test(name));
+    };
+
+    for (const msg of messagesToProcess) {
+      const partsUrls: string[] = [];
+      const expUrls: string[] = [];
+      if (msg.parts && Array.isArray(msg.parts)) {
+        for (const part of msg.parts) {
+          if (
+            part.type === 'file' &&
+            (part.url || part.data) &&
+            (part.mediaType?.startsWith('video/') || isVideoFilename(part.filename))
+          ) {
+            partsUrls.push(part.url || part.data);
+          }
+        }
+      }
+      if (msg.experimental_attachments && Array.isArray(msg.experimental_attachments)) {
+        for (const attachment of msg.experimental_attachments) {
+          if (
+            attachment.url &&
+            (
+              attachment.contentType?.startsWith('video/') ||
+              attachment.fileType === 'video' ||
+              isVideoFilename(attachment.name)
+            )
+          ) {
+            expUrls.push(attachment.url);
+          }
+        }
+      }
+
+      const uploadUrls = expUrls.length > partsUrls.length ? expUrls : partsUrls;
+      for (const url of uploadUrls) {
+        videoMap.set(`uploaded_video_${uploadedVideoIndex++}`, url);
+      }
+
+      let foundInParts = false;
+      if (msg.parts && Array.isArray(msg.parts)) {
+        for (const part of msg.parts) {
+          const isVideoToolResult =
+            (part.type?.startsWith('tool-wan25_') ||
+              part.type?.startsWith('tool-grok_') ||
+              part.type?.startsWith('tool-video_upscaler') ||
+              (part.type === 'tool-result' &&
+                ['wan25_video', 'grok_video', 'video_upscaler'].includes(part.toolName)));
+          if (isVideoToolResult) {
+            const result = part.output?.value || part.output || part.result;
+            if (!result?.videos || !Array.isArray(result.videos)) continue;
+            if (result && result.success !== false) {
+              for (const vid of result.videos) {
+                const dedupKey = vid.path || vid.videoUrl;
+                if (!dedupKey || seenVideoKeys.has(dedupKey)) continue;
+                seenVideoKeys.add(dedupKey);
+                if (vid.path) {
+                  const { data: signedData } = await supabase.storage
+                    .from('generated-videos')
+                    .createSignedUrl(vid.path, 24 * 60 * 60);
+                  if (signedData?.signedUrl) {
+                    videoMap!.set(`generated_video_${generatedVideoIndex++}`, signedData.signedUrl);
+                    const fid = extractFilenameId(vid.path);
+                    if (fid) videoMap!.set(fid, signedData.signedUrl);
+                  }
+                } else if (vid.videoUrl) {
+                  videoMap!.set(`generated_video_${generatedVideoIndex++}`, vid.videoUrl);
+                }
+                foundInParts = true;
+              }
+            }
+          }
+
+          if (
+            (part.type === 'data-wan25_video_complete' ||
+              part.type === 'data-grok_video_complete' ||
+              part.type === 'data-video_upscaler_complete') &&
+            (part.data?.path || part.data?.videoUrl)
+          ) {
+            const path = part.data?.path as string | undefined;
+            const directVideoUrl = part.data?.videoUrl as string | undefined;
+            const dedupKey = path || directVideoUrl;
+            if (dedupKey && !seenVideoKeys.has(dedupKey)) {
+              seenVideoKeys.add(dedupKey);
+              if (path) {
+                const { data: signedData } = await supabase.storage
+                  .from('generated-videos')
+                  .createSignedUrl(path, 24 * 60 * 60);
+                if (signedData?.signedUrl) {
+                  videoMap!.set(`generated_video_${generatedVideoIndex++}`, signedData.signedUrl);
+                  const fid = extractFilenameId(path);
+                  if (fid) videoMap!.set(fid, signedData.signedUrl);
+                }
+              } else if (directVideoUrl) {
+                videoMap!.set(`generated_video_${generatedVideoIndex++}`, directVideoUrl);
+              }
+              foundInParts = true;
+            }
+          }
+        }
+      }
+
+      if (!foundInParts && msg.tool_results) {
+        const wan25 = msg.tool_results.wan25VideoResults;
+        const grok = msg.tool_results.grokVideoResults;
+        const upscaled = msg.tool_results.videoUpscalerResults;
+        const list = [
+          ...(Array.isArray(wan25) ? wan25 : []),
+          ...(Array.isArray(grok) ? grok : []),
+          ...(Array.isArray(upscaled) ? upscaled : []),
+        ];
+        for (const vid of list) {
+          const dedupKey = vid.path || vid.videoUrl;
+          if (!dedupKey || seenVideoKeys.has(dedupKey)) continue;
+          seenVideoKeys.add(dedupKey);
+          if (vid.path) {
+            const { data: signedData } = await supabase.storage
+              .from('generated-videos')
+              .createSignedUrl(vid.path, 24 * 60 * 60);
+            if (signedData?.signedUrl) {
+              videoMap!.set(`generated_video_${generatedVideoIndex++}`, signedData.signedUrl);
+              const fid = extractFilenameId(vid.path);
+              if (fid) videoMap!.set(fid, signedData.signedUrl);
+            }
+          } else if (vid.videoUrl) {
+            videoMap!.set(`generated_video_${generatedVideoIndex++}`, vid.videoUrl);
+          }
+        }
+      }
+    }
+
+    videoMapsInitialized = true;
+  }
+
+  async function downloadVideo(url: string): Promise<Uint8Array> {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to download video: ${response.statusText}`);
+    }
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
+  async function uploadVideoToSupabase(
+    uint8Array: Uint8Array,
+    resolvedUserId: string
+  ): Promise<{ path: string; url: string }> {
+    const { createClient } = await import('@/utils/supabase/server');
+    const supabase = await createClient();
+
+    const fileName = `upscaled_${Date.now()}_${Math.random().toString(36).slice(2)}.mp4`;
+    const filePath = `${resolvedUserId}/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from('generated-videos')
+      .upload(filePath, uint8Array, { contentType: 'video/mp4' });
+    if (error) {
+      throw new Error(`Failed to upload upscaled video: ${error.message}`);
+    }
+
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from('generated-videos')
+      .createSignedUrl(filePath, 24 * 60 * 60);
+    if (signedError || !signedData?.signedUrl) {
+      throw new Error(`Failed to create signed URL: ${signedError?.message || 'Unknown error'}`);
+    }
+
+    return { path: filePath, url: signedData.signedUrl };
+  }
+
+  const WAVESPEED_API_BASE = 'https://api.wavespeed.ai/api/v3';
+  const WAVESPEED_MODEL_ID = 'wavespeed-ai/flashvsr';
+  const WAVESPEED_POLL_INTERVAL = 2000;
+  const WAVESPEED_MAX_POLL_TIME = 300000; // 5분
+
+  const videoUpscalerInputSchema = z.object({
+    videoRef: z.string().optional().describe('Conversation video reference: uploaded_video_N, generated_video_N, or filename id (wan25_..., grok_..., upscaled_...).'),
+    videoUrl: z.string().optional().describe('Public video URL. You can also pass a conversation reference here.')
+  }).refine(
+    (data) => Boolean(data.videoRef || data.videoUrl),
+    { message: 'Either videoRef or videoUrl is required.' }
+  );
+
+  type VideoUpscalerInput = z.infer<typeof videoUpscalerInputSchema>;
+
+  const videoUpscalerTool = tool<VideoUpscalerInput, unknown>({
+    description: 'Upscale a video to fixed 4K using WaveSpeed FlashVSR. Supports conversation references and direct public URLs.',
+    inputSchema: videoUpscalerInputSchema,
+    execute: async ({ videoRef, videoUrl }: VideoUpscalerInput) => {
+      const effectivePrompt = 'Upscale to 4K';
+      try {
+        const apiKey = process.env.WAVESPEED_API_KEY;
+        if (!apiKey) {
+          throw new Error('WAVESPEED_API_KEY is not set');
+        }
+
+        await ensureVideoMapInitialized();
+
+        const sourceRef = (videoRef || videoUrl || '').trim();
+        let actualVideoUrl: string | undefined;
+
+        if (!sourceRef) {
+          throw new Error('No video reference or URL was provided');
+        }
+
+        if (sourceRef.startsWith('uploaded_video_')) {
+          const resolved = videoMap?.get(sourceRef);
+          if (!resolved) {
+            throw new Error(`Video reference "${sourceRef}" not found in conversation history`);
+          }
+          actualVideoUrl = await resolveUploadedVideoUrl(resolved);
+        } else if (sourceRef.startsWith('generated_video_')) {
+          // Strict-first for explicit generated_video_N:
+          // 1) resolve exact map entry first, 2) if missing and same-turn generation is still running, wait and use latest URL.
+          actualVideoUrl = videoMap?.get(sourceRef);
+          if (!actualVideoUrl) {
+            const streamAny = (dataStream as any) || {};
+            if (streamAny._videoGenerationInFlight && streamAny._latestGeneratedVideoPromise) {
+              const maybeLatestUrl = await Promise.race([
+                streamAny._latestGeneratedVideoPromise as Promise<string | undefined>,
+                new Promise<string | undefined>((resolve) => setTimeout(() => resolve(undefined), 90000)),
+              ]);
+              if (maybeLatestUrl && /^https?:\/\//i.test(maybeLatestUrl)) {
+                actualVideoUrl = maybeLatestUrl;
+              }
+            }
+          }
+          if (!actualVideoUrl) {
+            throw new Error(`Generated video reference "${sourceRef}" not found in conversation history. If this video was created in the same turn, pass the direct video URL (videos[0].videoUrl) instead of generated_video_N.`);
+          }
+        } else {
+          actualVideoUrl = videoMap?.get(sourceRef) || sourceRef;
+        }
+
+        if (!actualVideoUrl || !/^https?:\/\//i.test(actualVideoUrl)) {
+          throw new Error('Resolved video URL is invalid. Provide a public URL or a valid conversation reference.');
+        }
+
+        if (dataStream) {
+          dataStream.write({
+            type: 'data-video_upscaler_started',
+            id: `ann-video-upscaler-start-${Date.now()}`,
+            data: {
+              prompt: effectivePrompt,
+              videoRef: sourceRef,
+              resolvedVideoUrl: actualVideoUrl,
+              targetResolution: '4k',
+              started: true
+            }
+          });
+        }
+
+        // NOTE:
+        // WaveSpeed docs (flashvsr.md + official JS SDK) use:
+        // POST /api/v3/{model}
+        // body: { video, target_resolution }
+        // Poll endpoint (SDK default): GET /api/v3/predictions/{id}/result
+        // Compatibility fallback: GET /api/v3/predictions/{id}
+        // Our previous /predictions + {model,input} format triggered Page/PageSize validation errors.
+        const submitResponse = await fetch(`${WAVESPEED_API_BASE}/${WAVESPEED_MODEL_ID}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            video: actualVideoUrl,
+            target_resolution: '4k',
+          }),
+        });
+
+        if (!submitResponse.ok) {
+          throw new Error(`WaveSpeed submit error: ${submitResponse.status} - ${await submitResponse.text()}`);
+        }
+
+        const submitData = await submitResponse.json();
+        const requestId =
+          submitData?.data?.id ||
+          submitData?.id ||
+          submitData?.prediction_id ||
+          submitData?.predictionId;
+
+        if (!requestId) {
+          throw new Error('WaveSpeed API did not return a prediction id');
+        }
+
+        const pollStartTime = Date.now();
+        let lastStatus = 'created';
+        let lastProgressUpdate = 0;
+        let outputUrls: string[] = [];
+        let inferenceMs: number | undefined;
+
+        let pollPathMode: 'result' | 'legacy' = 'result';
+        while (Date.now() - pollStartTime < WAVESPEED_MAX_POLL_TIME) {
+          const resultPath = `${WAVESPEED_API_BASE}/predictions/${requestId}/result`;
+          const legacyPath = `${WAVESPEED_API_BASE}/predictions/${requestId}`;
+          const pollResponse = await fetch(
+            pollPathMode === 'result' ? resultPath : legacyPath,
+            {
+              headers: {
+                'Authorization': `Bearer ${apiKey}`,
+              },
+            }
+          );
+
+          let resolvedPollResponse = pollResponse;
+          if (!resolvedPollResponse.ok && resolvedPollResponse.status === 404 && pollPathMode === 'result') {
+            // Fallback for API variants that serve status on /predictions/{id}
+            const legacyResponse = await fetch(legacyPath, {
+              headers: {
+                'Authorization': `Bearer ${apiKey}`,
+              },
+            });
+            if (legacyResponse.ok) {
+              pollPathMode = 'legacy';
+              resolvedPollResponse = legacyResponse;
+            } else {
+              const resultErr = await resolvedPollResponse.text();
+              const legacyErr = await legacyResponse.text();
+              throw new Error(`WaveSpeed poll error: result(404: ${resultErr}) legacy(${legacyResponse.status}: ${legacyErr})`);
+            }
+          }
+
+          if (!resolvedPollResponse.ok) {
+            throw new Error(`WaveSpeed poll error: ${resolvedPollResponse.status} - ${await resolvedPollResponse.text()}`);
+          }
+
+          const pollRaw = await resolvedPollResponse.json();
+          const pollData = pollRaw?.data || pollRaw;
+          const status = pollData?.status || pollRaw?.status || 'processing';
+          const elapsedSeconds = Math.floor((Date.now() - pollStartTime) / 1000);
+
+          if (dataStream && (status !== lastStatus || elapsedSeconds - lastProgressUpdate >= 10)) {
+            dataStream.write({
+              type: 'data-video_upscaler_progress',
+              id: `ann-video-upscaler-progress-${Date.now()}`,
+              data: {
+                status,
+                elapsedSeconds,
+                requestId
+              }
+            });
+            lastStatus = status;
+            lastProgressUpdate = elapsedSeconds;
+          }
+
+          if (status === 'completed') {
+            outputUrls = Array.isArray(pollData?.outputs)
+              ? pollData.outputs
+              : (Array.isArray(pollRaw?.outputs) ? pollRaw.outputs : []);
+            inferenceMs =
+              typeof pollData?.timings?.inference === 'number'
+                ? pollData.timings.inference
+                : undefined;
+            break;
+          }
+
+          if (status === 'failed') {
+            throw new Error(pollData?.error || pollRaw?.error || 'WaveSpeed upscaling failed');
+          }
+
+          await new Promise(resolve => setTimeout(resolve, WAVESPEED_POLL_INTERVAL));
+        }
+
+        if (!Array.isArray(outputUrls) || outputUrls.length === 0) {
+          const elapsed = Math.floor((Date.now() - pollStartTime) / 1000);
+          throw new Error(`WaveSpeed upscaling timed out or produced no output. Elapsed: ${elapsed}s. Request ID: ${requestId}`);
+        }
+
+        const uploadedVideos = await Promise.all(
+          outputUrls.map(async (rawOutputUrl: string, index: number) => {
+            const videoData = await downloadVideo(rawOutputUrl);
+            const { path, url } = await uploadVideoToSupabase(videoData, userId || 'anonymous');
+            const resultVideo = {
+              videoUrl: url,
+              path,
+              bucket: 'generated-videos',
+              prompt: effectivePrompt,
+              timestamp: new Date().toISOString(),
+              targetResolution: '4k' as const,
+              sourceVideoUrl: actualVideoUrl,
+              sourceVideoRef: sourceRef,
+              providerTaskId: requestId,
+              inferenceMs,
+            };
+            generatedVideos.push(resultVideo);
+            if (dataStream) {
+              // Keep handoff URL current for potential subsequent same-turn tool calls.
+              (dataStream as any)._latestGeneratedVideoUrl = resultVideo.videoUrl;
+              (dataStream as any)._latestGeneratedVideoPath = resultVideo.path;
+            }
+
+            if (dataStream) {
+              dataStream.write({
+                type: 'data-video_upscaler_complete',
+                id: `ann-video-upscaler-complete-${Date.now()}-${index}`,
+                data: resultVideo
+              });
+            }
+
+            return resultVideo;
+          })
+        );
+
+        return {
+          success: true,
+          videos: uploadedVideos,
+          count: uploadedVideos.length,
+          prompt: effectivePrompt,
+          model: WAVESPEED_MODEL_ID,
+          targetResolution: '4k' as const,
+          sourceVideoRef: sourceRef,
+        };
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+        console.error('[VIDEO_UPSCALER] Error:', errMsg);
+        if (dataStream) {
+          dataStream.write({
+            type: 'data-video_upscaler_error',
+            id: `ann-video-upscaler-error-${Date.now()}`,
+            data: {
+              error: errMsg,
+              prompt: effectivePrompt
+            }
+          });
+        }
+        return {
+          success: false,
+          error: errMsg,
+          prompt: effectivePrompt
+        };
+      }
+    }
+  });
+
+  return Object.assign(videoUpscalerTool, { generatedVideos });
+}
+
+// WaveSpeed Ultimate Image Upscaler 8K 고정 도구
+const WAVESPEED_IMAGE_UPSCALER_MODEL_ID = 'wavespeed-ai/ultimate-image-upscaler';
+
+export function createImageUpscalerTool(
+  dataStream?: any,
+  userId?: string,
+  allMessages: any[] = [],
+  chatId?: string
+) {
+  const generatedImages: Array<{
+    imageUrl: string;
+    path?: string;
+    bucket?: string;
+    prompt: string;
+    timestamp: string;
+    targetResolution: '8k';
+    sourceImageUrl?: string;
+    sourceImageRef?: string;
+    providerTaskId?: string;
+    inferenceMs?: number;
+  }> = [];
+
+  let imageMap: Map<string, string> | null = null;
+  let generatedImageMap: Map<string, { url: string; path: string }> | null = null;
+  let imageMapsInitialized = false;
+
+  async function ensureImageMapInitialized() {
+    if (imageMapsInitialized) return;
+
+    const { createClient } = await import('@/utils/supabase/server');
+
+    let messagesToProcess = allMessages;
+    if (chatId && userId) {
+      const dbMessages = await fetchAllChatMessagesFromDB(chatId, userId);
+      if (dbMessages.length > 0) {
+        const dbMessageIds = new Set(dbMessages.map(m => m.id).filter(Boolean));
+        const newMessages = allMessages.filter(m => m.id && !dbMessageIds.has(m.id));
+        messagesToProcess = newMessages.length > 0 ? [...dbMessages, ...newMessages] : dbMessages;
+      }
+    }
+
+    if (messagesToProcess.length > 0) {
+      const maps = buildImageMapsFromDBMessages(messagesToProcess);
+      imageMap = maps.imageMap;
+      generatedImageMap = maps.generatedImageMap;
+    } else {
+      imageMap = new Map<string, string>();
+      generatedImageMap = new Map<string, { url: string; path: string }>();
+    }
+    imageMapsInitialized = true;
+  }
+
+  async function downloadImage(url: string): Promise<Uint8Array> {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to download image: ${response.statusText}`);
+    }
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
+  async function uploadImageToSupabase(
+    uint8Array: Uint8Array,
+    resolvedUserId: string,
+    ext: string = 'jpeg'
+  ): Promise<{ path: string; url: string }> {
+    const { createClient } = await import('@/utils/supabase/server');
+    const supabase = await createClient();
+    const contentType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+    const fileName = `upscaled_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+    const filePath = `${resolvedUserId}/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from('generated-images')
+      .upload(filePath, uint8Array, { contentType });
+    if (error) {
+      throw new Error(`Failed to upload upscaled image: ${error.message}`);
+    }
+
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from('generated-images')
+      .createSignedUrl(filePath, 24 * 60 * 60);
+    if (signedError || !signedData?.signedUrl) {
+      throw new Error(`Failed to create signed URL: ${signedError?.message || 'Unknown error'}`);
+    }
+
+    return { path: filePath, url: signedData.signedUrl };
+  }
+
+  const WAVESPEED_API_BASE = 'https://api.wavespeed.ai/api/v3';
+  const WAVESPEED_POLL_INTERVAL = 2000;
+  const WAVESPEED_MAX_POLL_TIME = 300000;
+
+  const imageUpscalerInputSchema = z
+    .object({
+      imageRef: z
+        .string()
+        .optional()
+        .describe(
+          'Conversation image reference: uploaded_image_N, generated_image_N, or search/ID. Use imageUrl for public URLs.'
+        ),
+      imageUrl: z
+        .string()
+        .optional()
+        .describe('Public image URL. You can also pass a conversation reference here.')
+    })
+    .refine(data => Boolean(data.imageRef || data.imageUrl), {
+      message: 'Either imageRef or imageUrl is required.'
+    });
+
+  type ImageUpscalerInput = z.infer<typeof imageUpscalerInputSchema>;
+
+  const imageUpscalerTool = tool<ImageUpscalerInput, unknown>({
+    description:
+      'Upscale an image to fixed 8K using WaveSpeed Ultimate Image Upscaler. Supports conversation references (uploaded_image_N, generated_image_N) and direct public URLs.',
+    inputSchema: imageUpscalerInputSchema,
+    execute: async ({ imageRef, imageUrl }: ImageUpscalerInput) => {
+      const effectivePrompt = 'Upscale to 8K';
+      try {
+        const apiKey = process.env.WAVESPEED_API_KEY;
+        if (!apiKey) {
+          throw new Error('WAVESPEED_API_KEY is not set');
+        }
+
+        await ensureImageMapInitialized();
+
+        const sourceRef = (imageRef || imageUrl || '').trim();
+        let actualImageUrl: string | undefined;
+
+        if (!sourceRef) {
+          throw new Error('No image reference or URL was provided');
+        }
+
+        if (sourceRef.startsWith('uploaded_image_')) {
+          const resolved = imageMap?.get(sourceRef);
+          if (!resolved) {
+            throw new Error(`Image reference "${sourceRef}" not found in conversation history`);
+          }
+          actualImageUrl = await resolveUploadedImageUrl(resolved);
+        } else if (sourceRef.startsWith('generated_image_')) {
+          const imgData = generatedImageMap?.get(sourceRef);
+          if (imgData) {
+            actualImageUrl = await resolveGeneratedImageUrl(imgData);
+          } else {
+            const inTurnLatest = await getInTurnLatestGeneratedImageUrl(dataStream);
+            if (inTurnLatest && /^https?:\/\//i.test(inTurnLatest)) {
+              actualImageUrl = inTurnLatest;
+            }
+          }
+          if (!actualImageUrl) {
+            throw new Error(
+              `Generated image reference "${sourceRef}" not found. If this image was created in the same turn, pass the direct image URL (e.g. images[0].imageUrl) instead.`
+            );
+          }
+        } else {
+          const fromMap = imageMap?.get(sourceRef);
+          const fromGenerated = generatedImageMap?.get(sourceRef);
+          actualImageUrl = fromMap
+            ? await resolveUploadedImageUrl(fromMap)
+            : fromGenerated
+              ? await resolveGeneratedImageUrl(fromGenerated)
+              : /^https?:\/\//i.test(sourceRef)
+                ? sourceRef
+                : undefined;
+          if (!actualImageUrl) {
+            actualImageUrl = sourceRef;
+          }
+        }
+
+        if (!actualImageUrl || !/^https?:\/\//i.test(actualImageUrl)) {
+          throw new Error('Resolved image URL is invalid. Provide a public URL or a valid conversation reference.');
+        }
+
+        if (dataStream) {
+          dataStream.write({
+            type: 'data-image_upscaler_started',
+            id: `ann-image-upscaler-start-${Date.now()}`,
+            data: {
+              prompt: effectivePrompt,
+              imageRef: sourceRef,
+              resolvedImageUrl: actualImageUrl,
+              targetResolution: '8k',
+              started: true
+            }
+          });
+        }
+
+        const submitResponse = await fetch(`${WAVESPEED_API_BASE}/${WAVESPEED_IMAGE_UPSCALER_MODEL_ID}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            image: actualImageUrl,
+            target_resolution: '8k'
+          })
+        });
+
+        if (!submitResponse.ok) {
+          throw new Error(`WaveSpeed submit error: ${submitResponse.status} - ${await submitResponse.text()}`);
+        }
+
+        const submitData = await submitResponse.json();
+        const requestId =
+          submitData?.data?.id ||
+          submitData?.id ||
+          submitData?.prediction_id ||
+          submitData?.predictionId;
+
+        if (!requestId) {
+          throw new Error('WaveSpeed API did not return a prediction id');
+        }
+
+        const pollStartTime = Date.now();
+        let lastStatus = 'created';
+        let lastProgressUpdate = 0;
+        let outputUrls: string[] = [];
+        let inferenceMs: number | undefined;
+
+        let pollPathMode: 'result' | 'legacy' = 'result';
+        while (Date.now() - pollStartTime < WAVESPEED_MAX_POLL_TIME) {
+          const resultPath = `${WAVESPEED_API_BASE}/predictions/${requestId}/result`;
+          const legacyPath = `${WAVESPEED_API_BASE}/predictions/${requestId}`;
+          const pollResponse = await fetch(
+            pollPathMode === 'result' ? resultPath : legacyPath,
+            {
+              headers: { Authorization: `Bearer ${apiKey}` }
+            }
+          );
+
+          let resolvedPollResponse = pollResponse;
+          if (!resolvedPollResponse.ok && resolvedPollResponse.status === 404 && pollPathMode === 'result') {
+            const legacyResponse = await fetch(legacyPath, {
+              headers: { Authorization: `Bearer ${apiKey}` }
+            });
+            if (legacyResponse.ok) {
+              pollPathMode = 'legacy';
+              resolvedPollResponse = legacyResponse;
+            } else {
+              const resultErr = await resolvedPollResponse.text();
+              const legacyErr = await legacyResponse.text();
+              throw new Error(
+                `WaveSpeed poll error: result(404: ${resultErr}) legacy(${legacyResponse.status}: ${legacyErr})`
+              );
+            }
+          }
+
+          if (!resolvedPollResponse.ok) {
+            throw new Error(`WaveSpeed poll error: ${resolvedPollResponse.status} - ${await resolvedPollResponse.text()}`);
+          }
+
+          const pollRaw = await resolvedPollResponse.json();
+          const pollData = pollRaw?.data || pollRaw;
+          const status = pollData?.status || pollRaw?.status || 'processing';
+          const elapsedSeconds = Math.floor((Date.now() - pollStartTime) / 1000);
+
+          if (dataStream && (status !== lastStatus || elapsedSeconds - lastProgressUpdate >= 10)) {
+            dataStream.write({
+              type: 'data-image_upscaler_progress',
+              id: `ann-image-upscaler-progress-${Date.now()}`,
+              data: { status, elapsedSeconds, requestId }
+            });
+            lastStatus = status;
+            lastProgressUpdate = elapsedSeconds;
+          }
+
+          if (status === 'completed') {
+            outputUrls = Array.isArray(pollData?.outputs)
+              ? pollData.outputs
+              : Array.isArray(pollRaw?.outputs)
+                ? pollRaw.outputs
+                : [];
+            inferenceMs =
+              typeof pollData?.timings?.inference === 'number' ? pollData.timings.inference : undefined;
+            break;
+          }
+
+          if (status === 'failed') {
+            throw new Error(pollData?.error || pollRaw?.error || 'WaveSpeed upscaling failed');
+          }
+
+          await new Promise(resolve => setTimeout(resolve, WAVESPEED_POLL_INTERVAL));
+        }
+
+        if (!Array.isArray(outputUrls) || outputUrls.length === 0) {
+          const elapsed = Math.floor((Date.now() - pollStartTime) / 1000);
+          throw new Error(
+            `WaveSpeed upscaling timed out or produced no output. Elapsed: ${elapsed}s. Request ID: ${requestId}`
+          );
+        }
+
+        const resolvedUserId = userId || 'anonymous';
+        const uploadedImages = await Promise.all(
+          outputUrls.map(async (rawOutputUrl: string, index: number) => {
+            const imageData = await downloadImage(rawOutputUrl);
+            const ext = rawOutputUrl.includes('.png') ? 'png' : rawOutputUrl.includes('.webp') ? 'webp' : 'jpeg';
+            const { path, url } = await uploadImageToSupabase(imageData, resolvedUserId, ext);
+            const resultImage = {
+              imageUrl: url,
+              path,
+              bucket: 'generated-images',
+              prompt: effectivePrompt,
+              timestamp: new Date().toISOString(),
+              targetResolution: '8k' as const,
+              sourceImageUrl: actualImageUrl,
+              sourceImageRef: sourceRef,
+              providerTaskId: requestId,
+              inferenceMs
+            };
+            generatedImages.push(resultImage);
+            markImageGenerationCompleted(dataStream, resultImage.imageUrl, resultImage.path);
+
+            if (dataStream) {
+              dataStream.write({
+                type: 'data-image_upscaler_complete',
+                id: `ann-image-upscaler-complete-${Date.now()}-${index}`,
+                data: resultImage
+              });
+            }
+
+            return resultImage;
+          })
+        );
+
+        return {
+          success: true,
+          images: uploadedImages,
+          count: uploadedImages.length,
+          prompt: effectivePrompt,
+          model: WAVESPEED_IMAGE_UPSCALER_MODEL_ID,
+          targetResolution: '8k' as const,
+          sourceImageRef: sourceRef
+        };
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+        console.error('[IMAGE_UPSCALER] Error:', errMsg);
+        if (dataStream) {
+          dataStream.write({
+            type: 'data-image_upscaler_error',
+            id: `ann-image-upscaler-error-${Date.now()}`,
+            data: { error: errMsg, prompt: effectivePrompt }
+          });
+        }
+        return {
+          success: false,
+          error: errMsg,
+          prompt: effectivePrompt
+        };
+      }
+    }
+  });
+
+  return Object.assign(imageUpscalerTool, { generatedImages });
 }

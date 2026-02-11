@@ -64,7 +64,7 @@ export interface Attachment {
   contentType?: string;
   url: string;
   path?: string;
-  fileType?: 'image' | 'code' | 'pdf' | 'file';
+  fileType?: 'image' | 'video' | 'code' | 'pdf' | 'file';
   metadata?: FileMetadata;
 }
 

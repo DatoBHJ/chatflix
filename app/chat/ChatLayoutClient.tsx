@@ -25,6 +25,7 @@ export default function ChatLayoutClient({
   const [isHovering, setIsHovering] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [isBookmarkMode, setIsBookmarkMode] = useState(false)
+  const [isMessageSelectionModeActive, setIsMessageSelectionModeActive] = useState(false)
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [isRouteTransitioning, setIsRouteTransitioning] = useState(false)
   const prevPathnameRef = useRef<string | null>(null)
@@ -54,8 +55,9 @@ export default function ChatLayoutClient({
   }, [])
 
   const toggleSidebar = useCallback(() => {
+    if (isMessageSelectionModeActive) return
     setIsSidebarOpen(prev => !prev)
-  }, [])
+  }, [isMessageSelectionModeActive])
 
   // 경로 변경 시 사이드바 상태 제어
   // 모든 채팅 경로(/chat, /chat/[id])에서 사이드바를 닫음
@@ -166,13 +168,30 @@ export default function ChatLayoutClient({
     }
   }, [])
 
-  const shouldShowSidebar = isMobile ? isSidebarOpen : (isHovering || isSidebarOpen)
+  const shouldShowSidebar = isMessageSelectionModeActive ? false : (isMobile ? isSidebarOpen : (isHovering || isSidebarOpen))
 
   useEffect(() => {
     if (!shouldShowSidebar) {
       setIsSelectionMode(false)
     }
   }, [shouldShowSidebar])
+
+  useEffect(() => {
+    const handleMessageSelectionMode = (event: Event) => {
+      const customEvent = event as CustomEvent<{ active?: boolean }>
+      const active = !!customEvent.detail?.active
+      setIsMessageSelectionModeActive(active)
+      if (active) {
+        setIsSidebarOpen(false)
+        setIsBookmarkMode(false)
+      }
+    }
+
+    window.addEventListener('chatMessageSelectionModeChanged', handleMessageSelectionMode as EventListener)
+    return () => {
+      window.removeEventListener('chatMessageSelectionModeChanged', handleMessageSelectionMode as EventListener)
+    }
+  }, [])
 
   // 익명 사용자용 가상 사용자 객체 생성
   const displayUser = user || {
@@ -252,7 +271,7 @@ export default function ChatLayoutClient({
       }}>
         <div className="flex h-screen bg-background text-foreground overflow-x-hidden" style={{ minHeight: '100dvh' }}>
           {/* Hover trigger area for desktop */}
-          {!isMobile && (
+          {!isMobile && !isMessageSelectionModeActive && (
             <div 
               className="fixed left-0 top-0 w-4 h-screen z-70"
               onMouseEnter={() => handleSidebarHover(true)}
@@ -304,7 +323,7 @@ export default function ChatLayoutClient({
           )}
           
           {/* Toggle button */}
-          {!isAccountOpen && (
+          {!isAccountOpen && !isMessageSelectionModeActive && (
             <div 
               className="fixed top-2.5 sm:top-2 left-3 sm:left-3 z-60"
               onMouseEnter={() => !isMobile && handleSidebarHover(true)}
@@ -374,7 +393,7 @@ export default function ChatLayoutClient({
           )}
 
           {/* 북마크 버튼 - 사이드바와 완전 동기화: 좌우 슬라이드(translate-x) + opacity fade + transition(duration-300 ease-in-out) */}
-          {!isAccountOpen && (pathname === '/chat' || pathname.startsWith('/chat/')) && (
+          {!isAccountOpen && !isMessageSelectionModeActive && (pathname === '/chat' || pathname.startsWith('/chat/')) && (
             <div 
               className={`fixed top-2.5 sm:top-2 z-60 transform transition-all duration-300 ease-in-out ${
                 isMobile ? 'right-3' : 'left-84'
@@ -408,7 +427,7 @@ export default function ChatLayoutClient({
           )}
 
           {/* 우측 상단 버튼 - 채팅 홈에서는 홈 아이콘, 채팅창에서는 새글 아이콘 */}
-          {!isAccountOpen && (pathname === '/chat' || pathname.startsWith('/chat/')) && !shouldShowSidebar && (
+          {!isAccountOpen && !isMessageSelectionModeActive && (pathname === '/chat' || pathname.startsWith('/chat/')) && !shouldShowSidebar && (
             <div className="fixed top-2.5 sm:top-2 right-3 z-60">
               {pathname === '/chat' ? (
                 // 채팅 홈: 홈 아이콘 (기존 크기, 아이콘만 중앙 정렬)

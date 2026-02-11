@@ -3037,6 +3037,326 @@ export const getGrokVideoData = (message: UIMessage): {
   return null;
 };
 
+export const getVideoUpscalerData = (message: UIMessage): {
+  generatedVideos: {
+    videoUrl: string;
+    prompt: string;
+    timestamp: string;
+    targetResolution?: string;
+    sourceVideoUrl?: string;
+    sourceVideoRef?: string;
+    path?: string;
+  }[];
+  status?: 'processing' | 'completed' | 'error';
+  startedCount?: number;
+  pendingCount?: number;
+  pendingPrompts?: string[];
+  pendingSourceVideos?: string[];
+  errorCount?: number;
+  failedVideos?: Array<{ prompt: string; error: string }>;
+  progress?: { status: string; elapsedSeconds: number; requestId: string };
+} | null => {
+  if ((message as any).tool_results?.videoUpscalerResults) {
+    const generatedVideos = (message as any).tool_results.videoUpscalerResults;
+    if (Array.isArray(generatedVideos) && generatedVideos.length > 0) {
+      return { generatedVideos, status: 'completed' as const };
+    }
+  }
+
+  let videosFromToolResults: any[] = [];
+  let errorCount = 0;
+  const failedVideos: Array<{ prompt: string; error: string }> = [];
+
+  if ((message as any).parts && Array.isArray((message as any).parts)) {
+    const toolResultParts = ((message as any).parts as any[]).filter((p: any) => {
+      const isToolResult = p?.type === 'tool-result' || p?.type?.startsWith('tool-video_upscaler');
+      const isUpscalerTool = p?.toolName === 'video_upscaler' || p?.type?.includes('video_upscaler');
+      return isToolResult && isUpscalerTool;
+    });
+    for (const part of toolResultParts) {
+      const result = part.output?.value || part.output || part.result;
+      if (result?.success === false) {
+        errorCount++;
+        failedVideos.push({ prompt: result.prompt || 'Unknown prompt', error: result.error || 'Unknown error' });
+        continue;
+      }
+      if (result?.videos && Array.isArray(result.videos)) {
+        for (const vid of result.videos) {
+          if (vid.videoUrl && (vid.path || vid.videoUrl)) {
+            videosFromToolResults.push({
+              videoUrl: vid.videoUrl,
+              path: vid.path,
+              prompt: vid.prompt || result.prompt,
+              timestamp: vid.timestamp || new Date().toISOString(),
+              targetResolution: vid.targetResolution || result.targetResolution,
+              sourceVideoUrl: vid.sourceVideoUrl,
+              sourceVideoRef: vid.sourceVideoRef,
+            });
+          }
+        }
+      }
+    }
+    if (videosFromToolResults.length > 0) {
+      return {
+        generatedVideos: videosFromToolResults,
+        status: 'completed' as const,
+        errorCount: errorCount > 0 ? errorCount : undefined,
+        failedVideos: failedVideos.length > 0 ? failedVideos : undefined,
+      };
+    }
+  }
+
+  let videoAnnotations: any[] = [];
+  let startedCount = 0;
+  const pendingPrompts: string[] = [];
+  const pendingSourceVideos: string[] = [];
+  let progressData: { status: string; elapsedSeconds: number; requestId: string } | undefined;
+
+  if ((message as any).annotations) {
+    const completeAnnotations = (((message as any).annotations) as any[])
+      .filter((a: any) => a && typeof a === 'object' && (a.type === 'video_upscaler_complete' || a.type === 'data-video_upscaler_complete'))
+      .map((a: any) => a.data)
+      .filter(Boolean);
+    videoAnnotations = [...videoAnnotations, ...completeAnnotations];
+
+    const startAnnotations = (((message as any).annotations) as any[])
+      .filter((a: any) => a && typeof a === 'object' && (a.type === 'video_upscaler_started' || a.type === 'data-video_upscaler_started'));
+    startedCount = startAnnotations.length;
+    startAnnotations.forEach((a: any) => {
+      if (a.data?.prompt) pendingPrompts.push(a.data.prompt);
+      pendingSourceVideos.push(a.data?.resolvedVideoUrl || '');
+    });
+
+    const progressAnnotations = (((message as any).annotations) as any[])
+      .filter((a: any) => a && typeof a === 'object' && (a.type === 'video_upscaler_progress' || a.type === 'data-video_upscaler_progress'));
+    if (progressAnnotations.length > 0) {
+      const latest = progressAnnotations[progressAnnotations.length - 1];
+      if (latest.data?.status && typeof latest.data.elapsedSeconds === 'number' && latest.data.requestId) {
+        progressData = { status: latest.data.status, elapsedSeconds: latest.data.elapsedSeconds, requestId: latest.data.requestId };
+      }
+    }
+  }
+
+  if ((message as any).parts && Array.isArray((message as any).parts)) {
+    const videoParts = ((message as any).parts as any[]).filter((p: any) => p?.type === 'data-video_upscaler_complete');
+    const videoStartParts = ((message as any).parts as any[]).filter((p: any) => p?.type === 'data-video_upscaler_started');
+    const errorParts = ((message as any).parts as any[]).filter((p: any) => p?.type === 'data-video_upscaler_error');
+    const progressParts = ((message as any).parts as any[]).filter((p: any) => p?.type === 'data-video_upscaler_progress');
+
+    for (const errorPart of errorParts) {
+      if (errorPart.data) {
+        failedVideos.push({ prompt: errorPart.data.prompt || 'Unknown prompt', error: errorPart.data.error || 'Unknown error' });
+        errorCount++;
+      }
+    }
+
+    if (progressParts.length > 0) {
+      const latest = progressParts[progressParts.length - 1];
+      if (latest.data?.status && typeof latest.data.elapsedSeconds === 'number' && latest.data.requestId) {
+        progressData = { status: latest.data.status, elapsedSeconds: latest.data.elapsedSeconds, requestId: latest.data.requestId };
+      }
+    }
+
+    videoAnnotations = [...videoAnnotations, ...videoParts.map((p: any) => p.data).filter(Boolean)];
+    startedCount = Math.max(startedCount, videoStartParts.length);
+    videoStartParts.forEach((p: any) => {
+      const prompt = p.data?.prompt;
+      const sourceVideo = p.data?.resolvedVideoUrl || '';
+      if (prompt && !pendingPrompts.includes(prompt)) {
+        pendingPrompts.push(prompt);
+        pendingSourceVideos.push(sourceVideo);
+      }
+    });
+  }
+
+  if (startedCount > 0 || videoAnnotations.length > 0) {
+    const completedCount = videoAnnotations.length;
+    const pendingCount = Math.max(0, startedCount - completedCount);
+    return {
+      generatedVideos: videoAnnotations,
+      status: (completedCount > 0 && pendingCount === 0 ? 'completed' : 'processing') as 'completed' | 'processing',
+      startedCount,
+      pendingCount,
+      pendingPrompts,
+      pendingSourceVideos,
+      errorCount: errorCount > 0 ? errorCount : undefined,
+      failedVideos: failedVideos.length > 0 ? failedVideos : undefined,
+      progress: progressData,
+    };
+  }
+
+  if (errorCount > 0) {
+    return {
+      generatedVideos: [],
+      errorCount,
+      failedVideos: failedVideos.length > 0 ? failedVideos : undefined,
+      status: 'error' as const,
+    };
+  }
+
+  return null;
+};
+
+export const getImageUpscalerData = (message: UIMessage): {
+  generatedImages: {
+    imageUrl: string;
+    path?: string;
+    prompt: string;
+    timestamp: string;
+    targetResolution?: string;
+    sourceImageUrl?: string;
+    sourceImageRef?: string;
+  }[];
+  status?: 'processing' | 'completed' | 'error';
+  startedCount?: number;
+  pendingCount?: number;
+  pendingPrompts?: string[];
+  pendingSourceImages?: string[];
+  errorCount?: number;
+  failedImages?: Array<{ prompt: string; error: string }>;
+  progress?: { status: string; elapsedSeconds: number; requestId: string };
+} | null => {
+  if ((message as any).tool_results?.imageUpscalerResults) {
+    const generatedImages = (message as any).tool_results.imageUpscalerResults;
+    if (Array.isArray(generatedImages) && generatedImages.length > 0) {
+      return { generatedImages, status: 'completed' as const };
+    }
+  }
+
+  let imagesFromToolResults: any[] = [];
+  let errorCount = 0;
+  const failedImages: Array<{ prompt: string; error: string }> = [];
+
+  if ((message as any).parts && Array.isArray((message as any).parts)) {
+    const toolResultParts = ((message as any).parts as any[]).filter((p: any) => {
+      const isToolResult = p?.type === 'tool-result' || p?.type?.startsWith('tool-image_upscaler');
+      const isUpscalerTool = p?.toolName === 'image_upscaler' || p?.type?.includes('image_upscaler');
+      return isToolResult && isUpscalerTool;
+    });
+    for (const part of toolResultParts) {
+      const result = part.output?.value || part.output || part.result;
+      if (result?.success === false) {
+        errorCount++;
+        failedImages.push({ prompt: result.prompt || 'Unknown prompt', error: result.error || 'Unknown error' });
+        continue;
+      }
+      if (result?.images && Array.isArray(result.images)) {
+        for (const img of result.images) {
+          if (img.imageUrl && (img.path || img.imageUrl)) {
+            imagesFromToolResults.push({
+              imageUrl: img.imageUrl,
+              path: img.path,
+              prompt: img.prompt || result.prompt,
+              timestamp: img.timestamp || new Date().toISOString(),
+              targetResolution: img.targetResolution || result.targetResolution,
+              sourceImageUrl: img.sourceImageUrl,
+              sourceImageRef: img.sourceImageRef,
+            });
+          }
+        }
+      }
+    }
+    if (imagesFromToolResults.length > 0) {
+      return {
+        generatedImages: imagesFromToolResults,
+        status: 'completed' as const,
+        errorCount: errorCount > 0 ? errorCount : undefined,
+        failedImages: failedImages.length > 0 ? failedImages : undefined,
+      };
+    }
+  }
+
+  let imageAnnotations: any[] = [];
+  let startedCount = 0;
+  const pendingPrompts: string[] = [];
+  const pendingSourceImages: string[] = [];
+  let progressData: { status: string; elapsedSeconds: number; requestId: string } | undefined;
+
+  if ((message as any).annotations) {
+    const completeAnnotations = (((message as any).annotations) as any[])
+      .filter((a: any) => a && typeof a === 'object' && (a.type === 'image_upscaler_complete' || a.type === 'data-image_upscaler_complete'))
+      .map((a: any) => a.data)
+      .filter(Boolean);
+    imageAnnotations = [...imageAnnotations, ...completeAnnotations];
+
+    const startAnnotations = (((message as any).annotations) as any[])
+      .filter((a: any) => a && typeof a === 'object' && (a.type === 'image_upscaler_started' || a.type === 'data-image_upscaler_started'));
+    startedCount = startAnnotations.length;
+    startAnnotations.forEach((a: any) => {
+      if (a.data?.prompt) pendingPrompts.push(a.data.prompt);
+      pendingSourceImages.push(a.data?.resolvedImageUrl || '');
+    });
+
+    const progressAnnotations = (((message as any).annotations) as any[])
+      .filter((a: any) => a && typeof a === 'object' && (a.type === 'image_upscaler_progress' || a.type === 'data-image_upscaler_progress'));
+    if (progressAnnotations.length > 0) {
+      const latest = progressAnnotations[progressAnnotations.length - 1];
+      if (latest.data?.status && typeof latest.data.elapsedSeconds === 'number' && latest.data.requestId) {
+        progressData = { status: latest.data.status, elapsedSeconds: latest.data.elapsedSeconds, requestId: latest.data.requestId };
+      }
+    }
+  }
+
+  if ((message as any).parts && Array.isArray((message as any).parts)) {
+    const imageParts = ((message as any).parts as any[]).filter((p: any) => p?.type === 'data-image_upscaler_complete');
+    const imageStartParts = ((message as any).parts as any[]).filter((p: any) => p?.type === 'data-image_upscaler_started');
+    const errorParts = ((message as any).parts as any[]).filter((p: any) => p?.type === 'data-image_upscaler_error');
+    const progressParts = ((message as any).parts as any[]).filter((p: any) => p?.type === 'data-image_upscaler_progress');
+
+    for (const errorPart of errorParts) {
+      if (errorPart.data) {
+        failedImages.push({ prompt: errorPart.data.prompt || 'Unknown prompt', error: errorPart.data.error || 'Unknown error' });
+        errorCount++;
+      }
+    }
+
+    if (progressParts.length > 0) {
+      const latest = progressParts[progressParts.length - 1];
+      if (latest.data?.status && typeof latest.data.elapsedSeconds === 'number' && latest.data.requestId) {
+        progressData = { status: latest.data.status, elapsedSeconds: latest.data.elapsedSeconds, requestId: latest.data.requestId };
+      }
+    }
+
+    imageAnnotations = [...imageAnnotations, ...imageParts.map((p: any) => p.data).filter(Boolean)];
+    startedCount = Math.max(startedCount, imageStartParts.length);
+    imageStartParts.forEach((p: any) => {
+      const prompt = p.data?.prompt;
+      const sourceImage = p.data?.resolvedImageUrl || '';
+      if (prompt && !pendingPrompts.includes(prompt)) {
+        pendingPrompts.push(prompt);
+        pendingSourceImages.push(sourceImage);
+      }
+    });
+  }
+
+  if (startedCount > 0 || imageAnnotations.length > 0) {
+    const completedCount = imageAnnotations.length;
+    const pendingCount = Math.max(0, startedCount - completedCount);
+    return {
+      generatedImages: imageAnnotations,
+      status: (completedCount > 0 && pendingCount === 0 ? 'completed' : 'processing') as 'completed' | 'processing',
+      startedCount,
+      pendingCount,
+      pendingPrompts,
+      pendingSourceImages,
+      errorCount: errorCount > 0 ? errorCount : undefined,
+      failedImages: failedImages.length > 0 ? failedImages : undefined,
+      progress: progressData,
+    };
+  }
+
+  if (errorCount > 0) {
+    return {
+      generatedImages: [],
+      errorCount,
+      failedImages: failedImages.length > 0 ? failedImages : undefined,
+      status: 'error' as const,
+    };
+  }
+
+  return null;
+};
+
 /**
  * Extract tool data from a tool-call/tool-result pair for InlineToolPreview
  * Used in interleaved rendering mode
@@ -3065,6 +3385,8 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   'google_search': 'Google Search',
   'wan25_video': 'Wan 2.5 Video',
   'grok_video': 'Grok Imagine Video',
+  'video_upscaler': '4K Video Upscaler',
+  'image_upscaler': '8K Image Upscaler',
 };
 
 function getDisplayNameForTool(toolName: string, args: any, result: any | null): string {
@@ -3081,6 +3403,12 @@ function getDisplayNameForTool(toolName: string, args: any, result: any | null):
     if (isVideoEdit) return 'Grok Video to Video';
     if (isImageToVideo) return 'Grok Image to Video';
     return 'Grok Text to Video';
+  }
+  if (toolName === 'video_upscaler') {
+    return '4K Video Upscaler';
+  }
+  if (toolName === 'image_upscaler') {
+    return '8K Image Upscaler';
   }
   return TOOL_DISPLAY_NAMES[toolName] || toolName;
 }
@@ -3204,12 +3532,23 @@ export type RunCodeResultItem = {
   json?: unknown;
 };
 
+export type RunCodeSyncedFile = {
+  path: string;
+  isText: boolean;
+  bytes: number;
+};
+
 export type RunCodeData = {
   stdout: string[];
   stderr: string[];
   results: RunCodeResultItem[];
   error?: { name?: string; value?: string; traceback?: string[] };
   success: boolean;
+  syncedFiles?: RunCodeSyncedFile[];
+  /** true when data comes from incremental streaming events (no data-run_code_complete yet) */
+  isStreaming?: boolean;
+  /** The Python code being executed (available during streaming) */
+  code?: string;
 };
 
 function parseRunCodeRaw(raw: any): RunCodeData {
@@ -3240,18 +3579,71 @@ function parseRunCodeRaw(raw: any): RunCodeData {
   return { stdout, stderr, results, error: err, success };
 }
 
-/** Extract run_python_code tool results from message.parts for Canvas. Uses the last run_python_code part when multiple exist. Falls back to message.tool_results.runCodeResults when parts are missing or minimal (e.g. after refresh). */
-export const getRunCodeData = (message: UIMessage): RunCodeData | null => {
+/** Extract run_python_code tool results from message.parts for Canvas/InlineToolPreview.
+ *  When `targetToolCallId` is provided, returns results for that specific invocation only.
+ *  Without it, falls back to the last result (backward compatible).
+ *  Falls back to message.tool_results.runCodeResults when parts are missing or minimal (e.g. after refresh). */
+export const getRunCodeData = (
+  message: UIMessage,
+  targetToolCallId?: string,
+  targetInvocationIndex?: number
+): RunCodeData | null => {
   if (!message) return null;
   const parts = (message as any).parts;
+  const effectiveTargetToolCallId = (() => {
+    if (targetToolCallId) return targetToolCallId;
+    if (typeof targetInvocationIndex === 'number') return undefined;
+    if (!Array.isArray(parts)) return undefined;
+
+    let lastRunToolCallId: string | undefined;
+    let lastSuccessfulRunToolCallId: string | undefined;
+
+    for (const part of parts) {
+      if (RUN_CODE_PART_TYPES.includes(part?.type as any) && typeof part?.toolCallId === 'string') {
+        lastRunToolCallId = part.toolCallId;
+      }
+      if (part?.type === 'data-run_code_complete') {
+        const callId = typeof part?.data?.toolCallId === 'string' ? part.data.toolCallId : undefined;
+        if (callId) {
+          lastRunToolCallId = callId;
+          if (part?.data?.success === true) {
+            lastSuccessfulRunToolCallId = callId;
+          }
+        }
+      }
+    }
+
+    return lastSuccessfulRunToolCallId ?? lastRunToolCallId;
+  })();
   let out: RunCodeData | null = null;
+  let syncedFiles: RunCodeSyncedFile[] | undefined;
 
   if (Array.isArray(parts)) {
+    // When targetToolCallId is provided, we use positional association:
+    // data-run_code_* events that appear AFTER a tool-run_python_code part
+    // (and BEFORE the next tool-run_python_code part) belong to that invocation.
+    // Events with explicit toolCallId are matched directly.
+    let currentToolCallId: string | null = null;
+    let currentInvocationIndex = -1;
+    let isTargetInvocation = false;
+
     for (const part of parts) {
       const type = part?.type;
       if (!type) continue;
 
+      // Track which tool invocation we're currently in
       if (RUN_CODE_PART_TYPES.includes(type as any)) {
+        currentInvocationIndex += 1;
+        currentToolCallId = part.toolCallId ?? null;
+        isTargetInvocation = effectiveTargetToolCallId
+          ? currentToolCallId === effectiveTargetToolCallId
+          : (typeof targetInvocationIndex === 'number'
+              ? currentInvocationIndex === targetInvocationIndex
+              : true);
+
+        // If targeting a specific invocation, only use matching tool parts
+        if (!isTargetInvocation) continue;
+
         const raw = part.output?.value ?? part.output ?? part.result ?? null;
         if (!raw) continue;
         out = parseRunCodeRaw(raw);
@@ -3259,20 +3651,154 @@ export const getRunCodeData = (message: UIMessage): RunCodeData | null => {
       }
 
       if (type === 'data-run_code_complete') {
+        // Match by explicit toolCallId inside data (new messages)
+        // or by positional association (legacy messages without toolCallId)
+        const eventToolCallId = part.data?.toolCallId ?? currentToolCallId;
+        const matches = effectiveTargetToolCallId
+          ? eventToolCallId === effectiveTargetToolCallId
+          : (typeof targetInvocationIndex === 'number'
+              ? isTargetInvocation
+              : true);
+        if (!matches) continue;
+
         const raw = part.data ?? null;
         if (!raw) continue;
         out = parseRunCodeRaw(raw);
+      }
+
+      // Capture files synced after run_python_code execution
+      if (type === 'data-run_code_files_synced') {
+        const eventToolCallId = part.data?.toolCallId ?? currentToolCallId;
+        const matches = effectiveTargetToolCallId
+          ? eventToolCallId === effectiveTargetToolCallId
+          : (typeof targetInvocationIndex === 'number'
+              ? isTargetInvocation
+              : true);
+        if (!matches) continue;
+
+        const raw = part.data ?? null;
+        if (raw && Array.isArray(raw.files)) {
+          syncedFiles = raw.files.map((f: any) => ({
+            path: typeof f.path === 'string' ? f.path : '',
+            isText: f.isText === true,
+            bytes: typeof f.bytes === 'number' ? f.bytes : 0,
+          }));
+        }
       }
     }
   }
 
   const isMinimal = out && out.results.length === 0 && out.stdout.length === 0 && out.stderr.length === 0 && !out.error;
-  if (out !== null && !isMinimal) return out;
+  if (out !== null && !isMinimal) {
+    if (syncedFiles && syncedFiles.length > 0) out.syncedFiles = syncedFiles;
+    return out;
+  }
 
+  // ── Streaming fallback: collect incremental stdout/stderr when no complete event yet ──
+  // This enables the Canvas to show real-time output while code is still running.
+  if (out === null && Array.isArray(parts)) {
+    const streamingStdout: string[] = [];
+    const streamingStderr: string[] = [];
+    let streamingCode: string | undefined;
+    let foundToolPart = false;
+    let streamCurrentToolCallId: string | null = null;
+    let streamIsTarget = false;
+
+    for (const part of parts) {
+      const type = part?.type;
+      if (!type) continue;
+
+      // Track tool invocation parts to find the code and associate events
+      if (RUN_CODE_PART_TYPES.includes(type as any)) {
+        streamCurrentToolCallId = part.toolCallId ?? null;
+        streamIsTarget = effectiveTargetToolCallId
+          ? streamCurrentToolCallId === effectiveTargetToolCallId
+          : true;
+        if (streamIsTarget) {
+          foundToolPart = true;
+          // Extract the code from the tool call's input/args
+          const code = part.input?.code ?? part.args?.code;
+          if (typeof code === 'string') streamingCode = code;
+        }
+        continue;
+      }
+
+      // Collect incremental stdout lines
+      if (type === 'data-run_code_stdout') {
+        const eventToolCallId = part.data?.toolCallId ?? streamCurrentToolCallId;
+        const matches = effectiveTargetToolCallId
+          ? eventToolCallId === effectiveTargetToolCallId
+          : streamIsTarget;
+        if (matches && typeof part.data?.line === 'string') {
+          streamingStdout.push(part.data.line);
+        }
+        continue;
+      }
+
+      // Collect incremental stderr lines
+      if (type === 'data-run_code_stderr') {
+        const eventToolCallId = part.data?.toolCallId ?? streamCurrentToolCallId;
+        const matches = effectiveTargetToolCallId
+          ? eventToolCallId === effectiveTargetToolCallId
+          : streamIsTarget;
+        if (matches && typeof part.data?.line === 'string') {
+          streamingStderr.push(part.data.line);
+        }
+        continue;
+      }
+    }
+
+    // Only return streaming data if we found a matching tool part (execution was invoked)
+    if (foundToolPart) {
+      return {
+        stdout: streamingStdout,
+        stderr: streamingStderr,
+        results: [],
+        success: false,
+        isStreaming: true,
+        code: streamingCode,
+      };
+    }
+  }
+
+  // Fallback: stored tool_results (no per-invocation matching available here)
   const stored = (message as any).tool_results?.runCodeResults;
   if (Array.isArray(stored) && stored.length > 0) {
+    if (effectiveTargetToolCallId) {
+      // Try to find by index: toolCallId format is "functions.run_python_code:N"
+      const idxMatch = effectiveTargetToolCallId.match(/:(\d+)$/);
+      if (idxMatch) {
+        // Find which stored result corresponds to this invocation
+        // Count run_python_code invocations to determine the offset
+        const allToolParts = ((message as any).parts ?? []).filter((p: any) =>
+          RUN_CODE_PART_TYPES.includes(p?.type)
+        );
+        const invocationIndex = allToolParts.findIndex((p: any) => p.toolCallId === effectiveTargetToolCallId);
+        if (invocationIndex >= 0 && invocationIndex < stored.length) {
+          const match = stored[invocationIndex];
+          if (match && typeof match === 'object') {
+            out = parseRunCodeRaw(match);
+            if (out && syncedFiles && syncedFiles.length > 0) out.syncedFiles = syncedFiles;
+            return out;
+          }
+        }
+      }
+    }
+    if (typeof targetInvocationIndex === 'number') {
+      const match = stored[targetInvocationIndex];
+      if (match && typeof match === 'object') {
+        out = parseRunCodeRaw(match);
+        if (out && syncedFiles && syncedFiles.length > 0) out.syncedFiles = syncedFiles;
+        return out;
+      }
+    }
+
+    // Final fallback: last stored result
     const last = stored[stored.length - 1];
-    if (last && typeof last === 'object') return parseRunCodeRaw(last);
+    if (last && typeof last === 'object') {
+      out = parseRunCodeRaw(last);
+      if (out && syncedFiles && syncedFiles.length > 0) out.syncedFiles = syncedFiles;
+    }
   }
   return out;
 };

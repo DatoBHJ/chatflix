@@ -11,6 +11,7 @@ interface VideoData {
   src: string;
   prompt?: string;
   sourceImageUrl?: string;
+  sourceVideoUrl?: string;
   aspectRatio?: string;
 }
 
@@ -192,6 +193,7 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
         isMobile={isMobile}
         prompt={videos[0].prompt}
         sourceImageUrl={videos[0].sourceImageUrl}
+        sourceVideoUrl={videos[0].sourceVideoUrl}
         onSourceImageClick={onSourceImageClick}
       />
     );
@@ -338,6 +340,7 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
                     isMobile={isMobile}
                     prompt={video.prompt}
                     sourceImageUrl={video.sourceImageUrl}
+                    sourceVideoUrl={video.sourceVideoUrl}
                     onSourceImageClick={onSourceImageClick}
                   />
                 </div>

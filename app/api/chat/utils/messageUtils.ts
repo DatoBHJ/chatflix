@@ -305,7 +305,31 @@ export async function generateFollowUpQuestions(
     
     const followUpResult = await generateObject({
       model: providers.languageModel('gemini-2.5-flash-lite'),
-      prompt: `You are generating follow-up questions that a USER would naturally ask to continue the conversation with an AI assistant.
+      prompt: `You are generating follow-up questions that a USER would naturally ask to continue the conversation with an AI assistant called "Chatflix".
+
+**CHATFLIX IDENTITY & CAPABILITIES:**
+Chatflix is a powerful AI agent with a wide range of specialized tools and workflows. Your goal is to suggest follow-ups that naturally lead the user to explore these capabilities.
+
+**CORE TOOLS & WORKFLOWS:**
+1.  **Visual Creation**:
+    - \`gemini_image_tool\` (Nano Banana Pro): High-quality 4K images, infographics, logos, text-in-image.
+    - \`seedream_image_tool\`: Cinematic, uncensored 4K images.
+    - \`wan25_video_tool\` & \`grok_video_tool\`: Generate 5-15s videos, animate images, or edit existing videos.
+    - \`image_upscaler\` (8K) & \`video_upscaler\` (4K).
+2.  **Research & Information**:
+    - \`google_search\`: General web search, images, and news.
+    - \`webSearch\` (Exa): Specialized research (academic, financial, GitHub, LinkedIn).
+    - \`twitterSearch\`: Real-time trends and viral content.
+    - \`youtubeSearch\` & \`youtubeAnalyzer\`: Find and analyze video content/transcripts.
+3.  **Data & Document Workflows**:
+    - \`run_python_code\`: Data analysis (Pandas), charts (Matplotlib), complex calculations.
+    - **PPT Generation**: Create multi-slide presentations.
+    - **PDF Report**: Professional document generation with charts.
+    - **Infographic**: Vertical visual summaries.
+    - **Comic/Storyboard**: Sequential art (webtoon style).
+    - **Social Media Pack**: Multi-platform content (Instagram, YouTube, etc.).
+4.  **Workspace & Files**:
+    - \`read_file\`, \`write_file\`, \`apply_edits\`: Direct file manipulation in the sandbox.
 
 **CRITICAL INSTRUCTION: Generate exactly 3 follow-up questions—no more, no less. Keep each very short and concise (under 15 words) so they are easy to read and click.**
 
@@ -313,34 +337,28 @@ User's original query: "${userQuery}"
 AI's response: "${aiResponse}"
 Context: ${contextInfo}${languageInstruction}
 
-**UNIVERSAL QUESTION STYLE (Always Apply):**
-- Generate VERY SHORT questions (under 15 words each)
-- Focus on immediate, actionable follow-ups
-- Make them easy to scan and click
-- Avoid long, complex questions that users might skip
-- Prioritize curiosity-driven, specific questions over broad ones
+**FOLLOW-UP STRATEGY (Prioritize based on context):**
+- **If creative/visual**: Suggest generating an image, video, or comic.
+- **If informational/news**: Suggest searching Google/Twitter or creating a summary PPT/Infographic.
+- **If technical/data**: Suggest running Python analysis or creating a PDF report.
+- **If broad/complex**: Suggest a deep-dive research or a structured presentation.
+- **Always include at least one "Actionable" tool-based suggestion.**
 
-**SHORT QUESTION EXAMPLES:**
-✅ "Show me the code for this"
-✅ "What are the alternatives?"
-✅ "How does this work in practice?"
-✅ "Any real-world examples?"
-✅ "What's the next step?"
-✅ "Explain this simpler"
-
-
-**WRONG EXAMPLES (Don't generate these):**
-❌ "What details would you like me to emphasize in this image?"
-❌ "Which style would you prefer?"
-❌ "Do you want me to modify anything?"
-❌ "Would you like me to create variations?"
-❌ Long, complex questions that are hard to scan
+**GOOD EXAMPLES (Leveraging Chatflix):**
+✅ "Generate a 4K image of this"
+✅ "Create a summary PPT for me"
+✅ "Search for the latest news on Twitter"
+✅ "Make a 5-second video of this scene"
+✅ "Analyze this data with Python"
+✅ "Can you make an infographic about this?"
+✅ "Create a professional PDF report"
+✅ "Show me the background on YouTube"
 
 **STYLE & FORMAT:**
-- Exactly 3 questions only (maximum 3—do not exceed)
-- Very short (under 15 words each), easy to scan and click
-- Natural, clear, simple language
-- Same language as the user's query`,
+- Exactly 3 questions only.
+- Very short (under 15 words each), easy to scan and click.
+- Natural, clear, simple language.
+- Same language as the user's query.`,
       schema: z.object({
         followup_questions: z.array(z.string()).min(1).max(10)
       })
@@ -371,13 +389,13 @@ function buildGlobalImageIdMap(messages: any[]): Map<string, { prompt: string, t
       for (const part of message.parts) {
         // v5 도구 결과 파트 (Gemini, Seedream 통합 수집)
         // 🔥 실제 DB 구조: type="tool-${toolName}" (예: "tool-seedream_image_tool")
-        const imageToolNames = ['gemini_image_tool', 'seedream_image_tool', 'qwen_image_edit'];
+        const imageToolNames = ['gemini_image_tool', 'seedream_image_tool', 'qwen_image_edit', 'image_upscaler'];
         const isImageToolResult = imageToolNames.some(toolName => 
           part.type === `tool-${toolName}` || // 실제 DB 구조: "tool-seedream_image_tool"
           (part.type === 'tool-result' && part.toolName === toolName) // AI SDK 표준 구조
         );
         
-        if (isImageToolResult && part.state === 'output-available' && part.output) {
+        if (isImageToolResult && (part.state === 'output-available' || part.output) && part.output) {
           const result = part.output?.value || part.output;
           if (result && result.success !== false) {
             const images = Array.isArray(result) ? result : (result.images || (result.imageUrl ? [result] : []));
@@ -394,6 +412,8 @@ function buildGlobalImageIdMap(messages: any[]): Map<string, { prompt: string, t
                   type = 'Seedream';
                 } else if (part.type === 'tool-qwen_image_edit' || part.toolName === 'qwen_image_edit') {
                   type = 'Qwen';
+                } else if (part.type === 'tool-image_upscaler' || part.toolName === 'image_upscaler') {
+                  type = 'Upscaled 8K';
                 }
                 
                 imageIdMap.set(imageId, { 
@@ -459,163 +479,26 @@ function buildGlobalImageIdMap(messages: any[]): Map<string, { prompt: string, t
           }
         }
       }
+
+      // Image upscaler (tool_results - 레거시 형식)
+      if (message.tool_results?.imageUpscalerResults && Array.isArray(message.tool_results.imageUpscalerResults)) {
+        for (const img of message.tool_results.imageUpscalerResults) {
+          if (img.imageUrl && img.path) {
+            const imageId = `generated_image_${generatedImageIndex}`;
+            const prompt = img.prompt || img.originalPrompt || 'No prompt';
+            imageIdMap.set(imageId, { 
+              prompt, 
+              type: 'Upscaled 8K',
+              messageId: message.id 
+            });
+            generatedImageIndex++;
+          }
+        }
+      }
     }
   }
   
   return imageIdMap;
-}
-
-/**
- * 메시지에서 실제로 참조된 IMAGE_ID 추출
- * AI 응답 텍스트에 [IMAGE_ID:...]로 포함된 이미지만 반환
- */
-function extractReferencedImageIds(message: any): Set<string> {
-  const referencedIds = new Set<string>();
-  
-  // parts 배열에서 추출
-  if (message.parts && Array.isArray(message.parts)) {
-    for (const part of message.parts) {
-      if (part.type === 'text' && part.text) {
-        // 매번 새 정규식 생성 (global 플래그 때문에)
-        const regex = /\[IMAGE_ID:([^\]]+)\]/g;
-        let match;
-        while ((match = regex.exec(part.text)) !== null) {
-          referencedIds.add(match[1]);
-        }
-      }
-    }
-  }
-  
-  // content 배열에서 추출 (레거시)
-  if (message.content && typeof message.content === 'string') {
-    // 매번 새 정규식 생성 (global 플래그 때문에)
-    const regex = /\[IMAGE_ID:([^\]]+)\]/g;
-    let match;
-    while ((match = regex.exec(message.content)) !== null) {
-      referencedIds.add(match[1]);
-    }
-  }
-  
-  return referencedIds;
-}
-
-/**
- * 도구 결과 요약 함수들 - AI 컨텍스트 토큰 절감을 위한 최소 메타데이터 추출
- */
-
-// Twitter 검색 요약: 검색어, 결과 개수, linkId만 (단일 객체 또는 배열 지원)
-function summarizeTwitterSearch(results: any): string {
-  const items = Array.isArray(results) ? results : results ? [results] : [];
-  if (items.length === 0) return '';
-
-  const lines: string[] = [];
-  items.forEach((result: any) => {
-    const searches = result?.searches || [];
-    lines.push(`[Twitter Search: ${result?.searchId ?? '—'}]`);
-    searches.forEach((search: any, i: number) => {
-      const count = (search.results || []).length;
-      lines.push(`Query ${i + 1}: "${search.query}" (${count} results)`);
-      (search.results || []).forEach((tweet: any) => {
-        const author = tweet.authorInfo?.username ?? (typeof tweet.author === 'string' ? tweet.author : null) ?? 'unknown';
-        lines.push(`  - ${tweet.linkId}: @${author.replace(/^@/, '')}`);
-      });
-    });
-  });
-
-  return lines.join('\n');
-}
-
-// Google 검색 요약: 검색어, 결과 개수, linkId, 그리고 실제 참조된 이미지만
-function summarizeGoogleSearch(results: any, referencedImageIds?: Set<string>): string {
-  if (!Array.isArray(results)) return '';
-  
-  const lines = ['[Google Search]'];
-  // results는 googleSearchResults 배열: [{ searchId, searches: [...], imageMap: {...} }, ...]
-  results.forEach((result: any) => {
-    // 각 result의 searches 배열 처리
-    if (result.searches && Array.isArray(result.searches)) {
-      result.searches.forEach((search: any) => {
-        lines.push(`Query: "${search.query}" (${search.totalResults || search.results?.length || 0} results)`);
-        (search.results || []).forEach((linkResult: any) => {
-          lines.push(`  - ${linkResult.linkId}: ${linkResult.title || 'No title'}`);
-        });
-        
-        // 실제 참조된 이미지만 포함
-        if (referencedImageIds && search.images && Array.isArray(search.images)) {
-          const referencedImages = search.images.filter((img: any) => 
-            img.id && referencedImageIds.has(img.id)
-          );
-          if (referencedImages.length > 0) {
-            lines.push(`  Referenced images (${referencedImages.length}):`);
-            referencedImages.forEach((img: any, idx: number) => {
-              const description = img.description || img.title || `Image ${idx + 1}`;
-              lines.push(`    - ${img.id}: ${description.substring(0, 50)}${description.length > 50 ? '...' : ''}`);
-            });
-          }
-        }
-      });
-    }
-  });
-  
-  return lines.join('\n');
-}
-
-// YouTube 검색 요약: 검색어, 결과 개수, 비디오 제목만
-function summarizeYouTubeSearch(results: any): string {
-  if (!Array.isArray(results)) return '';
-  
-  const lines = ['[YouTube Search]'];
-  results.forEach((search: any) => {
-    lines.push(`Query: "${search.query}" (${search.totalResults || 0} results)`);
-    (search.results || []).forEach((video: any, i: number) => {
-      lines.push(`  ${i+1}. ${video.title || 'No title'} (${video.videoId})`);
-    });
-  });
-  
-  return lines.join('\n');
-}
-
-// Link Reader 요약: URL과 linkId만
-function summarizeLinkReader(results: any): string {
-  if (!Array.isArray(results)) return '';
-  
-  const lines = ['[Link Reader]'];
-  results.forEach((link: any) => {
-    lines.push(`  - ${link.linkId}: ${link.url}`);
-  });
-  
-  return lines.join('\n');
-}
-
-/**
- * 특정 메시지의 이미지를 전역 ID 맵 기반으로 요약
- * 실제 참조된 이미지만 포함 (일관성을 위해 검색 이미지와 동일한 방식)
- */
-function summarizeImagesForMessage(
-  messageId: string | undefined,
-  toolResults: any, 
-  globalImageIdMap: Map<string, { prompt: string, type: string, messageId?: string }>,
-  referencedImageIds?: Set<string>
-): string {
-  if (!messageId) return '';
-  
-  const lines: string[] = [];
-  
-  // 전역 맵에서 이 메시지에 속한 이미지 찾기
-  for (const [imageId, info] of globalImageIdMap.entries()) {
-    if (info.messageId === messageId) {
-      // 실제 참조된 이미지만 포함 (referencedImageIds가 제공된 경우)
-      if (referencedImageIds && !referencedImageIds.has(imageId)) {
-        continue;
-      }
-      
-      const truncatedPrompt = info.prompt.substring(0, 60);
-      const ellipsis = info.prompt.length > 60 ? '...' : '';
-      lines.push(`  ${imageId}: "${truncatedPrompt}${ellipsis}" [${info.type}]`);
-    }
-  }
-  
-  return lines.length > 0 ? `[Generated Images]\n${lines.join('\n')}` : '';
 }
 
 /**
@@ -655,115 +538,117 @@ function buildImageContextSummary(
   return lines.join('\n');
 }
 
-// Web Search 요약 (web_search 도구)
-function summarizeWebSearch(results: any, referencedImageIds?: Set<string>): string {
-  if (!Array.isArray(results)) return '';
-  
-  const lines = ['[Web Search]'];
-  // results는 webSearchResults 배열: [{ searchId, searches: [...], imageMap: {...} }, ...]
-  results.forEach((result: any) => {
-    // 각 result의 searches 배열 처리
-    if (result.searches && Array.isArray(result.searches)) {
-      result.searches.forEach((search: any) => {
-        lines.push(`Query: "${search.query}" (${search.totalResults || 0} results)`);
-        (search.results || []).forEach((linkResult: any) => {
-          lines.push(`  - ${linkResult.linkId}: ${linkResult.title || 'No title'}`);
-        });
-        
-        // 실제 참조된 이미지만 포함
-        if (referencedImageIds && search.images && Array.isArray(search.images)) {
-          const referencedImages = search.images.filter((img: any) => 
-            img.id && referencedImageIds.has(img.id)
-          );
-          if (referencedImages.length > 0) {
-            lines.push(`  Referenced images (${referencedImages.length}):`);
-            referencedImages.forEach((img: any, idx: number) => {
-              const description = img.description || `Image ${idx + 1}`;
-              lines.push(`    - ${img.id}: ${description.substring(0, 50)}${description.length > 50 ? '...' : ''}`);
-            });
+function buildGlobalVideoIdMap(messages: any[]): Map<string, { prompt: string, type: string, messageId?: string }> {
+  const videoIdMap = new Map<string, { prompt: string, type: string, messageId?: string }>();
+  let generatedVideoIndex = 1;
+  const seenVideoKeys = new Set<string>();
+
+  for (const message of messages) {
+    let foundInParts = false;
+
+    if (message.parts && Array.isArray(message.parts)) {
+      for (const part of message.parts) {
+        const isVideoToolResult =
+          part.type?.startsWith('tool-wan25_') ||
+          part.type?.startsWith('tool-grok_') ||
+          part.type?.startsWith('tool-video_upscaler') ||
+          (part.type === 'tool-result' &&
+            ['wan25_video', 'grok_video', 'video_upscaler'].includes(part.toolName));
+
+        if (isVideoToolResult) {
+          const result = part.output?.value || part.output || part.result;
+          if (result && result.success !== false && Array.isArray(result.videos)) {
+            for (const vid of result.videos) {
+              const dedupKey = vid.path || vid.videoUrl;
+              if ((vid.videoUrl || vid.path) && dedupKey && !seenVideoKeys.has(dedupKey)) {
+                seenVideoKeys.add(dedupKey);
+                const videoId = `generated_video_${generatedVideoIndex}`;
+                const prompt = vid.prompt || result.prompt || 'No prompt';
+                let type = 'Video';
+                if (part.type?.includes('wan25_') || part.toolName === 'wan25_video') type = 'Wan 2.5';
+                else if (part.type?.includes('grok_') || part.toolName === 'grok_video') type = 'Grok';
+                else if (part.type?.includes('video_upscaler') || part.toolName === 'video_upscaler') type = 'Upscaled 4K';
+                videoIdMap.set(videoId, { prompt, type, messageId: message.id });
+                generatedVideoIndex++;
+                foundInParts = true;
+              }
+            }
           }
         }
-      });
+
+        if (
+          (part.type === 'data-wan25_video_complete' ||
+            part.type === 'data-grok_video_complete' ||
+            part.type === 'data-video_upscaler_complete') &&
+          (part.data?.videoUrl || part.data?.path)
+        ) {
+          const dedupKey = part.data?.path || part.data?.videoUrl;
+          if (!dedupKey || seenVideoKeys.has(dedupKey)) {
+            continue;
+          }
+          seenVideoKeys.add(dedupKey);
+          const videoId = `generated_video_${generatedVideoIndex}`;
+          const prompt = part.data?.prompt || 'No prompt';
+          let type = 'Video';
+          if (part.type === 'data-wan25_video_complete') type = 'Wan 2.5';
+          else if (part.type === 'data-grok_video_complete') type = 'Grok';
+          else if (part.type === 'data-video_upscaler_complete') type = 'Upscaled 4K';
+          videoIdMap.set(videoId, { prompt, type, messageId: message.id });
+          generatedVideoIndex++;
+          foundInParts = true;
+        }
+      }
     }
-  });
-  
-  return lines.join('\n');
+
+    if (!foundInParts && message.tool_results) {
+      const mergedVideos = [
+        ...(Array.isArray(message.tool_results.wan25VideoResults) ? message.tool_results.wan25VideoResults : []),
+        ...(Array.isArray(message.tool_results.grokVideoResults) ? message.tool_results.grokVideoResults : []),
+        ...(Array.isArray(message.tool_results.videoUpscalerResults) ? message.tool_results.videoUpscalerResults : []),
+      ];
+      for (const vid of mergedVideos) {
+        const dedupKey = vid.path || vid.videoUrl;
+        if ((vid.videoUrl || vid.path) && dedupKey && !seenVideoKeys.has(dedupKey)) {
+          seenVideoKeys.add(dedupKey);
+          const videoId = `generated_video_${generatedVideoIndex}`;
+          const prompt = vid.prompt || 'No prompt';
+          const type = vid.targetResolution === '4k' ? 'Upscaled 4K' : (vid.isVideoEdit ? 'Grok Video Edit' : (vid.isImageToVideo ? 'Image to Video' : 'Video'));
+          videoIdMap.set(videoId, { prompt, type, messageId: message.id });
+          generatedVideoIndex++;
+        }
+      }
+    }
+  }
+
+  return videoIdMap;
 }
 
-/**
- * 통합 도구 결과 요약 함수
- */
-function summarizeToolResults(
-  messageId: string | undefined,
-  toolResults: any, 
-  globalImageIdMap: Map<string, { prompt: string, type: string, messageId?: string }>,
-  message?: any  // 메시지 전체를 받아서 참조된 이미지 ID 추출
+function buildVideoContextSummary(
+  globalVideoIdMap: Map<string, { prompt: string, type: string, messageId?: string }>
 ): string {
-  const summaries: string[] = [];
-  
-  // 메시지에서 실제 참조된 이미지 ID 추출
-  const referencedImageIds = message ? extractReferencedImageIds(message) : undefined;
-  
-  // 검색 도구 (기존 로직 유지)
-  if (toolResults.twitterSearchResults) {
-    summaries.push(summarizeTwitterSearch(toolResults.twitterSearchResults));
-  }
-  
-  if (toolResults.googleSearchResults) {
-    summaries.push(summarizeGoogleSearch(toolResults.googleSearchResults, referencedImageIds));
-  }
-  
-  if (toolResults.youtubeSearchResults) {
-    summaries.push(summarizeYouTubeSearch(toolResults.youtubeSearchResults));
-  }
-  
-  if (toolResults.webSearchResults) {
-    summaries.push(summarizeWebSearch(toolResults.webSearchResults, referencedImageIds));
-  }
-  
-  if (toolResults.linkReaderResults) {
-    summaries.push(summarizeLinkReader(toolResults.linkReaderResults));
-  }
-  
-  // 이미지 생성 (새로운 방식 - 전역 ID 맵 사용)
-  if (toolResults.geminiImageResults || toolResults.seedreamImageResults || toolResults.qwenImageResults) {
-    const imageSummary = summarizeImagesForMessage(messageId, toolResults, globalImageIdMap, referencedImageIds);
-    if (imageSummary) {
-      summaries.push(imageSummary);
-    }
-  }
-  
-  // 코드 실행 (run_python_code): 결과 개수/유형만 한 줄로
-  if (toolResults.runCodeResults && Array.isArray(toolResults.runCodeResults)) {
-    const arr = toolResults.runCodeResults as Array<{ text?: string; html?: string; png?: string; jpeg?: string; chart?: unknown }>;
-    const labels = arr.map((r) => runCodeResultOneLineSummary(r));
-    const n = labels.length;
-    const desc = n === 0 ? 'no outputs' : n === 1 ? labels[0] : `${n} results (${[...new Set(labels)].join(', ')})`;
-    summaries.push(`Code execution: ${desc}.`);
-  }
-  
-  // 기타 도구 결과가 있으면 간단히 언급만
-  const handledKeys = [
-    'twitterSearchResults', 'googleSearchResults', 'youtubeSearchResults',
-    'webSearchResults', 'linkReaderResults', 'geminiImageResults', 
-    'seedreamImageResults', 'qwenImageResults', 'runCodeResults', 'structuredResponse', 'token_usage'
-  ];
-  const otherKeys = Object.keys(toolResults).filter(k => !handledKeys.includes(k));
-  if (otherKeys.length > 0) {
-    summaries.push(`[Other Tools: ${otherKeys.join(', ')}]`);
-  }
-  
-  return summaries.filter(s => s).join('\n\n');
-}
+  if (globalVideoIdMap.size === 0) return '';
 
-/** One-line label for a single run_python_code result item (no base64/chart data). */
-function runCodeResultOneLineSummary(r: { text?: string; html?: string; png?: string; jpeg?: string; chart?: unknown }): string {
-  if (!r || typeof r !== 'object') return 'output';
-  if (r.chart != null) return 'chart';
-  if (r.png != null || r.jpeg != null) return 'figure';
-  if (r.html != null) return 'html';
-  if (r.text != null) return 'text';
-  return 'output';
+  const entries = Array.from(globalVideoIdMap.entries());
+  const totalCount = entries.length;
+  const latestVideoId = `generated_video_${totalCount}`;
+  const lines: string[] = [
+    `## Available Generated Videos in This Conversation`,
+    ``,
+    `**Total: ${totalCount} video(s)**`,
+    `- Video IDs: generated_video_1 through generated_video_${totalCount}`,
+    `- **Latest (most recent):** ${latestVideoId}`,
+    ``,
+  ];
+
+  const recentCount = Math.min(3, totalCount);
+  lines.push(`**Recent ${recentCount} video(s):**`);
+  for (const [videoId, info] of entries.slice(-recentCount)) {
+    const truncatedPrompt = info.prompt.substring(0, 60);
+    const ellipsis = info.prompt.length > 60 ? '...' : '';
+    lines.push(`- ${videoId}: "${truncatedPrompt}${ellipsis}" [${info.type}]`);
+  }
+
+  return lines.join('\n');
 }
 
 function summarizeToolOutputForAnthropic(part: any): string {
@@ -813,6 +698,7 @@ export async function processMessagesForAI(
   
   // 1️⃣ 먼저 전체 메시지에서 전역 이미지 ID 맵 생성
   const globalImageIdMap = buildGlobalImageIdMap(messagesWithTokens);
+  const globalVideoIdMap = buildGlobalVideoIdMap(messagesWithTokens);
 
   // 🧹 toolCallId 정규화 (Anthropic tool_use.id 규칙 준수)
   const toolCallIdMap = new Map<string, string>();
@@ -842,14 +728,6 @@ export async function processMessagesForAI(
     }
     return candidate;
   };
-  
-  // 2️⃣ 최근 2개 메시지 중 tool_results가 있는 메시지 필터링
-  const RECENT_TOOL_RESULTS_COUNT = 2;
-  const messagesWithToolResults = new Set(
-    messagesWithTokens
-      .filter(m => m.tool_results && Object.keys(m.tool_results).length > 0)
-      .slice(-RECENT_TOOL_RESULTS_COUNT)
-  );
   
   // 코드파일/텍스트파일을 텍스트로 변환 (UI는 파일로 유지)
   const processedMessages = await Promise.all(messagesWithTokens.map(async (msg: any, messageIndex: number) => {
@@ -982,17 +860,11 @@ export async function processMessagesForAI(
             return null;
           }
           return normalizedPart; // GPT-5에서는 reasoning 데이터 유지
-        } else {
-          // 다른 모델의 경우 reasoning을 text로 변환
-          const reasoningText = normalizedPart.reasoningText || normalizedPart.text || '';
-          if (!reasoningText.trim()) {
-            return null; // 빈 텍스트는 필터링
-          }
-          return {
-            type: 'text',
-            text: reasoningText
-          };
         }
+        // GPT-5가 아닌 모델에서는 reasoning 파트를 다음 턴 컨텍스트로 재주입하지 않는다.
+        // reasoning을 일반 text로 변환하면 일부 모델이 "Thinking..." 같은 내부 문구를
+        // 사용자 응답 본문으로 재생성하는 문제가 발생할 수 있다.
+        return null;
       }
       
       // AI SDK v4 형식 이미지를 v5 형식으로 변환
@@ -1058,17 +930,6 @@ export async function processMessagesForAI(
       ? filteredParts 
       : [{ type: 'text', text: '' }];
     
-    // 3️⃣ 최근 2개 메시지 중 하나이고 tool_results가 있으면 요약본 추가
-    if (messagesWithToolResults.has(msg) && msg.tool_results) {
-      const summary = summarizeToolResults(msg.id, msg.tool_results, globalImageIdMap, msg);
-      if (summary) {
-        finalParts.push({
-          type: 'text',
-          text: `\n\n---\n[Previous Tool Results]\n${summary}\n---\n`
-        });
-      }
-    }
-    
     // 모델 입력에는 불필요하게 큰 도구 결과(tool_results 등)는 포함하지 않되,
     // GPT-5 reasoning 등 프로바이더 메타데이터는 그대로 유지하기 위해
     // 원본 메시지에서 tool_results만 제거하고 나머지 필드는 보존한다.
@@ -1080,22 +941,27 @@ export async function processMessagesForAI(
     };
   }));
   
-  // 🔥 전체 이미지 목록을 마지막 사용자 메시지에 추가
-  // AI가 "마지막 이미지", "최근 이미지" 등의 참조를 정확히 해석할 수 있도록 함
+  // 🔥 전체 이미지/비디오 목록을 마지막 사용자 메시지에 추가
+  // AI가 generated_image_N / generated_video_N 참조를 정확히 해석할 수 있도록 함
+  const summaries: string[] = [];
   if (globalImageIdMap.size > 0) {
     const imageContextSummary = buildImageContextSummary(globalImageIdMap);
-    if (imageContextSummary) {
-      // 마지막 사용자 메시지 찾기 (역순으로 검색)
-      for (let i = processedMessages.length - 1; i >= 0; i--) {
-        const msg = processedMessages[i];
-        if (msg.role === 'user' && msg.parts && Array.isArray(msg.parts)) {
-          // 마지막 사용자 메시지에 이미지 컨텍스트 추가
-          msg.parts.push({
-            type: 'text',
-            text: `\n\n---\n${imageContextSummary}\n---\n`
-          });
-          break;
-        }
+    if (imageContextSummary) summaries.push(imageContextSummary);
+  }
+  if (globalVideoIdMap.size > 0) {
+    const videoContextSummary = buildVideoContextSummary(globalVideoIdMap);
+    if (videoContextSummary) summaries.push(videoContextSummary);
+  }
+  if (summaries.length > 0) {
+    const mergedSummary = summaries.join('\n\n');
+    for (let i = processedMessages.length - 1; i >= 0; i--) {
+      const msg = processedMessages[i];
+      if (msg.role === 'user' && msg.parts && Array.isArray(msg.parts)) {
+        msg.parts.push({
+          type: 'text',
+          text: `\n\n---\n${mergedSummary}\n---\n`
+        });
+        break;
       }
     }
   }

@@ -4,13 +4,15 @@ import { UIMessage as AIMessage } from 'ai'
 import { User } from '@supabase/supabase-js'
 import React, { useState, useEffect, useCallback, memo, useRef, useMemo } from 'react'
 import { Message as MessageComponent } from '@/app/components/Message'
-import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getTwitterSearchData, getWan25VideoData, getGrokVideoData } from '@/app/hooks/toolFunction';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getTwitterSearchData, getWan25VideoData, getGrokVideoData, getVideoUpscalerData, getImageUpscalerData } from '@/app/hooks/toolFunction';
 import { formatMessageGroupTimestamp } from '@/app/lib/messageGroupTimeUtils';
 import { createClient } from '@/utils/supabase/client';
 import { linkMetaEntryToCardData } from '@/app/lib/linkCardUtils';
 import type { LinkCardData, LinkMetaEntry } from '@/app/types/linkPreview';
 import { fetchUserName } from '@/app/components/AccountDialog';
 import { formatMessageTime } from '@/app/lib/translations/messageTime';
+import { X, Trash2 } from 'lucide-react';
+import { getAdaptiveGlassStyleBlur, getAdaptiveGlassBackgroundColor } from '@/app/lib/adaptiveGlassStyle';
 
 // Type for context summary
 interface ContextSummaryData {
@@ -23,19 +25,19 @@ interface ContextSummaryData {
 // OPTIMIZATION: 커스텀 비교 함수로 progress annotation만 변경될 때 리렌더링 방지
 const areMessageItemPropsEqual = (prevProps: any, nextProps: any) => {
   const prevAnnotationsWithoutProgress = (prevProps.message?.annotations || []).filter(
-    (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress'
+    (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress' && a?.type !== 'video_upscaler_progress' && a?.type !== 'data-video_upscaler_progress' && a?.type !== 'image_upscaler_progress' && a?.type !== 'data-image_upscaler_progress'
   );
   const nextAnnotationsWithoutProgress = (nextProps.message?.annotations || []).filter(
-    (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress'
+    (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress' && a?.type !== 'video_upscaler_progress' && a?.type !== 'data-video_upscaler_progress' && a?.type !== 'image_upscaler_progress' && a?.type !== 'data-image_upscaler_progress'
   );
   
   const annotationsEqual = JSON.stringify(prevAnnotationsWithoutProgress) === JSON.stringify(nextAnnotationsWithoutProgress);
   
   const prevPartsWithoutProgress = (prevProps.message?.parts || []).filter(
-    (p: any) => p?.type !== 'data-wan25_video_progress' && p?.type !== 'data-grok_video_progress'
+    (p: any) => p?.type !== 'data-wan25_video_progress' && p?.type !== 'data-grok_video_progress' && p?.type !== 'data-video_upscaler_progress' && p?.type !== 'data-image_upscaler_progress'
   );
   const nextPartsWithoutProgress = (nextProps.message?.parts || []).filter(
-    (p: any) => p?.type !== 'data-wan25_video_progress' && p?.type !== 'data-grok_video_progress'
+    (p: any) => p?.type !== 'data-wan25_video_progress' && p?.type !== 'data-grok_video_progress' && p?.type !== 'data-video_upscaler_progress' && p?.type !== 'data-image_upscaler_progress'
   );
   const partsEqual = JSON.stringify(prevPartsWithoutProgress) === JSON.stringify(nextPartsWithoutProgress);
   
@@ -78,7 +80,14 @@ const areMessageItemPropsEqual = (prevProps: any, nextProps: any) => {
     prevProps.handleBookmarkToggle === nextProps.handleBookmarkToggle &&
     prevProps.bookmarkedMessageIds === nextProps.bookmarkedMessageIds &&
     prevProps.globalImageMap === nextProps.globalImageMap &&
-    prevProps.globalVideoMap === nextProps.globalVideoMap;
+    prevProps.globalVideoMap === nextProps.globalVideoMap &&
+    prevProps.isMessageSelectionMode === nextProps.isMessageSelectionMode &&
+    prevProps.selectedMessageIds === nextProps.selectedMessageIds &&
+    prevProps.isDeletingSelectedMessages === nextProps.isDeletingSelectedMessages &&
+    prevProps.onEnterMessageSelectionMode === nextProps.onEnterMessageSelectionMode &&
+    prevProps.onToggleMessageSelection === nextProps.onToggleMessageSelection &&
+    prevProps.onCloseMessageSelectionMode === nextProps.onCloseMessageSelectionMode &&
+    prevProps.onDeleteSelectedMessages === nextProps.onDeleteSelectedMessages;
   
   return messageCoreEqual && otherPropsEqual;
 };
@@ -117,11 +126,18 @@ const MessageItem = memo(function MessageItem({
   isBookmarksLoading,
   searchTerm,
   contextSummary,
-  allMessages
+  allMessages,
+  isMessageSelectionMode,
+  selectedMessageIds,
+  onEnterMessageSelectionMode,
+  onToggleMessageSelection,
+  onCloseMessageSelectionMode,
+  onDeleteSelectedMessages,
+  isDeletingSelectedMessages
 }: any) {
   const messageKey = useMemo(() => {
     const annotationsWithoutProgress = (message.annotations || []).filter(
-      (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress'
+      (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress' && a?.type !== 'video_upscaler_progress' && a?.type !== 'data-video_upscaler_progress'
     );
     return JSON.stringify({
       id: message.id,
@@ -134,7 +150,7 @@ const MessageItem = memo(function MessageItem({
     message.parts, 
     (message as any).tool_results,
     JSON.stringify((message.annotations || []).filter(
-      (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress'
+      (a: any) => a?.type !== 'wan25_video_progress' && a?.type !== 'data-wan25_video_progress' && a?.type !== 'grok_video_progress' && a?.type !== 'data-grok_video_progress' && a?.type !== 'video_upscaler_progress' && a?.type !== 'data-video_upscaler_progress'
     ))
   ]);
 
@@ -152,7 +168,9 @@ const MessageItem = memo(function MessageItem({
       youTubeSearchData: getYouTubeSearchData(message),
       youTubeLinkAnalysisData: getYouTubeLinkAnalysisData(message),
       wan25VideoData: getWan25VideoData(message),
-      grokVideoData: getGrokVideoData(message)
+      grokVideoData: getGrokVideoData(message),
+      videoUpscalerData: getVideoUpscalerData(message),
+      imageUpscalerData: getImageUpscalerData(message)
     };
   }, [messageKey, message]);
 
@@ -169,7 +187,9 @@ const MessageItem = memo(function MessageItem({
     youTubeSearchData,
     youTubeLinkAnalysisData,
     wan25VideoData,
-    grokVideoData
+    grokVideoData,
+    videoUpscalerData,
+    imageUpscalerData
   } = toolData;
 
   const combinedImageMap = useMemo(() => {
@@ -206,9 +226,17 @@ const MessageItem = memo(function MessageItem({
           acc[imageKey] = image.imageUrl;
         }
         return acc;
+      }, {}) || {}),
+      ...(imageUpscalerData?.generatedImages?.reduce((acc: any, image: any, index: number) => {
+        if (image.path) {
+          const fileName = image.path.split('/').pop();
+          const imageKey = fileName.replace(/\.[^/.]+$/, '');
+          acc[imageKey] = image.imageUrl;
+        }
+        return acc;
       }, {}) || {})
     };
-  }, [globalImageMap, webSearchData?.imageMap, googleSearchData?.imageMap, twitterSearchData?.imageMap, imageGeneratorData?.generatedImages, geminiImageData?.generatedImages, seedreamImageData?.generatedImages, qwenImageData?.generatedImages]);
+  }, [globalImageMap, webSearchData?.imageMap, googleSearchData?.imageMap, twitterSearchData?.imageMap, imageGeneratorData?.generatedImages, geminiImageData?.generatedImages, seedreamImageData?.generatedImages, qwenImageData?.generatedImages, imageUpscalerData?.generatedImages]);
 
   const linkMap = useMemo(() => {
     return {
@@ -271,9 +299,17 @@ const MessageItem = memo(function MessageItem({
           acc[videoKey] = video.videoUrl;
         }
         return acc;
+      }, {}) || {}),
+      ...(videoUpscalerData?.generatedVideos?.reduce((acc: any, video: any) => {
+        if (video.path) {
+          const fileName = video.path.split('/').pop();
+          const videoKey = fileName.replace(/\.[^/.]+$/, '');
+          acc[videoKey] = video.videoUrl;
+        }
+        return acc;
       }, {}) || {})
     };
-  }, [globalVideoMap, wan25VideoData?.generatedVideos, grokVideoData?.generatedVideos]);
+  }, [globalVideoMap, wan25VideoData?.generatedVideos, grokVideoData?.generatedVideos, videoUpscalerData?.generatedVideos]);
 
   const promptMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -313,9 +349,19 @@ const MessageItem = memo(function MessageItem({
         map[video.videoUrl] = video.prompt;
       }
     });
+    videoUpscalerData?.generatedVideos?.forEach((video: any) => {
+      if (video.videoUrl && video.prompt) {
+        map[video.videoUrl] = video.prompt;
+      }
+    });
+    imageUpscalerData?.generatedImages?.forEach((image: any) => {
+      if (image.imageUrl && image.prompt) {
+        map[image.imageUrl] = image.prompt;
+      }
+    });
 
     return map;
-  }, [geminiImageData?.generatedImages, seedreamImageData?.generatedImages, qwenImageData?.generatedImages, imageGeneratorData?.generatedImages, wan25VideoData?.generatedVideos, grokVideoData?.generatedVideos]);
+  }, [geminiImageData?.generatedImages, seedreamImageData?.generatedImages, qwenImageData?.generatedImages, imageGeneratorData?.generatedImages, wan25VideoData?.generatedVideos, grokVideoData?.generatedVideos, videoUpscalerData?.generatedVideos, imageUpscalerData?.generatedImages]);
 
   const sourceImageMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -354,6 +400,11 @@ const MessageItem = memo(function MessageItem({
         map[image.imageUrl] = image.originalImageUrl;
       }
     });
+    imageUpscalerData?.generatedImages?.forEach((image: any) => {
+      if (image.imageUrl && image.sourceImageUrl) {
+        map[image.imageUrl] = image.sourceImageUrl;
+      }
+    });
 
     const parts = (message as any).parts;
     if (Array.isArray(parts)) {
@@ -375,7 +426,7 @@ const MessageItem = memo(function MessageItem({
     }
 
     return map;
-  }, [wan25VideoData?.generatedVideos, grokVideoData?.generatedVideos, geminiImageData?.generatedImages, seedreamImageData?.generatedImages, qwenImageData?.generatedImages, (message as any).parts]);
+  }, [wan25VideoData?.generatedVideos, grokVideoData?.generatedVideos, geminiImageData?.generatedImages, seedreamImageData?.generatedImages, qwenImageData?.generatedImages, imageUpscalerData?.generatedImages, (message as any).parts]);
 
   // url -> { width, height } for layout stability (reserve exact space before media load)
   const mediaDimensionsMap = useMemo(() => {
@@ -530,6 +581,8 @@ const MessageItem = memo(function MessageItem({
             googleSearchData={googleSearchData}
             wan25VideoData={wan25VideoData}
             grokVideoData={grokVideoData}
+            videoUpscalerData={videoUpscalerData}
+            imageUpscalerData={imageUpscalerData}
             user={user}
             handleFollowUpQuestionClick={handleFollowUpQuestionClick}
             allMessages={allMessages}
@@ -547,6 +600,10 @@ const MessageItem = memo(function MessageItem({
             onBookmarkToggle={handleBookmarkToggle}
             isBookmarksLoading={isBookmarksLoading}
             searchTerm={searchTerm}
+            isMessageSelectionMode={isMessageSelectionMode}
+            isMessageSelected={selectedMessageIds.has(message.id)}
+            onEnterMessageSelectionMode={onEnterMessageSelectionMode}
+            onToggleMessageSelection={onToggleMessageSelection}
           />
         </div>
       </div>
@@ -592,6 +649,13 @@ interface SimpleMessagesProps {
   onLoadMore?: () => void
   hasMore?: boolean
   contextSummary?: ContextSummaryData | null
+  isMessageSelectionMode?: boolean
+  selectedMessageIds?: Set<string>
+  onEnterMessageSelectionMode?: (messageId: string) => void
+  onToggleMessageSelection?: (messageId: string) => void
+  onCloseMessageSelectionMode?: () => void
+  onDeleteSelectedMessages?: () => Promise<void> | void
+  isDeletingSelectedMessages?: boolean
 }
 
 export const SimpleMessages = memo(function SimpleMessages({
@@ -620,7 +684,14 @@ export const SimpleMessages = memo(function SimpleMessages({
   searchTerm,
   onLoadMore,
   hasMore = false,
-  contextSummary = null
+  contextSummary = null,
+  isMessageSelectionMode = false,
+  selectedMessageIds = new Set<string>(),
+  onEnterMessageSelectionMode,
+  onToggleMessageSelection,
+  onCloseMessageSelectionMode,
+  onDeleteSelectedMessages,
+  isDeletingSelectedMessages = false
 }: SimpleMessagesProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollSentinelRef = useRef<HTMLDivElement>(null);
@@ -635,6 +706,11 @@ export const SimpleMessages = memo(function SimpleMessages({
   const userScrolledRef = useRef(false);
   const userScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastScrollTopRef = useRef(0);
+  const glassFloatingButtonStyle = useMemo(() => ({
+    ...getAdaptiveGlassStyleBlur(),
+    ...getAdaptiveGlassBackgroundColor(),
+    border: '1px solid rgba(255, 255, 255, 0.14)',
+  }), []);
 
   const globalImageMap = useMemo(() => {
     const imageMap: Record<string, string> = {};
@@ -758,7 +834,7 @@ export const SimpleMessages = memo(function SimpleMessages({
     return messages.map(msg => {
       if (!msg.parts || !Array.isArray(msg.parts)) return '';
       const videoParts = msg.parts.filter(
-        (p: any) => p?.type?.startsWith('tool-wan25_') || p?.type === 'data-wan25_video_complete' || p?.type?.startsWith('tool-grok_') || p?.type === 'data-grok_video_complete'
+        (p: any) => p?.type?.startsWith('tool-wan25_') || p?.type === 'data-wan25_video_complete' || p?.type?.startsWith('tool-grok_') || p?.type === 'data-grok_video_complete' || p?.type?.startsWith('tool-video_upscaler') || p?.type === 'data-video_upscaler_complete'
       );
       return JSON.stringify(videoParts);
     });
@@ -774,7 +850,7 @@ export const SimpleMessages = memo(function SimpleMessages({
       
       if (message.parts && Array.isArray(message.parts)) {
         for (const part of message.parts) {
-          if ((part.type?.startsWith('tool-wan25_') || part.type?.startsWith('tool-grok_')) && part.output?.videos && Array.isArray(part.output.videos)) {
+          if ((part.type?.startsWith('tool-wan25_') || part.type?.startsWith('tool-grok_') || part.type?.startsWith('tool-video_upscaler')) && part.output?.videos && Array.isArray(part.output.videos)) {
             const result = part.output;
             if (result && result.success !== false) {
               for (const vid of result.videos) {
@@ -797,7 +873,7 @@ export const SimpleMessages = memo(function SimpleMessages({
             }
           }
           
-          if ((part.type === 'data-wan25_video_complete' || part.type === 'data-grok_video_complete') && part.data?.videoUrl) {
+          if ((part.type === 'data-wan25_video_complete' || part.type === 'data-grok_video_complete' || part.type === 'data-video_upscaler_complete') && part.data?.videoUrl) {
             const data = part.data;
             const dedupKey = data.path || data.videoUrl;
             if (!seenPaths.has(dedupKey)) {
@@ -815,10 +891,11 @@ export const SimpleMessages = memo(function SimpleMessages({
         }
       }
       
-      if (!foundInParts && (message.tool_results?.wan25VideoResults || message.tool_results?.grokVideoResults)) {
+      if (!foundInParts && (message.tool_results?.wan25VideoResults || message.tool_results?.grokVideoResults || message.tool_results?.videoUpscalerResults)) {
         const wan25 = message.tool_results?.wan25VideoResults;
         const grok = message.tool_results?.grokVideoResults;
-        const list = [...(Array.isArray(wan25) ? wan25 : []), ...(Array.isArray(grok) ? grok : [])];
+        const upscaled = message.tool_results?.videoUpscalerResults;
+        const list = [...(Array.isArray(wan25) ? wan25 : []), ...(Array.isArray(grok) ? grok : []), ...(Array.isArray(upscaled) ? upscaled : [])];
         for (const vid of list) {
           if (vid.videoUrl) {
             const dedupKey = vid.path || vid.videoUrl;
@@ -1096,6 +1173,13 @@ export const SimpleMessages = memo(function SimpleMessages({
         searchTerm={searchTerm}
         contextSummary={contextSummary}
         allMessages={allMessagesForItem}
+        isMessageSelectionMode={isMessageSelectionMode}
+        selectedMessageIds={selectedMessageIds}
+        onEnterMessageSelectionMode={onEnterMessageSelectionMode}
+        onToggleMessageSelection={onToggleMessageSelection}
+        onCloseMessageSelectionMode={onCloseMessageSelectionMode}
+        onDeleteSelectedMessages={onDeleteSelectedMessages}
+        isDeletingSelectedMessages={isDeletingSelectedMessages}
       />
     );
   }, [
@@ -1130,6 +1214,14 @@ export const SimpleMessages = memo(function SimpleMessages({
     isBookmarksLoading,
     searchTerm,
     contextSummary
+    ,
+    isMessageSelectionMode,
+    selectedMessageIds,
+    onEnterMessageSelectionMode,
+    onToggleMessageSelection,
+    isDeletingSelectedMessages,
+    onCloseMessageSelectionMode,
+    onDeleteSelectedMessages
   ]);
 
   const messageData = useMemo(() => {
@@ -1454,6 +1546,38 @@ export const SimpleMessages = memo(function SimpleMessages({
           className="h-[200px] min-h-[200px] md:h-[300px] md:min-h-[300px]"
         />
       </div>
+      {isMessageSelectionMode && (
+        <>
+          <button
+            type="button"
+            onClick={onCloseMessageSelectionMode}
+            className="message-selection-close-button fixed top-5 z-100001 flex h-12 w-12 items-center justify-center rounded-full"
+            style={{
+              ...glassFloatingButtonStyle,
+              color: 'var(--foreground)'
+            }}
+            aria-label="Close message selection"
+          >
+            <X size={20} />
+          </button>
+          <button
+            type="button"
+            onClick={onDeleteSelectedMessages}
+            disabled={selectedMessageIds.size === 0 || isDeletingSelectedMessages}
+            className="message-selection-delete-button fixed bottom-7 z-100001 flex min-h-12 items-center justify-center gap-2 rounded-full px-4"
+            style={{
+              ...glassFloatingButtonStyle,
+              color: selectedMessageIds.size === 0 ? 'var(--foreground)' : '#ff3b30',
+              opacity: (isDeletingSelectedMessages || selectedMessageIds.size === 0) ? 0.65 : 1
+            }}
+          >
+            <Trash2 size={18} />
+            <span className="text-sm font-medium">
+              {isDeletingSelectedMessages ? 'Deleting...' : `Delete${selectedMessageIds.size > 0 ? ` (${selectedMessageIds.size})` : ''}`}
+            </span>
+          </button>
+        </>
+      )}
     </div>
   );
 });

@@ -563,10 +563,13 @@ const segmentContent = (content: string): string[][] => {
   });
 
   // 4. 구분선(---)을 기준으로 먼저 메시지 그룹을 분할
+  // 일부 모델이 구분선을 줄바꿈 없이 "   ---   " 형태로 출력하는 경우가 있어,
+  // 기존 분리 로직을 그대로 유지하면서 해당 패턴만 안전하게 줄바꿈 형태로 정규화한다.
+  const separatorNormalizedContent = finalContent.replace(/[ \t]{2,}---[ \t]{2,}/g, '\n---\n');
   const messageGroups: string[][] = [];
   let currentGroup: string[] = [];
 
-  const separatorSegments = finalContent.split(/\n\s*---\s*\n/);
+  const separatorSegments = separatorNormalizedContent.split(/\n\s*---\s*\n/);
 
   separatorSegments.forEach(segment => {
     if (segment.trim()) {
@@ -1345,6 +1348,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
   maxWidth,
   prompt,
   sourceImageUrl,
+  sourceVideoUrl,
   onSourceImageClick
 }: { 
   url: string;
@@ -1356,6 +1360,7 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
   maxWidth?: string;
   prompt?: string;
   sourceImageUrl?: string;
+  sourceVideoUrl?: string;
   onSourceImageClick?: (imageUrl: string) => void;
 }): React.ReactElement | null {
   // 🚀 INSTANT LOAD: 화면 근처(200px)에서 비디오 로드 시작 - 초기 로딩 최대화
@@ -1377,6 +1382,14 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
     chatId,
     userId,
     enabled: shouldLoad && !!sourceImageUrl
+  });
+
+  const { refreshedUrl: refreshedSourceVideoUrl } = useUrlRefresh({
+    url: sourceVideoUrl || '',
+    messageId,
+    chatId,
+    userId,
+    enabled: shouldLoad && !!sourceVideoUrl
   });
 
   // 🚀 VENICE: 비율 상태 제거 - 고정 컨테이너 사용
@@ -2145,6 +2158,20 @@ export const DirectVideoEmbed = memo(function DirectVideoEmbedComponent({
                 <div className="w-full flex justify-center flex-1 min-h-0 overflow-hidden pt-10 sm:pt-28 pb-22 sm:pb-28">
                   <div className="max-w-3xl w-full h-full overflow-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-2 flex flex-col items-start justify-start">
                     {/* 소스 이미지 썸네일 */}
+                    {sourceVideoUrl && (
+                      <div className="mb-3 flex justify-center w-full">
+                        <video
+                          src={refreshedSourceVideoUrl || sourceVideoUrl}
+                          className="max-w-[180px] max-h-[120px] object-contain rounded-lg"
+                          style={{ maxWidth: '180px', maxHeight: '120px' }}
+                          muted
+                          loop
+                          autoPlay
+                          playsInline
+                        />
+                      </div>
+                    )}
+
                     {sourceImageUrl && (
                       <div className="mb-3 flex justify-center w-full">
                         <img

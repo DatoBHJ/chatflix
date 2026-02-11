@@ -11,6 +11,8 @@ import {
   createTwitterSearchTool,
   createWan25VideoTool,
   createGrokVideoTool,
+  createVideoUpscalerTool,
+  createImageUpscalerTool,
   createReadFileTool,
   createWriteFileTool,
   createGetFileInfoTool,
@@ -20,6 +22,7 @@ import {
   createApplyEditsTool,
   createRunPythonCodeTool,
 } from '../tools';
+import { slimRunCodePayload, slimToolResults } from '@/app/utils/prepareMessagesForAPI';
 
 // 🆕 도구 레지스트리 - 모든 도구를 중앙에서 관리
 export const TOOL_REGISTRY = {
@@ -83,6 +86,16 @@ export const TOOL_REGISTRY = {
     resultKey: 'grokVideoResults',
     description: 'xAI Grok Imagine video generation & editing (text-to-video, image-to-video, video-edit)'
   },
+  'video_upscaler': {
+    createFn: (dataStream: any, userId: string, messages: any[], chatId?: string) => createVideoUpscalerTool(dataStream, userId, messages, chatId),
+    resultKey: 'videoUpscalerResults',
+    description: 'WaveSpeed FlashVSR video upscaling tool (always 4K output)'
+  },
+  'image_upscaler': {
+    createFn: (dataStream: any, userId: string, messages: any[], chatId?: string) => createImageUpscalerTool(dataStream, userId, messages, chatId),
+    resultKey: 'imageUpscalerResults',
+    description: 'WaveSpeed Ultimate Image Upscaler (always 8K output)'
+  },
   'read_file': {
     createFn: (dataStream: any, chatId: string, supabase: Awaited<ReturnType<typeof import('@/utils/supabase/server').createClient>>) => createReadFileTool(dataStream, chatId, supabase),
     resultKey: 'fileReadResults',
@@ -138,11 +151,11 @@ export const getToolDescriptions = () => Object.fromEntries(
  * AI SDK v5: 간소화된 도구 결과 수집 함수
  */
 export function collectToolResults(tools: Record<string, any>, toolNames: string[]): any {
-  return toolNames.reduce((collected, toolName) => {
+  const collected = toolNames.reduce((acc, toolName) => {
     const toolConfig = TOOL_REGISTRY[toolName as keyof typeof TOOL_REGISTRY];
     const tool = tools[toolName];
     
-    if (!toolConfig || !tool) return collected;
+    if (!toolConfig || !tool) return acc;
     
     // AI SDK v5: 도구별 결과 추출 매핑
     const resultMap: Record<string, string> = {
@@ -158,6 +171,8 @@ export function collectToolResults(tools: Record<string, any>, toolNames: string
       // 'qwen_image_edit': 'generatedImages',
       'wan25_video': 'generatedVideos',
       'grok_video': 'generatedVideos',
+      'video_upscaler': 'generatedVideos',
+      'image_upscaler': 'generatedImages',
       'run_python_code': 'runCodeResults'
     };
     
@@ -165,14 +180,20 @@ export function collectToolResults(tools: Record<string, any>, toolNames: string
     const results = tool[resultKey] || tool.results || tool.data || tool.output;
     
     if (results && (Array.isArray(results) ? results.length > 0 : true)) {
-      collected[toolConfig.resultKey] = results;
+      if (toolName === 'run_python_code' && Array.isArray(results)) {
+        acc[toolConfig.resultKey] = results.map((entry: unknown) => slimRunCodePayload(entry));
+      } else {
+        acc[toolConfig.resultKey] = results;
+      }
     }
     
     // Special handling for link_reader to include rawContent
     if (toolName === 'link_reader' && tool.rawContent && Array.isArray(tool.rawContent) && tool.rawContent.length > 0) {
-      collected.linkReaderRawContent = tool.rawContent;
+      acc.linkReaderRawContent = tool.rawContent;
     }
     
-    return collected;
+    return acc;
   }, {} as any);
+
+  return slimToolResults(collected) || {};
 }

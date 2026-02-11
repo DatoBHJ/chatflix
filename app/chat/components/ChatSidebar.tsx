@@ -570,7 +570,7 @@ export function ChatSidebar({ user, toggleSidebar, isBookmarkMode = false }: Cha
           .from('messages')
           .select('chat_session_id, content')
           .in('chat_session_id', sessionIds)
-          .eq('role', 'user')
+          .eq('role', 'assistant')
           .order('created_at', { ascending: true });
         
         if (messagesData) {
@@ -1470,9 +1470,9 @@ export function ChatSidebar({ user, toggleSidebar, isBookmarkMode = false }: Cha
                                       <p className={`text-xs truncate pr-2 min-w-0 ${ 
                                         isSelected ? 'text-white/70' : 'text-(--muted)'
                                       }`}>
-                                        {searchTerm && chat.lastMessage 
-                                          ? highlightSearchTerm(chat.lastMessage, searchTerm, { isSelected })
-                                          : chat.lastMessage || (isBookmarkMode ? '' : 'No messages yet')}
+                                        {searchTerm && (chat.lastMessage || chat.title)
+                                          ? highlightSearchTerm(chat.lastMessage || chat.title || '', searchTerm, { isSelected })
+                                          : chat.lastMessage || (isBookmarkMode ? '' : (chat.title && chat.title !== 'New Chat' ? chat.title : 'No messages yet'))}
                                       </p>
                                       
                                       <div className={`flex items-center gap-1 transition-opacity ${

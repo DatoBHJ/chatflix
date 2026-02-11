@@ -3,7 +3,7 @@
 import { UIMessage } from 'ai'
 import Canvas from '@/app/components/Canvas';
 import { StructuredResponse } from '@/app/components/StructuredResponse';
-import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getWan25VideoData, getGrokVideoData, getFileEditData, getRunCodeData } from '@/app/hooks/toolFunction';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getWan25VideoData, getGrokVideoData, getVideoUpscalerData, getImageUpscalerData, getFileEditData, getRunCodeData } from '@/app/hooks/toolFunction';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 // import { AttachmentTextViewer } from './AttachmentTextViewer';
@@ -112,8 +112,12 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   const googleSearchData = activeMessage ? getGoogleSearchData(activeMessage) : null;
   const wan25VideoData = activeMessage ? getWan25VideoData(activeMessage) : null;
   const grokVideoData = activeMessage ? getGrokVideoData(activeMessage) : null;
+  const videoUpscalerData = activeMessage ? getVideoUpscalerData(activeMessage) : null;
+  const imageUpscalerData = activeMessage ? getImageUpscalerData(activeMessage) : null;
   const fileEditData = activeMessage ? getFileEditData(activeMessage) : null;
-  const runCodeData = activeMessage ? getRunCodeData(activeMessage) : null;
+  // When a specific run_python_code invocation is selected, panelData.fileName contains the toolCallId
+  const runCodeTargetToolCallId = panelData?.toolType === 'run-code' ? panelData.fileName : undefined;
+  const runCodeData = activeMessage ? getRunCodeData(activeMessage, runCodeTargetToolCallId) : null;
 
   // Helper function to get topic display name (moved before useMemo)
   const getTopicDisplayName = (topic: string): string => {
@@ -233,6 +237,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           case 'youtube-analyzer': return 'YouTube Analyzer';
           case 'wan25-video': return wan25VideoData?.isImageToVideo ? 'Wan 2.5 Image to Video' : 'Wan 2.5 Text to Video';
           case 'grok-video': return grokVideoData?.isVideoEdit ? 'Grok Video to Video' : (grokVideoData?.isImageToVideo ? 'Grok Image to Video' : 'Grok Text to Video');
+          case 'video-upscaler': return '4K Video Upscaler';
           case 'run-code': return 'Code output';
           default:
             if (panelData.toolType?.startsWith('file-edit:')) {
@@ -261,6 +266,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
       if (youTubeLinkAnalysisData) return 'YouTube Analysis';
       if (wan25VideoData) return wan25VideoData.isImageToVideo ? 'Wan 2.5 Image to Video' : 'Wan 2.5 Text to Video';
       if (grokVideoData) return grokVideoData.isVideoEdit ? 'Grok Video to Video' : (grokVideoData.isImageToVideo ? 'Grok Image to Video' : 'Grok Text to Video');
+      if (videoUpscalerData) return '4K Video Upscaler';
+      if (imageUpscalerData) return '8K Image Upscaler';
       if (fileEditData) return 'File';
       if (runCodeData) return 'Code output';
       
@@ -277,6 +284,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
     panelData,
     wan25VideoData,
     grokVideoData,
+    videoUpscalerData,
+    imageUpscalerData,
     fileEditData,
     runCodeData,
     webSearchData,
@@ -414,6 +423,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           qwenImageData={qwenImageData}
           wan25VideoData={wan25VideoData}
           grokVideoData={grokVideoData}
+          videoUpscalerData={videoUpscalerData}
+          imageUpscalerData={imageUpscalerData}
           twitterSearchData={twitterSearchData}
           youTubeSearchData={youTubeSearchData}
           youTubeLinkAnalysisData={youTubeLinkAnalysisData}

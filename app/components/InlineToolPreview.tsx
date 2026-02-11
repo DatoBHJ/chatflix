@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { memo, useMemo, useCallback, useState, useRef } from 'react';
+import React, { memo, useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Calculator, Link2, ImageIcon, Search, Youtube, Video, FileText, Code2, Copy, Download } from 'lucide-react';
 import { SiGoogle } from 'react-icons/si';
@@ -11,6 +11,8 @@ import { getTopicIconComponent, getTopicName, getTopicIcon } from './MultiSearch
 import { fileHelpers } from './ChatInput/FileUpload';
 import { e2bChartToEChartsOption } from '@/app/utils/e2bChartToECharts';
 import { computeDiffHunks, type DiffSummary } from '@/app/utils/diffUtils';
+import { ImageModal } from './ImageModal';
+import type { RunCodeSyncedFile } from '@/app/hooks/toolFunction';
 
 const E2BChartEChartsInline = dynamic(
   () => import('./charts/E2BChartECharts').then((m) => ({ default: m.E2BChartECharts })),
@@ -61,6 +63,8 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   'google_search': 'Google Search',
   'wan25_video': 'Wan 2.5 Video',
   'grok_video': 'Grok Imagine Video',
+  'video_upscaler': '4K Video Upscaler',
+  'image_upscaler': '8K Image Upscaler',
   'read_file': 'Read file',
   'write_file': 'Write file',
   'get_file_info': 'File info',
@@ -122,6 +126,10 @@ const getToolIcon = (toolName: string, toolArgs?: any, toolResult?: any) => {
       return <WanAiLogo size={iconProps.size} />;
     case 'grok_video':
       return <XaiLogo size={iconProps.size} />;
+    case 'video_upscaler':
+      return <Video {...iconProps} />;
+    case 'image_upscaler':
+      return <ImageIcon {...iconProps} />;
     case 'read_file':
     case 'write_file':
     case 'get_file_info':
@@ -180,6 +188,10 @@ const getCanvasToolType = (toolName: string, toolArgs?: any, toolResult?: any): 
       return 'wan25-video';
     case 'grok_video':
       return 'grok-video';
+    case 'video_upscaler':
+      return 'video-upscaler';
+    case 'image_upscaler':
+      return 'image-upscaler';
     case 'read_file':
     case 'write_file':
     case 'get_file_info':
@@ -195,6 +207,297 @@ const getCanvasToolType = (toolName: string, toolArgs?: any, toolResult?: any): 
   }
 };
 
+// ── RunCodeExtractedResults: Images (with modal) + ECharts + File cards ──
+function RunCodeExtractedResults({
+  runCodeResults,
+  runCodeEChartsOption,
+  runCodeFirstPng,
+  syncedFiles,
+  chatId,
+  messageId,
+}: {
+  runCodeResults: any[];
+  runCodeEChartsOption: any;
+  runCodeFirstPng: boolean;
+  syncedFiles?: RunCodeSyncedFile[];
+  chatId?: string;
+  messageId?: string;
+}) {
+  // Image modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalImageUrl, setModalImageUrl] = useState('');
+  const [modalImageAlt, setModalImageAlt] = useState('');
+
+  const imageResults = useMemo(
+    () => runCodeResults.filter((r: any) => r?.png || r?.jpeg),
+    [runCodeResults]
+  );
+
+  // When the same image is in both results and syncedFiles, show only synced as photo (not file card)
+  const syncedImageFiles = useMemo(
+    () => (syncedFiles ?? []).filter((f: RunCodeSyncedFile) => /\.(png|jpe?g|webp)$/i.test(f.path ?? '')),
+    [syncedFiles]
+  );
+  const syncedOtherFiles = useMemo(
+    () => (syncedFiles ?? []).filter((f: RunCodeSyncedFile) => !/\.(png|jpe?g|webp)$/i.test(f.path ?? '')),
+    [syncedFiles]
+  );
+  // Prefer base64 images from execution results (instant) over synced image API fetch
+  const showInlineResultImages = imageResults.length > 0;
+  // Only show synced images via API when no base64 alternative exists
+  const showSyncedImages = syncedImageFiles.length > 0 && imageResults.length === 0;
+
+  const openModal = useCallback((src: string, alt: string) => {
+    setModalImageUrl(src);
+    setModalImageAlt(alt);
+    setModalOpen(true);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setModalOpen(false);
+  }, []);
+
+  return (
+    <>
+      {/* Chart / PNG images from execution results (base64 — instant, no API fetch needed) */}
+      {showInlineResultImages && (
+        <div className="mt-2 flex flex-col gap-2 message-media-max-width">
+          {imageResults.map((r: any, i: number) => {
+            const src = r.png
+              ? `data:image/png;base64,${r.png}`
+              : `data:image/jpeg;base64,${r.jpeg}`;
+            const alt = `Code output ${i + 1}`;
+            return (
+              <div
+                key={`run-code-img-${i}`}
+                className="rounded-2xl overflow-hidden cursor-pointer"
+                onClick={() => openModal(src, alt)}
+              >
+                <img src={src} alt={alt} className="w-full h-auto" />
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ECharts - full interactive chart */}
+      {!runCodeFirstPng && runCodeEChartsOption && (
+        <div className="mt-2 rounded-xl overflow-hidden border border-[color-mix(in_srgb,var(--foreground)_8%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+          <E2BChartEChartsInline option={runCodeEChartsOption} height={300} />
+        </div>
+      )}
+
+      {/* Synced image files: only shown when no base64 result images exist (fallback via API fetch) */}
+      {showSyncedImages && (
+        <div className="mt-2 flex flex-col gap-2 message-media-max-width">
+          {syncedImageFiles.map((file: RunCodeSyncedFile, i: number) => (
+            <RunCodeSyncedImage
+              key={`synced-img-${i}`}
+              file={file}
+              chatId={chatId}
+              onOpenModal={openModal}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Other synced files (pptx, xlsx, etc.) - file card with download */}
+      {syncedOtherFiles.length > 0 && (
+        <div className="mt-2 flex flex-col gap-2">
+          {syncedOtherFiles.map((file: RunCodeSyncedFile, i: number) => (
+            <RunCodeFileCard key={`synced-file-${i}`} file={file} chatId={chatId} />
+          ))}
+        </div>
+      )}
+
+      {/* Image Modal */}
+      <ImageModal
+        isOpen={modalOpen}
+        imageUrl={modalImageUrl}
+        imageAlt={modalImageAlt}
+        onClose={closeModal}
+        enableDownload={true}
+        enableSave={true}
+        enableUrlRefresh={false}
+        messageId={messageId}
+        chatId={chatId}
+        userId={undefined}
+        showPromptButton={false}
+        isMobile={false}
+      />
+    </>
+  );
+}
+
+// ── RunCodeSyncedImage: synced image file as photo with modal (no file card) ──
+// Used only when no base64 result images are available — fetches from workspace API with retry.
+function RunCodeSyncedImage({
+  file,
+  chatId,
+  onOpenModal,
+}: {
+  file: RunCodeSyncedFile;
+  chatId?: string;
+  onOpenModal: (src: string, alt: string) => void;
+}) {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const filename = file.path.replace(/^.*\//, '') || 'image';
+
+  useEffect(() => {
+    if (!chatId || !file.path) return;
+    let cancelled = false;
+
+    const fetchImage = async (attempt: number) => {
+      try {
+        const res = await fetch(
+          `/api/chat/workspace-file-content?chatId=${encodeURIComponent(chatId)}&path=${encodeURIComponent(file.path)}`
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+        if (data?.downloadUrl) {
+          setImageUrl(data.downloadUrl);
+          setError(false);
+        } else {
+          throw new Error('No downloadUrl');
+        }
+      } catch {
+        if (cancelled) return;
+        // Retry up to 3 times with increasing delay (1s, 2s, 4s)
+        if (attempt < 3) {
+          const delay = Math.pow(2, attempt) * 1000;
+          setTimeout(() => { if (!cancelled) fetchImage(attempt + 1); }, delay);
+        } else {
+          setError(true);
+        }
+      }
+    };
+
+    setError(false);
+    setImageUrl(null);
+    fetchImage(0);
+    return () => { cancelled = true; };
+  }, [chatId, file.path, retryCount]);
+
+  if (error) {
+    return (
+      <div className="rounded-2xl overflow-hidden bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)] flex flex-col items-center justify-center min-h-[120px] gap-2">
+        <span className="text-xs text-(--muted)">Failed to load image</span>
+        <button
+          type="button"
+          onClick={() => { setError(false); setRetryCount((c) => c + 1); }}
+          className="text-xs text-blue-500 hover:text-blue-400 underline"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!imageUrl) {
+    return (
+      <div className="rounded-2xl overflow-hidden bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)] flex items-center justify-center min-h-[120px]">
+        <span className="text-xs text-(--muted) animate-pulse">Loading image…</span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden cursor-pointer"
+      onClick={() => onOpenModal(imageUrl, filename)}
+    >
+      <img src={imageUrl} alt={filename} className="w-full h-auto" />
+    </div>
+  );
+}
+
+// ── RunCodeFileCard: imessage-file-bubble style card for synced files ──
+function RunCodeFileCard({ file, chatId }: { file: RunCodeSyncedFile; chatId?: string }) {
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const filename = file.path.replace(/^.*\//, '') || 'file';
+  const icon = getIcon(filename);
+  const sizeStr = file.bytes >= 1024 * 1024
+    ? `${(file.bytes / (1024 * 1024)).toFixed(1)} MB`
+    : file.bytes >= 1024
+      ? `${(file.bytes / 1024).toFixed(1)} KB`
+      : `${file.bytes} B`;
+
+  const handleDownload = useCallback(async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!chatId || !file.path) return;
+    if (file.isText) {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/chat/workspace-file-content?chatId=${encodeURIComponent(chatId)}&path=${encodeURIComponent(file.path)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.content === 'string') {
+            const blob = new Blob([data.content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+            URL.revokeObjectURL(url);
+          }
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    } else {
+      if (downloadUrl) {
+        window.open(downloadUrl, '_blank');
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/chat/workspace-file-content?chatId=${encodeURIComponent(chatId)}&path=${encodeURIComponent(file.path)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.isBinary && data.downloadUrl) {
+            setDownloadUrl(data.downloadUrl);
+            window.open(data.downloadUrl, '_blank');
+          }
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+  }, [chatId, file.path, file.isText, filename, downloadUrl]);
+
+  if ((file as any).skipped || (file as any).error) {
+    return null; // Don't render skipped/errored files
+  }
+
+  return (
+    <div className="imessage-file-bubble" onClick={handleDownload as any} style={{ cursor: 'pointer' }}>
+      {/* File Icon */}
+      <div className="shrink-0">
+        <div
+          style={{ width: '24px', height: '24px' }}
+          dangerouslySetInnerHTML={{ __html: icon.svg }}
+        />
+      </div>
+      {/* File Info */}
+      <div className="flex-1 text-left overflow-hidden">
+        <p className="font-medium truncate text-sm text-black/60 dark:text-white/80">{filename}</p>
+        <p className="text-xs text-black/40 dark:text-white/60">{sizeStr}</p>
+      </div>
+      {/* Download Icon */}
+      <div className="p-1">
+        <button
+          onClick={handleDownload}
+          disabled={loading}
+          className="hover:bg-black/10 dark:hover:bg-white/10 rounded p-1 transition-colors disabled:opacity-50"
+          title="Download file"
+        >
+          <Download className={`text-neutral-500 ${loading ? 'animate-pulse' : ''}`} size={20} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 interface InlineToolPreviewProps {
   toolName: string;
   toolArgs?: any;
@@ -203,6 +506,8 @@ interface InlineToolPreviewProps {
   togglePanel?: (messageId: string, type: 'canvas' | 'structuredResponse', fileIndex?: number, toolType?: string, fileName?: string) => void;
   activePanel?: { messageId: string; type: string; toolType?: string } | null;
   isProcessing?: boolean;
+  chatId?: string;
+  toolCallId?: string;
 }
 
 export const InlineToolPreview = memo(function InlineToolPreview({
@@ -213,6 +518,8 @@ export const InlineToolPreview = memo(function InlineToolPreview({
   togglePanel,
   activePanel,
   isProcessing = false,
+  chatId,
+  toolCallId,
 }: InlineToolPreviewProps) {
   // Determine status
   const status = useMemo(() => {
@@ -241,6 +548,8 @@ export const InlineToolPreview = memo(function InlineToolPreview({
     }
     // 코드 실행 도구
     if (toolName === 'run_python_code') {
+      // Streaming data (isStreaming=true) means code is still running — treat as processing
+      if (toolResult?.isStreaming) return 'processing';
       // toolResult가 있으면 성공 여부에 따라 상태 결정
       if (toolResult) return toolResult.success === false ? 'error' : 'completed';
       
@@ -250,7 +559,7 @@ export const InlineToolPreview = memo(function InlineToolPreview({
     }
     
     // 비디오 생성 도구: success 필드와 실제 비디오 데이터 확인
-    if (toolName === 'wan25_video' || toolName === 'grok_video') {
+    if (toolName === 'wan25_video' || toolName === 'grok_video' || toolName === 'video_upscaler') {
       if (toolResult) {
         if (toolResult.success === false) {
           return 'error';
@@ -259,6 +568,20 @@ export const InlineToolPreview = memo(function InlineToolPreview({
                         toolResult.path || 
                         (toolResult.videos && toolResult.videos.length > 0);
         return hasVideo ? 'completed' : 'processing';
+      }
+      return 'processing';
+    }
+
+    // 이미지 업스케일 도구: success 필드와 실제 이미지 데이터 확인
+    if (toolName === 'image_upscaler') {
+      if (toolResult) {
+        if (toolResult.success === false) {
+          return 'error';
+        }
+        const hasImage = toolResult.imageUrl ||
+                         toolResult.path ||
+                         (toolResult.images && toolResult.images.length > 0);
+        return hasImage ? 'completed' : 'processing';
       }
       return 'processing';
     }
@@ -308,6 +631,12 @@ export const InlineToolPreview = memo(function InlineToolPreview({
       if (isVideoEdit) return 'Grok Video to Video';
       if (isImageToVideo) return 'Grok Image to Video';
       return 'Grok Text to Video';
+    }
+    if (toolName === 'video_upscaler') {
+      return '4K Video Upscaler';
+    }
+    if (toolName === 'image_upscaler') {
+      return '8K Image Upscaler';
     }
     return TOOL_DISPLAY_NAMES[toolName] || toolName;
   }, [toolName, toolArgs, toolResult]);
@@ -407,8 +736,13 @@ export const InlineToolPreview = memo(function InlineToolPreview({
       return toolArgs.path;
     }
     
+    // For run_python_code: pass toolCallId so Canvas can show the correct invocation
+    if (toolName === 'run_python_code' && toolCallId) {
+      return toolCallId;
+    }
+    
     return undefined;
-  }, [toolArgs, toolName]);
+  }, [toolArgs, toolName, toolCallId]);
 
   // Handle click - 롱프레스가 아닌 경우에만 실행
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -612,24 +946,93 @@ export const InlineToolPreview = memo(function InlineToolPreview({
   const runCodeHasChartOrPng = runCodeResults.some((r: any) => r?.png || r?.jpeg || r?.chart);
   const runCodeFirstPng = runCodeResults.find((r: any) => r?.png || r?.jpeg);
   const runCodePngCount = runCodeResults.filter((r: any) => r?.png || r?.jpeg).length;
+  const runCodeSyncedImageCount = (toolResult?.syncedFiles ?? []).filter((f: any) => /\.(png|jpe?g|webp)$/i.test(f.path ?? '')).length;
+  const runCodeHasSyncedImageFiles = runCodeSyncedImageCount > 0;
   const runCodeSubtitle = useMemo(() => {
     if (status === 'processing') return '…';
+    if (status === 'error') {
+      const errName = toolResult?.error?.name || toolResult?.error?.value;
+      return errName ? `Error: ${errName}` : 'Error';
+    }
+    if (runCodeHasSyncedImageFiles) {
+      return runCodeSyncedImageCount === 1 ? '1 image' : `${runCodeSyncedImageCount} images`;
+    }
+    const otherCount = (toolResult?.syncedFiles?.length ?? 0) - runCodeSyncedImageCount;
+    if (otherCount > 0) return otherCount === 1 ? '1 file' : `${otherCount} files`;
     if (runCodePngCount > 0) return runCodePngCount === 1 ? '1 chart' : `${runCodePngCount} figures`;
     if (runCodeResults.some((r: any) => r?.chart)) return '1 chart';
     if (runCodeResults.some((r: any) => r?.text || r?.html)) return 'Text output';
     if (runCodeStdout.length > 0 || runCodeStderr.length > 0) return 'Output';
     return 'Output';
-  }, [status, runCodePngCount, runCodeResults, runCodeStdout, runCodeStderr]);
+  }, [status, runCodePngCount, runCodeResults, runCodeStdout, runCodeStderr, toolResult, runCodeHasSyncedImageFiles, runCodeSyncedImageCount]);
 
   if (toolName === 'run_python_code') {
     const codeIcon = getToolIcon(toolName, toolArgs, toolResult);
     const runCodeFirstChartResult = runCodeResults.find((r: any) => r?.chart);
     const runCodeEChartsOption = runCodeFirstChartResult ? e2bChartToEChartsOption(runCodeFirstChartResult.chart) : null;
-    
-    // Determine best content to show
-    const hasChartPreview = runCodeFirstPng || runCodeEChartsOption;
+    // When the same image is in both results and syncedFiles, show only file card — so no thumbnail from results
+    const hasChartPreview = runCodeEChartsOption || (runCodeFirstPng && !runCodeHasSyncedImageFiles);
     const hasConsoleOutput = runCodeStdout.length > 0 || runCodeStderr.length > 0;
-    
+    // Result-first layout: when we have visual output (image/chart), show results first then one-line caption only
+    const hasVisualResult = status === 'completed' && (runCodeHasSyncedImageFiles || runCodeFirstPng || runCodeEChartsOption);
+
+    const runCodeCaption = (
+      <div
+        className="diff-inline-preview"
+        onClick={handleClick}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchMove={handleTouchMove}
+        style={{ cursor: togglePanel ? 'pointer' : 'default', touchAction: 'manipulation' }}
+        role="button"
+        aria-label={`Code output: ${runCodeSubtitle}`}
+      >
+        <div className="diff-header">
+          <div className="shrink-0 text-(--muted)">{codeIcon}</div>
+          <span className="diff-filename">Code output</span>
+          {status === 'processing' ? (
+            <span
+              className="text-xs font-medium shrink-0 bg-linear-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent"
+              style={{ backgroundSize: '200% 100%', animation: 'shimmer 2s ease-in-out infinite' }}
+            >
+              Running…
+            </span>
+          ) : (
+            <span className="text-xs text-(--muted) shrink-0">{runCodeSubtitle}</span>
+          )}
+          {status === 'processing' && <span className="inline-tool-status-dot shrink-0" />}
+          {status === 'completed' && (
+            <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+          {status === 'error' && (
+            <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          )}
+        </div>
+      </div>
+    );
+
+    if (hasVisualResult) {
+      return (
+        <>
+          <style>{shimmerStyles}</style>
+          {/* 도구 미리보기(캡션) 위, 결과(이미지/차트) 아래 */}
+          {runCodeCaption}
+          <RunCodeExtractedResults
+            runCodeResults={runCodeResults}
+            runCodeEChartsOption={runCodeEChartsOption}
+            runCodeFirstPng={runCodeFirstPng}
+            syncedFiles={toolResult?.syncedFiles}
+            chatId={chatId}
+            messageId={messageId}
+          />
+        </>
+      );
+    }
+
     return (
       <>
         <style>{shimmerStyles}</style>
@@ -641,7 +1044,6 @@ export const InlineToolPreview = memo(function InlineToolPreview({
           onTouchMove={handleTouchMove}
           style={{ cursor: togglePanel ? 'pointer' : 'default', touchAction: 'manipulation' }}
         >
-          {/* Header - same style as file tools */}
           <div className="diff-header">
             <div className="shrink-0 text-(--muted)">{codeIcon}</div>
             <span className="diff-filename">Code output</span>
@@ -668,26 +1070,8 @@ export const InlineToolPreview = memo(function InlineToolPreview({
             )}
           </div>
 
-          {/* Content preview */}
-          {hasChartPreview ? (
-            runCodeFirstPng && (runCodeFirstPng.png || runCodeFirstPng.jpeg) ? (
-              <div className="p-2.5">
-                <div className="rounded-lg overflow-hidden bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] flex items-center justify-center" style={{ maxHeight: 140 }}>
-                  <img
-                    src={runCodeFirstPng.png ? `data:image/png;base64,${runCodeFirstPng.png}` : `data:image/jpeg;base64,${runCodeFirstPng.jpeg}`}
-                    alt="Chart"
-                    className="max-w-full max-h-[140px] object-contain"
-                  />
-                </div>
-              </div>
-            ) : runCodeEChartsOption ? (
-              <div className="p-2.5">
-                <div className="rounded-lg overflow-hidden bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)]">
-                  <E2BChartEChartsInline option={runCodeEChartsOption} height={120} hideSaveButton />
-                </div>
-              </div>
-            ) : null
-          ) : hasConsoleOutput ? (
+          {/* Content: stdout/stderr or processing code (no thumbnail when visual — that branch uses result-first above) */}
+          {hasConsoleOutput ? (
             <div className="diff-code">
               {runCodeStdout.slice(0, 4).map((line: string, li: number) => (
                 <div key={`stdout-${li}`} className="diff-line">
@@ -722,6 +1106,17 @@ export const InlineToolPreview = memo(function InlineToolPreview({
             </div>
           ) : null}
         </div>
+
+        {status === 'completed' && (
+          <RunCodeExtractedResults
+            runCodeResults={runCodeResults}
+            runCodeEChartsOption={runCodeEChartsOption}
+            runCodeFirstPng={runCodeFirstPng}
+            syncedFiles={toolResult?.syncedFiles}
+            chatId={chatId}
+            messageId={messageId}
+          />
+        )}
       </>
     );
   }

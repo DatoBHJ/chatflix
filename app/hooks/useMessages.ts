@@ -3,11 +3,13 @@ import { UIMessage } from 'ai'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 import { MODEL_CONFIGS } from '@/lib/models/config'
-import { enrichAttachmentsWithMetadata } from '@/app/chat/[id]/utils'
 import { uploadFile } from '@/app/chat/[id]/utils'
 import { ensureFreshAttachmentUrls } from '@/app/utils/attachmentUrlHelpers';
 import { Attachment } from '@/lib/types';
 import { getWebSearchResults, getGoogleSearchData } from './toolFunction'
+import { trimMessagesToByteLimit } from '@/app/utils/prepareMessagesForAPI';
+
+const MAX_CHAT_REQUEST_BYTES = 9 * 1024 * 1024;
 
 export function useMessages(chatId: string, userId: string) {
   const [isRegenerating, setIsRegenerating] = useState(false)
@@ -456,37 +458,27 @@ export function useMessages(chatId: string, userId: string) {
         // console.log('Reloading with model:', modelToUse);
         // console.log('🔍 [DEBUG] Final editingContent before reload:', currentEditingContent); // 디버깅 추가
         
-        // 🆕 편집된 메시지의 첨부파일 메타데이터 추출
-        const messagesWithMetadata = await Promise.all(
-          updatedMessages.map(async (msg) => {
-            if ((msg as any).experimental_attachments && (msg as any).experimental_attachments.length > 0) {
-              // console.log('📎 [DEBUG] Processing attachments for edited message:', msg.id);
-              const enrichedAttachments = await enrichAttachmentsWithMetadata((msg as any).experimental_attachments);
-              return {
-                ...msg,
-                experimental_attachments: enrichedAttachments
-              };
-            }
-            return msg;
-          })
+        const commonBody = {
+          model: modelToUse, // Use original model - rate limits will be handled by error handlers
+          chatId: actualChatId, // Use actualChatId from DB for consistency
+          isRegeneration: false, // 편집 후 전송은 새로운 대화이므로 재생성이 아님
+          isAgentEnabled: !!isAgentEnabled,
+          selectedTool: selectedTool || null, // 현재 선택된 도구 사용
+          experimental_attachments: newAttachments // 🚀 새로 업로드된 파일들 전달
+        };
+        const trimmedPayload = trimMessagesToByteLimit(
+          updatedMessages as any[],
+          (candidateMessages) => ({ ...commonBody, messages: candidateMessages }),
+          MAX_CHAT_REQUEST_BYTES
         );
-        
-        // 최종 메시지 내용 디버깅
-        // console.log('🔍 [DEBUG] Final messages with metadata:', messagesWithMetadata.map(msg => ({
-        //   id: msg.id,
-        //   content: msg.content.substring(0, 100) + '...',
-        //   role: msg.role
-        // })));
-        
+        if (trimmedPayload.bytes > MAX_CHAT_REQUEST_BYTES) {
+          throw new Error('Request payload is too large after optimization. Please shorten the conversation and try again.');
+        }
+
         await reload({
           body: {
-            messages: messagesWithMetadata,
-            model: modelToUse, // Use original model - rate limits will be handled by error handlers
-            chatId: actualChatId, // Use actualChatId from DB for consistency
-            isRegeneration: false, // 편집 후 전송은 새로운 대화이므로 재생성이 아님
-            isAgentEnabled: !!isAgentEnabled,
-            selectedTool: selectedTool || null, // 현재 선택된 도구 사용
-            experimental_attachments: newAttachments // 🚀 새로 업로드된 파일들 전달
+            ...commonBody,
+            messages: trimmedPayload.messages,
           }
         });
       } catch (error: any) {
@@ -497,6 +489,10 @@ export function useMessages(chatId: string, userId: string) {
       }
     } catch (error: any) {
       if (!handleRateLimitError(error, currentModel)) {
+        const message = typeof error?.message === 'string' ? error.message : '';
+        if (message.toLowerCase().includes('payload is too large')) {
+          alert('Conversation is too large to resend as-is. Please continue from a newer message or remove heavy tool outputs.');
+        }
         // console.error('Failed to update message:', {
         //   error: error?.message || error,
         //   stack: error?.stack,
@@ -663,44 +659,43 @@ export function useMessages(chatId: string, userId: string) {
       // Removed automatic model switching logic - let rate limits be handled properly
 
       try {
-        // 🆕 재생성할 메시지의 첨부파일 메타데이터 추출
-        let enrichedTargetMessage: any = { ...(targetUserMessage as any) };
-        
-        if ((targetUserMessage as any).experimental_attachments && (targetUserMessage as any).experimental_attachments.length > 0) {
-          // console.log('📎 [DEBUG] Processing attachments for regeneration message:', targetUserMessage.id);
-          // console.log('📎 [DEBUG] Original attachments:', (targetUserMessage as any).experimental_attachments);
-          
-          const enrichedAttachments = await enrichAttachmentsWithMetadata((targetUserMessage as any).experimental_attachments);
-          enrichedTargetMessage = {
-            ...targetUserMessage,
-            experimental_attachments: enrichedAttachments
-          };
-          
-          // console.log('📎 [DEBUG] Enriched attachments:', enrichedAttachments);
+        const targetMessagePayload = {
+          id: targetUserMessage.id,
+          role: targetUserMessage.role,
+          parts: Array.isArray((targetUserMessage as any).parts)
+            ? (targetUserMessage as any).parts
+            : [{ type: 'text', text: getMessageText(targetUserMessage) }],
+          content: (targetUserMessage as any).content, // legacy
+          createdAt: (targetUserMessage as any).createdAt,
+          experimental_attachments: (targetUserMessage as any).experimental_attachments,
+        } as any;
+
+        const commonBody = {
+          model: modelToUse, // Use original model - rate limits will be handled by error handlers
+          chatId: actualChatId, // Use actual chatId from DB
+          isRegeneration: true,
+          existingMessageId: assistantMessageId,
+          saveToDb: true,
+          isAgentEnabled: !!isAgentEnabled,
+          selectedTool: selectedTool || null // 현재 선택된 도구 사용
+        };
+        const rawMessagesForReload = [
+          ...updatedMessages,
+          targetMessagePayload,
+        ];
+        const trimmedPayload = trimMessagesToByteLimit(
+          rawMessagesForReload as any[],
+          (candidateMessages) => ({ ...commonBody, messages: candidateMessages }),
+          MAX_CHAT_REQUEST_BYTES
+        );
+        if (trimmedPayload.bytes > MAX_CHAT_REQUEST_BYTES) {
+          throw new Error('Request payload is too large after optimization. Please shorten the conversation and try again.');
         }
-        
+
         await reload({
           body: {
-            messages: [
-              ...updatedMessages,
-              {
-                id: enrichedTargetMessage.id,
-                role: enrichedTargetMessage.role,
-                parts: Array.isArray(enrichedTargetMessage.parts)
-                  ? enrichedTargetMessage.parts
-                  : [{ type: 'text', text: getMessageText(enrichedTargetMessage) }],
-                content: enrichedTargetMessage.content, // legacy
-                createdAt: enrichedTargetMessage.createdAt,
-                experimental_attachments: (enrichedTargetMessage as any).experimental_attachments,
-              } as any,
-            ],
-            model: modelToUse, // Use original model - rate limits will be handled by error handlers
-            chatId: actualChatId, // Use actual chatId from DB
-            isRegeneration: true,
-            existingMessageId: assistantMessageId,
-            saveToDb: true,
-            isAgentEnabled: !!isAgentEnabled,
-            selectedTool: selectedTool || null // 현재 선택된 도구 사용
+            ...commonBody,
+            messages: trimmedPayload.messages,
           }
         });
       } catch (error: any) {
@@ -710,6 +705,10 @@ export function useMessages(chatId: string, userId: string) {
       }
     } catch (error: any) {
       if (!handleRateLimitError(error, currentModel)) {
+        const message = typeof error?.message === 'string' ? error.message : '';
+        if (message.toLowerCase().includes('payload is too large')) {
+          alert('Conversation is too large to resend as-is. Please continue from a newer message or remove heavy tool outputs.');
+        }
         // console.error('Regeneration failed:', error);
       }
     } finally {

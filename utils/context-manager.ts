@@ -1,6 +1,8 @@
 /**
  * 토큰 수 추정 함수 - 서버 사이드에서는 tiktoken, 클라이언트에서는 추정
  */
+import { slimToolResults } from '@/app/utils/prepareMessagesForAPI';
+
 export function estimateTokenCount(text: string, model: string = 'gpt-4'): number {
   if (!text || text.length === 0) {
     return 0;
@@ -91,7 +93,8 @@ export function estimateMultiModalTokens(msg: Message): number {
   // 🔧 tool_results가 있으면 그 크기도 추정에 포함 (중요!)
   // tool_results는 웹 검색 결과, 코드 실행 결과 등 대용량 데이터를 포함할 수 있음
   if ((msg as any).tool_results && typeof (msg as any).tool_results === 'object') {
-    const toolResultsStr = JSON.stringify((msg as any).tool_results);
+    const slimmedToolResults = slimToolResults((msg as any).tool_results) || {};
+    const toolResultsStr = JSON.stringify(slimmedToolResults);
     // tool_results의 토큰 추정 (JSON 문자열 기준)
     return estimateTokenCount(toolResultsStr);
   }
@@ -116,7 +119,9 @@ export function estimateMultiModalTokens(msg: Message): number {
       } else if (part.type === 'file') {
         const filename = (part.filename || '').toLowerCase();
         const contentType = part.mediaType || '';
-        if (filename.endsWith('.pdf') || contentType === 'application/pdf') {
+        if (contentType?.startsWith('video/') || filename.match(/\.(mp4|mov|avi|wmv|flv|mkv|webm)$/i)) {
+          total += 3500;
+        } else if (filename.endsWith('.pdf') || contentType === 'application/pdf') {
           total += 5000;
         } else if (filename.match(/\.(js|ts|jsx|tsx|py|java|c|cpp|cs|go|rb|php|html|css|sql|scala|swift|kt|rs|dart|json|xml|yaml|yml)$/i)) {
           total += 3000;
@@ -140,7 +145,9 @@ export function estimateMultiModalTokens(msg: Message): number {
       } else if (part.type === 'file') {
         const filename = part.file?.name?.toLowerCase() || '';
         const contentType = part.file?.contentType || '';
-        if (filename.endsWith('.pdf') || contentType === 'application/pdf') {
+        if (contentType?.startsWith('video/') || filename.match(/\.(mp4|mov|avi|wmv|flv|mkv|webm)$/i)) {
+          total += 3500;
+        } else if (filename.endsWith('.pdf') || contentType === 'application/pdf') {
           total += 5000;
         } else if (filename.match(/\.(js|ts|jsx|tsx|py|java|c|cpp|cs|go|rb|php|html|css|sql|scala|swift|kt|rs|dart|json|xml|yaml|yml)$/i)) {
           total += 3000;
@@ -167,6 +174,9 @@ export function estimateMultiModalTokens(msg: Message): number {
         if (attachment.fileType === 'image' || 
             (attachment.contentType && attachment.contentType.startsWith('image/'))) {
           total += 1000;
+        } else if (attachment.fileType === 'video' ||
+                   (attachment.contentType && attachment.contentType.startsWith('video/'))) {
+          total += 3500;
         } else if (attachment.fileType === 'pdf' || 
                    attachment.contentType === 'application/pdf') {
           total += 5000;

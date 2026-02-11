@@ -7,11 +7,15 @@ const CODE_FILE_EXTENSIONS = new Set([
   'js','jsx','ts','tsx','html','css','json','md','py','java','c','cpp','cs','go','rb','php','swift','kt','rs'
 ]);
 
-const inferFileType = (file: File): 'image' | 'code' | 'pdf' | 'file' => {
+const inferFileType = (file: File): 'image' | 'video' | 'code' | 'pdf' | 'file' => {
   const extension = file.name.split('.').pop()?.toLowerCase();
 
   if (file.type.startsWith('image/')) {
     return 'image';
+  }
+
+  if (file.type.startsWith('video/') || (extension && ['mp4', 'mov', 'avi', 'wmv', 'flv', 'mkv', 'webm'].includes(extension))) {
+    return 'video';
   }
 
   if (file.type === 'application/pdf' || extension === 'pdf') {

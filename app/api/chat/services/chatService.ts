@@ -4,6 +4,7 @@ import { generateMessageId } from '../utils/messageUtils';
 // import { MultiModalMessage, ProcessedMessage, AIMessageContent } from '../types';
 import { toolPrompts } from '../prompts/toolPrompts';
 import { createClient } from '@/utils/supabase/server';
+import { slimToolResults } from '@/app/utils/prepareMessagesForAPI';
 
 // 🚀 사용자 메모리 캐시 시스템
 interface UserMemoryCache {
@@ -524,18 +525,20 @@ Focus on being genuinely helpful and let the conversation flow naturally.`;
         'twitter_search': 'twitterSearch',
         'wan25_video': 'wan25VideoTool',
         'grok_video': 'grokVideoTool',
+        'video_upscaler': 'videoUpscalerTool',
+        'image_upscaler': 'imageUpscalerTool',
         'run_python_code': 'codeExecution',
       };
       return toolMapping[toolName] || null;
     };
     
     // 이미지 도구 목록
-    const imageTools = ['gemini_image_tool', 'seedream_image_tool'];
+    const imageTools = ['gemini_image_tool', 'seedream_image_tool', 'image_upscaler'];
     // const imageTools = ['gemini_image_tool', 'seedream_image_tool', 'qwen_image_edit'];
     // 검색 도구 목록
     const searchTools = ['google_search', 'web_search', 'twitter_search', 'youtube_search'];
     // 비디오 도구 목록
-    const videoTools = ['grok_video', 'wan25_video'];
+    const videoTools = ['grok_video', 'wan25_video', 'video_upscaler'];
     
     const selectedTools = options.selectedTools || [];
     const hasMultipleImageTools = selectedTools.filter(t => imageTools.includes(t)).length > 1;
@@ -682,12 +685,48 @@ Focus on being genuinely helpful and let the conversation flow naturally.`;
     selectedTools.forEach(toolName => {
       if (!imageTools.includes(toolName) && !searchTools.includes(toolName) && !videoTools.includes(toolName)) {
         const toolKey = mapToolName(toolName);
-        if (toolKey && toolPrompts[toolKey] && !addedPromptKeys.has(toolKey)) {
-          addedPromptKeys.add(toolKey);
+        const promptKey = toolKey ? String(toolKey) : null;
+        if (toolKey && promptKey && toolPrompts[toolKey] && !addedPromptKeys.has(promptKey)) {
+          addedPromptKeys.add(promptKey);
           toolSpecificPrompts.push(toolPrompts[toolKey]);
         }
       }
     });
+
+    // 8. 크리에이티브 문서 생성 워크플로우: 도구 조합에 따라 자동 주입
+    const hasImageTool = selectedTools.some(t => imageTools.includes(t));
+    const hasCodeExecution = selectedTools.includes('run_python_code');
+    const hasSearchTool = selectedTools.some(t => searchTools.includes(t));
+
+    // PPT 생성: 이미지 + 코드 실행
+    if (hasImageTool && hasCodeExecution && toolPrompts.pptGeneration) {
+      toolSpecificPrompts.push(toolPrompts.pptGeneration);
+    }
+
+    // PDF 보고서: 검색 + 코드 실행 (이미지는 선택적)
+    if (hasSearchTool && hasCodeExecution && toolPrompts.pdfReport) {
+      toolSpecificPrompts.push(toolPrompts.pdfReport);
+    }
+
+    // 인포그래픽: 이미지 + 코드 실행
+    if (hasImageTool && hasCodeExecution && toolPrompts.infographic) {
+      toolSpecificPrompts.push(toolPrompts.infographic);
+    }
+
+    // 소셜 미디어 팩: 이미지 + 코드 실행
+    if (hasImageTool && hasCodeExecution && toolPrompts.socialMediaPack) {
+      toolSpecificPrompts.push(toolPrompts.socialMediaPack);
+    }
+
+    // 엑셀 리포트: 코드 실행만 필요
+    if (hasCodeExecution && toolPrompts.excelReport) {
+      toolSpecificPrompts.push(toolPrompts.excelReport);
+    }
+
+    // 만화/스토리보드: 이미지 + 코드 실행
+    if (hasImageTool && hasCodeExecution && toolPrompts.comicStrip) {
+      toolSpecificPrompts.push(toolPrompts.comicStrip);
+    }
     
     if (toolSpecificPrompts.length > 0) {
       prompt += `\n\n## SELECTED TOOLS GUIDELINES\n${toolSpecificPrompts.join('\n\n')}`;
@@ -760,6 +799,7 @@ export const saveCompletedMessages = async (
 
   // Retry loop with exponential backoff
   let lastError: Error | null = null;
+  const sanitizedToolResults = slimToolResults(extraData.tool_results);
   
   for (let attempt = 1; attempt <= MAX_SAVE_RETRIES; attempt++) {
     try {
@@ -777,8 +817,8 @@ export const saveCompletedMessages = async (
           content: assistantContent,
           reasoning: assistantReasoning && assistantReasoning !== assistantContent ? assistantReasoning : null,
           parts: extraData.parts || null,
-          tool_results: extraData.tool_results && Object.keys(extraData.tool_results).length > 0 
-            ? extraData.tool_results : null,
+          tool_results: sanitizedToolResults && Object.keys(sanitizedToolResults).length > 0 
+            ? sanitizedToolResults : null,
           token_usage: extraData.token_usage || null
         },
         p_model: extraData.original_model || model,

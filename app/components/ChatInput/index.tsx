@@ -60,6 +60,8 @@ export const TOOLS: ToolDefinition[] = [
   { id: 'grok_text_to_video', icon: <XaiLogo size={18} />, name: 'Grok Text to Video', description: 'xAI Grok Imagine; 1–15s, 480p or 720p.', category: 'ai-generation', background: 'linear-gradient(0deg, #1a1a1a 0%, #2a2a2a 100%)', placeholder: { mobile: 'Describe a video to generate', desktop: 'Describe a video to generate' }, hasInfoIcon: true },
   { id: 'grok_image_to_video', icon: <XaiLogo size={18} />, name: 'Grok Image to Video', description: 'xAI Grok Imagine; 1–15s, 480p or 720p.', category: 'ai-generation', background: 'linear-gradient(0deg, #1a1a1a 0%, #2a2a2a 100%)', placeholder: { mobile: 'Bring this image to life', desktop: 'Bring this image to life' }, hasInfoIcon: true },
   { id: 'grok_video_edit', icon: <XaiLogo size={18} />, name: 'Grok Video to Video', description: 'xAI Grok Imagine; edit only videos generated in the conversation (input up to 8.7s, 480p or 720p).', category: 'ai-generation', background: 'linear-gradient(0deg, #1a1a1a 0%, #2a2a2a 100%)', placeholder: { mobile: 'Describe changes to the video', desktop: 'Describe changes to the video' }, hasInfoIcon: true },
+  { id: 'video_upscaler', icon: <Video strokeWidth={1.8} />, name: '4K Video Upscaler', description: 'WaveSpeed FlashVSR; upscale to 4K only (fixed output).', category: 'ai-generation', background: 'linear-gradient(0deg, #1F2937 0%, #4B5563 100%)', placeholder: { mobile: 'Upscale this video to 4K', desktop: 'Upscale this video to 4K (fixed)' }, hasInfoIcon: true },
+  { id: 'image_upscaler', icon: <Image strokeWidth={1.8} />, name: '8K Image Upscaler', description: 'WaveSpeed Ultimate Image Upscaler; upscale to 8K only (fixed output).', category: 'ai-generation', background: 'linear-gradient(0deg, #1F2937 0%, #4B5563 100%)', placeholder: { mobile: 'Upscale this image to 8K', desktop: 'Upscale this image to 8K (fixed)' }, hasInfoIcon: true },
   { id: 'link_reader', icon: <Link strokeWidth={1.8} />, name: 'Link Reader', description: 'Read web page content', category: 'utility', background: 'linear-gradient(0deg, #56ab2f 0%, #a8e063 100%)', placeholder: { mobile: 'Paste a URL to read', desktop: 'Paste a URL to read' } },
   { id: 'youtube_search', icon: <Youtube strokeWidth={1.8} />, name: 'YouTube Search', description: 'Search YouTube videos', category: 'search', background: 'linear-gradient(0deg, #DC2626 0%, #F87171 100%)', placeholder: { mobile: 'Search YouTube videos', desktop: 'Search cooking tutorials for beginners' } },
   { id: 'youtube_link_analyzer', icon: <Youtube strokeWidth={1.8} />, name: 'YouTube Analyzer', description: 'Analyze YouTube videos', category: 'utility', background: 'linear-gradient(0deg, #DC2626 0%, #F87171 100%)', placeholder: { mobile: 'Paste YouTube URL to analyze', desktop: 'Paste YouTube URL to analyze' } },
@@ -139,7 +141,6 @@ export function ChatInput({
   const [fileMap, setFileMap] = useState<Map<string, { file: File, url: string }>>(new Map());
   const [showPDFError, setShowPDFError] = useState(false);
   const [showFolderError, setShowFolderError] = useState(false);
-  const [showVideoError, setShowVideoError] = useState(false);
   const [showAgentError, setShowAgentError] = useState(false);
   const [showToolSelector, setShowToolSelector] = useState(false);
   const [openTooltipId, setOpenTooltipId] = useState<string | null>(null); // 모바일에서 열린 tooltip 추적
@@ -1396,13 +1397,6 @@ export function ChatInput({
         return;
       }
 
-      // 비디오 파일 필터링
-      if (file.type.startsWith('video/') || /\.(mp4|mov|avi|wmv|flv|mkv|webm)$/i.test(file.name)) {
-        setShowVideoError(true);
-        setTimeout(() => setShowVideoError(false), 3000);
-        return;
-      }
-      
       // Default to file upload
       filesToUpload.push(file);
     });
@@ -1422,10 +1416,13 @@ export function ChatInput({
         
         // 파일 타입 결정
         const fileExt = file.name.split('.').pop()?.toLowerCase();
-        let fileType: 'image' | 'code' | 'pdf' | 'file' = 'file';
+        let fileType: 'image' | 'video' | 'code' | 'pdf' | 'file' = 'file';
         
         if (file.type.startsWith('image/')) {
           fileType = 'image';
+        } else if (file.type.startsWith('video/') ||
+                   ['mp4', 'mov', 'avi', 'wmv', 'flv', 'mkv', 'webm'].includes(fileExt || '')) {
+          fileType = 'video';
         } else if (file.type.includes('text') || 
                    ['js', 'jsx', 'ts', 'tsx', 'html', 'css', 'json', 'md', 'py', 'java', 
                     'c', 'cpp', 'cs', 'go', 'rb', 'php', 'swift', 'kt', 'rs'].includes(fileExt || '')) {
@@ -1624,7 +1621,6 @@ export function ChatInput({
               : "This model does not support PDF and image files")
         } />
         <ErrorToast show={showFolderError || globalShowFolderError} message="Folders cannot be uploaded" />
-        <ErrorToast show={showVideoError || globalShowVideoError} message="Video files are not supported" />
   
         <div 
           className="relative transition-transform duration-300"
@@ -1632,10 +1628,10 @@ export function ChatInput({
           <input
             type="file"
             accept={supportsPDFs
-              ? "image/*,text/*,text/csv,.csv,application/csv,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust" 
+              ? "image/*,video/*,text/*,text/csv,.csv,application/csv,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust" 
               : (supportsVision 
-                ? "image/*,text/*,text/csv,.csv,application/csv,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust" 
-                : "text/*,text/csv,.csv,application/csv,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust")}            
+                ? "image/*,video/*,text/*,text/csv,.csv,application/csv,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust" 
+                : "video/*,text/*,text/csv,.csv,application/csv,application/json,application/javascript,application/typescript,application/xml,application/yaml,application/x-yaml,application/markdown,application/x-python,application/x-java,application/x-c,application/x-cpp,application/x-csharp,application/x-go,application/x-ruby,application/x-php,application/x-swift,application/x-kotlin,application/x-rust")}            
             onChange={(e) => { if (e.target.files) { handleFiles(e.target.files); } }}
             ref={fileInputRef}
             className="hidden"
@@ -1921,7 +1917,7 @@ export function ChatInput({
                                             className: `text-white ${tool.smallIcon ? "h-3 w-3" : "h-3.5 w-3.5"}`,
                                             size: tool.smallIcon ? 12 : 14
                                           })}
-                                          {(tool.id === 'wan25_text_to_video' || tool.id === 'wan25_image_to_video' || tool.id === 'grok_text_to_video' || tool.id === 'grok_image_to_video' || tool.id === 'grok_video_edit' || tool.id === 'run_python_code' || tool.id === 'workspace') && (
+                                          {(tool.id === 'wan25_text_to_video' || tool.id === 'wan25_image_to_video' || tool.id === 'grok_text_to_video' || tool.id === 'grok_image_to_video' || tool.id === 'grok_video_edit' || tool.id === 'video_upscaler' || tool.id === 'image_upscaler' || tool.id === 'run_python_code' || tool.id === 'workspace') && (
                                             <div 
                                               className="absolute -bottom-1 -right-2 text-[7.5px] font-bold px-1 py-0.5 rounded-full leading-none whitespace-nowrap"
                                               style={{

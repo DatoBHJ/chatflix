@@ -40,11 +40,13 @@ import { smartUpdateMemoryBanks } from './services/memoryService';
 import { selectOptimalModel } from './services/modelSelector';
 import { estimateMultiModalTokens } from '@/utils/context-manager';
 import { compressContextIfNeeded } from '@/utils/context-summarizer';
+import { estimatePayloadBytes } from '@/app/utils/prepareMessagesForAPI';
 // import { markdownJoinerTransform } from './markdown-transform';
 
 // Vercel Pro 플랜 + fluid compute: 최대 800초 (13분 20초)까지 가능
 export const maxDuration = 800;
 export const dynamic = 'force-dynamic';
+const MAX_PARSED_CHAT_REQUEST_BYTES = 12 * 1024 * 1024;
 
 // 🚀 익명 사용자용 UUID 생성 함수
 function generateAnonymousUserId(): string {
@@ -105,7 +107,42 @@ export async function POST(req: Request): Promise<Response> {
   const isAnonymousUser = !user;
   const anonymousUserId = req.headers.get('X-Anonymous-Id') || generateAnonymousUserId();
 
-  const requestData = await req.json();
+  const contentLengthHeader = req.headers.get('content-length');
+  if (contentLengthHeader) {
+    const contentLength = Number(contentLengthHeader);
+    if (Number.isFinite(contentLength) && contentLength > MAX_PARSED_CHAT_REQUEST_BYTES) {
+      return Response.json(
+        {
+          error: 'Request payload too large',
+          detail: 'Please shorten the conversation or remove heavy tool outputs before retrying.',
+        },
+        { status: 413 },
+      );
+    }
+  }
+
+  let requestData: any;
+  try {
+    requestData = await req.json();
+  } catch {
+    return Response.json(
+      {
+        error: 'Invalid request body',
+        detail: 'Request body was truncated or malformed. Please retry with a smaller conversation payload.',
+      },
+      { status: 413 },
+    );
+  }
+  const parsedBodyBytes = estimatePayloadBytes(requestData);
+  if (parsedBodyBytes > MAX_PARSED_CHAT_REQUEST_BYTES) {
+    return Response.json(
+      {
+        error: 'Request payload too large',
+        detail: 'Please shorten the conversation or remove heavy tool outputs before retrying.',
+      },
+      { status: 413 },
+    );
+  }
   
   // Track client aborts and wire to internal streams
   let abortedByClient = false;
@@ -390,6 +427,10 @@ export async function POST(req: Request): Promise<Response> {
             } else if (selectedTool === 'grok_video_edit') {
               selectedActiveTools = ['grok_video'] as Array<keyof typeof TOOL_REGISTRY>;
               (writer as any)._selectedGrokVideoModel = 'video-edit';
+            } else if (selectedTool === 'video_upscaler') {
+              selectedActiveTools = ['video_upscaler'] as Array<keyof typeof TOOL_REGISTRY>;
+            } else if (selectedTool === 'image_upscaler') {
+              selectedActiveTools = ['image_upscaler'] as Array<keyof typeof TOOL_REGISTRY>;
             } else if (selectedTool === 'workspace') {
               selectedActiveTools = getFileEditToolIds() as Array<keyof typeof TOOL_REGISTRY>;
             } else {
@@ -457,6 +498,10 @@ export async function POST(req: Request): Promise<Response> {
                 ? (config.createFn as any)(writer, user?.id || anonymousUserId, messagesWithTokens, chatId, (writer as any)._selectedWan25VideoModel) // forcedModel 전달
                 : toolName === 'grok_video'
                 ? (config.createFn as any)(writer, user?.id || anonymousUserId, messagesWithTokens, chatId, (writer as any)._selectedGrokVideoModel) // forcedModel 전달
+                : toolName === 'video_upscaler'
+                ? (config.createFn as any)(writer, user?.id || anonymousUserId, messagesWithTokens, chatId)
+                : toolName === 'image_upscaler'
+                ? (config.createFn as any)(writer, user?.id || anonymousUserId, messagesWithTokens, chatId)
                 : [...getFileEditToolIds(), 'run_python_code'].includes(toolName)
                 ? (config.createFn as any)(writer, chatId, supabase) // file-edit / code run: sandbox per chat
                 : (config.createFn as any)(writer)
@@ -494,24 +539,27 @@ export async function POST(req: Request): Promise<Response> {
           let messagesForProcess = messagesWithFreshUrls;
           if (hasFileEditTools && messagesWithFreshUrls.length > 0) {
             const { uploadMessageAttachmentsToSandbox, getWorkspaceContextText, workspacePathForFilename } = await import('./lib/sandboxService');
-            const lastUserMessage = [...messagesWithFreshUrls].reverse().find((m: any) => m.role === 'user');
-            if (lastUserMessage) {
-              await uploadMessageAttachmentsToSandbox(chatId, lastUserMessage, supabase);
+            // Upload attachments from ALL user messages (not just last) so that
+            // files from earlier messages are restored when the sandbox has expired.
+            const userMessages = messagesWithFreshUrls.filter((m: any) => m.role === 'user');
+            for (const userMsg of userMessages) {
+              await uploadMessageAttachmentsToSandbox(chatId, userMsg, supabase);
             }
             messagesForProcess = messagesWithFreshUrls.map((m: any) => ({ ...m, parts: Array.isArray(m.parts) ? [...m.parts] : m.parts }));
+            const isTextOrCodePart = (part: { type?: string; mediaType?: string; filename?: string }) => {
+              if (part.type !== 'file') return false;
+              const ct = (part.mediaType || '').toLowerCase();
+              const name = part.filename || '';
+              if (ct.startsWith('image/') || ct === 'application/pdf') return false;
+              const codeExt = /\.(js|ts|jsx|tsx|py|java|c|cpp|cs|go|rb|php|html|css|sql|scala|swift|kt|rs|dart|json|xml|yaml|yml|md|txt|csv)$/i;
+              return !!name.match(codeExt) || ct.includes('text/') || ct.includes('javascript') || ct.includes('json');
+            };
+            // Replace file attachment parts with workspace path hints in ALL user messages
             let lastUserMsgIdx = -1;
-            for (let i = messagesForProcess.length - 1; i >= 0; i--) {
+            for (let i = 0; i < messagesForProcess.length; i++) {
               const msg = messagesForProcess[i];
               if (msg.role === 'user' && msg.parts && Array.isArray(msg.parts)) {
                 lastUserMsgIdx = i;
-                const isTextOrCodePart = (part: { type?: string; mediaType?: string; filename?: string }) => {
-                  if (part.type !== 'file') return false;
-                  const ct = (part.mediaType || '').toLowerCase();
-                  const name = part.filename || '';
-                  if (ct.startsWith('image/') || ct === 'application/pdf') return false;
-                  const codeExt = /\.(js|ts|jsx|tsx|py|java|c|cpp|cs|go|rb|php|html|css|sql|scala|swift|kt|rs|dart|json|xml|yaml|yml|md|txt|csv)$/i;
-                  return !!name.match(codeExt) || ct.includes('text/') || ct.includes('javascript') || ct.includes('json');
-                };
                 msg.parts = msg.parts.map((part: any) => {
                   if (isTextOrCodePart(part)) {
                     const path = workspacePathForFilename(part.filename || 'file');
@@ -519,7 +567,6 @@ export async function POST(req: Request): Promise<Response> {
                   }
                   return part;
                 });
-                break;
               }
             }
             const workspaceText = await getWorkspaceContextText(chatId, supabase);

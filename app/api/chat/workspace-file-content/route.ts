@@ -1,10 +1,13 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { getWorkspaceFileContent } from '@/app/api/chat/lib/sandboxService';
+import { getWorkspaceFileContent, isBinaryStorageRef, getWorkspaceFileDownloadUrl } from '@/app/api/chat/lib/sandboxService';
 
 /**
  * GET /api/chat/workspace-file-content?chatId=...&path=...
  * Returns the current content of a workspace file from chat_workspace_files.
+ *
+ * For text files: { content: "..." }
+ * For binary files (storage:// ref): { content: null, isBinary: true, downloadUrl: "...", filename: "..." }
  */
 export async function GET(req: NextRequest) {
   try {
@@ -39,6 +42,16 @@ export async function GET(req: NextRequest) {
 
     if (content === null) {
       return NextResponse.json({ content: null }, { status: 404 });
+    }
+
+    // Binary file stored in Supabase Storage – return signed download URL
+    if (isBinaryStorageRef(content)) {
+      const downloadUrl = await getWorkspaceFileDownloadUrl(chatId, path, supabase);
+      const filename = path.replace(/^.*[/\\]/, '') || 'download';
+      if (!downloadUrl) {
+        return NextResponse.json({ error: 'Binary file download URL could not be generated' }, { status: 500 });
+      }
+      return NextResponse.json({ content: null, isBinary: true, downloadUrl, filename });
     }
 
     return NextResponse.json({ content });

@@ -17,6 +17,7 @@ export function useChatSession(initialChatId?: string) {
           title: input.slice(0, 30) + (input.length > 30 ? '...' : '') || 'New Chat',
           created_at: new Date().toISOString(),
           current_model: model,
+          initial_message: input || undefined,
         }
       }));
     }

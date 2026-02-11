@@ -40,6 +40,28 @@ const isImageAttachment = (attachment: Attachment) => {
   return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name);
 };
 
+const isVideoAttachment = (attachment: Attachment) => {
+  const contentType = attachment.contentType || '';
+  if (contentType.startsWith('video/')) {
+    return true;
+  }
+  if (attachment.fileType === 'video') {
+    return true;
+  }
+  const name = attachment.name || '';
+  return /\.(mp4|mov|avi|wmv|flv|mkv|webm)$/i.test(name);
+};
+
+const resolveAttachmentMediaType = (attachment: Attachment) => {
+  if (attachment.contentType) {
+    return attachment.contentType;
+  }
+  if (isVideoAttachment(attachment)) {
+    return 'video/mp4';
+  }
+  return 'application/octet-stream';
+};
+
 const createMessageParts = (text: string, attachments: Attachment[] = []) => {
   const trimmed = text.trim();
   const parts: any[] = [];
@@ -60,7 +82,7 @@ const createMessageParts = (text: string, attachments: Attachment[] = []) => {
     parts.push({
       type: 'file',
       url: attachment.url,
-      mediaType: attachment.contentType || 'application/octet-stream',
+      mediaType: resolveAttachmentMediaType(attachment),
       filename: attachment.name || 'file',
     });
   });
@@ -122,7 +144,14 @@ const ChatView = memo(function ChatView({
   isPanelMaximized,
   contextSummary,
   onLoadMore,
-  hasMore
+  hasMore,
+  isMessageSelectionMode,
+  selectedMessageIds,
+  onEnterMessageSelectionMode,
+  onToggleMessageSelection,
+  onCloseMessageSelectionMode,
+  onDeleteSelectedMessages,
+  isDeletingSelectedMessages
 }: any) {
   // 🚀 PERF: 인라인 함수 메모이제이션으로 VirtualizedMessages memo 유효화
   const memoizedOnRegenerate = useCallback((messageId: string) => {
@@ -179,47 +208,58 @@ const ChatView = memo(function ChatView({
             contextSummary={contextSummary}
             onLoadMore={onLoadMore}
             hasMore={hasMore}
+            isMessageSelectionMode={isMessageSelectionMode}
+            selectedMessageIds={selectedMessageIds}
+            onEnterMessageSelectionMode={onEnterMessageSelectionMode}
+            onToggleMessageSelection={onToggleMessageSelection}
+            onCloseMessageSelectionMode={onCloseMessageSelectionMode}
+            onDeleteSelectedMessages={onDeleteSelectedMessages}
+            isDeletingSelectedMessages={isDeletingSelectedMessages}
           />
         </div>
       </div>
 
       {/* SidePanel for both mobile and desktop */}
-      <SidePanel
-        activePanel={activePanel}
-        messages={messages}
-        togglePanel={togglePanel}
-        canvasContainerRef={canvasContainerRef}
-        onMaximizeToggle={handleMaximizeToggle}
-        isPanelMaximized={isPanelMaximized}
-        chatId={chatId}
-        userId={user?.id}
-      />
+      {!isMessageSelectionMode && (
+        <SidePanel
+          activePanel={activePanel}
+          messages={messages}
+          togglePanel={togglePanel}
+          canvasContainerRef={canvasContainerRef}
+          onMaximizeToggle={handleMaximizeToggle}
+          isPanelMaximized={isPanelMaximized}
+          chatId={chatId}
+          userId={user?.id}
+        />
+      )}
 
       {/* Fixed composer at bottom */}
-      <ChatInputArea
-        currentModel={currentModel}
-        nextModel={nextModel}
-        setNextModel={handleModelSelectorChange}
-        disabledLevels={rateLimitedLevels}
-        isAgentEnabled={isAgentEnabled}
-        onAgentAvailabilityChange={setHasAgentModels}
-        setisAgentEnabled={setisAgentEnabled}
-        input={input}
-        handleInputChange={handleInputChange}
-        handleSubmit={handleSubmit}
-        isLoading={isLoading}
-        stop={stop}
-        user={{...user, hasAgentModels}}
-        modelId={nextModel}
-        allMessages={messages}
-        globalDragActive={globalDragActive}
-        globalShowPDFError={globalShowPDFError}
-        globalShowFolderError={globalShowFolderError}
-        globalShowVideoError={globalShowVideoError}
-        selectedTool={selectedTool}
-        setSelectedTool={setSelectedTool}
-        hasBackgroundImage={false}
-      />
+      {!isMessageSelectionMode && (
+        <ChatInputArea
+          currentModel={currentModel}
+          nextModel={nextModel}
+          setNextModel={handleModelSelectorChange}
+          disabledLevels={rateLimitedLevels}
+          isAgentEnabled={isAgentEnabled}
+          onAgentAvailabilityChange={setHasAgentModels}
+          setisAgentEnabled={setisAgentEnabled}
+          input={input}
+          handleInputChange={handleInputChange}
+          handleSubmit={handleSubmit}
+          isLoading={isLoading}
+          stop={stop}
+          user={{...user, hasAgentModels}}
+          modelId={nextModel}
+          allMessages={messages}
+          globalDragActive={globalDragActive}
+          globalShowPDFError={globalShowPDFError}
+          globalShowFolderError={globalShowFolderError}
+          globalShowVideoError={globalShowVideoError}
+          selectedTool={selectedTool}
+          setSelectedTool={setSelectedTool}
+          hasBackgroundImage={false}
+        />
+      )}
     </main>
   );
 });
@@ -600,6 +640,7 @@ export default function ChatInterface({
               created_at: new Date().toISOString(),
               last_activity_at: new Date().toISOString(),
               current_model: nextModel,
+              initial_message: messageText || undefined,
             }
           }));
         }
@@ -835,6 +876,10 @@ export default function ChatInterface({
   // 🔧 FIX: totalMessageCount를 사용하여 정확한 hasMore 계산
   const [hasMore, setHasMore] = useState(totalMessageCount > MESSAGES_PAGE_SIZE);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isMessageSelectionMode, setIsMessageSelectionMode] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
+  const [isDeletingSelectedMessages, setIsDeletingSelectedMessages] = useState(false);
+  const selectedMessageIdSet = useMemo(() => new Set(selectedMessageIds), [selectedMessageIds]);
 
   // 🔧 FIX: totalMessageCount가 비동기로 로드되므로 hasMore 상태 업데이트
   useEffect(() => {
@@ -897,6 +942,107 @@ export default function ChatInterface({
       setIsLoadingMore(false);
     }
   }, [chatId, hasMore, isLoadingMore, messages, user?.id, anonymousId, setMessages]);
+
+  const handleEnterMessageSelectionMode = useCallback((_messageId: string) => {
+    setIsMessageSelectionMode(true);
+    setSelectedMessageIds([]);
+  }, []);
+
+  const handleToggleMessageSelection = useCallback((messageId: string) => {
+    setSelectedMessageIds(prev =>
+      prev.includes(messageId)
+        ? prev.filter(id => id !== messageId)
+        : [...prev, messageId]
+    );
+  }, []);
+
+  const handleCloseMessageSelectionMode = useCallback(() => {
+    setIsMessageSelectionMode(false);
+    setSelectedMessageIds([]);
+  }, []);
+
+  const handleDeleteSelectedMessages = useCallback(async () => {
+    if (selectedMessageIds.length === 0 || isDeletingSelectedMessages) return;
+
+    const confirmed = window.confirm(
+      `Delete ${selectedMessageIds.length} selected message(s)?`
+    );
+    if (!confirmed) return;
+
+    setIsDeletingSelectedMessages(true);
+    const idsToDelete = [...selectedMessageIds];
+
+    try {
+      const currentChatId = initialChatId || chatId;
+      const isAnonymousUser = !user || isAnonymous || user.id === 'anonymous';
+
+      if (!isAnonymousUser) {
+        const { createClient } = await import('@/utils/supabase/client');
+        const supabase = createClient();
+
+        const { error: deleteError } = await supabase
+          .from('messages')
+          .delete()
+          .eq('chat_session_id', currentChatId)
+          .eq('user_id', user!.id)
+          .in('id', idsToDelete);
+
+        if (deleteError) throw deleteError;
+
+        // Keep bookmarks table in sync for deleted messages.
+        await supabase
+          .from('message_bookmarks')
+          .delete()
+          .eq('chat_session_id', currentChatId)
+          .eq('user_id', user!.id)
+          .in('message_id', idsToDelete);
+      }
+
+      setMessages(prev => prev.filter(msg => !idsToDelete.includes(msg.id)));
+      setActivePanel(prev => (prev && idsToDelete.includes(prev.messageId) ? null : prev));
+      setSelectedMessageIds([]);
+      setIsMessageSelectionMode(false);
+    } catch (error) {
+      console.error('Failed to delete selected messages:', error);
+      alert('Failed to delete selected messages. Please try again.');
+    } finally {
+      setIsDeletingSelectedMessages(false);
+    }
+  }, [
+    selectedMessageIds,
+    isDeletingSelectedMessages,
+    initialChatId,
+    chatId,
+    user,
+    isAnonymous,
+    setMessages
+  ]);
+
+  useEffect(() => {
+    setIsMessageSelectionMode(false);
+    setSelectedMessageIds([]);
+  }, [initialChatId, chatId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(
+      new CustomEvent('chatMessageSelectionModeChanged', {
+        detail: { active: isMessageSelectionMode }
+      })
+    );
+  }, [isMessageSelectionMode]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('chatMessageSelectionModeChanged', {
+            detail: { active: false }
+          })
+        );
+      }
+    };
+  }, []);
 
   // 모델 초기화 - 인증 상태에 따라
   useEffect(() => {
@@ -1544,6 +1690,13 @@ export default function ChatInterface({
       contextSummary={contextSummary}
       onLoadMore={handleLoadMore}
       hasMore={hasMore}
+      isMessageSelectionMode={isMessageSelectionMode}
+      selectedMessageIds={selectedMessageIdSet}
+      onEnterMessageSelectionMode={handleEnterMessageSelectionMode}
+      onToggleMessageSelection={handleToggleMessageSelection}
+      onCloseMessageSelectionMode={handleCloseMessageSelectionMode}
+      onDeleteSelectedMessages={handleDeleteSelectedMessages}
+      isDeletingSelectedMessages={isDeletingSelectedMessages}
     />
   );
 }
