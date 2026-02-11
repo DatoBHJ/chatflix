@@ -203,7 +203,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Get user and load only personal info memory
+    // Get user and load personal core memory
     // 🚀 최적화: 클라이언트에서 전달된 메모리를 우선 사용 (localStorage 캐시 활용)
     const { personalInfoMemory: clientMemory } = body
     let personalInfoMemory: string | null = clientMemory || null
@@ -214,7 +214,7 @@ export async function POST(req: NextRequest) {
       const { data: { user } } = await supabase.auth.getUser()
       
       if (user) {
-        const { data: memoryData } = await getAllMemoryBank(supabase, user.id, ['00-personal-info'])
+        const { data: memoryData } = await getAllMemoryBank(supabase, user.id, ['00-personal-core'])
         personalInfoMemory = memoryData || null
       }
     }

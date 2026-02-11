@@ -178,7 +178,7 @@ export async function loadMemoryWithCache(
       const parts: string[] = [];
       
       // 카테고리 순서대로 정렬
-      const categoryOrder = ['00-personal-info', '01-preferences', '02-interests'];
+      const categoryOrder = ['00-personal-core', '01-interest-core', '02-active-context'];
       const filteredCategories = categories 
         ? data.categories.filter((c: any) => categories.includes(c.category))
         : data.categories;

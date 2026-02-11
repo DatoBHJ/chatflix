@@ -10,12 +10,12 @@ function generateFallbackMemoryContent(systemPrompt: string, userPrompt: string)
   
   // 시스템 프롬프트에서 메모리 카테고리 추출 시도
   let category = 'general';
-  if (systemPrompt.includes('personal information') || userPrompt.includes('personal')) {
-    category = 'personal-info';
-  } else if (systemPrompt.includes('preferences')) {
-    category = 'preferences';
-  } else if (systemPrompt.includes('interests')) {
-    category = 'interests';
+  if (systemPrompt.includes('personal core') || userPrompt.includes('personal core')) {
+    category = 'personal-core';
+  } else if (systemPrompt.includes('interest core') || userPrompt.includes('primary interests')) {
+    category = 'interest-core';
+  } else if (systemPrompt.includes('active context') || userPrompt.includes('current focus')) {
+    category = 'active-context';
   }
   
   return `# ${category.charAt(0).toUpperCase() + category.slice(1)} (Fallback Mode)

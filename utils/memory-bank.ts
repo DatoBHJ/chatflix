@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 
-export const ALLOWED_MEMORY_CATEGORIES = ['00-personal-info', '01-preferences', '02-interests'] as const;
+export const ALLOWED_MEMORY_CATEGORIES = ['00-personal-core', '01-interest-core', '02-active-context'] as const;
 type AllowedMemoryCategory = typeof ALLOWED_MEMORY_CATEGORIES[number];
 
 export const ALLOWED_MEMORY_CATEGORY_ARRAY: AllowedMemoryCategory[] = [...ALLOWED_MEMORY_CATEGORIES];
@@ -56,7 +56,7 @@ export async function getUserPersonalInfo(
   supabase: SupabaseClient,
   userId: string
 ): Promise<string | null> {
-  const { data, error } = await getMemoryBankEntry(supabase, userId, '00-personal-info');
+  const { data, error } = await getMemoryBankEntry(supabase, userId, '00-personal-core');
   return error ? null : data;
 }
 
@@ -205,47 +205,41 @@ export async function initializeMemoryBank(
   
   const defaultEntries = [
     {
-      category: '00-personal-info',
-      content: `# Personal Information
+      category: '00-personal-core',
+      content: `# Personal Core
 
-## Basic Details
+## Identity Snapshot
 - Name: ${userName}
 - Member since: ${joinDate}
 
-## Professional Context
+## Background Summary
 - Occupation: [To be determined from conversations]
 - Expertise level: [To be determined from conversations]
 - Fields: [To be determined from conversations]
 ${emailInfo}
 
-## Usage Patterns
-- New user, patterns will be identified with more interactions
+## Communication Profile
+- Preferred language: [To be determined from conversations]
+- Response style baseline: [To be determined from conversations]
 `
     },
     {
-      category: '01-preferences',
-      content: `# User Preferences
-
-## Communication Style
-- Preferred response length: [To be determined from interactions]
-- Technical detail level: [To be determined from interactions]
-- Tone preference: [To be determined from interactions]
-
-## Response Format Preferences
-- Structure preference: [To be determined from interactions]
-- Organization style: [To be determined from interactions]
-- Detail presentation: [To be determined from interactions]
-`
-    },
-    {
-      category: '02-interests',
-      content: `# User Interests
+      category: '01-interest-core',
+      content: `# Interest Core
 
 ## Primary Interests
 - [To be determined from conversations]
+`
+    },
+    {
+      category: '02-active-context',
+      content: `# Active Context
 
-## Recent Topics
-- First interactions with the system
+## Current Focus
+- [No active focus captured yet]
+
+## Learning Snapshot
+- [No learning snapshot captured yet]
 `
     }
   ];

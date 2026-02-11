@@ -18,6 +18,7 @@ interface UserMemoryCache {
 // 메모리 캐시 (서버 재시작 시 초기화됨)
 const userMemoryCache: UserMemoryCache = {};
 const CACHE_DURATION = 30 * 60 * 1000; // 30분 캐시
+const ACTIVE_CONTEXT_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12시간 이내면 조건부 주입
 
 /**
  * 사용자 메모리를 캐시에서 가져오거나 DB에서 로드
@@ -36,13 +37,29 @@ export async function getCachedUserMemory(userId: string): Promise<string | null
     const supabase = await createClient();
     const { getAllMemoryBank } = await import('@/utils/memory-bank');
     
-    // 필요한 메모리 카테고리만 로드 (개인정보/관심사)
-    // Preferences 항목은 제외됨
+    // 기본 메모리 카테고리만 로드 (개인 코어/관심사 코어)
     const categoriesToLoad = [
-      '00-personal-info',
-      '02-interests'
+      '00-personal-core',
+      '01-interest-core'
     ];
-    const { data: memoryData } = await getAllMemoryBank(supabase, userId, categoriesToLoad);
+    const { data: coreMemoryData } = await getAllMemoryBank(supabase, userId, categoriesToLoad);
+    let memoryData = coreMemoryData;
+
+    // active-context는 최근성 기반으로만 조건부 주입
+    const { data: activeContextRow } = await supabase
+      .from('memory_bank')
+      .select('category, content, updated_at')
+      .eq('user_id', userId)
+      .eq('category', '02-active-context')
+      .maybeSingle();
+
+    if (activeContextRow?.content && activeContextRow.updated_at) {
+      const age = Date.now() - new Date(activeContextRow.updated_at).getTime();
+      if (age <= ACTIVE_CONTEXT_MAX_AGE_MS) {
+        const activeContextBlock = `## 02 Active Context\n\n${activeContextRow.content}`;
+        memoryData = memoryData ? `${memoryData}\n\n---\n\n${activeContextBlock}` : activeContextBlock;
+      }
+    }
     
     // 캐시 업데이트
     userMemoryCache[userId] = {
@@ -186,9 +203,10 @@ When users ask about Chatflix's features, capabilities, or what you can do, prov
 
 
 ## Memory Bank System (Personalization)
-Chatflix learns from conversations to provide tailored responses. All memory is distilled into exactly two persistent categories (viewable at \`/memory\`):
-1. **Personal Info (\`00-personal-info\`)**: Name, background, and professional context.
-2. **Interests (\`02-interests\`)**: Recurring topics, focus areas, and learning goals.
+Chatflix learns from conversations to provide tailored responses. Memory is organized into three categories (viewable at \`/memory\`):
+1. **Personal Core (\`00-personal-core\`)**: Name, background, and stable profile context.
+2. **Interest Core (\`01-interest-core\`)**: Durable primary interests only.
+3. **Active Context (\`02-active-context\`)**: Short-lived current focus and learning snapshot.
 
 **User Control & Commands:**
 Users have full control. They can edit via the \`/memory\` page or use natural commands:

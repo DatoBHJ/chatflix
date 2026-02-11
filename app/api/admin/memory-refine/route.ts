@@ -1,7 +1,6 @@
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { ALLOWED_MEMORY_CATEGORY_ARRAY, isAllowedMemoryCategory } from '@/utils/memory-bank';
-import { getTopLongSessions, getSessionDigest, SessionDigest } from '@/utils/session-analysis';
 import { getUserLocaleInfo, getUserTrendsPreferences, formatTrendsPreferencesForPrompt } from '@/lib/user-locale';
 import { getGeoOptions } from '@/lib/trends/options';
 
@@ -12,35 +11,10 @@ const REFINE_MODEL = 'gemini-2.5-flash-lite';
 const REFINE_MAX_TOKENS = 4000; // Increased to cover roughly 50 messages per run
 
 const MEMORY_CATEGORIES = {
-  PERSONAL_INFO: '00-personal-info',
-  PREFERENCES: '01-preferences',
-  INTERESTS: '02-interests'
+  PERSONAL_CORE: '00-personal-core',
+  INTEREST_CORE: '01-interest-core',
+  ACTIVE_CONTEXT: '02-active-context'
 } as const;
-
-const PREFERENCE_SESSION_LIMIT = 3;
-
-type PreferenceRefineContext = {
-  personalInfo: string;
-  interests: string;
-  sessionDigests: SessionDigest[];
-};
-
-function formatSessionDigestsForPrompt(digests: SessionDigest[]): string {
-  if (!digests.length) {
-    return 'No long-form sessions met the minimum threshold. Use the recent conversation context as fallback.';
-  }
-
-  return digests.map((digest, index) => {
-    const duration = digest.durationMinutes ? digest.durationMinutes.toFixed(1) : '0';
-    return `### Session ${index + 1}: ${digest.title}
-- Messages: ${digest.messageCount} (User ${digest.userMessages} / Assistant ${digest.assistantMessages})
-- Duration: ${duration} minutes
-- Total tokens: ${Math.round(digest.totalTokens)}
-- Score: ${digest.score}
-Conversation Excerpt:
-${digest.conversationExcerpt}`;
-  }).join('\n\n');
-}
 
 function describeTrendsPreference(preference?: ReturnType<typeof formatTrendsPreferencesForPrompt>): string {
   if (!preference) {
@@ -159,82 +133,17 @@ async function refineUserMemory(userId: string, supabase: any, categoryFilter?: 
       ? recentMessages.map((msg: any) => `${msg.role}: ${msg.content}`).join('\n')
       : 'No recent conversation data available';
 
-    // Store refined content for dependencies (preferences needs refined personal-info and interests)
+    // Store refined content in map (for multi-category refine flows)
     const refinedContentMap: Record<string, string> = {};
-
-    let preferenceContextCache: PreferenceRefineContext | null = null;
-    let preferenceSessionDigests: SessionDigest[] = [];
-
-    const ensurePreferenceContext = async (): Promise<PreferenceRefineContext> => {
-      if (preferenceContextCache) {
-        preferenceSessionDigests = preferenceContextCache.sessionDigests;
-        return preferenceContextCache;
-      }
-
-      // Prefer refined content if available (from current refine session), otherwise fetch from DB
-      let personalInfoContent = refinedContentMap[MEMORY_CATEGORIES.PERSONAL_INFO];
-      let interestsContent = refinedContentMap[MEMORY_CATEGORIES.INTERESTS];
-
-      // If not yet refined in this session, fetch from DB (may be refined from previous run)
-      if (!personalInfoContent || !interestsContent) {
-        const { data: dbMemory } = await supabase
-          .from('memory_bank')
-          .select('category, content')
-          .eq('user_id', userId)
-          .in('category', [MEMORY_CATEGORIES.PERSONAL_INFO, MEMORY_CATEGORIES.INTERESTS]);
-
-        dbMemory?.forEach((row: any) => {
-          if (row.category === MEMORY_CATEGORIES.PERSONAL_INFO && !personalInfoContent) {
-            personalInfoContent = row.content || '';
-          }
-          if (row.category === MEMORY_CATEGORIES.INTERESTS && !interestsContent) {
-            interestsContent = row.content || '';
-          }
-        });
-      }
-
-      // Fallback to original memory entries if still missing
-      if (!personalInfoContent) {
-        personalInfoContent = memoryEntries.find((entry: any) => entry.category === MEMORY_CATEGORIES.PERSONAL_INFO)?.content || '';
-      }
-      if (!interestsContent) {
-        interestsContent = memoryEntries.find((entry: any) => entry.category === MEMORY_CATEGORIES.INTERESTS)?.content || '';
-      }
-
-      const sessionInsights = await getTopLongSessions(supabase, userId, PREFERENCE_SESSION_LIMIT + 2);
-      const sessionDigests: SessionDigest[] = [];
-
-      for (const insight of sessionInsights) {
-        const digest = await getSessionDigest(supabase, userId, insight.sessionId, {
-          baseMetrics: insight,
-          messageLimit: 50
-        });
-        if (digest) {
-          sessionDigests.push(digest);
-        }
-        if (sessionDigests.length >= PREFERENCE_SESSION_LIMIT) {
-          break;
-        }
-      }
-
-      preferenceContextCache = {
-        personalInfo: personalInfoContent || 'No personal info recorded yet.',
-        interests: interestsContent || 'No interests recorded yet.',
-        sessionDigests
-      };
-      preferenceSessionDigests = sessionDigests;
-
-      return preferenceContextCache;
-    };
 
     console.log(`📝 [REFINE] Fetched ${recentMessages?.length || 0} recent messages for user ${userId}`);
 
     let successCount = 0;
     let errorCount = 0;
 
-    // Sort entries to ensure personal-info and interests are refined before preferences
+    // Sort entries: personal-core, interest-core, active-context
     const sortedEntries = [...memoryEntries].sort((a, b) => {
-      const order = ['00-personal-info', '02-interests', '01-preferences'];
+      const order = ['00-personal-core', '01-interest-core', '02-active-context'];
       const aIndex = order.indexOf(a.category);
       const bIndex = order.indexOf(b.category);
       if (aIndex === -1 && bIndex === -1) return 0;
@@ -248,7 +157,7 @@ async function refineUserMemory(userId: string, supabase: any, categoryFilter?: 
       let systemPrompt = '';
       let userPrompt = '';
 
-      if (entry.category === '00-personal-info') {
+      if (entry.category === MEMORY_CATEGORIES.PERSONAL_CORE) {
         const [localeInfo, trendsPreferencesRaw] = await Promise.all([
           getUserLocaleInfo(userId, supabase),
           getUserTrendsPreferences(userId, supabase),
@@ -276,11 +185,10 @@ async function refineUserMemory(userId: string, supabase: any, categoryFilter?: 
         systemPrompt = `You are a memory refinement specialist for personal information. Rewrite the profile so it reads like how a close colleague would describe the user.
 
 CRITICAL FORMAT REQUIREMENTS:
-- Output ONLY these sections in this exact order: ## Basic Details, ## Professional Context, ## Key Characteristics, ## Pinned Memories (User Requested)
+- Output ONLY these sections in this exact order: ## Basic Details, ## Professional Context, ## Key Characteristics
 - Each section may contain up to 3 short bullet sentences (no nested lists, no enumerated examples)
 - Never repeat the same fact in multiple sections
 - Start each sentence directly with the fact; avoid generic openings like "the user...", "they...", or "he/she..."
-- Pinned entries must follow "- [PINNED] <instruction>" format and ONLY appear when the user explicitly asked to remember/add/delete/modify something; if none exist output "- [PINNED] None yet"
 - No meta commentary or additional prose outside the sections
 
 LOCALE INFORMATION USAGE:
@@ -298,9 +206,8 @@ TRENDS PREFERENCES USAGE:
 
 GUIDELINES:
 1. Compress long lists into memorable sentences capturing only core traits
-2. Move explicit "remember/save/add/delete" requests (and only those) to the pinned section
-3. If data is missing use "- [To be determined]" instead of fabricating info
-4. If locale information is provided, prioritize it over inferring from conversation content`;
+2. If data is missing use "- [To be determined]" instead of fabricating info
+3. If locale information is provided, prioritize it over inferring from conversation content`;
 
         userPrompt = `Refine the following personal information by combining existing memory with recent conversation context. Keep only the essence.
 
@@ -310,100 +217,21 @@ ${entry.content}
 RECENT CONVERSATION CONTEXT (last 50 messages):
 ${conversationText}
 
-Return a markdown profile containing ONLY the sections ## Basic Details, ## Professional Context, ## Key Characteristics, ## Pinned Memories (User Requested) abiding by the rules above.`;
+Return a markdown profile containing ONLY the sections ## Basic Details, ## Professional Context, ## Key Characteristics abiding by the rules above.`;
 
-      } else if (entry.category === MEMORY_CATEGORIES.PREFERENCES) {
-        // NOTE: Preferences refine intentionally consumes personal-info + interests snapshots
-        // so the generated strategy bullets can reference names/context without re-deriving them.
-        const preferenceContext = await ensurePreferenceContext();
-        const sessionDigestText = formatSessionDigestsForPrompt(preferenceContext.sessionDigests);
-
-        systemPrompt = `You are a conversation strategy analyst producing a concise "briefing card" for the assistant.
-
-OUTPUT GOAL:
-Deliver a short, scannable report of executive-style bullet points. Zero repetition, zero filler. The assistant should be able to glance at the document and immediately know how to respond.
-
-STRUCTURE (output in this exact order):
-## Communication Style
-## Response Format Preferences
-## Session-driven Insights
-## Pinned Memories (User Requested)
-
-LANGUAGE REQUIREMENT:
-- Extract the language preference from the PERSONAL INFO SNAPSHOT's "## Basic Details" section
-- Write the entire preferences output in the same language as indicated in personal-info
-- If personal-info is in Korean, write preferences in Korean. If in English, write in English.
-- Match the language exactly as stored in personal-info
-
-WRITING RULES (CRITICAL):
-1. Never start a bullet with the user's name or generic phrases like "the user", "he", "she", or command endings such as "do X". Vary the openings.
-2. Use noun-phrase conclusions or tight imperative clauses, e.g.
-   ✓ "Lead with TL;DR, deepen only when asked"
-   ✓ "Accuracy first; admit and correct mistakes immediately"
-   ✓ "Financial takes should cite respected analysts plus community sentiment"
-   ✗ "GOAT prefers summaries so provide a summary"
-3. Keep each bullet within 15 words. One idea per bullet; no nested lists or enumerated examples.
-4. Do not restate the same directive across multiple sections.
-5. Session-driven Insights must cite the session title (or an obvious descriptor) followed by one lesson (e.g., "'Memory system review' — long-winded explanations caused drop-off"). If no long sessions exist, output "- Derived from limited recent conversations."
-6. Pinned section entries must use "- [PINNED] ..." and only reflect explicit user commands (remember/save/add/delete/modify). Otherwise output "- [PINNED] None yet".
-7. When evidence is thin, write "- Need additional conversation data" instead of inventing guidance.
-
-FLOW HINT:
-- Communication Style → tone, depth, critical-thinking posture
-- Response Format → structural expectations (TL;DR order, tables, code snippets, error handling patterns)
-- Session-driven Insights → concrete lessons from the long conversations above
-- Pinned Memories → literal user requests
-
-Keep the entire output under 20 bullets total. Think briefing card, not essay.`;
-
-        userPrompt = `Generate the user's preference briefing card.
-
----
-PERSONAL INFO SNAPSHOT:
-${preferenceContext.personalInfo}
-
-INTEREST SNAPSHOT:
-${preferenceContext.interests}
-
-EXISTING PREFERENCES (REFERENCE ONLY):
-${entry.content || 'No previous preferences recorded.'}
-
-LONG SESSION DIGESTS (${preferenceContext.sessionDigests.length || 0} sessions):
-${sessionDigestText}
-
-RECENT CONVERSATION CONTEXT (last 50 messages):
-${conversationText}
----
-
-CRITICAL: First, identify the language used in the PERSONAL INFO SNAPSHOT's "## Basic Details" section. Write the entire preferences output in that same language.
-
-INSTRUCTIONS:
-1. Extract the language from personal-info's Basic Details section and write preferences in that language.
-2. Fuse the datasets above into a single briefing card containing no more than 20 bullets total.
-3. Communication Style: produce 3-4 bullets covering tone, depth, and critical-thinking expectations.
-4. Response Format Preferences: produce 3-4 bullets describing structure (TL;DR order, tables, code blocks, error-handling rituals, etc.).
-5. Session-driven Insights: output one bullet per long session referencing its title plus the lesson; if none exist, write "- Derived from limited recent conversations."
-6. Pinned Memories: include "- [PINNED] ..." entries only when the user explicitly asked to remember/save/add/delete/modify something; otherwise "- [PINNED] None yet".
-7. Vary sentence openings, keep every bullet crisp, and remove any redundant wording.
-8. Output only the markdown sections requested in the system prompt—no preface or concluding paragraph.`;
-
-      } else if (entry.category === '02-interests') {
-        systemPrompt = `You are a memory refinement specialist for user interests. Summarize what truly sticks about the user.
+      } else if (entry.category === MEMORY_CATEGORIES.INTEREST_CORE) {
+        systemPrompt = `You are a memory refinement specialist for user interest core.
 
 CRITICAL FORMAT REQUIREMENTS:
-- Output ONLY these sections: ## Primary Interests, ## Current Focus, ## Learning Journey, ## Pinned Memories (User Requested)
-- Each bullet must be a single vivid sentence (e.g., "Obsessed with comparing Seedream and Nano Banana Pro feature sets")
-- No duplicate facts between sections
-- Use the user's language and avoid enumerating every example
-- Start each sentence directly with the fact—avoid generic openings such as "the user..." or pronouns
-- Pinned section must contain "- [PINNED] ..." entries only for explicit remember/save/add/delete requests, otherwise "- [PINNED] None yet"
+- Output ONLY this section: ## Primary Interests
+- Keep 3-6 bullets maximum
+- Each bullet must use this format: "<topic>: <engagement-strength>"
+- Keep only stable, recurring interest themes
+- Remove tool logs, micro experiments, and one-off details
+- Merge semantically similar topics
+- No additional commentary outside the section`;
 
-GUIDELINES:
-1. Highlight recurring themes and present priorities instead of dumping every topic
-2. Translate long sublists into short descriptors with intensity hints (e.g., "high focus", "casual curiosity")
-3. Capture explicit memory requests—and only those—in the pinned section`;
-
-        userPrompt = `Refine the following interest profile using both existing memory and the recent conversation context. Keep it punchy and human.
+        userPrompt = `Refine the following interest-core profile using existing memory and recent conversation context.
 
 EXISTING MEMORY DATA:
 ${entry.content}
@@ -411,7 +239,26 @@ ${entry.content}
 RECENT CONVERSATION CONTEXT (last 50 messages):
 ${conversationText}
 
-Return markdown with ONLY the sections ## Primary Interests, ## Current Focus, ## Learning Journey, ## Pinned Memories (User Requested) following the rules above.`;
+Return markdown with ONLY the section ## Primary Interests.`;
+      } else if (entry.category === MEMORY_CATEGORIES.ACTIVE_CONTEXT) {
+        systemPrompt = `You are a memory refinement specialist for active context.
+
+CRITICAL FORMAT REQUIREMENTS:
+- Output ONLY these sections in order: ## Current Focus, ## Learning Snapshot
+- Keep each section 1-3 bullets maximum
+- Keep content short-lived and recent
+- Remove stale, duplicated, or outdated items
+- No additional commentary outside the sections`;
+
+        userPrompt = `Refine the following active-context profile using existing memory and recent conversation context.
+
+EXISTING MEMORY DATA:
+${entry.content}
+
+RECENT CONVERSATION CONTEXT (last 50 messages):
+${conversationText}
+
+Return markdown with ONLY the sections ## Current Focus and ## Learning Snapshot.`;
 
       } else {
         // Fallback for unknown categories
@@ -430,7 +277,6 @@ Make the content concise, well-organized, and up-to-date.`;
       const refinedContent = await callRefineAI(systemPrompt, userPrompt);
       
       if (refinedContent) {
-        // Store refined content in map for dependencies (preferences needs refined personal-info/interests)
         refinedContentMap[entry.category] = refinedContent;
 
         // Persist the refined content back to the database
@@ -449,11 +295,6 @@ Make the content concise, well-organized, and up-to-date.`;
         } else {
           console.log(`✅ [REFINE] Successfully refined ${entry.category} for user ${userId}`);
           successCount++;
-          
-          // Invalidate preference context cache if personal-info or interests were refined
-          if (entry.category === MEMORY_CATEGORIES.PERSONAL_INFO || entry.category === MEMORY_CATEGORIES.INTERESTS) {
-            preferenceContextCache = null;
-          }
         }
       } else {
         console.error(`❌ [REFINE] Failed to refine ${entry.category} for user ${userId}`);
@@ -461,21 +302,11 @@ Make the content concise, well-organized, and up-to-date.`;
       }
     }
 
-    const preferenceSessionSummaries = preferenceSessionDigests.map((digest: SessionDigest) => ({
-      sessionId: digest.sessionId,
-      title: digest.title,
-      messageCount: digest.messageCount,
-      durationMinutes: digest.durationMinutes,
-      totalTokens: digest.totalTokens,
-      score: digest.score
-    }));
-
     return { 
       success: successCount > 0, 
       successCount, 
       errorCount,
-      totalCategories: memoryEntries.length,
-      preferenceSessions: preferenceSessionSummaries
+      totalCategories: memoryEntries.length
     };
 
   } catch (error) {

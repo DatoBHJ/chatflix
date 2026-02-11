@@ -227,14 +227,14 @@ export const extractTextFromMessage = (msg: any): string => {
 
 /**
  * 메모리에서 언어 선호도 추출 함수
- * "About You" (00-personal-info) 메모리의 "## Basic Details" 섹션에서 "Language preference:" 찾기
+ * "Personal Core" (00-personal-core) 메모리의 "## Basic Details" 섹션에서 "Language preference:" 찾기
  */
 export function extractLanguagePreference(memoryData: string | null): string | null {
   if (!memoryData) return null;
   
   try {
-    // "## 00 Personal Info" 또는 "## 00-personal-info" 섹션 찾기 (About You 카테고리)
-    const personalInfoMatch = memoryData.match(/##\s+00\s+(?:Personal\s+Info|personal-info)\s+([\s\S]*?)(?=##\s+\d+|---|$)/i);
+    // "## 00 Personal Core" 또는 "## 00-personal-core" 섹션 찾기
+    const personalInfoMatch = memoryData.match(/##\s+00\s+(?:Personal\s+Core|personal-core)\s+([\s\S]*?)(?=##\s+\d+|---|$)/i);
     if (!personalInfoMatch) {
       // 대체: "## Basic Details" 섹션 직접 찾기 (다른 형식 지원)
       const basicDetailsMatch = memoryData.match(/##\s+Basic\s+Details\s+([\s\S]*?)(?=##|$)/i);

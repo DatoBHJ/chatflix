@@ -19,21 +19,21 @@ export interface CategoryData {
 
 // Category display names
 export const categoryNames: Record<string, string> = {
-  '00-personal-info': 'About You',
-  '01-preferences': 'Preferences', 
-  '02-interests': 'Interests'
+  '00-personal-core': 'Personal Core',
+  '01-interest-core': 'Interest Core',
+  '02-active-context': 'Active Context'
 }
 
 // Category subtitles
 export const categorySubtitles: Record<string, string> = {
-  '00-personal-info': 'Basic details and professional context',
-  '01-preferences': 'Communication style and response format',
-  '02-interests': 'Primary interests and recent topics'
+  '00-personal-core': 'High-level profile and stable user traits',
+  '01-interest-core': 'Primary interests only (durable taxonomy)',
+  '02-active-context': 'Current focus and short-term learning snapshot'
 }
 
 // Display order for cards
 export const displayOrder = [
-  '00-personal-info',
-  '02-interests',
-  '01-preferences'
+  '00-personal-core',
+  '01-interest-core',
+  '02-active-context'
 ]

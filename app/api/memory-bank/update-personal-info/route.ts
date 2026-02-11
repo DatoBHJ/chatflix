@@ -30,7 +30,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 즉시 personal-info 메모리 업데이트
+    // 즉시 personal-core 메모리 업데이트
     console.log(`🚀 [INSTANT UPDATE] Starting ${trigger} update for user ${user.id}`);
     
     // 빈 메시지 배열을 전달 - 이름 변경은 대화 컨텍스트와 무관하므로
@@ -39,20 +39,20 @@ export async function POST(req: Request) {
     console.log(`🚀 [INSTANT UPDATE] updatePersonalInfo result:`, result ? 'SUCCESS' : 'FAILED');
     
     if (result) {
-      console.log(`✅ [INSTANT UPDATE] Personal info updated successfully for user ${user.id}`);
+      console.log(`✅ [INSTANT UPDATE] Personal core updated successfully for user ${user.id}`);
       return new Response(JSON.stringify({ 
         success: true, 
-        message: 'Personal info updated successfully',
+        message: 'Personal core updated successfully',
         updated_content: result 
       }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       });
     } else {
-      console.error(`❌ [INSTANT UPDATE] Failed to update personal info for user ${user.id}`);
+      console.error(`❌ [INSTANT UPDATE] Failed to update personal core for user ${user.id}`);
       return new Response(JSON.stringify({ 
         success: false, 
-        message: 'Failed to update personal info' 
+        message: 'Failed to update personal core' 
       }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }

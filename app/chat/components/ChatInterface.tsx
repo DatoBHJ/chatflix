@@ -302,7 +302,7 @@ export default function ChatInterface({
     const loadMemory = async () => {
       if (user?.id && !isAnonymous) {
         try {
-          const memory = await loadMemoryWithCache(user.id, ['00-personal-info', '02-interests']);
+          const memory = await loadMemoryWithCache(user.id, ['00-personal-core', '01-interest-core']);
           setUserMemory(memory);
         } catch (error) {
           console.warn('Failed to load user memory:', error);
@@ -458,7 +458,7 @@ export default function ChatInterface({
       try {
         const { invalidateMemoryCache, loadMemoryWithCache } = await import('@/app/utils/memory-cache-client');
         invalidateMemoryCache(user.id);
-        const freshMemory = await loadMemoryWithCache(user.id, ['00-personal-info', '02-interests']);
+        const freshMemory = await loadMemoryWithCache(user.id, ['00-personal-core', '01-interest-core']);
         setUserMemory(freshMemory);
         console.log('🔄 [MEMORY] Client cache refreshed after message completion');
       } catch (error) {

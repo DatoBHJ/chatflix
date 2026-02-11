@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { LightBulb, BubbleChat, Heart } from 'react-ios-icons'
+import { LightBulb, BubbleChat } from 'react-ios-icons'
 import { MemoryBankData, CategoryData, categoryNames, categorySubtitles, displayOrder } from './types'
 
 // Touch handling for mobile swipe
@@ -173,19 +173,19 @@ export default function OverviewSection({
     const iconProps = { className: "w-24 h-24 text-[#2997FF]" }
     
     switch (category) {
-      case '00-personal-info':
+      case '00-personal-core':
         return (
           <svg {...iconProps} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
           </svg>
         )
-      case '01-preferences':
-        return (
-          <Heart {...iconProps} />
-        )
-      case '02-interests':
+      case '01-interest-core':
         return (
           <LightBulb {...iconProps} />
+        )
+      case '02-active-context':
+        return (
+          <BubbleChat {...iconProps} />
         )
       default:
         return (
@@ -213,7 +213,7 @@ export default function OverviewSection({
           You're<span className="sm:hidden"><br /></span> remembered.
         </h1>
         <p className="text-[clamp(1.25rem,5vw,1.5rem)] leading-normal text-[var(--foreground)] max-w-3xl mb-16 sm:mb-20">
-          Your Memory Bank captures your preferences, interests, and communication patterns across all conversations. This intelligent system ensures every interaction feels personal and contextually aware, from casual chats to weekend plans and everyday questions.
+          Your Memory Bank captures your personal core, primary interests, and active context across conversations. This keeps responses personalized without overloading the model with unnecessary details.
         </p>
       </div>
       
@@ -584,7 +584,7 @@ export default function OverviewSection({
                 Conversation-Based Updates
               </h3>
               <p className="text-lg text-[#86868B] leading-relaxed">
-                As you send messages, the system automatically analyzes conversations to capture new preferences, interests, and personal information.
+                As you send messages, the system automatically analyzes conversations to capture personal core updates, primary interests, and active context changes.
               </p>
             </div>
             

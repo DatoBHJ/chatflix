@@ -165,8 +165,8 @@ export function OnThisDayWidget({ widgetId, onPromptClick, isFullscreen = false,
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (user?.id) {
-          // personal-info만 미리 로드 (위젯에서 사용하는 카테고리)
-          await loadMemoryWithCache(user.id, ['00-personal-info'])
+          // personal-core만 미리 로드 (위젯에서 사용하는 카테고리)
+          await loadMemoryWithCache(user.id, ['00-personal-core'])
           console.log('⚡ [OnThisDayWidget] Memory preloaded on mount')
         }
       } catch (error) {
@@ -460,7 +460,7 @@ export function OnThisDayWidget({ widgetId, onPromptClick, isFullscreen = false,
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
-          personalInfoMemory = await loadMemoryWithCache(user.id, ['00-personal-info'])
+          personalInfoMemory = await loadMemoryWithCache(user.id, ['00-personal-core'])
         }
       } catch (error) {
         console.warn('Failed to load memory from cache:', error)
@@ -576,7 +576,7 @@ export function OnThisDayWidget({ widgetId, onPromptClick, isFullscreen = false,
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
-          personalInfoMemory = await loadMemoryWithCache(user.id, ['00-personal-info'])
+          personalInfoMemory = await loadMemoryWithCache(user.id, ['00-personal-core'])
         }
       } catch (error) {
         console.warn('Failed to load memory from cache:', error)

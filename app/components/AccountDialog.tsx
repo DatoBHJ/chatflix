@@ -124,8 +124,8 @@ export const updateUserName = async (userId: string, userName: string, supabase:
         // 🚀 최적화: localStorage 캐시 무효화 및 갱신
         try {
           const { invalidateMemoryCache, loadMemoryWithCache } = await import('@/app/utils/memory-cache-client');
-          invalidateMemoryCache(userId, ['00-personal-info']);
-          await loadMemoryWithCache(userId, ['00-personal-info']); // 캐시 갱신
+          invalidateMemoryCache(userId, ['00-personal-core']);
+          await loadMemoryWithCache(userId, ['00-personal-core']); // 캐시 갱신
           console.log('🔄 [MEMORY] Client cache refreshed after name change');
         } catch (error) {
           console.warn('Failed to refresh memory cache:', error);
@@ -691,8 +691,8 @@ export function AccountDialog({ user, isOpen, onClose, profileImage: initialProf
           // 🚀 최적화: localStorage 캐시 무효화 및 갱신
           try {
             const { invalidateMemoryCache, loadMemoryWithCache } = await import('@/app/utils/memory-cache-client');
-            invalidateMemoryCache(user?.id, ['00-personal-info']);
-            await loadMemoryWithCache(user?.id, ['00-personal-info']); // 캐시 갱신
+            invalidateMemoryCache(user?.id, ['00-personal-core']);
+            await loadMemoryWithCache(user?.id, ['00-personal-core']); // 캐시 갱신
             console.log('🔄 [MEMORY] Client cache refreshed after profile image change');
           } catch (error) {
             console.warn('Failed to refresh memory cache:', error);

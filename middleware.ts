@@ -114,9 +114,9 @@ export async function middleware(request: NextRequest) {
     return await updateSession(request)
   }
 
-  // Block access to Memory, Pensieve, and Changelog (whats-new) routes
+  // Block access to Pensieve and Changelog (whats-new) routes
   // API routes are allowed (for future use), but page routes are blocked
-  const blockedPaths = ['/memory', '/pensieve', '/whats-new']
+  const blockedPaths = ['/pensieve', '/whats-new']
   const isBlockedPath = blockedPaths.some((p) => request.nextUrl.pathname.startsWith(p))
   if (isBlockedPath) {
     const allowApi = request.nextUrl.pathname.startsWith('/api/memory') || request.nextUrl.pathname.startsWith('/api/pensieve')

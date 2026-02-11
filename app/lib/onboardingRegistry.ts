@@ -126,7 +126,7 @@ export const ONBOARDING_FEATURES: OnboardingFeature[] = [
     location: 'memory',
     displayType: 'tooltip',
     title: 'Your Memory Bank',
-    description: 'Chatflix remembers your preferences, interests, and patterns to personalize every interaction.',
+    description: 'Chatflix remembers your personal core, primary interests, and active context to personalize every interaction.',
     tooltipPosition: 'bottom',
     step: 1,
     condition: (context?: any) => {
