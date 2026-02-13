@@ -190,6 +190,8 @@ CRITICAL FORMAT REQUIREMENTS:
 - Never repeat the same fact in multiple sections
 - Start each sentence directly with the fact; avoid generic openings like "the user...", "they...", or "he/she..."
 - No meta commentary or additional prose outside the sections
+- Treat EXISTING MEMORY DATA as durable baseline and preserve established facts unless clearly contradicted.
+- Do not erase long-term profile facts just because they are absent from recent messages.
 
 LOCALE INFORMATION USAGE:
 - If USER LOCALE CONTEXT is provided, use it to determine the user's primary language and location
@@ -229,7 +231,9 @@ CRITICAL FORMAT REQUIREMENTS:
 - Keep only stable, recurring interest themes
 - Remove tool logs, micro experiments, and one-off details
 - Merge semantically similar topics
-- No additional commentary outside the section`;
+- No additional commentary outside the section
+- Treat EXISTING MEMORY DATA as baseline; preserve durable interests unless contradicted by strong evidence.
+- Recent conversation may add/tune interests, but must not replace the whole profile with one transient topic.`;
 
         userPrompt = `Refine the following interest-core profile using existing memory and recent conversation context.
 

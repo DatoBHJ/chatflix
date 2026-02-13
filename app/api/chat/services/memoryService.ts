@@ -299,7 +299,7 @@ COMPARISON LOGIC:
 
 // 최근 메시지 추출을 위한 상수
 // 가장 최근 메시지 5개만 고려 - 현재 대화의 직접적인 컨텍스트를 캡처하기 위함
-const RECENT_MESSAGES_COUNT = 5;
+const RECENT_MESSAGES_COUNT = 20;
 
 // 메모리 뱅크 카테고리 상수
 const MEMORY_CATEGORIES = {
@@ -309,6 +309,30 @@ const MEMORY_CATEGORIES = {
 };
 
 const AI_CATEGORY_KEYS = ['personal-core', 'interest-core', 'active-context'] as const;
+
+function hasExplicitMemoryIntent(text: string): boolean {
+  const normalized = (text || '').toLowerCase();
+  if (!normalized) return false;
+
+  return [
+    /remember this/,
+    /remember that/,
+    /save this/,
+    /save that/,
+    /keep this in mind/,
+    /memorize this/,
+    /update memory/,
+    /store this/,
+    /기억해/,
+    /기억해줘/,
+    /메모해/,
+    /메모해줘/,
+    /저장해/,
+    /저장해줘/,
+    /메모리에/,
+    /업데이트해/,
+  ].some((pattern) => pattern.test(normalized));
+}
 
 /**
  * Map category name from AI analysis format to database format
@@ -550,6 +574,8 @@ CRITICAL FORMAT REQUIREMENTS:
 - Do NOT repeat the same fact across multiple sections
 - Delete filler sentences and long enumerations—capture only memorable traits
 - NEVER include explanatory text, meta-comments, or reasoning outside the markdown sections
+- Treat EXISTING PERSONAL INFO as the durable baseline. Keep previously established facts unless explicitly contradicted by new evidence or explicit edit requests.
+- Do not drop durable profile facts just because they were not mentioned in this recent conversation.
 
 Update the existing personal info profile by:
 1. ${edits && edits.length > 0 ? 'Applying the requested edit operations first' : 'Integrating new insights without losing earlier facts'}
@@ -667,6 +693,8 @@ CRITICAL FORMAT REQUIREMENTS:
 - Keep only durable, recurring interests; remove one-off experiments and noisy details
 - Merge semantically similar topics into one bullet
 - Do not include explanation outside the section
+- Treat EXISTING INTEREST CORE as baseline. Preserve previously confirmed durable interests unless explicit delete/modify intent exists.
+- New conversation can add or tune strength, but should not replace the entire durable set with one short-term topic.
 
 Example bullet style:
 - AI product strategy: high
@@ -770,6 +798,7 @@ export async function updateSelectiveMemoryBanks(
 }> {
   try {
     const startTime = Date.now();
+    const explicitMemoryIntent = hasExplicitMemoryIntent(userMessage) || Boolean(edits && edits.length > 0);
     
     const isAllRequest = categories.includes('all');
     const normalizedCategories = isAllRequest
@@ -823,6 +852,20 @@ export async function updateSelectiveMemoryBanks(
       });
     }
 
+    // If user did not explicitly request memory operations, keep realtime writes conservative.
+    // Durable categories are refined by scheduled refine jobs; realtime path should bias to active context.
+    const runtimeCategories = explicitMemoryIntent
+      ? normalizedCategories
+      : normalizedCategories.filter(category => category === 'active-context');
+
+    if (runtimeCategories.length === 0) {
+      return {
+        success: false,
+        updatedCategories: [],
+        timestamp: Date.now()
+      };
+    }
+
     // 카테고리별 업데이트 함수 매핑 (category-specific data)
     const updateFunctions = {
       'personal-core': () => updatePersonalInfo(supabase, userId, messages, categoryDataMap['personal-core'], editsByCategory['personal-core']),
@@ -831,7 +874,7 @@ export async function updateSelectiveMemoryBanks(
     };
     
     // 선택된 카테고리만 업데이트
-    normalizedCategories.forEach(category => {
+    runtimeCategories.forEach(category => {
       if (updateFunctions[category as keyof typeof updateFunctions]) {
         updatePromises.push(updateFunctions[category as keyof typeof updateFunctions]());
       }
@@ -857,7 +900,7 @@ export async function updateSelectiveMemoryBanks(
       // 클라이언트는 이 정보를 사용하여 localStorage 캐시를 갱신할 수 있음
       return {
         success: true,
-        updatedCategories: normalizedCategories,
+        updatedCategories: runtimeCategories,
         timestamp: Date.now()
       };
     } else {
