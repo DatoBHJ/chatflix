@@ -1946,17 +1946,54 @@ export const getImageGeneratorData = (message: UIMessage) => {
           }));
         
         if (processedResults.length > 0) {
-          const thumbnailMap = buildThumbnailUrlMap(resultWithMaps?.thumbnailMap || {}, resultWithMaps?.linkMap || {});
+          // IMPORTANT:
+          // Some DB-saved `tool_results.googleSearchResults` entries do not persist `linkMap`,
+          // but the same message often contains `parts` with `data-google_search_complete` which DOES.
+          // Merge both sources so chat rendering can resolve `[LINK_ID:...]` reliably.
+          let imageMap: { [key: string]: string } = { ...(resultWithMaps?.imageMap || {}) };
+          let linkMap: { [key: string]: string } = { ...(resultWithMaps?.linkMap || {}) };
+          let rawThumbnailMap: { [key: string]: string } = { ...(resultWithMaps?.thumbnailMap || {}) };
+          let titleMap: { [key: string]: string } = { ...(resultWithMaps?.titleMap || {}) };
+          let linkMetaMap: { [key: string]: any } = { ...(resultWithMaps?.linkMetaMap || {}) };
+
+          // Legacy annotations (if present on the in-memory UIMessage)
+          if ((message as any).annotations && Array.isArray((message as any).annotations)) {
+            (((message as any).annotations) as any[])
+              .filter((a: any) => a?.type === 'google_search_complete' && a?.data)
+              .forEach((a: any) => {
+                if (a.data.imageMap) imageMap = { ...imageMap, ...a.data.imageMap };
+                if (a.data.linkMap) linkMap = { ...linkMap, ...a.data.linkMap };
+                if (a.data.thumbnailMap) rawThumbnailMap = { ...rawThumbnailMap, ...a.data.thumbnailMap };
+                if (a.data.titleMap) titleMap = { ...titleMap, ...a.data.titleMap };
+                if (a.data.linkMetaMap) linkMetaMap = { ...linkMetaMap, ...a.data.linkMetaMap };
+              });
+          }
+
+          // AI SDK v5 streaming parts
+          if ((message as any).parts && Array.isArray((message as any).parts)) {
+            (((message as any).parts) as any[])
+              .filter((p: any) => p?.type === 'data-google_search_complete' && p?.data)
+              .forEach((p: any) => {
+                const data = p.data;
+                if (data.imageMap) imageMap = { ...imageMap, ...data.imageMap };
+                if (data.linkMap) linkMap = { ...linkMap, ...data.linkMap };
+                if (data.thumbnailMap) rawThumbnailMap = { ...rawThumbnailMap, ...data.thumbnailMap };
+                if (data.titleMap) titleMap = { ...titleMap, ...data.titleMap };
+                if (data.linkMetaMap) linkMetaMap = { ...linkMetaMap, ...data.linkMetaMap };
+              });
+          }
+
+          const thumbnailMap = buildThumbnailUrlMap(rawThumbnailMap || {}, linkMap || {});
           return {
             result: null,
             args: null,
             annotations: [],
             results: processedResults,
-            imageMap: resultWithMaps?.imageMap || {},
-            linkMap: resultWithMaps?.linkMap || {},
+            imageMap,
+            linkMap,
             thumbnailMap,
-            titleMap: resultWithMaps?.titleMap || {},
-            linkMetaMap: resultWithMaps?.linkMetaMap || {}
+            titleMap,
+            linkMetaMap
           };
         }
       }
@@ -3480,7 +3517,15 @@ export const getFileEditData = (message: UIMessage): FileEditData | null => {
     const error = typeof raw?.error === 'string' ? raw.error : undefined;
     const content = typeof raw?.content === 'string' ? raw.content : undefined;
     const size = typeof raw?.size === 'number' ? raw.size : undefined;
-    const entries = Array.isArray(raw?.entries) ? raw.entries : undefined;
+    const entries = Array.isArray(raw?.entries)
+      ? raw.entries
+      : (Array.isArray(raw?.paths)
+        ? raw.paths.map((p: unknown) => ({
+            name: typeof p === 'string' ? p.split('/').pop() || p : String(p ?? ''),
+            path: typeof p === 'string' ? p : String(p ?? ''),
+            isDir: false,
+          }))
+        : undefined);
     const output = typeof raw?.output === 'string' ? raw.output : undefined;
     const totalLines = typeof raw?.totalLines === 'number' ? raw.totalLines : undefined;
     const truncated = raw?.truncated === true;
@@ -3522,6 +3567,7 @@ export const getFileEditData = (message: UIMessage): FileEditData | null => {
 };
 
 const RUN_CODE_PART_TYPES = ['tool-run_python_code'] as const;
+const BROWSER_OBSERVE_PART_TYPES = ['tool-browser_observe'] as const;
 
 export type RunCodeResultItem = {
   text?: string;
@@ -3550,6 +3596,88 @@ export type RunCodeData = {
   /** The Python code being executed (available during streaming) */
   code?: string;
 };
+
+export type BrowserObserveAttempt = {
+  phase?: string;
+  title?: string;
+  finalUrl?: string;
+  htmlLength?: number;
+  score?: number;
+  matchedMarkers?: string[];
+  clickedCookie?: string | null;
+  clickedTab?: string | null;
+};
+
+export type BrowserObserveData = {
+  success: boolean;
+  url: string;
+  finalUrl?: string;
+  title?: string;
+  htmlPath?: string;
+  screenshotPath?: string;
+  htmlLength?: number;
+  attemptCount?: number;
+  selectedAttempt?: string;
+  attempts?: BrowserObserveAttempt[];
+  error?: string;
+  isStreaming?: boolean;
+  progressPhase?: string;
+  progressMessage?: string;
+};
+
+function parseBrowserObserveRaw(raw: any): BrowserObserveData | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const attempts = Array.isArray(raw.attempts)
+    ? raw.attempts.map((a: any) => ({
+        phase: typeof a?.phase === 'string' ? a.phase : undefined,
+        title: typeof a?.title === 'string' ? a.title : undefined,
+        finalUrl: typeof a?.finalUrl === 'string'
+          ? a.finalUrl
+          : (typeof a?.final_url === 'string' ? a.final_url : undefined),
+        htmlLength: typeof a?.htmlLength === 'number'
+          ? a.htmlLength
+          : (typeof a?.html_length === 'number' ? a.html_length : undefined),
+        score: typeof a?.score === 'number' ? a.score : undefined,
+        matchedMarkers: Array.isArray(a?.matchedMarkers)
+          ? a.matchedMarkers.filter((x: unknown) => typeof x === 'string')
+          : (Array.isArray(a?.matched_markers)
+            ? a.matched_markers.filter((x: unknown) => typeof x === 'string')
+            : undefined),
+        clickedCookie: typeof a?.clickedCookie === 'string'
+          ? a.clickedCookie
+          : (a?.clicked_cookie === null || typeof a?.clicked_cookie === 'string' ? a.clicked_cookie : undefined),
+        clickedTab: typeof a?.clickedTab === 'string'
+          ? a.clickedTab
+          : (a?.clicked_tab === null || typeof a?.clicked_tab === 'string' ? a.clicked_tab : undefined),
+      }))
+    : undefined;
+
+  return {
+    success: raw.success === true,
+    url: typeof raw.url === 'string' ? raw.url : '',
+    finalUrl: typeof raw.finalUrl === 'string'
+      ? raw.finalUrl
+      : (typeof raw.final_url === 'string' ? raw.final_url : undefined),
+    title: typeof raw.title === 'string' ? raw.title : undefined,
+    htmlPath: typeof raw.htmlPath === 'string'
+      ? raw.htmlPath
+      : (typeof raw.html_path === 'string' ? raw.html_path : undefined),
+    screenshotPath: typeof raw.screenshotPath === 'string'
+      ? raw.screenshotPath
+      : (typeof raw.screenshot_path === 'string' ? raw.screenshot_path : undefined),
+    htmlLength: typeof raw.htmlLength === 'number'
+      ? raw.htmlLength
+      : (typeof raw.html_length === 'number' ? raw.html_length : undefined),
+    attemptCount: typeof raw.attemptCount === 'number'
+      ? raw.attemptCount
+      : (typeof raw.attempt_count === 'number' ? raw.attempt_count : undefined),
+    selectedAttempt: typeof raw.selectedAttempt === 'string'
+      ? raw.selectedAttempt
+      : (typeof raw.selected_attempt === 'string' ? raw.selected_attempt : undefined),
+    attempts,
+    error: typeof raw.error === 'string' ? raw.error : undefined,
+  };
+}
 
 function parseRunCodeRaw(raw: any): RunCodeData {
   const stdout = Array.isArray(raw.stdout) ? raw.stdout : [];
@@ -3801,6 +3929,123 @@ export const getRunCodeData = (
     }
   }
   return out;
+};
+
+/** Extract browser_observe tool results from message.parts/tool_results for Canvas/InlineToolPreview. */
+export const getBrowserObserveData = (
+  message: UIMessage,
+  targetToolCallId?: string
+): BrowserObserveData | null => {
+  if (!message) return null;
+  const parts = (message as any).parts;
+  let out: BrowserObserveData | null = null;
+  let currentToolCallId: string | null = null;
+
+  if (Array.isArray(parts)) {
+    let sawStreamingLine = false;
+    let lastStreamingLine = '';
+
+    for (const part of parts) {
+      const type = part?.type;
+      if (!type) continue;
+
+      if (BROWSER_OBSERVE_PART_TYPES.includes(type as any)) {
+        currentToolCallId = typeof part?.toolCallId === 'string' ? part.toolCallId : null;
+        if (targetToolCallId && currentToolCallId !== targetToolCallId) continue;
+        const raw = part.output?.value ?? part.output ?? part.result ?? null;
+        const parsed = parseBrowserObserveRaw(raw);
+        if (parsed) out = parsed;
+        continue;
+      }
+
+      if (type === 'tool-result' && part?.toolName === 'browser_observe') {
+        const callId = typeof part?.toolCallId === 'string' ? part.toolCallId : currentToolCallId;
+        if (targetToolCallId && callId !== targetToolCallId) continue;
+        const raw = part.output?.value ?? part.output ?? part.result ?? null;
+        const parsed = parseBrowserObserveRaw(raw);
+        if (parsed) out = parsed;
+        continue;
+      }
+
+      if (type === 'data-run_code_stdout') {
+        const line = typeof part?.data?.line === 'string' ? part.data.line : '';
+        if (!line.includes('[browser_observe]')) continue;
+        const callId = typeof part?.data?.toolCallId === 'string' ? part.data.toolCallId : currentToolCallId;
+        if (targetToolCallId && callId !== targetToolCallId) continue;
+        sawStreamingLine = true;
+        lastStreamingLine = line;
+        continue;
+      }
+
+      if (type === 'data-browser_observe_progress') {
+        const callId = typeof part?.data?.toolCallId === 'string' ? part.data.toolCallId : currentToolCallId;
+        if (targetToolCallId && callId !== targetToolCallId) continue;
+        const phase = typeof part?.data?.phase === 'string' ? part.data.phase : undefined;
+        const message = typeof part?.data?.message === 'string' ? part.data.message : undefined;
+        const progressUrl = typeof part?.data?.url === 'string' ? part.data.url : '';
+        const status = typeof part?.data?.status === 'string' ? part.data.status : undefined;
+        if (!out) {
+          out = {
+            success: false,
+            url: progressUrl,
+            isStreaming: status !== 'completed' && status !== 'error',
+            progressPhase: phase,
+            progressMessage: message,
+            error: status === 'error' ? message : undefined,
+          };
+        } else {
+          out.progressPhase = phase ?? out.progressPhase;
+          out.progressMessage = message ?? out.progressMessage;
+          if (!out.url && progressUrl) out.url = progressUrl;
+          if (status === 'error' && message) out.error = message;
+          out.isStreaming = status !== 'completed' && status !== 'error';
+        }
+        continue;
+      }
+
+      if (type === 'data-run_code_stderr') {
+        const line = typeof part?.data?.line === 'string' ? part.data.line : '';
+        if (!line.includes('[browser_observe]')) continue;
+        const callId = typeof part?.data?.toolCallId === 'string' ? part.data.toolCallId : currentToolCallId;
+        if (targetToolCallId && callId !== targetToolCallId) continue;
+        sawStreamingLine = true;
+        lastStreamingLine = line;
+      }
+    }
+
+    if (!out && sawStreamingLine) {
+      out = {
+        success: false,
+        url: '',
+        error: lastStreamingLine,
+        isStreaming: true,
+        progressPhase: 'running',
+        progressMessage: lastStreamingLine,
+      };
+    }
+  }
+
+  if (out && (out.url || out.title || out.htmlPath || out.screenshotPath || out.error || out.isStreaming)) {
+    return out;
+  }
+
+  const stored = (message as any).tool_results?.observeResults;
+  if (Array.isArray(stored) && stored.length > 0) {
+    if (targetToolCallId) {
+      const allToolParts = ((message as any).parts ?? []).filter((p: any) =>
+        BROWSER_OBSERVE_PART_TYPES.includes(p?.type)
+      );
+      const invocationIndex = allToolParts.findIndex((p: any) => p.toolCallId === targetToolCallId);
+      if (invocationIndex >= 0 && invocationIndex < stored.length) {
+        const parsed = parseBrowserObserveRaw(stored[invocationIndex]);
+        if (parsed) return parsed;
+      }
+    }
+    const parsed = parseBrowserObserveRaw(stored[stored.length - 1]);
+    if (parsed) return parsed;
+  }
+
+  return null;
 };
 
 export const getToolDataFromPart = (

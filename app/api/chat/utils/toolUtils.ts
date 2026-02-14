@@ -21,6 +21,7 @@ import {
   createGrepFileTool,
   createApplyEditsTool,
   createRunPythonCodeTool,
+  createBrowserObserveTool,
 } from '../tools';
 import { slimRunCodePayload, slimToolResults } from '@/app/utils/prepareMessagesForAPI';
 
@@ -135,6 +136,11 @@ export const TOOL_REGISTRY = {
     createFn: (dataStream: any, chatId: string, supabase: Awaited<ReturnType<typeof import('@/utils/supabase/server').createClient>>) => createRunPythonCodeTool(dataStream, chatId, supabase),
     resultKey: 'runCodeResults',
     description: 'Run Python code for data analysis and charts in the workspace sandbox'
+  },
+  'browser_observe': {
+    createFn: (dataStream: any, chatId: string, supabase: Awaited<ReturnType<typeof import('@/utils/supabase/server').createClient>>) => createBrowserObserveTool(dataStream, chatId, supabase),
+    resultKey: 'observeResults',
+    description: 'Open remote browser and capture screenshot/HTML for page-flow debugging'
   }
 } as const;
 
@@ -173,7 +179,8 @@ export function collectToolResults(tools: Record<string, any>, toolNames: string
       'grok_video': 'generatedVideos',
       'video_upscaler': 'generatedVideos',
       'image_upscaler': 'generatedImages',
-      'run_python_code': 'runCodeResults'
+      'run_python_code': 'runCodeResults',
+      'browser_observe': 'observeResults'
     };
     
     const resultKey = resultMap[toolName] || 'results';

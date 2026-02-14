@@ -6,8 +6,9 @@ import { MODEL_CONFIGS } from '@/lib/models/config'
 import { uploadFile } from '@/app/chat/[id]/utils'
 import { ensureFreshAttachmentUrls } from '@/app/utils/attachmentUrlHelpers';
 import { Attachment } from '@/lib/types';
-import { getWebSearchResults, getGoogleSearchData } from './toolFunction'
+import { getWebSearchResults, getGoogleSearchData, getTwitterSearchData } from './toolFunction'
 import { trimMessagesToByteLimit } from '@/app/utils/prepareMessagesForAPI';
+import { resolveMediaPlaceholders } from '@/app/utils/resolveMediaPlaceholders';
 
 const MAX_CHAT_REQUEST_BYTES = 9 * 1024 * 1024;
 
@@ -110,16 +111,19 @@ export function useMessages(chatId: string, userId: string) {
       // Extract linkMap and imageMap from message data (same as VirtualizedMessages.tsx)
       const webSearchData = getWebSearchResults(message);
       const googleSearchData = getGoogleSearchData(message);
+      const twitterSearchData = getTwitterSearchData(message);
       
       // Combine link maps and image maps from both sources
       const linkMap = {
         ...(webSearchData?.linkMap || {}),
-        ...(googleSearchData?.linkMap || {})
+        ...(googleSearchData?.linkMap || {}),
+        ...(twitterSearchData?.linkMap || {})
       };
       
       const imageMap = {
         ...(webSearchData?.imageMap || {}),
-        ...(googleSearchData?.imageMap || {})
+        ...(googleSearchData?.imageMap || {}),
+        ...(twitterSearchData?.imageMap || {})
       };
 
       // Remove consecutive duplicate links before processing placeholders
@@ -127,39 +131,22 @@ export function useMessages(chatId: string, userId: string) {
         textToCopy = removeConsecutiveDuplicateLinks(textToCopy, linkMap);
       }
 
-      // Process placeholders if they exist in the text
-      if (textToCopy.includes('[LINK_ID:') || textToCopy.includes('[IMAGE_ID:')) {
-        // Pre-compiled regex for better performance (same as Message.tsx)
-        const IMAGE_ID_REGEX = /\[IMAGE_ID:([^\]]+)\]/g;
-        const LINK_ID_REGEX = /\[LINK_ID:([^\]]+)\]/g;
-        
-        // Process image placeholders
-        if (textToCopy.includes('[IMAGE_ID:')) {
-          textToCopy = textToCopy.replace(IMAGE_ID_REGEX, (match: string, imageId: string) => {
-            if (imageMap && Object.keys(imageMap).length > 0) {
-              const imageUrl = imageMap[imageId];
-              if (imageUrl) {
-                return imageUrl;
-              }
-            }
-            // Remove placeholder if no matching URL exists
-            return '';
-          });
-        }
-        
-        // Process link placeholders
-        if (textToCopy.includes('[LINK_ID:')) {
-          textToCopy = textToCopy.replace(LINK_ID_REGEX, (match: string, linkId: string) => {
-            if (linkMap && Object.keys(linkMap).length > 0) {
-              const linkUrl = linkMap[linkId];
-              if (linkUrl) {
-                return linkUrl;
-              }
-            }
-            // Remove placeholder if no matching URL exists
-            return '';
-          });
-        }
+      // Resolve placeholders into plain URLs (not markdown images) for clipboard.
+      if (
+        textToCopy.includes('LINK_ID:') ||
+        textToCopy.includes('IMAGE_ID:') ||
+        textToCopy.includes('VIDEO_ID:') ||
+        textToCopy.includes('[LINK_ID:') ||
+        textToCopy.includes('[IMAGE_ID:') ||
+        textToCopy.includes('[VIDEO_ID:')
+      ) {
+        textToCopy = resolveMediaPlaceholders(textToCopy, {
+          linkMap,
+          imageMap,
+          // No reliable per-message videoMap here; VIDEO_ID tokens will be removed (unresolvedPolicy=remove).
+          unresolvedPolicy: 'remove',
+          imageOutput: 'url',
+        });
       }
 
       // If the message has a structured response with description, include it

@@ -192,6 +192,22 @@ export function CanvasPreviewMarkdown({
         {children}
       </blockquote>
     ),
+    a: ({ children, href, ...props }: any) => {
+      // Canvas file previews: make links obviously clickable.
+      // (Chat UI styling remains unchanged; this component is only used in CanvasPreviewMarkdown.)
+      const safeHref = typeof href === 'string' ? href : undefined;
+      return (
+        <a
+          href={safeHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 dark:text-blue-400 underline underline-offset-2 hover:opacity-90 wrap-break-word"
+          {...props}
+        >
+          {children}
+        </a>
+      );
+    },
     code: ({ node, inline, className, children, ...props }: any) => {
       const match = /language-(\w+)/.exec(className || '');
       const language = match ? match[1] : '';

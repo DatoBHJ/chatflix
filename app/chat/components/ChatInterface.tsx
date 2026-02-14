@@ -15,7 +15,7 @@ import { getChatflixLogo } from '@/lib/models/logoUtils';
 import { SimpleMessages } from '@/app/components/SimpleMessages';
 import { SidePanel } from '@/app/components/SidePanel';
 import { ChatInputArea } from './ChatInputArea';
-import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getGoogleSearchData, getWan25VideoData, getGrokVideoData, getFileEditData, getRunCodeData } from '@/app/hooks/toolFunction';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getGoogleSearchData, getWan25VideoData, getGrokVideoData, getFileEditData, getRunCodeData, getBrowserObserveData } from '@/app/hooks/toolFunction';
 import { Annotation } from '@/app/lib/messageUtils';
 import { nanoid } from 'nanoid';
 import { DragDropOverlay } from '@/app/components/ChatInput/DragDropOverlay';
@@ -1394,6 +1394,8 @@ export default function ChatInterface({
     const hasFileEditData = !!fileEditData && fileEditData.files.length > 0;
     const runCodeData = getRunCodeData(message);
     const hasRunCodeData = !!runCodeData;
+    const browserObserveData = getBrowserObserveData(message);
+    const hasBrowserObserveData = !!browserObserveData;
 
     return !!(
       hasWebSearchData || 
@@ -1410,6 +1412,7 @@ export default function ChatInterface({
       getGoogleSearchData(message) ||
       hasFileEditData ||
       hasRunCodeData ||
+      hasBrowserObserveData ||
       hasStructuredResponseFiles()
     );
   };

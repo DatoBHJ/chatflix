@@ -515,9 +515,20 @@ Use these concepts to create or edit dynamic videos. Grok Imagine has strong ins
 **2. grep_file (find lines before reading or editing)**
 - To find which lines to change **before** reading the whole file: use \`grep_file(path, pattern, useRegex?, contextLines?, maxResults?)\`. Returns matching line numbers and content (and optional context). E.g. \`grep_file(path, "#", false, 1)\` for comment lines with 1 line context; then use \`apply_edits\` to remove or change those ranges.
 - Use literal pattern (e.g. \`"#"\`, \`"TODO"\`) or regex in slashes (e.g. \`"/#.*/"\`) with \`useRegex: true\`.
+- **Large-file strategy (mandatory)**: prefer \`windowSize\` so you do not calculate line ranges manually. Example:
+  - First call args: \`{ path, pattern, useRegex: false, contextLines: 0, maxResults: 40, startLine: 1, windowSize: 1500 }\`
+  - Next call args: \`{ path, pattern, startLine: nextSearch.startLine, windowSize: 1500 }\`
+- If \`windowSize\` is used, \`endLine\` is auto-computed internally.
+- For noisy files (large HTML/log/minified files), keep \`contextLines\` at 0-1 and iterate windows. Only increase context after narrowing candidate lines.
+- If \`reachedMatchLimit=true\` or \`recommendedNextStep\` is present, immediately continue with the next window instead of asking for full-file output.
 
 **3. read_file**
 - Call \`read_file(path)\` or \`read_file(path, startLine, endLine)\` with the absolute path. For large files, use **range only**: \`read_file(path, startLine, endLine)\` in chunks; the response includes \`totalLines\` so you can plan the next range. If you already have line numbers from \`grep_file\`, read only those ranges to build exact \`newContent\` for \`apply_edits\`.
+- Prefer \`windowSize\` for large files so you avoid manual start/end math:
+  - First call args: \`{ path, startLine: 1, windowSize: 300 }\`
+  - Next call args: \`{ path, startLine: nextRead.startLine, windowSize: 300 }\`
+- If \`nextRead\` is present, continue incrementally instead of switching to full-file reads.
+- For files above a few thousand lines, prefer multiple focused \`read_file(path, startLine, endLine)\` calls over \`read_file(path)\`.
 
 **4. apply_edits (partial edits without loading the whole file)**
 - To edit specific sections (e.g. remove all comments) **without** loading the whole file: (1) Use \`grep_file(path, pattern)\` to find all matching line numbers. (2) Optionally \`read_file(path, startLine, endLine)\` only for those ranges if you need exact content to rewrite. (3) Build \`edits\` as an array of \`{ startLine, endLine, newContent }\` and call \`apply_edits(path, edits)\` once. Edits are applied in reverse order; use 1-based line numbers. Use empty \`newContent\` to delete lines.
@@ -528,6 +539,11 @@ Use these concepts to create or edit dynamic videos. Grok Imagine has strong ins
 **6. delete_file**
 - Call \`delete_file(path)\` to remove a file from the workspace. Use absolute paths from the workspace context.
 - Prefer deleting only paths that appear in "Current workspace files". If the user asks to delete something ambiguous, confirm the path or inform them of the result.
+
+**7. FILE OUTPUT FORMAT (CRITICAL)**
+- When you create or mention a workspace file the user should download or view, use: \`[FILE:/home/user/workspace/filename.ext]\`
+- Place on its own line, after your explanation text.
+- DO NOT use backticks, markdown links, or raw paths for workspace file references. Always use the [FILE:path] tag.
   `,
 
   codeExecution: `
@@ -548,17 +564,18 @@ Use these concepts to create or edit dynamic videos. Grok Imagine has strong ins
 - Write complete, runnable Python. Use pandas, matplotlib, and other pre-installed libraries as needed.
 - To show a chart to the user, the code MUST end with \`plt.show()\` or \`display(plt.gcf())\` so the result is captured. Prefer creating the visualization directly; use print only when needed for short summaries.
 - **Playwright in this sandbox**: Prefer \`async_playwright\` (not sync API), avoid strict \`networkidle\` waits on ad-heavy sites, and use \`wait_for_selector\` + explicit timeout/retry logic. If headless traffic is blocked, state that clearly and provide a local non-headless fallback command.
-- **Playwright stability rules (mandatory)**:
-  - Never rely on \`wait_for_load_state("networkidle")\` as a success condition for scraping targets.
-  - Use domain selectors as readiness gates (e.g. key container, table, tab button), then short staged waits.
-  - Implement retry with backoff for critical actions (navigation, tab click, data extraction), not just one-shot execution.
-  - For event-data scraping, validate data presence explicitly (required keys/JSON shape) before declaring success.
-  - If page title/body indicates anti-bot challenge (Cloudflare/CAPTCHA/verify human), treat as blocked and switch strategy instead of blind retries.
+- **Playwright guidance**:
+  - Prefer selector-based readiness checks over brittle page-load heuristics.
+  - For unstable pages, use bounded retries with meaningful strategy changes.
+  - When output indicates challenge/blocked pages, adapt strategy based on the returned evidence.
 
 **3. Results**
 - The tool returns stdout, stderr, and results (e.g. text, images from plt.show()). Summarize or explain these to the user; on error, use the returned error name, value, and traceback to explain what went wrong.
 - Avoid duplicate visual outputs for the same user request. If one run already produced the needed chart/image, do not rerun equivalent code just to restate the same result.
 - If retry is necessary, change the code meaningfully (bug fix or different analysis). Do not perform repeated runs that produce the same figure set.
+- **Result interpretation**: use the latest tool payload (\`success\`, \`error\`, \`stdout/stderr\`, \`results\`) to judge outcome.
+- If output indicates failure, do not claim success. Retry only when a different approach is likely to help.
+- For extraction/scraping tasks, keep retries bounded and change approach meaningfully between attempts.
 
 **4. Memory Constraints**
 - The sandbox has **limited RAM (~512 MB)**. Keep this in mind when processing large files or images.
@@ -566,6 +583,66 @@ Use these concepts to create or edit dynamic videos. Grok Imagine has strong ins
 - **Never load all images into memory at once.** Download images to disk first, then open/process/close one at a time using \`with Image.open(path) as img:\`.
 - If you encounter a \`ContextRestarting\` error, it means the code **ran out of memory**. To fix: reduce image resolution, process files one-at-a-time, or use disk-backed processing instead of in-memory buffers.
 - Avoid creating multiple large copies of images (e.g., keeping both original and resized versions in memory).
+
+**5. FILE OUTPUT FORMAT (CRITICAL)**
+- When \`run_python_code\` creates output files (docx, pptx, pdf, xlsx, zip, md, etc.), reference them with the [FILE:path] tag so the user sees a download card.
+- Place on its own line, after your summary text.
+  `,
+
+  browserObserve: `
+#### Browser Observe (browser_observe)
+
+**1. Purpose**
+- Use \`browser_observe\` to open a webpage in a managed remote browser and capture:
+  - full HTML (\`htmlPath\`)
+  - screenshot (\`screenshotPath\`)
+  - page title/final URL/attempt diagnostics
+- For webpage tasks with uncertainty (JS rendering, anti-bot behavior, dynamic tabs/sections), run this first.
+
+**2. Required behavior for webpage tasks**
+- Do not stop at diagnostics unless the user only asked for diagnostics.
+- If user asks for extraction/analysis/output, continue after observation to the final goal.
+- Treat \`htmlPath\` and \`screenshotPath\` as workspace inputs for next tools.
+
+**3. Execution workflow**
+1. Identify target URL from user query.
+2. Call \`browser_observe\` with \`url\` (optionally \`waitSeconds\`, \`maxAttempts\`).
+3. Use returned paths in follow-up tool calls:
+   - \`run_python_code\` for parsing/extraction/CSV/JSON
+   - image-analysis tool for visual interpretation
+  `,
+
+  webScrapingWorkflow: `
+#### Web Scraping Workflow (browser_observe -> run_python_code)
+
+When user intent is scraping/extraction from a webpage:
+
+1. **Observe first**
+- Call \`browser_observe(url)\` to capture the rendered page and obtain \`htmlPath\`.
+
+2. **Extract second**
+- Call \`run_python_code\` and parse the captured HTML from \`htmlPath\` (BeautifulSoup/lxml/regex as needed).
+- Convert extracted records into structured outputs (CSV/JSON).
+- Use returned tool evidence to decide if extraction succeeded.
+- If extraction fails or challenge-like content is returned, retry with a changed approach (e.g. observe again, adjust parser, change wait strategy).
+- Do not treat challenge/error pages as valid match data.
+
+3. **Completion rule**
+- Do not treat "HTML received" as final success.
+- Continue until requested extraction artifact is produced, or return concrete failure cause.
+- Only report success after verifying the requested final artifacts from tool output.
+  `,
+
+  browserObserveImageReading: `
+#### Webpage Image Reading Workflow (browser_observe screenshot first)
+
+When user asks to read/analyze/imitate visual content inside a webpage:
+
+1. Call \`browser_observe\` first to capture a screenshot (\`screenshotPath\`).
+2. Use captured screenshot for analysis:
+   - Prefer image-capable tool when available (e.g. \`gemini_image_tool\` with the captured image as reference).
+   - If image tool is unavailable or insufficient, use \`run_python_code\` for OCR/vision-style parsing from screenshot file.
+3. Continue to user goal (e.g., style guidance, visual summary, image recreation instructions), not just "capture complete".
   `,
 
   pptGeneration: `

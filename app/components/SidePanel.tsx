@@ -3,7 +3,7 @@
 import { UIMessage } from 'ai'
 import Canvas from '@/app/components/Canvas';
 import { StructuredResponse } from '@/app/components/StructuredResponse';
-import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getWan25VideoData, getGrokVideoData, getVideoUpscalerData, getImageUpscalerData, getFileEditData, getRunCodeData } from '@/app/hooks/toolFunction';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getWan25VideoData, getGrokVideoData, getVideoUpscalerData, getImageUpscalerData, getFileEditData, getRunCodeData, getBrowserObserveData } from '@/app/hooks/toolFunction';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 // import { AttachmentTextViewer } from './AttachmentTextViewer';
@@ -118,6 +118,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   // When a specific run_python_code invocation is selected, panelData.fileName contains the toolCallId
   const runCodeTargetToolCallId = panelData?.toolType === 'run-code' ? panelData.fileName : undefined;
   const runCodeData = activeMessage ? getRunCodeData(activeMessage, runCodeTargetToolCallId) : null;
+  const browserObserveTargetToolCallId = panelData?.toolType === 'browser-observe' ? panelData.fileName : undefined;
+  const browserObserveData = activeMessage ? getBrowserObserveData(activeMessage, browserObserveTargetToolCallId) : null;
 
   // Helper function to get topic display name (moved before useMemo)
   const getTopicDisplayName = (topic: string): string => {
@@ -239,6 +241,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           case 'grok-video': return grokVideoData?.isVideoEdit ? 'Grok Video to Video' : (grokVideoData?.isImageToVideo ? 'Grok Image to Video' : 'Grok Text to Video');
           case 'video-upscaler': return '4K Video Upscaler';
           case 'run-code': return 'Code output';
+          case 'browser-observe': return 'Browser Observe';
           default:
             if (panelData.toolType?.startsWith('file-edit:')) {
               const sub = panelData.toolType.replace('file-edit:', '');
@@ -270,6 +273,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
       if (imageUpscalerData) return '8K Image Upscaler';
       if (fileEditData) return 'File';
       if (runCodeData) return 'Code output';
+      if (browserObserveData) return 'Browser Observe';
       
       return 'Canvas';
     }
@@ -288,6 +292,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
     imageUpscalerData,
     fileEditData,
     runCodeData,
+    browserObserveData,
     webSearchData,
     googleSearchData,
     twitterSearchData,
@@ -431,6 +436,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           googleSearchData={googleSearchData}
           fileEditData={fileEditData}
           runCodeData={runCodeData}
+          browserObserveData={browserObserveData}
                     isCompact={false}
                     selectedTool={nonNullPanelData.toolType}
                     selectedItem={nonNullPanelData.fileName}

@@ -22,6 +22,9 @@ import { ImageGalleryStack } from './ImageGalleryStack';
 import { VideoGalleryStack } from './VideoGalleryStack';
 import { categorizeAspectRatio, parseImageDimensions, parseMediaDimensions, getAspectCategory } from '@/app/utils/imageUtils';
 import { ImageModal, type ImageModalImage } from './ImageModal';
+import { WorkspaceFilePathCard } from './WorkspaceFilePathCard';
+import { WorkspaceFileModal } from './WorkspaceFileModal';
+import type { VideoMapValue } from '@/app/utils/resolveMediaPlaceholders';
 
 // iOS Safari 감지 (iOS 또는 iPadOS Safari)
 const isIOSSafari = () => {
@@ -363,6 +366,10 @@ interface MarkdownContentProps {
   sourceImageMap?: { [key: string]: string }; // 🚀 FEATURE: Source image map for video prompts
   mediaDimensionsMap?: { [key: string]: { width: number; height: number } }; // layout: reserve exact space before media load
   hideLinkThumbnail?: boolean;
+  // Optional: needed for workspace-file modal to resolve LINK_ID/IMAGE_ID/VIDEO_ID in file content
+  linkMap?: Record<string, string>;
+  imageMap?: Record<string, string>;
+  videoMap?: Record<string, VideoMapValue>;
 }
 
 // 더 적극적으로 마크다운 구조를 분할하는 함수 - 구분선(---)을 기준으로 메시지 그룹 분할
@@ -428,6 +435,13 @@ const segmentContent = (content: string): string[][] => {
     return `\n\n<IMAGE_SEGMENT_${imageIndex++}>\n\n`;
   });
   
+  // 1-b. [FILE:경로] 태그를 별도 세그먼트로 분리 (IMAGE_ID와 동일 패턴)
+  const fileTagRegex = /\[FILE:([^\]]+)\]/g;
+  contentWithoutImages = contentWithoutImages.replace(fileTagRegex, (match) => {
+    imageSegments.push(match);
+    return `\n\n<IMAGE_SEGMENT_${imageIndex++}>\n\n`;
+  });
+
   // 마크다운 이미지 문법을 임시 마커로 교체 - 더 안전한 파싱
   const markdownImages = parseMarkdownImages(contentWithoutImages);
   // 역순으로 처리하여 인덱스 변경 방지
@@ -2234,7 +2248,10 @@ function MarkdownContentComponent({
   promptMap = {},
   sourceImageMap = {},
   mediaDimensionsMap = {},
-  hideLinkThumbnail = false
+  hideLinkThumbnail = false,
+  linkMap = {},
+  imageMap = {},
+  videoMap = {},
 }: MarkdownContentProps) {
 
   // Image modal state
@@ -2252,6 +2269,14 @@ function MarkdownContentComponent({
   
   // Mermaid modal state
   const [selectedMermaid, setSelectedMermaid] = useState<{ chart: string; title?: string } | null>(null);
+
+  // Workspace file modal state (chat file cards)
+  const [workspaceFilePath, setWorkspaceFilePath] = useState<string | null>(null);
+  const [workspaceFileContent, setWorkspaceFileContent] = useState<string | null>(null);
+  const [workspaceBinaryInfo, setWorkspaceBinaryInfo] = useState<{ downloadUrl: string; filename: string } | null>(null);
+  const [workspaceFileLoading, setWorkspaceFileLoading] = useState(false);
+  const [workspaceFileError, setWorkspaceFileError] = useState<string | null>(null);
+  const workspaceFetchRef = useRef<AbortController | null>(null);
   
   // Mobile UI visibility state (for Mermaid modal)
   const [showMobileUI, setShowMobileUI] = useState(false);
@@ -2295,6 +2320,56 @@ function MarkdownContentComponent({
     setIsMounted(true);
     return () => setIsMounted(false);
   }, []);
+
+  const closeWorkspaceFileModal = useCallback(() => {
+    workspaceFetchRef.current?.abort();
+    workspaceFetchRef.current = null;
+    setWorkspaceFilePath(null);
+    setWorkspaceFileContent(null);
+    setWorkspaceBinaryInfo(null);
+    setWorkspaceFileLoading(false);
+    setWorkspaceFileError(null);
+  }, []);
+
+  const openWorkspaceFileModal = useCallback(async (path: string) => {
+    if (!chatId || !path) return;
+    workspaceFetchRef.current?.abort();
+    const controller = new AbortController();
+    workspaceFetchRef.current = controller;
+
+    setWorkspaceFilePath(path);
+    setWorkspaceFileContent(null);
+    setWorkspaceBinaryInfo(null);
+    setWorkspaceFileError(null);
+    setWorkspaceFileLoading(true);
+
+    try {
+      const res = await fetch(
+        `/api/chat/workspace-file-content?chatId=${encodeURIComponent(chatId)}&path=${encodeURIComponent(path)}`,
+        { signal: controller.signal }
+      );
+      if (!res.ok) {
+        setWorkspaceFileError(`Failed to load file (${res.status})`);
+        return;
+      }
+      const data = await res.json();
+      if (data?.isBinary && data?.downloadUrl) {
+        const filename = (typeof data.filename === 'string' && data.filename) ? data.filename : path.replace(/^.*[/\\]/, '') || 'download';
+        setWorkspaceBinaryInfo({ downloadUrl: data.downloadUrl, filename });
+        return;
+      }
+      if (typeof data?.content === 'string') {
+        setWorkspaceFileContent(data.content);
+        return;
+      }
+      setWorkspaceFileError('File content is unavailable.');
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      setWorkspaceFileError('Failed to load file.');
+    } finally {
+      setWorkspaceFileLoading(false);
+    }
+  }, [chatId]);
 
   // Image modal functions
   const openImageModal = useCallback((src: string | undefined, alt: string, allImages?: { src: string; alt: string; originalMatch?: string; prompt?: string }[], imageIndex?: number) => {
@@ -3691,11 +3766,13 @@ function MarkdownContentComponent({
         const imageRegex = /\[IMAGE_ID:|!\[.*\]\(.*\)/;
         const linkRegex = /\[.*\]\(https?:\/\/[^)]+\)|https?:\/\/[^\s"'<>]+/;
         let lastBubbleIndex = -1;
+        const fileTagTest = /^\[FILE:[^\]]+\]$/;
         for (let i = 0; i < segmentGroup.length; i++) {
           const s = segmentGroup[i];
           const isImg = imageRegex.test(s);
           const isLnk = linkRegex.test(s);
-          if (!isImg && !isLnk) lastBubbleIndex = i;
+          const isFile = fileTagTest.test(s.trim());
+          if (!isImg && !isLnk && !isFile) lastBubbleIndex = i;
         }
 
         // 🚀 Apple 스타일: 연속 이미지 그룹 계산
@@ -3826,6 +3903,10 @@ function MarkdownContentComponent({
               // 이미지 세그먼트인지 확인
               const isImageSegment = /\[IMAGE_ID:|!\[.*\]\(.*\)/.test(segment);
               
+              // [FILE:경로] 태그 세그먼트인지 확인 (segmentContent에서 분리됨)
+              const fileTagMatch = /^\[FILE:([^\]]+)\]$/.test(segment.trim()) ? segment.trim().match(/^\[FILE:([^\]]+)\]$/) : null;
+              const isFileTagSegment = !!fileTagMatch;
+              
               // 링크 세그먼트인지 확인 - 세그먼트 전체가 URL인 경우에만 true
               // (URL이 포함된 텍스트와 구분하기 위해 앵커 사용)
               const isLinkSegment = /^\s*(\[.*\]\(https?:\/\/[^)]+\)|https?:\/\/[^\s"'<>]+)\s*$/.test(segment);
@@ -3839,6 +3920,14 @@ function MarkdownContentComponent({
                          urlMatch[0].toLowerCase().endsWith('.mov') ||
                          urlMatch[0].includes('generated-videos'));
                 })();
+              
+              // 레거시 폴백: 워크스페이스 파일 경로 세그먼트 (백틱/플레인)
+              // [FILE:] 태그가 아닌 기존 메시지 호환용
+              const workspacePathMatch = (!isFileTagSegment && chatId)
+                ? segment.match(/`(\/home\/user\/workspace\/[^\s`]+)`/) ||
+                  segment.match(/(\/home\/user\/workspace\/[^\s"'<>)`]+)/)
+                : null;
+              const isWorkspaceFileSegment = !!workspacePathMatch;
               
               const processedSegment = segment;
               
@@ -3932,6 +4021,43 @@ function MarkdownContentComponent({
                 );
               }
               
+              // [FILE:경로] 태그 → 파일 다운로드 카드 (분리된 세그먼트, message-segment로 통일)
+              if (isFileTagSegment && fileTagMatch && chatId) {
+                return (
+                  <div key={index} className={`${variant === 'clean' ? 'markdown-segment' : 'message-segment'}`}>
+                    <WorkspaceFilePathCard path={fileTagMatch[1]} onOpen={openWorkspaceFileModal} />
+                  </div>
+                );
+              }
+
+              // 레거시 폴백: 워크스페이스 파일 경로 → 경로 부분을 파일 카드로, 나머지 텍스트는 그대로 렌더링
+              if (isWorkspaceFileSegment && workspacePathMatch && chatId) {
+                const wPath = workspacePathMatch[1];
+                // 경로 제거한 텍스트 (경로 인라인 코드를 빼고 나머지만)
+                const textWithoutPath = segment.replace(workspacePathMatch[0], '').trim();
+
+                return (
+                  <React.Fragment key={index}>
+                    {textWithoutPath && (
+                      <div className={`${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isLastBubble ? ' last-bubble' : ''}`}>
+                        <div className="message-content max-w-full overflow-x-auto break-words">
+                          <ReactMarkdown
+                            remarkPlugins={remarkPlugins}
+                            rehypePlugins={rehypePlugins}
+                            components={components}
+                          >
+                            {textWithoutPath}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                    )}
+                    <div className={`${variant === 'clean' ? 'markdown-segment' : 'message-segment'}`}>
+                      <WorkspaceFilePathCard path={wPath} onOpen={openWorkspaceFileModal} />
+                    </div>
+                  </React.Fragment>
+                );
+              }
+
               return (
                 <div 
                   key={index} 
@@ -4012,6 +4138,23 @@ function MarkdownContentComponent({
         onSave={handleSave}
         sourceImageUrl={selectedImage?.sourceImageUrl}
       />
+
+      {/* Workspace File Modal (from [FILE:/home/user/workspace/...]) */}
+      {isMounted && (
+        <WorkspaceFileModal
+          isOpen={!!workspaceFilePath}
+          isMobile={isMobile}
+          path={workspaceFilePath}
+          content={workspaceFileContent}
+          binaryInfo={workspaceBinaryInfo}
+          loading={workspaceFileLoading}
+          error={workspaceFileError}
+          linkMap={linkMap}
+          imageMap={imageMap}
+          videoMap={videoMap}
+          onClose={closeWorkspaceFileModal}
+        />
+      )}
 
       {/* Mermaid Modal */}
       {isMounted && selectedMermaid && createPortal(

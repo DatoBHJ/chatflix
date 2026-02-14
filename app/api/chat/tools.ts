@@ -534,11 +534,12 @@ const toolDefinitions = {
     }
   },
   read_file: {
-    description: 'Read the contents of a file from the workspace sandbox. Use absolute paths (e.g. /home/user/workspace/file.py). Refer to the path and content blocks in the user message when present. For large files, returns at most 12k characters; use startLine/endLine to read a specific section. Response includes totalLines so you can request the next range (e.g. startLine: 301, endLine: 600).',
+    description: 'Read the contents of a file from the workspace sandbox. Use absolute paths (e.g. /home/user/workspace/file.py). Supports windowed reading for large files via startLine/endLine or startLine+windowSize. For large files, returns at most 12k characters and includes paging hints (nextReadStartLine/nextRead) so you can continue without manual line math.',
     inputSchema: {
       path: 'Absolute path to the file in the sandbox (e.g. /home/user/workspace/main.py).',
       startLine: 'Optional 1-based start line. If provided with endLine, only this line range is returned (still capped at 12k chars).',
-      endLine: 'Optional 1-based end line. Use with startLine to read a specific section (e.g. startLine: 280, endLine: 320).'
+      endLine: 'Optional 1-based end line. Use with startLine to read a specific section (e.g. startLine: 280, endLine: 320).',
+      windowSize: 'Optional line-window size (e.g. 300). If provided, endLine is auto-computed from startLine + windowSize - 1.'
     }
   },
   write_file: {
@@ -565,13 +566,16 @@ const toolDefinitions = {
     }
   },
   grep_file: {
-    description: 'Search inside a file for a pattern and return matching line numbers and line content. Use this before read_file or apply_edits to find which lines or ranges to change (e.g. all comment lines, all lines containing \'TODO\', or regex like \'#.*\'). Avoids reading the whole file into context.',
+    description: 'Search inside a file for a pattern and return matching line numbers and compact line previews. Supports large-file windowed search via startLine/endLine so you can scan incrementally (Cursor-style) without flooding context. Use this before read_file or apply_edits to find exact ranges to change.',
     inputSchema: {
       path: 'Absolute path to the file in the sandbox (e.g. /home/user/workspace/main.py).',
       pattern: 'Search pattern: literal string (e.g. "#") or regex in slashes (e.g. "/#.*/").',
       useRegex: 'If true, pattern is treated as a regular expression. Default false (literal substring match).',
       contextLines: 'Optional. Number of lines before and after each match to include (0 = match only). E.g. 1 returns match plus one line above and below.',
-      maxResults: 'Optional. Maximum number of matches to return (default 200). Prevents huge output.'
+      maxResults: 'Optional. Maximum number of matches to return per call (default 40, hard cap 120).',
+      startLine: 'Optional 1-based start line for windowed search in large files.',
+      endLine: 'Optional 1-based end line for windowed search in large files.',
+      windowSize: 'Optional line-window size (e.g. 1500). If provided, endLine is auto-computed from startLine + windowSize - 1, so no manual start/end math is needed.',
     }
   },
   apply_edits: {
@@ -585,6 +589,14 @@ const toolDefinitions = {
     description: 'Run Python code in the workspace sandbox. Use for data analysis, CSV processing, or charts. Workspace files are under /home/user/workspace/. Use pandas, matplotlib, etc. For charts, end with plt.show() or display(plt.gcf()).',
     inputSchema: {
       code: 'The Python code to execute (e.g. import pandas as pd; df = pd.read_csv("/home/user/workspace/data.csv"); print(df.head())).'
+    }
+  },
+  browser_observe: {
+    description: 'Open a URL in Bright Data Browser API (remote browser), run staged observation attempts (cookie click/scroll/tab click), capture screenshot + full HTML, and return page diagnostics.',
+    inputSchema: {
+      url: 'Target URL to observe in remote browser (http/https).',
+      waitSeconds: 'Optional wait seconds after load and before capture. Default 8.',
+      maxAttempts: 'Optional staged attempts count (1-3). Default 3.',
     }
   },
 };
@@ -605,29 +617,58 @@ export function createReadFileTool(
       path: z.string().describe(toolDefinitions.read_file.inputSchema.path),
       startLine: z.number().optional().describe(toolDefinitions.read_file.inputSchema.startLine),
       endLine: z.number().optional().describe(toolDefinitions.read_file.inputSchema.endLine),
+      windowSize: z.number().optional().describe(toolDefinitions.read_file.inputSchema.windowSize),
     }),
-    execute: async ({ path, startLine, endLine }) => {
+    execute: async ({ path, startLine, endLine, windowSize }) => {
       const sandbox = await getOrCreateSandbox(chatId, supabase);
       try {
         const fullContent = await sandbox.files.read(path);
         const lines = fullContent.split('\n');
         const totalLines = lines.length;
+        const safeWindowSize = Number.isFinite(Number(windowSize))
+          ? Math.max(20, Math.min(5000, Math.floor(Number(windowSize))))
+          : undefined;
+        const normalizedStartLine = startLine != null
+          ? Math.min(Math.max(1, Math.floor(startLine)), Math.max(1, totalLines))
+          : undefined;
+        const effectiveEndLine = normalizedStartLine != null
+          ? Math.min(
+              totalLines,
+              safeWindowSize
+                ? (normalizedStartLine + safeWindowSize - 1)
+                : Math.max(normalizedStartLine, Math.floor(Number(endLine) || normalizedStartLine))
+            )
+          : undefined;
         let content: string;
-        if (startLine != null && endLine != null) {
-          const start = Math.max(0, startLine - 1);
-          const end = Math.min(lines.length, endLine);
+        if (normalizedStartLine != null && effectiveEndLine != null) {
+          const start = Math.max(0, normalizedStartLine - 1);
+          const end = Math.min(lines.length, effectiveEndLine);
           content = lines.slice(start, end).join('\n');
         } else {
           content = fullContent;
         }
         const { text, truncated } = truncateFileText(content);
+        const nextReadStartLine =
+          normalizedStartLine != null && effectiveEndLine != null && effectiveEndLine < totalLines
+            ? effectiveEndLine + 1
+            : null;
         const result = {
           path,
           content: text,
           success: true as const,
           totalLines,
           truncated,
-          ...(startLine != null && endLine != null ? { startLine, endLine } : {}),
+          ...(normalizedStartLine != null && effectiveEndLine != null
+            ? { startLine: normalizedStartLine, endLine: effectiveEndLine }
+            : {}),
+          ...(safeWindowSize ? { windowSize: safeWindowSize } : {}),
+          nextReadStartLine,
+          nextRead: nextReadStartLine
+            ? {
+                startLine: nextReadStartLine,
+                ...(safeWindowSize ? { windowSize: safeWindowSize } : {}),
+              }
+            : null,
         };
         dataStream.write({
           type: 'data-file_read',
@@ -692,7 +733,10 @@ export function createWriteFileTool(
   });
 }
 
-const GREP_MAX_RESULTS_DEFAULT = 200;
+const GREP_MAX_RESULTS_DEFAULT = 40;
+const GREP_MAX_RESULTS_HARD_CAP = 120;
+const GREP_CONTEXT_LINES_HARD_CAP = 3;
+const GREP_LINE_PREVIEW_CHARS = 240;
 
 export function createGrepFileTool(
   dataStream: { write: (data: unknown) => void },
@@ -707,29 +751,54 @@ export function createGrepFileTool(
       useRegex: z.boolean().optional().describe(toolDefinitions.grep_file.inputSchema.useRegex),
       contextLines: z.number().optional().describe(toolDefinitions.grep_file.inputSchema.contextLines),
       maxResults: z.number().optional().describe(toolDefinitions.grep_file.inputSchema.maxResults),
+      startLine: z.number().optional().describe(toolDefinitions.grep_file.inputSchema.startLine),
+      endLine: z.number().optional().describe(toolDefinitions.grep_file.inputSchema.endLine),
+      windowSize: z.number().optional().describe(toolDefinitions.grep_file.inputSchema.windowSize),
     }),
-    execute: async ({ path, pattern, useRegex = false, contextLines = 0, maxResults = GREP_MAX_RESULTS_DEFAULT }) => {
+    execute: async ({ path, pattern, useRegex = false, contextLines = 0, maxResults = GREP_MAX_RESULTS_DEFAULT, startLine, endLine, windowSize }) => {
       const sandbox = await getOrCreateSandbox(chatId, supabase);
       try {
         const content = await sandbox.files.read(path);
         const lines = content.split('\n');
         const totalLines = lines.length;
+        const safeWindowSize = Number.isFinite(Number(windowSize))
+          ? Math.max(50, Math.min(5000, Math.floor(Number(windowSize))))
+          : undefined;
+        const effectiveStartLine = Math.min(
+          Math.max(1, Math.floor(Number(startLine) || 1)),
+          Math.max(1, totalLines)
+        );
+        const effectiveEndLine = Math.min(
+          Math.max(
+            effectiveStartLine,
+            safeWindowSize
+              ? (effectiveStartLine + safeWindowSize - 1)
+              : Math.floor(Number(endLine) || totalLines)
+          ),
+          totalLines
+        );
+        const safeContextLines = Math.max(0, Math.min(GREP_CONTEXT_LINES_HARD_CAP, Math.floor(Number(contextLines) || 0)));
+        const safeMaxResults = Math.max(1, Math.min(GREP_MAX_RESULTS_HARD_CAP, Math.floor(Number(maxResults) || GREP_MAX_RESULTS_DEFAULT)));
         const regex = useRegex ? new RegExp(pattern.replace(/^\/|\/$/g, '')) : null;
         const matches: { lineNumber: number; line: string }[] = [];
-        for (let i = 0; i < lines.length && matches.length < maxResults; i++) {
+        for (let i = effectiveStartLine - 1; i < effectiveEndLine && matches.length < safeMaxResults; i++) {
           const line = lines[i];
           const matched = regex ? regex.test(line) : line.includes(pattern);
           if (matched) matches.push({ lineNumber: i + 1, line });
         }
+        const reachedMatchLimit = matches.length >= safeMaxResults;
+        const nextSearchStartLine =
+          reachedMatchLimit && matches.length > 0 && matches[matches.length - 1]
+            ? Math.min(totalLines, matches[matches.length - 1].lineNumber + 1)
+            : null;
         let output: string;
         let truncated = false;
-        if (contextLines > 0 && matches.length > 0) {
+        if (safeContextLines > 0 && matches.length > 0) {
           const ranges: { startLine: number; endLine: number; lines: string[] }[] = [];
           const used = new Set<number>();
           for (const m of matches) {
-            const start = Math.max(0, m.lineNumber - 1 - contextLines);
-            const end = Math.min(lines.length, m.lineNumber + contextLines);
-            const key = `${start}-${end}`;
+            const start = Math.max(0, m.lineNumber - 1 - safeContextLines);
+            const end = Math.min(lines.length, m.lineNumber + safeContextLines);
             if (used.has(start)) continue;
             used.add(start);
             ranges.push({
@@ -740,16 +809,50 @@ export function createGrepFileTool(
           }
           output = ranges.map(r => `Lines ${r.startLine}-${r.endLine}:\n${r.lines.join('\n')}`).join('\n\n');
         } else {
-          output = matches.map(m => `${m.lineNumber}: ${m.line}`).join('\n');
+          output = matches
+            .map((m) => {
+              const raw = m.line || '';
+              const preview = raw.length > GREP_LINE_PREVIEW_CHARS
+                ? `${raw.slice(0, GREP_LINE_PREVIEW_CHARS)}...`
+                : raw;
+              return `${m.lineNumber}: ${preview}`;
+            })
+            .join('\n');
         }
         const { text, truncated: didTruncate } = truncateFileText(output);
         truncated = didTruncate;
+        const compactMatches = matches.map((m) => {
+          const line = m.line || '';
+          return {
+            lineNumber: m.lineNumber,
+            line: line.length > GREP_LINE_PREVIEW_CHARS
+              ? `${line.slice(0, GREP_LINE_PREVIEW_CHARS)}...`
+              : line,
+          };
+        });
+        const hasMoreInWindow = reachedMatchLimit || effectiveEndLine < totalLines;
+        const recommendedNextStep = hasMoreInWindow
+          ? `Too many matches/remaining lines. Continue windowed search from startLine=${nextSearchStartLine ?? (effectiveEndLine + 1)} with same pattern.`
+          : undefined;
         const result = {
           path,
           totalLines,
-          matches,
+          startLine: effectiveStartLine,
+          endLine: effectiveEndLine,
+          windowSize: safeWindowSize,
+          matches: compactMatches,
+          returnedMatches: compactMatches.length,
+          reachedMatchLimit,
+          nextSearchStartLine,
+          nextSearch: nextSearchStartLine
+            ? {
+                startLine: nextSearchStartLine,
+                ...(safeWindowSize ? { windowSize: safeWindowSize } : {}),
+              }
+            : null,
           output: text,
           truncated,
+          recommendedNextStep,
           success: true as const,
         };
         dataStream.write({
@@ -930,16 +1033,52 @@ const RUN_CODE_TIMEOUT_MS = 90_000;
 const PLAYWRIGHT_BOOTSTRAP_TIMEOUT_MS = 180_000;
 const PLAYWRIGHT_CODE_PATTERN = /\bplaywright\b|sync_playwright|async_playwright/;
 const preparedPlaywrightSandboxes = new Set<string>();
-const ANTIBOT_MARKERS = [
-  'attention required! | cloudflare',
-  'checking your browser',
-  'verify you are human',
-  'cf-chl',
-  'captcha',
-  'datadome',
-  'access denied',
-  'blocked',
-];
+const PLAYWRIGHT_READY_MARKER = '/tmp/chatflix_playwright_ready';
+const BRIGHTDATA_BROWSER_WS_ENDPOINT = process.env.BRIGHTDATA_BROWSER_WS_ENDPOINT || '';
+const PLAYWRIGHT_SANDBOX_PREAMBLE = `
+# Auto-injected by run_python_code for sandbox stability.
+# Enforces headless=True and hardened Chromium args in constrained environments.
+try:
+    from playwright.sync_api import BrowserType as _SyncBrowserType
+except Exception:
+    _SyncBrowserType = None
+
+try:
+    from playwright.async_api import BrowserType as _AsyncBrowserType
+except Exception:
+    _AsyncBrowserType = None
+
+_SANDBOX_LAUNCH_ARGS = [
+    "--disable-blink-features=AutomationControlled",
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+]
+
+if _SyncBrowserType and not getattr(_SyncBrowserType, "_sandbox_headless_patched", False):
+    _sync_launch = _SyncBrowserType.launch
+
+    def _sandbox_sync_launch(self, *args, **kwargs):
+        kwargs.setdefault("headless", True)
+        given_args = kwargs.get("args") or []
+        kwargs["args"] = given_args + [a for a in _SANDBOX_LAUNCH_ARGS if a not in given_args]
+        return _sync_launch(self, *args, **kwargs)
+
+    _SyncBrowserType.launch = _sandbox_sync_launch
+    _SyncBrowserType._sandbox_headless_patched = True
+
+if _AsyncBrowserType and not getattr(_AsyncBrowserType, "_sandbox_headless_patched", False):
+    _async_launch = _AsyncBrowserType.launch
+
+    async def _sandbox_async_launch(self, *args, **kwargs):
+        kwargs.setdefault("headless", True)
+        given_args = kwargs.get("args") or []
+        kwargs["args"] = given_args + [a for a in _SANDBOX_LAUNCH_ARGS if a not in given_args]
+        return await _async_launch(self, *args, **kwargs)
+
+    _AsyncBrowserType.launch = _sandbox_async_launch
+    _AsyncBrowserType._sandbox_headless_patched = True
+`;
 
 function serializeResult(r: { text?: string; html?: string; markdown?: string; svg?: string; png?: string; jpeg?: string; chart?: unknown; json?: unknown }): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -995,15 +1134,25 @@ def _run(cmd):
     except Exception as e:
         return None
 
-playwright_installed = importlib.util.find_spec("playwright") is not None
-if not playwright_installed:
-    _run([sys.executable, "-m", "pip", "install", "-q", "playwright"])
+MARKER = ${JSON.stringify(PLAYWRIGHT_READY_MARKER)}
+if os.path.exists(MARKER):
+    print("playwright bootstrap skipped (marker exists)")
+else:
+    playwright_installed = importlib.util.find_spec("playwright") is not None
+    if not playwright_installed:
+        _run([sys.executable, "-m", "pip", "install", "-q", "playwright"])
 
-if shutil.which("playwright"):
-    _run(["playwright", "install", "chromium"])
-    if os.geteuid() == 0:
-        _run(["playwright", "install-deps", "chromium"])
-print("playwright bootstrap attempted")
+    if shutil.which("playwright"):
+        _run(["playwright", "install", "chromium"])
+        if os.geteuid() == 0:
+            _run(["playwright", "install-deps", "chromium"])
+
+    try:
+        with open(MARKER, "w", encoding="utf-8") as f:
+            f.write("ok")
+    except Exception:
+        pass
+    print("playwright bootstrap attempted")
 `;
 
   try {
@@ -1020,7 +1169,7 @@ function rewritePlaywrightCodeForSandbox(code: string): { code: string; rewrites
   if (!PLAYWRIGHT_CODE_PATTERN.test(code)) return { code, rewrites: [] };
 
   let rewritten = code;
-  const rewrites: string[] = [];
+  const rewrites: string[] = ['injected sandbox preamble (headless=True + launch args)'];
 
   const patterns: Array<{ regex: RegExp; to: string; note: string }> = [
     {
@@ -1041,25 +1190,348 @@ function rewritePlaywrightCodeForSandbox(code: string): { code: string; rewrites
     if (before !== rewritten) rewrites.push(p.note);
   }
 
+  // Always prepend safe launch patching for sandbox execution.
+  if (!rewritten.includes('_sandbox_headless_patched')) {
+    rewritten = `${PLAYWRIGHT_SANDBOX_PREAMBLE}\n\n${rewritten}`;
+  }
+
   return { code: rewritten, rewrites };
 }
 
-function detectAntiBotFromExecution(stdout: string[], stderr: string[], results: unknown[]): string | null {
-  const resultText = results
-    .map((r) => {
-      if (typeof r === 'string') return r;
-      try {
-        return JSON.stringify(r);
-      } catch {
-        return '';
-      }
-    })
-    .join('\n')
-    .toLowerCase();
+function extractUrlsFromCode(code: string): string[] {
+  const matches = code.match(/https?:\/\/[^\s"'`<>\\)]+/g) || [];
+  const unique = new Set<string>();
+  for (const raw of matches) {
+    const cleaned = raw.replace(/[),.;]+$/, '');
+    try {
+      const normalized = new URL(cleaned).toString();
+      unique.add(normalized);
+    } catch {
+      // ignore invalid URL-like strings
+    }
+  }
+  return Array.from(unique).slice(0, 3);
+}
 
-  const haystack = `${stdout.join('\n')}\n${stderr.join('\n')}\n${resultText}`.toLowerCase();
-  const found = ANTIBOT_MARKERS.find((m) => haystack.includes(m));
-  return found || null;
+type BrightDataFallbackResult = {
+  attempted: boolean;
+  success: boolean;
+  url?: string;
+  status?: number;
+  contentSnippet?: string;
+  fullContent?: string;
+  source?: 'browser_api';
+  error?: string;
+};
+
+function extractBalancedObjectLiteral(source: string, startIndex: number): string | null {
+  let depth = 0;
+  let inString = false;
+  let quote: '"' | "'" | null = null;
+  let escaped = false;
+  let begin = -1;
+
+  for (let i = startIndex; i < source.length; i += 1) {
+    const ch = source[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (quote && ch === quote) {
+        inString = false;
+        quote = null;
+      }
+      continue;
+    }
+
+    if (ch === '"' || ch === "'") {
+      inString = true;
+      quote = ch as '"' | "'";
+      continue;
+    }
+
+    if (ch === '{') {
+      if (depth === 0) begin = i;
+      depth += 1;
+      continue;
+    }
+
+    if (ch === '}') {
+      if (depth === 0) continue;
+      depth -= 1;
+      if (depth === 0 && begin >= 0) {
+        return source.slice(begin, i + 1);
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractMatchCentreDataFromHtml(fullHtml: string): { objectText: string | null } {
+  const anchors = [
+    /matchCentreData\s*=\s*/i,
+    /["']matchCentreData["']\s*:\s*/i,
+    /matchcenterdata\s*=\s*/i, // tolerate center typo variants in page scripts
+    /["']matchcenterdata["']\s*:\s*/i,
+  ];
+
+  for (const anchor of anchors) {
+    const m = anchor.exec(fullHtml);
+    if (!m || typeof m.index !== 'number') continue;
+    const searchStart = m.index + m[0].length;
+    const braceStart = fullHtml.indexOf('{', searchStart);
+    if (braceStart < 0) continue;
+    const objectText = extractBalancedObjectLiteral(fullHtml, braceStart);
+    if (objectText) return { objectText };
+  }
+
+  return { objectText: null };
+}
+
+async function fetchViaBrightDataBrowserApi(
+  url: string,
+  sandbox: { runCode: (code: string, options?: { timeoutMs?: number }) => Promise<any> }
+): Promise<BrightDataFallbackResult> {
+  if (!BRIGHTDATA_BROWSER_WS_ENDPOINT) {
+    return {
+      attempted: false,
+      success: false,
+      error: 'Bright Data Browser API not configured (missing BRIGHTDATA_BROWSER_WS_ENDPOINT).',
+    };
+  }
+
+  const browserApiCode = `
+import asyncio
+import subprocess
+import sys
+from playwright.async_api import async_playwright
+
+try:
+    import nest_asyncio
+except Exception:
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "nest_asyncio"], check=False)
+    import nest_asyncio
+
+SBR_WS_CDP = ${JSON.stringify(BRIGHTDATA_BROWSER_WS_ENDPOINT)}
+TARGET_URL = ${JSON.stringify(url)}
+WAIT_SECONDS = 10
+MAX_RETRIES = 2
+
+async def _safe_click(page, selectors):
+    for sel in selectors:
+        try:
+            loc = page.locator(sel)
+            if await loc.count() > 0:
+                await loc.first.click(timeout=1200)
+                await asyncio.sleep(0.8)
+                return sel
+        except Exception:
+            pass
+    return None
+
+def _score_html(html):
+    lower = html.lower()
+    score = len(html)
+    for marker in ("matchcentredata", "matchcenterdata", "eventtypes", "__next_data__", "events"):
+        if marker in lower:
+            score += 200000
+    if "webpush-window-body" in lower:
+        score -= 150000
+    return score
+
+COOKIE_SELECTORS = [
+    "button:has-text('Accept')",
+    "button:has-text('Accept All')",
+    "#onetrust-accept-btn-handler",
+    "button[aria-label*='Accept']",
+]
+TAB_SELECTORS = [
+    "button:has-text('Chalkboard')",
+    "a:has-text('Chalkboard')",
+    "button:has-text('Match Centre')",
+    "a:has-text('Match Centre')",
+    "button:has-text('Statistics')",
+    "a:has-text('Statistics')",
+]
+
+async def _single_fetch(p, attempt_idx):
+    """Each attempt gets a FRESH browser connection (= new IP from Bright Data)."""
+    browser = None
+    try:
+        browser = await p.chromium.connect_over_cdp(SBR_WS_CDP)
+        page = await browser.new_page()
+
+        # Single navigation only - NO double page.goto()
+        await page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=90000)
+
+        await _safe_click(page, COOKIE_SELECTORS)
+        await asyncio.sleep(WAIT_SECONDS)
+
+        # Scroll to trigger lazy content on retry attempts
+        if attempt_idx >= 1:
+            try:
+                await page.mouse.wheel(0, 1200)
+                await asyncio.sleep(1.0)
+                await page.mouse.wheel(0, -300)
+                await asyncio.sleep(0.6)
+            except Exception:
+                pass
+            await _safe_click(page, TAB_SELECTORS)
+            await asyncio.sleep(3)
+
+        html = await page.content()
+        return html, None
+    except Exception as exc:
+        return "", str(exc)
+    finally:
+        if browser:
+            try:
+                await browser.close()
+            except Exception:
+                pass
+
+async def _main():
+    async with async_playwright() as p:
+        attempts = []
+        for i in range(MAX_RETRIES):
+            print(f"[BD Browser API] attempt {i+1}/{MAX_RETRIES}...")
+            html, err = await _single_fetch(p, i)
+            score = _score_html(html) if html else -1
+            attempts.append((f"attempt_{i}", html, score, err))
+            print(f"[BD Browser API] attempt {i+1}: score={score}, len={len(html)}, err={err}")
+            if score > 200000:
+                break
+            if err:
+                await asyncio.sleep(2)
+
+        best = max(attempts, key=lambda item: item[2])
+        html = best[1]
+        if html:
+            print("__BD_BROWSER_HTML_BEGIN__")
+            print(html)
+            print("__BD_BROWSER_HTML_END__")
+        else:
+            errors = [a[3] for a in attempts if a[3]]
+            print(f"__BD_BROWSER_FAIL__: All {MAX_RETRIES} attempts failed. Errors: {errors}")
+
+nest_asyncio.apply()
+loop = asyncio.get_event_loop()
+if loop.is_running():
+    loop.run_until_complete(_main())
+else:
+    try:
+        asyncio.run(_main())
+    except RuntimeError:
+        loop.run_until_complete(_main())
+`;
+
+  try {
+    const execution = await sandbox.runCode(browserApiCode, { timeoutMs: 180_000 });
+    const stdoutLines = Array.isArray(execution?.logs?.stdout) ? execution.logs.stdout : [];
+    const stderrLines = Array.isArray(execution?.logs?.stderr) ? execution.logs.stderr : [];
+    const stderrPreview = stderrLines.join('\n').slice(0, 1200);
+    const err = execution?.error;
+    if (err) {
+      const baseErr = typeof err?.value === 'string' ? err.value : (err?.name || 'Browser API execution error');
+      const errorWithStderr = stderrPreview
+        ? `${baseErr}\n[stderr]\n${stderrPreview}`
+        : baseErr;
+      return {
+        attempted: true,
+        success: false,
+        url,
+        source: 'browser_api',
+        error: errorWithStderr,
+      };
+    }
+
+    const joined = stdoutLines.join('\n');
+
+    // Check for explicit failure from all-retry exhaustion
+    const bdFailIdx = joined.indexOf('__BD_BROWSER_FAIL__');
+    if (bdFailIdx >= 0) {
+      const failMsg = joined.slice(bdFailIdx, bdFailIdx + 500).trim();
+      return {
+        attempted: true,
+        success: false,
+        url,
+        source: 'browser_api',
+        error: `All Browser API retry attempts failed. ${failMsg}\n[stderr]\n${stderrPreview || '(empty)'}`,
+      };
+    }
+
+    const beginToken = '__BD_BROWSER_HTML_BEGIN__';
+    const endToken = '__BD_BROWSER_HTML_END__';
+    const beginIdx = joined.indexOf(beginToken);
+    const endIdx = joined.indexOf(endToken);
+    if (beginIdx < 0 || endIdx < 0 || endIdx <= beginIdx) {
+      return {
+        attempted: true,
+        success: false,
+        url,
+        source: 'browser_api',
+        error: `Browser API did not return HTML markers.\n[stderr]\n${stderrPreview || '(empty)'}\n[stdout_head]\n${joined.slice(0, 600)}`,
+      };
+    }
+
+    const fullHtml = joined.slice(beginIdx + beginToken.length, endIdx).trim();
+    const snippet = truncateFileText(fullHtml).text;
+    return {
+      attempted: true,
+      success: true,
+      url,
+      status: 200,
+      source: 'browser_api',
+      contentSnippet: snippet,
+      fullContent: fullHtml,
+    };
+  } catch (error) {
+    return {
+      attempted: true,
+      success: false,
+      url,
+      source: 'browser_api',
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function tryBrightDataBrowserFallbackFromCode(
+  code: string,
+  sandbox: { runCode: (code: string, options?: { timeoutMs?: number }) => Promise<any> }
+): Promise<BrightDataFallbackResult> {
+  const urls = extractUrlsFromCode(code);
+  if (urls.length === 0) {
+    return {
+      attempted: false,
+      success: false,
+      // Not an execution failure: just no URL candidate in this code block.
+      error: undefined,
+    };
+  }
+
+  const errors: string[] = [];
+  for (const url of urls) {
+    const result = await fetchViaBrightDataBrowserApi(url, sandbox);
+    if (result.success) return result;
+    if (result.error) errors.push(`${url}: ${result.error}`);
+    if (!result.attempted) return result;
+  }
+
+  return {
+    attempted: true,
+    success: false,
+    error: errors.length > 0
+      ? `Bright Data Browser API fallback attempted but all candidate URLs failed.\n${errors.slice(0, 2).join('\n\n')}`
+      : 'Bright Data Browser API fallback attempted but all candidate URLs failed.',
+  };
 }
 
 function normalizeRunCodeResults(results: Record<string, unknown>[]): Record<string, unknown>[] {
@@ -1172,27 +1644,73 @@ export function createRunPythonCodeTool(
             }
           : undefined;
         let success = !err;
-        const antiBotMarker = detectAntiBotFromExecution(stdout, stderr, results);
-        if (success && antiBotMarker) {
-          success = false;
-          errorPayload = {
-            name: 'AntiBotBlocked',
-            value: `Detected anti-bot challenge marker: "${antiBotMarker}". Sandbox/headless traffic is likely blocked for this target.`,
-            traceback: [],
-          };
-        }
-        const payload: { success: boolean; stdout: string[]; stderr: string[]; results: unknown[]; error?: unknown } = {
-          success,
-          stdout,
-          stderr,
-          results,
-          error: errorPayload,
-        };
-        runCodeResults.push({ ...payload, stdout: [...payload.stdout], stderr: [...payload.stderr], results: payload.results.slice() });
+        const syncedFiles: Array<{ path: string; isText: boolean; bytes: number }> = [];
+        const isPlaywrightRun = PLAYWRIGHT_CODE_PATTERN.test(codeToRun);
+        const shouldTryBrightDataFallback = isPlaywrightRun && !!err;
 
+        if (shouldTryBrightDataFallback) {
+          // Browser API only (no Unlocker fallback).
+          const brightDataFallback = await tryBrightDataBrowserFallbackFromCode(
+            codeToRun,
+            sandbox as unknown as { runCode: (code: string, options?: { timeoutMs?: number }) => Promise<any> }
+          );
+          if (brightDataFallback.success) {
+            success = true;
+            errorPayload = undefined;
+            const summaryLine = `[BrightData fallback] Successfully fetched ${brightDataFallback.url} via Browser API (status ${brightDataFallback.status ?? 200}).`;
+            stdout.push(summaryLine);
+            results.unshift({
+              text: `${summaryLine}\n\n${brightDataFallback.contentSnippet || ''}`,
+              source: 'brightdata_fallback',
+              url: brightDataFallback.url,
+              status: brightDataFallback.status ?? 200,
+            });
+            dataStream.write({
+              type: 'data-run_code_stdout',
+              id: `run-code-brightdata-fallback-${Date.now()}`,
+              data: {
+                toolCallId,
+                line: summaryLine,
+              },
+            });
+
+            // Continue processing on full HTML (not snippet) so downstream extraction
+            // does not miss matchCentreData located deeper in the document.
+            if (brightDataFallback.fullContent && (brightDataFallback.url || '').includes('whoscored.com')) {
+              const extracted = extractMatchCentreDataFromHtml(brightDataFallback.fullContent);
+              if (extracted.objectText) {
+                const matchDataPath = `${WORKSPACE_BASE}/whoscored_matchCentreData.json`;
+                try {
+                  await sandbox.files.write(matchDataPath, extracted.objectText);
+                  await addWorkspacePath(chatId, matchDataPath, supabase);
+                  await saveWorkspaceFile(chatId, matchDataPath, extracted.objectText, supabase);
+                  syncedFiles.push({
+                    path: matchDataPath,
+                    isText: true,
+                    bytes: Buffer.byteLength(extracted.objectText, 'utf8'),
+                  });
+                  alreadySyncedPaths.add(matchDataPath);
+                  stdout.push('[BrightData fallback] Extracted matchCentreData and saved whoscored_matchCentreData.json');
+                } catch (extractWriteErr) {
+                  stderr.push(`[BrightData fallback] matchCentreData extraction save failed: ${extractWriteErr instanceof Error ? extractWriteErr.message : String(extractWriteErr)}`);
+                }
+              }
+            }
+          } else if (brightDataFallback.attempted) {
+            const failLine = `[BrightData fallback] Failed: ${brightDataFallback.error || 'Unknown error'}`;
+            stderr.push(failLine);
+            dataStream.write({
+              type: 'data-run_code_stderr',
+              id: `run-code-brightdata-fallback-failed-${Date.now()}`,
+              data: {
+                toolCallId,
+                line: failLine,
+              },
+            });
+          }
+        }
         // ── Sync new/modified files from sandbox back to DB ──
         // Only sync files when code succeeded – failed runs should not report stale files
-        const syncedFiles: Array<{ path: string; isText: boolean; bytes: number }> = [];
         if (success) {
         try {
           const existingPaths = new Set(await getWorkspacePaths(chatId, supabase));
@@ -1262,6 +1780,14 @@ export function createRunPythonCodeTool(
         } // end if (success)
         // ── End file sync ──
 
+        const payload: { success: boolean; stdout: string[]; stderr: string[]; results: unknown[]; error?: unknown } = {
+          success,
+          stdout: [...stdout],
+          stderr: [...stderr],
+          results: results.slice(),
+          error: errorPayload,
+        };
+
         const stdoutStr = payload.stdout.join('\n');
         const stderrStr = payload.stderr.join('\n');
         if (stdoutStr.length > 0) {
@@ -1277,6 +1803,7 @@ export function createRunPythonCodeTool(
           id: `run-code-complete-${Date.now()}`,
           data: { ...payload, toolCallId },
         });
+        runCodeResults.push({ ...payload, stdout: [...payload.stdout], stderr: [...payload.stderr], results: payload.results.slice() });
 
         const minimalError = errorPayload
           ? {
@@ -1290,11 +1817,43 @@ export function createRunPythonCodeTool(
             }
           : undefined;
 
-        const minimalPayload: { success: boolean; results: Array<{ summary: string }>; error?: unknown } = {
-          success,
-          results: [{ summary: 'Output shown to user.' }],
-          ...(minimalError && { error: minimalError }),
-        };
+        const BRIGHTDATA_RESULT_MAX_CHARS = 10_000;
+        const firstResult = results[0] as { text?: string; source?: string } | undefined;
+        const isBrightDataSuccess = success && firstResult?.source === 'brightdata_fallback';
+
+        let minimalPayload: { success: boolean; results: Array<{ summary: string; text?: string }>; error?: unknown };
+        if (isBrightDataSuccess && firstResult.text) {
+          const excerpt =
+            firstResult.text.length <= BRIGHTDATA_RESULT_MAX_CHARS
+              ? firstResult.text
+              : firstResult.text.slice(0, BRIGHTDATA_RESULT_MAX_CHARS) + '\n...[truncated]';
+          minimalPayload = {
+            success,
+            results: [
+              {
+                summary: 'BrightData fallback succeeded. HTML fetched. Parse matchCentreData from script tags and save as CSV.',
+                text: excerpt,
+              },
+            ],
+            ...(minimalError && { error: minimalError }),
+          };
+        } else if (!success) {
+          const failureSummary =
+            typeof minimalError?.value === 'string' && minimalError.value.length > 0
+              ? `Run failed: ${minimalError.value}`
+              : 'Run failed.';
+          minimalPayload = {
+            success,
+            results: [{ summary: failureSummary.slice(0, 300) }],
+            ...(minimalError && { error: minimalError }),
+          };
+        } else {
+          minimalPayload = {
+            success,
+            results: [{ summary: 'Output shown to user.' }],
+            ...(minimalError && { error: minimalError }),
+          };
+        }
 
         return minimalPayload;
       } catch (sandboxErr: any) {
@@ -1324,7 +1883,7 @@ export function createRunPythonCodeTool(
 
         return {
           success: false,
-          results: [{ summary: 'Output shown to user.' }],
+          results: [{ summary: 'Run failed.' }],
           error: {
             name: sandboxErr?.name || 'SandboxError',
             value: errMessage.slice(0, 500),
@@ -1343,6 +1902,441 @@ export function createRunPythonCodeTool(
     },
   });
   return Object.assign(runCodeTool, { runCodeResults });
+}
+
+export function createBrowserObserveTool(
+  dataStream: { write: (data: unknown) => void },
+  chatId: string,
+  supabase: SupabaseClient
+) {
+  const observeResults: Array<{
+    success: boolean;
+    url: string;
+    finalUrl?: string;
+    title?: string;
+    htmlPath?: string;
+    screenshotPath?: string;
+    htmlLength?: number;
+    attemptCount?: number;
+    selectedAttempt?: string;
+    error?: string;
+  }> = [];
+
+  const observeTool = tool({
+    description: toolDefinitions.browser_observe.description,
+    inputSchema: z.object({
+      url: z.string().describe(toolDefinitions.browser_observe.inputSchema.url),
+      waitSeconds: z.number().optional().describe(toolDefinitions.browser_observe.inputSchema.waitSeconds),
+      maxAttempts: z.number().optional().describe(toolDefinitions.browser_observe.inputSchema.maxAttempts),
+    }),
+    execute: async ({ url, waitSeconds = 8, maxAttempts = 3 }, context) => {
+      const toolCallId =
+        typeof (context as any)?.toolCallId === 'string'
+          ? (context as any).toolCallId
+          : `browser-observe-${Date.now()}`;
+      dataStream.write({
+        type: 'data-browser_observe_progress',
+        id: `browser-observe-progress-${Date.now()}`,
+        data: {
+          toolCallId,
+          url,
+          phase: 'starting',
+          status: 'running',
+          message: 'Starting browser observation.',
+        },
+      });
+      if (!BRIGHTDATA_BROWSER_WS_ENDPOINT) {
+        const fail = {
+          success: false,
+          url,
+          error: 'BRIGHTDATA_BROWSER_WS_ENDPOINT is not configured.',
+        };
+        observeResults.push(fail);
+        dataStream.write({
+          type: 'data-browser_observe_progress',
+          id: `browser-observe-progress-${Date.now()}`,
+          data: {
+            toolCallId,
+            url,
+            phase: 'configuration',
+            status: 'error',
+            message: fail.error,
+          },
+        });
+        return fail;
+      }
+
+      const sandbox = await getOrCreateSandbox(chatId, supabase);
+      const ts = Date.now();
+      const htmlPath = `${WORKSPACE_BASE}/browser_observe_${ts}.html`;
+      const screenshotPath = `${WORKSPACE_BASE}/browser_observe_${ts}.png`;
+      dataStream.write({
+        type: 'data-browser_observe_progress',
+        id: `browser-observe-progress-${Date.now()}`,
+        data: {
+          toolCallId,
+          url,
+          phase: 'remote_browser',
+          status: 'running',
+          message: 'Connecting to remote browser and capturing page state.',
+        },
+      });
+
+      const py = `
+import asyncio
+import json
+import subprocess
+import sys
+from playwright.async_api import async_playwright
+
+try:
+    import nest_asyncio
+except Exception:
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "nest_asyncio"], check=False)
+    import nest_asyncio
+
+SBR_WS_CDP = ${JSON.stringify(BRIGHTDATA_BROWSER_WS_ENDPOINT)}
+TARGET_URL = ${JSON.stringify(url)}
+WAIT_SECONDS = ${Math.max(1, Math.min(30, Number(waitSeconds) || 10))}
+HTML_PATH = ${JSON.stringify(htmlPath)}
+SHOT_PATH = ${JSON.stringify(screenshotPath)}
+MAX_ATTEMPTS = ${Math.max(1, Math.min(3, Number(maxAttempts) || 3))}
+
+COOKIE_SELECTORS = [
+    "button:has-text('Accept')",
+    "button:has-text('Accept All')",
+    "#onetrust-accept-btn-handler",
+    "button[aria-label*='Accept']",
+]
+TAB_CANDIDATES = [
+    "button:has-text('Chalkboard')",
+    "a:has-text('Chalkboard')",
+    "button:has-text('Match Centre')",
+    "a:has-text('Match Centre')",
+    "button:has-text('Live')",
+    "a:has-text('Live')",
+    "button:has-text('Statistics')",
+    "a:has-text('Statistics')",
+]
+QUALITY_MARKERS = [
+    "matchCentreData",
+    "matchcenterdata",
+    "eventTypes",
+    "events",
+    "__NEXT_DATA__",
+]
+
+async def _safe_click_first(page, selectors, timeout_ms=1200):
+    for sel in selectors:
+        try:
+            loc = page.locator(sel)
+            cnt = await loc.count()
+            if cnt > 0:
+                await loc.first.click(timeout=timeout_ms)
+                await asyncio.sleep(0.8)
+                return sel
+        except Exception:
+            pass
+    return None
+
+def _score_html(html):
+    score = len(html)
+    lower = html.lower()
+    matched = []
+    for marker in QUALITY_MARKERS:
+        if marker.lower() in lower:
+            score += 200000
+            matched.append(marker)
+    if "webpush-window-body" in lower:
+        score -= 150000
+    return score, matched
+
+async def _single_attempt(p, attempt_idx):
+    """Each attempt gets a FRESH browser connection (= new IP from Bright Data)."""
+    browser = None
+    try:
+        browser = await p.chromium.connect_over_cdp(SBR_WS_CDP)
+        page = await browser.new_page()
+
+        # Single navigation only - NO double page.goto()
+        await page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=90000)
+
+        # Accept cookies early
+        clicked_cookie = await _safe_click_first(page, COOKIE_SELECTORS)
+
+        # Wait for dynamic JS content to render (matchCentreData etc.)
+        await asyncio.sleep(WAIT_SECONDS)
+
+        # Scroll to trigger lazy-loaded content
+        if attempt_idx >= 1:
+            try:
+                await page.mouse.wheel(0, 1400)
+                await asyncio.sleep(1.0)
+                await page.mouse.wheel(0, -400)
+                await asyncio.sleep(0.6)
+            except Exception:
+                pass
+
+        # Try clicking data tabs on later attempts
+        clicked_tab = None
+        if attempt_idx >= 2:
+            clicked_tab = await _safe_click_first(page, TAB_CANDIDATES)
+            if clicked_tab:
+                await asyncio.sleep(3)
+
+        title = await page.title()
+        final_url = page.url
+        html = await page.content()
+        score, matched = _score_html(html)
+
+        # Take screenshot from the best-looking attempt
+        shot_data = None
+        try:
+            await page.screenshot(path=SHOT_PATH, full_page=True)
+            shot_data = True
+        except Exception:
+            pass
+
+        return {
+            "phase": f"attempt_{attempt_idx}",
+            "title": title,
+            "final_url": final_url,
+            "html": html,
+            "html_length": len(html),
+            "score": score,
+            "matched_markers": matched,
+            "clicked_cookie": clicked_cookie,
+            "clicked_tab": clicked_tab,
+            "has_screenshot": bool(shot_data),
+            "error": None,
+        }
+    except Exception as exc:
+        return {
+            "phase": f"attempt_{attempt_idx}",
+            "title": None,
+            "final_url": None,
+            "html": "",
+            "html_length": 0,
+            "score": -1,
+            "matched_markers": [],
+            "clicked_cookie": None,
+            "clicked_tab": None,
+            "has_screenshot": False,
+            "error": str(exc),
+        }
+    finally:
+        if browser:
+            try:
+                await browser.close()
+            except Exception:
+                pass
+
+async def _main():
+    async with async_playwright() as p:
+        attempts = []
+        best = None
+
+        for i in range(MAX_ATTEMPTS):
+            print(f"[browser_observe] attempt {i+1}/{MAX_ATTEMPTS} - connecting fresh browser session...")
+            result = await _single_attempt(p, i)
+            attempts.append(result)
+            print(f"[browser_observe] attempt {i+1}: score={result['score']}, html_len={result['html_length']}, markers={result['matched_markers']}, error={result['error']}")
+
+            # If we got quality markers, stop early - no need for more attempts
+            if result["matched_markers"] and result["score"] > 200000:
+                print(f"[browser_observe] Quality content found on attempt {i+1}, stopping early.")
+                break
+
+            # If browser was closed/error, next attempt gets a fresh connection anyway
+            if result["error"]:
+                print(f"[browser_observe] attempt {i+1} failed: {result['error']}. Will retry with fresh session.")
+                await asyncio.sleep(2)  # brief pause before retry
+
+        best = max(attempts, key=lambda item: item.get("score", 0))
+        html = best["html"]
+
+        if html:
+            with open(HTML_PATH, "w", encoding="utf-8") as f:
+                f.write(html)
+
+            # If best attempt didn't capture screenshot, try to take one from a fresh session
+            if not best.get("has_screenshot") and best["score"] > 0:
+                try:
+                    br = await p.chromium.connect_over_cdp(SBR_WS_CDP)
+                    pg = await br.new_page()
+                    await pg.goto(TARGET_URL, wait_until="domcontentloaded", timeout=60000)
+                    await asyncio.sleep(3)
+                    await pg.screenshot(path=SHOT_PATH, full_page=True)
+                    await br.close()
+                except Exception:
+                    pass
+
+        print("__BROWSER_OBS_JSON_BEGIN__")
+        print(json.dumps({
+            "success": bool(html and len(html) > 500),
+            "title": best.get("title"),
+            "final_url": best.get("final_url"),
+            "html_path": HTML_PATH if html else None,
+            "screenshot_path": SHOT_PATH,
+            "html_length": len(html) if html else 0,
+            "selected_attempt": best.get("phase"),
+            "attempts": [
+                {
+                    "phase": a.get("phase"),
+                    "title": a.get("title"),
+                    "final_url": a.get("final_url"),
+                    "html_length": a.get("html_length"),
+                    "score": a.get("score"),
+                    "matched_markers": a.get("matched_markers", []),
+                    "clicked_cookie": a.get("clicked_cookie"),
+                    "clicked_tab": a.get("clicked_tab"),
+                    "error": a.get("error"),
+                }
+                for a in attempts
+            ],
+        }))
+        print("__BROWSER_OBS_JSON_END__")
+
+nest_asyncio.apply()
+loop = asyncio.get_event_loop()
+if loop.is_running():
+    loop.run_until_complete(_main())
+else:
+    try:
+        asyncio.run(_main())
+    except RuntimeError:
+        loop.run_until_complete(_main())
+`;
+
+      const execution = await sandbox.runCode(py, { timeoutMs: 180_000 });
+      const stdout = Array.isArray(execution.logs?.stdout) ? execution.logs.stdout : [];
+      const stderr = Array.isArray(execution.logs?.stderr) ? execution.logs.stderr : [];
+      const joined = stdout.join('\n');
+      const begin = joined.indexOf('__BROWSER_OBS_JSON_BEGIN__');
+      const end = joined.indexOf('__BROWSER_OBS_JSON_END__');
+
+      if (execution.error || begin < 0 || end < 0 || end <= begin) {
+        const msg = execution.error?.value
+          ? String(execution.error.value)
+          : `Observation parse failed. stderr: ${stderr.join('\n').slice(0, 1200)}`;
+        const fail = { success: false, url, error: msg };
+        observeResults.push(fail);
+        dataStream.write({
+          type: 'data-browser_observe_progress',
+          id: `browser-observe-progress-${Date.now()}`,
+          data: {
+            toolCallId,
+            url,
+            phase: 'execution',
+            status: 'error',
+            message: msg,
+          },
+        });
+        dataStream.write({
+          type: 'data-run_code_stderr',
+          id: `browser-observe-failed-${Date.now()}`,
+          data: { toolCallId, line: `[browser_observe] ${msg}` },
+        });
+        return fail;
+      }
+
+      const payloadText = joined
+        .slice(begin + '__BROWSER_OBS_JSON_BEGIN__'.length, end)
+        .trim();
+      let parsed: {
+        success: boolean;
+        title?: string;
+        final_url?: string;
+        html_path?: string;
+        screenshot_path?: string;
+        html_length?: number;
+        selected_attempt?: string;
+        attempts?: Array<{
+          phase?: string;
+          title?: string;
+          final_url?: string;
+          html_length?: number;
+          score?: number;
+          matched_markers?: string[];
+          clicked_cookie?: string | null;
+          clicked_tab?: string | null;
+        }>;
+      };
+      try {
+        parsed = JSON.parse(payloadText);
+      } catch {
+        const fail = { success: false, url, error: `Failed to parse browser observation payload: ${payloadText.slice(0, 300)}` };
+        observeResults.push(fail);
+        return fail;
+      }
+
+      // Sync generated files to workspace DB
+      if (parsed.html_path) {
+        dataStream.write({
+          type: 'data-browser_observe_progress',
+          id: `browser-observe-progress-${Date.now()}`,
+          data: {
+            toolCallId,
+            url,
+            phase: 'sync',
+            status: 'running',
+            message: 'Syncing captured HTML/screenshot to workspace.',
+          },
+        });
+        try {
+          const htmlContent = await sandbox.files.read(parsed.html_path);
+          await addWorkspacePath(chatId, parsed.html_path, supabase);
+          await saveWorkspaceFile(chatId, parsed.html_path, htmlContent, supabase);
+        } catch {
+          // non-fatal
+        }
+      }
+      if (parsed.screenshot_path) {
+        try {
+          const bytes = await sandbox.files.read(parsed.screenshot_path, { format: 'bytes' }) as unknown as Uint8Array;
+          await addWorkspacePath(chatId, parsed.screenshot_path, supabase);
+          await saveWorkspaceBinaryFile(chatId, parsed.screenshot_path, bytes, supabase);
+        } catch {
+          // non-fatal
+        }
+      }
+
+      const ok = {
+        success: true,
+        url,
+        finalUrl: parsed.final_url,
+        title: parsed.title,
+        htmlPath: parsed.html_path,
+        screenshotPath: parsed.screenshot_path,
+        htmlLength: parsed.html_length,
+        attemptCount: Array.isArray(parsed.attempts) ? parsed.attempts.length : undefined,
+        selectedAttempt: parsed.selected_attempt,
+      };
+      observeResults.push(ok);
+      dataStream.write({
+        type: 'data-browser_observe_progress',
+        id: `browser-observe-progress-${Date.now()}`,
+        data: {
+          toolCallId,
+          url,
+          phase: ok.selectedAttempt || 'completed',
+          status: 'completed',
+          message: 'Browser observation completed.',
+        },
+      });
+      dataStream.write({
+        type: 'data-run_code_stdout',
+        id: `browser-observe-complete-${Date.now()}`,
+        data: {
+          toolCallId,
+          line: `[browser_observe] attempt=${ok.selectedAttempt || 'n/a'} tries=${ok.attemptCount || 0} title="${ok.title || ''}" finalUrl="${ok.finalUrl || ''}" html=${ok.htmlLength || 0}, screenshot=${ok.screenshotPath || ''}`,
+        },
+      });
+      return ok;
+    },
+  });
+
+  return Object.assign(observeTool, { observeResults });
 }
 
 // Web Search 도구 생성 함수

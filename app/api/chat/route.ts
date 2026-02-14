@@ -83,6 +83,49 @@ async function incrementSuccessfulRequestCount(
   }
 }
 
+function enforcePayloadBudget(
+  messages: ModelMessage[],
+  systemPrompt: string,
+  modelId: string,
+  maxBytes = 1_900_000,
+): ModelMessage[] {
+  const maxPromptTokens = (() => {
+    const id = (modelId || '').toLowerCase();
+    if (id.includes('claude') || id.includes('anthropic')) return 165_000;
+    return 190_000;
+  })();
+  const buildPayload = (msgs: ModelMessage[]) => ({
+    model: modelId,
+    system: systemPrompt,
+    messages: msgs,
+  });
+  const estimatePromptTokens = (msgs: ModelMessage[]) => {
+    const systemTokens = Math.ceil((systemPrompt?.length || 0) / 4);
+    const messageTokens = msgs.reduce((sum, msg) => {
+      try {
+        return sum + estimateMultiModalTokens(msg as any);
+      } catch {
+        return sum + 0;
+      }
+    }, 0);
+    return systemTokens + messageTokens;
+  };
+
+  let trimmed = [...messages];
+  let bytes = estimatePayloadBytes(buildPayload(trimmed));
+  let tokens = estimatePromptTokens(trimmed);
+  if (bytes <= maxBytes && tokens <= maxPromptTokens) return trimmed;
+
+  // Prefer dropping oldest messages first while preserving the latest turn context.
+  while (trimmed.length > 6 && (bytes > maxBytes || tokens > maxPromptTokens)) {
+    trimmed = trimmed.slice(1);
+    bytes = estimatePayloadBytes(buildPayload(trimmed));
+    tokens = estimatePromptTokens(trimmed);
+  }
+
+  return trimmed;
+}
+
 
 export async function POST(req: Request): Promise<Response> {
   const supabase = await createClient();
@@ -433,6 +476,8 @@ export async function POST(req: Request): Promise<Response> {
               selectedActiveTools = ['image_upscaler'] as Array<keyof typeof TOOL_REGISTRY>;
             } else if (selectedTool === 'workspace') {
               selectedActiveTools = getFileEditToolIds() as Array<keyof typeof TOOL_REGISTRY>;
+            } else if (selectedTool === 'browser_observe') {
+              selectedActiveTools = ['browser_observe', 'run_python_code', 'gemini_image_tool'] as Array<keyof typeof TOOL_REGISTRY>;
             } else {
               // 일반 도구인 경우
               selectedActiveTools = [selectedTool] as Array<keyof typeof TOOL_REGISTRY>;
@@ -477,7 +522,7 @@ export async function POST(req: Request): Promise<Response> {
 
           // RESPOND: 도구 실행 모델 결정
           let toolExecutionModel = executionModelId;
-          const maxAgentSteps = selectedActiveTools.length > 0 ? 20 : 3;
+          const maxAgentSteps = selectedActiveTools.length > 0 ? 30 : 3;
 
           // 🆕 AI SDK v5: 전체 도구 세트 정의 + 활성 도구 제한
           // 🔥 chatId 추가: 이미지/비디오 도구에서 DB에서 전체 메시지 가져와 imageMap 구축 (가상화 문제 해결)
@@ -502,7 +547,7 @@ export async function POST(req: Request): Promise<Response> {
                 ? (config.createFn as any)(writer, user?.id || anonymousUserId, messagesWithTokens, chatId)
                 : toolName === 'image_upscaler'
                 ? (config.createFn as any)(writer, user?.id || anonymousUserId, messagesWithTokens, chatId)
-                : [...getFileEditToolIds(), 'run_python_code'].includes(toolName)
+                : [...getFileEditToolIds(), 'run_python_code', 'browser_observe'].includes(toolName)
                 ? (config.createFn as any)(writer, chatId, supabase) // file-edit / code run: sandbox per chat
                 : (config.createFn as any)(writer)
             ])
@@ -534,7 +579,7 @@ export async function POST(req: Request): Promise<Response> {
           // chat_attachments signed URL 갱신 (AI SDK 다운로드 시 400 InvalidJWT 방지)
           const messagesWithFreshUrls = await refreshChatAttachmentUrlsInMessages(compressedMessages);
           // 파일 편집/코드 실행 도구 사용 시: 사용자 첨부 파일을 샌드박스에 업로드하고 워크스페이스 경로 추적
-          const fileAndCodeToolIds = [...getFileEditToolIds(), 'run_python_code'];
+          const fileAndCodeToolIds = [...getFileEditToolIds(), 'run_python_code', 'browser_observe'];
           const hasFileEditTools = selectedActiveTools.some((t: string) => fileAndCodeToolIds.includes(t));
           let messagesForProcess = messagesWithFreshUrls;
           if (hasFileEditTools && messagesWithFreshUrls.length > 0) {
@@ -579,6 +624,7 @@ export async function POST(req: Request): Promise<Response> {
           
           // 🔥 Fireworks API 호환성: extra_content 제거 (API 호출 직전 최종 정리)
           const cleanedMessages = removeExtraContentFromMessages(finalMessagesForExecution, executionModelId);
+          const budgetedMessages = enforcePayloadBudget(cleanedMessages, agentSystemPrompt, toolExecutionModel);
 
           // system prompt 로그
           // console.log('[API Request - Agent Mode] System prompt:', agentSystemPrompt);
@@ -629,7 +675,7 @@ export async function POST(req: Request): Promise<Response> {
               // markdownJoinerTransform(),
             ],
             system: agentSystemPrompt,
-            messages: cleanedMessages,
+            messages: budgetedMessages,
             tools: allTools,
             activeTools: selectedActiveTools,
             providerOptions,
@@ -743,6 +789,7 @@ export async function POST(req: Request): Promise<Response> {
           
           // 🔥 Fireworks API 호환성: extra_content 제거 (API 호출 직전 최종 정리)
           const cleanedMessages = removeExtraContentFromMessages(messages, executionModelId);
+          const budgetedMessages = enforcePayloadBudget(cleanedMessages, regularSystemPrompt, executionModelId);
           
           // 🔍 DEBUG: 최종 전달 메시지 로그
           // console.log('[API Request - Regular Mode] Final messages being sent to AI:', {
@@ -787,7 +834,7 @@ export async function POST(req: Request): Promise<Response> {
               // markdownJoinerTransform(),
             ],
             system: regularSystemPrompt,
-            messages: cleanedMessages,
+            messages: budgetedMessages,
             providerOptions: regularProviderOptions,
             stopWhen: stepCountIs(3),
             maxRetries: 20,

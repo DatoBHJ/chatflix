@@ -31,7 +31,7 @@ import { TypingIndicator } from './TypingIndicator';
 import type { LinkCardData } from '@/app/types/linkPreview';
 import { usePartsRenderer, type RenderSegment, type ToolSegmentContent } from '@/app/hooks/usePartsRenderer';
 import { InlineToolPreview } from './InlineToolPreview';
-import { getRunCodeData } from '../hooks/toolFunction';
+import { getRunCodeData, getBrowserObserveData } from '../hooks/toolFunction';
 import { getWebSearchResults, getGoogleSearchData } from '@/app/hooks/toolFunction';
 import { getAdaptiveGlassStyleBlur, getAdaptiveGlassBackgroundColor, getTextStyle, getInitialTheme } from '@/app/lib/adaptiveGlassStyle';
 
@@ -3084,6 +3084,9 @@ const Message = memo(function MessageComponent({
                             promptMap={promptMap}
                             sourceImageMap={sourceImageMap}
                             mediaDimensionsMap={mediaDimensionsMap}
+                            linkMap={linkMap}
+                            imageMap={imageMap}
+                            videoMap={videoMap}
                             hideLinkThumbnail
                           />
                         </div>
@@ -3391,21 +3394,24 @@ const Message = memo(function MessageComponent({
                   const toolHasTail = !(isSearchTool(toolName) && nextIsSearch);
                   const toolMargin = (toolHasTail && (!isLastSegment || hasSubsequentContent)) ? "mb-4" : "";
 
-                          // write_file / apply_edits / run_python_code: diff card without bubble wrapper
-                          if (isOutcomeFileTool(toolName) || toolName === 'run_python_code') {
+                          // write_file / apply_edits / run_python_code / browser_observe: diff card without bubble wrapper
+                          if (isOutcomeFileTool(toolName) || toolName === 'run_python_code' || toolName === 'browser_observe') {
                             const runCodeData = toolName === 'run_python_code'
                               ? getRunCodeData(message, toolContent.call.toolCallId, runCodeIndex ?? undefined)
+                              : null;
+                            const browserObserveData = toolName === 'browser_observe'
+                              ? getBrowserObserveData(message, toolContent.call.toolCallId)
                               : null;
                             return (
                               <div key={`segment-tool-${idx}`} className={`relative ${toolMargin}`}>
                                 <InlineToolPreview
                                   toolName={toolName}
                                   toolArgs={resolvedToolArgs}
-                                  toolResult={toolName === 'run_python_code' ? runCodeData : toolContent.result?.result}
+                                  toolResult={toolName === 'run_python_code' ? runCodeData : (toolName === 'browser_observe' ? browserObserveData : toolContent.result?.result)}
                                   messageId={message.id}
                                   togglePanel={togglePanel}
                                   activePanel={activePanel}
-                                  isProcessing={!toolContent.result && !runCodeData}
+                                  isProcessing={!toolContent.result && !runCodeData && !browserObserveData}
                                   chatId={chatId}
                                   toolCallId={toolContent.call.toolCallId}
                                 />
@@ -3527,10 +3533,10 @@ const Message = memo(function MessageComponent({
                 
                   {message.parts ? (
                     processedParts?.map((part: any, index: number) => (
-                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap} hideLinkThumbnail/>
+                    part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap} linkMap={linkMap} imageMap={imageMap} videoMap={videoMap} hideLinkThumbnail/>
                     ))
                   ) : (
-                    (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap} hideLinkThumbnail/>
+                    (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={longPressActive && !overlayMetrics?.needsScaling} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap} linkMap={linkMap} imageMap={imageMap} videoMap={videoMap} hideLinkThumbnail/>
                   )}
                   
                   <div className={!!structuredDescription ? 'mb-4' : ''}>
@@ -3699,6 +3705,9 @@ const Message = memo(function MessageComponent({
                                   promptMap={promptMap}
                                   sourceImageMap={sourceImageMap}
                                   mediaDimensionsMap={mediaDimensionsMap}
+                                  linkMap={linkMap}
+                                  imageMap={imageMap}
+                                  videoMap={videoMap}
                                   hideLinkThumbnail
                                 />
                               </div>
@@ -3929,6 +3938,32 @@ const Message = memo(function MessageComponent({
                           );
                         }
                         
+                        const runCodeIndex = toolName === 'run_python_code' ? ++runCodeInvocationIndex : null;
+
+                        if (isOutcomeFileTool(toolName) || toolName === 'run_python_code' || toolName === 'browser_observe') {
+                          const runCodeData = toolName === 'run_python_code'
+                            ? getRunCodeData(message, toolContent.call.toolCallId, runCodeIndex ?? undefined)
+                            : null;
+                          const browserObserveData = toolName === 'browser_observe'
+                            ? getBrowserObserveData(message, toolContent.call.toolCallId)
+                            : null;
+                          return (
+                            <div key={`overlay-segment-tool-${idx}`} className="relative mb-4">
+                              <InlineToolPreview
+                                toolName={toolName}
+                                toolArgs={resolvedToolArgs}
+                                toolResult={toolName === 'run_python_code' ? runCodeData : (toolName === 'browser_observe' ? browserObserveData : toolContent.result?.result)}
+                                messageId={message.id}
+                                togglePanel={togglePanel}
+                                activePanel={activePanel}
+                                isProcessing={!toolContent.result && !runCodeData && !browserObserveData}
+                                chatId={chatId}
+                                toolCallId={toolContent.call.toolCallId}
+                              />
+                            </div>
+                          );
+                        }
+
                         // 단일 도구 또는 단일 topic/engine/query인 경우 기존 로직
                         const toolHasTail = !(isSearchTool(toolName) && nextIsSearch);
                         const toolMargin = (toolHasTail && (!isLastSegment || hasSubsequentContent)) ? "mb-4" : "";
@@ -3987,10 +4022,10 @@ const Message = memo(function MessageComponent({
                   
                     {message.parts ? (
                       processedParts?.map((part: any, index: number) => (
-part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={true} noTail={true} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap} hideLinkThumbnail/>
+part.type === 'text' && <MarkdownContent key={index} content={part.text} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={true} noTail={true} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap} linkMap={linkMap} imageMap={imageMap} videoMap={videoMap} hideLinkThumbnail/>
                       ))
                     ) : (
-                      (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={true} noTail={true} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap} hideLinkThumbnail/>
+                      (hasContent && !hasStructuredData) && <MarkdownContent content={processedContent} enableSegmentation={isAssistant} searchTerm={searchTerm} messageType={isAssistant ? 'assistant' : 'user'} thumbnailMap={thumbnailMap} titleMap={titleMap} linkPreviewData={linkPreviewData} isMobile={isMobile} isLongPressActive={true} noTail={true} isStreaming={isStreaming} messageId={message.id} chatId={chatId} userId={user?.id} promptMap={promptMap} sourceImageMap={sourceImageMap} mediaDimensionsMap={mediaDimensionsMap} linkMap={linkMap} imageMap={imageMap} videoMap={videoMap} hideLinkThumbnail/>
                     )}
                     
                       <FilesPreview

@@ -3,7 +3,7 @@
 
 import React, { memo, useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { Calculator, Link2, ImageIcon, Search, Youtube, Video, FileText, Code2, Copy, Download } from 'lucide-react';
+import { Calculator, Link2, ImageIcon, Search, Youtube, Video, FileText, Code2, Copy, Download, Globe } from 'lucide-react';
 import { SiGoogle } from 'react-icons/si';
 import { getIcon } from 'material-file-icons';
 import { XLogo, YouTubeLogo, WanAiLogo, SeedreamLogo, XaiLogo } from './CanvasFolder/CanvasLogo';
@@ -73,6 +73,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   'grep_file': 'Search in file',
   'apply_edits': 'Apply edits',
   'run_python_code': 'Run code',
+  'browser_observe': 'Browser Observe',
 };
 
 // Tool name to icon mapping
@@ -140,6 +141,8 @@ const getToolIcon = (toolName: string, toolArgs?: any, toolResult?: any) => {
       return <FileText {...iconProps} />;
     case 'run_python_code':
       return <Code2 {...iconProps} />;
+    case 'browser_observe':
+      return <Globe {...iconProps} />;
     default:
       return <Search {...iconProps} />;
   }
@@ -202,10 +205,56 @@ const getCanvasToolType = (toolName: string, toolArgs?: any, toolResult?: any): 
       return `file-edit:${toolName}`;
     case 'run_python_code':
       return 'run-code';
+    case 'browser_observe':
+      return 'browser-observe';
     default:
       return toolName;
   }
 };
+
+function BrowserObserveImagePreview({
+  chatId,
+  path,
+}: {
+  chatId?: string;
+  path?: string;
+}) {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadImage = async () => {
+      if (!chatId || !path) {
+        setImageUrl(null);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/chat/workspace-file-content?chatId=${encodeURIComponent(chatId)}&path=${encodeURIComponent(path)}`);
+        const data = await res.json();
+        if (cancelled) return;
+        if (data?.isBinary && data?.downloadUrl) {
+          setImageUrl(data.downloadUrl);
+          return;
+        }
+        setImageUrl(null);
+      } catch {
+        if (!cancelled) setImageUrl(null);
+      }
+    };
+    loadImage();
+    return () => {
+      cancelled = true;
+    };
+  }, [chatId, path]);
+
+  if (!imageUrl) return null;
+  return (
+    <div className="mt-2.5 rounded-md overflow-hidden border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)]">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={imageUrl} alt="browser observe screenshot" className="w-full max-h-56 object-cover" />
+    </div>
+  );
+}
 
 // ── RunCodeExtractedResults: Images (with modal) + ECharts + File cards ──
 function RunCodeExtractedResults({
@@ -287,28 +336,9 @@ function RunCodeExtractedResults({
         </div>
       )}
 
-      {/* Synced image files: only shown when no base64 result images exist (fallback via API fetch) */}
-      {showSyncedImages && (
-        <div className="mt-2 flex flex-col gap-2 message-media-max-width">
-          {syncedImageFiles.map((file: RunCodeSyncedFile, i: number) => (
-            <RunCodeSyncedImage
-              key={`synced-img-${i}`}
-              file={file}
-              chatId={chatId}
-              onOpenModal={openModal}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Other synced files (pptx, xlsx, etc.) - file card with download */}
-      {syncedOtherFiles.length > 0 && (
-        <div className="mt-2 flex flex-col gap-2">
-          {syncedOtherFiles.map((file: RunCodeSyncedFile, i: number) => (
-            <RunCodeFileCard key={`synced-file-${i}`} file={file} chatId={chatId} />
-          ))}
-        </div>
-      )}
+      {/* Synced files (images, docx, etc.) are no longer shown here.
+          Files are surfaced via path-in-text substitution in the AI message instead.
+          See MarkdownContent: inline code with /home/user/workspace/... → WorkspaceFilePathCard */}
 
       {/* Image Modal */}
       <ImageModal
@@ -557,6 +587,11 @@ export const InlineToolPreview = memo(function InlineToolPreview({
       // (일부 환경에서 tool_results 대신 parts에 결과가 포함되는 경우 대응)
       return 'processing';
     }
+    if (toolName === 'browser_observe') {
+      if (toolResult?.isStreaming) return 'processing';
+      if (toolResult) return toolResult.success === false ? 'error' : 'completed';
+      return 'processing';
+    }
     
     // 비디오 생성 도구: success 필드와 실제 비디오 데이터 확인
     if (toolName === 'wan25_video' || toolName === 'grok_video' || toolName === 'video_upscaler') {
@@ -737,7 +772,7 @@ export const InlineToolPreview = memo(function InlineToolPreview({
     }
     
     // For run_python_code: pass toolCallId so Canvas can show the correct invocation
-    if (toolName === 'run_python_code' && toolCallId) {
+    if ((toolName === 'run_python_code' || toolName === 'browser_observe') && toolCallId) {
       return toolCallId;
     }
     
@@ -898,6 +933,28 @@ export const InlineToolPreview = memo(function InlineToolPreview({
     URL.revokeObjectURL(url);
   }, [toolName, toolArgs, toolResult, fileName]);
 
+  const openWorkspacePath = useCallback(async (e: React.MouseEvent, path?: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!chatId || !path) return;
+    try {
+      const res = await fetch(`/api/chat/workspace-file-content?chatId=${encodeURIComponent(chatId)}&path=${encodeURIComponent(path)}`);
+      const data = await res.json();
+      if (data?.downloadUrl) {
+        window.open(data.downloadUrl, '_blank');
+        return;
+      }
+      if (typeof data?.content === 'string') {
+        const blob = new Blob([data.content], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 5_000);
+      }
+    } catch {
+      // non-fatal
+    }
+  }, [chatId]);
+
   const inlineSubtitle = useMemo(() => {
     if (isFileToolName(toolName) && !isOutcomeFileTool(toolName)) {
       if (displayText && fileBubbleSubtitle && fileBubbleSubtitle !== '—') {
@@ -966,6 +1023,94 @@ export const InlineToolPreview = memo(function InlineToolPreview({
     return 'Output';
   }, [status, runCodePngCount, runCodeResults, runCodeStdout, runCodeStderr, toolResult, runCodeHasSyncedImageFiles, runCodeSyncedImageCount]);
 
+  const browserObserveSubtitle = useMemo(() => {
+    if (status === 'processing') {
+      if (toolResult?.progressPhase) return `Observing… (${toolResult.progressPhase})`;
+      return 'Observing…';
+    }
+    if (status === 'error') return toolResult?.error || 'Observation failed';
+    const attemptPart = toolResult?.selectedAttempt
+      ? `${toolResult.selectedAttempt} · ${toolResult?.attemptCount || 1} tries`
+      : (toolResult?.attemptCount ? `${toolResult.attemptCount} tries` : 'Captured');
+    if (typeof toolResult?.htmlLength === 'number') {
+      const htmlSize = fileHelpers.formatFileSize(toolResult.htmlLength);
+      return `${attemptPart} · ${htmlSize} HTML`;
+    }
+    return attemptPart;
+  }, [status, toolResult]);
+
+  if (toolName === 'browser_observe') {
+    const browserIcon = getToolIcon(toolName, toolArgs, toolResult);
+    const isSuccess = status === 'completed';
+    const hasScreenshot = !!toolResult?.screenshotPath;
+    const browserTitle = toolResult?.title || displayText || 'Browser Observe';
+
+    return (
+      <>
+        <style>{shimmerStyles}</style>
+        <div
+          className="diff-inline-preview"
+          onClick={handleClick}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onTouchMove={handleTouchMove}
+          style={{ cursor: togglePanel ? 'pointer' : 'default', touchAction: 'manipulation' }}
+          role="button"
+          aria-label={`Browser observe: ${browserObserveSubtitle}`}
+        >
+          <div className="diff-header">
+            <div className="shrink-0 text-(--muted)">{browserIcon}</div>
+            <span className="diff-filename">{browserTitle}</span>
+            <span className="text-xs text-(--muted) shrink-0">{browserObserveSubtitle}</span>
+            {status === 'processing' && <span className="inline-tool-status-dot shrink-0" />}
+            {isSuccess && (
+              <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+            {status === 'error' && (
+              <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+          </div>
+          {toolResult?.finalUrl && (
+            <div className="diff-code">
+              <div className="diff-line">
+                <span className="diff-line-num">URL</span>
+                <span className="diff-line-sign" />
+                <span className="diff-line-text">{toolResult.finalUrl}</span>
+              </div>
+            </div>
+          )}
+          {hasScreenshot && (
+            <BrowserObserveImagePreview chatId={chatId} path={toolResult?.screenshotPath} />
+          )}
+          {(toolResult?.screenshotPath || toolResult?.htmlPath) && (
+            <div className="mt-2 flex items-center gap-2">
+              {toolResult?.screenshotPath && (
+                <button
+                  className="text-xs px-2 py-1 rounded border border-[color-mix(in_srgb,var(--foreground)_12%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
+                  onClick={(e) => openWorkspacePath(e, toolResult.screenshotPath)}
+                >
+                  Open Screenshot
+                </button>
+              )}
+              {toolResult?.htmlPath && (
+                <button
+                  className="text-xs px-2 py-1 rounded border border-[color-mix(in_srgb,var(--foreground)_12%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
+                  onClick={(e) => openWorkspacePath(e, toolResult.htmlPath)}
+                >
+                  Open HTML
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </>
+    );
+  }
+
   if (toolName === 'run_python_code') {
     const codeIcon = getToolIcon(toolName, toolArgs, toolResult);
     const runCodeFirstChartResult = runCodeResults.find((r: any) => r?.chart);
@@ -974,7 +1119,8 @@ export const InlineToolPreview = memo(function InlineToolPreview({
     const hasChartPreview = runCodeEChartsOption || (runCodeFirstPng && !runCodeHasSyncedImageFiles);
     const hasConsoleOutput = runCodeStdout.length > 0 || runCodeStderr.length > 0;
     // Result-first layout: when we have visual output (image/chart), show results first then one-line caption only
-    const hasVisualResult = status === 'completed' && (runCodeHasSyncedImageFiles || runCodeFirstPng || runCodeEChartsOption);
+    // Only base64/echarts count as visual; syncedFiles are shown via path-in-text substitution
+    const hasVisualResult = status === 'completed' && (runCodeFirstPng || runCodeEChartsOption);
 
     const runCodeCaption = (
       <div

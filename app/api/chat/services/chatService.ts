@@ -546,6 +546,7 @@ Focus on being genuinely helpful and let the conversation flow naturally.`;
         'video_upscaler': 'videoUpscalerTool',
         'image_upscaler': 'imageUpscalerTool',
         'run_python_code': 'codeExecution',
+        'browser_observe': 'browserObserve',
       };
       return toolMapping[toolName] || null;
     };
@@ -714,6 +715,7 @@ Focus on being genuinely helpful and let the conversation flow naturally.`;
     // 8. 크리에이티브 문서 생성 워크플로우: 도구 조합에 따라 자동 주입
     const hasImageTool = selectedTools.some(t => imageTools.includes(t));
     const hasCodeExecution = selectedTools.includes('run_python_code');
+    const hasBrowserObserve = selectedTools.includes('browser_observe');
     const hasSearchTool = selectedTools.some(t => searchTools.includes(t));
 
     // PPT 생성: 이미지 + 코드 실행
@@ -739,6 +741,27 @@ Focus on being genuinely helpful and let the conversation flow naturally.`;
     // 엑셀 리포트: 코드 실행만 필요
     if (hasCodeExecution && toolPrompts.excelReport) {
       toolSpecificPrompts.push(toolPrompts.excelReport);
+    }
+
+    // 웹 스크래핑 워크플로우: browser_observe + code execution
+    if (hasBrowserObserve && hasCodeExecution && toolPrompts.webScrapingWorkflow) {
+      toolSpecificPrompts.push(toolPrompts.webScrapingWorkflow);
+    }
+
+    // Hard guard instruction for live responses when code execution fails
+    if (hasCodeExecution) {
+      toolSpecificPrompts.push(`
+### Run Code Truthfulness Guard (CRITICAL)
+- Base your response on the latest run_python_code tool payload (\`success\`, \`error\`, \`stdout/stderr\`, \`results\`, synced files).
+- If outputs are missing or tool payload indicates failure, explain that concretely and suggest the next best step.
+- Do not claim files/artifacts were created unless the tool output confirms them.
+- Avoid describing actions as completed before corresponding tool output appears in this step.
+      `);
+    }
+
+    // 웹페이지 이미지 판독 워크플로우: browser_observe + (image tool or code execution)
+    if (hasBrowserObserve && (hasImageTool || hasCodeExecution) && toolPrompts.browserObserveImageReading) {
+      toolSpecificPrompts.push(toolPrompts.browserObserveImageReading);
     }
 
     // 만화/스토리보드: 이미지 + 코드 실행
@@ -818,6 +841,7 @@ export const saveCompletedMessages = async (
   // Retry loop with exponential backoff
   let lastError: Error | null = null;
   const sanitizedToolResults = slimToolResults(extraData.tool_results);
+  const partsForSave = extraData.parts || null;
   
   for (let attempt = 1; attempt <= MAX_SAVE_RETRIES; attempt++) {
     try {
@@ -834,7 +858,7 @@ export const saveCompletedMessages = async (
           id: assistantMessage.id,
           content: assistantContent,
           reasoning: assistantReasoning && assistantReasoning !== assistantContent ? assistantReasoning : null,
-          parts: extraData.parts || null,
+          parts: partsForSave,
           tool_results: sanitizedToolResults && Object.keys(sanitizedToolResults).length > 0 
             ? sanitizedToolResults : null,
           token_usage: extraData.token_usage || null

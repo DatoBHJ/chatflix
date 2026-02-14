@@ -5,7 +5,7 @@ import { e2bChartToEChartsOption } from '@/app/utils/e2bChartToECharts';
 import MultiSearch from './MultiSearch';
 import MathCalculation from './MathCalculation';
 import LinkReader from './LinkReader';
-import { ChevronUp, ChevronDown, Brain, Link2, Image as ImageIcon, AlertTriangle, X, ChevronLeft, ChevronRight, ExternalLink, Search, Calculator, BookOpen, FileSearch, FileText, Code2, Youtube, Database, Video, Loader2, Share, ScrollText, Info, Check, Copy, Bookmark, Download, RotateCcw } from 'lucide-react';
+import { ChevronUp, ChevronDown, Brain, Link2, Image as ImageIcon, AlertTriangle, X, ChevronLeft, ChevronRight, ExternalLink, Search, Calculator, BookOpen, FileSearch, FileText, Code2, Youtube, Database, Video, Loader2, Share, ScrollText, Info, Check, Copy, Bookmark, Download, RotateCcw, Globe } from 'lucide-react';
 import { getAdaptiveGlassStyleBlur, getIconClassName } from '@/app/lib/adaptiveGlassStyle';
 import { createPortal } from 'react-dom';
 import { Tweet } from 'react-tweet';
@@ -17,10 +17,12 @@ import { CanvasPreviewMarkdown } from './CanvasPreviewMarkdown';
 import { ImageGalleryStack } from './ImageGalleryStack';
 import { VideoGalleryStack } from './VideoGalleryStack';
 import type { LinkMetaEntry } from '@/app/types/linkPreview';
-import type { FileEditData, FileEditFileEntry, RunCodeData, RunCodeSyncedFile } from '@/app/hooks/toolFunction';
+import type { FileEditData, FileEditFileEntry, RunCodeData, RunCodeSyncedFile, BrowserObserveData } from '@/app/hooks/toolFunction';
 import { useUrlRefresh } from '../hooks/useUrlRefresh';
 import { ImageModal, type ImageModalImage } from './ImageModal';
 import { computeDiffHunks, computeFullFileSegments, type DiffSummary, type ChangeBlock } from '@/app/utils/diffUtils';
+import { fileHelpers } from './ChatInput/FileUpload';
+import { resolveMediaPlaceholders, type VideoMapValue } from '@/app/utils/resolveMediaPlaceholders';
 
 // File path → language for CanvasPreviewMarkdown code blocks (mirrors AttachmentTextViewer)
 function getLanguageFromPath(path?: string): string {
@@ -42,6 +44,13 @@ function isCSVPath(path?: string): boolean {
   if (!path) return false;
   const lower = path.toLowerCase();
   return lower.endsWith('.csv') || lower.endsWith('.tsv');
+}
+
+function extractIdFromPath(path?: string): string | null {
+  if (!path) return null;
+  const filename = path.split('/').pop();
+  if (!filename) return null;
+  return filename.replace(/\.[^.]+$/, '');
 }
 
 /** Parse CSV/TSV into rows (handles quoted fields and "" escape). */
@@ -312,6 +321,7 @@ type CanvasProps = {
   } | null;
   fileEditData?: FileEditData | null;
   runCodeData?: RunCodeData | null;
+  browserObserveData?: BrowserObserveData | null;
   isCompact?: boolean;
   selectedTool?: string;
   selectedItem?: string;
@@ -352,6 +362,49 @@ function CanvasBinaryFileView({ downloadUrl, filename }: { downloadUrl: string; 
       >
         <Download size={14} /> Download
       </a>
+    </div>
+  );
+}
+
+function CanvasBrowserObserveScreenshot({
+  chatId,
+  path,
+}: {
+  chatId?: string;
+  path?: string;
+}) {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!chatId || !path) {
+        setImageUrl(null);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/chat/workspace-file-content?chatId=${encodeURIComponent(chatId)}&path=${encodeURIComponent(path)}`);
+        const data = await res.json();
+        if (cancelled) return;
+        if (data?.isBinary && data?.downloadUrl) {
+          setImageUrl(data.downloadUrl);
+          return;
+        }
+        setImageUrl(null);
+      } catch {
+        if (!cancelled) setImageUrl(null);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [chatId, path]);
+
+  if (!imageUrl) return null;
+  return (
+    <div className="rounded-lg overflow-hidden border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)]">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={imageUrl} alt="browser observe screenshot" className="w-full max-h-[420px] object-contain bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]" />
     </div>
   );
 }
@@ -428,10 +481,24 @@ export function CanvasRunCodeFileCard({ file, chatId }: { file: RunCodeSyncedFil
   );
 }
 
+type CanvasMediaMaps = {
+  linkMap: Record<string, string>;
+  imageMap: Record<string, string>;
+  videoMap: Record<string, VideoMapValue>;
+};
+
 // ── CanvasReadFileView: Full file content via CanvasPreviewMarkdown ──────────
 // Fetches full file from workspace and renders as markdown or syntax-highlighted code block.
 // For binary files (pptx, xlsx, etc.) shows a download card instead.
-function CanvasReadFileView({ entry, chatId }: { entry: FileEditFileEntry; chatId?: string }) {
+function CanvasReadFileView({
+  entry,
+  chatId,
+  mediaMaps,
+}: {
+  entry: FileEditFileEntry;
+  chatId?: string;
+  mediaMaps: CanvasMediaMaps;
+}) {
   const [fullContent, setFullContent] = useState<string | null>(null);
   const [binaryInfo, setBinaryInfo] = useState<{ downloadUrl: string; filename: string } | null>(null);
 
@@ -462,8 +529,34 @@ function CanvasReadFileView({ entry, chatId }: { entry: FileEditFileEntry; chatI
 
   const displayContent = fullContent ?? entry.content ?? '';
   const contentToCopyOrDownload = fullContent ?? entry.content ?? '';
+  const isMarkdown = !!entry.path?.toLowerCase().endsWith('.md');
+
+  const resolvedDisplayContent = useMemo(() => {
+    if (!isMarkdown) return displayContent;
+    return resolveMediaPlaceholders(displayContent, { ...mediaMaps, unresolvedPolicy: 'remove' });
+  }, [displayContent, isMarkdown, mediaMaps.linkMap, mediaMaps.imageMap, mediaMaps.videoMap]);
+
+  const resolvedCopyContent = useMemo(() => {
+    if (!isMarkdown) return contentToCopyOrDownload;
+    return resolveMediaPlaceholders(contentToCopyOrDownload, { ...mediaMaps, unresolvedPolicy: 'remove' });
+  }, [contentToCopyOrDownload, isMarkdown, mediaMaps.linkMap, mediaMaps.imageMap, mediaMaps.videoMap]);
+
+  const resolvedDownloadContent = useMemo(() => {
+    // For downloads, replace media placeholders with plain URLs (not markdown images),
+    // so the downloaded file is transportable outside this app.
+    if (!isMarkdown) return contentToCopyOrDownload;
+    return resolveMediaPlaceholders(contentToCopyOrDownload, {
+      ...mediaMaps,
+      unresolvedPolicy: 'remove',
+      imageOutput: 'url',
+    });
+  }, [contentToCopyOrDownload, isMarkdown, mediaMaps.linkMap, mediaMaps.imageMap, mediaMaps.videoMap]);
+
   const isCSV = isCSVPath(entry.path);
-  const csvRows = useMemo(() => (isCSV && displayContent ? parseCSV(displayContent, entry.path) : null), [isCSV, displayContent, entry.path]);
+  const csvRows = useMemo(
+    () => (isCSV && displayContent ? parseCSV(displayContent, entry.path) : null),
+    [isCSV, displayContent, entry.path]
+  );
 
   const highlightLineNumbers = useMemo(() => {
     const start = entry.startLine;
@@ -496,7 +589,7 @@ function CanvasReadFileView({ entry, chatId }: { entry: FileEditFileEntry; chatI
       <div className="flex items-center gap-3 mb-3">
         <button
           type="button"
-          onClick={() => navigator.clipboard.writeText(contentToCopyOrDownload)}
+          onClick={() => navigator.clipboard.writeText(resolvedCopyContent)}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all"
         >
           <Copy size={14} /> Copy
@@ -505,7 +598,7 @@ function CanvasReadFileView({ entry, chatId }: { entry: FileEditFileEntry; chatI
           type="button"
           onClick={() => {
             const name = entry.path.replace(/^.*\//, '') || 'download.txt';
-            const blob = new Blob([contentToCopyOrDownload], { type: 'text/plain;charset=utf-8' });
+            const blob = new Blob([resolvedDownloadContent], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -527,8 +620,8 @@ function CanvasReadFileView({ entry, chatId }: { entry: FileEditFileEntry; chatI
             isMainFile={true}
             highlightLineNumbers={highlightLineNumbers}
             scrollToLine={scrollToLine}
-            content={entry.path?.toLowerCase().endsWith('.md')
-              ? displayContent
+            content={isMarkdown
+              ? resolvedDisplayContent
               : `\`\`\`${getLanguageFromPath(entry.path)}\n${displayContent}\n\`\`\``}
           />
         </div>
@@ -575,7 +668,15 @@ function CanvasReadFileView({ entry, chatId }: { entry: FileEditFileEntry; chatI
 
 // ── CanvasGrepFileView: Full file with highlighted matching lines ──────────
 // Fetches full file from workspace and highlights lines in entry.matches.
-function CanvasGrepFileView({ entry, chatId }: { entry: FileEditFileEntry; chatId?: string }) {
+function CanvasGrepFileView({
+  entry,
+  chatId,
+  mediaMaps,
+}: {
+  entry: FileEditFileEntry;
+  chatId?: string;
+  mediaMaps: CanvasMediaMaps;
+}) {
   const [fullContent, setFullContent] = useState<string | null>(null);
 
   const fetchFullContent = useCallback(async () => {
@@ -598,6 +699,26 @@ function CanvasGrepFileView({ entry, chatId }: { entry: FileEditFileEntry; chatI
   }, [fetchFullContent]);
 
   const contentToCopyOrDownload = fullContent ?? '';
+  const isMarkdown = !!entry.path?.toLowerCase().endsWith('.md');
+
+  const resolvedDisplayContent = useMemo(() => {
+    if (!isMarkdown) return fullContent ?? '';
+    return resolveMediaPlaceholders(fullContent ?? '', { ...mediaMaps, unresolvedPolicy: 'remove' });
+  }, [fullContent, isMarkdown, mediaMaps.linkMap, mediaMaps.imageMap, mediaMaps.videoMap]);
+
+  const resolvedCopyContent = useMemo(() => {
+    if (!isMarkdown) return contentToCopyOrDownload;
+    return resolveMediaPlaceholders(contentToCopyOrDownload, { ...mediaMaps, unresolvedPolicy: 'remove' });
+  }, [contentToCopyOrDownload, isMarkdown, mediaMaps.linkMap, mediaMaps.imageMap, mediaMaps.videoMap]);
+
+  const resolvedDownloadContent = useMemo(() => {
+    if (!isMarkdown) return contentToCopyOrDownload;
+    return resolveMediaPlaceholders(contentToCopyOrDownload, {
+      ...mediaMaps,
+      unresolvedPolicy: 'remove',
+      imageOutput: 'url',
+    });
+  }, [contentToCopyOrDownload, isMarkdown, mediaMaps.linkMap, mediaMaps.imageMap, mediaMaps.videoMap]);
 
   const matchLineNumbers = useMemo(() => {
     if (!entry.matches || entry.matches.length === 0) return undefined;
@@ -622,7 +743,7 @@ function CanvasGrepFileView({ entry, chatId }: { entry: FileEditFileEntry; chatI
       <div className="flex items-center gap-3 mb-3">
         <button
           type="button"
-          onClick={() => navigator.clipboard.writeText(contentToCopyOrDownload)}
+          onClick={() => navigator.clipboard.writeText(resolvedCopyContent)}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all"
         >
           <Copy size={14} /> Copy
@@ -631,7 +752,7 @@ function CanvasGrepFileView({ entry, chatId }: { entry: FileEditFileEntry; chatI
           type="button"
           onClick={() => {
             const name = entry.path.replace(/^.*\//, '') || 'download.txt';
-            const blob = new Blob([contentToCopyOrDownload], { type: 'text/plain;charset=utf-8' });
+            const blob = new Blob([resolvedDownloadContent], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -653,8 +774,8 @@ function CanvasGrepFileView({ entry, chatId }: { entry: FileEditFileEntry; chatI
             isMainFile={true}
             highlightLineNumbers={matchLineNumbers}
             scrollToLine={scrollToLine}
-            content={entry.path?.toLowerCase().endsWith('.md')
-              ? fullContent
+            content={isMarkdown
+              ? resolvedDisplayContent
               : `\`\`\`${getLanguageFromPath(entry.path)}\n${fullContent}\n\`\`\``}
           />
         </div>
@@ -666,7 +787,15 @@ function CanvasGrepFileView({ entry, chatId }: { entry: FileEditFileEntry; chatI
 // ── CanvasDiffView: Full-file diff with per-change Accept/Reject ──────────
 // Fetches the CURRENT file content from the DB so the diff always reflects
 // the actual applied state, even after page refresh.
-function CanvasDiffView({ entry, chatId }: { entry: FileEditFileEntry; chatId?: string }) {
+function CanvasDiffView({
+  entry,
+  chatId,
+  mediaMaps,
+}: {
+  entry: FileEditFileEntry;
+  chatId?: string;
+  mediaMaps: CanvasMediaMaps;
+}) {
   // ── localStorage persistence keys ──
   const storageKey = useMemo(() => {
     if (!entry.path) return null;
@@ -750,6 +879,7 @@ function CanvasDiffView({ entry, chatId }: { entry: FileEditFileEntry; chatId?: 
   const displayContent: string | undefined = (currentContent !== undefined && currentContent !== null)
     ? currentContent
     : proposedContent ?? entry.input?.content;
+  const isMarkdown = !!entry.path?.toLowerCase().endsWith('.md');
 
   // ── Static Diff: original vs AI's initial proposal ──
   // This diff stays stable even when the user makes local edits.
@@ -911,6 +1041,20 @@ function CanvasDiffView({ entry, chatId }: { entry: FileEditFileEntry; chatId?: 
 
   const finalDownloadContent = liveContent || displayContent || '';
 
+  const resolvedFinalDownloadContent = useMemo(() => {
+    if (!isMarkdown) return finalDownloadContent;
+    return resolveMediaPlaceholders(finalDownloadContent, { ...mediaMaps, unresolvedPolicy: 'remove' });
+  }, [finalDownloadContent, isMarkdown, mediaMaps.linkMap, mediaMaps.imageMap, mediaMaps.videoMap]);
+
+  const resolvedFinalDownloadContentForDownload = useMemo(() => {
+    if (!isMarkdown) return finalDownloadContent;
+    return resolveMediaPlaceholders(finalDownloadContent, {
+      ...mediaMaps,
+      unresolvedPolicy: 'remove',
+      imageOutput: 'url',
+    });
+  }, [finalDownloadContent, isMarkdown, mediaMaps.linkMap, mediaMaps.imageMap, mediaMaps.videoMap]);
+
   // Build preview content with removed lines shown before Accept
   const previewContentWithDiff = useMemo<{ content: string; lineDiffMap: Map<number, 'added' | 'removed' | 'context'> | null }>(() => {
     if (!allSegments || !finalDownloadContent) {
@@ -976,31 +1120,44 @@ function CanvasDiffView({ entry, chatId }: { entry: FileEditFileEntry; chatId?: 
 
   const previewLineDiffMap = previewContentWithDiff.lineDiffMap;
   const previewContent = previewContentWithDiff.content;
+  const resolvedPreviewContent = useMemo(() => {
+    if (!isMarkdown) return previewContent;
+    return resolveMediaPlaceholders(previewContent, { ...mediaMaps, unresolvedPolicy: 'remove' });
+  }, [previewContent, isMarkdown, mediaMaps.linkMap, mediaMaps.imageMap, mediaMaps.videoMap]);
 
   if (!entry.success && entry.error) return <p className="text-sm text-red-500">{entry.error}</p>;
   if (currentContent === undefined && chatId && entry.path) return <div className="p-4 text-xs text-(--muted)">Loading current file...</div>;
 
   if (!diffData || !allSegments || typeof displayContent !== 'string') {
     const fallback = displayContent ?? proposedContent ?? entry.input?.content;
-    return fallback ? (
+    if (typeof fallback !== 'string' || fallback.length === 0) return null;
+
+    const resolvedFallback = isMarkdown
+      ? resolveMediaPlaceholders(fallback, { ...mediaMaps, unresolvedPolicy: 'remove' })
+      : fallback;
+    const resolvedFallbackForDownload = isMarkdown
+      ? resolveMediaPlaceholders(fallback, { ...mediaMaps, unresolvedPolicy: 'remove', imageOutput: 'url' })
+      : fallback;
+
+    return (
       <div>
         <div className="flex items-center gap-2 mb-2">
-        <button type="button" onClick={() => navigator.clipboard.writeText(fallback)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all">
+        <button type="button" onClick={() => navigator.clipboard.writeText(resolvedFallback)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all">
           <Copy size={14} /> Copy
         </button>
-        <button type="button" onClick={() => { const n = entry.path.replace(/^.*\//, '') || 'download.txt'; const b = new Blob([fallback], { type: 'text/plain;charset=utf-8' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = n; a.click(); URL.revokeObjectURL(u); }} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all">
+        <button type="button" onClick={() => { const n = entry.path.replace(/^.*\//, '') || 'download.txt'; const b = new Blob([resolvedFallbackForDownload], { type: 'text/plain;charset=utf-8' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = n; a.click(); URL.revokeObjectURL(u); }} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all">
           <Download size={14} /> Download
         </button>
       </div>
         <div className="p-6 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
           <CanvasPreviewMarkdown
-            content={entry.path?.toLowerCase().endsWith('.md')
-              ? fallback
+            content={isMarkdown
+              ? resolvedFallback
               : `\`\`\`${getLanguageFromPath(entry.path)}\n${fallback}\n\`\`\``}
           />
         </div>
       </div>
-    ) : null;
+    );
   }
 
   return (
@@ -1023,14 +1180,14 @@ function CanvasDiffView({ entry, chatId }: { entry: FileEditFileEntry; chatId?: 
         <button type="button" className={`diff-btn-action diff-btn-restore ${!hasAnyRejected && !hasAnyAccepted ? 'diff-btn-disabled' : ''}`} onClick={handleRestoreAll} disabled={!hasAnyRejected && !hasAnyAccepted}>
           <RotateCcw size={14} /> Undo All
         </button>
-        <button type="button" onClick={() => navigator.clipboard.writeText(finalDownloadContent)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all">
+        <button type="button" onClick={() => navigator.clipboard.writeText(resolvedFinalDownloadContent)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all">
           <Copy size={14} /> Copy
         </button>
         <button
           type="button"
           onClick={() => {
             const name = entry.path.replace(/^.*\//, '') || 'download.txt';
-            const blob = new Blob([finalDownloadContent], { type: 'text/plain;charset=utf-8' });
+            const blob = new Blob([resolvedFinalDownloadContentForDownload], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url; a.download = name; a.click();
@@ -1046,8 +1203,8 @@ function CanvasDiffView({ entry, chatId }: { entry: FileEditFileEntry; chatId?: 
         <div className="p-6 bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
           <CanvasPreviewMarkdown
             isMainFile={true}
-            content={entry.path?.toLowerCase().endsWith('.md')
-              ? previewContent
+            content={isMarkdown
+              ? resolvedPreviewContent
               : `\`\`\`${getLanguageFromPath(entry.path)}\n${previewContent}\n\`\`\``}
             diffSegments={allSegments.length > 0 ? allSegments : undefined}
             previewLineDiffMap={previewLineDiffMap}
@@ -1088,6 +1245,7 @@ export default function Canvas({
   googleSearchData,
   fileEditData,
   runCodeData,
+  browserObserveData,
   isCompact = false,
   selectedTool,
   selectedItem,
@@ -1164,6 +1322,70 @@ export default function Canvas({
     
     return finalData;
   }, [webSearchData, googleSearchData, twitterSearchData]);
+
+  // Build unified maps so markdown/file previews can resolve LINK_ID/IMAGE_ID/VIDEO_ID tokens.
+  // This mirrors the Chat message path (`SimpleMessages.tsx` + `Message.tsx`) so Canvas file views
+  // can render workspace markdown consistently.
+  const combinedLinkMap = useMemo<Record<string, string>>(() => {
+    return { ...(((mergedSearchData as any)?.linkMap as Record<string, string>) || {}) };
+  }, [(mergedSearchData as any)?.linkMap]);
+
+  const combinedImageMap = useMemo<Record<string, string>>(() => {
+    const map: Record<string, string> = {
+      ...(((mergedSearchData as any)?.imageMap as Record<string, string>) || {}),
+    };
+
+    const addImages = (images: any[] | undefined) => {
+      if (!Array.isArray(images)) return;
+      for (const img of images) {
+        const path = img?.path;
+        const imageUrl = img?.imageUrl;
+        const id = extractIdFromPath(path);
+        if (id && imageUrl) map[id] = imageUrl;
+      }
+    };
+
+    addImages((geminiImageData as any)?.generatedImages);
+    addImages((seedreamImageData as any)?.generatedImages);
+    addImages((qwenImageData as any)?.generatedImages);
+    addImages((imageUpscalerData as any)?.generatedImages);
+
+    // Some older tool payloads might not include `path`; in that case, we can't derive an IMAGE_ID.
+    // We intentionally skip mapping by URL to avoid accidental collisions.
+    return map;
+  }, [
+    (mergedSearchData as any)?.imageMap,
+    (geminiImageData as any)?.generatedImages,
+    (seedreamImageData as any)?.generatedImages,
+    (qwenImageData as any)?.generatedImages,
+    (imageUpscalerData as any)?.generatedImages,
+  ]);
+
+  const combinedVideoMap = useMemo<Record<string, VideoMapValue>>(() => {
+    const map: Record<string, VideoMapValue> = {};
+
+    const addVideos = (videos: any[] | undefined) => {
+      if (!Array.isArray(videos)) return;
+      for (const vid of videos) {
+        const path = vid?.path;
+        const videoUrl = vid?.videoUrl;
+        const id = extractIdFromPath(path);
+        if (id && videoUrl) {
+          map[id] = typeof vid?.size === 'string' ? { url: videoUrl, size: vid.size } : videoUrl;
+        }
+      }
+    };
+
+    addVideos((wan25VideoData as any)?.generatedVideos);
+    addVideos((grokVideoData as any)?.generatedVideos);
+    addVideos((videoUpscalerData as any)?.generatedVideos);
+
+    return map;
+  }, [
+    (wan25VideoData as any)?.generatedVideos,
+    (grokVideoData as any)?.generatedVideos,
+    (videoUpscalerData as any)?.generatedVideos,
+  ]);
 
   // Simplified state management - all sections are initially open
   // Only track if data is in "generation complete" state
@@ -1423,7 +1645,27 @@ export default function Canvas({
   };
 
   // Don't render if there's no data to display
-  const shouldRender = !!(mergedSearchData || mathCalculationData || linkReaderData || imageGeneratorData || geminiImageData || seedreamImageData || qwenImageData || wan25VideoData || grokVideoData || videoUpscalerData || imageUpscalerData || youTubeSearchData || youTubeLinkAnalysisData || fileEditData || runCodeData);
+  const shouldRender = !!(mergedSearchData || mathCalculationData || linkReaderData || imageGeneratorData || geminiImageData || seedreamImageData || qwenImageData || wan25VideoData || grokVideoData || videoUpscalerData || imageUpscalerData || youTubeSearchData || youTubeLinkAnalysisData || fileEditData || runCodeData || browserObserveData);
+
+  const openWorkspacePath = useCallback(async (path?: string) => {
+    if (!chatId || !path) return;
+    try {
+      const res = await fetch(`/api/chat/workspace-file-content?chatId=${encodeURIComponent(chatId)}&path=${encodeURIComponent(path)}`);
+      const data = await res.json();
+      if (data?.downloadUrl) {
+        window.open(data.downloadUrl, '_blank');
+        return;
+      }
+      if (typeof data?.content === 'string') {
+        const blob = new Blob([data.content], { type: 'text/html;charset=utf-8' });
+        const objectUrl = URL.createObjectURL(blob);
+        window.open(objectUrl, '_blank');
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
+      }
+    } catch {
+      // non-fatal
+    }
+  }, [chatId]);
   
   if (!shouldRender) {
     return null;
@@ -3221,10 +3463,18 @@ export default function Canvas({
                   </div>
                   <div className="p-4">
                     {entry.toolName === 'read_file' && (
-                      <CanvasReadFileView entry={entry} chatId={chatId} />
+                      <CanvasReadFileView
+                        entry={entry}
+                        chatId={chatId}
+                        mediaMaps={{ linkMap: combinedLinkMap, imageMap: combinedImageMap, videoMap: combinedVideoMap }}
+                      />
                     )}
                     {entry.toolName === 'write_file' && (
-                      <CanvasDiffView entry={entry} chatId={chatId} />
+                      <CanvasDiffView
+                        entry={entry}
+                        chatId={chatId}
+                        mediaMaps={{ linkMap: combinedLinkMap, imageMap: combinedImageMap, videoMap: combinedVideoMap }}
+                      />
                     )}
                     {entry.toolName === 'get_file_info' && (
                       <>
@@ -3256,10 +3506,18 @@ export default function Canvas({
                       </>
                     )}
                     {entry.toolName === 'grep_file' && (
-                      <CanvasGrepFileView entry={entry} chatId={chatId} />
+                      <CanvasGrepFileView
+                        entry={entry}
+                        chatId={chatId}
+                        mediaMaps={{ linkMap: combinedLinkMap, imageMap: combinedImageMap, videoMap: combinedVideoMap }}
+                      />
                     )}
                     {entry.toolName === 'apply_edits' && (
-                      <CanvasDiffView entry={entry} chatId={chatId} />
+                      <CanvasDiffView
+                        entry={entry}
+                        chatId={chatId}
+                        mediaMaps={{ linkMap: combinedLinkMap, imageMap: combinedImageMap, videoMap: combinedVideoMap }}
+                      />
                     )}
                   </div>
                 </div>
@@ -3448,6 +3706,92 @@ export default function Canvas({
           )}
             </>
           )}
+        </div>
+      )}
+
+      {(!selectedTool || selectedTool === 'browser-observe') && browserObserveData && (
+        <div className="space-y-4">
+          {!selectedTool && (
+            <div className={`flex items-center gap-2.5 ${headerClasses}`}>
+              <Globe className="h-4 w-4 text-(--foreground)" strokeWidth={1.5} />
+              <h2 className="font-medium text-left tracking-tight">Browser Observe</h2>
+            </div>
+          )}
+          <div className="rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] overflow-hidden">
+            <div className="px-4 py-3 border-b border-[color-mix(in_srgb,var(--foreground)_8%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+              <div className="text-sm font-medium text-(--foreground) truncate">{browserObserveData.title || browserObserveData.url || 'Browser Observe'}</div>
+              {browserObserveData.finalUrl && (
+                <div className="text-xs text-(--muted) truncate mt-0.5">{browserObserveData.finalUrl}</div>
+              )}
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="text-xs text-(--muted)">
+                {browserObserveData.isStreaming ? 'Running' : (browserObserveData.success ? 'Success' : 'Failed')}
+                {browserObserveData.selectedAttempt ? ` · ${browserObserveData.selectedAttempt}` : ''}
+                {browserObserveData.attemptCount ? ` · ${browserObserveData.attemptCount} tries` : ''}
+                {typeof browserObserveData.htmlLength === 'number' ? ` · ${fileHelpers.formatFileSize(browserObserveData.htmlLength)} HTML` : ''}
+              </div>
+
+              {browserObserveData.isStreaming && (
+                <div className="rounded-lg border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)] px-3 py-2.5">
+                  <div className="flex items-center gap-2 text-xs text-(--muted)">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Observing page...</span>
+                    {browserObserveData.progressPhase && <span>· phase: {browserObserveData.progressPhase}</span>}
+                  </div>
+                  {browserObserveData.url && (
+                    <div className="text-xs text-(--muted) mt-1 truncate">{browserObserveData.url}</div>
+                  )}
+                  {browserObserveData.progressMessage && (
+                    <div className="text-xs text-(--muted) mt-1">{browserObserveData.progressMessage}</div>
+                  )}
+                </div>
+              )}
+
+              {browserObserveData.screenshotPath && (
+                <CanvasBrowserObserveScreenshot chatId={chatId} path={browserObserveData.screenshotPath} />
+              )}
+
+              {(browserObserveData.screenshotPath || browserObserveData.htmlPath) && (
+                <div className="flex items-center gap-2">
+                  {browserObserveData.screenshotPath && (
+                    <button
+                      className="text-xs px-2.5 py-1.5 rounded border border-[color-mix(in_srgb,var(--foreground)_12%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)]"
+                      onClick={() => openWorkspacePath(browserObserveData.screenshotPath)}
+                    >
+                      Open Screenshot
+                    </button>
+                  )}
+                  {browserObserveData.htmlPath && (
+                    <button
+                      className="text-xs px-2.5 py-1.5 rounded border border-[color-mix(in_srgb,var(--foreground)_12%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)]"
+                      onClick={() => openWorkspacePath(browserObserveData.htmlPath)}
+                    >
+                      Open HTML
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {Array.isArray(browserObserveData.attempts) && browserObserveData.attempts.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="text-xs font-medium text-(--muted)">Attempts</div>
+                  {browserObserveData.attempts.map((attempt, idx) => (
+                    <div key={`attempt-${idx}`} className="text-xs rounded-md px-2.5 py-2 border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+                      <div className="font-medium text-(--foreground)">{attempt.phase || `attempt-${idx + 1}`}</div>
+                      <div className="text-(--muted) mt-0.5">
+                        {attempt.finalUrl || attempt.title || 'No URL'}{typeof attempt.score === 'number' ? ` · score ${attempt.score}` : ''}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {browserObserveData.error && (
+                <pre className="canvas-terminal-stderr">{browserObserveData.error}</pre>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

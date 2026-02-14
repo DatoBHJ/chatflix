@@ -9,7 +9,7 @@ import { ChatInputProps } from './types';
 import { useChatInputStyles } from './ChatInputStyles';
 import { FilePreview, fileHelpers } from './FileUpload';
 import { ErrorToast } from './DragDropOverlay';
-import { Search, Calculator, Link, Image, FileText, Plus, BarChart3, Building, BookOpen, Github, User, Youtube, Palette, Video, Info, Wrench, Code2, FolderOpen } from 'lucide-react';
+import { Search, Calculator, Link, Image, FileText, Plus, BarChart3, Building, BookOpen, Github, User, Youtube, Palette, Video, Info, Wrench, Code2, FolderOpen, Globe } from 'lucide-react';
 import { SiGoogle, SiLinkedin } from 'react-icons/si';
 import { BiSolidBank } from 'react-icons/bi';
 import NextImage from 'next/image'; 
@@ -74,6 +74,7 @@ export const TOOLS: ToolDefinition[] = [
   { id: 'web_search:pdf', icon: <FileText strokeWidth={1.8} />, name: 'PDF Search', description: 'Search PDF documents', category: 'search', background: 'linear-gradient(0deg, #991B1B 0%, #DC2626 100%)', placeholder: { mobile: 'Search PDF documents', desktop: 'Search government UFO documents' } },
   { id: 'calculator', icon: <Calculator strokeWidth={1.8} />, name: 'Calculator', description: 'Mathematical calculations', category: 'utility', background: 'linear-gradient(0deg, #F2994A 0%, #F2C94C 100%)', placeholder: { mobile: 'Calculate mortgage payment 500k 30yr 4.5%', desktop: 'Calculate mortgage payment 500k 30yr 4.5%' } },
   { id: 'run_python_code', icon: <Code2 strokeWidth={1.8} />, name: 'Run code', description: 'Run Python in the workspace for data analysis and charts', category: 'utility', background: 'linear-gradient(0deg, #334155 0%, #64748b 100%)', placeholder: { mobile: 'Run Python, analyze data, plot charts', desktop: 'Run Python, analyze data, plot charts' } },
+  { id: 'browser_observe', icon: <Globe strokeWidth={1.8} />, name: 'Browser Observe', description: 'Open a remote browser, capture screenshot/HTML, and inspect page flow', category: 'utility', background: 'linear-gradient(0deg, #1d4ed8 0%, #38bdf8 100%)', placeholder: { mobile: 'Observe webpage flow with screenshot + HTML', desktop: 'Observe webpage flow with screenshot + HTML' }, hasInfoIcon: true },
   { id: 'workspace', icon: <FolderOpen strokeWidth={1.8} />, name: 'Workspace', description: 'Read, write, and edit files in this chat workspace', category: 'utility', background: 'linear-gradient(0deg, #0f766e 0%, #14b8a6 100%)', placeholder: { mobile: 'Read, create, or edit files in this chat', desktop: 'Read, create, or edit files in this chat' } },
 ];
 
@@ -1917,7 +1918,7 @@ export function ChatInput({
                                             className: `text-white ${tool.smallIcon ? "h-3 w-3" : "h-3.5 w-3.5"}`,
                                             size: tool.smallIcon ? 12 : 14
                                           })}
-                                          {(tool.id === 'wan25_text_to_video' || tool.id === 'wan25_image_to_video' || tool.id === 'grok_text_to_video' || tool.id === 'grok_image_to_video' || tool.id === 'grok_video_edit' || tool.id === 'video_upscaler' || tool.id === 'image_upscaler' || tool.id === 'run_python_code' || tool.id === 'workspace') && (
+                                          {(tool.id === 'wan25_text_to_video' || tool.id === 'wan25_image_to_video' || tool.id === 'grok_text_to_video' || tool.id === 'grok_image_to_video' || tool.id === 'grok_video_edit' || tool.id === 'video_upscaler' || tool.id === 'image_upscaler' || tool.id === 'run_python_code' || tool.id === 'browser_observe' || tool.id === 'workspace') && (
                                             <div 
                                               className="absolute -bottom-1 -right-2 text-[7.5px] font-bold px-1 py-0.5 rounded-full leading-none whitespace-nowrap"
                                               style={{

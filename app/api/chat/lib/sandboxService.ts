@@ -10,7 +10,7 @@ const WORKSPACE_BASE = '/home/user/workspace';
 
 /**
  * Custom E2B template with pre-installed Python packages (Pillow, python-pptx,
- * requests, reportlab, openpyxl, pandas, matplotlib, seaborn, numpy).
+ * requests, reportlab, openpyxl, pandas, matplotlib, seaborn, numpy, playwright, nest_asyncio).
  * Built via: node scripts/build-e2b-template.mjs
  * Falls back to the default base template if not set.
  *
