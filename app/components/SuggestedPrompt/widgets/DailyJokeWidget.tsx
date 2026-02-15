@@ -226,14 +226,22 @@ export function DailyJokeWidget({
         {/* Content */}
         <div ref={contentRef} className="flex-1 min-h-0 overflow-y-auto flex items-start justify-center">
           {isLoading ? (
-            <div className="w-full space-y-3 pt-2">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div 
-                  key={index} 
-                  className="h-6 bg-white/10 rounded-lg animate-pulse" 
-                />
-              ))}
-            </div>
+            isFullscreen ? (
+              <div className="flex items-center justify-center py-8 w-full">
+                <p className="text-sm opacity-60 text-center animate-pulse" style={getContentTextStyle()}>
+                  Loading...
+                </p>
+              </div>
+            ) : (
+              <div className="w-full space-y-3 pt-2">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div 
+                    key={index} 
+                    className="h-6 bg-white/10 rounded-lg animate-pulse" 
+                  />
+                ))}
+              </div>
+            )
           ) : error && !joke ? (
             <div className="flex items-center justify-center py-4 w-full">
               <p className="text-sm opacity-70 text-center" style={getContentTextStyle()}>

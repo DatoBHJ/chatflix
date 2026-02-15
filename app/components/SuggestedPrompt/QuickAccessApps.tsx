@@ -123,7 +123,7 @@ function VisionWidgetOverlay({
   renderWidgetContent,
 }: VisionWidgetOverlayProps) {
   const cardRef = useRef<HTMLDivElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
   // VisionWidgetOverlay is always on home view which has background image
   const hasBackgroundImage = true;
   const safeAreaTop = 'env(safe-area-inset-top, 0px)';
@@ -140,11 +140,6 @@ function VisionWidgetOverlay({
       overflow: 'visible',
       boxSizing: 'border-box',
     };
-  }, []);
-
-  useEffect(() => {
-    const raf = requestAnimationFrame(() => setIsVisible(true));
-    return () => cancelAnimationFrame(raf);
   }, []);
 
   return (
