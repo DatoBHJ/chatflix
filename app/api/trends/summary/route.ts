@@ -203,7 +203,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Get user and load personal core memory
+    // Get user and load only personal info memory
     // 🚀 최적화: 클라이언트에서 전달된 메모리를 우선 사용 (localStorage 캐시 활용)
     const { personalInfoMemory: clientMemory } = body
     let personalInfoMemory: string | null = clientMemory || null
@@ -214,7 +214,7 @@ export async function POST(req: NextRequest) {
       const { data: { user } } = await supabase.auth.getUser()
       
       if (user) {
-        const { data: memoryData } = await getAllMemoryBank(supabase, user.id, ['00-personal-core'])
+        const { data: memoryData } = await getAllMemoryBank(supabase, user.id, ['00-personal-info'])
         personalInfoMemory = memoryData || null
       }
     }
@@ -305,7 +305,7 @@ YOUR RESPONSE:
 - Answer using all available context (summary, conversation, news, keywords). Do your best to provide a helpful answer from what's available
 - CRITICAL: The "answer" field must contain ONLY the answer to the user's question - NO questions should be included in the answer field. Questions are generated separately in the "followUpQuestions" field.
 - Only mention Chatflix if the question is completely impossible to answer with the provided context AND requires real-time data that doesn't exist in the context. When mentioning Chatflix, tell the user to send a message to Chatflix (e.g., "You should message Chatflix about this" or similar in the user's language)
-- Generate 1-3 SHORT follow-up questions in the "followUpQuestions" field (NOT in the answer field). These should be about basic facts from the news or suggestions to use Chatflix's features. Use a casual, direct tone - like texting a friend. Examples: "뭐가 일어났음?", "누구임?", "언제?", "배경이 뭐임?", "이걸로 이미지 만들어줘", "관련 영상 찾아줘". Avoid formal question endings. Keep questions super short and casual. CRITICAL: Instead of asking about obvious numbers, percentages, or basic definitions, ask about specific events, people, details, or context that adds value. NO complex analysis questions like "How will this affect...?" or "What are the implications...?"
+- Generate 1-3 SHORT follow-up questions in the "followUpQuestions" field (NOT in the answer field). These should be about basic facts from the news. Use a casual, direct tone - like texting a friend. Examples: "뭐가 일어났음?", "누구임?", "언제?", "어쨌던거?", "배경이 뭐임?". Avoid formal question endings. Keep questions super short and casual. CRITICAL: Do NOT ask obvious questions about numbers, percentages, or basic definitions (e.g., "200% 급증이 뭐야?" is terrible - everyone knows what 200% means). Instead, ask about specific events, people, details, or context that adds value. NO complex analysis questions like "How will this affect...?" or "What are the implications...?"
 - Respond in the same language as the conversation`
 
       responseJsonSchema = {
@@ -356,7 +356,7 @@ CONTENT REQUIREMENTS:
 - TONE: Use a casual, friendly tone - natural and conversational. BUT never sacrifice accuracy for casualness. Be precise and include all key facts. The tone stays casual, but the formatting should be clear and structured. Write directly and concisely without formal intros or unnecessary formal endings. Get straight to the point as if texting a friend.
 - ACCURACY: Include ALL key facts, numbers, and important details from the data. Never skip critical info just to sound casual. Use **bold** to highlight these important facts.
 - LENGTH: 2-3 paragraphs max. Focus on the core reason and key facts only. Keep it straightforward. Use Markdown to make it readable and well-structured. Be direct and concise - avoid unnecessary words or formal structures.
-- FOLLOW-UP QUESTIONS: Generate 3 SHORT questions (5-10 words max). Use a casual, direct tone - like texting a friend. Avoid formal question endings. Examples: "뭐임?", "누구임?", "어쨌던거?", "배경이 뭐임?", "언제?". CRITICAL: The FIRST question MUST be about something from the main title (# header). If the title mentions a phrase, quote, term, or concept, ask about that in a casual way (e.g., "[person]이 뭐라고 했음?", "[event]의 배경이 뭐임?"). The other 2 questions should be about basic facts from the news in a casual style (e.g., "[person] 누구임?", "[event] 언제 일어났음?", "[detail]이 뭐임?"). You can also suggest using Chatflix for more creative tasks like "이걸로 이미지 만들어줘" or "관련된 영상 보여줘". IMPORTANT: Instead of asking about obvious numbers, percentages, or basic definitions, ask about specific events, people, details, or context that adds real value. NO deep analysis questions - those need Chatflix.`
+- FOLLOW-UP QUESTIONS: Generate 3 SHORT questions (5-10 words max). Use a casual, direct tone - like texting a friend. Avoid formal question endings. Examples: "뭐임?", "누구임?", "어쨌던거?", "배경이 뭐임?", "언제?". CRITICAL: The FIRST question MUST be about something from the main title (# header). If the title mentions a phrase, quote, term, or concept, ask about that in a casual way (e.g., "[person]이 뭐라고 했음?", "[event]의 배경이 뭐임?"). The other 2 questions should be about basic facts from the news in a casual style (e.g., "[person] 누구임?", "[event] 언제 일어났음?", "[detail]이 뭐임?"). IMPORTANT: Do NOT ask obvious questions about numbers, percentages, or basic definitions (e.g., "200% 급증이 뭐야?" is terrible - everyone knows what percentages mean). Instead, ask about specific events, people, details, or context that adds real value. NO deep analysis questions - those need Chatflix.`
 
       responseJsonSchema = {
         type: 'object',

@@ -227,14 +227,14 @@ export const extractTextFromMessage = (msg: any): string => {
 
 /**
  * 메모리에서 언어 선호도 추출 함수
- * "Personal Core" (00-personal-core) 메모리의 "## Basic Details" 섹션에서 "Language preference:" 찾기
+ * "About You" (00-personal-info) 메모리의 "## Basic Details" 섹션에서 "Language preference:" 찾기
  */
 export function extractLanguagePreference(memoryData: string | null): string | null {
   if (!memoryData) return null;
   
   try {
-    // "## 00 Personal Core" 또는 "## 00-personal-core" 섹션 찾기
-    const personalInfoMatch = memoryData.match(/##\s+00\s+(?:Personal\s+Core|personal-core)\s+([\s\S]*?)(?=##\s+\d+|---|$)/i);
+    // "## 00 Personal Info" 또는 "## 00-personal-info" 섹션 찾기 (About You 카테고리)
+    const personalInfoMatch = memoryData.match(/##\s+00\s+(?:Personal\s+Info|personal-info)\s+([\s\S]*?)(?=##\s+\d+|---|$)/i);
     if (!personalInfoMatch) {
       // 대체: "## Basic Details" 섹션 직접 찾기 (다른 형식 지원)
       const basicDetailsMatch = memoryData.match(/##\s+Basic\s+Details\s+([\s\S]*?)(?=##|$)/i);
@@ -304,32 +304,8 @@ export async function generateFollowUpQuestions(
       : '\n**LANGUAGE:** Respond in the same language as the user\'s original query.';
     
     const followUpResult = await generateObject({
-      model: providers.languageModel('gemini-2.5-flash'),
-      prompt: `You are generating follow-up questions that a USER would naturally ask to continue the conversation with an AI assistant called "Chatflix".
-
-**CHATFLIX IDENTITY & CAPABILITIES:**
-Chatflix is a powerful AI agent with a wide range of specialized tools and workflows. Your goal is to suggest follow-ups that naturally lead the user to explore these capabilities.
-
-**CORE TOOLS & WORKFLOWS:**
-1.  **Visual Creation**:
-    - \`gemini_image_tool\` (Nano Banana Pro): High-quality 4K images, infographics, logos, text-in-image.
-    - \`seedream_image_tool\`: Cinematic, uncensored 4K images.
-    - \`wan25_video_tool\` & \`grok_video_tool\`: Generate 5-15s videos, animate images, or edit existing videos.
-    - \`image_upscaler\` (8K) & \`video_upscaler\` (4K).
-2.  **Research & Information**:
-    - \`google_search\`: General web search, images, and news.
-    - \`webSearch\` (Exa): Specialized research (academic, financial, GitHub, LinkedIn).
-    - \`twitterSearch\`: Real-time trends and viral content.
-    - \`youtubeSearch\` & \`youtubeAnalyzer\`: Find and analyze video content/transcripts.
-3.  **Data & Document Workflows**:
-    - \`run_python_code\`: Data analysis (Pandas), charts (Matplotlib), complex calculations.
-    - **PPT Generation**: Create multi-slide presentations.
-    - **PDF Report**: Professional document generation with charts.
-    - **Infographic**: Vertical visual summaries.
-    - **Comic/Storyboard**: Sequential art (webtoon style).
-    - **Social Media Pack**: Multi-platform content (Instagram, YouTube, etc.).
-4.  **Workspace & Files**:
-    - \`read_file\`, \`write_file\`, \`apply_edits\`: Direct file manipulation in the sandbox.
+      model: providers.languageModel('gemini-2.5-flash-lite'),
+      prompt: `You are generating follow-up questions that a USER would naturally ask to continue the conversation with an AI assistant.
 
 **CRITICAL INSTRUCTION: Generate exactly 3 follow-up questions—no more, no less. Keep each very short and concise (under 15 words) so they are easy to read and click.**
 
@@ -337,28 +313,34 @@ User's original query: "${userQuery}"
 AI's response: "${aiResponse}"
 Context: ${contextInfo}${languageInstruction}
 
-**FOLLOW-UP STRATEGY (Prioritize based on context):**
-- **If creative/visual**: Suggest generating an image, video, or comic.
-- **If informational/news**: Suggest searching Google/Twitter or creating a summary PPT/Infographic.
-- **If technical/data**: Suggest running Python analysis or creating a PDF report.
-- **If broad/complex**: Suggest a deep-dive research or a structured presentation.
-- **Always include at least one "Actionable" tool-based suggestion.**
+**UNIVERSAL QUESTION STYLE (Always Apply):**
+- Generate VERY SHORT questions (under 15 words each)
+- Focus on immediate, actionable follow-ups
+- Make them easy to scan and click
+- Avoid long, complex questions that users might skip
+- Prioritize curiosity-driven, specific questions over broad ones
 
-**GOOD EXAMPLES (Leveraging Chatflix):**
-✅ "Generate a 4K image of this"
-✅ "Create a summary PPT for me"
-✅ "Search for the latest news on Twitter"
-✅ "Make a 5-second video of this scene"
-✅ "Analyze this data with Python"
-✅ "Can you make an infographic about this?"
-✅ "Create a professional PDF report"
-✅ "Show me the background on YouTube"
+**SHORT QUESTION EXAMPLES:**
+✅ "Show me the code for this"
+✅ "What are the alternatives?"
+✅ "How does this work in practice?"
+✅ "Any real-world examples?"
+✅ "What's the next step?"
+✅ "Explain this simpler"
+
+
+**WRONG EXAMPLES (Don't generate these):**
+❌ "What details would you like me to emphasize in this image?"
+❌ "Which style would you prefer?"
+❌ "Do you want me to modify anything?"
+❌ "Would you like me to create variations?"
+❌ Long, complex questions that are hard to scan
 
 **STYLE & FORMAT:**
-- Exactly 3 questions only.
-- Very short (under 15 words each), easy to scan and click.
-- Natural, clear, simple language.
-- Same language as the user's query.`,
+- Exactly 3 questions only (maximum 3—do not exceed)
+- Very short (under 15 words each), easy to scan and click
+- Natural, clear, simple language
+- Same language as the user's query`,
       schema: z.object({
         followup_questions: z.array(z.string()).min(1).max(10)
       })
@@ -695,17 +677,6 @@ export async function processMessagesForAI(
     model.includes('anthropic') ||
     getProviderFromModel(model) === 'anthropic'
   );
-
-  const stripOpenAIProviderMetadata = (value: any): any => {
-    if (!value || typeof value !== 'object') return value;
-    const cloned = { ...value };
-    if (cloned.providerMetadata?.openai) {
-      const providerMetadata = { ...cloned.providerMetadata };
-      delete providerMetadata.openai;
-      cloned.providerMetadata = providerMetadata;
-    }
-    return cloned;
-  };
   
   // 1️⃣ 먼저 전체 메시지에서 전역 이미지 ID 맵 생성
   const globalImageIdMap = buildGlobalImageIdMap(messagesWithTokens);
@@ -746,6 +717,13 @@ export async function processMessagesForAI(
       return msg;
     }
     
+    // 메시지에 function_call이 있는지 먼저 확인 (reasoning과의 관계 체크용)
+    const hasFunctionCall = msg.parts.some((p: any) => 
+      p.type === 'function_call' || 
+      p.type === 'tool-call' || 
+      (p.type && typeof p.type === 'string' && p.type.startsWith('tool-'))
+    );
+    
     const processedParts = await Promise.all(msg.parts.map(async (part: any, partIndex: number) => {
       const normalizedToolCallId = typeof part.toolCallId === 'string'
         ? normalizeToolCallId(part.toolCallId, `${messageIndex}_${partIndex}`)
@@ -753,49 +731,32 @@ export async function processMessagesForAI(
       const normalizedPart = part.toolCallId
         ? { ...part, toolCallId: normalizedToolCallId }
         : part;
-      const sanitizedPart = isGPT5 ? stripOpenAIProviderMetadata(normalizedPart) : normalizedPart;
-
-      // UI/event streaming parts can be extremely large (search/link payloads) and are
-      // not required as direct model input context.
-      if (typeof sanitizedPart.type === 'string' && sanitizedPart.type.startsWith('data-')) {
-        return null;
-      }
 
       // 🧠 Anthropic 호환성: history 내 tool_use/tool_result 제거
-      if (isAnthropic && sanitizedPart.type && typeof sanitizedPart.type === 'string') {
-        if (sanitizedPart.type.startsWith('tool-')) {
+      if (isAnthropic && normalizedPart.type && typeof normalizedPart.type === 'string') {
+        if (normalizedPart.type.startsWith('tool-')) {
           return {
             type: 'text',
-            text: summarizeToolOutputForAnthropic(sanitizedPart)
+            text: summarizeToolOutputForAnthropic(normalizedPart)
           };
         }
-        if (sanitizedPart.type === 'tool-call' || sanitizedPart.type === 'tool-result') {
+        if (normalizedPart.type === 'tool-call' || normalizedPart.type === 'tool-result') {
           return null;
         }
       }
 
-      // GPT-5(OpenAI Responses) 호환성:
-      // 과거 턴의 tool-* 파트는 function_call(fc_*)/reasoning(rs_*) 연속성 제약을 유발할 수 있다.
-      // 히스토리 재전송에서는 요약 텍스트로 치환해 연속성 제약을 회피한다.
-      if (isGPT5 && sanitizedPart.type && typeof sanitizedPart.type === 'string' && sanitizedPart.type.startsWith('tool-')) {
-        return {
-          type: 'text',
-          text: summarizeToolOutputForAnthropic(sanitizedPart),
-        };
-      }
-
       // 🚀 Anthropic API 호환성: 완료되지 않은 tool call 제거
       // AI SDK v5 형식: type이 "tool-"로 시작하고 toolCallId가 있는 경우
-      if (sanitizedPart.type && typeof sanitizedPart.type === 'string' && sanitizedPart.type.startsWith('tool-')) {
+      if (normalizedPart.type && typeof normalizedPart.type === 'string' && normalizedPart.type.startsWith('tool-')) {
         // 완료되지 않은 tool call 제거
         // 조건: toolCallId가 있고, output이 없거나 state가 "input-available"인 경우
         // 이는 Anthropic API의 tool_use/tool_result 요구사항을 위반할 수 있음
         // Anthropic은 tool_use가 있으면 반드시 다음 메시지에 tool_result가 있어야 함
         // 주의: output이 없으면 완료되지 않은 것으로 간주 (state와 관계없이)
-        if (sanitizedPart.toolCallId && !sanitizedPart.output) {
+        if (normalizedPart.toolCallId && !normalizedPart.output) {
           // state가 명시적으로 "output-available"이 아니면 제거
           // (state가 없거나 "input-available"이면 제거)
-          if (!sanitizedPart.state || sanitizedPart.state !== 'output-available') {
+          if (!normalizedPart.state || normalizedPart.state !== 'output-available') {
             return null;
           }
         }
@@ -803,16 +764,16 @@ export async function processMessagesForAI(
         // 🚀 Gemini API 호환성: thought_signature 보존
         // Gemini 모델에서는 function call에 thought_signature가 필수
         // part에 thought_signature가 있으면 보존하고, 없으면 providerMetadata에서 찾아서 추가
-        if (isGemini && sanitizedPart.input) {
+        if (isGemini && normalizedPart.input) {
           // thought_signature가 이미 있으면 그대로 유지
-          if (sanitizedPart.thought_signature) {
-            return sanitizedPart;
+          if (normalizedPart.thought_signature) {
+            return normalizedPart;
           }
           // providerMetadata에서 thought_signature 찾기
-          if (sanitizedPart.providerMetadata?.google?.thought_signature) {
+          if (normalizedPart.providerMetadata?.google?.thought_signature) {
             return {
-              ...sanitizedPart,
-              thought_signature: sanitizedPart.providerMetadata.google.thought_signature
+              ...normalizedPart,
+              thought_signature: normalizedPart.providerMetadata.google.thought_signature
             };
           }
           // 히스토리에서 가져온 메시지에 thought_signature가 없는 경우
@@ -824,219 +785,94 @@ export async function processMessagesForAI(
         // 🔥 Fireworks API 호환성: callProviderMetadata 제거
         // Fireworks 모델에서는 callProviderMetadata가 extra_content로 변환되어 에러 발생
         // Gemini에서 온 메시지의 callProviderMetadata를 Fireworks 모델 사용 시 제거
-        if (isFireworks && sanitizedPart.callProviderMetadata) {
-          const { callProviderMetadata, ...cleanedPart } = sanitizedPart;
+        if (isFireworks && normalizedPart.callProviderMetadata) {
+          const { callProviderMetadata, ...cleanedPart } = normalizedPart;
           return cleanedPart;
         }
         
         // read_file 도구 결과: 다음 턴 재전송 시 content를 12k로 잘라 prompt too long 방지 (이중 안전장치)
-        if (sanitizedPart.type === 'tool-read_file' && typeof sanitizedPart.output?.content === 'string') {
-          const out = sanitizedPart.output as {
-            path?: string;
-            content?: string;
-            truncated?: boolean;
-            totalLines?: number;
-            startLine?: number;
-            endLine?: number;
-            nextReadStartLine?: number | null;
-          };
-          // Large-window/full-file reads are summarized aggressively to avoid history token accumulation.
-          const shouldSummarize =
-            out?.truncated === true ||
-            (typeof out?.content === 'string' && out.content.length > 4000) ||
-            (typeof out?.totalLines === 'number' && out.totalLines > 3000);
-          if (shouldSummarize) {
-            const snippet = typeof out?.content === 'string'
-              ? out.content.slice(0, 700)
-              : '';
-            const summary = [
-              '[read_file]',
-              out?.path ? `path=${out.path}` : '',
-              typeof out?.startLine === 'number' && typeof out?.endLine === 'number'
-                ? `window=${out.startLine}-${out.endLine}`
-                : '',
-              typeof out?.totalLines === 'number' ? `totalLines=${out.totalLines}` : '',
-              out?.truncated ? 'truncated=true' : '',
-              typeof out?.nextReadStartLine === 'number' ? `nextStart=${out.nextReadStartLine}` : '',
-            ].filter(Boolean).join(' ');
-            const snippetBlock = snippet ? `\nsnippet=${JSON.stringify(snippet)}` : '';
-            return { type: 'text', text: `${summary}${snippetBlock}` };
-          }
-          const truncated = truncateFileText(sanitizedPart.output.content);
+        if (normalizedPart.type === 'tool-read_file' && typeof normalizedPart.output?.content === 'string') {
+          const truncated = truncateFileText(normalizedPart.output.content);
           return {
-            ...sanitizedPart,
-            output: { ...sanitizedPart.output, content: truncated.text },
-          };
-        }
-
-        // grep_file 결과는 대용량일 수 있으므로 히스토리에는 초압축 요약만 남긴다.
-        if (sanitizedPart.type === 'tool-grep_file' && sanitizedPart.output) {
-          const out = sanitizedPart.output as {
-            path?: string;
-            returnedMatches?: number;
-            reachedMatchLimit?: boolean;
-            nextSearchStartLine?: number | null;
-            startLine?: number;
-            endLine?: number;
-            recommendedNextStep?: string;
-            matches?: Array<{ lineNumber?: number; line?: string }>;
-          };
-          const summary = [
-            '[grep_file]',
-            out?.path ? `path=${out.path}` : '',
-            typeof out?.startLine === 'number' && typeof out?.endLine === 'number'
-              ? `window=${out.startLine}-${out.endLine}`
-              : '',
-            typeof out?.returnedMatches === 'number' ? `matches=${out.returnedMatches}` : '',
-            out?.reachedMatchLimit ? 'reachedMatchLimit=true' : '',
-            typeof out?.nextSearchStartLine === 'number' ? `nextStart=${out.nextSearchStartLine}` : '',
-            out?.recommendedNextStep ? 'hasNextStep=true' : '',
-          ].filter(Boolean).join(' ');
-          const sampleMatches = Array.isArray(out?.matches)
-            ? out.matches
-                .slice(0, 5)
-                .map((m) => `${m?.lineNumber ?? '?'}:${typeof m?.line === 'string' ? m.line : ''}`)
-                .join(' | ')
-            : '';
-          return {
-            type: 'text',
-            text: sampleMatches ? `${summary}\nsample=${sampleMatches.slice(0, 700)}` : summary,
+            ...normalizedPart,
+            output: { ...normalizedPart.output, content: truncated.text },
           };
         }
         
-        // run_python_code 도구 결과: 기본은 짧은 안내.
-        // BrightData 성공/실패 요약은 다음 턴 컨텍스트에 보존해 잘못된 성공 응답을 줄인다.
-        if (sanitizedPart.type === 'tool-run_python_code' && sanitizedPart.output) {
-          const out = sanitizedPart.output as {
-            success?: boolean;
-            error?: { value?: unknown };
-            stdout?: unknown[];
-            stderr?: unknown[];
-            results?: Array<{ summary?: string }>;
-          };
-          const firstSummary = out?.results?.[0]?.summary;
-          const errorValue =
-            typeof out?.error?.value === 'string'
-              ? out.error.value
-              : undefined;
-          const failMarkerLine = (() => {
-            const pick = (arr: unknown[] | undefined) =>
-              Array.isArray(arr)
-                ? arr.find((line: unknown) => typeof line === 'string' && line.includes('FAIL:'))
-                : undefined;
-            const fromStderr = pick(out?.stderr as unknown[] | undefined);
-            const fromStdout = pick(out?.stdout as unknown[] | undefined);
-            return (typeof fromStderr === 'string' ? fromStderr : (typeof fromStdout === 'string' ? fromStdout : undefined));
-          })();
-          const isBrightDataSuccess =
-            typeof firstSummary === 'string' &&
-            (firstSummary.includes('BrightData') || firstSummary.includes('matchCentreData'));
-          const isFailure = out?.success === false;
-          const stdoutHead = Array.isArray(out?.stdout)
-            ? out.stdout.filter((line): line is string => typeof line === 'string').slice(0, 2).join(' | ')
-            : '';
-          const failureReason = (errorValue || failMarkerLine || firstSummary || 'Execution failed.').slice(0, 260);
-          const summaryText = isFailure
-            ? `[run_python_code] Failed: ${failureReason}`
-            : isBrightDataSuccess
-              ? `[run_python_code] ${firstSummary}`
-              : `[run_python_code] Success${stdoutHead ? `: ${stdoutHead.slice(0, 220)}` : (firstSummary ? `: ${firstSummary.slice(0, 220)}` : '')}`;
+        // run_python_code 도구 결과: LLM 컨텍스트에서 제거하고 짧은 안내 문구만 남김.
+        if (normalizedPart.type === 'tool-run_python_code' && normalizedPart.output) {
           return {
             type: 'text',
-            text: summaryText,
+            text: '[run_python_code] Output shown to user.',
           };
         }
         
-        // browser_observe 결과는 핵심 필드만 짧게 보존
-        if (sanitizedPart.type === 'tool-browser_observe' && sanitizedPart.output) {
-          const out = sanitizedPart.output as {
-            success?: boolean;
-            url?: string;
-            finalUrl?: string;
-            final_url?: string;
-            selectedAttempt?: string;
-            selected_attempt?: string;
-            htmlLength?: number;
-            html_length?: number;
-            error?: string;
-          };
-          const status = out?.success === true ? 'Success' : 'Failed';
-          const finalUrl =
-            typeof out?.finalUrl === 'string'
-              ? out.finalUrl
-              : (typeof out?.final_url === 'string' ? out.final_url : '');
-          const selectedAttempt =
-            typeof out?.selectedAttempt === 'string'
-              ? out.selectedAttempt
-              : (typeof out?.selected_attempt === 'string' ? out.selected_attempt : '');
-          const htmlLength =
-            typeof out?.htmlLength === 'number'
-              ? out.htmlLength
-              : (typeof out?.html_length === 'number' ? out.html_length : undefined);
-          const summary = [
-            `[browser_observe] ${status}`,
-            out?.url ? `url=${out.url}` : '',
-            finalUrl ? `finalUrl=${finalUrl}` : '',
-            selectedAttempt ? `phase=${selectedAttempt}` : '',
-            typeof htmlLength === 'number' ? `html=${htmlLength}` : '',
-            out?.error ? `error=${String(out.error).slice(0, 200)}` : '',
-          ].filter(Boolean).join(' · ');
-          return {
-            type: 'text',
-            text: summary,
-          };
-        }
-
-        // For other completed tool outputs, keep only short textual summaries in history.
-        return {
-          type: 'text',
-          text: summarizeToolOutputForAnthropic(sanitizedPart),
-        };
+        // 완료된 tool call은 유지 (convertToModelMessages가 tool_use/tool_result로 변환함)
+        // 완료된 tool call은 output이 있거나 state가 "output-available"임
+        return normalizedPart;
       }
       
-      // tool-call/tool-result/function_call은 히스토리 재전송에서 제거한다.
+      // tool-call과 tool-result는 제거 (streamText의 tools 파라미터로 도구 호출 가능)
       // 단, AI SDK v5 형식의 tool-* 타입은 위에서 처리됨
-      if (
-        sanitizedPart.type === 'tool-call' ||
-        sanitizedPart.type === 'tool-result' ||
-        sanitizedPart.type === 'function_call' ||
-        sanitizedPart.type === 'function-call'
-      ) {
+      if (normalizedPart.type === 'tool-call' || normalizedPart.type === 'tool-result') {
         return null;
       }
       
-      // GPT-5 포함 모든 모델: reasoning 파트는 다음 턴 입력으로 재주입하지 않는다.
-      // OpenAI Responses는 rs_* reasoning item이 연속성 제약을 갖는데,
-      // 재전송 히스토리 정리 과정에서 후속 item이 빠지면 400이 발생할 수 있다.
-      // reasoning은 UI 표시용으로만 쓰고, 모델 입력에서는 제외한다.
-      if (sanitizedPart.type === 'reasoning') {
+      // GPT-5의 경우 reasoning 데이터는 그대로 유지
+      if (normalizedPart.type === 'reasoning') {
+        if (isGPT5) {
+          // function_call이 있거나 reasoning part에 providerMetadata itemId가 있는 경우, 
+          // 빈 reasoning이라도 유지해야 함 (OpenAI API 에러 방지)
+          const hasReasoningId = normalizedPart.providerMetadata?.openai?.itemId && 
+                                 normalizedPart.providerMetadata.openai.itemId.startsWith('rs_');
+          
+          // 🚀 메시지에 tool-call이 있고 reasoning part가 있으면, 
+          // tool-call이 해당 reasoning을 참조할 수 있으므로 항상 유지
+          // (tool-call이 제거되더라도 reasoning은 유지되어야 함)
+          if (hasFunctionCall || hasReasoningId) {
+            // function_call이 있거나 reasoning ID가 있으면 빈 텍스트라도 포함하여 유지
+            return {
+              ...normalizedPart,
+              text: normalizedPart.text || normalizedPart.reasoningText || '',
+              reasoningText: normalizedPart.reasoningText || normalizedPart.text || ''
+            };
+          }
+          // function_call이 없고 reasoning ID도 없고 텍스트도 없으면 null 반환 (나중에 필터링됨)
+          if (!normalizedPart.text || normalizedPart.text.trim().length === 0) {
+            return null;
+          }
+          return normalizedPart; // GPT-5에서는 reasoning 데이터 유지
+        }
+        // GPT-5가 아닌 모델에서는 reasoning 파트를 다음 턴 컨텍스트로 재주입하지 않는다.
+        // reasoning을 일반 text로 변환하면 일부 모델이 "Thinking..." 같은 내부 문구를
+        // 사용자 응답 본문으로 재생성하는 문제가 발생할 수 있다.
         return null;
       }
       
       // AI SDK v4 형식 이미지를 v5 형식으로 변환
-      if (sanitizedPart.type === 'image' && sanitizedPart.image) {
+      if (normalizedPart.type === 'image' && normalizedPart.image) {
         // experimental_attachments에서 정확한 mediaType과 filename 찾기
         const attachment = msg.experimental_attachments?.find((att: any) => 
-          att.url === sanitizedPart.image || att.url.includes(sanitizedPart.image) || sanitizedPart.image.includes(att.url)
+          att.url === normalizedPart.image || att.url.includes(normalizedPart.image) || normalizedPart.image.includes(att.url)
         );
         
         return {
           type: 'file',
-          url: sanitizedPart.image,
+          url: normalizedPart.image,
           mediaType: attachment?.contentType || 'image/png',
           filename: attachment?.name || 'image'
         };
       }
       
-      if (sanitizedPart.type === 'file' && sanitizedPart.url) {
+      if (normalizedPart.type === 'file' && normalizedPart.url) {
         // PDF는 그대로 유지
-        if (sanitizedPart.mediaType === 'application/pdf') {
-          return sanitizedPart;
+        if (normalizedPart.mediaType === 'application/pdf') {
+          return normalizedPart;
         }
         
         // 이미지도 그대로 유지
-        if (sanitizedPart.mediaType && sanitizedPart.mediaType.startsWith('image/')) {
-          return sanitizedPart;
+        if (normalizedPart.mediaType && normalizedPart.mediaType.startsWith('image/')) {
+          return normalizedPart;
         }
         
         // 코드파일/텍스트파일 (mediaType이 없거나 빈 문자열인 경우 포함)
@@ -1065,36 +901,24 @@ export async function processMessagesForAI(
           };
         }
       }
-      return sanitizedPart;
+      return normalizedPart;
     }));
     
     // null 값 (빈 reasoning part 등)을 필터링
     const filteredParts = processedParts.filter((part: any) => part !== null);
     
-    // OpenAI Responses 제약: rs_* reasoning item은 반드시 "즉시 다음" 아이템이 필요하다.
-    // 앞 단계에서 tool 관련 파트가 제거되면 reasoning만 고아로 남을 수 있으므로 여기서 제거한다.
-    const prunedParts = filteredParts.filter((part: any, index: number, parts: any[]) => {
-      if (part?.type !== 'reasoning') return true;
-      if (!isGPT5) return true;
-      const reasoningItemId = part?.providerMetadata?.openai?.itemId;
-      if (typeof reasoningItemId !== 'string' || !reasoningItemId.startsWith('rs_')) return true;
-      const nextPart = parts[index + 1];
-      return !!nextPart && nextPart.type !== 'reasoning';
-    });
-    
     // 빈 parts 배열이면 최소한 빈 텍스트 part 하나 추가
-    const finalParts = prunedParts.length > 0 
-      ? prunedParts 
+    const finalParts = filteredParts.length > 0 
+      ? filteredParts 
       : [{ type: 'text', text: '' }];
     
     // 모델 입력에는 불필요하게 큰 도구 결과(tool_results 등)는 포함하지 않되,
     // GPT-5 reasoning 등 프로바이더 메타데이터는 그대로 유지하기 위해
     // 원본 메시지에서 tool_results만 제거하고 나머지 필드는 보존한다.
-    const { tool_results, providerMetadata, ...rest } = msg;
-    const sanitizedMessage = isGPT5 ? stripOpenAIProviderMetadata(rest) : rest;
+    const { tool_results, ...rest } = msg;
 
     return {
-      ...sanitizedMessage,
+      ...rest,
       parts: finalParts,
     };
   }));
