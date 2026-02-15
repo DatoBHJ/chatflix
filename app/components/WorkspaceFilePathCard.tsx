@@ -1,8 +1,8 @@
 import React, { useCallback } from 'react';
-import { Maximize } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { getIcon } from 'material-file-icons';
 
-/** Workspace file card shown inside chat markdown (opens modal). */
+/** Workspace file card shown inside chat markdown (opens modal). 스타일: 도구 미리보기(diff-inline-preview)와 동일. */
 export function WorkspaceFilePathCard({
   path,
   onOpen,
@@ -13,9 +13,8 @@ export function WorkspaceFilePathCard({
   const filename = path.replace(/^.*[/\\]/, '') || 'file';
   const icon = getIcon(filename);
 
-  // Rough type label from extension
   const ext = filename.split('.').pop()?.toLowerCase() || '';
-  const typeLabel = ext.toUpperCase() || 'File';
+  const typeLabel = ext ? `${ext.toUpperCase()} file` : 'File';
 
   const handleOpen = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -26,28 +25,20 @@ export function WorkspaceFilePathCard({
 
   return (
     <div
-      className="imessage-file-bubble"
+      className="diff-inline-preview"
       onClick={handleOpen}
-      style={{ cursor: 'pointer' }}
+      onTouchStart={(e) => e.stopPropagation()}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpen(e as any); } }}
+      style={{ cursor: 'pointer', touchAction: 'manipulation' }}
+      title={path}
     >
-      <div className="shrink-0">
-        <div
-          style={{ width: '24px', height: '24px' }}
-          dangerouslySetInnerHTML={{ __html: icon.svg }}
-        />
-      </div>
-      <div className="flex-1 text-left overflow-hidden">
-        <p className="font-medium truncate text-sm text-black/60 dark:text-white/80">{filename}</p>
-        <p className="text-xs text-black/40 dark:text-white/60">{typeLabel}</p>
-      </div>
-      <div className="p-1">
-        <button
-          onClick={handleOpen}
-          className="hover:bg-black/10 dark:hover:bg-white/10 rounded p-1 transition-colors"
-          title="Open file"
-        >
-          <Maximize className="text-neutral-500" size={20} />
-        </button>
+      <div className="diff-header">
+        <div className="shrink-0" style={{ width: 18, height: 18 }} dangerouslySetInnerHTML={{ __html: icon.svg }} />
+        <span className="diff-filename">{filename}</span>
+        <span className="text-xs text-(--muted) shrink-0 truncate max-w-[120px]">{typeLabel}</span>
+        <Download className="w-3.5 h-3.5 text-(--muted) shrink-0" aria-hidden />
       </div>
     </div>
   );

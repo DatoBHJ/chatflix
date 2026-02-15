@@ -3,11 +3,13 @@
 import { UIMessage } from 'ai'
 import Canvas from '@/app/components/Canvas';
 import { StructuredResponse } from '@/app/components/StructuredResponse';
+import { FileEditCanvasPanel } from '@/app/components/FileEditCanvasPanel';
 import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getWan25VideoData, getGrokVideoData, getVideoUpscalerData, getImageUpscalerData, getFileEditData, getRunCodeData, getBrowserObserveData } from '@/app/hooks/toolFunction';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 // import { AttachmentTextViewer } from './AttachmentTextViewer';
 import { AttachmentViewer } from './AttachmentViewer';
+import type { VideoMapValue } from '@/app/utils/resolveMediaPlaceholders';
 // import { useUrlRefresh } from '../hooks/useUrlRefresh';
 
 interface SidePanelProps {
@@ -31,6 +33,13 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   chatId,
   userId
 }: SidePanelProps) => {
+  const extractIdFromPath = useCallback((path?: string) => {
+    if (!path) return null;
+    const filename = path.split('/').pop();
+    if (!filename) return null;
+    return filename.replace(/\.[^.]+$/, '');
+  }, []);
+
   const [copiedFileIndex, setCopiedFileIndex] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [isMobilePanelVisible, setIsMobilePanelVisible] = useState(false);
@@ -306,6 +315,79 @@ export const SidePanel: React.FC<SidePanelProps> = ({
     youTubeLinkAnalysisData
   ]);
 
+  // For file previews (read/write/grep), match Canvas' LINK_ID/IMAGE_ID/VIDEO_ID resolution behavior.
+  const filePanelMediaMaps = useMemo(() => {
+    const sources = [webSearchData, googleSearchData, twitterSearchData].filter(Boolean) as any[];
+    let mergedImageMap: Record<string, string> = {};
+    let mergedLinkMap: Record<string, string> = {};
+
+    sources.forEach((source) => {
+      if (!source) return;
+      if ((source as any).imageMap) mergedImageMap = { ...mergedImageMap, ...(source as any).imageMap };
+      if ((source as any).linkMap) mergedLinkMap = { ...mergedLinkMap, ...(source as any).linkMap };
+    });
+
+    const imageMap: Record<string, string> = { ...mergedImageMap };
+    const addImages = (images: any[] | undefined) => {
+      if (!Array.isArray(images)) return;
+      for (const img of images) {
+        const path = img?.path;
+        const imageUrl = img?.imageUrl;
+        const id = extractIdFromPath(path);
+        if (id && imageUrl) imageMap[id] = imageUrl;
+      }
+    };
+    addImages((geminiImageData as any)?.generatedImages);
+    addImages((seedreamImageData as any)?.generatedImages);
+    addImages((qwenImageData as any)?.generatedImages);
+    addImages((imageUpscalerData as any)?.generatedImages);
+
+    const videoMap: Record<string, VideoMapValue> = {};
+    const addVideos = (videos: any[] | undefined) => {
+      if (!Array.isArray(videos)) return;
+      for (const vid of videos) {
+        const path = vid?.path;
+        const videoUrl = vid?.videoUrl;
+        const id = extractIdFromPath(path);
+        if (id && videoUrl) {
+          videoMap[id] = typeof vid?.size === 'string' ? { url: videoUrl, size: vid.size } : videoUrl;
+        }
+      }
+    };
+    addVideos((wan25VideoData as any)?.generatedVideos);
+    addVideos((grokVideoData as any)?.generatedVideos);
+    addVideos((videoUpscalerData as any)?.generatedVideos);
+
+    return { linkMap: { ...mergedLinkMap }, imageMap, videoMap };
+  }, [
+    webSearchData,
+    googleSearchData,
+    twitterSearchData,
+    geminiImageData,
+    seedreamImageData,
+    qwenImageData,
+    imageUpscalerData,
+    wan25VideoData,
+    grokVideoData,
+    videoUpscalerData,
+    extractIdFromPath,
+  ]);
+
+  // When canvas is open with file-edit tool, get the single matching file entry (same filter as Canvas).
+  const fileEditPanelEntry = useMemo(() => {
+    if (!panelData || panelData.type !== 'canvas' || !panelData.toolType?.startsWith?.('file-edit:') || !fileEditData?.files?.length) {
+      return null;
+    }
+    const selectedFileTool = panelData.toolType.slice('file-edit:'.length);
+    const selectedItem = panelData.fileName ?? null;
+    const filtered = fileEditData.files.filter((f) => {
+      const matchesPath = !selectedItem || f.path === selectedItem;
+      const matchesTool = !selectedFileTool || f.toolName === selectedFileTool;
+      return matchesPath && matchesTool;
+    });
+    return filtered.length > 0 ? filtered[0] : null;
+  }, [panelData, fileEditData]);
+
   // Early return when no panel is visible
   if (!isMobilePanelVisible) {
     return null;
@@ -319,6 +401,32 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   const nonNullPanelData = panelData!;
 
   if (!activeMessage) return null;
+
+  // File-edit panel: render Select Text–style FileEditCanvasPanel (edit/preview toggle, same layout as Select Text).
+  if (fileEditPanelEntry) {
+    const handleClose = () => {
+      if (activePanelRef.current) {
+        togglePanel(
+          activePanelRef.current.messageId,
+          activePanelRef.current.type,
+          activePanelRef.current.fileIndex,
+          activePanelRef.current.toolType
+        );
+      }
+    };
+    return createPortal(
+      <FileEditCanvasPanel
+        entry={fileEditPanelEntry}
+        chatId={chatId}
+        mediaMaps={filePanelMediaMaps}
+        onClose={handleClose}
+        isMobile={isMobile}
+        title={panelTitle ?? 'File'}
+        filePath={fileEditPanelEntry.path || undefined}
+      />,
+      document.body
+    );
+  }
 
   // 사용자 첨부파일 렌더링 함수
   const renderAttachmentContent = () => {

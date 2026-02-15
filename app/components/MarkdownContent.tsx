@@ -4021,10 +4021,14 @@ function MarkdownContentComponent({
                 );
               }
               
-              // [FILE:경로] 태그 → 파일 다운로드 카드 (분리된 세그먼트, message-segment로 통일)
+              // [FILE:경로] 태그 → 파일 다운로드 카드 (도구 미리보기 스타일, 컴팩트 래퍼)
               if (isFileTagSegment && fileTagMatch && chatId) {
                 return (
-                  <div key={index} className={`${variant === 'clean' ? 'markdown-segment' : 'message-segment'}`}>
+                  <div
+                    key={index}
+                    className="mb-3"
+                    style={{ width: 'fit-content', maxWidth: '100%' }}
+                  >
                     <WorkspaceFilePathCard path={fileTagMatch[1]} onOpen={openWorkspaceFileModal} />
                   </div>
                 );
@@ -4033,7 +4037,6 @@ function MarkdownContentComponent({
               // 레거시 폴백: 워크스페이스 파일 경로 → 경로 부분을 파일 카드로, 나머지 텍스트는 그대로 렌더링
               if (isWorkspaceFileSegment && workspacePathMatch && chatId) {
                 const wPath = workspacePathMatch[1];
-                // 경로 제거한 텍스트 (경로 인라인 코드를 빼고 나머지만)
                 const textWithoutPath = segment.replace(workspacePathMatch[0], '').trim();
 
                 return (
@@ -4051,7 +4054,7 @@ function MarkdownContentComponent({
                         </div>
                       </div>
                     )}
-                    <div className={`${variant === 'clean' ? 'markdown-segment' : 'message-segment'}`}>
+                    <div className="mb-3" style={{ width: 'fit-content', maxWidth: '100%' }}>
                       <WorkspaceFilePathCard path={wPath} onOpen={openWorkspaceFileModal} />
                     </div>
                   </React.Fragment>

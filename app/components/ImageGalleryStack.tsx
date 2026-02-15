@@ -921,7 +921,6 @@ export const ImageGalleryStack = memo(function ImageGalleryStackComponent({
   }
 
   const previewImages = images.slice(0, 5);
-  const remainingCount = Math.max(0, images.length - 5);
 
   // 🚀 스택 전체의 베이스 비율 카테고리 (첫 번째 이미지 기준)
   const baseRatioCategory = imageRatios[0] || 'square';
@@ -996,13 +995,6 @@ export const ImageGalleryStack = memo(function ImageGalleryStackComponent({
             </div>
           );
         })}
-        
-        {/* Remaining count badge */}
-        {remainingCount > 0 && (
-          <div className="apple-image-stack-badge">
-            +{remainingCount}
-          </div>
-        )}
       </div>
 
       {/* Gallery Grid Modal */}

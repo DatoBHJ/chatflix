@@ -4,10 +4,13 @@ import React, { useMemo, useCallback, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
+import rehypeKatex from 'rehype-katex';
 import { Copy, Check, X, RotateCcw } from 'lucide-react';
 import type { DiffLine } from '@/app/utils/diffUtils';
+import 'katex/dist/katex.min.css';
 
 const MermaidDiagram = dynamic(() => import('./Mermaid'), {
   ssr: false,
@@ -27,8 +30,9 @@ const DynamicChart = dynamic(() => import('./charts/DynamicChart'), {
   ),
 });
 
-const remarkPlugins: any = [[remarkGfm, { singleTilde: false }]];
-const rehypePlugins: any = [rehypeRaw, rehypeHighlight];
+const remarkPlugins: any = [[remarkGfm, { singleTilde: false }], remarkMath];
+// Order: raw HTML -> katex math -> syntax highlight
+const rehypePlugins: any = [rehypeRaw, rehypeKatex, rehypeHighlight];
 
 // Helper function to extract text content from React children
 function extractTextFromChildren(children: any): string {
@@ -69,6 +73,22 @@ function isCompleteJSON(text: string): boolean {
     }
   }
   return braceCount === 0;
+}
+
+function getLanguageFromPath(path?: string): string {
+  if (!path) return 'text';
+  const ext = path.split('.').pop()?.toLowerCase();
+  if (!ext) return 'text';
+  const languageMap: Record<string, string> = {
+    js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript',
+    py: 'python', java: 'java', c: 'c', cpp: 'cpp', cs: 'csharp', go: 'go',
+    rb: 'ruby', php: 'php', swift: 'swift', kt: 'kotlin', rs: 'rust',
+    html: 'html', css: 'css', json: 'json', xml: 'xml', md: 'markdown',
+    sql: 'sql', sh: 'bash', yml: 'yaml', yaml: 'yaml', toml: 'toml',
+    ini: 'ini', cfg: 'ini', conf: 'ini', log: 'text',
+    txt: 'text',
+  };
+  return languageMap[ext] ?? 'text';
 }
 
 function parseChartConfig(text: string): { success: boolean; config?: any; error?: string } {
@@ -118,6 +138,7 @@ export function CanvasPreviewMarkdown({
   isMainFile = false,
   highlightLineNumbers,
   scrollToLine,
+  filePath,
 }: {
   content: string;
   className?: string;
@@ -134,7 +155,16 @@ export function CanvasPreviewMarkdown({
   highlightLineNumbers?: Set<number>;
   /** Line number (1-based) to scroll into view when available. */
   scrollToLine?: number;
+  /** When set and content is a single code block matching file extension, omit box/label/Copy button. */
+  filePath?: string;
 }) {
+  const isFullFileCodeBlock = useMemo(() => {
+    if (!filePath) return false;
+    const fileLang = getLanguageFromPath(filePath);
+    const m = content.match(/^```(\w+)\n([\s\S]*?)\n```\s*$/);
+    return !!(m && m[1] === fileLang);
+  }, [content, filePath]);
+
   const handleCopy = useCallback((text: string, event: React.MouseEvent<HTMLButtonElement>) => {
     const btn = event.currentTarget;
     navigator.clipboard.writeText(text).then(() => {
@@ -153,7 +183,7 @@ export function CanvasPreviewMarkdown({
       </h1>
     ),
     h2: ({ children, ...props }: any) => (
-      <h2 className="text-xl font-semibold tracking-tight mt-8 mb-4 first:mt-0 border-b border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] pb-2" {...props}>
+      <h2 className="text-xl font-semibold tracking-tight mt-8 mb-4 first:mt-0" {...props}>
         {children}
       </h2>
     ),
@@ -217,12 +247,9 @@ export function CanvasPreviewMarkdown({
       // For diff highlighting, we need the raw code text without syntax highlighting
       // But we'll apply syntax highlighting manually if needed
 
+      // 인라인 백틱(`텍스트`)은 코드 스타일 없이 순수 텍스트로만 표시
       if (inline) {
-        return (
-          <code className="bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
-            {children}
-          </code>
-        );
+        return <span {...props}>{children}</span>;
       }
 
       if (language === 'mermaid') {
@@ -343,20 +370,30 @@ export function CanvasPreviewMarkdown({
         return ranges;
       }, [diffSegments, rejectedBlocks, acceptedBlocks]);
 
-      return (
-        <div className="group relative my-6 rounded-xl overflow-hidden border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
-          <div className="flex items-center justify-between px-4 py-2 bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] border-b border-[color-mix(in_srgb,var(--foreground)_10%,transparent)]">
-            <span className="text-[11px] font-medium uppercase tracking-widest text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]">
-              {language || 'text'}
+      // 단순 텍스트 코드 블록(``` 또는 ```text): 회색 박스/라벨/COPY 없이 순수 텍스트로만 표시
+      const isPlainTextBlock = (language === 'text' || language === '') && !diffSegments && (highlightLineNumbers == null || highlightLineNumbers.size === 0);
+      if (isPlainTextBlock) {
+        // 파일 전체가 텍스트(.txt 등)일 때만 줄바꿈 유지; 마크다운 내부 스니펫은 줄바꿈 없이 한 줄로
+        const isFullFilePlainText = isFullFileCodeBlock && filePath && getLanguageFromPath(filePath) === 'text';
+        if (isFullFilePlainText) {
+          return (
+            <span className="font-sans text-[15px] leading-relaxed text-[color-mix(in_srgb,var(--foreground)_90%,transparent)] whitespace-pre-wrap wrap-break-word" style={{ display: 'block' }}>
+              {codeText}
             </span>
-            <button
-              onClick={(e) => handleCopy(codeText, e)}
-              className="text-[11px] font-medium uppercase tracking-widest text-[color-mix(in_srgb,var(--foreground)_50%,transparent)] hover:text-(--foreground) transition-colors flex items-center gap-1.5"
-            >
-              <Copy size={12} /> Copy
-            </button>
-          </div>
-          <div className="relative">
+          );
+        }
+        return (
+          <span className="font-sans text-[15px] leading-relaxed text-[color-mix(in_srgb,var(--foreground)_90%,transparent)] wrap-break-word" style={{ display: 'inline' }}>
+            {codeText.replace(/\n/g, ' ')}
+          </span>
+        );
+      }
+
+      // 파일 전체가 단일 코드 블록(확장자와 language 일치): 박스/라벨/Copy 버튼 제거
+      const isFullFileAsCodeBlock = isFullFileCodeBlock && filePath && language === getLanguageFromPath(filePath);
+
+      const codeBlockInner = (
+        <div className="relative">
             <div ref={containerRef} className="p-4 overflow-x-auto diff-preview-code relative">
               {((hasDiff && lineDiffMap) || hasHighlight) && (
                 <div className="absolute inset-0 pointer-events-none" style={{ padding: '1rem' }}>
@@ -460,6 +497,30 @@ export function CanvasPreviewMarkdown({
               </>
             )}
           </div>
+      );
+
+      if (isFullFileAsCodeBlock) {
+        return (
+          <div className="relative my-6">
+            {codeBlockInner}
+          </div>
+        );
+      }
+
+      return (
+        <div className="group relative my-6 rounded-xl overflow-hidden border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+          <div className="flex items-center justify-between px-4 py-2 bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] border-b border-[color-mix(in_srgb,var(--foreground)_10%,transparent)]">
+            <span className="text-[11px] font-medium uppercase tracking-widest text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]">
+              {language || 'text'}
+            </span>
+            <button
+              onClick={(e) => handleCopy(codeText, e)}
+              className="text-[11px] font-medium uppercase tracking-widest text-[color-mix(in_srgb,var(--foreground)_50%,transparent)] hover:text-(--foreground) transition-colors flex items-center gap-1.5"
+            >
+              <Copy size={12} /> Copy
+            </button>
+          </div>
+          {codeBlockInner}
         </div>
       );
     },
@@ -488,7 +549,7 @@ export function CanvasPreviewMarkdown({
     hr: () => (
       <hr className="my-8 border-t border-[color-mix(in_srgb,var(--foreground)_10%,transparent)]" />
     ),
-  }), [handleCopy, diffSegments, previewLineDiffMap, rejectedBlocks, acceptedBlocks, onReject, onAccept, onUndo, onUndoAccept, isMainFile, highlightLineNumbers, scrollToLine]);
+  }), [handleCopy, diffSegments, previewLineDiffMap, rejectedBlocks, acceptedBlocks, onReject, onAccept, onUndo, onUndoAccept, isMainFile, highlightLineNumbers, scrollToLine, isFullFileCodeBlock, filePath]);
 
   return (
     <div className={`max-w-full wrap-break-word ${className}`}>

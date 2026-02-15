@@ -643,24 +643,6 @@ html, body {
   /* background-color: #39393a; */
 }
 
-/* Intermediate file step (read/search/list) - not a result, part of process */
-.imessage-file-step {
-  border-radius: 12px;
-  padding: 8px 12px;
-  max-width: 280px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  background-color: color-mix(in srgb, var(--foreground) 6%, transparent);
-  border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
-}
-
-:root[data-theme="dark"] .imessage-file-step {
-  background-color: color-mix(in srgb, var(--foreground) 8%, transparent);
-  border-color: color-mix(in srgb, var(--foreground) 18%, transparent);
-}
-
 .imessage-link-preview {
   display: block;
   background-color: #f0f0f0;
@@ -2512,6 +2494,7 @@ p:has(.katex) {
 }
 
 /* Multi-bubble effect for AI responses */
+/* Multi-bubble effect for AI responses */
 .message-segments {
   display: flex;
   flex-direction: column;
@@ -2519,17 +2502,20 @@ p:has(.katex) {
   align-items: flex-start;
 }
 
-
 /* Remove bubble styling when using segments */
-.imessage-receive-bubble:has(.message-segments) {
-  background-color: transparent;
-  padding: 0;
-  border-radius: 0;
+.imessage-receive-bubble:has(.message-segments),
+.imessage-receive-bubble:has(.markdown-segments) {
+  background-color: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
 
 .imessage-receive-bubble:has(.message-segments)::before,
-.imessage-receive-bubble:has(.message-segments)::after {
-  display: none;
+.imessage-receive-bubble:has(.message-segments)::after,
+.imessage-receive-bubble:has(.markdown-segments)::before,
+.imessage-receive-bubble:has(.markdown-segments)::after {
+  display: none !important;
 }
 
 .message-segment {
@@ -4150,11 +4136,8 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   font-size: 12px;
   line-height: 1.5;
   overflow: hidden;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
-  background: color-mix(in srgb, var(--foreground) 2%, transparent);
-  max-width: 480px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  background: transparent;
+  max-width: 100%;
 }
 
 /* Canvas terminal console styles */
@@ -4236,10 +4219,9 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  border-bottom: 1px solid color-mix(in srgb, var(--foreground) 6%, transparent);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 13px;
-  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  background: transparent;
 }
 
 .diff-inline-preview .diff-header .diff-filename {
@@ -4304,8 +4286,6 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   padding: 4px 14px;
   color: color-mix(in srgb, var(--foreground) 30%, transparent);
   font-size: 11px;
-  background: color-mix(in srgb, var(--foreground) 4%, transparent);
-  border-top: 1px dashed color-mix(in srgb, var(--foreground) 6%, transparent);
   user-select: none;
   font-weight: 500;
 }

@@ -201,7 +201,6 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
 
   // 2개 이상: 쌓여있는 스타일로 표시, 클릭하면 모달 열림
   const previewVideos = videos.slice(0, 5);
-  const remainingCount = Math.max(0, videos.length - 5);
 
   const baseItemWidth = isMobile ? 280 : 340;
   const extraPadding = 40;
@@ -282,13 +281,6 @@ export const VideoGalleryStack = memo(function VideoGalleryStackComponent({
             </div>
           );
         })}
-        
-        {/* Remaining count badge */}
-        {remainingCount > 0 && (
-          <div className="apple-image-stack-badge">
-            +{remainingCount}
-          </div>
-        )}
       </div>
 
       {/* Gallery Grid Modal */}

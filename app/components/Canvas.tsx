@@ -23,6 +23,7 @@ import { ImageModal, type ImageModalImage } from './ImageModal';
 import { computeDiffHunks, computeFullFileSegments, type DiffSummary, type ChangeBlock } from '@/app/utils/diffUtils';
 import { fileHelpers } from './ChatInput/FileUpload';
 import { resolveMediaPlaceholders, type VideoMapValue } from '@/app/utils/resolveMediaPlaceholders';
+import { CsvTable } from './CsvTable';
 
 // File path → language for CanvasPreviewMarkdown code blocks (mirrors AttachmentTextViewer)
 function getLanguageFromPath(path?: string): string {
@@ -36,6 +37,7 @@ function getLanguageFromPath(path?: string): string {
     html: 'html', css: 'css', json: 'json', xml: 'xml', md: 'markdown',
     sql: 'sql', sh: 'bash', yml: 'yaml', yaml: 'yaml', toml: 'toml',
     ini: 'ini', cfg: 'ini', conf: 'ini', log: 'text',
+    txt: 'text',
   };
   return languageMap[ext] ?? 'text';
 }
@@ -490,14 +492,16 @@ type CanvasMediaMaps = {
 // ── CanvasReadFileView: Full file content via CanvasPreviewMarkdown ──────────
 // Fetches full file from workspace and renders as markdown or syntax-highlighted code block.
 // For binary files (pptx, xlsx, etc.) shows a download card instead.
-function CanvasReadFileView({
+export function CanvasReadFileView({
   entry,
   chatId,
   mediaMaps,
+  mode = 'edit',
 }: {
   entry: FileEditFileEntry;
   chatId?: string;
   mediaMaps: CanvasMediaMaps;
+  mode?: 'edit' | 'preview';
 }) {
   const [fullContent, setFullContent] = useState<string | null>(null);
   const [binaryInfo, setBinaryInfo] = useState<{ downloadUrl: string; filename: string } | null>(null);
@@ -584,15 +588,54 @@ function CanvasReadFileView({
     return <p className="text-sm text-red-500">{entry.error}</p>;
   }
 
+  const contentBlock = (
+    <>
+      {fullContent === null && !entry.content && (
+        <p className="text-sm text-(--muted)">Loading file…</p>
+      )}
+      {displayContent && !isCSV && (
+        <div className="p-4 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+          <CanvasPreviewMarkdown
+            isMainFile={true}
+            highlightLineNumbers={highlightLineNumbers}
+            scrollToLine={scrollToLine}
+            content={
+              isMarkdown
+                ? (mode === 'edit'
+                  ? `\`\`\`markdown\n${displayContent}\n\`\`\``
+                  : (highlightLineNumbers
+                    ? `\`\`\`markdown\n${resolvedDisplayContent}\n\`\`\``
+                    : resolvedDisplayContent))
+                : `\`\`\`${getLanguageFromPath(entry.path)}\n${displayContent}\n\`\`\``
+            }
+            filePath={entry.path}
+          />
+        </div>
+      )}
+      {displayContent && isCSV && csvRows && csvRows.length > 0 && (
+        <div className="p-4 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+          <CsvTable rows={csvRows} />
+        </div>
+      )}
+    </>
+  );
+
+  if (mode === 'preview') {
+    return <>{contentBlock}</>;
+  }
+
   return (
     <>
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex items-center gap-3 mb-8">
         <button
           type="button"
           onClick={() => navigator.clipboard.writeText(resolvedCopyContent)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all"
+          className="flex items-center gap-2 px-4 py-2 rounded-full cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95"
+          style={{ ...getAdaptiveGlassStyleBlur(), color: 'var(--foreground)', WebkitTapHighlightColor: 'transparent' }}
+          title="Copy"
         >
-          <Copy size={14} /> Copy
+          <Copy size={18} />
+          <span className="text-xs font-semibold">Copy</span>
         </button>
         <button
           type="button"
@@ -606,76 +649,31 @@ function CanvasReadFileView({
             a.click();
             URL.revokeObjectURL(url);
           }}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all"
+          className="flex items-center gap-2 px-4 py-2 rounded-full cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95"
+          style={{ ...getAdaptiveGlassStyleBlur(), color: 'var(--foreground)', WebkitTapHighlightColor: 'transparent' }}
+          title="Download"
         >
-          <Download size={14} /> Download
+          <Download size={18} />
+          <span className="text-xs font-semibold">Download</span>
         </button>
       </div>
-      {fullContent === null && !entry.content && (
-        <p className="text-sm text-(--muted)">Loading file…</p>
-      )}
-      {displayContent && !isCSV && (
-        <div className="p-6 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
-          <CanvasPreviewMarkdown
-            isMainFile={true}
-            highlightLineNumbers={highlightLineNumbers}
-            scrollToLine={scrollToLine}
-            content={isMarkdown
-              ? resolvedDisplayContent
-              : `\`\`\`${getLanguageFromPath(entry.path)}\n${displayContent}\n\`\`\``}
-          />
-        </div>
-      )}
-      {displayContent && isCSV && csvRows && csvRows.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-(--muted/20)">
-          <table className="w-full text-xs md:text-[13px] border-collapse">
-            <thead>
-              <tr>
-                {csvRows[0].map((cell, j) => (
-                  <th
-                    key={j}
-                    className="text-left font-medium px-3 py-2 border-b border-[color-mix(in_srgb,var(--foreground)_15%,transparent)] bg-(--muted/30) text-(--foreground)"
-                  >
-                    {cell}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {csvRows.slice(1).map((row, i) => (
-                <tr
-                  key={i}
-                  className="border-b border-[color-mix(in_srgb,var(--foreground)_8%,transparent)] last:border-b-0 hover:bg-(--muted/20)"
-                >
-                  {row.map((cell, j) => (
-                    <td
-                      key={j}
-                      className="px-3 py-2 text-(--foreground) whitespace-nowrap max-w-[200px] truncate"
-                      title={cell}
-                    >
-                      {cell}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {contentBlock}
     </>
   );
 }
 
 // ── CanvasGrepFileView: Full file with highlighted matching lines ──────────
 // Fetches full file from workspace and highlights lines in entry.matches.
-function CanvasGrepFileView({
+export function CanvasGrepFileView({
   entry,
   chatId,
   mediaMaps,
+  mode = 'edit',
 }: {
   entry: FileEditFileEntry;
   chatId?: string;
   mediaMaps: CanvasMediaMaps;
+  mode?: 'edit' | 'preview';
 }) {
   const [fullContent, setFullContent] = useState<string | null>(null);
 
@@ -738,15 +736,49 @@ function CanvasGrepFileView({
     return <p className="text-sm text-red-500">{entry.error}</p>;
   }
 
+  const contentBlock = (
+    <>
+      {fullContent === null && (
+        <p className="text-sm text-(--muted)">Loading file…</p>
+      )}
+      {fullContent != null && fullContent.length > 0 && (
+        <div className="p-4 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+          <CanvasPreviewMarkdown
+            isMainFile={true}
+            highlightLineNumbers={matchLineNumbers}
+            scrollToLine={scrollToLine}
+            content={
+              isMarkdown
+                ? (mode === 'edit'
+                  ? `\`\`\`markdown\n${fullContent}\n\`\`\``
+                  : (matchLineNumbers
+                    ? `\`\`\`markdown\n${resolvedDisplayContent}\n\`\`\``
+                    : resolvedDisplayContent))
+                : `\`\`\`${getLanguageFromPath(entry.path)}\n${fullContent}\n\`\`\``
+            }
+            filePath={entry.path}
+          />
+        </div>
+      )}
+    </>
+  );
+
+  if (mode === 'preview') {
+    return <>{contentBlock}</>;
+  }
+
   return (
     <>
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex items-center gap-3 mb-8">
         <button
           type="button"
           onClick={() => navigator.clipboard.writeText(resolvedCopyContent)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all"
+          className="flex items-center gap-2 px-4 py-2 rounded-full cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95"
+          style={{ ...getAdaptiveGlassStyleBlur(), color: 'var(--foreground)', WebkitTapHighlightColor: 'transparent' }}
+          title="Copy"
         >
-          <Copy size={14} /> Copy
+          <Copy size={18} />
+          <span className="text-xs font-semibold">Copy</span>
         </button>
         <button
           type="button"
@@ -760,26 +792,15 @@ function CanvasGrepFileView({
             a.click();
             URL.revokeObjectURL(url);
           }}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all"
+          className="flex items-center gap-2 px-4 py-2 rounded-full cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95"
+          style={{ ...getAdaptiveGlassStyleBlur(), color: 'var(--foreground)', WebkitTapHighlightColor: 'transparent' }}
+          title="Download"
         >
-          <Download size={14} /> Download
+          <Download size={18} />
+          <span className="text-xs font-semibold">Download</span>
         </button>
       </div>
-      {fullContent === null && (
-        <p className="text-sm text-(--muted)">Loading file…</p>
-      )}
-      {fullContent != null && fullContent.length > 0 && (
-        <div className="p-6 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
-          <CanvasPreviewMarkdown
-            isMainFile={true}
-            highlightLineNumbers={matchLineNumbers}
-            scrollToLine={scrollToLine}
-            content={isMarkdown
-              ? resolvedDisplayContent
-              : `\`\`\`${getLanguageFromPath(entry.path)}\n${fullContent}\n\`\`\``}
-          />
-        </div>
-      )}
+      {contentBlock}
     </>
   );
 }
@@ -787,15 +808,26 @@ function CanvasGrepFileView({
 // ── CanvasDiffView: Full-file diff with per-change Accept/Reject ──────────
 // Fetches the CURRENT file content from the DB so the diff always reflects
 // the actual applied state, even after page refresh.
-function CanvasDiffView({
+const glassActionBtnClass = 'flex items-center gap-2 px-4 py-2 rounded-full cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95';
+const compactActionBtnClass = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all';
+
+export function CanvasDiffView({
   entry,
   chatId,
   mediaMaps,
+  mode = 'edit',
+  useGlassActionButtons = false,
 }: {
   entry: FileEditFileEntry;
   chatId?: string;
   mediaMaps: CanvasMediaMaps;
+  mode?: 'edit' | 'preview';
+  /** When true, Copy/Download use WorkspaceFileModal-style glass pill buttons */
+  useGlassActionButtons?: boolean;
 }) {
+  const copyDownloadClass = useGlassActionButtons ? glassActionBtnClass : compactActionBtnClass;
+  const copyDownloadStyle = useGlassActionButtons ? { ...getAdaptiveGlassStyleBlur(), color: 'var(--foreground)', WebkitTapHighlightColor: 'transparent' as const } : undefined;
+  const copyDownloadIconSize = useGlassActionButtons ? 18 : 14;
   // ── localStorage persistence keys ──
   const storageKey = useMemo(() => {
     if (!entry.path) return null;
@@ -1128,6 +1160,22 @@ function CanvasDiffView({
   if (!entry.success && entry.error) return <p className="text-sm text-red-500">{entry.error}</p>;
   if (currentContent === undefined && chatId && entry.path) return <div className="p-4 text-xs text-(--muted)">Loading current file...</div>;
 
+  // Preview mode: show only final applied content (Select Text style container is provided by panel).
+  if (mode === 'preview') {
+    const finalContent = (finalDownloadContent || displayContent) ?? proposedContent ?? '';
+    return (
+      <div className="p-4 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+        <CanvasPreviewMarkdown
+          isMainFile={true}
+          content={isMarkdown
+            ? resolvedFinalDownloadContent
+            : `\`\`\`${getLanguageFromPath(entry.path)}\n${finalContent}\n\`\`\``}
+          filePath={entry.path}
+        />
+      </div>
+    );
+  }
+
   if (!diffData || !allSegments || typeof displayContent !== 'string') {
     const fallback = displayContent ?? proposedContent ?? entry.input?.content;
     if (typeof fallback !== 'string' || fallback.length === 0) return null;
@@ -1141,12 +1189,12 @@ function CanvasDiffView({
 
     return (
       <div>
-        <div className="flex items-center gap-2 mb-2">
-        <button type="button" onClick={() => navigator.clipboard.writeText(resolvedFallback)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all">
-          <Copy size={14} /> Copy
+        <div className="flex items-center gap-3 mb-8">
+        <button type="button" onClick={() => navigator.clipboard.writeText(resolvedFallback)} className={copyDownloadClass} style={copyDownloadStyle}>
+          <Copy size={copyDownloadIconSize} /> {useGlassActionButtons ? <span className="text-xs font-semibold">Copy</span> : 'Copy'}
         </button>
-        <button type="button" onClick={() => { const n = entry.path.replace(/^.*\//, '') || 'download.txt'; const b = new Blob([resolvedFallbackForDownload], { type: 'text/plain;charset=utf-8' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = n; a.click(); URL.revokeObjectURL(u); }} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all">
-          <Download size={14} /> Download
+        <button type="button" onClick={() => { const n = entry.path.replace(/^.*\//, '') || 'download.txt'; const b = new Blob([resolvedFallbackForDownload], { type: 'text/plain;charset=utf-8' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = n; a.click(); URL.revokeObjectURL(u); }} className={copyDownloadClass} style={copyDownloadStyle}>
+          <Download size={copyDownloadIconSize} /> {useGlassActionButtons ? <span className="text-xs font-semibold">Download</span> : 'Download'}
         </button>
       </div>
         <div className="p-6 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
@@ -1154,6 +1202,7 @@ function CanvasDiffView({
             content={isMarkdown
               ? resolvedFallback
               : `\`\`\`${getLanguageFromPath(entry.path)}\n${fallback}\n\`\`\``}
+            filePath={entry.path}
           />
         </div>
       </div>
@@ -1162,7 +1211,7 @@ function CanvasDiffView({
 
   return (
     <div className="diff-canvas-view">
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
+      <div className="flex items-center gap-2 mb-8 flex-wrap">
         {diffData && (
           <span className="text-xs text-(--muted)">
             <span className="text-green-500">+{diffData.additions}</span>{' '}
@@ -1180,8 +1229,8 @@ function CanvasDiffView({
         <button type="button" className={`diff-btn-action diff-btn-restore ${!hasAnyRejected && !hasAnyAccepted ? 'diff-btn-disabled' : ''}`} onClick={handleRestoreAll} disabled={!hasAnyRejected && !hasAnyAccepted}>
           <RotateCcw size={14} /> Undo All
         </button>
-        <button type="button" onClick={() => navigator.clipboard.writeText(resolvedFinalDownloadContent)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all">
-          <Copy size={14} /> Copy
+        <button type="button" onClick={() => navigator.clipboard.writeText(resolvedFinalDownloadContent)} className={copyDownloadClass} style={copyDownloadStyle}>
+          <Copy size={copyDownloadIconSize} /> {useGlassActionButtons ? <span className="text-xs font-semibold">Copy</span> : 'Copy'}
         </button>
         <button
           type="button"
@@ -1193,9 +1242,10 @@ function CanvasDiffView({
             a.href = url; a.download = name; a.click();
             URL.revokeObjectURL(url);
           }}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-(--muted) hover:text-(--foreground) hover:bg-(--muted/10) transition-all"
+          className={copyDownloadClass}
+          style={copyDownloadStyle}
         >
-          <Download size={14} /> Download
+          <Download size={copyDownloadIconSize} /> {useGlassActionButtons ? <span className="text-xs font-semibold">Download</span> : 'Download'}
         </button>
       </div>
 
@@ -1203,9 +1253,11 @@ function CanvasDiffView({
         <div className="p-6 bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
           <CanvasPreviewMarkdown
             isMainFile={true}
-            content={isMarkdown
-              ? resolvedPreviewContent
-              : `\`\`\`${getLanguageFromPath(entry.path)}\n${previewContent}\n\`\`\``}
+            content={
+              isMarkdown
+                ? `\`\`\`markdown\n${previewContent}\n\`\`\``
+                : `\`\`\`${getLanguageFromPath(entry.path)}\n${previewContent}\n\`\`\``
+            }
             diffSegments={allSegments.length > 0 ? allSegments : undefined}
             previewLineDiffMap={previewLineDiffMap}
             rejectedBlocks={rejectedBlocks}
@@ -1214,6 +1266,7 @@ function CanvasDiffView({
             onAccept={handleAccept}
             onUndo={handleUndo}
             onUndoAccept={handleUndoAccept}
+            filePath={entry.path}
           />
         </div>
       </div>
@@ -3467,6 +3520,7 @@ export default function Canvas({
                         entry={entry}
                         chatId={chatId}
                         mediaMaps={{ linkMap: combinedLinkMap, imageMap: combinedImageMap, videoMap: combinedVideoMap }}
+                        mode="preview"
                       />
                     )}
                     {entry.toolName === 'write_file' && (
@@ -3510,6 +3564,7 @@ export default function Canvas({
                         entry={entry}
                         chatId={chatId}
                         mediaMaps={{ linkMap: combinedLinkMap, imageMap: combinedImageMap, videoMap: combinedVideoMap }}
+                        mode="preview"
                       />
                     )}
                     {entry.toolName === 'apply_edits' && (

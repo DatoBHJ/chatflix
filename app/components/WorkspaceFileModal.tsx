@@ -5,6 +5,7 @@ import { Copy, Download, X } from 'lucide-react';
 import { getAdaptiveGlassStyleBlur } from '@/app/lib/adaptiveGlassStyle';
 import { CanvasPreviewMarkdown } from './CanvasPreviewMarkdown';
 import { resolveMediaPlaceholders, type VideoMapValue } from '@/app/utils/resolveMediaPlaceholders';
+import { CsvTable } from './CsvTable';
 
 function getLanguageFromPath(path?: string): string {
   if (!path) return 'text';
@@ -17,6 +18,7 @@ function getLanguageFromPath(path?: string): string {
     html: 'html', css: 'css', json: 'json', xml: 'xml', md: 'markdown',
     sql: 'sql', sh: 'bash', yml: 'yaml', yaml: 'yaml', toml: 'toml',
     ini: 'ini', cfg: 'ini', conf: 'ini', log: 'text',
+    txt: 'text',
   };
   return languageMap[ext] ?? 'text';
 }
@@ -46,8 +48,52 @@ export function WorkspaceFileModal({
   videoMap?: Record<string, VideoMapValue>;
   onClose: () => void;
 }) {
-  const filename = useMemo(() => (path ? (path.replace(/^.*[/\\]/, '') || 'file') : ''), [path]);
+  const isCSV = useMemo(() => !!path?.toLowerCase().endsWith('.csv') || !!path?.toLowerCase().endsWith('.tsv'), [path]);
+
+  /** Parse CSV/TSV into rows (handles quoted fields and "" escape). */
+  const csvRows = useMemo(() => {
+    if (!isCSV || !content) return null;
+    const isTsv = path?.toLowerCase().endsWith('.tsv');
+    const delimiter = isTsv ? '\t' : ',';
+    const lines = content.split(/\r?\n/);
+    const rows: string[][] = [];
+
+    for (const line of lines) {
+      const row: string[] = [];
+      let i = 0;
+      while (i < line.length) {
+        if (line[i] === '"') {
+          let cell = '';
+          i++;
+          while (i < line.length) {
+            if (line[i] === '"') {
+              if (line[i + 1] === '"') {
+                cell += '"';
+                i += 2;
+              } else {
+                i++;
+                break;
+              }
+            } else {
+              cell += line[i];
+              i++;
+            }
+          }
+          row.push(cell);
+        } else {
+          let end = line.indexOf(delimiter, i);
+          if (end === -1) end = line.length;
+          row.push(line.slice(i, end).trim());
+          i = end + 1;
+        }
+      }
+      rows.push(row);
+    }
+    return rows;
+  }, [isCSV, content, path]);
+
   const isMarkdown = useMemo(() => !!path?.toLowerCase().endsWith('.md'), [path]);
+  const filename = useMemo(() => (path ? (path.replace(/^.*[/\\]/, '') || 'file') : ''), [path]);
 
   const resolvedDisplayContent = useMemo(() => {
     if (!content) return '';
@@ -187,12 +233,17 @@ export function WorkspaceFileModal({
                 )}
                 {!loading && !error && !binaryInfo && content && (
                   <div className="p-4 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
-                    <CanvasPreviewMarkdown
-                      isMainFile={true}
-                      content={isMarkdown
-                        ? resolvedDisplayContent
-                        : `\`\`\`${getLanguageFromPath(path)}\n${content}\n\`\`\``}
-                    />
+                    {isCSV && csvRows && csvRows.length > 0 ? (
+                      <CsvTable rows={csvRows} />
+                    ) : (
+                      <CanvasPreviewMarkdown
+                        isMainFile={true}
+                        content={isMarkdown
+                          ? resolvedDisplayContent
+                          : `\`\`\`${getLanguageFromPath(path)}\n${content}\n\`\`\``}
+                        filePath={path ?? undefined}
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -269,12 +320,50 @@ export function WorkspaceFileModal({
                 )}
                 {!loading && !error && !binaryInfo && content && (
                   <div className="p-4 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
-                    <CanvasPreviewMarkdown
-                      isMainFile={true}
-                      content={isMarkdown
-                        ? resolvedDisplayContent
-                        : `\`\`\`${getLanguageFromPath(path)}\n${content}\n\`\`\``}
-                    />
+                    {isCSV && csvRows && csvRows.length > 0 ? (
+                      <div className="overflow-x-auto rounded-lg border border-[color-mix(in_srgb,var(--foreground)_8%,transparent)] bg-(--muted/20)">
+                        <table className="w-full text-xs md:text-[13px] border-collapse">
+                          <thead>
+                            <tr>
+                              {csvRows[0].map((cell, j) => (
+                                <th
+                                  key={j}
+                                  className="text-left font-medium px-3 py-2 border-b border-[color-mix(in_srgb,var(--foreground)_15%,transparent)] bg-(--muted/30) text-(--foreground)"
+                                >
+                                  {cell}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {csvRows.slice(1).map((row, i) => (
+                              <tr
+                                key={i}
+                                className="border-b border-[color-mix(in_srgb,var(--foreground)_8%,transparent)] last:border-b-0 hover:bg-(--muted/20)"
+                              >
+                                {row.map((cell, j) => (
+                                  <td
+                                    key={j}
+                                    className="px-3 py-2 text-(--foreground) whitespace-nowrap max-w-[200px] truncate"
+                                    title={cell}
+                                  >
+                                    {cell}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <CanvasPreviewMarkdown
+                        isMainFile={true}
+                        content={isMarkdown
+                          ? resolvedDisplayContent
+                          : `\`\`\`${getLanguageFromPath(path)}\n${content}\n\`\`\``}
+                        filePath={path ?? undefined}
+                      />
+                    )}
                   </div>
                 )}
               </div>
