@@ -4136,7 +4136,8 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   font-size: 12px;
   line-height: 1.5;
   overflow: hidden;
-  background: transparent;
+  background: var(--accent);
+  border-radius: 18px;
   max-width: 100%;
 }
 
