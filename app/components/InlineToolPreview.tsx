@@ -24,7 +24,7 @@ const OUTCOME_FILE_TOOLS = ['write_file', 'apply_edits', 'read_file', 'delete_fi
 const isOutcomeFileTool = (name: string): boolean =>
   (OUTCOME_FILE_TOOLS as readonly string[]).includes(name);
 
-// Minimalist labels for file tools
+// Minimalist labels for file tools and code tools only
 const FILE_TOOL_ACTION_LABELS: Record<string, string> = {
   'read_file': 'Read',
   'write_file': 'Created',
@@ -35,8 +35,6 @@ const FILE_TOOL_ACTION_LABELS: Record<string, string> = {
   'list_workspace': 'Listed',
   'run_python_code': 'Ran',
   'browser_observe': 'Observed',
-  'multi_search': 'Explored',
-  'web_search': 'Explored',
 };
 
 const FILE_TOOL_ACTION_LABELS_PROCESSING: Record<string, string> = {
@@ -49,15 +47,13 @@ const FILE_TOOL_ACTION_LABELS_PROCESSING: Record<string, string> = {
   'list_workspace': 'Listing',
   'run_python_code': 'Running',
   'browser_observe': 'Observing',
-  'multi_search': 'Exploring',
-  'web_search': 'Exploring',
 };
 
 function getActionLabel(toolName: string, status: string): string {
   if (status === 'processing') {
-    return FILE_TOOL_ACTION_LABELS_PROCESSING[toolName] ?? 'Processing';
+    return FILE_TOOL_ACTION_LABELS_PROCESSING[toolName] ?? '';
   }
-  return FILE_TOOL_ACTION_LABELS[toolName] ?? 'Processed';
+  return FILE_TOOL_ACTION_LABELS[toolName] ?? '';
 }
 
 const isFileToolName = (name: string): boolean =>
@@ -670,7 +666,7 @@ export const InlineToolPreview = memo(function InlineToolPreview({
   // Get display name and icon (with topic support for search tools)
   const displayName = useMemo(() => {
     const actionLabel = status === 'processing'
-      ? (FILE_TOOL_ACTION_LABELS_PROCESSING[toolName] ?? 'Processing')
+      ? (FILE_TOOL_ACTION_LABELS_PROCESSING[toolName] ?? '')
       : (FILE_TOOL_ACTION_LABELS[toolName] ?? '');
     
     // Use topic-based names for search tools
@@ -927,8 +923,13 @@ export const InlineToolPreview = memo(function InlineToolPreview({
     if (toolName === 'read_file') {
       const start = toolArgs?.startLine ?? toolResult?.startLine;
       const end = toolArgs?.endLine ?? toolResult?.endLine;
-      if (typeof start === 'number' && typeof end === 'number') return `L${start}-${end}`;
-      if (typeof toolResult?.content === 'string') return fileHelpers.formatFileSize(new Blob([toolResult.content]).size);
+      const totalLines = typeof toolResult?.totalLines === 'number' ? toolResult.totalLines : undefined;
+      // Always show Lstart-end: use range when valid, else full file as L1-N
+      if (typeof start === 'number' && typeof end === 'number' && end >= start && end > 0) {
+        return `L${start}-${end}`;
+      }
+      const fullEnd = totalLines ?? (typeof toolResult?.content === 'string' ? toolResult.content.split('\n').length : 0);
+      if (fullEnd > 0) return `L1-${fullEnd}`;
       return '—';
     }
     if (toolName === 'write_file') {
@@ -956,8 +957,7 @@ export const InlineToolPreview = memo(function InlineToolPreview({
     if (toolName === 'grep_file') {
       const matches = toolResult?.matches;
       const n = Array.isArray(matches) ? matches.length : (typeof toolResult?.matchesCount === 'number' ? toolResult.matchesCount : 0);
-      const lines = typeof toolResult?.totalLines === 'number' ? ` · ${toolResult.totalLines} lines` : '';
-      return `${n} match(es)${lines}`;
+      return `${n} match(es)`;
     }
     return '—';
   }, [status, toolName, toolArgs, toolResult, filePath]);
@@ -1021,7 +1021,7 @@ export const InlineToolPreview = memo(function InlineToolPreview({
 
   // Outcome: use same labels as canvas panel title (TOOL_DISPLAY_NAMES) for consistency
   const outcomeActionLabel = useMemo(() => {
-    return TOOL_DISPLAY_NAMES[toolName] ?? 'Processed';
+    return TOOL_DISPLAY_NAMES[toolName] ?? toolName;
   }, [toolName]);
   const outcomeSubtitle = fileBubbleSubtitle !== '—' ? `${outcomeActionLabel} · ${fileBubbleSubtitle}` : outcomeActionLabel;
 
@@ -1117,10 +1117,12 @@ export const InlineToolPreview = memo(function InlineToolPreview({
           }}
         >
           <div className="diff-header">
+            <span className="shrink-0 flex items-center text-(--muted)">
+              {getToolIcon(toolName, toolArgs, toolResult)}
+            </span>
             <span className="text-sm text-(--muted) shrink-0">
               {actionLabel}
             </span>
-            
             <span className="diff-filename">
               {browserTitle}
             </span>
@@ -1183,10 +1185,12 @@ export const InlineToolPreview = memo(function InlineToolPreview({
           }}
         >
           <div className="diff-header">
+            <span className="shrink-0 flex items-center text-(--muted)">
+              {getToolIcon(toolName, toolArgs, toolResult)}
+            </span>
             <span className="text-sm text-(--muted) shrink-0">
               {actionLabel}
             </span>
-            
             <span className="diff-filename">
               Code output
             </span>
@@ -1305,12 +1309,16 @@ export const InlineToolPreview = memo(function InlineToolPreview({
           }}
         >
           <div className="diff-header">
+            <span className="shrink-0 flex items-center text-(--muted)">
+              {getToolIcon(toolName, toolArgs, toolResult)}
+            </span>
             <span className="text-sm text-(--muted) shrink-0">
               {actionLabel}
             </span>
-            
             <span className="diff-filename">
-              {isSearchTool ? fileBubbleSubtitle : fileBubbleTitle}
+              {(toolName === 'read_file' || isSearchTool)
+                ? (fileBubbleSubtitle !== '—' ? `${fileBubbleTitle} · ${fileBubbleSubtitle}` : fileBubbleTitle)
+                : fileBubbleTitle}
             </span>
 
             {!isSearchTool && diffData && (
@@ -1341,6 +1349,20 @@ export const InlineToolPreview = memo(function InlineToolPreview({
     );
   }
 
+  const fallbackVerb = getActionLabel(toolName, status);
+  const fallbackEtc = useMemo(() => {
+    if (toolName === 'web_search' || toolName === 'multi_search') {
+      let topic = toolArgs?.topics?.[0] || toolArgs?.topic;
+      if (!topic && toolResult?.searches?.length) topic = toolResult.searches[0].topic;
+      return topic ? getTopicName(topic) : (TOOL_DISPLAY_NAMES[toolName] ?? toolName);
+    }
+    if (toolName === 'google_search') {
+      const topic = toolArgs?.engines?.[0] || toolArgs?.topic || toolArgs?.engine || 'google';
+      return getTopicName(topic);
+    }
+    return displayName.startsWith(fallbackVerb) ? displayName.slice(fallbackVerb.length).trim() || (TOOL_DISPLAY_NAMES[toolName] ?? toolName) : displayName;
+  }, [toolName, toolArgs, toolResult, displayName, fallbackVerb]);
+
   return (
     <>
       <style>{shimmerStyles}</style>
@@ -1358,9 +1380,23 @@ export const InlineToolPreview = memo(function InlineToolPreview({
           <div className="text-(--muted) group-hover:text-(--foreground) transition-colors shrink-0">
             {icon}
           </div>
-          
-          {/* Tool name with shimmer effect when processing */}
-          <span 
+          {/* Verb: only show for file/code tools (custom label); others get icon + etc with shimmer only */}
+          {fallbackVerb && (
+            <span
+              className={`text-base md:text-sm font-medium text-(--foreground) shrink-0 ${
+                status === 'processing'
+                  ? 'bg-linear-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent'
+                  : ''
+              }`}
+              style={status === 'processing' ? {
+                backgroundSize: '200% 100%',
+                animation: 'shimmer 2s ease-in-out infinite'
+              } : {}}
+            >
+              {fallbackVerb}
+            </span>
+          )}
+          <span
             className={`text-base md:text-sm font-medium text-(--foreground) shrink-0 ${
               status === 'processing'
                 ? 'bg-linear-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent'
@@ -1371,9 +1407,8 @@ export const InlineToolPreview = memo(function InlineToolPreview({
               animation: 'shimmer 2s ease-in-out infinite'
             } : {}}
           >
-            {displayName}
+            {fallbackEtc}
           </span>
-          
           {/* Display text */}
           {inlineSubtitle && (
             <span className="text-xs text-(--muted) truncate shrink min-w-0">

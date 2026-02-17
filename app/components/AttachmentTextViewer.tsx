@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Attachment } from '@/lib/types';
-import { MarkdownContent } from './MarkdownContent';
+import { CanvasPreviewMarkdown } from './CanvasPreviewMarkdown';
 
 interface AttachmentTextViewerProps {
   attachment: Attachment;
@@ -162,55 +162,19 @@ export function AttachmentTextViewer({ attachment, url }: AttachmentTextViewerPr
     );
   }
  
-  // 마크다운의 경우 직접 렌더링, 다른 파일의 경우 코드 블록으로 감싸기
+  // WorkspaceFileModal과 동일: CanvasPreviewMarkdown 사용 (단일 코드 블록 시 TYPESCRIPT/COPY 헤더 제거)
   const isMarkdown = language === 'markdown';
-  const markdownContent = isMarkdown 
-    ? content 
+  const markdownContent = isMarkdown
+    ? content
     : `\`\`\`${language}\n${content}\n\`\`\``;
- 
+
   return (
-    <div
-      className="max-w-full w-full overflow-x-auto"
-      style={{
-        scrollbarWidth: 'none',
-        msOverflowStyle: 'none'
-      }}
-    >
-      <style jsx>{`
-        div::-webkit-scrollbar {
-          display: none;
-        }
-        /* LaTeX 수식 스타일 덮어쓰기 */
-        :global(.katex-display) {
-          max-width: 100%;
-          overflow-x: auto;
-          overflow-y: hidden;
-          padding: 0.5rem 0;
-        }
-        :global(pre) {
-          white-space: pre-wrap;
-          word-break: break-word;
-          max-width: 100%;
-          overflow-x: auto;
-        }
-        :global(code) {
-          white-space: pre-wrap;
-          word-break: break-word;
-        }
-        :global(table) {
-          max-width: 100%;
-          display: block;
-          overflow-x: auto;
-        }
-        :global(.math), :global(.math-inline), :global(.math-display) {
-          max-width: 100%;
-          overflow-x: auto;
-          overflow-y: hidden;
-        }
-      `}</style>
-      <div className="prose prose-sm dark:prose-invert max-w-none break-words">
-        <MarkdownContent content={markdownContent} variant="clean" />
-      </div>
+    <div className="max-w-full w-full overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      <CanvasPreviewMarkdown
+        isMainFile={true}
+        content={markdownContent}
+        filePath={attachment.name ?? undefined}
+      />
     </div>
   );
 } 

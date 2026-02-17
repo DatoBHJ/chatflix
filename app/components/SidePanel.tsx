@@ -9,6 +9,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 // import { AttachmentTextViewer } from './AttachmentTextViewer';
 import { AttachmentViewer } from './AttachmentViewer';
+import { AttachmentFileModal } from './AttachmentFileModal';
 import type { VideoMapValue } from '@/app/utils/resolveMediaPlaceholders';
 // import { useUrlRefresh } from '../hooks/useUrlRefresh';
 
@@ -373,6 +374,35 @@ export const SidePanel: React.FC<SidePanelProps> = ({
     extractIdFromPath,
   ]);
 
+  // When panel is attachment type, get the current attachment for AttachmentFileModal.
+  const attachmentForModal = useMemo(() => {
+    if (!panelData || panelData.type !== 'attachment' || typeof panelData.fileIndex !== 'number') {
+      return null;
+    }
+    const msg = messages.find(m => m.id === panelData!.messageId);
+    if (!msg) return null;
+    const attachmentsFromParts = (() => {
+      const parts = (msg as any)?.parts;
+      if (!parts || !Array.isArray(parts)) return [];
+      return parts
+        .filter((part: any) => part.type === 'attachment' || part.type === 'image' || part.type === 'file')
+        .map((part: any, index: number) => {
+          if (part.type === 'attachment') return part.attachment;
+          if (part.type === 'image') {
+            return { name: `image-${index}`, contentType: 'image/jpeg', url: part.image, fileType: 'image' };
+          }
+          if (part.type === 'file') {
+            return { name: part.filename || `file-${index}`, contentType: part.mediaType || 'application/octet-stream', url: part.url, fileType: 'file' };
+          }
+          return null;
+        })
+        .filter(Boolean);
+    })();
+    const attachments = (msg as any).experimental_attachments || (attachmentsFromParts.length > 0 ? attachmentsFromParts : null);
+    if (!attachments || panelData.fileIndex < 0 || panelData.fileIndex >= attachments.length) return null;
+    return attachments[panelData.fileIndex];
+  }, [panelData, messages]);
+
   // When canvas is open with file-edit tool, get the single matching file entry (same filter as Canvas).
   const fileEditPanelEntry = useMemo(() => {
     if (!panelData || panelData.type !== 'canvas' || !panelData.toolType?.startsWith?.('file-edit:') || !fileEditData?.files?.length) {
@@ -428,7 +458,30 @@ export const SidePanel: React.FC<SidePanelProps> = ({
     );
   }
 
-  // 사용자 첨부파일 렌더링 함수
+  // 사용자 첨부파일: AI 완성 파일 모달(WorkspaceFileModal)과 동일한 스타일의 AttachmentFileModal 사용
+  if (nonNullPanelData.type === 'attachment' && attachmentForModal) {
+    const handleCloseAttachment = () => {
+      if (activePanelRef.current) {
+        togglePanel(
+          activePanelRef.current.messageId,
+          activePanelRef.current.type,
+          activePanelRef.current.fileIndex,
+          activePanelRef.current.toolType
+        );
+      }
+    };
+    return createPortal(
+      <AttachmentFileModal
+        isOpen={true}
+        isMobile={isMobile}
+        attachment={attachmentForModal}
+        onClose={handleCloseAttachment}
+      />,
+      document.body
+    );
+  }
+
+  // 사용자 첨부파일 렌더링 함수 (attachment 데이터 없을 때 fallback)
   const renderAttachmentContent = () => {
     if (nonNullPanelData.type !== 'attachment' || typeof nonNullPanelData.fileIndex !== 'number') {
       return null;

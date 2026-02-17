@@ -3512,7 +3512,15 @@ export default function Canvas({
               .map((entry, idx) => (
                 <div key={`file-edit-${idx}-${entry.path || entry.toolName}`} className="rounded-lg border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-(--background) overflow-hidden">
                   <div className="px-4 py-2.5 text-sm font-medium text-(--foreground) border-b border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] truncate" title={entry.path || undefined}>
-                    {entry.toolName === 'list_workspace' && !entry.path ? 'Workspace' : entry.path}
+                    {entry.toolName === 'list_workspace' && !entry.path
+                      ? 'Workspace'
+                      : entry.toolName === 'read_file'
+                        ? (typeof entry.startLine === 'number' && typeof entry.endLine === 'number' && entry.endLine >= entry.startLine && entry.endLine > 0
+                            ? `${entry.path} · L${entry.startLine}-${entry.endLine}`
+                            : typeof entry.totalLines === 'number'
+                              ? `${entry.path} · L1-${entry.totalLines}`
+                              : entry.path)
+                        : entry.path}
                   </div>
                   <div className="p-4">
                     {entry.toolName === 'read_file' && (
