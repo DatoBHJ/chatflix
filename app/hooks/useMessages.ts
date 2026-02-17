@@ -9,6 +9,7 @@ import { Attachment } from '@/lib/types';
 import { getWebSearchResults, getGoogleSearchData, getTwitterSearchData } from './toolFunction'
 import { trimMessagesToByteLimit } from '@/app/utils/prepareMessagesForAPI';
 import { resolveMediaPlaceholders } from '@/app/utils/resolveMediaPlaceholders';
+import { stripHistoricalSearchFromMessages } from '@/utils/stripHistoricalSearch';
 
 const MAX_CHAT_REQUEST_BYTES = 9 * 1024 * 1024;
 
@@ -453,8 +454,13 @@ export function useMessages(chatId: string, userId: string) {
           selectedTool: selectedTool || null, // 현재 선택된 도구 사용
           experimental_attachments: newAttachments // 🚀 새로 업로드된 파일들 전달
         };
+        const sanitizedMessagesForReload = stripHistoricalSearchFromMessages(updatedMessages as any[], {
+          keepLastTurns: 1,
+          leavePlaceholder: false,
+          stripSearchPartsInKeptTurns: true,
+        });
         const trimmedPayload = trimMessagesToByteLimit(
-          updatedMessages as any[],
+          sanitizedMessagesForReload as any[],
           (candidateMessages) => ({ ...commonBody, messages: candidateMessages }),
           MAX_CHAT_REQUEST_BYTES
         );
@@ -670,8 +676,13 @@ export function useMessages(chatId: string, userId: string) {
           ...updatedMessages,
           targetMessagePayload,
         ];
+        const sanitizedMessagesForReload = stripHistoricalSearchFromMessages(rawMessagesForReload as any[], {
+          keepLastTurns: 1,
+          leavePlaceholder: false,
+          stripSearchPartsInKeptTurns: true,
+        });
         const trimmedPayload = trimMessagesToByteLimit(
-          rawMessagesForReload as any[],
+          sanitizedMessagesForReload as any[],
           (candidateMessages) => ({ ...commonBody, messages: candidateMessages }),
           MAX_CHAT_REQUEST_BYTES
         );

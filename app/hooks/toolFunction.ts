@@ -369,8 +369,18 @@ export const getWebSearchResults = (message: UIMessage) => {
       }
     }
     
-    // If we've found results via annotations, return them
-    if (allResults.length > 0) {
+    // If we've found results via annotations, return them.
+    // IMPORTANT: when tool parts exist, prefer tool-part parsing over placeholder "in-progress" results.
+    const hasWebToolParts = Array.isArray((message as any).parts) && ((message as any).parts as any[]).some((p: any) => {
+      const t = p?.type;
+      if (!(typeof t === 'string' && t.startsWith('tool-'))) return false;
+      const tool = t.slice('tool-'.length);
+      return tool === 'web_search' || tool === 'multi_search';
+    });
+    const hasAnyCompletedAnnotationResults = allResults.some((r: any) => r?.isComplete);
+
+    // If we only have "in-progress" placeholders and tool parts exist, do NOT return here.
+    if (allResults.length > 0 && (hasAnyCompletedAnnotationResults || !hasWebToolParts)) {
       const thumbnailMap = buildThumbnailUrlMap(rawThumbnailMap, linkMap);
       return {
         result: null, // For backward compatibility
@@ -546,7 +556,7 @@ export const getWebSearchResults = (message: UIMessage) => {
       if (part && typeof (part as any).type === 'string' && (part as any).type.startsWith('tool-')) {
         try {
           const toolName = (part as any).type.slice('tool-'.length);
-          if (toolName !== 'web_search') continue;
+          if (toolName !== 'web_search' && toolName !== 'multi_search') continue;
           const input = (part as any).input;
           const output = (part as any).output;
           if (input) allArgs.push(JSON.parse(JSON.stringify(input)));
@@ -556,6 +566,42 @@ export const getWebSearchResults = (message: UIMessage) => {
             // Extract imageMap from invocation result
             if (result.imageMap) {
               imageMap = { ...imageMap, ...result.imageMap };
+            }
+
+            // Build maps from invocation searches so UI can resolve [LINK_ID:*] without relying on data-web_search_complete.
+            if (Array.isArray(result.searches)) {
+              result.searches.forEach((search: any) => {
+                const results = Array.isArray(search?.results) ? search.results : [];
+                results.forEach((r: any) => {
+                  if (r?.linkId && r?.url) {
+                    linkMap[r.linkId] = r.url;
+                  }
+                  if (r?.url && r?.title) {
+                    titleMap[r.url] = r.title;
+                  }
+                  if (r?.linkId && r?.thumbnail) {
+                    rawThumbnailMap[r.linkId] = r.thumbnail;
+                  }
+                  if (r?.linkId && r?.url && !linkMetaMap[r.linkId]) {
+                    linkMetaMap[r.linkId] = {
+                      url: r.url,
+                      title: r.title,
+                      summary: r.summary || r.content || undefined,
+                      domain: r.domain,
+                      topic: search?.topic,
+                      query: search?.query,
+                      thumbnail: r.thumbnail || null,
+                      author: r.author || null,
+                      publishedDate: r.publishedDate || r.published_date || null,
+                      score: typeof r.score === 'number' ? r.score : null,
+                      snippetHighlightedWords: r.snippetHighlightedWords || [],
+                      source: r.source || null,
+                      favicon: r.favicon || null,
+                      metadata: null,
+                    };
+                  }
+                });
+              });
             }
             
             if (result.searchId && !processedSearchIds.has(result.searchId)) {
@@ -647,7 +693,8 @@ export const getWebSearchResults = (message: UIMessage) => {
         imageMap,
         linkMap,
         thumbnailMap,
-        titleMap
+        titleMap,
+        linkMetaMap,
       };
     }
     
@@ -1685,12 +1732,95 @@ export const getImageGeneratorData = (message: UIMessage) => {
         images: search.images || []
       }));
     };
-  
-  const mapFromToolResults = () => {
+
+    // Track started signals for pending/progress display.
+    let startedCount = 0;
+    if ((message as any).annotations) {
+      const startAnnotations = ((message as any).annotations as any[]).filter(
+        a => a?.type === 'twitter_search_started'
+      );
+      startedCount = startAnnotations.length;
+    }
+    if ((message as any).parts && Array.isArray((message as any).parts)) {
+      const startParts = ((message as any).parts as any[]).filter(
+        p => p?.type === 'data-twitter_search_started'
+      );
+      startedCount = Math.max(startedCount, startParts.length);
+    }
+
+    // Single source of truth for detailed Twitter results: tool parts (tool-twitter_search).
+    // Rationale: DB check shows data-twitter_search_complete never appears without tool parts.
+    const mapFromToolParts = () => {
+      if (!(message as any).parts || !Array.isArray((message as any).parts)) return null;
+
+      const invocations: any[] = [];
+      const linkMap: Record<string, string> = {};
+      const imageMap: Record<string, string> = {};
+
+      for (const part of ((message as any).parts as any[])) {
+        const type = part?.type;
+        if (typeof type !== 'string' || !type.startsWith('tool-')) continue;
+        const toolName = type.slice('tool-'.length);
+        if (toolName !== 'twitter_search') continue;
+
+        const output = part?.output;
+        if (!output) continue;
+        let result: any;
+        try {
+          result = JSON.parse(JSON.stringify(output));
+        } catch {
+          result = output;
+        }
+
+        if (result?.linkMap && typeof result.linkMap === 'object') {
+          Object.assign(linkMap, result.linkMap);
+        }
+
+        // Best-effort: if search images carry IDs, map them.
+        if (Array.isArray(result?.searches)) {
+          result.searches.forEach((s: any) => {
+            const imgs = Array.isArray(s?.images) ? s.images : [];
+            imgs.forEach((img: any) => {
+              if (img?.id && img?.url && !imageMap[img.id]) {
+                imageMap[img.id] = img.url;
+              }
+            });
+          });
+        }
+
+        if (result?.searchId) {
+          invocations.push({
+            searchId: result.searchId,
+            searches: normalizeSearches(result.searches || []),
+            isComplete: true,
+          });
+        }
+      }
+
+      if (invocations.length === 0) return null;
+      return {
+        result: null,
+        args: null,
+        annotations: [],
+        results: invocations,
+        imageMap,
+        linkMap,
+        thumbnailMap: buildThumbnailUrlMap({}, linkMap),
+        titleMap: {},
+        linkMetaMap: {},
+        startedCount,
+        pendingCount: Math.max(0, startedCount - invocations.length),
+      };
+    };
+
+    const toolPartResult = mapFromToolParts();
+    if (toolPartResult) return toolPartResult;
+
+    // Fallback: DB tool_results (backup). Keep for safety, but tool parts are the primary source.
     if ((message as any).tool_results?.twitterSearchResults) {
       const twitterResults = (message as any).tool_results.twitterSearchResults;
       if (Array.isArray(twitterResults) && twitterResults.length > 0) {
-        const resultWithMaps = twitterResults.find((result: any) => 
+        const resultWithMaps = twitterResults.find((result: any) =>
           result.linkMap || result.thumbnailMap || result.titleMap || result.imageMap || result.linkMetaMap
         ) || twitterResults[0];
 
@@ -1704,7 +1834,7 @@ export const getImageGeneratorData = (message: UIMessage) => {
 
         if (processedResults.length > 0) {
           const thumbnailMap = buildThumbnailUrlMap(resultWithMaps?.thumbnailMap || {}, resultWithMaps?.linkMap || {});
-          const finalData = {
+          return {
             result: null,
             args: null,
             annotations: [],
@@ -1713,106 +1843,15 @@ export const getImageGeneratorData = (message: UIMessage) => {
             linkMap: resultWithMaps?.linkMap || {},
             thumbnailMap,
             titleMap: resultWithMaps?.titleMap || {},
-            linkMetaMap: resultWithMaps?.linkMetaMap || {}
+            linkMetaMap: resultWithMaps?.linkMetaMap || {},
+            startedCount,
+            pendingCount: Math.max(0, startedCount - processedResults.length),
           };
-          
-          return finalData;
         }
       }
     }
-    return null;
-  };
-  
-    const storedResult = mapFromToolResults();
-    if (storedResult) return storedResult;
-  
-    // Gather streaming annotations
-    let twitterCompletions: any[] = [];
-    let startedCount = 0;
-    
-    if ((message as any).annotations) {
-      twitterCompletions = ((message as any).annotations as any[]).filter(
-        a => a?.type === 'twitter_search_complete'
-      );
-      
-      const startAnnotations = ((message as any).annotations as any[]).filter(
-        a => a?.type === 'twitter_search_started'
-      );
-      startedCount = startAnnotations.length;
-    }
-  
-    if ((message as any).parts && Array.isArray((message as any).parts)) {
-      const completionParts = ((message as any).parts as any[]).filter(
-        p => p?.type === 'data-twitter_search_complete'
-      );
-      const startParts = ((message as any).parts as any[]).filter(
-        p => p?.type === 'data-twitter_search_started'
-      );
-      
-      twitterCompletions = [
-        ...twitterCompletions,
-        ...completionParts.map(p => ({ type: 'twitter_search_complete', data: p.data }))
-      ];
-      startedCount = Math.max(startedCount, startParts.length);
-    }
-  
-    if (twitterCompletions.length > 0) {
-      const processedResults = twitterCompletions
-        .filter(completion => completion.data?.searches)
-        .map(completion => ({
-          searchId: completion.data?.searchId || `twitter_${Date.now()}`,
-          searches: normalizeSearches(completion.data.searches),
-          isComplete: true
-        }));
 
-      if (processedResults.length > 0) {
-        // Extract imageMap, linkMap, thumbnailMap, titleMap, linkMetaMap from annotations
-        let imageMap: { [key: string]: string } = {};
-        let linkMap: { [key: string]: string } = {};
-        let rawThumbnailMap: { [key: string]: string } = {};
-        let titleMap: { [key: string]: string } = {};
-        let linkMetaMap: { [key: string]: any } = {};
-        
-        twitterCompletions.forEach(completion => {
-          if (completion.data?.imageMap) {
-            imageMap = { ...imageMap, ...completion.data.imageMap };
-          }
-          if (completion.data?.linkMap) {
-            linkMap = { ...linkMap, ...completion.data.linkMap };
-          }
-          if (completion.data?.thumbnailMap) {
-            rawThumbnailMap = { ...rawThumbnailMap, ...completion.data.thumbnailMap };
-          }
-          if (completion.data?.titleMap) {
-            titleMap = { ...titleMap, ...completion.data.titleMap };
-          }
-          if (completion.data?.linkMetaMap) {
-            linkMetaMap = { ...linkMetaMap, ...completion.data.linkMetaMap };
-          }
-        });
-
-        const thumbnailMap = buildThumbnailUrlMap(rawThumbnailMap, linkMap);
-        
-        const completedCount = processedResults.length;
-        const pendingCount = Math.max(0, startedCount - completedCount);
-
-        return {
-          result: null,
-          args: null,
-          annotations: twitterCompletions,
-          results: processedResults,
-          imageMap,
-          linkMap,
-          thumbnailMap,
-          titleMap,
-          linkMetaMap,
-          startedCount,
-          pendingCount
-        };
-      }
-    }
-    
-    // Return started signal even if no completions yet
+    // Started signal (loading state)
     if (startedCount > 0) {
       return {
         result: null,
@@ -1825,10 +1864,10 @@ export const getImageGeneratorData = (message: UIMessage) => {
         titleMap: {},
         linkMetaMap: {},
         startedCount,
-        pendingCount: startedCount
+        pendingCount: startedCount,
       };
     }
-  
+
     return null;
   };
   
@@ -2165,8 +2204,21 @@ export const getImageGeneratorData = (message: UIMessage) => {
       }
     }
     
-    // If we've found results via annotations, return them
-    if (allResults.length > 0 || startedCount > 0) {
+    // If we've found results via annotations, return them.
+    // IMPORTANT: When tool parts exist, prefer tool-part parsing over placeholder "in-progress" results.
+    const hasGoogleToolParts = Array.isArray((message as any).parts) && ((message as any).parts as any[]).some((p: any) => {
+      const t = p?.type;
+      return typeof t === 'string' && t.startsWith('tool-') && t.slice('tool-'.length) === 'google_search';
+    });
+
+    const hasAnyCompletedAnnotationResults = allResults.some((r: any) => r?.isComplete);
+
+    // If we only have "in-progress" placeholders and tool parts exist, do NOT return here.
+    // Tool parts contain the actual searches/results payload needed by MultiSearch + topic filters.
+    if (
+      (hasAnyCompletedAnnotationResults && allResults.length > 0) ||
+      (startedCount > 0 && !hasGoogleToolParts)
+    ) {
       const thumbnailMap = buildThumbnailUrlMap(rawThumbnailMap, linkMap);
       const completedCount = allResults.filter(r => r.isComplete).length;
       const pendingCount = Math.max(0, startedCount - completedCount);
@@ -2356,6 +2408,42 @@ export const getImageGeneratorData = (message: UIMessage) => {
             // Extract imageMap from invocation result
             if (result.imageMap) {
               imageMap = { ...imageMap, ...result.imageMap };
+            }
+
+            // Build maps from invocation searches so UI can resolve [LINK_ID:*] without relying on data-google_search_complete.
+            if (Array.isArray(result.searches)) {
+              result.searches.forEach((search: any) => {
+                const results = Array.isArray(search?.results) ? search.results : [];
+                results.forEach((r: any) => {
+                  if (r?.linkId && r?.url) {
+                    linkMap[r.linkId] = r.url;
+                  }
+                  if (r?.url && r?.title) {
+                    titleMap[r.url] = r.title;
+                  }
+                  if (r?.linkId && r?.thumbnail) {
+                    rawThumbnailMap[r.linkId] = r.thumbnail;
+                  }
+                  if (r?.linkId && r?.url && !linkMetaMap[r.linkId]) {
+                    linkMetaMap[r.linkId] = {
+                      url: r.url,
+                      title: r.title,
+                      summary: r.summary || r.content || undefined,
+                      domain: r.domain,
+                      topic: search?.topic || search?.engine,
+                      query: search?.query,
+                      thumbnail: r.thumbnail || null,
+                      author: r.author || null,
+                      publishedDate: r.publishedDate || r.published_date || null,
+                      score: typeof r.score === 'number' ? r.score : null,
+                      snippetHighlightedWords: r.snippetHighlightedWords || [],
+                      source: r.source || null,
+                      favicon: r.favicon || null,
+                      metadata: null,
+                    };
+                  }
+                });
+              });
             }
             
             if (result.searchId && !processedSearchIds.has(result.searchId)) {

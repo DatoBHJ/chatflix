@@ -85,6 +85,39 @@ const TOOL_CATEGORIES: Record<ToolCategory, { label: string; toolIds: string[] }
   'utility': { label: 'Utility', toolIds: TOOLS.filter(t => t.category === 'utility').map(t => t.id) }
 };
 
+/** 도구 선택창(TOOLS) 기준 카테고리 반환. API 전용 도구명만 폴백 매핑 (TOOLS에 없을 때만 사용) */
+const API_TOOL_CATEGORY_FALLBACK: Record<string, ToolCategory> = {
+  web_search: 'search',
+  multi_search: 'search',
+  search: 'search',
+  youtube_link_analysis: 'utility',
+  wan25_video: 'ai-generation',
+  grok_video: 'ai-generation',
+  qwen_image_edit: 'ai-generation',
+  read_file: 'utility',
+  write_file: 'utility',
+  apply_edits: 'utility',
+  get_file_info: 'utility',
+  list_workspace: 'utility',
+  delete_file: 'utility',
+  grep_file: 'utility',
+};
+
+/** 도구 이름 → 도구 선택창 카테고리 (메시지 꼬리 그룹핑 등에서 사용, TOOLS 추가 시 자동 반영) */
+export function getToolCategory(toolName: string): ToolCategory | null {
+  const byId = TOOLS.find(t => t.id === toolName)?.category;
+  if (byId) return byId;
+  if (toolName?.startsWith('web_search:')) return 'search';
+  return API_TOOL_CATEGORY_FALLBACK[toolName] ?? null;
+}
+
+/** 같은 카테고리 도구가 연속일 때만 true (꼬리 생략용) */
+export function isNextSameCategory(currentToolName: string, nextToolName: string | undefined): boolean {
+  if (!nextToolName) return false;
+  const cat = getToolCategory(currentToolName);
+  return cat !== null && cat === getToolCategory(nextToolName);
+}
+
 // 도구 아이콘 배경 스타일 결정 함수
 const getToolIconBackground = (toolId: string): string => {
   return TOOLS.find(t => t.id === toolId)?.background || 'linear-gradient(0deg, #9ca3a8 0%, #4a5568 100%)';

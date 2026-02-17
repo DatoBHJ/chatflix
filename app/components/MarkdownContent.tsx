@@ -3762,17 +3762,15 @@ function MarkdownContentComponent({
   return (
     <>
       {segments.map((segmentGroup, groupIndex) => {
-        // Identify the last actual text bubble (exclude image/link-only segments)
+        // Identify the last actual bubble (exclude image/link-only; include file cards - they get tail)
         const imageRegex = /\[IMAGE_ID:|!\[.*\]\(.*\)/;
         const linkRegex = /\[.*\]\(https?:\/\/[^)]+\)|https?:\/\/[^\s"'<>]+/;
         let lastBubbleIndex = -1;
-        const fileTagTest = /^\[FILE:[^\]]+\]$/;
         for (let i = 0; i < segmentGroup.length; i++) {
           const s = segmentGroup[i];
           const isImg = imageRegex.test(s);
           const isLnk = linkRegex.test(s);
-          const isFile = fileTagTest.test(s.trim());
-          if (!isImg && !isLnk && !isFile) lastBubbleIndex = i;
+          if (!isImg && !isLnk) lastBubbleIndex = i;
         }
 
         // 🚀 Apple 스타일: 연속 이미지 그룹 계산
@@ -3961,8 +3959,12 @@ function MarkdownContentComponent({
               }
               
               const nextIsHeader = index < segmentGroup.length - 1 && /^#{1,3}\s/.test(segmentGroup[index + 1].trim());
+              const nextSegment = segmentGroup[index + 1];
+              const nextIsFileTag = !!nextSegment && /^\[FILE:[^\]]+\]$/.test(nextSegment.trim());
 
               const isLastBubble = !isImageSegment && !isLinkSegment && !isVideoSegment && (index === lastBubbleIndex || nextIsHeader);
+              /** 파일 카드: 도구 미리보기와 동일 - 다음이 파일 태그가 아니면 꼬리 (연속 파일 시 마지막만) */
+              const fileCardHasTail = !nextIsFileTag;
               
               // 🚀 Apple 스타일: 모든 이미지 그룹(1개 이상)은 ImageGalleryStack으로 렌더링
               if (isImageSegment && isInImageGroup && isFirstInImageGroup) {
@@ -4021,12 +4023,12 @@ function MarkdownContentComponent({
                 );
               }
               
-              // [FILE:경로] 태그 → 파일 다운로드 카드 (도구 미리보기 스타일, 컴팩트 래퍼)
+              // [FILE:경로] 태그 → 파일 다운로드 카드 (도구 미리보기와 동일한 꼬리 로직)
               if (isFileTagSegment && fileTagMatch && chatId) {
                 return (
                   <div
                     key={index}
-                    className="mb-3"
+                    className={`${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${fileCardHasTail ? ' last-bubble' : ''}`}
                     style={{ width: 'fit-content', maxWidth: '100%' }}
                   >
                     <WorkspaceFilePathCard path={fileTagMatch[1]} onOpen={openWorkspaceFileModal} />
@@ -4054,7 +4056,10 @@ function MarkdownContentComponent({
                         </div>
                       </div>
                     )}
-                    <div className="mb-3" style={{ width: 'fit-content', maxWidth: '100%' }}>
+                    <div
+                      className={`${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${fileCardHasTail ? ' last-bubble' : ''}`}
+                      style={{ width: 'fit-content', maxWidth: '100%' }}
+                    >
                       <WorkspaceFilePathCard path={wPath} onOpen={openWorkspaceFileModal} />
                     </div>
                   </React.Fragment>

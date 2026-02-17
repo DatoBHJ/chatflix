@@ -9,6 +9,8 @@ import {
   createSeedreamImageTool,
   // createQwenImageTool,
   createTwitterSearchTool,
+  createDbSearchToolResultsTool,
+  createDbReadToolResultWindowTool,
   createWan25VideoTool,
   createGrokVideoTool,
   createVideoUpscalerTool,
@@ -61,6 +63,18 @@ export const TOOL_REGISTRY = {
     createFn: createTwitterSearchTool,
     resultKey: 'twitterSearchResults',
     description: 'Advanced Twitter/X search (Latest or Top with full operators)'
+  },
+  'db_search_tool_results': {
+    createFn: (dataStream: any, chatId: string, userId: string, supabase: any) =>
+      createDbSearchToolResultsTool(dataStream, chatId, userId, supabase),
+    resultKey: 'dbToolResultsLookups',
+    description: 'Search saved tool_results in Supabase (bounded snippets only)'
+  },
+  'db_read_tool_result_window': {
+    createFn: (dataStream: any, chatId: string, userId: string, supabase: any) =>
+      createDbReadToolResultWindowTool(dataStream, chatId, userId, supabase),
+    resultKey: 'dbToolResultsWindows',
+    description: 'Read a small window of a saved tool_results entry from Supabase'
   },
   'gemini_image_tool': {
     createFn: (dataStream: any, userId: string, messages: any[], chatId?: string) => createGeminiImageTool(dataStream, userId, messages, chatId),
@@ -172,6 +186,8 @@ export function collectToolResults(tools: Record<string, any>, toolNames: string
       'youtube_link_analyzer': 'analysisResults',
       'google_search': 'searchResults',
       'twitter_search': 'searchResults',
+      'db_search_tool_results': 'lookupResults',
+      'db_read_tool_result_window': 'windowResults',
       'gemini_image_tool': 'generatedImages',
       'seedream_image_tool': 'generatedImages',
       // 'qwen_image_edit': 'generatedImages',

@@ -41,6 +41,7 @@ import { selectOptimalModel } from './services/modelSelector';
 import { estimateMultiModalTokens } from '@/utils/context-manager';
 import { compressContextIfNeeded } from '@/utils/context-summarizer';
 import { estimatePayloadBytes } from '@/app/utils/prepareMessagesForAPI';
+import { stripHistoricalSearchFromMessages } from '@/utils/stripHistoricalSearch';
 // import { markdownJoinerTransform } from './markdown-transform';
 
 // Vercel Pro 플랜 + fluid compute: 최대 800초 (13분 20초)까지 가능
@@ -230,6 +231,14 @@ export async function POST(req: Request): Promise<Response> {
   // 원본 메시지 배열 보존 (모든 스코프에서 사용 가능)
   const originalMessages = messages.slice();
 
+  // Strip historical search outputs from the LLM context to avoid context_length_exceeded.
+  // We keep the latest assistant+user turn intact (last user message plus its preceding assistant).
+  messages = stripHistoricalSearchFromMessages(messages, {
+    keepLastTurns: 1,
+    leavePlaceholder: false,
+    stripSearchPartsInKeptTurns: true,
+  });
+
   // Map Chatflix Ultimate model to appropriate model based on agent mode
   if (model === 'chatflix-ultimate' || model === 'chatflix-ultimate-pro') {
       // Store the original model name for DB storage
@@ -360,7 +369,8 @@ export async function POST(req: Request): Promise<Response> {
   let globalCollectedToolResults: any = {}; // Store tool results globally
   
   const stream = createUIMessageStream({
-    originalMessages: messages,
+    // Preserve full originals for persistence/memory bookkeeping.
+    originalMessages,
     execute: async ({ writer }): Promise<void> => {
         // 🚀 AI 응답 즉시 시작 (세션 처리와 완전 분리)
         const processMessages = [...messages];
@@ -547,6 +557,8 @@ export async function POST(req: Request): Promise<Response> {
                 ? (config.createFn as any)(writer, user?.id || anonymousUserId, messagesWithTokens, chatId)
                 : toolName === 'image_upscaler'
                 ? (config.createFn as any)(writer, user?.id || anonymousUserId, messagesWithTokens, chatId)
+                : ['db_search_tool_results', 'db_read_tool_result_window'].includes(toolName)
+                ? (config.createFn as any)(writer, chatId, user?.id || anonymousUserId, supabase)
                 : [...getFileEditToolIds(), 'run_python_code', 'browser_observe'].includes(toolName)
                 ? (config.createFn as any)(writer, chatId, supabase) // file-edit / code run: sandbox per chat
                 : (config.createFn as any)(writer)
@@ -630,40 +642,40 @@ export async function POST(req: Request): Promise<Response> {
           // console.log('[API Request - Agent Mode] System prompt:', agentSystemPrompt);
 
           // 🔍 DEBUG: 최종 전달 메시지 로그
-          // console.log('[API Request - Agent Mode] Final messages being sent to AI:', {
-          //   chatId,
-          //   messageCount: finalMessagesForExecution.length,
-          //   compressedCount: compressedMessages.length,
-          //   messages: finalMessagesForExecution.map((m: any, idx: number) => {
-          //     let fullTextContent = '';
-          //     if (Array.isArray(m.parts)) {
-          //       fullTextContent = m.parts
-          //         .filter((p: any) => p.type === 'text' && p.text)
-          //         .map((p: any) => p.text)
-          //         .join(' ');
-          //     } else if (Array.isArray(m.content)) {
-          //       fullTextContent = m.content
-          //         .filter((p: any) => p.type === 'text' && p.text)
-          //         .map((p: any) => p.text)
-          //         .join(' ');
-          //     } else if (typeof m.content === 'string') {
-          //       fullTextContent = m.content;
-          //     }
-          //     const isSummary = fullTextContent.includes('[Previous Conversation Summary]');
-          //     // 요약 메시지는 전체 내용 출력, 그 외는 300자만
-          //     const displayContent = isSummary 
-          //       ? fullTextContent 
-          //       : (fullTextContent.slice(0, 300) + (fullTextContent.length > 300 ? '...' : ''));
-          //     return {
-          //       index: idx,
-          //       role: m.role,
-          //       isSummary,
-          //       content: displayContent || `[no text - content type: ${Array.isArray(m.content) ? 'array' : typeof m.content}]`,
-          //       contentLength: fullTextContent.length,
-          //       partsCount: Array.isArray(m.parts) ? m.parts.length : 0
-          //     };
-          //   })
-          // });
+          console.log('[API Request - Agent Mode] Final messages being sent to AI:', {
+            chatId,
+            messageCount: finalMessagesForExecution.length,
+            compressedCount: compressedMessages.length,
+            messages: finalMessagesForExecution.map((m: any, idx: number) => {
+              let fullTextContent = '';
+              if (Array.isArray(m.parts)) {
+                fullTextContent = m.parts
+                  .filter((p: any) => p.type === 'text' && p.text)
+                  .map((p: any) => p.text)
+                  .join(' ');
+              } else if (Array.isArray(m.content)) {
+                fullTextContent = m.content
+                  .filter((p: any) => p.type === 'text' && p.text)
+                  .map((p: any) => p.text)
+                  .join(' ');
+              } else if (typeof m.content === 'string') {
+                fullTextContent = m.content;
+              }
+              const isSummary = fullTextContent.includes('[Previous Conversation Summary]');
+              // 요약 메시지는 전체 내용 출력, 그 외는 300자만
+              const displayContent = isSummary 
+                ? fullTextContent 
+                : (fullTextContent.slice(0, 300) + (fullTextContent.length > 300 ? '...' : ''));
+              return {
+                index: idx,
+                role: m.role,
+                isSummary,
+                content: displayContent || `[no text - content type: ${Array.isArray(m.content) ? 'array' : typeof m.content}]`,
+                contentLength: fullTextContent.length,
+                partsCount: Array.isArray(m.parts) ? m.parts.length : 0
+              };
+            })
+          });
 
           // console.log('agentSystemPrompt', agentSystemPrompt);
           

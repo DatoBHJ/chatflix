@@ -20,9 +20,46 @@ const E2BChartEChartsInline = dynamic(
 );
 
 // Outcome file tools (write/edit) - UI as result/attachment style
-const OUTCOME_FILE_TOOLS = ['write_file', 'apply_edits', 'read_file', 'delete_file', 'grep_file', 'get_file_info'] as const;
+const OUTCOME_FILE_TOOLS = ['write_file', 'apply_edits', 'read_file', 'delete_file', 'grep_file', 'get_file_info', 'list_workspace'] as const;
 const isOutcomeFileTool = (name: string): boolean =>
   (OUTCOME_FILE_TOOLS as readonly string[]).includes(name);
+
+// Minimalist labels for file tools
+const FILE_TOOL_ACTION_LABELS: Record<string, string> = {
+  'read_file': 'Read',
+  'write_file': 'Created',
+  'apply_edits': 'Edited',
+  'delete_file': 'Deleted',
+  'grep_file': 'Searched',
+  'get_file_info': 'Info',
+  'list_workspace': 'Listed',
+  'run_python_code': 'Ran',
+  'browser_observe': 'Observed',
+  'multi_search': 'Explored',
+  'web_search': 'Explored',
+};
+
+const FILE_TOOL_ACTION_LABELS_PROCESSING: Record<string, string> = {
+  'read_file': 'Reading',
+  'write_file': 'Creating',
+  'apply_edits': 'Editing',
+  'delete_file': 'Deleting',
+  'grep_file': 'Searching',
+  'get_file_info': 'Getting info',
+  'list_workspace': 'Listing',
+  'run_python_code': 'Running',
+  'browser_observe': 'Observing',
+  'multi_search': 'Exploring',
+  'web_search': 'Exploring',
+};
+
+function getActionLabel(toolName: string, status: string): string {
+  if (status === 'processing') {
+    return FILE_TOOL_ACTION_LABELS_PROCESSING[toolName] ?? 'Processing';
+  }
+  return FILE_TOOL_ACTION_LABELS[toolName] ?? 'Processed';
+}
+
 const isFileToolName = (name: string): boolean =>
   ([
     'read_file',
@@ -538,6 +575,8 @@ interface InlineToolPreviewProps {
   isProcessing?: boolean;
   chatId?: string;
   toolCallId?: string;
+  isLastBubble?: boolean;
+  isNoTail?: boolean;
 }
 
 export const InlineToolPreview = memo(function InlineToolPreview({
@@ -550,6 +589,8 @@ export const InlineToolPreview = memo(function InlineToolPreview({
   isProcessing = false,
   chatId,
   toolCallId,
+  isLastBubble = false,
+  isNoTail = false,
 }: InlineToolPreviewProps) {
   // Determine status
   const status = useMemo(() => {
@@ -628,6 +669,10 @@ export const InlineToolPreview = memo(function InlineToolPreview({
 
   // Get display name and icon (with topic support for search tools)
   const displayName = useMemo(() => {
+    const actionLabel = status === 'processing'
+      ? (FILE_TOOL_ACTION_LABELS_PROCESSING[toolName] ?? 'Processing')
+      : (FILE_TOOL_ACTION_LABELS[toolName] ?? '');
+    
     // Use topic-based names for search tools
     if (toolName === 'web_search' || toolName === 'multi_search') {
       // toolArgs에서 topics 확인, 없으면 toolResult에서 추출
@@ -639,13 +684,15 @@ export const InlineToolPreview = memo(function InlineToolPreview({
       }
       
       if (topic) {
-        return getTopicName(topic);
+        const topicName = getTopicName(topic);
+        return actionLabel ? `${actionLabel} ${topicName}` : topicName;
       }
     }
     if (toolName === 'google_search') {
       // engines 배열이 있으면 첫 번째 엔진을 topic으로 사용
       const topic = toolArgs?.engines?.[0] || toolArgs?.topic || toolArgs?.engine || 'google';
-      return getTopicName(topic);
+      const topicName = getTopicName(topic);
+      return actionLabel ? `${actionLabel} ${topicName}` : topicName;
     }
     // wan25_video: model에 따라 동적 이름 (toolResult 우선 - forcedModel 반영)
     if (toolName === 'wan25_video') {
@@ -673,8 +720,10 @@ export const InlineToolPreview = memo(function InlineToolPreview({
     if (toolName === 'image_upscaler') {
       return '8K Image Upscaler';
     }
-    return TOOL_DISPLAY_NAMES[toolName] || toolName;
-  }, [toolName, toolArgs, toolResult]);
+    
+    const baseName = TOOL_DISPLAY_NAMES[toolName] || toolName;
+    return actionLabel ? `${actionLabel} ${baseName}` : baseName;
+  }, [toolName, toolArgs, toolResult, status]);
 
   const icon = getToolIcon(toolName, toolArgs, toolResult); // Pass toolArgs and toolResult for topic-based icons
   const canvasToolType = getCanvasToolType(toolName, toolArgs, toolResult); // Pass toolArgs and toolResult for topic-based routing
@@ -742,6 +791,11 @@ export const InlineToolPreview = memo(function InlineToolPreview({
     
     // For search tools: use query/queries (prefer query field, fallback to first query in queries array)
     if (toolName === 'web_search' || toolName === 'multi_search' || toolName === 'google_search' || toolName === 'twitter_search') {
+      // Prefer the *actual executed query* from toolResult when available (query completion may rewrite queries).
+      if (toolResult?.searches && Array.isArray(toolResult.searches) && toolResult.searches.length > 0) {
+        const q = toolResult.searches[0]?.query;
+        if (typeof q === 'string' && q.trim().length > 0) return q;
+      }
       // Prefer toolArgs.query if available (single query)
       if (toolArgs.query) {
         return toolArgs.query;
@@ -1039,71 +1093,68 @@ export const InlineToolPreview = memo(function InlineToolPreview({
     return attemptPart;
   }, [status, toolResult]);
 
+  const diffBubbleClass = `diff-inline-preview${isLastBubble ? ' last-bubble' : ''}${isNoTail ? ' no-tail' : ''}`;
+
   if (toolName === 'browser_observe') {
-    const browserIcon = getToolIcon(toolName, toolArgs, toolResult);
     const isSuccess = status === 'completed';
-    const hasScreenshot = !!toolResult?.screenshotPath;
-    const browserTitle = toolResult?.title || displayText || 'Browser Observe';
+    const actionLabel = getActionLabel(toolName, status);
+    const browserTitle = toolResult?.title || displayText || 'Browser';
 
     return (
       <>
         <style>{shimmerStyles}</style>
         <div
-          className="diff-inline-preview"
+          className={diffBubbleClass}
           onClick={handleClick}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
           onTouchMove={handleTouchMove}
-          style={{ cursor: togglePanel ? 'pointer' : 'default', touchAction: 'manipulation' }}
-          role="button"
-          aria-label={`Browser observe: ${browserObserveSubtitle}`}
+          style={{ 
+            cursor: togglePanel ? 'pointer' : 'default', 
+            touchAction: 'manipulation',
+            width: 'fit-content',
+            minWidth: '140px'
+          }}
         >
           <div className="diff-header">
-            <div className="shrink-0 text-(--muted)">{browserIcon}</div>
-            <span className="diff-filename">{browserTitle}</span>
-            <span className="text-xs text-(--muted) shrink-0">{browserObserveSubtitle}</span>
-            {status === 'processing' && <span className="inline-tool-status-dot shrink-0" />}
+            <span className="text-sm text-(--muted) shrink-0">
+              {actionLabel}
+            </span>
+            
+            <span className="diff-filename">
+              {browserTitle}
+            </span>
+
+            <span className="text-xs text-(--muted) shrink-0 ml-0.5">
+              {browserObserveSubtitle}
+            </span>
+
+            {status === 'processing' && (
+              <span className="inline-tool-status-dot shrink-0 ml-1" />
+            )}
+            
             {isSuccess && (
-              <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5 text-green-500 shrink-0 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             )}
+
             {status === 'error' && (
-              <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5 text-red-500 shrink-0 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             )}
           </div>
+
           {toolResult?.finalUrl && (
-            <div className="diff-code">
-              <div className="diff-line">
-                <span className="diff-line-num">URL</span>
-                <span className="diff-line-sign" />
-                <span className="diff-line-text">{toolResult.finalUrl}</span>
-              </div>
+            <div className="text-[11px] text-(--muted) truncate opacity-70 px-3 pb-1">
+              {toolResult.finalUrl}
             </div>
           )}
-          {hasScreenshot && (
-            <BrowserObserveImagePreview chatId={chatId} path={toolResult?.screenshotPath} />
-          )}
-          {(toolResult?.screenshotPath || toolResult?.htmlPath) && (
-            <div className="mt-2 flex items-center gap-2">
-              {toolResult?.screenshotPath && (
-                <button
-                  className="text-xs px-2 py-1 rounded border border-[color-mix(in_srgb,var(--foreground)_12%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
-                  onClick={(e) => openWorkspacePath(e, toolResult.screenshotPath)}
-                >
-                  Open Screenshot
-                </button>
-              )}
-              {toolResult?.htmlPath && (
-                <button
-                  className="text-xs px-2 py-1 rounded border border-[color-mix(in_srgb,var(--foreground)_12%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
-                  onClick={(e) => openWorkspacePath(e, toolResult.htmlPath)}
-                >
-                  Open HTML
-                </button>
-              )}
+
+          {isSuccess && toolResult?.screenshotPath && (
+            <div className="px-1 pb-1">
+              <BrowserObserveImagePreview chatId={chatId} path={toolResult.screenshotPath} />
             </div>
           )}
         </div>
@@ -1112,151 +1163,60 @@ export const InlineToolPreview = memo(function InlineToolPreview({
   }
 
   if (toolName === 'run_python_code') {
-    const codeIcon = getToolIcon(toolName, toolArgs, toolResult);
-    const runCodeFirstChartResult = runCodeResults.find((r: any) => r?.chart);
-    const runCodeEChartsOption = runCodeFirstChartResult ? e2bChartToEChartsOption(runCodeFirstChartResult.chart) : null;
-    // When the same image is in both results and syncedFiles, show only file card — so no thumbnail from results
-    const hasChartPreview = runCodeEChartsOption || (runCodeFirstPng && !runCodeHasSyncedImageFiles);
-    const hasConsoleOutput = runCodeStdout.length > 0 || runCodeStderr.length > 0;
-    // Result-first layout: when we have visual output (image/chart), show results first then one-line caption only
-    // Only base64/echarts count as visual; syncedFiles are shown via path-in-text substitution
-    const hasVisualResult = status === 'completed' && (runCodeFirstPng || runCodeEChartsOption);
-
-    const runCodeCaption = (
-      <div
-        className="diff-inline-preview"
-        onClick={handleClick}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onTouchMove={handleTouchMove}
-        style={{ cursor: togglePanel ? 'pointer' : 'default', touchAction: 'manipulation' }}
-        role="button"
-        aria-label={`Code output: ${runCodeSubtitle}`}
-      >
-        <div className="diff-header">
-          <div className="shrink-0 text-(--muted)">{codeIcon}</div>
-          <span className="diff-filename">Code output</span>
-          {status === 'processing' ? (
-            <span
-              className="text-xs font-medium shrink-0 bg-linear-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent"
-              style={{ backgroundSize: '200% 100%', animation: 'shimmer 2s ease-in-out infinite' }}
-            >
-              Running…
-            </span>
-          ) : (
-            <span className="text-xs text-(--muted) shrink-0">{runCodeSubtitle}</span>
-          )}
-          {status === 'processing' && <span className="inline-tool-status-dot shrink-0" />}
-          {status === 'completed' && (
-            <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          )}
-          {status === 'error' && (
-            <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          )}
-        </div>
-      </div>
-    );
-
-    if (hasVisualResult) {
-      return (
-        <>
-          <style>{shimmerStyles}</style>
-          {/* 도구 미리보기(캡션) 위, 결과(이미지/차트) 아래 */}
-          {runCodeCaption}
-          <RunCodeExtractedResults
-            runCodeResults={runCodeResults}
-            runCodeEChartsOption={runCodeEChartsOption}
-            runCodeFirstPng={runCodeFirstPng}
-            syncedFiles={toolResult?.syncedFiles}
-            chatId={chatId}
-            messageId={messageId}
-          />
-        </>
-      );
-    }
-
+    const isSuccess = status === 'completed';
+    const actionLabel = getActionLabel(toolName, status);
+    
     return (
       <>
         <style>{shimmerStyles}</style>
         <div
-          className="diff-inline-preview"
+          className={diffBubbleClass}
           onClick={handleClick}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
           onTouchMove={handleTouchMove}
-          style={{ cursor: togglePanel ? 'pointer' : 'default', touchAction: 'manipulation' }}
+          style={{ 
+            cursor: togglePanel ? 'pointer' : 'default', 
+            touchAction: 'manipulation',
+            width: 'fit-content',
+            minWidth: '140px'
+          }}
         >
           <div className="diff-header">
-            <div className="shrink-0 text-(--muted)">{codeIcon}</div>
-            <span className="diff-filename">Code output</span>
-            {status === 'processing' ? (
-              <span
-                className="text-xs font-medium shrink-0 bg-linear-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent"
-                style={{ backgroundSize: '200% 100%', animation: 'shimmer 2s ease-in-out infinite' }}
-              >
-                Running…
-              </span>
-            ) : (
-              <span className="text-xs text-(--muted) shrink-0">{runCodeSubtitle}</span>
+            <span className="text-sm text-(--muted) shrink-0">
+              {actionLabel}
+            </span>
+            
+            <span className="diff-filename">
+              Code output
+            </span>
+
+            <span className="text-xs text-(--muted) shrink-0 ml-0.5">
+              {runCodeSubtitle}
+            </span>
+
+            {status === 'processing' && (
+              <span className="inline-tool-status-dot shrink-0 ml-1" />
             )}
-            {status === 'processing' && <span className="inline-tool-status-dot shrink-0" />}
-            {status === 'completed' && (
-              <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            
+            {isSuccess && (
+              <svg className="w-3.5 h-3.5 text-green-500 shrink-0 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             )}
+
             {status === 'error' && (
-              <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5 text-red-500 shrink-0 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             )}
           </div>
-
-          {/* Content: stdout/stderr or processing code (no thumbnail when visual — that branch uses result-first above) */}
-          {hasConsoleOutput ? (
-            <div className="diff-code">
-              {runCodeStdout.slice(0, 4).map((line: string, li: number) => (
-                <div key={`stdout-${li}`} className="diff-line">
-                  <span className="diff-line-num">{li + 1}</span>
-                  <span className="diff-line-sign" />
-                  <span className="diff-line-text">{line}</span>
-                </div>
-              ))}
-              {runCodeStderr.slice(0, 2).map((line: string, li: number) => (
-                <div key={`stderr-${li}`} className="diff-line removed">
-                  <span className="diff-line-num">!</span>
-                  <span className="diff-line-sign" />
-                  <span className="diff-line-text">{line}</span>
-                </div>
-              ))}
-              {(runCodeStdout.length > 4 || runCodeStderr.length > 2) && (
-                <div className="diff-hunk-sep">+{(runCodeStdout.length - 4) + (runCodeStderr.length - 2)} more lines</div>
-              )}
-            </div>
-          ) : status === 'processing' && toolArgs?.code ? (
-            <div className="diff-code diff-streaming">
-              {toolArgs.code.split('\n').slice(0, 4).map((line: string, li: number) => (
-                <div key={`code-${li}`} className="diff-line">
-                  <span className="diff-line-num">{li + 1}</span>
-                  <span className="diff-line-sign" />
-                  <span className="diff-line-text">{line}</span>
-                </div>
-              ))}
-              {toolArgs.code.split('\n').length > 4 && (
-                <div className="diff-hunk-sep">running…</div>
-              )}
-            </div>
-          ) : null}
         </div>
-
-        {status === 'completed' && (
+        
+        {isSuccess && (
           <RunCodeExtractedResults
             runCodeResults={runCodeResults}
-            runCodeEChartsOption={runCodeEChartsOption}
+            runCodeEChartsOption={null} // Simplified for minimal view
             runCodeFirstPng={runCodeFirstPng}
             syncedFiles={toolResult?.syncedFiles}
             chatId={chatId}
@@ -1324,94 +1284,58 @@ export const InlineToolPreview = memo(function InlineToolPreview({
   }, [toolName, toolArgs, status]);
 
   if (isOutcomeFileTool(toolName)) {
-    const fileIcon = getIcon(iconNameForBubble);
-    const hasDiff = diffData && inlineDiffLines && inlineDiffLines.lines.length > 0;
-    const isStreaming = status === 'processing' && streamingLines;
-
+    const isSuccess = status === 'completed';
+    const actionLabel = getActionLabel(toolName, status);
+    const isSearchTool = toolName === 'grep_file' || toolName === 'list_workspace';
+    
     return (
       <>
         <style>{shimmerStyles}</style>
         <div
-          className="diff-inline-preview"
+          className={diffBubbleClass}
           onClick={handleClick}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
           onTouchMove={handleTouchMove}
-          style={{ cursor: togglePanel ? 'pointer' : 'default', touchAction: 'manipulation' }}
-          title={filePath || undefined}
+          style={{ 
+            cursor: togglePanel ? 'pointer' : 'default', 
+            touchAction: 'manipulation',
+            width: 'fit-content',
+            minWidth: '140px'
+          }}
         >
-          {/* Header: icon + filename + stats/status */}
           <div className="diff-header">
-            <div className="shrink-0" style={{ width: 18, height: 18 }} dangerouslySetInnerHTML={{ __html: fileIcon.svg }} />
-            <span className="diff-filename">{fileBubbleTitle}</span>
-            {hasDiff ? (
-              <span className="diff-stats">
-                {diffData.additions > 0 && <span className="diff-stat-add">+{diffData.additions}</span>}
-                {diffData.deletions > 0 && <span className="diff-stat-del">-{diffData.deletions}</span>}
+            <span className="text-sm text-(--muted) shrink-0">
+              {actionLabel}
+            </span>
+            
+            <span className="diff-filename">
+              {isSearchTool ? fileBubbleSubtitle : fileBubbleTitle}
+            </span>
+
+            {!isSearchTool && diffData && (
+              <span className="text-xs flex items-center gap-1.5 shrink-0 ml-0.5">
+                {diffData.additions > 0 && <span className="text-green-600">+{diffData.additions}</span>}
+                {diffData.deletions > 0 && <span className="text-red-600">-{diffData.deletions}</span>}
               </span>
-            ) : status === 'processing' ? (
-              <span
-                className="text-xs font-medium shrink-0 bg-linear-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent"
-                style={{ backgroundSize: '200% 100%', animation: 'shimmer 2s ease-in-out infinite' }}
-              >
-                {toolName === 'write_file' ? 'Writing…' : 
-                 toolName === 'apply_edits' ? 'Editing…' :
-                 toolName === 'read_file' ? 'Reading…' :
-                 toolName === 'delete_file' ? 'Deleting…' :
-                 toolName === 'grep_file' ? 'Grepping…' :
-                 'Processing…'}
-              </span>
-            ) : (
-              <span className="text-xs text-(--muted) shrink-0">{outcomeSubtitle}</span>
             )}
-            {status === 'processing' && <span className="inline-tool-status-dot shrink-0" />}
-            {status === 'completed' && (
-              <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+            {status === 'processing' && (
+              <span className="inline-tool-status-dot shrink-0 ml-1" />
+            )}
+            
+            {isSuccess && (
+              <svg className="w-3.5 h-3.5 text-green-500 shrink-0 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             )}
+
             {status === 'error' && (
-              <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5 text-red-500 shrink-0 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             )}
           </div>
-
-          {/* Streaming preview: show code as it arrives */}
-          {isStreaming && (
-            <div className="diff-code diff-streaming">
-              {streamingLines.lines.map((line: string, li: number) => (
-                <div key={`stream-${li}`} className="diff-line added">
-                  <span className="diff-line-num">{li + 1}</span>
-                  <span className="diff-line-sign">+</span>
-                  <span className="diff-line-text">{line}</span>
-                </div>
-              ))}
-              {streamingLines.truncated && (
-                <div className="diff-hunk-sep">+{streamingLines.total - INLINE_MAX_LINES} more lines</div>
-              )}
-            </div>
-          )}
-
-          {/* Completed diff: only changed lines, limited */}
-          {hasDiff && (
-            <div className="diff-code">
-              {inlineDiffLines.lines.map((line, li) => (
-                <div key={`inline-${li}`} className={`diff-line ${line.type}`}>
-                  <span className="diff-line-num">
-                    {line.type === 'removed' ? (line.oldLineNo ?? '') : (line.newLineNo ?? '')}
-                  </span>
-                  <span className="diff-line-sign">
-                    {line.type === 'added' ? '+' : '-'}
-                  </span>
-                  <span className="diff-line-text">{line.content}</span>
-                </div>
-              ))}
-              {inlineDiffLines.truncated && (
-                <div className="diff-hunk-sep">+{inlineDiffLines.total - INLINE_MAX_LINES} more changes</div>
-              )}
-            </div>
-          )}
         </div>
       </>
     );

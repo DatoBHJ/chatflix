@@ -533,6 +533,29 @@ const toolDefinitions = {
       cursor: 'Optional pagination cursor returned by the previous response. Pass it to fetch the next page of tweets when has_next_page is true.'
     }
   },
+  db_search_tool_results: {
+    description:
+      'Search previously saved tool_results in Supabase for the current chat. NOTE: Historical search outputs may be omitted from the LLM context to prevent context overflows. Use this tool to find older search results again. CRITICAL: This tool is intentionally bounded; it returns only small snippets and pointers (messageId/sequence_number). Iterate with startSequence if needed.',
+    inputSchema: {
+      query: 'Search query string (substring match by default). Keep it specific (2+ chars).',
+      useRegex: 'If true, treat query as a regular expression (case-insensitive). Default false.',
+      maxMatches: 'Optional. Maximum number of matches to return. Default 10. Hard cap 25.',
+      snippetChars: 'Optional. Maximum characters per returned snippet. Default 240. Hard cap 500.',
+      startSequence: 'Optional. Starting message sequence_number to scan (inclusive). Default 1.',
+      maxMessagesToScan: 'Optional. Maximum messages to scan from startSequence. Default 40. Hard cap 200.',
+    },
+  },
+  db_read_tool_result_window: {
+    description:
+      'Read a small, bounded slice of a previously saved tool_results entry from Supabase for the current chat. Use after db_search_tool_results. CRITICAL: Never request a full dump; this returns at most a few KB and can target a specific searchIndex/resultIndex.',
+    inputSchema: {
+      messageId: 'The message id to read from (as returned by db_search_tool_results).',
+      toolKey: 'The tool_results key to read (e.g. twitterSearchResults, googleSearchResults, webSearchResults).',
+      searchIndex: 'Optional. Index into tool_results.searches[] when available (default 0).',
+      resultIndex: 'Optional. Index into searches[searchIndex].results[] when available. If omitted, returns a compact summary.',
+      maxChars: 'Optional. Maximum characters to return. Default 2000. Hard cap 5000.',
+    },
+  },
   read_file: {
     description: 'Read the contents of a file from the workspace sandbox. Use absolute paths (e.g. /home/user/workspace/file.py). Supports windowed reading for large files via startLine/endLine or startLine+windowSize. For large files, returns at most 12k characters and includes paging hints (nextReadStartLine/nextRead) so you can continue without manual line math.',
     inputSchema: {
@@ -2509,24 +2532,42 @@ export function createWebSearchTool(dataStream: any, forcedTopic?: string) {
           
           const data = await exa.searchAndContents(query, searchOptions);
           
+          // Keep Exa outputs small for LLM context. If more detail is needed, use link_reader on a URL.
+          const truncateText = (value: unknown, maxChars: number) => {
+            if (typeof value !== 'string') return '';
+            if (value.length <= maxChars) return value;
+            return `${value.slice(0, maxChars)}...`;
+          };
+          const MAX_EXA_RESULT_CONTENT_CHARS = 600;
+          const MAX_EXA_RESULT_SUMMARY_CHARS = 400;
+
           const rawResults = data.results
             .map((result: any, resultIndex: number) => {
               const linkId = `exa_link_${searchId}_${index}_${resultIndex}`;
+              const rawContent =
+                typeof result?.text?.text === 'string'
+                  ? result.text.text
+                  : (typeof result?.text === 'string' ? result.text : '');
               return {
                 url: result.url,
                 title: result.title || '',
-                content: result.text.text || '',
+                content: truncateText(rawContent, MAX_EXA_RESULT_CONTENT_CHARS),
                 publishedDate: result.publishedDate,
                 author: result.author,
-                summary: result.summary,
+                summary: truncateText(result.summary || '', MAX_EXA_RESULT_SUMMARY_CHARS),
                 linkId: linkId,
               };
             });
         
-          const rawImages = data.results.filter((r: any) => r.image).map((r: any) => ({
+          const rawImages = data.results.filter((r: any) => r.image).map((r: any) => {
+            const raw = typeof r?.text?.text === 'string'
+              ? r.text.text
+              : (typeof r?.text === 'string' ? r.text : '');
+            return {
               url: r.image,
-              description: r.title || (r.text ? r.text.substring(0, 100) + '...' : ''),
-          }));
+              description: r.title || (raw ? truncateText(raw, 100) : ''),
+            };
+          });
 
           const deduplicatedResults = deduplicateResults(rawResults);
           const deduplicatedImages = rawImages.length > 0 ? deduplicateResults(rawImages) : [];
@@ -2738,22 +2779,10 @@ export function createWebSearchTool(dataStream: any, forcedTopic?: string) {
       // 배열에 결과 추가하고 UI를 위한 어노테이션도 전송
       searchResults.push(finalResult);
       
-      // 전체 검색 완료 어노테이션 전송 (linkMap, thumbnailMap, titleMap 포함)
-      if (dataStream?.write) {
-        dataStream.write({
-          type: 'data-web_search_complete',
-          id: `ann-${searchId}-complete`,
-          data: {
-            searchId,
-            searches: finalSearches,
-            imageMap,
-            linkMap,
-            thumbnailMap,
-            titleMap,
-            linkMetaMap
-          }
-        });
-      }
+      // NOTE:
+      // We intentionally do NOT emit a `data-web_search_complete` part.
+      // The detailed results are already present in the tool part (`tool-web_search`).
+      // Removing this avoids duplicating payload in message.parts across turns.
       
       // 결과 반환
       return finalResult;
@@ -3877,22 +3906,11 @@ export function createGoogleSearchTool(dataStream: any, forcedEngine?: string) {
         searchResults.push(finalResultWithMaps);
         searchResults.push(finalResultForTool);
         
-        // 전체 검색 완료 어노테이션 전송 (웹 검색과 동일한 방식)
-        if (dataStream?.write) {
-          dataStream.write({
-            type: 'data-google_search_complete',
-            id: `ann-google-complete-${searchId}`,
-            data: {
-              searchId,
-              searches: searchResultsData,
-              imageMap,
-              linkMap,
-            thumbnailMap,
-            titleMap,
-              linkMetaMap
-            }
-          });
-        }
+        // NOTE:
+        // We intentionally do NOT emit a `data-google_search_complete` part.
+        // Historically, this duplicated the same (large) search payload already present in the tool part
+        // (`tool-google_search`) and caused context bloat across turns.
+        // UI should rely on `tool-google_search` parts (and started/query_complete events for progress).
         
         // 결과 반환
         return finalResultForTool;
@@ -4239,17 +4257,10 @@ export function createTwitterSearchTool(dataStream: any) {
 
         searchResults.push(finalResult);
 
-        if (dataStream?.write) {
-          dataStream.write({
-            type: 'data-twitter_search_complete',
-            id: `ann-twitter-complete-${searchId}`,
-            data: {
-              searchId,
-              searches: [searchEntry],
-              linkMap
-            }
-          });
-        }
+        // NOTE:
+        // We intentionally do NOT emit a `data-twitter_search_complete` part.
+        // The detailed results are already present in the tool part (`tool-twitter_search`).
+        // Removing this avoids duplicating payload in message.parts across turns.
 
         return finalResult;
       } catch (error) {
@@ -4275,6 +4286,317 @@ export function createTwitterSearchTool(dataStream: any) {
   });
 
   return Object.assign(twitterSearchTool, { searchResults });
+}
+
+// --- Supabase tool_results lookup tools ---
+function clampInt(value: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(n)));
+}
+
+function truncate(s: string, maxChars: number): string {
+  if (typeof s !== 'string') return '';
+  if (s.length <= maxChars) return s;
+  return `${s.slice(0, maxChars)}...`;
+}
+
+function buildSearchLinesFromResultItem(item: any): string[] {
+  if (!item || typeof item !== 'object') return [];
+  const url = typeof item.url === 'string' ? item.url : '';
+  const title = typeof item.title === 'string' ? item.title : '';
+  const summary = typeof item.summary === 'string' ? item.summary : '';
+  const content = typeof item.content === 'string' ? item.content : '';
+  const text = typeof item.text === 'string' ? item.text : '';
+  const raw = typeof item.raw_content === 'string' ? item.raw_content : '';
+
+  const candidates = [title, summary, content, text, raw].filter((x) => typeof x === 'string' && x.trim().length > 0);
+  const joined = candidates.slice(0, 2).join(' - '); // keep compact
+  const line = `${title || '(no title)'}${url ? ` | ${url}` : ''}${joined ? ` | ${joined}` : ''}`;
+  return [line];
+}
+
+function extractLinesFromToolResultsValue(value: any): string[] {
+  // Bound traversal: never walk arbitrary deep trees.
+  const lines: string[] = [];
+  if (!value) return lines;
+
+  // Common shape: { searches: [{ query, results: [...] }, ...] }
+  if (value && typeof value === 'object' && Array.isArray(value.searches)) {
+    const searches = value.searches.slice(0, 10);
+    for (const s of searches) {
+      const q = typeof s?.query === 'string' ? s.query : '';
+      const results = Array.isArray(s?.results) ? s.results.slice(0, 20) : [];
+      if (q) lines.push(`query: ${q}`);
+      for (const r of results) {
+        lines.push(...buildSearchLinesFromResultItem(r));
+        if (lines.length > 200) return lines;
+      }
+    }
+    return lines;
+  }
+
+  // Sometimes stored directly as an array of results.
+  if (Array.isArray(value)) {
+    for (const item of value.slice(0, 50)) {
+      lines.push(...buildSearchLinesFromResultItem(item));
+      if (lines.length > 200) break;
+    }
+    return lines;
+  }
+
+  // Fallback: minimal stringification, bounded.
+  if (typeof value === 'string') return [truncate(value, 500)];
+  try {
+    return [truncate(JSON.stringify(value), 500)];
+  } catch {
+    return [];
+  }
+}
+
+function compileMatcher(query: string, useRegex: boolean): ((s: string) => boolean) {
+  const q = query || '';
+  if (useRegex) {
+    try {
+      const re = new RegExp(q, 'i');
+      return (s: string) => re.test(s);
+    } catch {
+      // Invalid regex: fall back to substring
+    }
+  }
+  const needle = q.toLowerCase();
+  return (s: string) => (s || '').toLowerCase().includes(needle);
+}
+
+export function createDbSearchToolResultsTool(
+  dataStream: any,
+  chatId: string,
+  userId: string,
+  supabase: any
+) {
+  const lookupResults: any[] = [];
+
+  const dbTool = tool({
+    description: toolDefinitions.db_search_tool_results.description,
+    inputSchema: z.object({
+      query: z.string().min(2).describe(toolDefinitions.db_search_tool_results.inputSchema.query),
+      useRegex: z.boolean().optional().default(false).describe(toolDefinitions.db_search_tool_results.inputSchema.useRegex),
+      maxMatches: z.number().optional().default(10).describe(toolDefinitions.db_search_tool_results.inputSchema.maxMatches),
+      snippetChars: z.number().optional().default(240).describe(toolDefinitions.db_search_tool_results.inputSchema.snippetChars),
+      startSequence: z.number().optional().default(1).describe(toolDefinitions.db_search_tool_results.inputSchema.startSequence),
+      maxMessagesToScan: z.number().optional().default(40).describe(toolDefinitions.db_search_tool_results.inputSchema.maxMessagesToScan),
+    }),
+    execute: async (input: any) => {
+      if (!chatId) throw new Error('chatId is required');
+      if (!userId || userId === 'anonymous' || userId.startsWith('anonymous_')) {
+        throw new Error('Authentication required to search prior tool results.');
+      }
+
+      const query = String(input.query || '').trim();
+      const useRegex = Boolean(input.useRegex);
+      const maxMatches = clampInt(input.maxMatches, 1, 25, 10);
+      const snippetChars = clampInt(input.snippetChars, 50, 500, 240);
+      const startSequence = clampInt(input.startSequence, 1, 1_000_000_000, 1);
+      const maxMessagesToScan = clampInt(input.maxMessagesToScan, 1, 200, 40);
+
+      const endSequence = startSequence + maxMessagesToScan - 1;
+      const matcher = compileMatcher(query, useRegex);
+
+      const { data, error } = await supabase
+        .from('messages')
+        .select('id, role, sequence_number, tool_results')
+        .eq('chat_session_id', chatId)
+        .eq('user_id', userId)
+        .gte('sequence_number', startSequence)
+        .lte('sequence_number', endSequence)
+        .not('tool_results', 'is', null)
+        .order('sequence_number', { ascending: true });
+
+      if (error) throw error;
+
+      const matches: Array<any> = [];
+      let scannedCount = 0;
+
+      // We intentionally only search these keys; other tool payloads can be huge and less relevant.
+      const toolKeysToScan = ['webSearchResults', 'googleSearchResults', 'twitterSearchResults'];
+
+      for (const row of (data || [])) {
+        scannedCount += 1;
+        const tr = row.tool_results && typeof row.tool_results === 'object' ? row.tool_results : {};
+        for (const toolKey of toolKeysToScan) {
+          const val = (tr as any)[toolKey];
+          if (val == null) continue;
+
+          const lines = extractLinesFromToolResultsValue(val);
+          for (const line of lines) {
+            if (!line) continue;
+            if (!matcher(line)) continue;
+
+            matches.push({
+              messageId: row.id,
+              sequence_number: row.sequence_number,
+              role: row.role,
+              toolKey,
+              snippet: truncate(line, snippetChars),
+            });
+            if (matches.length >= maxMatches) break;
+          }
+          if (matches.length >= maxMatches) break;
+        }
+        if (matches.length >= maxMatches) break;
+      }
+
+      const result = {
+        scanned: {
+          startSequence,
+          endSequence,
+          messageCount: scannedCount,
+        },
+        query,
+        useRegex,
+        matchCount: matches.length,
+        matches,
+        nextStartSequence: endSequence + 1,
+      };
+
+      lookupResults.push(result);
+      return result;
+    },
+  });
+
+  return Object.assign(dbTool, { lookupResults });
+}
+
+function deepTruncate(value: any, opts: { maxDepth: number; maxArray: number; maxString: number }, depth = 0): any {
+  if (depth > opts.maxDepth) return '[truncated-depth]';
+  if (value == null) return value;
+  if (typeof value === 'string') return truncate(value, opts.maxString);
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  if (Array.isArray(value)) return value.slice(0, opts.maxArray).map((v) => deepTruncate(v, opts, depth + 1));
+  if (typeof value === 'object') {
+    const out: Record<string, any> = {};
+    const keys = Object.keys(value).slice(0, 50);
+    for (const k of keys) out[k] = deepTruncate(value[k], opts, depth + 1);
+    return out;
+  }
+  return String(value);
+}
+
+export function createDbReadToolResultWindowTool(
+  dataStream: any,
+  chatId: string,
+  userId: string,
+  supabase: any
+) {
+  const windowResults: any[] = [];
+
+  const dbTool = tool({
+    description: toolDefinitions.db_read_tool_result_window.description,
+    inputSchema: z.object({
+      messageId: z.string().min(1).describe(toolDefinitions.db_read_tool_result_window.inputSchema.messageId),
+      toolKey: z.string().min(1).describe(toolDefinitions.db_read_tool_result_window.inputSchema.toolKey),
+      searchIndex: z.number().optional().describe(toolDefinitions.db_read_tool_result_window.inputSchema.searchIndex),
+      resultIndex: z.number().optional().describe(toolDefinitions.db_read_tool_result_window.inputSchema.resultIndex),
+      maxChars: z.number().optional().default(2000).describe(toolDefinitions.db_read_tool_result_window.inputSchema.maxChars),
+    }),
+    execute: async (input: any) => {
+      if (!chatId) throw new Error('chatId is required');
+      if (!userId || userId === 'anonymous' || userId.startsWith('anonymous_')) {
+        throw new Error('Authentication required to read prior tool results.');
+      }
+
+      const messageId = String(input.messageId || '').trim();
+      const toolKey = String(input.toolKey || '').trim();
+      const searchIndex = clampInt(input.searchIndex, 0, 10_000, 0);
+      const resultIndexRaw = input.resultIndex;
+      const resultIndex = resultIndexRaw == null ? null : clampInt(resultIndexRaw, 0, 100_000, 0);
+      const maxChars = clampInt(input.maxChars, 200, 5000, 2000);
+
+      const { data, error } = await supabase
+        .from('messages')
+        .select('id, role, sequence_number, tool_results')
+        .eq('chat_session_id', chatId)
+        .eq('user_id', userId)
+        .eq('id', messageId)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) throw new Error('Message not found for this chat.');
+
+      const tr = data.tool_results && typeof data.tool_results === 'object' ? data.tool_results : null;
+      if (!tr || !(toolKey in tr)) throw new Error(`tool_results does not contain key: ${toolKey}`);
+
+      const rawVal = (tr as any)[toolKey];
+      let payload: any = null;
+      let summary: any = null;
+
+      // Prefer structured, bounded reads for common search shapes.
+      if (rawVal && typeof rawVal === 'object' && Array.isArray((rawVal as any).searches)) {
+        const searches = (rawVal as any).searches as any[];
+        const s = searches[searchIndex];
+        if (!s) {
+          summary = {
+            searchesCount: searches.length,
+            message: `searchIndex ${searchIndex} out of range`,
+          };
+        } else if (resultIndex != null && Array.isArray(s.results)) {
+          const item = s.results[resultIndex];
+          if (!item) {
+            summary = {
+              query: s.query,
+              resultsCount: Array.isArray(s.results) ? s.results.length : 0,
+              message: `resultIndex ${resultIndex} out of range`,
+            };
+          } else {
+            payload = deepTruncate(item, { maxDepth: 4, maxArray: 20, maxString: 800 });
+          }
+        } else {
+          // Compact summary of this search entry.
+          const results = Array.isArray(s.results) ? s.results.slice(0, 5) : [];
+          summary = {
+            query: s.query,
+            topic: s.topic,
+            engine: s.engine,
+            resultsCount: Array.isArray(s.results) ? s.results.length : 0,
+            resultsPreview: results.map((r: any) => ({
+              title: typeof r?.title === 'string' ? truncate(r.title, 120) : '',
+              url: typeof r?.url === 'string' ? truncate(r.url, 200) : '',
+            })),
+          };
+        }
+      } else {
+        // Generic fallback: deep truncate and stringify.
+        payload = deepTruncate(rawVal, { maxDepth: 4, maxArray: 20, maxString: 800 });
+      }
+
+      const text = truncate(
+        (() => {
+          try {
+            return JSON.stringify(payload ?? summary ?? null, null, 2);
+          } catch {
+            return String(payload ?? summary ?? '');
+          }
+        })(),
+        maxChars,
+      );
+
+      const result = {
+        messageId: data.id,
+        sequence_number: data.sequence_number,
+        role: data.role,
+        toolKey,
+        searchIndex,
+        resultIndex,
+        text,
+      };
+
+      windowResults.push(result);
+      return result;
+    },
+  });
+
+  return Object.assign(dbTool, { windowResults });
 }
 
 // Gemini 이미지 생성/편집 도구 생성 함수

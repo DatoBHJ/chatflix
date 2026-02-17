@@ -177,6 +177,10 @@ const isSearchTool = (name: string) => [
   'search'
 ].includes(name);
 
+/** 파일/코드 실행 도구 (검색도구와 동일한 꼬리 로직: 연속 시 마지막만 꼬리) */
+const isFileOrCodeTool = (name: string) =>
+  isOutcomeFileTool(name) || name === 'run_python_code' || name === 'browser_observe';
+
 // Assistant Avatar Component
 const AssistantAvatar = ({ modelId, onClick }: { modelId: string; onClick?: () => void }) => {
   const model = getModelById(modelId);
@@ -2981,7 +2985,9 @@ const Message = memo(function MessageComponent({
 
                 // 다음 세그먼트가 검색 도구인지 확인
                 const nextIsSearch = nextSegment?.type === 'tool' && isSearchTool(nextSegment.content.call.toolName);
-                
+                // 다음 세그먼트가 파일/코드 도구인지 확인 (검색과 동일 꼬리 로직)
+                const nextIsFileOrCode = nextSegment?.type === 'tool' && isFileOrCodeTool(nextSegment.content.call.toolName);
+
                 const hasSubsequentContent = hasAttachments || (allAttachments && allAttachments.length > 0) || !!structuredDescription;
 
                 if (segment.type === 'text') {
@@ -3391,7 +3397,11 @@ const Message = memo(function MessageComponent({
                   }
                   
                   // 단일 도구 또는 단일 topic/engine/query인 경우 기존 로직
-                  const toolHasTail = !(isSearchTool(toolName) && nextIsSearch);
+                  // 검색/파일·코드 도구 모두: 연속 시 마지막만 꼬리
+                  const toolHasTail = !(
+                    (isSearchTool(toolName) && nextIsSearch) ||
+                    (isFileOrCodeTool(toolName) && nextIsFileOrCode)
+                  );
                   const toolMargin = (toolHasTail && (!isLastSegment || hasSubsequentContent)) ? "mb-4" : "";
 
                           // write_file / apply_edits / run_python_code / browser_observe: diff card without bubble wrapper
@@ -3414,6 +3424,8 @@ const Message = memo(function MessageComponent({
                                   isProcessing={!toolContent.result && !runCodeData && !browserObserveData}
                                   chatId={chatId}
                                   toolCallId={toolContent.call.toolCallId}
+                                  isLastBubble={toolHasTail}
+                                  isNoTail={!toolHasTail}
                                 />
                               </div>
                             );
@@ -3625,7 +3637,8 @@ const Message = memo(function MessageComponent({
 
                       // 다음 세그먼트가 검색 도구인지 확인
                       const nextIsSearch = nextSegment?.type === 'tool' && isSearchTool(nextSegment.content.call.toolName);
-                      
+                      const nextIsFileOrCode = nextSegment?.type === 'tool' && isFileOrCodeTool(nextSegment.content.call.toolName);
+
                       const hasSubsequentContent = hasAttachments || (allAttachments && allAttachments.length > 0) || !!structuredDescription;
 
                       if (segment.type === 'text') {
@@ -3947,8 +3960,12 @@ const Message = memo(function MessageComponent({
                           const browserObserveData = toolName === 'browser_observe'
                             ? getBrowserObserveData(message, toolContent.call.toolCallId)
                             : null;
+                          const overlayToolHasTail = !(
+                            (isSearchTool(toolName) && nextIsSearch) ||
+                            (isFileOrCodeTool(toolName) && nextIsFileOrCode)
+                          );
                           return (
-                            <div key={`overlay-segment-tool-${idx}`} className="relative mb-4">
+                            <div key={`overlay-segment-tool-${idx}`} className={`relative ${overlayToolHasTail && (!isLastSegment || hasSubsequentContent) ? 'mb-4' : ''}`}>
                               <InlineToolPreview
                                 toolName={toolName}
                                 toolArgs={resolvedToolArgs}
@@ -3959,13 +3976,18 @@ const Message = memo(function MessageComponent({
                                 isProcessing={!toolContent.result && !runCodeData && !browserObserveData}
                                 chatId={chatId}
                                 toolCallId={toolContent.call.toolCallId}
+                                isLastBubble={overlayToolHasTail}
+                                isNoTail={!overlayToolHasTail}
                               />
                             </div>
                           );
                         }
 
                         // 단일 도구 또는 단일 topic/engine/query인 경우 기존 로직
-                        const toolHasTail = !(isSearchTool(toolName) && nextIsSearch);
+                        const toolHasTail = !(
+                          (isSearchTool(toolName) && nextIsSearch) ||
+                          (isFileOrCodeTool(toolName) && nextIsFileOrCode)
+                        );
                         const toolMargin = (toolHasTail && (!isLastSegment || hasSubsequentContent)) ? "mb-4" : "";
 
                         return (

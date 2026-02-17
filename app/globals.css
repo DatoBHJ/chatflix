@@ -2502,6 +2502,22 @@ p:has(.katex) {
   align-items: flex-start;
 }
 
+/* 꼬리가 있는 세그먼트 다음에만 띄우기 (꼬리 없으면 띄우지 않음) */
+/* 꼬리 세그먼트 다음에 오는 세그먼트 → margin-top */
+.message-segments > .message-segment.last-bubble + *,
+.message-segments > .markdown-segment.last-bubble + *,
+.markdown-segments > .message-segment.last-bubble + *,
+.markdown-segments > .markdown-segment.last-bubble + * {
+  margin-top: 1rem;
+}
+/* 꼬리 + 꼬리 연속일 때만 두 번째에 위쪽 띄우기 (꼬리 없는 메시지 다음의 파일 카드는 띄우지 않음) */
+.message-segments > .message-segment.last-bubble + .message-segment.last-bubble,
+.message-segments > .markdown-segment.last-bubble + .markdown-segment.last-bubble,
+.markdown-segments > .message-segment.last-bubble + .message-segment.last-bubble,
+.markdown-segments > .markdown-segment.last-bubble + .markdown-segment.last-bubble {
+  margin-top: 1rem;
+}
+
 /* Remove bubble styling when using segments */
 .imessage-receive-bubble:has(.message-segments),
 .imessage-receive-bubble:has(.markdown-segments) {
@@ -2682,6 +2698,20 @@ p:has(.katex) {
   
   .message-segment {
     padding: 5px 11px;
+  }
+
+  .diff-inline-preview.last-bubble::before {
+    left: -9px;
+    width: 20px;
+    height: 16px;
+    border-bottom-right-radius: 16px 14px;
+  }
+
+  .diff-inline-preview.last-bubble::after {
+    left: -26px;
+    width: 26px;
+    height: 16px;
+    border-bottom-right-radius: 10px;
   }
   
   .message-segment.last-bubble::before {
@@ -4130,15 +4160,19 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
 
 /* ═══ Diff view styles ═══════════════════════════════════════════════ */
 
-/* Inline compact diff (InlineToolPreview) */
+/* Inline compact diff (InlineToolPreview) - unified with message-segment */
 .diff-inline-preview {
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
   font-size: 12px;
   line-height: 1.5;
   overflow: hidden;
   background: var(--accent);
-  border-radius: 18px;
+  border-radius: 22px;
   max-width: 100%;
+  margin: 1px 0;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: visible;
 }
 
 /* Canvas terminal console styles */
@@ -4215,11 +4249,54 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   }
 }
 
+/* Tail for diff-inline-preview (same as message-segment.last-bubble) */
+.diff-inline-preview.last-bubble::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  bottom: 0;
+  width: 20px;
+  height: 16px;
+  background-color: var(--accent);
+  border-bottom-right-radius: 16px 14px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.diff-inline-preview.last-bubble::after {
+  content: "";
+  position: absolute;
+  left: -26px;
+  bottom: 0;
+  width: 26px;
+  height: 16px;
+  background-color: var(--background);
+  border-bottom-right-radius: 10px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.diff-inline-preview.last-bubble.no-tail::before,
+.diff-inline-preview.last-bubble.no-tail::after {
+  display: none !important;
+}
+
+:root[data-theme="dark"] .diff-inline-preview.last-bubble::after {
+  background-color: var(--background-dark);
+}
+
+/* When diff-inline-preview is wrapped in message-segment, segment is transparent (tail comes from segment) */
+.message-segment:has(> .diff-inline-preview),
+.markdown-segment:has(> .diff-inline-preview) {
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
 .diff-inline-preview .diff-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 5px 11px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 13px;
   background: transparent;

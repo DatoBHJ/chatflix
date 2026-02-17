@@ -13,9 +13,6 @@ export function WorkspaceFilePathCard({
   const filename = path.replace(/^.*[/\\]/, '') || 'file';
   const icon = getIcon(filename);
 
-  const ext = filename.split('.').pop()?.toLowerCase() || '';
-  const typeLabel = ext ? `${ext.toUpperCase()} file` : 'File';
-
   const handleOpen = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -37,7 +34,6 @@ export function WorkspaceFilePathCard({
       <div className="diff-header">
         <div className="shrink-0" style={{ width: 18, height: 18 }} dangerouslySetInnerHTML={{ __html: icon.svg }} />
         <span className="diff-filename">{filename}</span>
-        <span className="text-xs text-(--muted) shrink-0 truncate max-w-[120px]">{typeLabel}</span>
         <Download className="w-3.5 h-3.5 text-(--muted) shrink-0" aria-hidden />
       </div>
     </div>
