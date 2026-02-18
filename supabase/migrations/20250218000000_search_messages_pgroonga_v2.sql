@@ -1,10 +1,13 @@
--- RPC for global chat message search with message_id and chat_title for deep-linking
--- Used by the chat_history_search agent tool
+-- Chat message full-text search for chat_history_search tool
+-- Relevance-ranked, full content returned, default limit 10
+
+CREATE INDEX IF NOT EXISTS idx_messages_content_pgroonga
+  ON messages USING pgroonga (content);
 
 CREATE OR REPLACE FUNCTION public.search_messages_pgroonga_v2(
   search_term text,
   user_id_param uuid,
-  limit_param integer DEFAULT 50,
+  limit_param integer DEFAULT 10,
   offset_param integer DEFAULT 0
 )
 RETURNS TABLE(
@@ -29,7 +32,7 @@ BEGIN
     m.created_at,
     m.role,
     m.model,
-    left(m.content, 500) AS content,
+    m.content AS content,
     coalesce(cs.title, left(cs.initial_message, 80), 'Untitled Chat') AS chat_title
   FROM messages m
   LEFT JOIN chat_sessions cs ON cs.id = m.chat_session_id AND cs.user_id = m.user_id
@@ -37,7 +40,7 @@ BEGIN
     AND m.content IS NOT NULL
     AND m.content <> ''
     AND m.content &@~ search_term
-  ORDER BY m.created_at DESC
+  ORDER BY pgroonga_score(m.tableoid, m.ctid) DESC NULLS LAST, m.created_at DESC
   LIMIT limit_param
   OFFSET offset_param;
 END;
