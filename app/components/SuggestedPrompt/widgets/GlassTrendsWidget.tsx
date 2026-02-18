@@ -4,8 +4,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-  Pause,
-  Play,
   SlidersHorizontal,
   TrendingUp,
 } from 'lucide-react'
@@ -280,7 +278,6 @@ export function GlassTrendsWidget({
   const {
     currentTrendIndex,
     isFilterExpanded,
-    isAutoPlaying,
     selectedCategory,
     selectedCountry,
     selectedRegion,
@@ -292,7 +289,6 @@ export function GlassTrendsWidget({
   } = sharedState
   const lastFilterSignatureRef = useRef(lastFilterSignature)
   const previousCategoryRef = useRef(selectedCategory)
-  const previousAutoPlayRef = useRef(isAutoPlaying)
   const lastSummaryTrendKeyRef = useRef<string | null>(null)
   const summaryResponseCacheRef = useRef<Map<string, { summary: string; questions: string[] }>>(new Map())
   const inFlightSummaryRequestsRef = useRef<Set<string>>(new Set())
@@ -319,7 +315,6 @@ export function GlassTrendsWidget({
   const [newsCache, setNewsCache] = useState<Record<string, NewsArticle[]>>({})
   const [newsLoadingKey, setNewsLoadingKey] = useState<string | null>(null)
   const [detailError, setDetailError] = useState<string | null>(null)
-  const [isMobile, setIsMobile] = useState(false)
   const [isSingleRow, setIsSingleRow] = useState(false)
   const [containerElement, setContainerElement] = useState<HTMLDivElement | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -774,21 +769,6 @@ export function GlassTrendsWidget({
     })
   }, [activeFilters, filteredTrends])
 
-  // Auto-cycle through all trends (disabled when filter/summary is expanded)
-  useEffect(() => {
-    if (!filteredTrends.length || filteredTrends.length <= 1 || !isAutoPlaying || isFilterExpanded) {
-      return
-    }
-
-    const interval = setInterval(() => {
-      setSharedState((prev) => ({
-        currentTrendIndex: (prev.currentTrendIndex + 1) % filteredTrends.length,
-      }))
-    }, 5000)
-
-    return () => clearInterval(interval)
-  }, [filteredTrends.length, isAutoPlaying, isFilterExpanded, setSharedState])
-
   // Preload thumbnails for next few trends
   useEffect(() => {
     if (!filteredTrends.length || !activeFilters) return
@@ -842,36 +822,6 @@ export function GlassTrendsWidget({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTrendIndex, filteredTrends.length, activeFilters?.geo, activeFilters?.timeRange])
 
-
-  // Detect mobile device
-  useEffect(() => {
-    const checkMobile = () => {
-      const mobile = typeof window !== 'undefined' && window.innerWidth < 640
-      setIsMobile(mobile)
-    }
-    
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
-  }, [])
-
-  // Pause auto-play when filter is expanded
-  useEffect(() => {
-    if (isFilterExpanded) {
-      setSharedState({ isAutoPlaying: false })
-    }
-  }, [isFilterExpanded, setSharedState])
-
-  // Pause auto-play
-  const pauseAutoPlay = useCallback(() => {
-    setSharedState({ isAutoPlaying: false })
-  }, [setSharedState])
-
-  // Resume auto-play
-  const resumeAutoPlay = useCallback(() => {
-    setSharedState({ isAutoPlaying: true })
-  }, [setSharedState])
-
   const navigateToTrend = useCallback(
     (index: number) => {
       if (!filteredTrends.length) return
@@ -879,9 +829,8 @@ export function GlassTrendsWidget({
       setSharedState({
         currentTrendIndex: validIndex,
       })
-      pauseAutoPlay() // Pause auto-play when user manually selects a trend
     },
-    [filteredTrends.length, pauseAutoPlay, setSharedState],
+    [filteredTrends.length, setSharedState],
   )
 
   // Manual navigation functions
@@ -890,16 +839,14 @@ export function GlassTrendsWidget({
     setSharedState((prev) => ({
       currentTrendIndex: (prev.currentTrendIndex + 1) % filteredTrends.length,
     }))
-    pauseAutoPlay()
-  }, [filteredTrends.length, pauseAutoPlay, setSharedState])
+  }, [filteredTrends.length, setSharedState])
 
   const goToPreviousTrend = useCallback(() => {
     if (!filteredTrends.length) return
     setSharedState((prev) => ({
       currentTrendIndex: (prev.currentTrendIndex - 1 + filteredTrends.length) % filteredTrends.length,
     }))
-    pauseAutoPlay()
-  }, [filteredTrends.length, pauseAutoPlay, setSharedState])
+  }, [filteredTrends.length, setSharedState])
 
   // Swipe detection handlers
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -1445,37 +1392,7 @@ export function GlassTrendsWidget({
 
   const renderEmptyState = () => null
 
-
-  // Render bottom dot indicators
-  const renderDotIndicators = () => {
-    // 필터링 후 트렌드가 1개 이하면 표시하지 않음
-    if (!filteredTrends.length || filteredTrends.length <= 1 || isFilterExpanded || isSingleRow) return null
-    
-    return (
-      <div className="absolute bottom-6 left-4 z-30 flex items-center gap-2">
-        <button
-          onClick={() => {
-            if (isAutoPlaying) {
-              pauseAutoPlay()
-            } else {
-              resumeAutoPlay()
-            }
-          }}
-          className="flex items-center justify-center w-12 h-12 rounded-full cursor-pointer"
-          style={getAdaptiveGlassStyleBlur()}
-          aria-label={isAutoPlaying ? 'Pause auto-play' : 'Resume auto-play'}
-        >
-          {isAutoPlaying ? (
-            <Pause size={24} className="text-white" />
-          ) : (
-            <Play size={24} className="text-white" />
-          )}
-        </button>
-      </div>
-    )
-  }
-
-  // Render navigation arrows (always visible on mobile, only when paused on desktop)
+  // Render navigation arrows
   const renderNavigationArrows = () => {
     // 필터링 후 트렌드가 1개 이하면 버튼 숨김
     if (!filteredTrends.length || filteredTrends.length <= 1 || isFilterExpanded || isSingleRow) return null
@@ -1543,7 +1460,6 @@ export function GlassTrendsWidget({
       setSummaryError(null)
       setSummaryLoading(false)
       setSharedState({
-        isAutoPlaying: false,
         conversationHistory: [],
         summaryContent: cached.summary,
         summaryQuestions: cached.questions || [],
@@ -1553,7 +1469,6 @@ export function GlassTrendsWidget({
     }
 
     setSharedState({
-      isAutoPlaying: false,
       conversationHistory: [],
       summaryContent: '',
       summaryQuestions: [],
@@ -1592,23 +1507,6 @@ export function GlassTrendsWidget({
       setSharedState({ currentTrendIndex: 0 })
     }
   }, [filteredTrends.length, currentTrendIndex, setSharedState])
-
-
-  // Resume auto-play when filters change (new data loaded)
-  useEffect(() => {
-    const wasAutoPlaying = previousAutoPlayRef.current
-    previousAutoPlayRef.current = isAutoPlaying
-
-    if (!trendsState.payload || trendsState.loading) {
-      return
-    }
-
-    if (!isAutoPlaying || !wasAutoPlaying) {
-      return
-    }
-
-    resumeAutoPlay()
-  }, [trendsState.payload, trendsState.loading, resumeAutoPlay, isAutoPlaying])
 
   // Render Filter View (iOS Settings Style) - 헤더 아래에서 확장
   const renderFilterView = (headerHeight?: string) => (
@@ -1827,11 +1725,7 @@ export function GlassTrendsWidget({
         </button>
         <button
           onClick={() => {
-            setSharedState((prev) => ({
-              isFilterExpanded: false,
-              // 모바일이 아닐 때만 자동 재생 재개
-              isAutoPlaying: !isMobile,
-            }))
+            setSharedState({ isFilterExpanded: false })
           }}
           className="w-full py-3.5 bg-white text-black rounded-xl text-[14px] font-bold tracking-tight hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl cursor-pointer"
         >
@@ -1986,7 +1880,6 @@ export function GlassTrendsWidget({
         </div> */}
 
         <div className={`flex-1 flex flex-col min-h-0 relative ${isFullscreen ? 'max-w-3xl mx-auto w-full' : 'w-full'}`}>
-        {renderDotIndicators()}
         <div className="relative z-10 flex-1 min-h-0 overflow-hidden">
           {/* Trend Content */}
           <div

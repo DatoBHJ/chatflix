@@ -4,7 +4,6 @@ type GlassTrendsSharedState = {
   currentTrendIndex: number
   isFilterExpanded: boolean
   isListOpen: boolean
-  isAutoPlaying: boolean
   selectedCategory: string
   selectedCountry: string
   selectedRegion: string
@@ -20,7 +19,6 @@ const defaultState: GlassTrendsSharedState = {
   currentTrendIndex: 0,
   isFilterExpanded: false,
   isListOpen: false,
-  isAutoPlaying: true,
   selectedCategory: '',
   selectedCountry: '',
   selectedRegion: '',
