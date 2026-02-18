@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server'
 import { GoogleGenAI } from '@google/genai'
-import { createClient } from '@/utils/supabase/server'
-import { getAllMemoryBank } from '@/utils/memory-bank'
+import { createHash } from 'crypto'
+import { redis } from '@/lib/ratelimit'
 import { getCachedJSON, setCachedJSON } from '@/lib/redis-json'
-import { buildIpInfoCacheKey, getCacheExpiryIso, GEO_CACHE_TTL_SECONDS } from '@/lib/trends/cache'
+import { buildIpInfoCacheKey, buildLanguageCacheKey, getCacheExpiryIso, GEO_CACHE_TTL_SECONDS, LANGUAGE_CACHE_TTL_SECONDS } from '@/lib/trends/cache'
 
 // Country code to language code mapping (reverse of languageToGeoMapping)
 const COUNTRY_TO_LANGUAGE: Record<string, string> = {
@@ -64,7 +64,19 @@ type IpInfoCacheEntry = {
   cacheExpiresAt: string
 }
 
+type SummaryPayload = {
+  summary: string
+  questions: string[]
+}
+
+type SummaryCacheEntry = {
+  payload: SummaryPayload
+  cachedAt: string
+  cacheExpiresAt: string
+}
+
 const IPINFO_TOKEN = process.env.INFO_TOKEN || process.env.IPINFO_TOKEN
+const SUMMARY_CACHE_TTL_SECONDS = 60 * 60 // 1 hour
 
 const isPrivateIp = (ip?: string | null) => {
   if (!ip) return true
@@ -203,48 +215,73 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Get user and load only personal info memory
-    // 🚀 최적화: 클라이언트에서 전달된 메모리를 우선 사용 (localStorage 캐시 활용)
-    const { personalInfoMemory: clientMemory } = body
-    let personalInfoMemory: string | null = clientMemory || null
-    
-    // 클라이언트에서 메모리를 전달하지 않은 경우에만 서버에서 로드
-    if (!personalInfoMemory) {
-      const supabase = await createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (user) {
-        const { data: memoryData } = await getAllMemoryBank(supabase, user.id, ['00-personal-info'])
-        personalInfoMemory = memoryData || null
-      }
-    }
-
-    // Detect language for guest mode (when no personalInfoMemory)
-    // Priority: browser language > IP-based language > English default
+    // Resolve language from device: Redis cache (Accept-Language key) → browser → IP → 'en'
+    const acceptLanguage = req.headers.get('accept-language') || ''
+    const langCacheKey = buildLanguageCacheKey(acceptLanguage)
     let detectedLanguageCode: string | null = null
-    if (!personalInfoMemory) {
-      // Try browser language first (most accurate)
+
+    const cachedLang = await redis.get<string>(langCacheKey)
+    if (cachedLang && typeof cachedLang === 'string') {
+      detectedLanguageCode = cachedLang
+    } else {
       detectedLanguageCode = getBrowserLanguageCode(req)
-      
-      // Fallback to IP-based detection if browser language not available
       if (!detectedLanguageCode) {
         detectedLanguageCode = await getIpBasedLanguageCode(req)
       }
+      const langToStore = detectedLanguageCode || 'en'
+      await redis.set(langCacheKey, langToStore, { ex: LANGUAGE_CACHE_TTL_SECONDS })
+      if (!detectedLanguageCode) {
+        detectedLanguageCode = 'en'
+      }
     }
 
-    // Build combined prompt (system + user in one)
-    const newsTitles = news?.map((n: any) => n.title).filter(Boolean).join(', ') || 'None'
-    const categoriesStr = categories?.join(', ') || 'None'
-    const keywordsStr = keywords?.join(', ') || 'None'
+    const finalLanguageCode = detectedLanguageCode || 'en'
 
-    // Determine language instruction based on available information
-    let languageInstruction: string
-    if (personalInfoMemory) {
-      languageInstruction = `USER PERSONAL INFORMATION MEMORY (contains language preference - use this language for all responses):\n${personalInfoMemory}\n\nIMPORTANT: Generate the summary and questions in the language specified in the user's personal information memory above. Extract the language preference from that memory and use that exact language for all responses.`
-    } else if (detectedLanguageCode) {
-      languageInstruction = `No user memory available. The user's language is detected as ${detectedLanguageCode} (based on browser settings or IP location). Generate the summary and questions in language code ${detectedLanguageCode}.`
-    } else {
-      languageInstruction = 'No user memory available. Use English as default. Generate the summary and questions in English (default).'
+    // Build combined prompt (system + user in one)
+    // Normalize arrays so cache keys are stable (order/duplications should not cause misses).
+    const newsTitleList = Array.from(
+      new Set<string>((news || []).map((n: any) => n?.title).filter(Boolean)),
+    )
+      .slice(0, 10)
+      .sort()
+    const newsTitles = newsTitleList.join(', ') || 'None'
+
+    const categoriesList = Array.from(new Set<string>((Array.isArray(categories) ? categories : []).filter(Boolean))).sort()
+    const keywordsList = Array.from(new Set<string>((Array.isArray(keywords) ? keywords : []).filter(Boolean))).sort()
+    const categoriesStr = categoriesList.join(', ') || 'None'
+    const keywordsStr = keywordsList.join(', ') || 'None'
+
+    const languageInstruction = `The user's language is ${finalLanguageCode} (from device/browser settings). Generate the summary and questions in language code ${finalLanguageCode}.`
+
+    // Summary caching (global): when cache hit, never call Gemini again.
+    // Follow-up answers depend on conversation history and are not globally cacheable.
+    let summaryCacheKey: string | null = null
+    if (!isFollowUp) {
+      const signature = {
+        v: 1,
+        model: 'gemini-2.5-flash-lite',
+        lang: finalLanguageCode,
+        query,
+        location: location || 'Global',
+        position: position || null,
+        searchVolume: searchVolume || null,
+        percentageIncrease: percentageIncrease || null,
+        categories: categoriesList,
+        keywords: keywordsList,
+        newsTitles: newsTitleList,
+      }
+      const h = createHash('sha1').update(JSON.stringify(signature)).digest('hex')
+      summaryCacheKey = `trends:summary:${finalLanguageCode}:${h}`
+
+      const cached = await getCachedJSON<SummaryCacheEntry>(summaryCacheKey)
+      if (cached?.payload?.summary && Array.isArray(cached.payload.questions)) {
+        return new Response(JSON.stringify(cached.payload), {
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache',
+          },
+        })
+      }
     }
 
     let prompt: string
@@ -394,14 +431,31 @@ CONTENT REQUIREMENTS:
     const readableStream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder()
+        let fullText = ''
         try {
           for await (const chunk of stream) {
             const chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text
             if (chunkText) {
+              fullText += chunkText
               controller.enqueue(encoder.encode(chunkText))
             }
           }
           controller.close()
+
+          // Cache final summary payload for future identical requests.
+          if (summaryCacheKey && fullText) {
+            try {
+              const parsed = JSON.parse(fullText) as SummaryPayload
+              if (parsed?.summary && Array.isArray(parsed?.questions)) {
+                const cachedAt = new Date().toISOString()
+                const cacheExpiresAt = getCacheExpiryIso(SUMMARY_CACHE_TTL_SECONDS)
+                const entry: SummaryCacheEntry = { payload: parsed, cachedAt, cacheExpiresAt }
+                await setCachedJSON(summaryCacheKey, entry, SUMMARY_CACHE_TTL_SECONDS)
+              }
+            } catch {
+              // If parsing fails, skip caching (stream may be incomplete/invalid)
+            }
+          }
         } catch (error: any) {
           console.error('[trends/summary] streaming error', error)
           controller.error(error)

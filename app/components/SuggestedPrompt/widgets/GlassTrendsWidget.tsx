@@ -28,15 +28,11 @@ const SendIcon: React.FC<{ className?: string }> = ({ className }) => (
 )
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
-import Image from 'next/image'
 
 import { WidgetBaseProps } from './index'
 import { useGlassTrendsSharedState } from './useGlassTrendsSharedState'
 import { WidgetHeader } from './WidgetHeader'
 import { getAdaptiveGlassStyleBlur } from '@/app/lib/adaptiveGlassStyle'
-import { loadMemoryWithCache } from '@/app/utils/memory-cache-client'
-import { getChatflixLogo } from '@/lib/models/logoUtils'
-import { createClient } from '@/utils/supabase/client'
 import { OnboardingRenderer } from '@/app/components/Onboarding/OnboardingRenderer'
 
 const formatSearchVolume = (volume = 0): string => {
@@ -290,7 +286,6 @@ export function GlassTrendsWidget({
     selectedRegion,
     timeRange,
     lastFilterSignature,
-    isSummaryExpanded,
     summaryContent,
     summaryQuestions,
     conversationHistory,
@@ -298,27 +293,12 @@ export function GlassTrendsWidget({
   const lastFilterSignatureRef = useRef(lastFilterSignature)
   const previousCategoryRef = useRef(selectedCategory)
   const previousAutoPlayRef = useRef(isAutoPlaying)
+  const lastSummaryTrendKeyRef = useRef<string | null>(null)
+  const summaryResponseCacheRef = useRef<Map<string, { summary: string; questions: string[] }>>(new Map())
+  const inFlightSummaryRequestsRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     lastFilterSignatureRef.current = lastFilterSignature
   }, [lastFilterSignature])
-
-  // 🚀 최적화: 위젯 마운트 시 메모리 미리 로드 (localStorage 캐싱)
-  useEffect(() => {
-    const preloadMemory = async () => {
-      try {
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user?.id) {
-          // personal-core만 미리 로드 (위젯에서 사용하는 카테고리)
-          await loadMemoryWithCache(user.id, ['00-personal-core'])
-          console.log('⚡ [GlassTrendsWidget] Memory preloaded on mount')
-        }
-      } catch (error) {
-        console.warn('Failed to preload memory in GlassTrendsWidget:', error)
-      }
-    }
-    preloadMemory()
-  }, [])
 
   const [geoOptionsResponse, setGeoOptionsResponse] = useState<GeoOptionsResponse | null>(null)
   const [optionsLoading, setOptionsLoading] = useState(true)
@@ -796,7 +776,7 @@ export function GlassTrendsWidget({
 
   // Auto-cycle through all trends (disabled when filter/summary is expanded)
   useEffect(() => {
-    if (!filteredTrends.length || filteredTrends.length <= 1 || !isAutoPlaying || isFilterExpanded || isSummaryExpanded) {
+    if (!filteredTrends.length || filteredTrends.length <= 1 || !isAutoPlaying || isFilterExpanded) {
       return
     }
 
@@ -807,7 +787,7 @@ export function GlassTrendsWidget({
     }, 5000)
 
     return () => clearInterval(interval)
-  }, [filteredTrends.length, isAutoPlaying, isFilterExpanded, isSummaryExpanded, setSharedState])
+  }, [filteredTrends.length, isAutoPlaying, isFilterExpanded, setSharedState])
 
   // Preload thumbnails for next few trends
   useEffect(() => {
@@ -878,16 +858,9 @@ export function GlassTrendsWidget({
   // Pause auto-play when filter is expanded
   useEffect(() => {
     if (isFilterExpanded) {
-      setSharedState({ isAutoPlaying: false, isSummaryExpanded: false }) // Close summary when filter opens
+      setSharedState({ isAutoPlaying: false })
     }
   }, [isFilterExpanded, setSharedState])
-  
-  // Pause auto-play when summary is expanded
-  useEffect(() => {
-    if (isSummaryExpanded) {
-      setSharedState({ isAutoPlaying: false, isFilterExpanded: false })
-    }
-  }, [isSummaryExpanded, setSharedState])
 
   // Pause auto-play
   const pauseAutoPlay = useCallback(() => {
@@ -1029,49 +1002,58 @@ export function GlassTrendsWidget({
   const handleGenerateSummary = useCallback(async () => {
     const trend = filteredTrends[currentTrendIndex]
     if (!trend) return
-    
-    // If summary is already expanded and we have content, just open it without re-requesting
-    if (isSummaryExpanded && summaryContent) {
+
+    // Calculate location string inline
+    const countryLabel = countries.find((c) => c.country_id === selectedCountry)?.country_name || 'Select country'
+    const regionLabel = regionOptions.find((r) => r.geo_id === selectedRegion)?.geo_description || ''
+    const locString = regionLabel
+      ? `${countryLabel}, ${regionLabel}`
+      : countryLabel === 'Select country'
+      ? 'Global'
+      : countryLabel
+
+    const deviceLang =
+      typeof navigator !== 'undefined' && navigator.language ? navigator.language.split('-')[0].toLowerCase() : 'unknown'
+    const summaryRequestKey = [
+      deviceLang,
+      activeFilters?.geo || '',
+      activeFilters?.timeRange || '',
+      trend.news_token || '',
+      trend.query || '',
+      locString,
+    ].join('|')
+
+    const cached = summaryResponseCacheRef.current.get(summaryRequestKey)
+    if (cached?.summary) {
+      setSummaryError(null)
+      setSummaryLoading(false)
+      setSharedState({
+        summaryContent: cached.summary,
+        summaryQuestions: cached.questions || [],
+      })
       return
     }
-    
+
+    if (inFlightSummaryRequestsRef.current.has(summaryRequestKey)) {
+      return
+    }
+    inFlightSummaryRequestsRef.current.add(summaryRequestKey)
+
     setSummaryLoading(true)
     setSummaryError(null)
     setQaError(null)
     setQaInput('')
     
-    // 페이지 열기 (즉시, 지연 없음)
-    setSharedState({ 
-      isSummaryExpanded: true,
+    // Reset summary/Q&A for this trend before streaming response.
+    setSharedState({
       summaryContent: '',
       summaryQuestions: [],
-      conversationHistory: [], // Reset conversation history when generating new summary
+      conversationHistory: [],
     })
     
     try {
-      // 🚀 최적화: localStorage에서 메모리 로드 (가장 빠른 방법)
-      let personalInfoMemory: string | null = null
-      try {
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          personalInfoMemory = await loadMemoryWithCache(user.id, ['00-personal-core'])
-        }
-      } catch (error) {
-        console.warn('Failed to load memory from cache:', error)
-      }
-      
       const cacheKey = getNewsCacheKey(activeFilters, trend.news_token)
       const newsList = newsCache[cacheKey] || []
-      
-      // Calculate location string inline
-      const countryLabel = countries.find((c) => c.country_id === selectedCountry)?.country_name || 'Select country'
-      const regionLabel = regionOptions.find((r) => r.geo_id === selectedRegion)?.geo_description || ''
-      const locString = regionLabel 
-        ? `${countryLabel}, ${regionLabel}`
-        : countryLabel === 'Select country' 
-        ? 'Global' 
-        : countryLabel
       
       const response = await fetch('/api/trends/summary', {
         method: 'POST',
@@ -1085,7 +1067,6 @@ export function GlassTrendsWidget({
           position: trend.position,
           searchVolume: trend.search_volume_original,
           percentageIncrease: trend.percentage_increase_original,
-          personalInfoMemory, // 🚀 클라이언트에서 로드한 메모리 전달
         }),
       })
       
@@ -1152,6 +1133,13 @@ export function GlassTrendsWidget({
         if (finalData.questions && Array.isArray(finalData.questions)) {
           setSharedState({ summaryQuestions: finalData.questions })
         }
+
+        if (finalData.summary) {
+          summaryResponseCacheRef.current.set(summaryRequestKey, {
+            summary: finalData.summary,
+            questions: Array.isArray(finalData.questions) ? finalData.questions : [],
+          })
+        }
       } catch (error) {
         // If final parse fails, there's an issue with the response
         throw new Error('Failed to parse final JSON response')
@@ -1161,8 +1149,10 @@ export function GlassTrendsWidget({
     } catch (error: any) {
       setSummaryError(error?.message || 'Unable to generate summary')
       setSummaryLoading(false)
+    } finally {
+      inFlightSummaryRequestsRef.current.delete(summaryRequestKey)
     }
-  }, [filteredTrends, currentTrendIndex, activeFilters, newsCache, countries, selectedCountry, regionOptions, selectedRegion, isSummaryExpanded, summaryContent, setSharedState])
+  }, [filteredTrends, currentTrendIndex, activeFilters, newsCache, countries, selectedCountry, regionOptions, selectedRegion, setSharedState])
 
   const handleFollowUpQuestion = useCallback(async (question: string) => {
     if (!question.trim() || isQALoading) return
@@ -1180,18 +1170,6 @@ export function GlassTrendsWidget({
     setQaInput('')
     
     try {
-      // Load personal info memory
-      let personalInfoMemory: string | null = null
-      try {
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          personalInfoMemory = await loadMemoryWithCache(user.id, ['00-personal-core'])
-        }
-      } catch (error) {
-        console.warn('Failed to load memory from cache:', error)
-      }
-      
       const cacheKey = getNewsCacheKey(activeFilters, trend.news_token)
       const newsList = newsCache[cacheKey] || []
       
@@ -1216,7 +1194,6 @@ export function GlassTrendsWidget({
           position: trend.position,
           searchVolume: trend.search_volume_original,
           percentageIncrease: trend.percentage_increase_original,
-          personalInfoMemory,
           isFollowUp: true,
           conversationHistory: updatedHistory,
           initialSummary: summaryContent,
@@ -1472,7 +1449,7 @@ export function GlassTrendsWidget({
   // Render bottom dot indicators
   const renderDotIndicators = () => {
     // 필터링 후 트렌드가 1개 이하면 표시하지 않음
-    if (!filteredTrends.length || filteredTrends.length <= 1 || isFilterExpanded || isSummaryExpanded || isSingleRow) return null
+    if (!filteredTrends.length || filteredTrends.length <= 1 || isFilterExpanded || isSingleRow) return null
     
     return (
       <div className="absolute bottom-6 left-4 z-30 flex items-center gap-2">
@@ -1501,7 +1478,7 @@ export function GlassTrendsWidget({
   // Render navigation arrows (always visible on mobile, only when paused on desktop)
   const renderNavigationArrows = () => {
     // 필터링 후 트렌드가 1개 이하면 버튼 숨김
-    if (!filteredTrends.length || filteredTrends.length <= 1 || isFilterExpanded || isSummaryExpanded || isSingleRow) return null
+    if (!filteredTrends.length || filteredTrends.length <= 1 || isFilterExpanded || isSingleRow) return null
 
     return (
       <>
@@ -1531,12 +1508,73 @@ export function GlassTrendsWidget({
   // Get current trend
   const currentTrend = filteredTrends[currentTrendIndex]
   
-  // Load news for current trend if needed
+  // Kick off news + summary requests immediately (parallel) when trend changes.
+  // Also pause auto-play by default so we don't churn through summaries every 5s.
   useEffect(() => {
-    if (currentTrend) {
-      loadTrendNews(currentTrend)
+    if (!currentTrend) return
+
+    const trendKey = `${currentTrendIndex}-${lastFilterSignature}`
+    if (lastSummaryTrendKeyRef.current === trendKey) return
+    lastSummaryTrendKeyRef.current = trendKey
+
+    // If we already have a cached summary for this exact trend+filters+device language,
+    // render it immediately and do not re-request.
+    const countryLabel = countries.find((c) => c.country_id === selectedCountry)?.country_name || 'Select country'
+    const regionLabel = regionOptions.find((r) => r.geo_id === selectedRegion)?.geo_description || ''
+    const locString = regionLabel
+      ? `${countryLabel}, ${regionLabel}`
+      : countryLabel === 'Select country'
+      ? 'Global'
+      : countryLabel
+
+    const deviceLang =
+      typeof navigator !== 'undefined' && navigator.language ? navigator.language.split('-')[0].toLowerCase() : 'unknown'
+    const summaryRequestKey = [
+      deviceLang,
+      activeFilters?.geo || '',
+      activeFilters?.timeRange || '',
+      currentTrend.news_token || '',
+      currentTrend.query || '',
+      locString,
+    ].join('|')
+
+    const cached = summaryResponseCacheRef.current.get(summaryRequestKey)
+    if (cached?.summary) {
+      setSummaryError(null)
+      setSummaryLoading(false)
+      setSharedState({
+        isAutoPlaying: false,
+        conversationHistory: [],
+        summaryContent: cached.summary,
+        summaryQuestions: cached.questions || [],
+      })
+      void loadTrendNews(currentTrend)
+      return
     }
-  }, [currentTrend, loadTrendNews])
+
+    setSharedState({
+      isAutoPlaying: false,
+      conversationHistory: [],
+      summaryContent: '',
+      summaryQuestions: [],
+    })
+
+    void loadTrendNews(currentTrend)
+    void handleGenerateSummary()
+  }, [
+    currentTrend,
+    currentTrendIndex,
+    lastFilterSignature,
+    activeFilters?.geo,
+    activeFilters?.timeRange,
+    loadTrendNews,
+    handleGenerateSummary,
+    setSharedState,
+    countries,
+    selectedCountry,
+    regionOptions,
+    selectedRegion,
+  ])
 
   useEffect(() => {
     if (previousCategoryRef.current !== selectedCategory) {
@@ -1571,251 +1609,6 @@ export function GlassTrendsWidget({
 
     resumeAutoPlay()
   }, [trendsState.payload, trendsState.loading, resumeAutoPlay, isAutoPlaying])
-
-
-  // Render Summary View (iOS Settings Style)
-  const renderSummaryView = (headerHeight?: string) => (
-    <div
-      className={`
-        absolute inset-0 ${headerHeight || 'top-[73px]'} px-6 py-2 flex flex-col
-        transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]
-        ${
-          isSummaryExpanded
-            ? 'opacity-100 scale-100 translate-y-0 visible'
-            : 'opacity-0 scale-[0.98] translate-y-4 invisible pointer-events-none'
-        }
-      `}
-    >
-      {/* 부드러운 스크롤 영역 - Done 버튼과 입력 필드가 가리지 않도록 충분한 여백 확보. 전체화면 시 닫기 버튼과 겹치지 않도록 상단 여백 추가 */}
-      <div
-        className={`flex-1 overflow-y-auto no-scrollbar space-y-4 py-2 pb-40 ${
-          isFullscreen ? 'pt-16 sm:pt-20' : ''
-        }`}
-      >
-        {summaryLoading ? (
-          <div className="flex items-center justify-center py-12 gap-2">
-            <Loader2 size={20} className="animate-spin text-white/60" />
-            <span className="text-white/60 text-sm">Generating summary...</span>
-          </div>
-        ) : summaryError ? (
-          <div className="py-12 text-center">
-            <p className="text-red-300 text-sm mb-4">{summaryError}</p>
-            <button
-              onClick={handleGenerateSummary}
-              className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-sm hover:bg-white/20 transition-all cursor-pointer"
-            >
-              Try Again
-            </button>
-          </div>
-        ) : summaryContent ? (
-          <div className="space-y-6">
-            {/* Initial Summary */}
-            <div className="prose prose-invert max-w-none text-white/90">
-              <ReactMarkdown
-                rehypePlugins={[rehypeRaw]}
-                components={{
-                  p: ({ children }) => <p className="mb-2 leading-relaxed">{children}</p>,
-                  h1: ({ children }) => <h1 className="text-2xl font-bold mt-6 mb-4">{children}</h1>,
-                  h2: ({ children }) => <h2 className="text-xl font-bold mt-6 mb-3">{children}</h2>,
-                  h3: ({ children }) => <h3 className="text-lg font-bold mt-4 mb-2">{children}</h3>,
-                  strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-                  em: ({ children }) => <em className="italic">{children}</em>,
-                  ul: ({ children }) => <ul className="list-disc ml-4 mb-2">{children}</ul>,
-                  ol: ({ children }) => <ol className="list-decimal ml-4 mb-2">{children}</ol>,
-                  li: ({ children }) => <li className="mb-1">{children}</li>,
-                  blockquote: ({ children }) => <blockquote className="border-l-4 border-white/20 pl-4 my-4 italic">{children}</blockquote>,
-                  code: ({ children }) => <code className="px-1.5 py-0.5 rounded bg-white/10 text-sm">{children}</code>,
-                  pre: ({ children }) => <pre className="bg-white/5 rounded-lg p-4 overflow-x-auto mb-2">{children}</pre>,
-                }}
-              >
-                {preprocessBoldMarkdown(summaryContent)}
-              </ReactMarkdown>
-            </div>
-            
-            {/* Conversation History */}
-            {conversationHistory.length > 0 && (
-              <div className="pt-4 border-t border-white/10 space-y-4">
-                <h3 className="text-sm font-semibold text-white/70 mb-3">Q&A</h3>
-                {conversationHistory.map((message, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex flex-col gap-2 ${
-                      message.role === 'user' ? 'items-end' : 'items-start'
-                    }`}
-                  >
-                    <div
-                      className={`max-w-[85%] rounded-[24px] px-4 py-3 ${
-                        message.role === 'user'
-                          ? 'bg-white/10 text-white'
-                          : 'bg-white/5 text-white/90 border border-white/10'
-                      }`}
-                    >
-                      {message.role === 'assistant' ? (
-                        <div className="prose prose-invert max-w-none text-sm">
-                          <ReactMarkdown
-                            rehypePlugins={[rehypeRaw]}
-                            components={{
-                              p: ({ children }) => <p className="mb-2 leading-relaxed">{children}</p>,
-                              strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-                              em: ({ children }) => <em className="italic">{children}</em>,
-                              ul: ({ children }) => <ul className="list-disc ml-4 mb-2">{children}</ul>,
-                              ol: ({ children }) => <ol className="list-decimal ml-4 mb-2">{children}</ol>,
-                              li: ({ children }) => <li className="mb-1">{children}</li>,
-                              code: ({ children }) => <code className="px-1.5 py-0.5 rounded bg-white/10 text-xs">{children}</code>,
-                            }}
-                          >
-                            {preprocessBoldMarkdown(message.content)}
-                          </ReactMarkdown>
-                        </div>
-                      ) : (
-                        <p className="text-sm">{message.content}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {isQALoading && (
-                  <div className="flex flex-col gap-2 items-start">
-                    <div className="max-w-[85%] rounded-[24px] px-4 py-3 bg-white/5 text-white/90 border border-white/10">
-                      <div className="flex items-center gap-1">
-                        <span className="flex gap-0.5">
-                          <span className="inline-block w-1 h-1 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                          <span className="inline-block w-1 h-1 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                          <span className="inline-block w-1 h-1 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {qaError && (
-                  <div className="text-red-300 text-sm px-4 py-2 bg-red-500/10 rounded-xl border border-red-500/20">
-                    {qaError}
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* Follow-up Questions */}
-            {summaryQuestions.length > 0 && (
-              <div className="pt-4 border-t border-white/10">
-                <h3 className="text-sm font-semibold text-white/70 mb-3">Follow-up Questions</h3>
-                <div className="space-y-2">
-                  {summaryQuestions.map((question, idx) => (
-                    <div
-                      key={idx}
-                      className="futuristic-input relative w-full transition-colors duration-300 py-1.5 outline-none min-h-[32px] flex-shrink-0 cursor-pointer"
-                      style={{
-                        ...getAdaptiveGlassStyleBlur(),
-                        boxShadow: 'none',
-                        paddingLeft: '1rem',
-                        paddingRight: '3rem',
-                        overflow: 'visible',
-                        overflowY: 'visible',
-                        maxHeight: 'none',
-                        height: 'auto',
-                      }}
-                      onClick={() => {
-                        handleFollowUpQuestion(question)
-                      }}
-                    >
-                      <div 
-                        className="text-sm sm:text-base font-normal text-white"
-                        style={{
-                          wordBreak: 'break-word',
-                          overflowWrap: 'break-word',
-                          whiteSpace: 'pre-wrap',
-                          lineHeight: '1.3',
-                        }}
-                      >
-                        <ReactMarkdown
-                          rehypePlugins={[rehypeRaw]}
-                          components={{
-                            p: ({ children }) => <span>{children}</span>,
-                            strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-                            em: ({ children }) => <em className="italic">{children}</em>,
-                          }}
-                        >
-                          {preprocessBoldMarkdown(question)}
-                        </ReactMarkdown>
-                      </div>
-                      {/* 전송 버튼 - Chat Starter 위젯 스타일 */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleFollowUpQuestion(question)
-                        }}
-                        className="absolute right-1 bottom-[3px] sm:bottom-1.5 w-8 h-6 rounded-full flex items-center justify-center transition-all duration-300 flex-shrink-0 cursor-pointer bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)] hover:scale-105 active:scale-95"
-                        aria-label="Send question"
-                      >
-                        <SendIcon className="transition-transform duration-300" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : null}
-      </div>
-      
-      {/* Q&A Input Field - Fixed above Done button */}
-      {summaryContent && !summaryLoading && (
-        <div className="absolute bottom-20 left-0 right-0 px-6 pb-2">
-          <div className="relative flex items-center gap-2">
-            <input
-              type="text"
-              value={qaInput}
-              onChange={(e) => setQaInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  if (qaInput.trim()) {
-                    handleFollowUpQuestion(qaInput)
-                  }
-                }
-              }}
-              placeholder="Ask a follow-up question..."
-              disabled={isQALoading}
-              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-            />
-            <button
-              onClick={() => {
-                if (qaInput.trim() && !isQALoading) {
-                  handleFollowUpQuestion(qaInput)
-                }
-              }}
-              disabled={!qaInput.trim() || isQALoading}
-              className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 flex-shrink-0 cursor-pointer bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)] hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Send question"
-            >
-              {isQALoading ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <SendIcon className="w-4 h-4" />
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Bottom Action (Fixed) - Filter View와 동일한 스타일 */}
-      <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/20 to-transparent space-y-3">
-        <button
-          onClick={() => {
-            setSharedState({ 
-              isSummaryExpanded: false,
-              isAutoPlaying: true 
-            })
-            // Keep conversation history when closing (don't reset)
-            setQaInput('')
-            setQaError(null)
-          }}
-          className="w-full py-3.5 bg-white text-black rounded-xl text-[14px] font-bold tracking-tight hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl cursor-pointer"
-        >
-          Done
-        </button>
-      </div>
-    </div>
-  )
 
   // Render Filter View (iOS Settings Style) - 헤더 아래에서 확장
   const renderFilterView = (headerHeight?: string) => (
@@ -2201,7 +1994,7 @@ export function GlassTrendsWidget({
               absolute inset-0 overflow-y-auto flex flex-col px-6
               ${isFullscreen ? 'justify-start pt-24 pb-12' : ''}
               transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]
-              ${isFilterExpanded || isSummaryExpanded ? 'opacity-0 scale-[0.98] translate-y-4 pointer-events-none' : 'opacity-100 scale-100 translate-y-0'}
+              ${isFilterExpanded ? 'opacity-0 scale-[0.98] translate-y-4 pointer-events-none' : 'opacity-100 scale-100 translate-y-0'}
             `}
           >
           <div className={isFullscreen ? 'max-w-3xl mx-auto w-full' : 'w-full'}>
@@ -2313,6 +2106,235 @@ export function GlassTrendsWidget({
             </div>
           </div>
 
+          {/* Summary + Q&A (main content) */}
+          <div className="mb-10">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold">Summary</h3>
+              <button
+                onClick={handleGenerateSummary}
+                disabled={summaryLoading}
+                className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white/80 text-xs hover:bg-white/10 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Refresh summary"
+              >
+                Refresh
+              </button>
+            </div>
+
+            {summaryLoading ? (
+              <div className="flex items-center justify-center py-10 gap-2 bg-white/5 border border-white/10 rounded-[24px]">
+                <Loader2 size={18} className="animate-spin text-white/60" />
+                <span className="text-white/60 text-sm">Generating summary...</span>
+              </div>
+            ) : summaryError ? (
+              <div className="py-8 text-center bg-white/5 border border-white/10 rounded-[24px]">
+                <p className="text-red-300 text-sm mb-4">{summaryError}</p>
+                <button
+                  onClick={handleGenerateSummary}
+                  className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-sm hover:bg-white/20 transition-all cursor-pointer"
+                >
+                  Try Again
+                </button>
+              </div>
+            ) : summaryContent ? (
+              <div className="space-y-6">
+                {/* Summary content */}
+                <div className="prose prose-invert max-w-none text-white/90 bg-white/5 border border-white/10 rounded-[24px] p-5">
+                  <ReactMarkdown
+                    rehypePlugins={[rehypeRaw]}
+                    components={{
+                      p: ({ children }) => <p className="mb-2 leading-relaxed">{children}</p>,
+                      h1: ({ children }) => <h1 className="text-2xl font-bold mt-4 mb-3">{children}</h1>,
+                      h2: ({ children }) => <h2 className="text-xl font-bold mt-4 mb-2">{children}</h2>,
+                      h3: ({ children }) => <h3 className="text-lg font-bold mt-3 mb-2">{children}</h3>,
+                      strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+                      em: ({ children }) => <em className="italic">{children}</em>,
+                      ul: ({ children }) => <ul className="list-disc ml-4 mb-2">{children}</ul>,
+                      ol: ({ children }) => <ol className="list-decimal ml-4 mb-2">{children}</ol>,
+                      li: ({ children }) => <li className="mb-1">{children}</li>,
+                      blockquote: ({ children }) => (
+                        <blockquote className="border-l-4 border-white/20 pl-4 my-4 italic">{children}</blockquote>
+                      ),
+                      code: ({ children }) => <code className="px-1.5 py-0.5 rounded bg-white/10 text-sm">{children}</code>,
+                      pre: ({ children }) => <pre className="bg-white/5 rounded-lg p-4 overflow-x-auto mb-2">{children}</pre>,
+                    }}
+                  >
+                    {preprocessBoldMarkdown(summaryContent)}
+                  </ReactMarkdown>
+                </div>
+
+                {/* Conversation History */}
+                {(conversationHistory.length > 0 || isQALoading || qaError) && (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-semibold text-white/70">Q&A</h3>
+                    {conversationHistory.map((message, idx) => (
+                      <div
+                        key={idx}
+                        className={`flex flex-col gap-2 ${
+                          message.role === 'user' ? 'items-end' : 'items-start'
+                        }`}
+                      >
+                        <div
+                          className={`max-w-[85%] rounded-[24px] px-4 py-3 ${
+                            message.role === 'user'
+                              ? 'bg-white/10 text-white'
+                              : 'bg-white/5 text-white/90 border border-white/10'
+                          }`}
+                        >
+                          {message.role === 'assistant' ? (
+                            <div className="prose prose-invert max-w-none text-sm">
+                              <ReactMarkdown
+                                rehypePlugins={[rehypeRaw]}
+                                components={{
+                                  p: ({ children }) => <p className="mb-2 leading-relaxed">{children}</p>,
+                                  strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+                                  em: ({ children }) => <em className="italic">{children}</em>,
+                                  ul: ({ children }) => <ul className="list-disc ml-4 mb-2">{children}</ul>,
+                                  ol: ({ children }) => <ol className="list-decimal ml-4 mb-2">{children}</ol>,
+                                  li: ({ children }) => <li className="mb-1">{children}</li>,
+                                  code: ({ children }) => <code className="px-1.5 py-0.5 rounded bg-white/10 text-xs">{children}</code>,
+                                }}
+                              >
+                                {preprocessBoldMarkdown(message.content)}
+                              </ReactMarkdown>
+                            </div>
+                          ) : (
+                            <p className="text-sm">{message.content}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                    {isQALoading && (
+                      <div className="flex flex-col gap-2 items-start">
+                        <div className="max-w-[85%] rounded-[24px] px-4 py-3 bg-white/5 text-white/90 border border-white/10">
+                          <div className="flex items-center gap-1">
+                            <span className="flex gap-0.5">
+                              <span
+                                className="inline-block w-1 h-1 bg-white/60 rounded-full animate-bounce"
+                                style={{ animationDelay: '0ms' }}
+                              ></span>
+                              <span
+                                className="inline-block w-1 h-1 bg-white/60 rounded-full animate-bounce"
+                                style={{ animationDelay: '150ms' }}
+                              ></span>
+                              <span
+                                className="inline-block w-1 h-1 bg-white/60 rounded-full animate-bounce"
+                                style={{ animationDelay: '300ms' }}
+                              ></span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {qaError && (
+                      <div className="text-red-300 text-sm px-4 py-2 bg-red-500/10 rounded-xl border border-red-500/20">
+                        {qaError}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Follow-up Questions */}
+                {summaryQuestions.length > 0 && (
+                  <div className="pt-2">
+                    <h3 className="text-sm font-semibold text-white/70 mb-3">Follow-up Questions</h3>
+                    <div className="space-y-2">
+                      {summaryQuestions.map((question, idx) => (
+                        <div
+                          key={idx}
+                          className="futuristic-input relative w-full transition-colors duration-300 py-1.5 outline-none min-h-[32px] cursor-pointer"
+                          style={{
+                            ...getAdaptiveGlassStyleBlur(),
+                            boxShadow: 'none',
+                            paddingLeft: '1rem',
+                            paddingRight: '3rem',
+                            overflow: 'visible',
+                            overflowY: 'visible',
+                            maxHeight: 'none',
+                            height: 'auto',
+                          }}
+                          onClick={() => {
+                            handleFollowUpQuestion(question)
+                          }}
+                        >
+                          <div
+                            className="text-sm sm:text-base font-normal text-white"
+                            style={{
+                              wordBreak: 'break-word',
+                              overflowWrap: 'break-word',
+                              whiteSpace: 'pre-wrap',
+                              lineHeight: '1.3',
+                            }}
+                          >
+                            <ReactMarkdown
+                              rehypePlugins={[rehypeRaw]}
+                              components={{
+                                p: ({ children }) => <span>{children}</span>,
+                                strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+                                em: ({ children }) => <em className="italic">{children}</em>,
+                              }}
+                            >
+                              {preprocessBoldMarkdown(question)}
+                            </ReactMarkdown>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleFollowUpQuestion(question)
+                            }}
+                            className="absolute right-1 bottom-[3px] sm:bottom-1.5 w-8 h-6 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)] hover:scale-105 active:scale-95"
+                            aria-label="Send question"
+                          >
+                            <SendIcon className="transition-transform duration-300" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Q&A Input */}
+                <div className="pt-2">
+                  <div className="relative flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={qaInput}
+                      onChange={(e) => setQaInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          if (qaInput.trim()) {
+                            handleFollowUpQuestion(qaInput)
+                          }
+                        }
+                      }}
+                      placeholder="Ask a follow-up question..."
+                      disabled={isQALoading}
+                      className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                    />
+                    <button
+                      onClick={() => {
+                        if (qaInput.trim() && !isQALoading) {
+                          handleFollowUpQuestion(qaInput)
+                        }
+                      }}
+                      disabled={!qaInput.trim() || isQALoading}
+                      className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer bg-[var(--chat-input-primary)] text-[var(--chat-input-primary-foreground)] hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Send question"
+                    >
+                      {isQALoading ? <Loader2 size={16} className="animate-spin" /> : <SendIcon className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="py-8 text-center bg-white/5 border border-white/10 rounded-[24px]">
+                <p className="text-sm text-white/60">Summary will appear here shortly.</p>
+              </div>
+            )}
+          </div>
+
           <div className="mb-6">
             <h3 className="text-lg font-bold mb-3">Latest News</h3>
             {detailError && <p className="text-sm text-red-300 mb-2">{detailError}</p>}
@@ -2381,32 +2403,7 @@ export function GlassTrendsWidget({
           </div>
           {/* Filter View - iOS Settings Style (Cross-fade) */}
           {renderFilterView('top-0')}
-          {/* Summary View - iOS Settings Style (Cross-fade) */}
-          {renderSummaryView('top-0')}
         </div>
-
-        {/* Send Button - bottom-right of content (same position as before zoom) */}
-        {!isFilterExpanded && !isSummaryExpanded && currentTrend && !isSingleRow && (
-          <button
-            onClick={handleGenerateSummary}
-            data-onboarding-target="glass-trends-chatflix-button"
-            className="absolute bottom-6 right-4 z-50 w-14 h-14 rounded-full text-white flex items-center justify-center cursor-pointer"
-            style={getAdaptiveGlassStyleBlur()}
-            aria-label="Generate summary"
-          >
-            {summaryLoading ? (
-              <Loader2 size={20} className="animate-spin" />
-            ) : (
-              <Image
-                src={getChatflixLogo({ isDark: true })}
-                alt="Chatflix"
-                width={30}
-                height={30}
-                className="transition-transform duration-300 [filter:drop-shadow(0_0px_4px_rgba(255,255,255,0.7))]"
-              />
-            )}
-          </button>
-        )}
 
         <div className="absolute bottom-0 left-0 right-0 p-6 pt-0 bg-gradient-to-t from-black via-black/90 to-transparent z-30 flex justify-center" />
         </div>
@@ -2416,7 +2413,7 @@ export function GlassTrendsWidget({
           location="quick-access"
           context={{ widgetId: stableWidgetId }}
           displayTypes={['tooltip']}
-          hideWhen={isFilterExpanded || isSummaryExpanded || isSingleRow}
+          hideWhen={isFilterExpanded || isSingleRow}
           scopeRef={containerRef}
           scopeElement={containerElement}
           elevateForOverlay={isFullscreen}

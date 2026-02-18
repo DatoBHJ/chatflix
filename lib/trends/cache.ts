@@ -23,6 +23,15 @@ export const buildIpInfoCacheKey = (ip?: string | null) => {
   return `ipinfo:${ipHash}`
 }
 
+/** Redis key for cached language code from Accept-Language header (TTL 7 days) */
+export const LANGUAGE_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
+
+export const buildLanguageCacheKey = (acceptLanguage: string) => {
+  const normalized = (acceptLanguage || '').trim() || 'unknown'
+  const h = createHash('sha1').update(normalized).digest('hex')
+  return `trends:lang:${h}`
+}
+
 export const buildTrendsCacheKey = ({ geo, timeRange }: CacheFilters) => {
   return `trends:${geo.toUpperCase()}:${timeRange}`
 }
