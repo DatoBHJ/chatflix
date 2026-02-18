@@ -7,7 +7,7 @@ import { getGeoOptions } from '@/lib/trends/options';
 type AllowedMemoryCategory = typeof ALLOWED_MEMORY_CATEGORY_ARRAY[number];
 
 // AI model configuration used for memory refinement
-const REFINE_MODEL = 'gemini-2.5-flash-lite';
+const REFINE_MODEL = 'gemini-2.5-flash';
 const REFINE_MAX_TOKENS = 4000; // Increased to cover roughly 50 messages per run
 
 const MEMORY_CATEGORIES = {
