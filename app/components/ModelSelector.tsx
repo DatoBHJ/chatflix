@@ -334,7 +334,11 @@ export function ModelSelector({
                 ? 'bg-white border-transparent' 
                 : 'bg-[#F2F2F7] dark:bg-[#2C2C2E] border-black/5'
             }`}
-            style={!isSelected ? getAdaptiveGlassStyleBlur() : undefined}
+            style={!isSelected ? {
+              ...getAdaptiveGlassStyleBlur(),
+              // 모델 선택창 로고만 라이트모드에서 기존 글라스 틴트 유지
+              ...(isDark ? {} : { backgroundColor: 'rgba(0, 0, 0, 0.1)' }),
+            } : undefined}
           >
             {isChatflixModel(model.id) ? (
               <Image 
