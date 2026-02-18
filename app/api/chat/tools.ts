@@ -556,6 +556,15 @@ const toolDefinitions = {
       maxChars: 'Optional. Maximum characters to return. Default 2000. Hard cap 5000.',
     },
   },
+  chat_history_search: {
+    description:
+      'Search ALL of the user\'s past chat messages across all chat sessions. Use when the user asks to find something from previous conversations. Returns few, relevance-ranked results with full message content and deep-link URLs. Requires authenticated user.',
+    inputSchema: {
+      query: 'Search term (min 2 chars). Uses full-text search across message content.',
+      limit: 'Optional. Max results to return. Default 8, hard cap 15. Prefer fewer, precise results.',
+      offset: 'Optional. Offset for pagination (for "search more" follow-ups). Default 0.',
+    },
+  },
   read_file: {
     description: 'Read the contents of a file from the workspace sandbox. Use absolute paths (e.g. /home/user/workspace/file.py). Supports windowed reading for large files via startLine/endLine or startLine+windowSize. For large files, returns at most 12k characters and includes paging hints (nextReadStartLine/nextRead) so you can continue without manual line math.',
     inputSchema: {
@@ -4465,6 +4474,90 @@ export function createDbSearchToolResultsTool(
   });
 
   return Object.assign(dbTool, { lookupResults });
+}
+
+export function createChatHistorySearchTool(
+  dataStream: any,
+  userId: string,
+  supabase: any
+) {
+  const searchResults: Array<{
+    searchId: string;
+    query: string;
+    results: Array<{
+      chatSessionId: string;
+      chatTitle?: string;
+      messageId: string;
+      createdAt: string;
+      role: string;
+      snippet: string;
+      url: string;
+    }>;
+  }> = [];
+
+  const chatSearchTool = tool({
+    description: toolDefinitions.chat_history_search.description,
+    inputSchema: z.object({
+      query: z.string().min(2).describe(toolDefinitions.chat_history_search.inputSchema.query),
+      limit: z.number().optional().default(8).describe(toolDefinitions.chat_history_search.inputSchema.limit),
+      offset: z.number().optional().default(0).describe(toolDefinitions.chat_history_search.inputSchema.offset),
+    }),
+    execute: async (input: any) => {
+      if (!userId || userId === 'anonymous' || userId.startsWith('anonymous_')) {
+        throw new Error('Authentication required to search chat history.');
+      }
+
+      const query = String(input.query || '').trim();
+      if (query.length < 2) throw new Error('Query must be at least 2 characters.');
+      const limit = Math.min(Math.max(Number(input.limit) || 8, 1), 15);
+      const offset = Math.max(Number(input.offset) || 0, 0);
+
+      const { data, error } = await supabase.rpc('search_messages_pgroonga_v2', {
+        search_term: query,
+        user_id_param: userId,
+        limit_param: limit,
+        offset_param: offset,
+      });
+
+      if (error) throw error;
+
+      const rows = (data || []) as Array<{
+        message_id: string;
+        chat_session_id: string;
+        sequence_number: number;
+        created_at: string;
+        role: string;
+        model: string;
+        content: string;
+        chat_title: string;
+      }>;
+
+      const encodedQuery = encodeURIComponent(query);
+      const fullContent = (row: { content?: string | null }) => (row.content ?? '').trim();
+      const results = rows.map((row) => ({
+        chatSessionId: row.chat_session_id,
+        chatTitle: row.chat_title || undefined,
+        messageId: row.message_id,
+        createdAt: row.created_at,
+        role: row.role,
+        snippet: fullContent(row).slice(0, 300),
+        content: fullContent(row),
+        url: `/chat/${row.chat_session_id}?search=${encodedQuery}&scrollToMessage=${encodeURIComponent(row.message_id)}`,
+      }));
+
+      const searchId = `chs_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const resultPayload = {
+        searchId,
+        query,
+        results,
+      };
+
+      searchResults.push(resultPayload);
+      return resultPayload;
+    },
+  });
+
+  return Object.assign(chatSearchTool, { searchResults });
 }
 
 function deepTruncate(value: any, opts: { maxDepth: number; maxArray: number; maxString: number }, depth = 0): any {

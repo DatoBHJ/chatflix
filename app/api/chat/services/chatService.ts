@@ -547,6 +547,7 @@ Focus on being genuinely helpful and let the conversation flow naturally.`;
         'image_upscaler': 'imageUpscalerTool',
         'run_python_code': 'codeExecution',
         'browser_observe': 'browserObserve',
+        'chat_history_search': 'chatHistorySearch',
       };
       return toolMapping[toolName] || null;
     };
@@ -555,7 +556,7 @@ Focus on being genuinely helpful and let the conversation flow naturally.`;
     const imageTools = ['gemini_image_tool', 'seedream_image_tool', 'image_upscaler'];
     // const imageTools = ['gemini_image_tool', 'seedream_image_tool', 'qwen_image_edit'];
     // 검색 도구 목록
-    const searchTools = ['google_search', 'web_search', 'twitter_search', 'youtube_search'];
+    const searchTools = ['google_search', 'web_search', 'twitter_search', 'youtube_search', 'chat_history_search'];
     // 비디오 도구 목록
     const videoTools = ['grok_video', 'wan25_video', 'video_upscaler'];
     

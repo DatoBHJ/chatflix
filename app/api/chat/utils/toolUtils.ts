@@ -11,6 +11,7 @@ import {
   createTwitterSearchTool,
   createDbSearchToolResultsTool,
   createDbReadToolResultWindowTool,
+  createChatHistorySearchTool,
   createWan25VideoTool,
   createGrokVideoTool,
   createVideoUpscalerTool,
@@ -75,6 +76,12 @@ export const TOOL_REGISTRY = {
       createDbReadToolResultWindowTool(dataStream, chatId, userId, supabase),
     resultKey: 'dbToolResultsWindows',
     description: 'Read a small window of a saved tool_results entry from Supabase'
+  },
+  'chat_history_search': {
+    createFn: (dataStream: any, chatId: string, userId: string, supabase: any) =>
+      createChatHistorySearchTool(dataStream, userId, supabase),
+    resultKey: 'chatHistorySearchResults',
+    description: 'Search all past chat messages across sessions with deep-link URLs'
   },
   'gemini_image_tool': {
     createFn: (dataStream: any, userId: string, messages: any[], chatId?: string) => createGeminiImageTool(dataStream, userId, messages, chatId),
@@ -188,6 +195,7 @@ export function collectToolResults(tools: Record<string, any>, toolNames: string
       'twitter_search': 'searchResults',
       'db_search_tool_results': 'lookupResults',
       'db_read_tool_result_window': 'windowResults',
+      'chat_history_search': 'searchResults',
       'gemini_image_tool': 'generatedImages',
       'seedream_image_tool': 'generatedImages',
       // 'qwen_image_edit': 'generatedImages',

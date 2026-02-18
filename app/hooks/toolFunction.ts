@@ -1955,6 +1955,46 @@ export const getImageGeneratorData = (message: UIMessage) => {
 
   
 
+  /** Extract chat history search data from message tool_results or parts */
+  export const getChatHistorySearchData = (message: UIMessage): {
+    query: string;
+    results: Array<{ chatSessionId: string; chatTitle?: string; messageId: string; createdAt: string; role: string; snippet: string; url: string }>;
+    status: 'complete' | 'partial' | 'loading';
+  } | null => {
+    if (!message) return null;
+
+    const raw = (message as any).tool_results?.chatHistorySearchResults;
+    if (raw) {
+      const items = Array.isArray(raw) ? raw : [raw];
+      const last = items[items.length - 1];
+      if (last && (last.results || last.query)) {
+        return {
+          query: last.query || '',
+          results: Array.isArray(last.results) ? last.results : [],
+          status: 'complete' as const,
+        };
+      }
+    }
+
+    const parts = (message as any).parts;
+    if (Array.isArray(parts)) {
+      const resultPart = parts.find(
+        (p: any) =>
+          (p?.type === 'tool-result' && p?.toolName === 'chat_history_search') ||
+          (p?.type && String(p.type).startsWith('tool-chat_history_search'))
+      );
+      if (resultPart?.output?.value || resultPart?.output) {
+        const out = resultPart.output.value || resultPart.output;
+        return {
+          query: out.query || '',
+          results: Array.isArray(out.results) ? out.results : [],
+          status: 'complete' as const,
+        };
+      }
+    }
+    return null;
+  };
+
   // Extract Google search data from message annotations and tool_results
   export const getGoogleSearchData = (message: UIMessage) => {
     if (!message) return null;

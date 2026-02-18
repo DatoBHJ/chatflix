@@ -4,7 +4,7 @@ import { UIMessage } from 'ai'
 import Canvas from '@/app/components/Canvas';
 import { StructuredResponse } from '@/app/components/StructuredResponse';
 import { FileEditCanvasPanel } from '@/app/components/FileEditCanvasPanel';
-import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getWan25VideoData, getGrokVideoData, getVideoUpscalerData, getImageUpscalerData, getFileEditData, getRunCodeData, getBrowserObserveData } from '@/app/hooks/toolFunction';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getQwenImageData, getGoogleSearchData, getWan25VideoData, getGrokVideoData, getVideoUpscalerData, getImageUpscalerData, getFileEditData, getRunCodeData, getBrowserObserveData, getChatHistorySearchData } from '@/app/hooks/toolFunction';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 // import { AttachmentTextViewer } from './AttachmentTextViewer';
@@ -120,6 +120,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   const youTubeSearchData = activeMessage ? getYouTubeSearchData(activeMessage) : null;
   const youTubeLinkAnalysisData = activeMessage ? getYouTubeLinkAnalysisData(activeMessage) : null;
   const googleSearchData = activeMessage ? getGoogleSearchData(activeMessage) : null;
+  const chatHistorySearchData = activeMessage ? getChatHistorySearchData(activeMessage) : null;
   const wan25VideoData = activeMessage ? getWan25VideoData(activeMessage) : null;
   const grokVideoData = activeMessage ? getGrokVideoData(activeMessage) : null;
   const videoUpscalerData = activeMessage ? getVideoUpscalerData(activeMessage) : null;
@@ -233,7 +234,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             panelData.toolType === 'twitter_search' ||
             panelData.toolType === 'google-search' ||
             panelData.toolType === 'google-images' ||
-            panelData.toolType === 'google-videos') {
+            panelData.toolType === 'google-videos' ||
+            panelData.toolType === 'chat-search') {
           return 'Search Results';
         }
         
@@ -252,6 +254,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           case 'video-upscaler': return '4K Video Upscaler';
           case 'run-code': return 'Code output';
           case 'browser-observe': return 'Browser Observe';
+          case 'chat-search': return 'Chat History Search';
           default:
             if (panelData.toolType?.startsWith('file-edit:')) {
               const sub = panelData.toolType.replace('file-edit:', '');
@@ -270,7 +273,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
       
       // If no toolType specified, determine title based on available data
       // Unified search: if either web search or google search data exists, show "Search Results"
-      if (webSearchData || googleSearchData || twitterSearchData) return 'Search Results';
+      if (webSearchData || googleSearchData || twitterSearchData || chatHistorySearchData) return 'Search Results';
       if (mathCalculationData) return 'Calculator';
       if (linkReaderData) return 'Link Reader';
       if (imageGeneratorData) return 'Image Generator';
@@ -595,6 +598,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           youTubeSearchData={youTubeSearchData}
           youTubeLinkAnalysisData={youTubeLinkAnalysisData}
           googleSearchData={googleSearchData}
+          chatHistorySearchData={chatHistorySearchData}
           fileEditData={fileEditData}
           runCodeData={runCodeData}
           browserObserveData={browserObserveData}

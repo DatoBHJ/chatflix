@@ -321,6 +321,11 @@ type CanvasProps = {
     annotations: any[];
     results: any[];
   } | null;
+  chatHistorySearchData?: {
+    query: string;
+    results: Array<{ chatSessionId: string; chatTitle?: string; messageId: string; createdAt: string; role: string; snippet: string; url: string }>;
+    status: string;
+  } | null;
   fileEditData?: FileEditData | null;
   runCodeData?: RunCodeData | null;
   browserObserveData?: BrowserObserveData | null;
@@ -1296,6 +1301,7 @@ export default function Canvas({
   youTubeSearchData, 
   youTubeLinkAnalysisData,
   googleSearchData,
+  chatHistorySearchData,
   fileEditData,
   runCodeData,
   browserObserveData,
@@ -1698,7 +1704,25 @@ export default function Canvas({
   };
 
   // Don't render if there's no data to display
-  const shouldRender = !!(mergedSearchData || mathCalculationData || linkReaderData || imageGeneratorData || geminiImageData || seedreamImageData || qwenImageData || wan25VideoData || grokVideoData || videoUpscalerData || imageUpscalerData || youTubeSearchData || youTubeLinkAnalysisData || fileEditData || runCodeData || browserObserveData);
+  const shouldRender = !!(
+    mergedSearchData ||
+    chatHistorySearchData ||
+    mathCalculationData ||
+    linkReaderData ||
+    imageGeneratorData ||
+    geminiImageData ||
+    seedreamImageData ||
+    qwenImageData ||
+    wan25VideoData ||
+    grokVideoData ||
+    videoUpscalerData ||
+    imageUpscalerData ||
+    youTubeSearchData ||
+    youTubeLinkAnalysisData ||
+    fileEditData ||
+    runCodeData ||
+    browserObserveData
+  );
 
   const openWorkspacePath = useCallback(async (path?: string) => {
     if (!chatId || !path) return;
@@ -1732,7 +1756,7 @@ export default function Canvas({
   const headerClasses = isCompact ? 'mb-2' : 'mb-4';
 
   return (
-    <div className={`tool-results-canvas ${compactModeClasses}`}>
+    <div className={`tool-results-canvas ${compactModeClasses} pl-0 sm:pl-3.5 pr-0 sm:pr-3.5`}>
       <style>{`
         @keyframes shimmer {
           0% {
@@ -1912,6 +1936,43 @@ export default function Canvas({
         </div>
       )}
       
+      {/* Chat History Search Results */}
+      {(!selectedTool || selectedTool === 'chat-search') && chatHistorySearchData && chatHistorySearchData.results.length > 0 && (
+        <div className="">
+          {!selectedTool && (
+            <div className={`flex items-center gap-2.5 ${headerClasses}`}>
+              <Search className="h-4 w-4 text-(--foreground)" strokeWidth={1.5} />
+              <h2 className="font-medium text-left tracking-tight">Chat History Search</h2>
+            </div>
+          )}
+          <div className="mt-4 space-y-3">
+            <p className="text-sm text-(--muted)">Query: &quot;{chatHistorySearchData.query}&quot;</p>
+            <div className="space-y-2">
+              {chatHistorySearchData.results.map((r, idx) => (
+                <a
+                  key={r.messageId || idx}
+                  href={r.url}
+                  className="block p-4 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)] hover:bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)] transition-colors text-left"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="text-sm font-medium text-(--foreground) truncate">
+                      {r.chatTitle || 'Untitled Chat'}
+                    </span>
+                    <span className="text-xs text-(--muted) shrink-0">
+                      {r.role} · {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ''}
+                    </span>
+                  </div>
+                  <p className="text-sm text-(--muted) line-clamp-2">{r.snippet}</p>
+                  <span className="inline-flex items-center gap-1 mt-2 text-xs text-(--muted)">
+                    <ExternalLink size={12} /> Open in chat
+                  </span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Math Calculation Results */}
       {(!selectedTool || selectedTool === 'calculator') && mathCalculationData && (
         <div className="">

@@ -488,6 +488,8 @@ export async function POST(req: Request): Promise<Response> {
               selectedActiveTools = getFileEditToolIds() as Array<keyof typeof TOOL_REGISTRY>;
             } else if (selectedTool === 'browser_observe') {
               selectedActiveTools = ['browser_observe', 'run_python_code', 'gemini_image_tool'] as Array<keyof typeof TOOL_REGISTRY>;
+            } else if (selectedTool === 'chat_history_search') {
+              selectedActiveTools = ['chat_history_search'] as Array<keyof typeof TOOL_REGISTRY>;
             } else {
               // 일반 도구인 경우
               selectedActiveTools = [selectedTool] as Array<keyof typeof TOOL_REGISTRY>;
@@ -558,6 +560,8 @@ export async function POST(req: Request): Promise<Response> {
                 : toolName === 'image_upscaler'
                 ? (config.createFn as any)(writer, user?.id || anonymousUserId, messagesWithTokens, chatId)
                 : ['db_search_tool_results', 'db_read_tool_result_window'].includes(toolName)
+                ? (config.createFn as any)(writer, chatId, user?.id || anonymousUserId, supabase)
+                : toolName === 'chat_history_search'
                 ? (config.createFn as any)(writer, chatId, user?.id || anonymousUserId, supabase)
                 : [...getFileEditToolIds(), 'run_python_code', 'browser_observe'].includes(toolName)
                 ? (config.createFn as any)(writer, chatId, supabase) // file-edit / code run: sandbox per chat

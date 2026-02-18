@@ -107,6 +107,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   'apply_edits': 'Apply edits',
   'run_python_code': 'Run code',
   'browser_observe': 'Browser Observe',
+  'chat_history_search': 'Chat History Search',
 };
 
 // Tool name to icon mapping
@@ -156,6 +157,8 @@ const getToolIcon = (toolName: string, toolArgs?: any, toolResult?: any) => {
       return <Youtube {...iconProps} />;
     case 'twitter_search':
       return <XLogo size={iconProps.size} />;
+    case 'chat_history_search':
+      return <Search {...iconProps} />;
     case 'wan25_video':
       return <WanAiLogo size={iconProps.size} />;
     case 'grok_video':
@@ -202,6 +205,8 @@ const getCanvasToolType = (toolName: string, toolArgs?: any, toolResult?: any): 
       const topic = toolArgs?.engines?.[0] || toolArgs?.topic || toolArgs?.engine || 'google';
       return `google-search:topic:${topic}`;
     }
+    case 'chat_history_search':
+      return 'chat-search';
     case 'calculator':
     case 'math_calculation':
       return 'calculator';
@@ -786,7 +791,7 @@ export const InlineToolPreview = memo(function InlineToolPreview({
     if (!toolArgs) return undefined;
     
     // For search tools: use query/queries (prefer query field, fallback to first query in queries array)
-    if (toolName === 'web_search' || toolName === 'multi_search' || toolName === 'google_search' || toolName === 'twitter_search') {
+    if (toolName === 'web_search' || toolName === 'multi_search' || toolName === 'google_search' || toolName === 'twitter_search' || toolName === 'chat_history_search') {
       // Prefer the *actual executed query* from toolResult when available (query completion may rewrite queries).
       if (toolResult?.searches && Array.isArray(toolResult.searches) && toolResult.searches.length > 0) {
         const q = toolResult.searches[0]?.query;

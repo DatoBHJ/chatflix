@@ -138,6 +138,7 @@ const ChatView = memo(function ChatView({
   globalShowFolderError,
   globalShowVideoError,
   searchTerm,
+  scrollToMessageId,
   selectedTool,
   setSelectedTool,
   handleMaximizeToggle,
@@ -205,6 +206,7 @@ const ChatView = memo(function ChatView({
             isWaitingForToolResults={isWaitingForToolResults}
             messagesEndRef={messagesEndRef}
             searchTerm={searchTerm}
+            scrollToMessageId={scrollToMessageId}
             contextSummary={contextSummary}
             onLoadMore={onLoadMore}
             hasMore={hasMore}
@@ -1686,6 +1688,7 @@ export default function ChatInterface({
       globalShowFolderError={globalShowFolderError}
       globalShowVideoError={globalShowVideoError}
       searchTerm={searchTerm}
+      scrollToMessageId={scrollToMessageId}
       selectedTool={selectedTool}
       setSelectedTool={setSelectedTool}
       handleMaximizeToggle={handleMaximizeToggle}

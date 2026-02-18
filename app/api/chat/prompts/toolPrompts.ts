@@ -589,6 +589,14 @@ Use these concepts to create or edit dynamic videos. Grok Imagine has strong ins
 - Place on its own line, after your summary text.
   `,
 
+  chatHistorySearch: `
+#### Chat History Search (chat_history_search)
+
+Cross-session search; results are relevance-ranked. Each result includes full message \`content\` (no truncation). Default limit 8, max 15; prefer fewer, precise queries.
+
+Do not conclude "not found" after one call. Make 2-4 calls with simpler/alternative queries (keywords-only, synonyms, different wording), and offset if needed. If top hits are generic/meta assistant statements (e.g. "no record"), treat as weak evidence and keep searching. Cite findings with returned \`url\`s; if still not found, list the queries you tried.
+  `,
+
   browserObserve: `
 #### Browser Observe (browser_observe)
 

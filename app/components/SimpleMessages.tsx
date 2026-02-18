@@ -650,6 +650,7 @@ interface SimpleMessagesProps {
   handleFollowUpQuestionClick: (question: string) => Promise<void>
   messagesEndRef: React.RefObject<HTMLDivElement | null>
   searchTerm?: string | null
+  scrollToMessageId?: string | null
   onLoadMore?: () => void
   hasMore?: boolean
   contextSummary?: ContextSummaryData | null
@@ -686,6 +687,7 @@ export const SimpleMessages = memo(function SimpleMessages({
   handleFollowUpQuestionClick,
   messagesEndRef,
   searchTerm,
+  scrollToMessageId,
   onLoadMore,
   hasMore = false,
   contextSummary = null,
@@ -715,6 +717,32 @@ export const SimpleMessages = memo(function SimpleMessages({
     ...getAdaptiveGlassBackgroundColor(),
     border: '1px solid rgba(255, 255, 255, 0.14)',
   }), []);
+
+  // scrollToMessage: when URL has scrollToMessage param, scroll to target message (load more if needed)
+  const scrollToMessageAttemptsRef = useRef(0);
+  const prevScrollToMessageIdRef = useRef<string | null>(null);
+  const MAX_SCROLL_ATTEMPTS = 8;
+  useEffect(() => {
+    if (!scrollToMessageId || !scrollToMessageId.trim()) return;
+    if (prevScrollToMessageIdRef.current !== scrollToMessageId) {
+      prevScrollToMessageIdRef.current = scrollToMessageId;
+      scrollToMessageAttemptsRef.current = 0;
+    }
+
+    const el = document.querySelector(`[data-message-id="${scrollToMessageId}"]`);
+    if (el) {
+      scrollToMessageAttemptsRef.current = 0;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    if (hasMore && onLoadMore && scrollToMessageAttemptsRef.current < MAX_SCROLL_ATTEMPTS) {
+      scrollToMessageAttemptsRef.current += 1;
+      onLoadMore();
+    } else if (scrollToMessageAttemptsRef.current >= MAX_SCROLL_ATTEMPTS) {
+      scrollToMessageAttemptsRef.current = 0;
+    }
+  }, [scrollToMessageId, messages.length, hasMore, onLoadMore]);
 
   const globalImageMap = useMemo(() => {
     const imageMap: Record<string, string> = {};

@@ -63,6 +63,7 @@ export const TOOLS: ToolDefinition[] = [
   { id: 'video_upscaler', icon: <Video strokeWidth={1.8} />, name: '4K Video Upscaler', description: 'WaveSpeed FlashVSR; upscale to 4K only (fixed output).', category: 'ai-generation', background: 'linear-gradient(0deg, #1F2937 0%, #4B5563 100%)', placeholder: { mobile: 'Upscale this video to 4K', desktop: 'Upscale this video to 4K (fixed)' }, hasInfoIcon: true },
   { id: 'image_upscaler', icon: <Image strokeWidth={1.8} />, name: '8K Image Upscaler', description: 'WaveSpeed Ultimate Image Upscaler; upscale to 8K only (fixed output).', category: 'ai-generation', background: 'linear-gradient(0deg, #1F2937 0%, #4B5563 100%)', placeholder: { mobile: 'Upscale this image to 8K', desktop: 'Upscale this image to 8K (fixed)' } },
   { id: 'link_reader', icon: <Link strokeWidth={1.8} />, name: 'Link Reader', description: 'Read web page content', category: 'utility', background: 'linear-gradient(0deg, #56ab2f 0%, #a8e063 100%)', placeholder: { mobile: 'Paste a URL to read', desktop: 'Paste a URL to read' } },
+  { id: 'chat_history_search', icon: <Search strokeWidth={1.8} />, name: 'Chat History Search', description: 'Search past chat messages across all sessions', category: 'search', background: 'linear-gradient(0deg, #6366f1 0%, #a5b4fc 100%)', placeholder: { mobile: 'Find past conversations', desktop: '지난번에 내 포지션 얘기한 대화 찾아줘' } },
   { id: 'youtube_search', icon: <Youtube strokeWidth={1.8} />, name: 'YouTube Search', description: 'Search YouTube videos', category: 'search', background: 'linear-gradient(0deg, #DC2626 0%, #F87171 100%)', placeholder: { mobile: 'Search YouTube videos', desktop: 'Search cooking tutorials for beginners' } },
   { id: 'youtube_link_analyzer', icon: <Youtube strokeWidth={1.8} />, name: 'YouTube Analyzer', description: 'Analyze YouTube videos', category: 'utility', background: 'linear-gradient(0deg, #DC2626 0%, #F87171 100%)', placeholder: { mobile: 'Paste YouTube URL to analyze', desktop: 'Paste YouTube URL to analyze' } },
   { id: 'web_search:github', icon: <Github strokeWidth={1.8} />, name: 'GitHub Search', description: 'Search GitHub repositories', category: 'search', background: 'linear-gradient(0deg, #1a1a1a 0%, #2a2a2a 100%)', placeholder: { mobile: 'Search GitHub repositories', desktop: 'Find OpenAPI to Rust converter repo' } },
@@ -87,6 +88,7 @@ const TOOL_CATEGORIES: Record<ToolCategory, { label: string; toolIds: string[] }
 
 /** 도구 선택창(TOOLS) 기준 카테고리 반환. API 전용 도구명만 폴백 매핑 (TOOLS에 없을 때만 사용) */
 const API_TOOL_CATEGORY_FALLBACK: Record<string, ToolCategory> = {
+  chat_history_search: 'search',
   web_search: 'search',
   multi_search: 'search',
   search: 'search',
