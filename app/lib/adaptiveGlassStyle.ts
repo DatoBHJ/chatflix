@@ -104,7 +104,7 @@ export function getAdaptiveGlassStyle(options: AdaptiveGlassStyleOptions) {
     // background shorthand 대신 backgroundImage + backgroundColor 분리
     // → 호출처에서 backgroundColor로 오버라이드할 때 shorthand와 충돌하지 않음
     // backgroundImage: `radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.065) 0%, rgba(255, 255, 255, 0.022) 10%, transparent 24%), radial-gradient(circle at 100% 100%, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 10%, transparent 24%)`,
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    // backgroundColor: 'rgba(0, 0, 0, 0.1)',
     backdropFilter: blurValue,
     WebkitBackdropFilter: blurValue,
     // border: '1px solid rgba(255, 255, 255, 0.08)',
