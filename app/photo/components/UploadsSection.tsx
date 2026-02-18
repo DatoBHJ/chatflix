@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { Trash2, Upload, Check, RectangleHorizontal } from 'lucide-react';
-import Masonry from 'react-masonry-css';
 import { CustomBackground, PhotoContentProps } from './types';
 import ImageViewer from './ImageViewer';
 import { usePhotoSelection } from './PhotoContext';
@@ -20,9 +19,9 @@ const UploadButtonCard = ({
   isUploading: boolean;
 }) => {
   return (
-    <div className="relative group mb-3 break-inside-avoid">
-      <div 
-        className="relative overflow-hidden rounded-lg bg-(--muted)/10 cursor-pointer transition-all duration-300 ease-out active:scale-95 border border-(--muted)/20 hover:border-(--muted)/40 hover:bg-(--muted)/15 min-h-[200px] flex items-center justify-center"
+    <div className="relative group aspect-square w-full">
+      <div
+        className="relative w-full h-full overflow-hidden rounded-lg bg-(--muted)/10 cursor-pointer transition-all duration-300 ease-out active:scale-95 border border-(--muted)/20 hover:border-(--muted)/40 hover:bg-(--muted)/15 flex items-center justify-center"
         onClick={onClick}
       >
         {isUploading ? (
@@ -82,15 +81,15 @@ const MasonryPhotoCard = ({
   }, []);
 
   return (
-    <div 
-      className={`relative group mb-3 break-inside-avoid ${
+    <div
+      className={`relative group aspect-square w-full ${
         selectedBackground === bg.id && selectedType === 'custom'
           ? 'ring-4 ring-blue-500 rounded-lg'
           : ''
       }`}
     >
-      <div 
-        className={`relative overflow-hidden rounded-lg bg-[var(--muted)]/10 cursor-pointer transition-all duration-300 ease-out active:scale-95 ${
+      <div
+        className={`relative w-full h-full overflow-hidden rounded-lg bg-[var(--muted)]/10 cursor-pointer transition-all duration-300 ease-out active:scale-95 ${
           selectedBackground === bg.id && selectedType === 'custom'
             ? 'ring-2 ring-blue-500'
             : ''
@@ -108,7 +107,7 @@ const MasonryPhotoCard = ({
               src={imageUrl}
               alt={bg.name}
               className={`
-                w-full h-auto object-cover transform transition-all duration-700 ease-out
+                w-full h-full object-cover transform transition-all duration-700 ease-out
                 ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}
               `}
               onLoad={handleImageLoad}
@@ -121,7 +120,7 @@ const MasonryPhotoCard = ({
             />
           </>
         ) : (
-          <div className="w-full min-h-[200px] flex items-center justify-center bg-[var(--subtle-divider)] rounded-lg">
+          <div className="w-full h-full min-h-0 flex items-center justify-center bg-[var(--subtle-divider)] rounded-lg">
             <p className="text-[var(--muted)] text-sm">Failed to load</p>
           </div>
         )}
@@ -190,8 +189,6 @@ export default function UploadsSection({
   // Load user's custom backgrounds with pagination
   const loadCustomBackgrounds = useCallback(async (pageNum: number = 0) => {
     if (!user?.id || isGuest) return;
-    
-    console.log(`🔄 [UploadsSection] Loading page ${pageNum} for user ${user.id}`);
     
     const isInitialLoad = pageNum === 0;
     if (isInitialLoad) {
@@ -272,7 +269,6 @@ export default function UploadsSection({
         setCustomBackgrounds(prev => {
           const existingIds = new Set(prev.map(bg => bg.id));
           const newBackgrounds = backgrounds.filter(bg => !existingIds.has(bg.id));
-          console.log(`📄 [UploadsSection] Page ${pageNum}: Adding ${newBackgrounds.length} new images (${backgrounds.length - newBackgrounds.length} duplicates filtered)`);
           return [...prev, ...newBackgrounds];
         });
       }
@@ -309,7 +305,6 @@ export default function UploadsSection({
     setCustomBackgrounds([]);
     setHasMore(true);
     setIsLoadingMore(false);
-    console.log(`🔄 [UploadsSection] Reset state for user: ${user?.id}`);
   }, [user?.id]);
 
   // Load backgrounds on mount
@@ -324,11 +319,10 @@ export default function UploadsSection({
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && !isLoadingMore && hasMore) {
-          console.log(`🔄 [UploadsSection] Loading page ${page + 1}`);
           setPage(prev => prev + 1);
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1, rootMargin: '200px' }
     );
     
     observer.observe(loadMoreRef.current);
@@ -761,25 +755,13 @@ export default function UploadsSection({
             </div>
           </div>
         ) : (
-          <Masonry
-            breakpointCols={{
-              default: 5,      // Desktop: 5 columns
-              1024: 4,         // Large tablet: 4 columns  
-              640: 3,          // Tablet: 3 columns
-              480: 2           // Mobile: 2 columns
-            }}
-            className="flex -ml-3 w-auto"
-            columnClassName="pl-3 bg-clip-padding"
-          >
-            {/* Upload Button Card - First Item */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {!isGuest && (
               <UploadButtonCard
                 onClick={() => fileInputRef.current?.click()}
                 isUploading={isUploading}
               />
             )}
-            
-            {/* Render Images using new Component */}
             {customBackgrounds.map((bg, index) => (
               <MasonryPhotoCard
                 key={`${bg.id}-${index}`}
@@ -788,8 +770,8 @@ export default function UploadsSection({
                 isSelected={selectedImageIds.includes(bg.id)}
                 onSelect={() => handleSelectImage(bg.id)}
                 onClick={() => {
-                  setViewerImages(customBackgrounds.map(b => ({ 
-                    src: b.url, 
+                  setViewerImages(customBackgrounds.map(b => ({
+                    src: b.url,
                     alt: b.name || 'Custom background',
                     id: b.id,
                     ai_prompt: b.ai_prompt,
@@ -802,7 +784,7 @@ export default function UploadsSection({
                 selectedType={selectedType}
               />
             ))}
-          </Masonry>
+          </div>
         )}
 
         {/* Infinite Scroll Sentinel */}

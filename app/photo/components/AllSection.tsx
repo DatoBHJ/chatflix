@@ -1,10 +1,8 @@
 'use client'
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { Check, Play } from 'lucide-react';
-import Masonry from 'react-masonry-css';
 import { PhotoContentProps } from './types';
 import ImageViewer from './ImageViewer';
 import { usePhotoSelection } from './PhotoContext';
@@ -52,7 +50,6 @@ const MasonryPhotoCard = ({
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
-  const [videoAspectRatio, setVideoAspectRatio] = useState<number | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const imageUrl = img.url;
@@ -83,25 +80,19 @@ const MasonryPhotoCard = ({
   }, []);
 
   const handleVideoLoadedMetadata = useCallback(() => {
-    const video = videoRef.current;
-    if (video && video.videoWidth > 0 && video.videoHeight > 0) {
-      // 비디오 메타데이터에서 정확한 aspect ratio 감지
-      const ratio = video.videoWidth / video.videoHeight;
-      setVideoAspectRatio(ratio);
-    }
     setIsLoaded(true);
   }, []);
 
   return (
-    <div 
-      className={`relative group mb-3 break-inside-avoid ${
+    <div
+      className={`relative group aspect-square w-full ${
         selectedBackground === img.id && selectedType === 'custom'
           ? 'ring-4 ring-blue-500 rounded-lg'
           : ''
       }`}
     >
-      <div 
-        className={`relative overflow-hidden rounded-lg bg-[var(--muted)]/10 transition-all duration-300 ease-out active:scale-95 ${
+      <div
+        className={`relative w-full h-full overflow-hidden rounded-lg bg-[var(--muted)]/10 transition-all duration-300 ease-out active:scale-95 ${
           selectedBackground === img.id && selectedType === 'custom'
             ? 'ring-2 ring-blue-500'
             : ''
@@ -128,10 +119,7 @@ const MasonryPhotoCard = ({
               <div className="absolute inset-0 bg-[var(--subtle-divider)] animate-pulse z-0" />
             )}
             {isVideo ? (
-              <div 
-                className="relative w-full"
-                style={videoAspectRatio ? { aspectRatio: `${videoAspectRatio} / 1` } : undefined}
-              >
+              <div className="absolute inset-0">
                 <video
                   ref={videoRef}
                   src={imageUrl}
@@ -139,7 +127,6 @@ const MasonryPhotoCard = ({
                     w-full h-full object-cover transform transition-all duration-700 ease-out
                     ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}
                   `}
-                  style={videoAspectRatio ? { aspectRatio: `${videoAspectRatio} / 1` } : undefined}
                   onLoadedMetadata={handleVideoLoadedMetadata}
                   onError={() => {
                     setImageError(true);
@@ -156,7 +143,7 @@ const MasonryPhotoCard = ({
                 src={imageUrl}
                 alt={img.name || 'Photo'}
                 className={`
-                  w-full h-auto object-cover transform transition-all duration-700 ease-out
+                  w-full h-full object-cover transform transition-all duration-700 ease-out
                   ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}
                 `}
                 onLoad={handleImageLoad}
@@ -170,7 +157,7 @@ const MasonryPhotoCard = ({
             )}
           </>
         ) : (
-          <div className="w-full min-h-[200px] flex items-center justify-center bg-[var(--subtle-divider)] rounded-lg">
+          <div className="w-full h-full min-h-0 flex items-center justify-center bg-[var(--subtle-divider)] rounded-lg">
                 <p className="text-white/70 text-sm">Failed to load</p>
           </div>
         )}
@@ -241,7 +228,6 @@ export default function AllSection({
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
   const supabase = createClient();
-  const router = useRouter();
 
   // 🚀 게스트 모드 감지
   const isGuest = user?.isAnonymous || user?.id === 'anonymous'
@@ -253,8 +239,6 @@ export default function AllSection({
       return;
     }
 
-    console.log(`🔄 [AllSection] Loading page ${pageNum} for user ${user.id}`);
-    
     const isInitialLoad = pageNum === 0;
     if (isInitialLoad) {
       setIsLoading(true);
@@ -289,118 +273,95 @@ export default function AllSection({
         return;
       }
 
-      // 디버깅: 데이터베이스에서 가져온 원본 데이터 확인
-      console.log('[AllSection] Raw data from DB:', data.slice(0, 2).map(img => ({
-        id: img.id,
-        prompt: img.prompt,
-        ai_prompt: img.ai_prompt,
-        ai_json_prompt: img.ai_json_prompt,
-        metadata: img.metadata,
-        promptType: typeof img.prompt,
-        ai_promptType: typeof img.ai_prompt
-      })));
+      // Process all images in parallel (URL refresh no longer blocks sequentially)
+      const processedImages = await Promise.all(
+        data.map(async (img) => {
+          let url = img.background_url;
 
-      // Process all images
-      const processedImages: AllImage[] = [];
-      
-      for (const img of data) {
-        let url = img.background_url;
-        
-        // Check if URL needs refresh: missing, expired, or url_expires_at is null
-        const needsRefresh = !url || 
-          !img.url_expires_at || 
-          (img.url_expires_at && new Date(img.url_expires_at) < new Date());
-        
-        if (needsRefresh && img.background_path) {
-          try {
-            // Try API first (works for all source types now)
-            const response = await fetch('/api/photo/refresh-url', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                userId: user.id,
-                imageId: img.id 
-              })
-            });
-            
-            if (response.ok) {
-              const refreshed = await response.json();
-              url = refreshed.imageUrl;
-            } else {
-              // Fallback to direct Supabase call if API fails
-              const bucketName = img.bucket_name || 
-                (img.source === 'upload' ? 'chat_attachments' : 'saved-gallery');
-              
-              const { data: signedData } = await supabase.storage
-                .from(bucketName)
-                .createSignedUrl(img.background_path, 24 * 60 * 60);
-              
-              if (signedData?.signedUrl) {
-                url = signedData.signedUrl;
-                // Update database
-                await supabase
-                  .from('user_background_settings')
-                  .update({
-                    background_url: url,
-                    url_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-                  })
-                  .eq('id', img.id);
-              }
-            }
-          } catch (error) {
-            console.error('Failed to refresh URL for image:', img.id, error);
-            // If both API and direct call fail, try direct Supabase as last resort
-            if (!url && img.background_path) {
-              try {
-                const bucketName = img.bucket_name || 
+          // Check if URL needs refresh: missing, expired, or url_expires_at is null
+          const needsRefresh = !url ||
+            !img.url_expires_at ||
+            (img.url_expires_at && new Date(img.url_expires_at) < new Date());
+
+          if (needsRefresh && img.background_path) {
+            try {
+              const response = await fetch('/api/photo/refresh-url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: user.id,
+                  imageId: img.id
+                })
+              });
+
+              if (response.ok) {
+                const refreshed = await response.json();
+                url = refreshed.imageUrl;
+              } else {
+                const bucketName = img.bucket_name ||
                   (img.source === 'upload' ? 'chat_attachments' : 'saved-gallery');
-                
+
                 const { data: signedData } = await supabase.storage
                   .from(bucketName)
                   .createSignedUrl(img.background_path, 24 * 60 * 60);
-                
+
                 if (signedData?.signedUrl) {
                   url = signedData.signedUrl;
+                  await supabase
+                    .from('user_background_settings')
+                    .update({
+                      background_url: url,
+                      url_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+                    })
+                    .eq('id', img.id);
                 }
-              } catch (fallbackError) {
-                console.error('Fallback URL generation also failed:', fallbackError);
+              }
+            } catch (error) {
+              if (!url && img.background_path) {
+                try {
+                  const bucketName = img.bucket_name ||
+                    (img.source === 'upload' ? 'chat_attachments' : 'saved-gallery');
+
+                  const { data: signedData } = await supabase.storage
+                    .from(bucketName)
+                    .createSignedUrl(img.background_path, 24 * 60 * 60);
+
+                  if (signedData?.signedUrl) {
+                    url = signedData.signedUrl;
+                  }
+                } catch {
+                  // Fallback failed, url remains as-is
+                }
               }
             }
           }
-        }
-        
-        // Map pensieve_saved to 'saved' for AllImage type compatibility
-        const sourceValue = img.source === 'pensieve_saved' ? 'saved' : (img.source as 'saved' | 'upload');
-        
-        // Check if this is a video based on metadata
-        const isVideo = img.metadata?.mediaType === 'video' || 
-                       (img.background_path && /\.(mp4|webm|mov|avi)$/i.test(img.background_path));
-        
-        // Extract chatId, messageId, and sourceImageUrl from metadata
-        const chatId = img.metadata?.chatId || null;
-        const messageId = img.metadata?.messageId || null;
-        const sourceImageUrl = img.metadata?.sourceImageUrl || null;
-        
-        processedImages.push({
-          id: img.id,
-          url: url,
-          name: img.name || (img.source === 'upload' ? (isVideo ? 'Uploaded video' : 'Uploaded image') : (isVideo ? 'Saved video' : 'Saved image')),
-          created_at: img.created_at,
-          source: sourceValue,
-          path: img.background_path,
-          bucket_name: img.bucket_name,
-          prompt: img.prompt,
-          ai_prompt: img.ai_prompt,
-          ai_json_prompt: img.ai_json_prompt,
-          metadata: img.metadata,
-          isVideo: isVideo,
-          chatId: chatId,
-          messageId: messageId,
-          sourceImageUrl: sourceImageUrl
-        });
-      }
-      
-      console.log(`📄 [AllSection] Page ${pageNum}: Loaded ${processedImages.length} images`);
+
+          const sourceValue = img.source === 'pensieve_saved' ? 'saved' : (img.source as 'saved' | 'upload');
+          const isVideo = img.metadata?.mediaType === 'video' ||
+            (img.background_path && /\.(mp4|webm|mov|avi)$/i.test(img.background_path));
+          const chatId = img.metadata?.chatId || null;
+          const messageId = img.metadata?.messageId || null;
+          const sourceImageUrl = img.metadata?.sourceImageUrl || null;
+
+          return {
+            id: img.id,
+            url,
+            name: img.name || (img.source === 'upload' ? (isVideo ? 'Uploaded video' : 'Uploaded image') : (isVideo ? 'Saved video' : 'Saved image')),
+            created_at: img.created_at,
+            source: sourceValue,
+            path: img.background_path,
+            bucket_name: img.bucket_name,
+            prompt: img.prompt,
+            ai_prompt: img.ai_prompt,
+            ai_json_prompt: img.ai_json_prompt,
+            metadata: img.metadata,
+            isVideo,
+            chatId,
+            messageId,
+            sourceImageUrl
+          };
+        })
+      );
       
       if (isInitialLoad) {
         setAllImages(processedImages);
@@ -409,7 +370,6 @@ export default function AllSection({
         setAllImages(prev => {
           const existingIds = new Set(prev.map(img => img.id));
           const newImages = processedImages.filter(img => !existingIds.has(img.id));
-          console.log(`📄 [AllSection] Appending ${newImages.length} new images (${processedImages.length - newImages.length} duplicates filtered)`);
           return [...prev, ...newImages];
         });
       }
@@ -446,7 +406,6 @@ export default function AllSection({
     setAllImages([]);
     setHasMore(true);
     setIsLoadingMore(false);
-    console.log(`🔄 [AllSection] Reset state for user: ${user?.id}`);
   }, [user?.id]);
 
   // Load images on mount
@@ -461,11 +420,10 @@ export default function AllSection({
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && !isLoadingMore && hasMore) {
-          console.log(`🔄 [AllSection] Loading page ${page + 1}`);
           setPage(prev => prev + 1);
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1, rootMargin: '200px' }
     );
     
     observer.observe(loadMoreRef.current);
@@ -489,8 +447,8 @@ export default function AllSection({
   const handleImageClick = (imageId: string, e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     if (target.tagName === 'IMG' || target.tagName === 'VIDEO' || target === e.currentTarget) {
-      const viewerData = allImages.map(img => ({ 
-        src: img.url, 
+      const viewerData = allImages.map(img => ({
+        src: img.url,
         alt: img.name || 'Photo',
         id: img.id,
         prompt: img.prompt,
@@ -502,22 +460,6 @@ export default function AllSection({
         messageId: img.messageId,
         sourceImageUrl: img.sourceImageUrl
       }));
-      
-      // 디버깅: 전달되는 데이터 확인
-      const clickedImage = allImages.find(img => img.id === imageId);
-      if (clickedImage) {
-        console.log('[AllSection] Image clicked:', {
-          id: clickedImage.id,
-          prompt: clickedImage.prompt,
-          ai_prompt: clickedImage.ai_prompt,
-          ai_json_prompt: clickedImage.ai_json_prompt,
-          chatId: clickedImage.chatId,
-          messageId: clickedImage.messageId,
-          sourceImageUrl: clickedImage.sourceImageUrl,
-          metadata: clickedImage.metadata
-        });
-      }
-      
       setViewerImages(viewerData);
       setViewerIndex(allImages.findIndex(img => img.id === imageId));
       setIsViewerOpen(true);
@@ -694,16 +636,7 @@ export default function AllSection({
             </div>
           </div>
         ) : (
-          <Masonry
-            breakpointCols={{
-              default: 5,      // Desktop: 5 columns
-              1024: 4,         // Large tablet: 4 columns  
-              640: 3,          // Tablet: 3 columns
-              480: 2           // Mobile: 2 columns
-            }}
-            className="flex -ml-3 w-auto"
-            columnClassName="pl-3 bg-clip-padding"
-          >
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {allImages.map((img, index) => (
               <MasonryPhotoCard
                 key={`${img.id}-${index}`}
@@ -713,21 +646,16 @@ export default function AllSection({
                 onSelect={() => handleSelectImage(img.id)}
                 disableVideos={disableVideos}
                 onClick={() => {
-                  // If onImageClick is provided, use it instead of selection mode or viewer
                   if (onImageClick) {
                     onImageClick(img.id)
                     return
                   }
-                  
-                  // If selection mode is active, handle selection only (don't open viewer)
                   if (isSelectionMode) {
                     handleSelectImage(img.id)
                     return
                   }
-                  
-                  // Otherwise, open image viewer (only when not in selection mode)
-                  const viewerData = allImages.map(i => ({ 
-                    src: i.url, 
+                  const viewerData = allImages.map(i => ({
+                    src: i.url,
                     alt: i.name || 'Photo',
                     id: i.id,
                     prompt: i.prompt,
@@ -739,22 +667,6 @@ export default function AllSection({
                     messageId: i.messageId,
                     sourceImageUrl: i.sourceImageUrl
                   }));
-                  
-                  // 디버깅: 전달되는 데이터 확인
-                  const clickedImage = allImages[index];
-                  if (clickedImage) {
-                    console.log('[AllSection] Image clicked (Masonry):', {
-                      id: clickedImage.id,
-                      prompt: clickedImage.prompt,
-                      ai_prompt: clickedImage.ai_prompt,
-                      ai_json_prompt: clickedImage.ai_json_prompt,
-                      chatId: clickedImage.chatId,
-                      messageId: clickedImage.messageId,
-                      sourceImageUrl: clickedImage.sourceImageUrl,
-                      metadata: clickedImage.metadata
-                    });
-                  }
-                  
                   setViewerImages(viewerData);
                   setViewerIndex(index);
                   setIsViewerOpen(true);
@@ -763,7 +675,7 @@ export default function AllSection({
                 selectedType={selectedType}
               />
             ))}
-          </Masonry>
+          </div>
         )}
 
         {/* Infinite Scroll Sentinel */}

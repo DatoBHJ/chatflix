@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { Check, Trash2, RectangleHorizontal, Image as ImageIcon, Play } from 'lucide-react';
-import Masonry from 'react-masonry-css';
 import { SavedImage, PhotoContentProps } from './types';
 import ImageViewer from './ImageViewer';
 import { usePhotoSelection } from './PhotoContext';
@@ -31,7 +30,6 @@ const MasonryPhotoCard = ({
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
-  const [videoAspectRatio, setVideoAspectRatio] = useState<number | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const imageUrl = img.url;
@@ -62,25 +60,19 @@ const MasonryPhotoCard = ({
   }, []);
 
   const handleVideoLoadedMetadata = useCallback(() => {
-    const video = videoRef.current;
-    if (video && video.videoWidth > 0 && video.videoHeight > 0) {
-      // 비디오 메타데이터에서 정확한 aspect ratio 감지
-      const ratio = video.videoWidth / video.videoHeight;
-      setVideoAspectRatio(ratio);
-    }
     setIsLoaded(true);
   }, []);
 
   return (
-    <div 
-      className={`relative group mb-3 break-inside-avoid ${
+    <div
+      className={`relative group aspect-square w-full ${
         selectedBackground === img.id && selectedType === 'custom'
           ? 'ring-4 ring-blue-500 rounded-lg'
           : ''
       }`}
     >
-      <div 
-        className={`relative overflow-hidden rounded-lg bg-[var(--muted)]/10 cursor-pointer transition-all duration-300 ease-out active:scale-95 ${
+      <div
+        className={`relative w-full h-full overflow-hidden rounded-lg bg-[var(--muted)]/10 cursor-pointer transition-all duration-300 ease-out active:scale-95 ${
           selectedBackground === img.id && selectedType === 'custom'
             ? 'ring-2 ring-blue-500'
             : ''
@@ -94,10 +86,7 @@ const MasonryPhotoCard = ({
               <div className="absolute inset-0 bg-[var(--subtle-divider)] animate-pulse z-0" />
             )}
             {isVideo ? (
-              <div 
-                className="relative w-full"
-                style={videoAspectRatio ? { aspectRatio: `${videoAspectRatio} / 1` } : undefined}
-              >
+              <div className="absolute inset-0">
                 <video
                   ref={videoRef}
                   src={imageUrl}
@@ -105,7 +94,6 @@ const MasonryPhotoCard = ({
                     w-full h-full object-cover transform transition-all duration-700 ease-out
                     ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}
                   `}
-                  style={videoAspectRatio ? { aspectRatio: `${videoAspectRatio} / 1` } : undefined}
                   onLoadedMetadata={handleVideoLoadedMetadata}
                   onError={() => {
                     setImageError(true);
@@ -122,7 +110,7 @@ const MasonryPhotoCard = ({
                 src={imageUrl}
                 alt={img.name || 'Saved image'}
                 className={`
-                  w-full h-auto object-cover transform transition-all duration-700 ease-out
+                  w-full h-full object-cover transform transition-all duration-700 ease-out
                   ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}
                 `}
                 onLoad={handleImageLoad}
@@ -136,7 +124,7 @@ const MasonryPhotoCard = ({
             )}
           </>
         ) : (
-          <div className="w-full min-h-[200px] flex items-center justify-center bg-[var(--subtle-divider)] rounded-lg">
+          <div className="w-full h-full min-h-0 flex items-center justify-center bg-[var(--subtle-divider)] rounded-lg">
             <p className="text-[var(--muted)] text-sm">Failed to load</p>
           </div>
         )}
@@ -214,8 +202,6 @@ export default function SavedSection({
   const loadSavedImages = useCallback(async (pageNum: number = 0) => {
     if (!user?.id || isGuest) return;
     
-    console.log(`🔄 [SavedSection] Loading page ${pageNum} for user ${user.id}`);
-    
     const isInitialLoad = pageNum === 0;
     if (isInitialLoad) {
       setIsLoading(true);
@@ -244,17 +230,6 @@ export default function SavedSection({
         setHasMore(false);
         return;
       }
-
-      // 디버깅: 데이터베이스에서 가져온 원본 데이터 확인
-      console.log('[SavedSection] Raw data from DB:', data.slice(0, 2).map(img => ({
-        id: img.id,
-        prompt: img.prompt,
-        ai_prompt: img.ai_prompt,
-        ai_json_prompt: img.ai_json_prompt,
-        metadata: img.metadata,
-        promptType: typeof img.prompt,
-        ai_promptType: typeof img.ai_prompt
-      })));
 
       // Check and refresh expired URLs
       const refreshedData = await Promise.all(
@@ -385,7 +360,6 @@ export default function SavedSection({
     setSavedImages([]);
     setHasMore(true);
     setIsLoadingMore(false);
-    console.log(`🔄 [SavedSection] Reset state for user: ${user?.id}`);
   }, [user?.id]);
 
   // Load images on mount
@@ -400,11 +374,10 @@ export default function SavedSection({
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && !isLoadingMore && hasMore) {
-          console.log(`🔄 [SavedSection] Loading page ${page + 1}`);
           setPage(prev => prev + 1);
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1, rootMargin: '200px' }
     );
     
     observer.observe(loadMoreRef.current);
@@ -483,8 +456,8 @@ export default function SavedSection({
     // Check if click is on image/video or container (not delete button)
     const target = e.target as HTMLElement;
     if (target.tagName === 'IMG' || target.tagName === 'VIDEO' || target === e.currentTarget) {
-      const viewerData = savedImages.map(img => ({ 
-        src: img.url, 
+      const viewerData = savedImages.map(img => ({
+        src: img.url,
         alt: img.name || 'Saved image',
         id: img.id,
         prompt: img.prompt,
@@ -496,22 +469,6 @@ export default function SavedSection({
         messageId: img.messageId,
         sourceImageUrl: img.sourceImageUrl
       }));
-      
-      // 디버깅: 전달되는 데이터 확인
-      const clickedImage = savedImages.find(img => img.id === imageId);
-      if (clickedImage) {
-        console.log('[SavedSection] Image clicked:', {
-          id: clickedImage.id,
-          prompt: clickedImage.prompt,
-          ai_prompt: clickedImage.ai_prompt,
-          ai_json_prompt: clickedImage.ai_json_prompt,
-          chatId: clickedImage.chatId,
-          messageId: clickedImage.messageId,
-          sourceImageUrl: clickedImage.sourceImageUrl,
-          metadata: (clickedImage as any).metadata
-        });
-      }
-      
       setViewerImages(viewerData);
       setViewerIndex(savedImages.findIndex(img => img.id === imageId));
       setIsViewerOpen(true);
@@ -687,17 +644,7 @@ export default function SavedSection({
             </div>
           </div>
         ) : (
-          <Masonry
-            breakpointCols={{
-              default: 5,      // Desktop: 5 columns
-              1024: 4,         // Large tablet: 4 columns  
-              640: 3,          // Tablet: 3 columns
-              480: 2           // Mobile: 2 columns
-            }}
-            className="flex -ml-3 w-auto"
-            columnClassName="pl-3 bg-clip-padding"
-          >
-            {/* Render Images using new Component */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {savedImages.map((img, index) => (
               <MasonryPhotoCard
                 key={`${img.id}-${index}`}
@@ -706,8 +653,8 @@ export default function SavedSection({
                 isSelected={selectedImageIds.includes(img.id)}
                 onSelect={() => handleSelectImage(img.id)}
                 onClick={() => {
-                  const viewerData = savedImages.map(i => ({ 
-                    src: i.url, 
+                  const viewerData = savedImages.map(i => ({
+                    src: i.url,
                     alt: i.name || 'Saved image',
                     id: i.id,
                     prompt: i.prompt,
@@ -719,22 +666,6 @@ export default function SavedSection({
                     messageId: i.messageId,
                     sourceImageUrl: i.sourceImageUrl
                   }));
-                  
-                  // 디버깅: 전달되는 데이터 확인
-                  const clickedImage = savedImages[index];
-                  if (clickedImage) {
-                    console.log('[SavedSection] Image clicked (Masonry):', {
-                      id: clickedImage.id,
-                      prompt: clickedImage.prompt,
-                      ai_prompt: clickedImage.ai_prompt,
-                      ai_json_prompt: clickedImage.ai_json_prompt,
-                      chatId: clickedImage.chatId,
-                      messageId: clickedImage.messageId,
-                      sourceImageUrl: clickedImage.sourceImageUrl,
-                      metadata: (clickedImage as any).metadata
-                    });
-                  }
-                  
                   setViewerImages(viewerData);
                   setViewerIndex(index);
                   setIsViewerOpen(true);
@@ -743,7 +674,7 @@ export default function SavedSection({
                 selectedType={selectedType}
               />
             ))}
-          </Masonry>
+          </div>
         )}
 
         {/* Infinite Scroll Sentinel */}
