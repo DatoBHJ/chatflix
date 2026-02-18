@@ -250,7 +250,7 @@ function UserMessageContentWithUploads({
 }
 
 // 검색 도구 여부 확인 함수
-const isOutcomeFileTool = (name: string) => ['write_file', 'apply_edits', 'read_file', 'delete_file', 'grep_file', 'get_file_info'].includes(name);
+const isOutcomeFileTool = (name: string) => ['write_file', 'apply_edits', 'read_file', 'delete_file', 'grep_file', 'get_file_info', 'list_workspace'].includes(name);
 
 const isSearchTool = (name: string) => [
   'web_search',
