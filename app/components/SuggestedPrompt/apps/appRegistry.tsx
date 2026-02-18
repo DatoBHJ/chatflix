@@ -184,7 +184,7 @@ export const LaunchpadIcon: React.FC<{ className?: string }> = ({ className }) =
     {/* White background - Almost transparent for strong glass effect */}
     <rect width="60" height="60" rx="14" fill="#FFFFFF" fillOpacity="0.1" />
     
-    {/* Miniature "Apps & Widgets" Title area - White for contrast on transparent glass */}
+    {/* Miniature "Launchpad" Title area - White for contrast on transparent glass */}
     <rect x="12" y="12" width="20" height="2.5" rx="1.25" fill="#FFFFFF" fillOpacity="0.8" />
     
     {/* Miniature Tab area */}

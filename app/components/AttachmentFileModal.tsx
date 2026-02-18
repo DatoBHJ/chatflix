@@ -117,13 +117,10 @@ export function AttachmentFileModal({
                   overflowWrap: 'break-word',
                 }}
               >
-                {isRefreshing && (
-                  <div className="text-sm opacity-80" style={{ color: 'var(--foreground)' }}>Loading file…</div>
-                )}
-                {!isRefreshing && refreshError && (
+                {refreshError && (
                   <div className="text-sm text-red-500">{refreshError}</div>
                 )}
-                {!isRefreshing && !refreshError && (
+                {!refreshError && (
                   <div className="p-4 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
                     <AttachmentViewer attachment={attachment} />
                   </div>
@@ -183,13 +180,10 @@ export function AttachmentFileModal({
                     <span className="text-xs font-semibold">Download</span>
                   </button>
                 </div>
-                {isRefreshing && (
-                  <div className="text-sm opacity-80" style={{ color: 'var(--foreground)' }}>Loading file…</div>
-                )}
-                {!isRefreshing && refreshError && (
+                {refreshError && (
                   <div className="text-sm text-red-500">{refreshError}</div>
                 )}
-                {!isRefreshing && !refreshError && (
+                {!refreshError && (
                   <div className="p-4 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
                     <AttachmentViewer attachment={attachment} />
                   </div>

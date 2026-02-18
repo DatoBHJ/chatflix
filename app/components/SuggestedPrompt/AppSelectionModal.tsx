@@ -783,7 +783,7 @@ export function AppSelectionModal({
             className="text-3xl sm:text-3xl md:text-4xl font-semibold tracking-tight"
             style={getTextStyle()}
           >
-            Apps & Widgets
+            Launchpad
           </h2>
 
             {/* Selection Mode Toggle Button */}
@@ -849,7 +849,7 @@ export function AppSelectionModal({
                 className="text-sm sm:text-base leading-relaxed flex-1"
                 style={getTextStyle()}
               >
-                <span className="font-semibold">Apps & Widgets are experimental features.</span>
+                <span className="font-semibold">Launchpad is an experimental feature.</span>
               </p> 
             </div>
           </div> */}

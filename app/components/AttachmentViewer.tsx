@@ -85,18 +85,7 @@ export const AttachmentViewer: React.FC<AttachmentViewerProps> = ({ attachment }
                  (attachment.name && /(\.txt|\.md|\.js|\.jsx|\.ts|\.tsx|\.html|\.css|\.json|\.xml|\.py|\.java|\.c|\.cpp|\.cs|\.go|\.rb|\.php|\.swift|\.kt|\.rs|\.sql|\.sh|\.yml|\.yaml|\.toml|\.ini|\.cfg|\.conf|\.log)$/i.test(attachment.name));
 
   if (isRefreshing) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="flex items-center gap-2 text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]">
-          <div className="loading-dots text-sm">
-            <span>.</span>
-            <span>.</span>
-            <span>.</span>
-          </div>
-          <span className="text-sm">Loading file...</span>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   if (refreshError) {

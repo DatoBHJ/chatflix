@@ -131,20 +131,9 @@ export function AttachmentTextViewer({ attachment, url }: AttachmentTextViewerPr
   }
  
   if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="flex items-center gap-2 text-[color-mix(in_srgb,var(--foreground)_60%,transparent)]">
-          <div className="loading-dots text-sm">
-            <span>.</span>
-            <span>.</span>
-            <span>.</span>
-          </div>
-          <span className="text-sm">Loading file content...</span>
-        </div>
-      </div>
-    );
+    return null;
   }
- 
+
   if (error) {
     return (
       <div className="p-4 border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20 rounded-lg">

@@ -220,18 +220,15 @@ export function WorkspaceFileModal({
                   overflowWrap: 'break-word',
                 }}
               >
-                {loading && (
-                  <div className="text-sm opacity-80" style={{ color: 'var(--foreground)' }}>Loading file…</div>
-                )}
-                {!loading && error && (
+                {error && (
                   <div className="text-sm text-red-500">{error}</div>
                 )}
-                {!loading && !error && binaryInfo && (
+                {!error && binaryInfo && (
                   <div className="text-sm opacity-80" style={{ color: 'var(--foreground)' }}>
                     Binary file. Use Download to open the file.
                   </div>
                 )}
-                {!loading && !error && !binaryInfo && content && (
+                {!error && !binaryInfo && content && (
                   <div className="p-4 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
                     {isCSV && csvRows && csvRows.length > 0 ? (
                       <CsvTable rows={csvRows} />
@@ -307,18 +304,15 @@ export function WorkspaceFileModal({
                     <span className="text-xs font-semibold">Download</span>
                   </button>
                 </div>
-                {loading && (
-                  <div className="text-sm opacity-80" style={{ color: 'var(--foreground)' }}>Loading file…</div>
-                )}
-                {!loading && error && (
+                {error && (
                   <div className="text-sm text-red-500">{error}</div>
                 )}
-                {!loading && !error && binaryInfo && (
+                {!error && binaryInfo && (
                   <div className="text-sm opacity-80" style={{ color: 'var(--foreground)' }}>
                     Binary file. Use Download to open the file.
                   </div>
                 )}
-                {!loading && !error && !binaryInfo && content && (
+                {!error && !binaryInfo && content && (
                   <div className="p-4 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
                     {isCSV && csvRows && csvRows.length > 0 ? (
                       <div className="overflow-x-auto rounded-lg border border-[color-mix(in_srgb,var(--foreground)_8%,transparent)] bg-(--muted/20)">
