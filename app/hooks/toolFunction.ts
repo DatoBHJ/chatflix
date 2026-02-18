@@ -3590,7 +3590,20 @@ export type FileEditFileEntry = {
   error?: string;
   size?: number;
   entries?: Array<{ name: string; path: string; isDir?: boolean }>;
-  input?: { path?: string; content?: string };
+  input?: ({
+    path?: string;
+    content?: string;
+    // grep_file
+    pattern?: string;
+    useRegex?: boolean;
+    contextLines?: number;
+    maxResults?: number;
+    startLine?: number;
+    endLine?: number;
+    windowSize?: number;
+    // apply_edits
+    edits?: Array<{ startLine: number; endLine: number; newContent: string }>;
+  } & Record<string, unknown>);
   /** grep_file: formatted output, totalLines, truncated, matches count */
   output?: string;
   totalLines?: number;

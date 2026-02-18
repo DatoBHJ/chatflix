@@ -3575,6 +3575,16 @@ export default function Canvas({
                   <div className="px-4 py-2.5 text-sm font-medium text-(--foreground) border-b border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] truncate" title={entry.path || undefined}>
                     {entry.toolName === 'list_workspace' && !entry.path
                       ? 'Workspace'
+                      : entry.toolName === 'grep_file'
+                        ? (() => {
+                            const raw = (entry as any)?.input?.pattern;
+                            if (typeof raw !== 'string') return entry.path;
+                            const collapsed = raw.replace(/\s+/g, ' ').trim();
+                            if (!collapsed) return entry.path;
+                            const maxLen = 80;
+                            const safe = collapsed.length > maxLen ? collapsed.slice(0, Math.max(0, maxLen - 3)) + '...' : collapsed;
+                            return `${entry.path} · "${safe}"`;
+                          })()
                       : entry.toolName === 'read_file'
                         ? (typeof entry.startLine === 'number' && typeof entry.endLine === 'number' && entry.endLine >= entry.startLine && entry.endLine > 0
                             ? `${entry.path} · L${entry.startLine}-${entry.endLine}`

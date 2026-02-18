@@ -79,6 +79,21 @@ const shimmerStyles = `
   }
 `;
 
+/** Truncate pattern with "..." when too long; layout/CSS handles visual ellipsis, this is fallback for very long strings. */
+function normalizeInlineSearchText(input: unknown, maxLen = 200): string | null {
+  if (typeof input !== 'string') return null;
+  const collapsed = input.replace(/\s+/g, ' ').trim();
+  if (!collapsed) return null;
+  if (collapsed.length <= maxLen) return collapsed;
+  return collapsed.slice(0, Math.max(0, maxLen - 3)) + '...';
+}
+
+function formatQuoted(input: unknown, maxLen = 200): string | null {
+  const normalized = normalizeInlineSearchText(input, maxLen);
+  if (!normalized) return null;
+  return `"${normalized}"`;
+}
+
 // Tool name to display name mapping
 const TOOL_DISPLAY_NAMES: Record<string, string> = {
   'web_search': 'Web Search',
@@ -733,6 +748,12 @@ export const InlineToolPreview = memo(function InlineToolPreview({
   const displayText = useMemo(() => {
     if (!toolArgs) return '';
     
+    // grep_file: always show the pattern (what we searched for)
+    if (toolName === 'grep_file') {
+      const quoted = formatQuoted(toolArgs.pattern ?? toolResult?.pattern, 80);
+      if (quoted) return quoted;
+    }
+
     // Handle different tool argument structures
     if (toolArgs.queries && Array.isArray(toolArgs.queries)) {
       return toolArgs.queries.map((q: string) => `"${q}"`).join(', ');
@@ -924,6 +945,23 @@ export const InlineToolPreview = memo(function InlineToolPreview({
   const iconNameForBubble = toolName === 'list_workspace' ? 'workspace' : fileName;
 
   const fileBubbleSubtitle = useMemo(() => {
+    if (toolName === 'grep_file') {
+      const quoted = formatQuoted(toolArgs?.pattern ?? toolResult?.pattern, 80);
+      if (status === 'processing') {
+        return '…';
+      }
+      if (status === 'error') {
+        const err = toolResult?.error;
+        if (typeof err === 'string' && err.trim().length > 0) {
+          return err;
+        }
+        return 'Error';
+      }
+      const matches = toolResult?.matches;
+      const n = Array.isArray(matches) ? matches.length : (typeof toolResult?.matchesCount === 'number' ? toolResult.matchesCount : 0);
+      return `${n} match(es)`;
+    }
+
     if (status === 'processing') return '…';
     if (toolName === 'read_file') {
       const start = toolArgs?.startLine ?? toolResult?.startLine;
@@ -958,11 +996,6 @@ export const InlineToolPreview = memo(function InlineToolPreview({
     if (toolName === 'delete_file') {
       if (toolResult?.success === false && toolResult?.error) return toolResult.error;
       return 'Deleted';
-    }
-    if (toolName === 'grep_file') {
-      const matches = toolResult?.matches;
-      const n = Array.isArray(matches) ? matches.length : (typeof toolResult?.matchesCount === 'number' ? toolResult.matchesCount : 0);
-      return `${n} match(es)`;
     }
     return '—';
   }, [status, toolName, toolArgs, toolResult, filePath]);
@@ -1296,6 +1329,9 @@ export const InlineToolPreview = memo(function InlineToolPreview({
     const isSuccess = status === 'completed';
     const actionLabel = getActionLabel(toolName, status);
     const isSearchTool = toolName === 'grep_file' || toolName === 'list_workspace';
+    const grepPattern = toolName === 'grep_file'
+      ? (formatQuoted(toolArgs?.pattern ?? toolResult?.pattern, 200) ?? '')
+      : '';
     
     return (
       <>
@@ -1320,6 +1356,11 @@ export const InlineToolPreview = memo(function InlineToolPreview({
             <span className="text-sm text-(--muted) shrink-0">
               {actionLabel}
             </span>
+            {toolName === 'grep_file' && grepPattern && (
+              <span className="text-sm text-(--muted) min-w-0 truncate shrink" title={typeof toolArgs?.pattern === 'string' ? toolArgs.pattern : undefined}>
+                {grepPattern}
+              </span>
+            )}
             <span className="diff-filename">
               {(toolName === 'read_file' || isSearchTool)
                 ? (fileBubbleSubtitle !== '—' ? `${fileBubbleTitle} · ${fileBubbleSubtitle}` : fileBubbleTitle)

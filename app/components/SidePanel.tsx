@@ -447,6 +447,20 @@ export const SidePanel: React.FC<SidePanelProps> = ({
         );
       }
     };
+
+    const filePathForPanel = (() => {
+      const basePath = fileEditPanelEntry.path || '';
+      if (!basePath) return undefined;
+      if (fileEditPanelEntry.toolName !== 'grep_file') return basePath;
+      const raw = (fileEditPanelEntry as any)?.input?.pattern;
+      if (typeof raw !== 'string') return basePath;
+      const collapsed = raw.replace(/\s+/g, ' ').trim();
+      if (!collapsed) return basePath;
+      const maxLen = 80;
+      const safe = collapsed.length > maxLen ? collapsed.slice(0, Math.max(0, maxLen - 3)) + '...' : collapsed;
+      return `${basePath} · "${safe}"`;
+    })();
+
     return createPortal(
       <FileEditCanvasPanel
         entry={fileEditPanelEntry}
@@ -455,7 +469,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
         onClose={handleClose}
         isMobile={isMobile}
         title={panelTitle ?? 'File'}
-        filePath={fileEditPanelEntry.path || undefined}
+        filePath={filePathForPanel}
       />,
       document.body
     );

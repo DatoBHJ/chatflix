@@ -4160,7 +4160,7 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
 
 /* ═══ Diff view styles ═══════════════════════════════════════════════ */
 
-/* Inline compact diff (InlineToolPreview) - unified with message-segment */
+/* Inline compact diff (InlineToolPreview) - unified with message-segment, same max-width as imessage-receive-bubble */
 .diff-inline-preview {
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
   font-size: 12px;
@@ -4168,7 +4168,7 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   overflow: hidden;
   background: var(--accent);
   border-radius: 22px;
-  max-width: 100%;
+  max-width: 480px;
   margin: 1px 0;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -4300,6 +4300,8 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 13px;
   background: transparent;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .diff-inline-preview .diff-header .diff-filename {
