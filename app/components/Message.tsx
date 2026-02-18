@@ -34,6 +34,7 @@ import { InlineToolPreview } from './InlineToolPreview';
 import { getRunCodeData, getBrowserObserveData } from '../hooks/toolFunction';
 import { getWebSearchResults, getGoogleSearchData } from '@/app/hooks/toolFunction';
 import { getAdaptiveGlassStyleBlur, getAdaptiveGlassBackgroundColor, getTextStyle, getInitialTheme } from '@/app/lib/adaptiveGlassStyle';
+import { UploadedImageChip } from '@/app/components/UploadedImageChip';
 
 
 interface MessageProps {
@@ -76,6 +77,7 @@ interface MessageProps {
   allMessages?: any[]
   isGlobalLoading?: boolean
   imageMap?: { [key: string]: string }
+  uploadedImageMetaMap?: { [key: string]: { url: string; filename: string } }
   videoMap?: { [key: string]: { url: string; size?: string } | string }
   linkMap?: { [key: string]: string }
   thumbnailMap?: { [key: string]: string }
@@ -120,6 +122,32 @@ function isReasoningComplete(message: any, isStreaming: boolean): boolean {
   return false;
 }
 
+type UserMessageSegment =
+  | { type: 'text'; value: string }
+  | { type: 'uploaded_image'; id: string };
+
+function parseUserContentWithUploadedImages(content: string): UserMessageSegment[] {
+  if (!content) return [];
+  if (!/uploaded_image_\d+/.test(content)) {
+    return [{ type: 'text', value: content }];
+  }
+  const segments: UserMessageSegment[] = [];
+  let lastIndex = 0;
+  const re = /uploaded_image_(\d+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(content)) !== null) {
+    if (m.index > lastIndex) {
+      segments.push({ type: 'text', value: content.slice(lastIndex, m.index) });
+    }
+    segments.push({ type: 'uploaded_image', id: m[0] });
+    lastIndex = m.index + m[0].length;
+  }
+  if (lastIndex < content.length) {
+    segments.push({ type: 'text', value: content.slice(lastIndex) });
+  }
+  return segments;
+}
+
 interface UserMessageContentProps {
   content: string;
   showGradient?: boolean;
@@ -155,6 +183,63 @@ function UserMessageContent({
       onClick={onClick}
     >
       {processedContent}
+      {showGradient && (
+        <div 
+          className="absolute bottom-0 left-0 right-0 h-12 bg-linear-to-t from-[#0B93F6] to-transparent pointer-events-none"
+        />
+      )}
+    </div>
+  );
+}
+
+function UserMessageContentWithUploads({
+  segments,
+  uploadedImageMetaMap,
+  imageMap,
+  showGradient,
+  onClick,
+  isClickable,
+  searchTerm,
+}: {
+  segments: UserMessageSegment[];
+  uploadedImageMetaMap: { [key: string]: { url: string; filename: string } };
+  imageMap: { [key: string]: string };
+  showGradient?: boolean;
+  onClick?: () => void;
+  isClickable?: boolean;
+  searchTerm?: string | null;
+}) {
+  return (
+    <div 
+      className={`user-message-content relative ${isClickable ? 'cursor-pointer' : ''}`}
+      style={{
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        overflowWrap: 'break-word',
+      }}
+      onClick={onClick}
+    >
+      {segments.map((seg, idx) => {
+        if (seg.type === 'text') {
+          const lines = seg.value.split('\\n');
+          return (
+            <React.Fragment key={idx}>
+              {lines.map((line, i) => (
+                <React.Fragment key={i}>
+                  {highlightSearchTermInChildren(linkifyText(line), searchTerm || null, { messageType: 'user' })}
+                  {i < lines.length - 1 && <br />}
+                </React.Fragment>
+              ))}
+            </React.Fragment>
+          );
+        }
+        const meta = uploadedImageMetaMap[seg.id];
+        const url = meta?.url ?? imageMap[seg.id];
+        const num = seg.id.replace(/^uploaded_image_/, '') || '1';
+        const label = `image ${num}`;
+        if (!url) return null;
+        return <React.Fragment key={idx}><UploadedImageChip url={url} label={label} className="my-0.5 mr-1" />{' '}</React.Fragment>;
+      })}
       {showGradient && (
         <div 
           className="absolute bottom-0 left-0 right-0 h-12 bg-linear-to-t from-[#0B93F6] to-transparent pointer-events-none"
@@ -385,6 +470,7 @@ const Message = memo(function MessageComponent({
   allMessages,
   isGlobalLoading,
   imageMap = {},
+  uploadedImageMetaMap = {},
   videoMap = {},
   linkMap = {},
   thumbnailMap = {},
@@ -730,6 +816,22 @@ const Message = memo(function MessageComponent({
       return part;
     });
   }, [message.parts, imageMap, videoMap, linkMap, IMAGE_ID_REGEX, VIDEO_ID_REGEX, LINK_ID_REGEX, removeConsecutiveDuplicateLinks, reorderImagesByPartsOrder, getVideoUrlWithSize]);
+
+  const userMessageDisplayContent = useMemo(() => {
+    if (message.role !== 'user') return '';
+    const hasContent = !!(message.content && String(message.content).trim().length > 0) ||
+      (message.parts && message.parts.some((p: any) => p.type === 'text' && (p.text || '').trim().length > 0));
+    if (!hasContent) return '';
+    return processedContent ?? (processedParts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n') || '') ?? '';
+  }, [message.role, message.content, message.parts, processedContent, processedParts]);
+
+  const userMessageSegments = useMemo(() => {
+    if (message.role !== 'user' || !userMessageDisplayContent) return null;
+    if (Object.keys(uploadedImageMetaMap).length === 0) return null;
+    const segments = parseUserContentWithUploadedImages(userMessageDisplayContent);
+    const hasUploadedImage = segments.some((s) => s.type === 'uploaded_image');
+    return hasUploadedImage ? segments : null;
+  }, [message.role, userMessageDisplayContent, uploadedImageMetaMap]);
 
   const bubbleRef = useRef<HTMLDivElement>(null);
   const aiBubbleRef = useRef<HTMLDivElement>(null);
@@ -2658,14 +2760,23 @@ const Message = memo(function MessageComponent({
                     position: longPressActive ? 'relative' : 'static',
                   }}
                       >
-                        <UserMessageContent 
-                          content={
-                            hasContent 
-                              ? processedContent 
-                              : (processedParts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n') || '')
-                          }
-                          searchTerm={searchTerm}
-                        />
+                        {userMessageSegments ? (
+                          <UserMessageContentWithUploads
+                            segments={userMessageSegments}
+                            uploadedImageMetaMap={uploadedImageMetaMap}
+                            imageMap={imageMap}
+                            searchTerm={searchTerm}
+                          />
+                        ) : (
+                          <UserMessageContent 
+                            content={
+                              hasContent 
+                                ? processedContent 
+                                : (processedParts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n') || '')
+                            }
+                            searchTerm={searchTerm}
+                          />
+                        )}
                       </div>
                       
                       {/* 롱프레스 드롭다운: Portal 사용으로 DOM 계층 분리 */}

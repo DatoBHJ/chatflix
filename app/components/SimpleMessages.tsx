@@ -80,6 +80,7 @@ const areMessageItemPropsEqual = (prevProps: any, nextProps: any) => {
     prevProps.handleBookmarkToggle === nextProps.handleBookmarkToggle &&
     prevProps.bookmarkedMessageIds === nextProps.bookmarkedMessageIds &&
     prevProps.globalImageMap === nextProps.globalImageMap &&
+    prevProps.globalUploadedImageMetaMap === nextProps.globalUploadedImageMetaMap &&
     prevProps.globalVideoMap === nextProps.globalVideoMap &&
     prevProps.isMessageSelectionMode === nextProps.isMessageSelectionMode &&
     prevProps.selectedMessageIds === nextProps.selectedMessageIds &&
@@ -120,6 +121,7 @@ const MessageItem = memo(function MessageItem({
   user,
   handleFollowUpQuestionClick,
   globalImageMap,
+  globalUploadedImageMetaMap,
   globalVideoMap,
   bookmarkedMessageIds,
   handleBookmarkToggle,
@@ -496,6 +498,7 @@ const MessageItem = memo(function MessageItem({
   const maps = useMemo(() => {
     return { 
       imageMap: combinedImageMap, 
+      uploadedImageMetaMap: globalUploadedImageMetaMap ?? {},
       linkMap, 
       thumbnailMap, 
       titleMap, 
@@ -505,7 +508,7 @@ const MessageItem = memo(function MessageItem({
       sourceImageMap,
       mediaDimensionsMap
     };
-  }, [combinedImageMap, linkMap, thumbnailMap, titleMap, linkPreviewData, combinedVideoMap, promptMap, sourceImageMap, mediaDimensionsMap]);
+  }, [combinedImageMap, globalUploadedImageMetaMap, linkMap, thumbnailMap, titleMap, linkPreviewData, combinedVideoMap, promptMap, sourceImageMap, mediaDimensionsMap]);
 
   const showTimestamp = useMemo(() => {
     if (!previousMessage) return false;
@@ -588,6 +591,7 @@ const MessageItem = memo(function MessageItem({
             allMessages={allMessages}
             isGlobalLoading={isLoading}
             imageMap={maps.imageMap}
+            uploadedImageMetaMap={maps.uploadedImageMetaMap}
             videoMap={maps.videoMap}
             linkMap={maps.linkMap}
             thumbnailMap={maps.thumbnailMap}
@@ -821,6 +825,46 @@ export const SimpleMessages = memo(function SimpleMessages({
     }
     
     return imageMap;
+  }, [messages]);
+
+  const globalUploadedImageMetaMap = useMemo(() => {
+    const metaMap: Record<string, { url: string; filename: string }> = {};
+    let uploadedImageIndex = 1;
+    for (const message of messages) {
+      const partsUrls: string[] = [];
+      const partsFilenames: string[] = [];
+      const expUrls: string[] = [];
+      const expFilenames: string[] = [];
+      if (message.parts && Array.isArray(message.parts)) {
+        for (const part of message.parts) {
+          if (part.type === 'file' && part.mediaType?.startsWith('image/') && (part.url || part.data)) {
+            partsUrls.push(part.url || part.data);
+            partsFilenames.push(part.filename || part.name || 'image.jpg');
+          } else if (part.type === 'image' && (part.image || part.url)) {
+            partsUrls.push(part.image || part.url);
+            partsFilenames.push(part.filename || part.name || 'image.jpg');
+          }
+        }
+      }
+      if (message.experimental_attachments && Array.isArray(message.experimental_attachments)) {
+        for (const attachment of message.experimental_attachments) {
+          if (attachment.contentType?.startsWith('image/') || attachment.fileType === 'image') {
+            expUrls.push(attachment.url);
+            expFilenames.push(attachment.name || 'image.jpg');
+          }
+        }
+      }
+      const useExp = expUrls.length > partsUrls.length;
+      const uploadUrls = useExp ? expUrls : partsUrls;
+      const uploadFilenames = useExp ? expFilenames : partsFilenames;
+      for (let i = 0; i < uploadUrls.length; i++) {
+        metaMap[`uploaded_image_${uploadedImageIndex++}`] = {
+          url: uploadUrls[i],
+          filename: uploadFilenames[i] ?? 'image.jpg',
+        };
+      }
+    }
+    return metaMap;
   }, [messages]);
 
   const extractFilenameId = useCallback((path: string): string | null => {
@@ -1166,6 +1210,7 @@ export const SimpleMessages = memo(function SimpleMessages({
         user={user}
         handleFollowUpQuestionClick={handleFollowUpQuestionClick}
         globalImageMap={globalImageMap}
+        globalUploadedImageMetaMap={globalUploadedImageMetaMap}
         globalVideoMap={globalVideoMap}
         bookmarkedMessageIds={bookmarkedMessageIds}
         handleBookmarkToggle={handleBookmarkToggle}
@@ -1208,6 +1253,7 @@ export const SimpleMessages = memo(function SimpleMessages({
     togglePanel,
     handleFollowUpQuestionClick,
     globalImageMap,
+    globalUploadedImageMetaMap,
     globalVideoMap,
     bookmarkedMessageIds,
     handleBookmarkToggle,
