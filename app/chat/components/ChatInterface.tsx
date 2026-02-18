@@ -15,7 +15,7 @@ import { getChatflixLogo } from '@/lib/models/logoUtils';
 import { SimpleMessages } from '@/app/components/SimpleMessages';
 import { SidePanel } from '@/app/components/SidePanel';
 import { ChatInputArea } from './ChatInputArea';
-import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getGoogleSearchData, getWan25VideoData, getGrokVideoData, getFileEditData, getRunCodeData, getBrowserObserveData } from '@/app/hooks/toolFunction';
+import { getYouTubeLinkAnalysisData, getYouTubeSearchData, getTwitterSearchData, getWebSearchResults, getMathCalculationData, getLinkReaderData, getImageGeneratorData, getGeminiImageData, getSeedreamImageData, getGoogleSearchData, getWan25VideoData, getGrokVideoData, getVideoUpscalerData, getImageUpscalerData, getFileEditData, getRunCodeData, getBrowserObserveData } from '@/app/hooks/toolFunction';
 import { Annotation } from '@/app/lib/messageUtils';
 import { nanoid } from 'nanoid';
 import { DragDropOverlay } from '@/app/components/ChatInput/DragDropOverlay';
@@ -1398,6 +1398,10 @@ export default function ChatInterface({
     const hasRunCodeData = !!runCodeData;
     const browserObserveData = getBrowserObserveData(message);
     const hasBrowserObserveData = !!browserObserveData;
+    const videoUpscalerData = getVideoUpscalerData(message);
+    const hasVideoUpscalerData = !!videoUpscalerData && (videoUpscalerData.generatedVideos?.length > 0 || (videoUpscalerData.startedCount ?? 0) > 0);
+    const imageUpscalerData = getImageUpscalerData(message);
+    const hasImageUpscalerData = !!imageUpscalerData && (imageUpscalerData.generatedImages?.length > 0 || (imageUpscalerData.startedCount ?? 0) > 0);
 
     return !!(
       hasWebSearchData || 
@@ -1409,6 +1413,8 @@ export default function ChatInterface({
       getSeedreamImageData(message) ||
       getWan25VideoData(message) ||
       getGrokVideoData(message) ||
+      hasVideoUpscalerData ||
+      hasImageUpscalerData ||
       getYouTubeSearchData(message) || 
       getYouTubeLinkAnalysisData(message) || 
       getGoogleSearchData(message) ||

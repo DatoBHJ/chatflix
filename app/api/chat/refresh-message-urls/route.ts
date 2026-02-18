@@ -96,7 +96,41 @@ async function refreshGeneratedImages(supabase: any, tool_results: any): Promise
       })
     );
   }
-  
+
+  // Refresh 4K Video Upscaler
+  if (refreshed.videoUpscalerResults && Array.isArray(refreshed.videoUpscalerResults)) {
+    refreshed.videoUpscalerResults = await Promise.all(
+      refreshed.videoUpscalerResults.map(async (vid: any) => {
+        if (vid.path && vid.bucket === 'generated-videos') {
+          const { data: signedData } = await supabase.storage
+            .from('generated-videos')
+            .createSignedUrl(vid.path, 24 * 60 * 60);
+          if (signedData?.signedUrl) {
+            return { ...vid, videoUrl: signedData.signedUrl };
+          }
+        }
+        return vid;
+      })
+    );
+  }
+
+  // Refresh 8K Image Upscaler
+  if (refreshed.imageUpscalerResults && Array.isArray(refreshed.imageUpscalerResults)) {
+    refreshed.imageUpscalerResults = await Promise.all(
+      refreshed.imageUpscalerResults.map(async (img: any) => {
+        if (img.path && img.bucket === 'generated-images') {
+          const { data: signedData } = await supabase.storage
+            .from('generated-images')
+            .createSignedUrl(img.path, 24 * 60 * 60);
+          if (signedData?.signedUrl) {
+            return { ...img, imageUrl: signedData.signedUrl };
+          }
+        }
+        return img;
+      })
+    );
+  }
+
   return refreshed;
 }
 
@@ -112,7 +146,7 @@ async function refreshPartsUrls(supabase: any, parts: any[]): Promise<{ parts: a
   let changed = false;
   
   const refreshedParts = await Promise.all(parts.map(async (part: any) => {
-    // 1. tool-seedream_image_tool, tool-gemini_image_tool 또는 tool-qwen_image_edit 처리 (output.images)
+    // 1. tool-seedream_image_tool, tool-gemini_image_tool, tool-qwen_image_edit, tool-image_upscaler 처리 (output.images)
     if (part.type?.startsWith('tool-') && part.output?.images && Array.isArray(part.output.images)) {
       const refreshedImages = await Promise.all(part.output.images.map(async (img: any) => {
         if (img.path && (img.bucket === 'generated-images' || img.imageUrl?.includes('generated-images'))) {
@@ -134,8 +168,8 @@ async function refreshPartsUrls(supabase: any, parts: any[]): Promise<{ parts: a
       };
     }
     
-    // 2. tool-wan25_* / tool-grok_* 처리 (output.videos)
-    if ((part.type?.startsWith('tool-wan25_') || part.type?.startsWith('tool-grok_')) && part.output?.videos && Array.isArray(part.output.videos)) {
+    // 2. tool-wan25_* / tool-grok_* / tool-video_upscaler 처리 (output.videos)
+    if ((part.type?.startsWith('tool-wan25_') || part.type?.startsWith('tool-grok_') || part.type === 'tool-video_upscaler') && part.output?.videos && Array.isArray(part.output.videos)) {
       const refreshedVideos = await Promise.all(part.output.videos.map(async (vid: any) => {
         if (vid.path && (vid.bucket === 'generated-videos' || vid.videoUrl?.includes('generated-videos'))) {
           const { data: signedData, error } = await supabase.storage
@@ -156,8 +190,8 @@ async function refreshPartsUrls(supabase: any, parts: any[]): Promise<{ parts: a
       };
     }
     
-    // 3. data-seedream_image_complete, data-gemini_image_complete 또는 data-qwen_image_complete 처리
-    if ((part.type === 'data-seedream_image_complete' || part.type === 'data-gemini_image_complete' || part.type === 'data-qwen_image_complete') && part.data?.path) {
+    // 3. data-seedream_image_complete, data-gemini_image_complete, data-qwen_image_complete, data-image_upscaler_complete 처리
+    if ((part.type === 'data-seedream_image_complete' || part.type === 'data-gemini_image_complete' || part.type === 'data-qwen_image_complete' || part.type === 'data-image_upscaler_complete') && part.data?.path) {
       const { data: signedData, error } = await supabase.storage
         .from('generated-images')
         .createSignedUrl(part.data.path, 24 * 60 * 60);
@@ -171,8 +205,8 @@ async function refreshPartsUrls(supabase: any, parts: any[]): Promise<{ parts: a
       }
     }
     
-    // 4. data-wan25_video_complete / data-grok_video_complete 처리
-    if ((part.type === 'data-wan25_video_complete' || part.type === 'data-grok_video_complete') && part.data?.path) {
+    // 4. data-wan25_video_complete / data-grok_video_complete / data-video_upscaler_complete 처리
+    if ((part.type === 'data-wan25_video_complete' || part.type === 'data-grok_video_complete' || part.type === 'data-video_upscaler_complete') && part.data?.path) {
       const { data: signedData, error } = await supabase.storage
         .from('generated-videos')
         .createSignedUrl(part.data.path, 24 * 60 * 60);
