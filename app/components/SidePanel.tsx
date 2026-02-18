@@ -254,7 +254,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           case 'video-upscaler': return '4K Video Upscaler';
           case 'run-code': return 'Code output';
           case 'browser-observe': return 'Browser Observe';
-          case 'chat-search': return 'Chat History Search';
+          case 'chat-search': return 'Message Search';
           default:
             if (panelData.toolType?.startsWith('file-edit:')) {
               const sub = panelData.toolType.replace('file-edit:', '');

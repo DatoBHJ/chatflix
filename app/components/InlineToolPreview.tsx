@@ -3,7 +3,7 @@
 
 import React, { memo, useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { Calculator, Link2, ImageIcon, Search, Youtube, Video, FileText, Code2, Copy, Download, Globe } from 'lucide-react';
+import { Calculator, Link2, ImageIcon, Search, Youtube, Video, FileText, Code2, Copy, Download, Globe, MessageCircle } from 'lucide-react';
 import { SiGoogle } from 'react-icons/si';
 import { getIcon } from 'material-file-icons';
 import { XLogo, YouTubeLogo, WanAiLogo, SeedreamLogo, XaiLogo } from './CanvasFolder/CanvasLogo';
@@ -107,7 +107,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   'apply_edits': 'Apply edits',
   'run_python_code': 'Run code',
   'browser_observe': 'Browser Observe',
-  'chat_history_search': 'Chat History Search',
+  'chat_history_search': 'Message Search',
 };
 
 // Tool name to icon mapping
@@ -158,7 +158,7 @@ const getToolIcon = (toolName: string, toolArgs?: any, toolResult?: any) => {
     case 'twitter_search':
       return <XLogo size={iconProps.size} />;
     case 'chat_history_search':
-      return <Search {...iconProps} />;
+      return <MessageCircle {...iconProps} />;
     case 'wan25_video':
       return <WanAiLogo size={iconProps.size} />;
     case 'grok_video':

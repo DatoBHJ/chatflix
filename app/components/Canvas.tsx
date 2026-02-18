@@ -1936,13 +1936,13 @@ export default function Canvas({
         </div>
       )}
       
-      {/* Chat History Search Results */}
+      {/* Message Search Results */}
       {(!selectedTool || selectedTool === 'chat-search') && chatHistorySearchData && chatHistorySearchData.results.length > 0 && (
         <div className="">
           {!selectedTool && (
             <div className={`flex items-center gap-2.5 ${headerClasses}`}>
               <Search className="h-4 w-4 text-(--foreground)" strokeWidth={1.5} />
-              <h2 className="font-medium text-left tracking-tight">Chat History Search</h2>
+              <h2 className="font-medium text-left tracking-tight">Message Search</h2>
             </div>
           )}
           <div className="mt-4 space-y-3">
