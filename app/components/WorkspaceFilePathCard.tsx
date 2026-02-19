@@ -33,7 +33,9 @@ export function WorkspaceFilePathCard({
     >
       <div className="diff-header">
         <div className="shrink-0" style={{ width: 18, height: 18 }} dangerouslySetInnerHTML={{ __html: icon.svg }} />
-        <span className="diff-filename">{filename}</span>
+        <div className="diff-header-scroll">
+          <span className="diff-filename">{filename}</span>
+        </div>
         <Download className="w-3.5 h-3.5 text-(--muted) shrink-0" aria-hidden />
       </div>
     </div>

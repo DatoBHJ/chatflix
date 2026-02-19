@@ -4305,6 +4305,21 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   flex-wrap: nowrap;
 }
 
+.diff-header-scroll {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.diff-header-scroll::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
 /* Icon + verb/action: never shrink or truncate (always visible) */
 .diff-inline-preview .diff-header .diff-header-fixed {
   flex: 0 0 auto;
@@ -4316,11 +4331,8 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
 .diff-inline-preview .diff-header .diff-filename {
   font-weight: 500;
   color: var(--foreground);
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
-  min-width: 0;
+  flex: 0 0 auto;
   letter-spacing: -0.01em;
 }
 

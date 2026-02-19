@@ -1163,29 +1163,33 @@ export const InlineToolPreview = memo(function InlineToolPreview({
                 {actionLabel}
               </span>
             </div>
-            <span className="diff-filename">
-              {browserTitle}
-            </span>
+            <div className="diff-header-scroll">
+              <span className="diff-filename">
+                {browserTitle}
+              </span>
 
-            <span className="text-xs text-(--muted) shrink-0 ml-0.5">
-              {browserObserveSubtitle}
-            </span>
+              <span className="text-xs text-(--muted) shrink-0 ml-0.5">
+                {browserObserveSubtitle}
+              </span>
+            </div>
 
-            {status === 'processing' && (
-              <span className="inline-tool-status-dot shrink-0 ml-1" />
-            )}
-            
-            {isSuccess && (
-              <svg className="w-3.5 h-3.5 text-green-500 shrink-0 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            )}
+            <div className="shrink-0 flex items-center ml-0.5">
+              {status === 'processing' && (
+                <span className="inline-tool-status-dot shrink-0" />
+              )}
+              
+              {isSuccess && (
+                <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
 
-            {status === 'error' && (
-              <svg className="w-3.5 h-3.5 text-red-500 shrink-0 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            )}
+              {status === 'error' && (
+                <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              )}
+            </div>
           </div>
 
           {toolResult?.finalUrl && (
@@ -1233,29 +1237,33 @@ export const InlineToolPreview = memo(function InlineToolPreview({
                 {actionLabel}
               </span>
             </div>
-            <span className="diff-filename">
-              Code output
-            </span>
+            <div className="diff-header-scroll">
+              <span className="diff-filename">
+                Code output
+              </span>
 
-            <span className="text-xs text-(--muted) shrink-0 ml-0.5">
-              {runCodeSubtitle}
-            </span>
+              <span className="text-xs text-(--muted) shrink-0 ml-0.5">
+                {runCodeSubtitle}
+              </span>
+            </div>
 
-            {status === 'processing' && (
-              <span className="inline-tool-status-dot shrink-0 ml-1" />
-            )}
-            
-            {isSuccess && (
-              <svg className="w-3.5 h-3.5 text-green-500 shrink-0 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            )}
+            <div className="shrink-0 flex items-center ml-0.5">
+              {status === 'processing' && (
+                <span className="inline-tool-status-dot shrink-0" />
+              )}
+              
+              {isSuccess && (
+                <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
 
-            {status === 'error' && (
-              <svg className="w-3.5 h-3.5 text-red-500 shrink-0 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            )}
+              {status === 'error' && (
+                <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              )}
+            </div>
           </div>
         </div>
         
@@ -1362,39 +1370,43 @@ export const InlineToolPreview = memo(function InlineToolPreview({
                 {actionLabel}
               </span>
             </div>
-            {toolName === 'grep_file' && grepPattern && (
-              <span className="text-sm text-(--muted) min-w-0 truncate shrink" title={typeof toolArgs?.pattern === 'string' ? toolArgs.pattern : undefined}>
-                {grepPattern}
+            <div className="diff-header-scroll">
+              {toolName === 'grep_file' && grepPattern && (
+                <span className="text-sm text-(--muted) whitespace-nowrap flex-none" title={typeof toolArgs?.pattern === 'string' ? toolArgs.pattern : undefined}>
+                  {grepPattern}
+                </span>
+              )}
+              <span className="diff-filename">
+                {(toolName === 'read_file' || isSearchTool)
+                  ? (fileBubbleSubtitle !== '—' ? `${fileBubbleTitle} · ${fileBubbleSubtitle}` : fileBubbleTitle)
+                  : fileBubbleTitle}
               </span>
-            )}
-            <span className="diff-filename">
-              {(toolName === 'read_file' || isSearchTool)
-                ? (fileBubbleSubtitle !== '—' ? `${fileBubbleTitle} · ${fileBubbleSubtitle}` : fileBubbleTitle)
-                : fileBubbleTitle}
-            </span>
 
-            {!isSearchTool && diffData && (
-              <span className="text-xs flex items-center gap-1.5 shrink-0 ml-0.5">
-                {diffData.additions > 0 && <span className="text-green-600">+{diffData.additions}</span>}
-                {diffData.deletions > 0 && <span className="text-red-600">-{diffData.deletions}</span>}
-              </span>
-            )}
+              {!isSearchTool && diffData && (
+                <span className="text-xs flex items-center gap-1.5 shrink-0 ml-0.5">
+                  {diffData.additions > 0 && <span className="text-green-600">+{diffData.additions}</span>}
+                  {diffData.deletions > 0 && <span className="text-red-600">-{diffData.deletions}</span>}
+                </span>
+              )}
+            </div>
 
-            {status === 'processing' && (
-              <span className="inline-tool-status-dot shrink-0 ml-1" />
-            )}
-            
-            {isSuccess && (
-              <svg className="w-3.5 h-3.5 text-green-500 shrink-0 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            )}
+            <div className="shrink-0 flex items-center ml-0.5">
+              {status === 'processing' && (
+                <span className="inline-tool-status-dot shrink-0" />
+              )}
+              
+              {isSuccess && (
+                <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
 
-            {status === 'error' && (
-              <svg className="w-3.5 h-3.5 text-red-500 shrink-0 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            )}
+              {status === 'error' && (
+                <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              )}
+            </div>
           </div>
         </div>
       </>
@@ -1462,37 +1474,42 @@ export const InlineToolPreview = memo(function InlineToolPreview({
               {fallbackEtc}
             </span>
           </div>
-          {/* Display text (subtitle): can truncate */}
-          {inlineSubtitle && (
-            <span className="text-xs text-(--muted) truncate shrink min-w-0">
-              {inlineSubtitle}
-            </span>
-          )}
           
-          {/* Status indicator (never shrink) */}
-          {status === 'processing' && (
-            <span className="inline-tool-status-dot shrink-0" />
-          )}
-          {status === 'completed' && (
-            <svg 
-              className="w-3.5 h-3.5 text-green-500 shrink-0" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          )}
-          {status === 'error' && (
-            <svg 
-              className="w-3.5 h-3.5 text-red-500 shrink-0" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          )}
+          {/* Display text (subtitle): can scroll */}
+          <div className="diff-header-scroll" style={{ touchAction: 'pan-x' }}>
+            {inlineSubtitle && (
+              <span className="text-xs text-(--muted) whitespace-nowrap flex-none">
+                {inlineSubtitle}
+              </span>
+            )}
+          </div>
+          
+          {/* Status indicator (never shrink, never hidden) */}
+          <div className="shrink-0 flex items-center ml-auto">
+            {status === 'processing' && (
+              <span className="inline-tool-status-dot shrink-0" />
+            )}
+            {status === 'completed' && (
+              <svg 
+                className="w-3.5 h-3.5 text-green-500 shrink-0" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+            {status === 'error' && (
+              <svg 
+                className="w-3.5 h-3.5 text-red-500 shrink-0" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+          </div>
         </button>
       </div>
     </>
