@@ -10,7 +10,7 @@
     "sync-polar": "tsx scripts/sync-polar-subscriptions.ts"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.23",
+    "@ai-sdk/anthropic": "^3.0.45",
     "@ai-sdk/deepseek": "^2.0.8",
     "@ai-sdk/fireworks": "^2.0.21",
     "@ai-sdk/google": "^3.0.13",

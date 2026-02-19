@@ -3928,14 +3928,6 @@ function MarkdownContentComponent({
                          urlMatch[0].includes('generated-videos'));
                 })();
               
-              // 레거시 폴백: 워크스페이스 파일 경로 세그먼트 (백틱/플레인)
-              // [FILE:] 태그가 아닌 기존 메시지 호환용
-              const workspacePathMatch = (!isFileTagSegment && chatId)
-                ? segment.match(/`(\/home\/user\/workspace\/[^\s`]+)`/) ||
-                  segment.match(/(\/home\/user\/workspace\/[^\s"'<>)`]+)/)
-                : null;
-              const isWorkspaceFileSegment = !!workspacePathMatch;
-              
               const processedSegment = segment;
               
               // 테이블 세그먼트인지 확인 (마크다운 표 패턴: 헤더 행 + 구분 행 존재)
@@ -4042,36 +4034,6 @@ function MarkdownContentComponent({
                   >
                     <WorkspaceFilePathCard path={fileTagMatch[1]} onOpen={openWorkspaceFileModal} />
                   </div>
-                );
-              }
-
-              // 레거시 폴백: 워크스페이스 파일 경로 → 경로 부분을 파일 카드로, 나머지 텍스트는 그대로 렌더링
-              if (isWorkspaceFileSegment && workspacePathMatch && chatId) {
-                const wPath = workspacePathMatch[1];
-                const textWithoutPath = segment.replace(workspacePathMatch[0], '').trim();
-
-                return (
-                  <React.Fragment key={index}>
-                    {textWithoutPath && (
-                      <div className={`${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${isLastBubble ? ' last-bubble' : ''}`}>
-                        <div className="message-content max-w-full overflow-x-auto break-words">
-                          <ReactMarkdown
-                            remarkPlugins={remarkPlugins}
-                            rehypePlugins={rehypePlugins}
-                            components={components}
-                          >
-                            {textWithoutPath}
-                          </ReactMarkdown>
-                        </div>
-                      </div>
-                    )}
-                    <div
-                      className={`${variant === 'clean' ? 'markdown-segment' : 'message-segment'}${fileCardHasTail ? ' last-bubble' : ''}`}
-                      style={{ width: 'fit-content', maxWidth: '100%' }}
-                    >
-                      <WorkspaceFilePathCard path={wPath} onOpen={openWorkspaceFileModal} />
-                    </div>
-                  </React.Fragment>
                 );
               }
 

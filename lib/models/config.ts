@@ -307,7 +307,7 @@ const pick = (modelId: string) => resolveDefaultModelVariantId(modelId);
     else if (analysis.category === 'technical') {
       // 기술 카테고리
       if (modelType === 'chatflix-ultimate-pro') {
-        // Pro 버전: 단순 gemini-3-flash, 중간/복잡 claude-sonnet-4
+        // Pro 버전: 단순 gemini-3-flash, 중간/복잡 claude-sonnet-4-6
         if (analysis.complexity === 'simple') {
         return pickGemini3Variant('gemini-3-flash-preview', analysis.complexity);
         } else { // medium/complex
@@ -700,14 +700,14 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
 //   latency: 0.33, // Updated from artificialanalysis.ai (Google Vertex: 0.33s, time to first answer token)
 //   maxOutputTokens: 8192, // From config (Gemini 2.0 Flash typically uses 8192, verify at https://ai.google.dev/gemini-api/docs/models)
 // },
-// 📅 현재 Anthropic의 가장 최신 모델은 Claude Opus 4.5입니다.
-// 📅 Claude 4.5 Opus (Thinking)
+// 📅 현재 Anthropic의 가장 최신 모델은 Claude Opus 4.6입니다.
+// 📅 Claude 4.6 Opus (Thinking)
 // ⚠️ 주의: 이전에 contextWindow가 1,000,000 (1M)으로 설정되어 있었으나, 표준은 200,000 (200K)입니다. 1M은 beta 기능이며 usage tier 4+ 조직에서만 사용 가능합니다.
 {
-  id: 'claude-opus-4-5-20251101-thinking',
-  name: 'Claude Opus 4.5 (Thinking)',
+  id: 'claude-opus-4-6-thinking',
+  name: 'Claude Opus 4.6 (Thinking)',
   // pro: true,
-  cutoff: 'May 2025',
+  cutoff: 'Feb 2026',
   abbreviation: 'CO4-T',
   country: 'US',
   provider: 'anthropic',
@@ -722,22 +722,19 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   isActivated: true,
   isAgentEnabled: true,
   reasoning: true,
-  // Metrics from https://artificialanalysis.ai/models/claude-opus-4-5-thinking/providers (Anthropic)
+  // We use adaptive thinking + effort high. artificialanalysis.ai only benchmarks Adaptive Reasoning Max Effort (https://artificialanalysis.ai/models/claude-opus-4-6-adaptive/providers) — no direct benchmark for our effort level; metrics not filled.
   // Note: 1M token context window is available as beta feature for usage tier 4+ organizations. See: https://docs.claude.com/en/docs/build-with-claude/context-windows#1m-token-context-window
   contextWindow: 200000, // Standard context window: 200K tokens (1M is beta, usage tier 4+ only)
-  intelligenceIndex: 50, // Updated from artificialanalysis.ai (Intelligence Index: 50)
-  tps: 75.9, // Updated from artificialanalysis.ai (Anthropic: 75.9 tokens/s)
-  latency: 27.9, // Updated from artificialanalysis.ai (Anthropic: 27.9s, time to first answer token including thinking)
-  maxOutputTokens: 64000, // From https://docs.claude.com/en/docs/about-claude/models/overview (Max output: 64K tokens)
+  maxOutputTokens: 128000, // Claude 4.6 Opus: 128K max output tokens
   // pro: true,
 },
-// 📅 Claude 4.5 Opus
+// 📅 Claude 4.6 Opus (Non-reasoning)
 // ⚠️ 주의: 이전에 contextWindow가 1,000,000 (1M)으로 설정되어 있었으나, 표준은 200,000 (200K)입니다. 1M은 beta 기능이며 usage tier 4+ 조직에서만 사용 가능합니다.
 {
-  id: 'claude-opus-4-5-20251101',
-  name: 'Claude Opus 4.5',
+  id: 'claude-opus-4-6',
+  name: 'Claude Opus 4.6',
   // pro: true,
-  cutoff: 'May 2025',
+  cutoff: 'Feb 2026',
   abbreviation: 'CO4',
   country: 'US',
   provider: 'anthropic',
@@ -751,22 +748,22 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   isAgentEnabled: true,
   isEnabled: true,
   isActivated: true,
-  // Metrics from https://artificialanalysis.ai/models/claude-opus-4-5/providers (Anthropic)
+  // Metrics from https://artificialanalysis.ai/models/claude-opus-4-6/providers (Anthropic) — Non-reasoning, High Effort
   // Note: 1M token context window is available as beta feature for usage tier 4+ organizations. See: https://docs.claude.com/en/docs/build-with-claude/context-windows#1m-token-context-window
   contextWindow: 200000, // Standard context window: 200K tokens (1M is beta, usage tier 4+ only)
-  intelligenceIndex: 43, // Updated from artificialanalysis.ai (Intelligence Index: 43, ranks #1/56 among non-reasoning models)
-  tps: 74.0, // Updated from artificialanalysis.ai (Anthropic: 74.0 tokens/s)
-  latency: 1.69, // Updated from artificialanalysis.ai (Anthropic: 1.69s, time to first answer token)
-  maxOutputTokens: 64000, // From https://docs.claude.com/en/docs/about-claude/models/overview (Max output: 64K tokens)
+  intelligenceIndex: 46, // Updated from artificialanalysis.ai (Non-reasoning: Intelligence Index 46, ranks #1/61)
+  tps: 66.2, // Updated from artificialanalysis.ai (Anthropic: 66.2 tokens/s)
+  latency: 1.68, // Updated from artificialanalysis.ai (Anthropic: 1.68s, time to first answer token)
+  maxOutputTokens: 128000, // Claude 4.6 Opus: 128K max output tokens
   // pro: true,
 },
-// 📅 Claude 4 Sonnet (Thinking)
+// 📅 Claude 4.6 Sonnet (Thinking)
 // ⚠️ 주의: 이전에 contextWindow가 1,000,000 (1M)으로 설정되어 있었으나, 표준은 200,000 (200K)입니다. 1M은 beta 기능이며 usage tier 4+ 조직에서만 사용 가능합니다.
 {
-  id: 'claude-sonnet-4-5-20250929-thinking',
-  name: 'Claude Sonnet 4.5 (Thinking)',
+  id: 'claude-sonnet-4-6-thinking',
+  name: 'Claude Sonnet 4.6 (Thinking)',
   // pro: true,
-  cutoff: 'Mar 2025',
+  cutoff: 'Feb 2026',
   abbreviation: 'CS4-T',
   country: 'US',
   provider: 'anthropic',
@@ -781,22 +778,19 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   isActivated: true,
   isAgentEnabled: true,
   reasoning: true,
-  // Metrics from https://artificialanalysis.ai/models/claude-4-5-sonnet-thinking/providers (Anthropic)
+  // We use adaptive thinking + effort medium. artificialanalysis.ai only benchmarks Adaptive Reasoning Max Effort (https://artificialanalysis.ai/models/claude-sonnet-4-6-adaptive/providers) — no direct benchmark for our effort level; metrics not filled.
   // Note: 1M token context window is available as beta feature for usage tier 4+ organizations. See: https://docs.claude.com/en/docs/build-with-claude/context-windows#1m-token-context-window
   contextWindow: 200000, // Standard context window: 200K tokens (1M is beta, usage tier 4+ only)
-  intelligenceIndex: 43, // Updated from artificialanalysis.ai (Intelligence Index: 43, ranks #12/106)
-  tps: 79.9, // Updated from artificialanalysis.ai (Anthropic: 79.9 tokens/s)
-  latency: 44.90, // Updated from artificialanalysis.ai (Anthropic: 44.90s, time to first answer token including thinking)
-  maxOutputTokens: 64000, // From https://docs.claude.com/en/docs/about-claude/models/overview (Max output: 64K tokens)
+  maxOutputTokens: 64000, // Claude 4.6 Sonnet: 64K max output tokens
   // pro: true,
 },
-// 📅 Claude 4.5 Sonnet 
+// 📅 Claude 4.6 Sonnet (Non-reasoning)
 // ⚠️ 주의: 이전에 contextWindow가 1,000,000 (1M)으로 설정되어 있었으나, 표준은 200,000 (200K)입니다. 1M은 beta 기능이며 usage tier 4+ 조직에서만 사용 가능합니다.
 {
-  id: 'claude-sonnet-4-5-20250929',
-  name: 'Claude Sonnet 4.5',
+  id: 'claude-sonnet-4-6',
+  name: 'Claude Sonnet 4.6',
   // pro: true,
-  cutoff: 'Mar 2025',
+  cutoff: 'Feb 2026',
   abbreviation: 'CS4',
   country: 'US',
   provider: 'anthropic',
@@ -810,13 +804,13 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   isAgentEnabled: true,
   isEnabled: true,
   isActivated: true,
-  // Metrics from https://artificialanalysis.ai/models/claude-4-5-sonnet/providers (Anthropic)
+  // Metrics from https://artificialanalysis.ai/models/claude-sonnet-4-6/providers (Anthropic) — Non-reasoning, High Effort
   // Note: 1M token context window is available as beta feature for usage tier 4+ organizations. See: https://docs.claude.com/en/docs/build-with-claude/context-windows#1m-token-context-window
   contextWindow: 200000, // Standard context window: 200K tokens (1M is beta, usage tier 4+ only)
-  intelligenceIndex: 37, // Updated from artificialanalysis.ai (Intelligence Index: 37, ranks #2/56)
-  tps: 69.5, // Updated from artificialanalysis.ai (Anthropic: 69.5 tokens/s)
-  latency: 1.16, // Updated from artificialanalysis.ai (Anthropic: 1.16s, time to first answer token)
-  maxOutputTokens: 64000, // From https://docs.claude.com/en/docs/about-claude/models/overview (Max output: 64K tokens)
+  intelligenceIndex: 44, // Updated from artificialanalysis.ai (Non-reasoning: Intelligence Index 44, ranks #2/61)
+  tps: 56.2, // Updated from artificialanalysis.ai (Anthropic: 56.2 tokens/s)
+  latency: 0.72, // Updated from artificialanalysis.ai (Anthropic: 0.72s, time to first answer token)
+  maxOutputTokens: 64000, // Claude 4.6 Sonnet: 64K max output tokens
   // pro: true,
 },
 // 📅 현재 DeepSeek의 가장 최신 모델은 DeepSeek V3.2 Exp입니다.

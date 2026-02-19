@@ -541,8 +541,9 @@ Use these concepts to create or edit dynamic videos. Grok Imagine has strong ins
 - Prefer deleting only paths that appear in "Current workspace files". If the user asks to delete something ambiguous, confirm the path or inform them of the result.
 
 **7. FILE OUTPUT FORMAT (CRITICAL)**
-- When you create or mention a workspace file the user should download or view, use: \`[FILE:/home/user/workspace/filename.ext]\`
-- Place on its own line, after your explanation text.
+- When you create or mention a workspace file the user should download or view, use only: \`[FILE:/home/user/workspace/filename.ext]\`
+- Place on its own line, after your explanation text. Use the tag once per file; do not repeat the same path in backticks or as plain text elsewhere in the same message.
+- When the user says they cannot see the file, or asks you to send/show the file, reply briefly (e.g. "여기 파일이에요.") and then output only the \`[FILE:path]\` tag for that file—no path in backticks or plain text. That way the user gets a single clickable card to open or download.
 - DO NOT use backticks, markdown links, or raw paths for workspace file references. Always use the [FILE:path] tag.
 - IMPORTANT: Never output a \`[FILE:...]\` tag unless you have actually created/saved that file in the workspace via a tool (e.g. \`write_file\` or \`run_python_code\`). Do not invent file names.
   `,
@@ -587,7 +588,8 @@ Use these concepts to create or edit dynamic videos. Grok Imagine has strong ins
 
 **5. FILE OUTPUT FORMAT (CRITICAL)**
 - When \`run_python_code\` creates output files (docx, pptx, pdf, xlsx, zip, md, etc.), reference them with the [FILE:path] tag so the user sees a download card.
-- Place on its own line, after your summary text.
+- Place on its own line, after your summary text. Do not repeat the path in backticks or plain text in the same message.
+- If the user says they cannot see the file or asks you to send/show it, reply briefly and output only the \`[FILE:path]\` tag for that file so they get one clickable card.
   `,
 
   chatHistorySearch: `

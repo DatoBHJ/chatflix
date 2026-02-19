@@ -22,16 +22,24 @@ export function getProviderOptions(
 ): ProviderOptions {
   const providerOptions: ProviderOptions = {};
 
-  // Anthropic Provider Options
+  // Anthropic Provider Options (Claude 4.6: adaptive thinking + effort)
   if (modelConfig?.provider === 'anthropic') {
-    // Check if this is a reasoning model (has reasoning enabled)
-    if (modelConfig.reasoning) {
+    const isOpus46 = modelConfig.id.includes('claude-opus-4-6');
+    const isSonnet46 = modelConfig.id.includes('claude-sonnet-4-6');
+    const isClaude46 = isOpus46 || isSonnet46;
+
+    if (modelConfig.reasoning && isClaude46) {
+      // Claude 4.6 Thinking: adaptive thinking + effort (Opus high, Sonnet medium)
+      const effort: 'low' | 'medium' | 'high' = isOpus46 ? 'high' : 'medium';
       providerOptions.anthropic = {
-        thinking: {
-          type: 'enabled',
-          budgetTokens: 12000, // Default budget tokens
-        },
-      } as AnthropicProviderOptions;
+        thinking: { type: 'adaptive' },
+        effort,
+      };
+    } else if (!modelConfig.reasoning && isClaude46) {
+      // Claude 4.6 Non-reasoning: high effort (matches artificialanalysis "Non-reasoning, High Effort")
+      providerOptions.anthropic = {
+        effort: 'high',
+      };
     }
   }
 
