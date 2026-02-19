@@ -18,11 +18,11 @@ export const DEFAULT_QUICK_ACCESS_APPS_DESKTOP: StoredApp[] = [
 ];
 
 export const DEFAULT_QUICK_ACCESS_APPS_MOBILE: StoredApp[] = [
-  // 도크(4칸 고정)
   { id: 'add-app', dockIndex: 0 },
   { id: 'messages', dockIndex: 1 },
   { id: 'photos', dockIndex: 2 },
   { id: 'settings', dockIndex: 3 },
+  { id: 'glass-trends-widget', size: { width: 4, height: 2 }, slotIndex: 0 },
 ];
 
 export const DEFAULT_QUICK_ACCESS_APPS_TABLET: StoredApp[] = [
