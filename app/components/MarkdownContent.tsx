@@ -548,28 +548,43 @@ const segmentContent = (content: string): string[][] => {
     ranges.some((r) => index >= r.start && index < r.end);
   const tableRanges = getTableRanges(placeholderContent);
 
+  // 2.6. 인라인 코드(단일 백틱) 구간 계산 - 인라인 코드 내 URL/링크는 세그먼트로 분리하지 않음
+  const getInlineCodeRanges = (content: string): { start: number; end: number }[] => {
+    const ranges: { start: number; end: number }[] = [];
+    const regex = /`[^`\n]+`/g;
+    let m;
+    while ((m = regex.exec(content)) !== null) {
+      ranges.push({ start: m.index, end: m.index + m[0].length });
+    }
+    return ranges;
+  };
+  const isIndexInInlineCode = (index: number, ranges: { start: number; end: number }[]): boolean =>
+    ranges.some((r) => index > r.start && index < r.end);
+  const inlineCodeRanges = getInlineCodeRanges(placeholderContent);
+
   // 3. 코드 블록을 제외한 나머지 텍스트에서 링크를 별도 세그먼트로 분리 (테이블 내부 링크는 제외)
   const linkSegments: string[] = [];
   let linkIndex = 0;
   
-  // 마크다운 링크 문법 [텍스트](URL) 감지 및 분리 (코드 블록 플레이스홀더 및 테이블 내부는 제외)
+  // 마크다운 링크 문법 [텍스트](URL) 감지 및 분리 (코드 블록 플레이스홀더, 테이블 내부, 인라인 코드 내부는 제외)
   const markdownLinkRegex = /\[([^\]]*)\]\(([^)]+)\)/g;
   const contentWithLinkSegments = placeholderContent.replace(markdownLinkRegex, (match, text, url, offset) => {
-    if (!match.includes('<CODE_PLACEHOLDER_') && !isIndexInTableRanges(offset, tableRanges)) {
+    if (!match.includes('<CODE_PLACEHOLDER_') && !isIndexInTableRanges(offset, tableRanges) && !isIndexInInlineCode(offset, inlineCodeRanges)) {
       linkSegments.push(match);
       return `\n\n<LINK_SEGMENT_${linkIndex++}>\n\n`;
     }
     return match;
   });
   
-  // 일반 URL 패턴 감지 및 분리 (마크다운 링크가 아닌 경우만, 코드 블록 플레이스홀더 및 테이블 내부 제외)
+  // 일반 URL 패턴 감지 및 분리 (마크다운 링크가 아닌 경우만, 코드 블록 플레이스홀더, 테이블 내부, 인라인 코드 내부 제외)
+  const inlineCodeRangesForUrl = getInlineCodeRanges(contentWithLinkSegments);
   const urlRegex = /(https?:\/\/[^\s"'<>]+)/g;
   const finalContent = contentWithLinkSegments.replace(urlRegex, (match, url, offset) => {
     const isImageUrl = 
       url.includes('/storage/v1/object/public/gemini-images/') ||
       url.includes('/storage/v1/object/sign/generated-images/');
     
-    if (!match.includes('[') && !match.includes(']') && !match.includes('<CODE_PLACEHOLDER_') && !isImageUrl && !isIndexInTableRanges(offset, tableRanges)) {
+    if (!match.includes('[') && !match.includes(']') && !match.includes('<CODE_PLACEHOLDER_') && !isImageUrl && !isIndexInTableRanges(offset, tableRanges) && !isIndexInInlineCode(offset, inlineCodeRangesForUrl)) {
       linkSegments.push(match);
       return `\n\n<LINK_SEGMENT_${linkIndex++}>\n\n`;
     }
