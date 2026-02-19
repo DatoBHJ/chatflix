@@ -2349,7 +2349,16 @@ function MarkdownContentComponent({
         { signal: controller.signal }
       );
       if (!res.ok) {
-        setWorkspaceFileError(`Failed to load file (${res.status})`);
+        let detail = '';
+        try {
+          const errData = await res.json();
+          if (errData && typeof errData.error === 'string' && errData.error.trim()) {
+            detail = `: ${errData.error.trim()}`;
+          }
+        } catch {
+          // Ignore JSON parse errors for non-JSON error responses.
+        }
+        setWorkspaceFileError(`Failed to load file (${res.status})${detail}`);
         return;
       }
       const data = await res.json();

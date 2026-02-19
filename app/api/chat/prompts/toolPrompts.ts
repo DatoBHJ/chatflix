@@ -544,6 +544,7 @@ Use these concepts to create or edit dynamic videos. Grok Imagine has strong ins
 - When you create or mention a workspace file the user should download or view, use: \`[FILE:/home/user/workspace/filename.ext]\`
 - Place on its own line, after your explanation text.
 - DO NOT use backticks, markdown links, or raw paths for workspace file references. Always use the [FILE:path] tag.
+- IMPORTANT: Never output a \`[FILE:...]\` tag unless you have actually created/saved that file in the workspace via a tool (e.g. \`write_file\` or \`run_python_code\`). Do not invent file names.
   `,
 
   codeExecution: `
