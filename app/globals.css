@@ -2088,7 +2088,8 @@ body {
   .table-cell {
     padding: 10px 8px !important;
     min-width: 70px;
-    max-width: 180px;
+    /* max-width 제거: 링크 등 긴 콘텐츠가 잘리지 않도록 컬럼이 콘텐츠에 맞춰 확장 */
+    max-width: none;
   }
   
   .table-header > div,
@@ -2107,7 +2108,8 @@ body {
   .table-cell {
     padding: 12px !important;
     min-width: 100px;
-    max-width: 250px;
+    /* max-width 제거: 링크 등 긴 콘텐츠가 잘리지 않도록 컬럼이 콘텐츠에 맞춰 확장 */
+    max-width: none;
   }
   
   .table-header > div,

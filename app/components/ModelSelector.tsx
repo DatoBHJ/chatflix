@@ -45,7 +45,7 @@ interface ModelSelectorProps {
   hasBackgroundImage?: boolean;
 }
 
-type FilterGroup = 'all' | 'chatflix' | 'openai' | 'anthropic' | 'google' | 'deepseek' | 'xai' | 'moonshot' | 'vision' | 'reasoning' | 'fast';
+type FilterGroup = 'all' | 'chatflix' | 'openai' | 'anthropic' | 'google' | 'deepseek' | 'xai' | 'moonshot' | 'z-ai' | 'vision' | 'reasoning' | 'fast';
 type SortMetric = 'default' | 'tps' | 'latency' | 'intelligenceIndex' | 'contextWindow';
 
 export function ModelSelector({ 
@@ -219,6 +219,7 @@ export function ModelSelector({
         case 'deepseek': return (model.creator === 'deepseek' || model.provider === 'deepseek') && !isChatflixModel(model.id);
         case 'xai': return (model.creator === 'xai' || model.provider === 'xai') && !isChatflixModel(model.id);
         case 'moonshot': return (model.creator === 'moonshot' || (model.provider as string) === 'moonshot') && !isChatflixModel(model.id);
+        case 'z-ai': return model.creator === 'z-ai' && !isChatflixModel(model.id);
         case 'vision': return model.supportsVision === true;
         case 'reasoning': return model.reasoning === true;
         case 'fast': return isChatflixModel(model.id) || (model.tps || 0) >= 200 || (model.latency != null && model.latency <= 0.5);
@@ -443,6 +444,7 @@ export function ModelSelector({
     { id: 'deepseek', label: 'DeepSeek', icon: <Image src={getProviderLogo('deepseek')} alt="DeepSeek" width={14} height={14} /> },
     { id: 'google', label: 'Google', icon: <Image src={getProviderLogo('google')} alt="Google" width={14} height={14} /> },
     { id: 'moonshot', label: 'Moonshot', icon: <Image src={getProviderLogo('moonshot')} alt="Moonshot" width={14} height={14} /> },
+    { id: 'z-ai', label: 'Z.ai', icon: <Image src="/logo/z-ai.svg" alt="Z.ai" width={14} height={14} /> },
     { id: 'openai', label: 'OpenAI', icon: <Image src={getProviderLogo('openai')} alt="OpenAI" width={14} height={14} /> },
     { id: 'xai', label: 'xAI', icon: <Image src={getProviderLogo('xai')} alt="xAI" width={14} height={14} /> },
   ];

@@ -2,6 +2,7 @@
 
 // Get provider logo helper functions
 export const getProviderLogo = (provider: string, modelId?: string) => {
+    if (modelId?.includes('glm-5')) return '/logo/z-ai.svg';
     const logoMap: {[key: string]: string} = {
       anthropic: '/logo/anthropic.svg',
       openai: '/logo/openai.svg',

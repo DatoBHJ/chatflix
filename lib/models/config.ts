@@ -431,7 +431,8 @@ const availableModels = MODEL_CONFIGS.filter(model => {
   return { min, max };
 }
 
-// Define the model configurations
+// 주의: tps, latency 등 성능 지표는 우리가 사용하는 provider 기준으로 기입한다.
+// (동일 모델이 여러 provider에서 제공될 경우, artificialanalysis 등에서 해당 provider 수치를 사용.)
 const MODEL_CONFIG_DATA: ModelConfig[] = [
 // Chatflix Ultimate Pro
 {
@@ -1017,6 +1018,31 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   intelligenceIndex: 38, // From artificialanalysis.ai (Intelligence Index: 38, ranks #1/34 in class)
   tps: 166.1, // Fireworks: 166.1 tokens/s (fastest among 5 providers)
   latency: 0.32, // Fireworks: 0.32s time to first token (lowest)
+},
+// 📅 Z.ai GLM-5 (Fireworks) — Reasoning
+{
+  id: 'accounts/fireworks/models/glm-5',
+  name: 'GLM-5 (Thinking)',
+  cutoff: 'Feb 2026',
+  abbreviation: 'GLM5-T',
+  country: 'CHINA',
+  provider: 'fireworks',
+  creator: 'z-ai',
+  supportsVision: false,
+  supportsPDFs: false,
+  rateLimit: {
+    level: 'level2',
+  },
+  isEnabled: true,
+  isActivated: true,
+  isAgentEnabled: true,
+  reasoning: true,
+  // Metrics from https://artificialanalysis.ai/models/glm-5 (Reasoning); tps/latency from https://artificialanalysis.ai/models/glm-5/providers (Fireworks)
+  contextWindow: 200000, // 200k tokens
+  intelligenceIndex: 50, // Artificial Analysis Intelligence Index 50, ranks #1/66
+  tps: 263.5, // Fireworks: 263.5 tokens/s (fastest among 8 providers per providers page)
+  latency: 8.7, // Fireworks: 8.7s time to first token (per providers page)
+  maxOutputTokens: 128000, // 128K
 },
 // 📅 GPT-OSS-120B High
 {
