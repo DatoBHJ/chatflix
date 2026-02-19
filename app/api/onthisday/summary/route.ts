@@ -92,11 +92,11 @@ export async function POST(req: NextRequest) {
     // Determine language instruction based on available information
     let languageInstruction: string
     if (personalInfoMemory) {
-      languageInstruction = `USER PERSONAL INFORMATION MEMORY (contains language preference - use this language for all responses):\n${personalInfoMemory}\n\nIMPORTANT: Generate the summary and questions in the language specified in the user's personal information memory above. Extract the language preference from that memory and use that exact language for all responses.`
+      languageInstruction = `USER PERSONAL INFORMATION MEMORY (contains language preference - use this language for all responses):\n${personalInfoMemory}\n\nIMPORTANT: Translate the headline and body into the language specified in the user's personal information memory above. Extract the language preference from that memory and use that exact language.`
     } else if (detectedLanguageCode) {
-      languageInstruction = `No user memory available. The user's language is detected as ${detectedLanguageCode} (based on browser settings or provided language). Generate the summary and questions in language code ${detectedLanguageCode}.`
+      languageInstruction = `No user memory available. The user's language is detected as ${detectedLanguageCode} (based on browser settings or provided language). Translate the headline and body into language code ${detectedLanguageCode}.`
     } else {
-      languageInstruction = 'No user memory available. Use English as default. Generate the summary and questions in English (default).'
+      languageInstruction = 'No user memory available. Use English as default. Translate the headline and body into English.'
     }
 
     let prompt: string
@@ -172,45 +172,47 @@ INSTRUCTIONS:
         required: ['answer'],
       }
     } else {
-      // Handle initial summary generation
-      prompt = `You are a helpful friend that summarizes historical events in a casual, friendly way - like explaining to a close friend.
+      // Handle initial translation (translate headline + body, keep casual friendly tone)
+      prompt = `You are a helpful friend that translates historical event content in a casual, friendly way - like explaining to a close friend.
 
 ${languageInstruction}
 
-Historical Event Information:
+Historical Event (ORIGINAL - translate this):
 Year: ${year}
 Headline: ${headline}
-Summary: ${summary || 'No summary available'}
+Summary/Body: ${summary || 'No summary available'}
 Title: ${title || headline}
-Language: ${language || 'en'}
+Source Language: ${language || 'en'}
 Wikipedia Article: ${articleUrl || 'Not available'}
 
-CRITICAL FORMATTING REQUIREMENT:
-The summary field MUST be formatted as valid Markdown. Use Markdown syntax such as:
-- Headers: # for main title (focus on explaining what this historical event is about), ## for sections, ### for subsections
-- Bold text: **text** for emphasis
-- Italic text: *text* for subtle emphasis
-- Lists: - or * for bullet points, 1. for numbered lists
-- Line breaks: Use double newlines for paragraph separation
-- Code: \`code\` for inline code
-- Use emojis naturally and appropriately to make the summary more engaging
+TASK:
+Translate the headline and summary/body into the user's language. This is PURE TRANSLATION - preserve the original meaning and structure. Do NOT summarize, expand, or add new information. Just translate faithfully.
 
-CRITICAL CONTENT REQUIREMENT:
-The main title (# header) MUST focus on explaining what this historical event is about and why it's significant. Start with a clear, concise explanation of what happened on this day in history. Then provide key details about the event, its historical context, and its significance using proper Markdown formatting. Also generate 3 follow-up questions that users might ask about this historical event - make them casual and conversational, like questions you'd ask a friend. Use a friendly, casual tone for the questions.`
+TONE:
+- Use a casual, friendly tone (same as the original style)
+- Use emojis naturally if they fit the content
+- Keep the same level of detail as the original
+
+FORMAT:
+The "content" field MUST be valid Markdown:
+- Start with # for the translated headline
+- Then the translated body/summary (preserve paragraphs, lists, etc. from original)
+- Use **bold** and *italic* where appropriate
+- Use - or 1. for lists if the original has them`
 
       responseJsonSchema = {
         type: 'object',
         properties: {
           summary: {
             type: 'string',
-            description: 'A concise summary formatted as valid Markdown in user\'s language',
+            description: 'Translated headline (#) and body as Markdown in user\'s language',
           },
           questions: {
             type: 'array',
             items: { type: 'string' },
             minItems: 3,
             maxItems: 3,
-            description: 'Three follow-up questions users might ask about this historical event',
+            description: 'Three follow-up questions users might ask about this historical event (in user\'s language)',
           },
         },
         required: ['summary', 'questions'],

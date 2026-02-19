@@ -3,8 +3,6 @@ import { useCallback, useSyncExternalStore } from 'react'
 type OnThisDaySharedState = {
   selectedLanguage: string
   positions: Record<string, number>
-  isAutoPlaying: boolean
-  isSummaryExpanded: boolean
   summaryContent: string
   summaryQuestions: string[]
   conversationHistory: Array<{ role: 'user' | 'assistant', content: string }>
@@ -22,8 +20,6 @@ const ensureState = (widgetId: string, defaultLanguage: string) => {
     store.set(widgetId, {
       selectedLanguage: defaultLanguage,
       positions: {},
-      isAutoPlaying: true,
-      isSummaryExpanded: false,
       summaryContent: '',
       summaryQuestions: [],
       conversationHistory: [],
