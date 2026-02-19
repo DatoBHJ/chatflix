@@ -292,6 +292,8 @@ export function GlassTrendsWidget({
   const lastSummaryTrendKeyRef = useRef<string | null>(null)
   const summaryResponseCacheRef = useRef<Map<string, { summary: string; questions: string[] }>>(new Map())
   const inFlightSummaryRequestsRef = useRef<Set<string>>(new Set())
+  const currentSummaryRequestKeyRef = useRef<string | null>(null)
+  const summaryAbortControllerRef = useRef<AbortController | null>(null)
   useEffect(() => {
     lastFilterSignatureRef.current = lastFilterSignature
   }, [lastFilterSignature])
@@ -986,6 +988,11 @@ export function GlassTrendsWidget({
     }
     inFlightSummaryRequestsRef.current.add(summaryRequestKey)
 
+    // Abort any in-flight summary request from previous trend
+    summaryAbortControllerRef.current?.abort()
+    const controller = new AbortController()
+    summaryAbortControllerRef.current = controller
+
     setSummaryLoading(true)
     setSummaryError(null)
     setQaError(null)
@@ -997,6 +1004,11 @@ export function GlassTrendsWidget({
       summaryQuestions: [],
       conversationHistory: [],
     })
+
+    const applyIfNotStale = (updates: { summaryContent?: string; summaryQuestions?: string[] }) => {
+      if (summaryRequestKey !== currentSummaryRequestKeyRef.current) return
+      setSharedState(updates)
+    }
     
     try {
       const cacheKey = getNewsCacheKey(activeFilters, trend.news_token)
@@ -1015,6 +1027,7 @@ export function GlassTrendsWidget({
           searchVolume: trend.search_volume_original,
           percentageIncrease: trend.percentage_increase_original,
         }),
+        signal: controller.signal,
       })
       
       if (!response.ok) {
@@ -1047,15 +1060,17 @@ export function GlassTrendsWidget({
           try {
             const data = JSON.parse(jsonBuffer)
             if (data.summary) {
-              setSharedState({ summaryContent: data.summary })
+              applyIfNotStale({ summaryContent: data.summary })
             }
             if (data.questions && Array.isArray(data.questions)) {
-              setSharedState({ summaryQuestions: data.questions })
+              applyIfNotStale({ summaryQuestions: data.questions })
             }
             
             // Stop loading on first valid data
             if (!hasReceivedData && (data.summary || data.questions?.length)) {
-              setSummaryLoading(false)
+              if (summaryRequestKey === currentSummaryRequestKeyRef.current) {
+                setSummaryLoading(false)
+              }
               hasReceivedData = true
             }
           } catch {
@@ -1075,13 +1090,13 @@ export function GlassTrendsWidget({
       try {
         const finalData = JSON.parse(jsonBuffer)
         if (finalData.summary) {
-          setSharedState({ summaryContent: finalData.summary })
+          applyIfNotStale({ summaryContent: finalData.summary })
         }
         if (finalData.questions && Array.isArray(finalData.questions)) {
-          setSharedState({ summaryQuestions: finalData.questions })
+          applyIfNotStale({ summaryQuestions: finalData.questions })
         }
 
-        if (finalData.summary) {
+        if (finalData.summary && summaryRequestKey === currentSummaryRequestKeyRef.current) {
           summaryResponseCacheRef.current.set(summaryRequestKey, {
             summary: finalData.summary,
             questions: Array.isArray(finalData.questions) ? finalData.questions : [],
@@ -1092,10 +1107,17 @@ export function GlassTrendsWidget({
         throw new Error('Failed to parse final JSON response')
       }
       
-      setSummaryLoading(false)
+      if (summaryRequestKey === currentSummaryRequestKeyRef.current) {
+        setSummaryLoading(false)
+      }
     } catch (error: any) {
-      setSummaryError(error?.message || 'Unable to generate summary')
-      setSummaryLoading(false)
+      if (error?.name === 'AbortError') {
+        return
+      }
+      if (summaryRequestKey === currentSummaryRequestKeyRef.current) {
+        setSummaryError(error?.message || 'Unable to generate summary')
+        setSummaryLoading(false)
+      }
     } finally {
       inFlightSummaryRequestsRef.current.delete(summaryRequestKey)
     }
@@ -1106,6 +1128,22 @@ export function GlassTrendsWidget({
     
     const trend = filteredTrends[currentTrendIndex]
     if (!trend || !summaryContent) return
+    
+    const countryLabel = countries.find((c) => c.country_id === selectedCountry)?.country_name || 'Select country'
+    const regionLabel = regionOptions.find((r) => r.geo_id === selectedRegion)?.geo_description || ''
+    const locString = regionLabel 
+      ? `${countryLabel}, ${regionLabel}`
+      : countryLabel === 'Select country' 
+      ? 'Global' 
+      : countryLabel
+    const followUpRequestKey = [
+      typeof navigator !== 'undefined' && navigator.language ? navigator.language.split('-')[0].toLowerCase() : 'unknown',
+      activeFilters?.geo || '',
+      activeFilters?.timeRange || '',
+      trend.news_token || '',
+      trend.query || '',
+      locString,
+    ].join('|')
     
     setIsQALoading(true)
     setQaError(null)
@@ -1119,15 +1157,6 @@ export function GlassTrendsWidget({
     try {
       const cacheKey = getNewsCacheKey(activeFilters, trend.news_token)
       const newsList = newsCache[cacheKey] || []
-      
-      // Calculate location string
-      const countryLabel = countries.find((c) => c.country_id === selectedCountry)?.country_name || 'Select country'
-      const regionLabel = regionOptions.find((r) => r.geo_id === selectedRegion)?.geo_description || ''
-      const locString = regionLabel 
-        ? `${countryLabel}, ${regionLabel}`
-        : countryLabel === 'Select country' 
-        ? 'Global' 
-        : countryLabel
       
       const response = await fetch('/api/trends/summary', {
         method: 'POST',
@@ -1207,7 +1236,11 @@ export function GlassTrendsWidget({
         throw new Error('No answer received')
       }
       
-      // Add assistant response to conversation history
+      if (followUpRequestKey !== currentSummaryRequestKeyRef.current) {
+        setIsQALoading(false)
+        return
+      }
+      
       const assistantMessage = { role: 'assistant' as const, content: answer }
       setSharedState({ 
         conversationHistory: [...updatedHistory, assistantMessage],
@@ -1216,6 +1249,10 @@ export function GlassTrendsWidget({
       
       setIsQALoading(false)
     } catch (error: any) {
+      if (followUpRequestKey !== currentSummaryRequestKeyRef.current) {
+        setIsQALoading(false)
+        return
+      }
       setQaError(error?.message || 'Unable to get answer')
       setIsQALoading(false)
       // Keep the user message in history even on error, so user can see their question
@@ -1434,8 +1471,6 @@ export function GlassTrendsWidget({
     if (lastSummaryTrendKeyRef.current === trendKey) return
     lastSummaryTrendKeyRef.current = trendKey
 
-    // If we already have a cached summary for this exact trend+filters+device language,
-    // render it immediately and do not re-request.
     const countryLabel = countries.find((c) => c.country_id === selectedCountry)?.country_name || 'Select country'
     const regionLabel = regionOptions.find((r) => r.geo_id === selectedRegion)?.geo_description || ''
     const locString = regionLabel
@@ -1455,6 +1490,12 @@ export function GlassTrendsWidget({
       locString,
     ].join('|')
 
+    // Abort any in-flight summary from previous trend so stale responses don't overwrite
+    summaryAbortControllerRef.current?.abort()
+    currentSummaryRequestKeyRef.current = summaryRequestKey
+
+    // If we already have a cached summary for this exact trend+filters+device language,
+    // render it immediately and do not re-request.
     const cached = summaryResponseCacheRef.current.get(summaryRequestKey)
     if (cached?.summary) {
       setSummaryError(null)
