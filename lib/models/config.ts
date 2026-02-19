@@ -870,7 +870,7 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
 // 📅 DeepSeek V3.2 (Fireworks) Thinking
 {
   id: 'accounts/fireworks/models/deepseek-v3p2',
-  name: 'DeepSeek V3.2 Thinking',
+  name: 'DeepSeek V3.2 (Thinking)',
   cutoff: 'Sep 2025',
   abbreviation: 'DSV3.2-FW',
   country: 'CHINA',
