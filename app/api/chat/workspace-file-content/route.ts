@@ -26,16 +26,32 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'chatId and path are required' }, { status: 400 });
     }
 
-    // Verify chat ownership
-    const { data: existingMessages } = await supabase
-      .from('messages')
-      .select('id')
-      .eq('chat_session_id', chatId)
+    // Verify chat ownership.
+    //
+    // IMPORTANT: Don't rely on `messages` existence here.
+    // During streaming, the assistant message may not be persisted yet, but the user still
+    // needs to preview workspace files immediately (file tool preview / file path card).
+    // `chat_sessions` is the canonical source of ownership and exists before messages do.
+    const { data: chatSession, error: chatError } = await supabase
+      .from('chat_sessions')
+      .select('id, user_id')
+      .eq('id', chatId)
       .eq('user_id', user.id)
-      .limit(1);
+      .single();
 
-    if (!existingMessages?.length) {
-      return NextResponse.json({ error: 'Chat not found or access denied' }, { status: 403 });
+    if (chatError || !chatSession) {
+      // Backward-compatible fallback: allow access if there is at least one message owned
+      // by the user. This covers any edge cases where chat_sessions may be absent.
+      const { data: existingMessages } = await supabase
+        .from('messages')
+        .select('id')
+        .eq('chat_session_id', chatId)
+        .eq('user_id', user.id)
+        .limit(1);
+
+      if (!existingMessages?.length) {
+        return NextResponse.json({ error: 'Chat not found or access denied' }, { status: 403 });
+      }
     }
 
     const content = await getWorkspaceFileContent(chatId, path, supabase);

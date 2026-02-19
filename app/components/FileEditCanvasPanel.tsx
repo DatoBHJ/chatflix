@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Copy, Download, X } from 'lucide-react';
 import { getAdaptiveGlassStyleBlur } from '@/app/lib/adaptiveGlassStyle';
@@ -107,13 +107,21 @@ export function FileEditCanvasPanel({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const [fullContent, setFullContent] = useState<string | null>(null);
   const [binaryInfo, setBinaryInfo] = useState<{ downloadUrl: string; filename: string } | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchFullContent = useCallback(async () => {
     if (!shouldFetchContent || !chatId || !entry.path) return;
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
     setLoading(true);
     setError(null);
+    setSyncing(false);
     try {
       const res = await fetch(
         `/api/chat/workspace-file-content?chatId=${encodeURIComponent(chatId)}&path=${encodeURIComponent(entry.path)}`
@@ -121,6 +129,15 @@ export function FileEditCanvasPanel({
       if (!res.ok) {
         setFullContent(null);
         setBinaryInfo(null);
+        // When the assistant is still streaming, the workspace file may not have been
+        // persisted to `chat_workspace_files` yet. Treat 404/403 as a transient state
+        // and retry for a short window to avoid a sticky "Failed to load" canvas.
+        if ((res.status === 404 || res.status === 403) && retryCount < 6) {
+          setSyncing(true);
+          const delayMs = Math.min(4000, 350 * Math.pow(2, retryCount)); // 350,700,1400,2800,4000...
+          retryTimerRef.current = setTimeout(() => setRetryCount((c) => c + 1), delayMs);
+          return;
+        }
         setError('Failed to load file');
         return;
       }
@@ -139,11 +156,30 @@ export function FileEditCanvasPanel({
     } finally {
       setLoading(false);
     }
-  }, [shouldFetchContent, chatId, entry.path]);
+  }, [shouldFetchContent, chatId, entry.path, retryCount]);
 
   useEffect(() => {
     fetchFullContent();
   }, [fetchFullContent]);
+
+  // Reset retries when the target file changes.
+  useEffect(() => {
+    setRetryCount(0);
+    setSyncing(false);
+    setError(null);
+    // Do not eagerly clear fullContent here; we want to keep previous content visible
+    // until the next fetch resolves (prevents flashing on quick switches).
+  }, [chatId, entry.path]);
+
+  // Cleanup any pending retry timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const isMarkdown = useMemo(() => !!entry.path?.toLowerCase().endsWith('.md'), [entry.path]);
   const isCSV = useMemo(() => isCSVPath(entry.path), [entry.path]);
@@ -216,6 +252,9 @@ export function FileEditCanvasPanel({
   const renderReadOrGrepBody = () => {
     if (loading) {
       return <div className="text-sm opacity-80" style={{ color: 'var(--foreground)' }}>Loading file…</div>;
+    }
+    if (syncing) {
+      return <div className="text-sm text-(--muted) animate-pulse">Waiting for file to sync…</div>;
     }
     if (error) {
       return <div className="text-sm text-red-500">{error}</div>;
