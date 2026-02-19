@@ -4302,6 +4302,15 @@ button[class*="bg-[var(--chat-input-button-bg)]"] {
   background: transparent;
   min-width: 0;
   overflow: hidden;
+  flex-wrap: nowrap;
+}
+
+/* Icon + verb/action: never shrink or truncate (always visible) */
+.diff-inline-preview .diff-header .diff-header-fixed {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .diff-inline-preview .diff-header .diff-filename {

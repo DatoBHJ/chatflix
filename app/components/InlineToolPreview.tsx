@@ -1155,12 +1155,14 @@ export const InlineToolPreview = memo(function InlineToolPreview({
           }}
         >
           <div className="diff-header">
-            <span className="shrink-0 flex items-center text-(--muted)">
-              {getToolIcon(toolName, toolArgs, toolResult)}
-            </span>
-            <span className="text-sm text-(--muted) shrink-0">
-              {actionLabel}
-            </span>
+            <div className="diff-header-fixed shrink-0">
+              <span className="flex items-center text-(--muted)">
+                {getToolIcon(toolName, toolArgs, toolResult)}
+              </span>
+              <span className="text-sm text-(--muted) whitespace-nowrap">
+                {actionLabel}
+              </span>
+            </div>
             <span className="diff-filename">
               {browserTitle}
             </span>
@@ -1223,12 +1225,14 @@ export const InlineToolPreview = memo(function InlineToolPreview({
           }}
         >
           <div className="diff-header">
-            <span className="shrink-0 flex items-center text-(--muted)">
-              {getToolIcon(toolName, toolArgs, toolResult)}
-            </span>
-            <span className="text-sm text-(--muted) shrink-0">
-              {actionLabel}
-            </span>
+            <div className="diff-header-fixed shrink-0">
+              <span className="flex items-center text-(--muted)">
+                {getToolIcon(toolName, toolArgs, toolResult)}
+              </span>
+              <span className="text-sm text-(--muted) whitespace-nowrap">
+                {actionLabel}
+              </span>
+            </div>
             <span className="diff-filename">
               Code output
             </span>
@@ -1350,12 +1354,14 @@ export const InlineToolPreview = memo(function InlineToolPreview({
           }}
         >
           <div className="diff-header">
-            <span className="shrink-0 flex items-center text-(--muted)">
-              {getToolIcon(toolName, toolArgs, toolResult)}
-            </span>
-            <span className="text-sm text-(--muted) shrink-0">
-              {actionLabel}
-            </span>
+            <div className="diff-header-fixed shrink-0">
+              <span className="flex items-center text-(--muted)">
+                {getToolIcon(toolName, toolArgs, toolResult)}
+              </span>
+              <span className="text-sm text-(--muted) whitespace-nowrap">
+                {actionLabel}
+              </span>
+            </div>
             {toolName === 'grep_file' && grepPattern && (
               <span className="text-sm text-(--muted) min-w-0 truncate shrink" title={typeof toolArgs?.pattern === 'string' ? toolArgs.pattern : undefined}>
                 {grepPattern}
@@ -1422,14 +1428,28 @@ export const InlineToolPreview = memo(function InlineToolPreview({
           className="flex items-center gap-3 cursor-pointer w-full flex-nowrap overflow-hidden"
           style={{ touchAction: 'manipulation' }}
         >
-          {/* Tool icon */}
-          <div className="text-(--muted) group-hover:text-(--foreground) transition-colors shrink-0">
-            {icon}
-          </div>
-          {/* Verb: only show for file/code tools (custom label); others get icon + etc with shimmer only */}
-          {fallbackVerb && (
+          {/* Icon + tool name (or verb): never shrink or truncate */}
+          <div className="shrink-0 flex items-center gap-3 flex-nowrap">
+            <div className="text-(--muted) group-hover:text-(--foreground) transition-colors">
+              {icon}
+            </div>
+            {fallbackVerb && (
+              <span
+                className={`text-base md:text-sm font-medium text-(--foreground) whitespace-nowrap ${
+                  status === 'processing'
+                    ? 'bg-linear-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent'
+                    : ''
+                }`}
+                style={status === 'processing' ? {
+                  backgroundSize: '200% 100%',
+                  animation: 'shimmer 2s ease-in-out infinite'
+                } : {}}
+              >
+                {fallbackVerb}
+              </span>
+            )}
             <span
-              className={`text-base md:text-sm font-medium text-(--foreground) shrink-0 ${
+              className={`text-base md:text-sm font-medium text-(--foreground) whitespace-nowrap ${
                 status === 'processing'
                   ? 'bg-linear-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent'
                   : ''
@@ -1439,32 +1459,19 @@ export const InlineToolPreview = memo(function InlineToolPreview({
                 animation: 'shimmer 2s ease-in-out infinite'
               } : {}}
             >
-              {fallbackVerb}
+              {fallbackEtc}
             </span>
-          )}
-          <span
-            className={`text-base md:text-sm font-medium text-(--foreground) shrink-0 ${
-              status === 'processing'
-                ? 'bg-linear-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent'
-                : ''
-            }`}
-            style={status === 'processing' ? {
-              backgroundSize: '200% 100%',
-              animation: 'shimmer 2s ease-in-out infinite'
-            } : {}}
-          >
-            {fallbackEtc}
-          </span>
-          {/* Display text */}
+          </div>
+          {/* Display text (subtitle): can truncate */}
           {inlineSubtitle && (
             <span className="text-xs text-(--muted) truncate shrink min-w-0">
               {inlineSubtitle}
             </span>
           )}
           
-          {/* Status indicator */}
+          {/* Status indicator (never shrink) */}
           {status === 'processing' && (
-            <span className="inline-tool-status-dot" />
+            <span className="inline-tool-status-dot shrink-0" />
           )}
           {status === 'completed' && (
             <svg 
