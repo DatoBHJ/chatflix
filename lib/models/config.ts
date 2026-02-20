@@ -301,9 +301,9 @@ const pick = (modelId: string) => resolveDefaultModelVariantId(modelId);
     else {
       // 기타 카테고리
       if (modelType === 'chatflix-ultimate-pro') {
-        // Pro 버전: 복잡도에 따라 모델 선택
+        // Pro 버전: 단순은 glm-5-none, 중간/복잡은 glm-5
         if (analysis.complexity === 'simple') {
-        return pick('accounts/fireworks/models/kimi-k2p5');
+        return pick('accounts/fireworks/models/glm-5-none');
         } else { // medium/complex
         return pick('accounts/fireworks/models/glm-5');
         }
@@ -1020,6 +1020,30 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   intelligenceIndex: 50, // Artificial Analysis Intelligence Index 50, ranks #1/66
   tps: 263.5, // Fireworks: 263.5 tokens/s (fastest among 8 providers per providers page)
   latency: 8.7, // Fireworks: 8.7s time to first token (per providers page)
+  maxOutputTokens: 128000, // 128K
+},
+// 📅 Z.ai GLM-5 (Non-reasoning)
+{
+  id: 'accounts/fireworks/models/glm-5',
+  name: 'GLM-5',
+  cutoff: 'Feb 2026',
+  abbreviation: 'GLM5-NR',
+  country: 'CHINA',
+  provider: 'fireworks',
+  creator: 'z-ai',
+  supportsVision: false,
+  supportsPDFs: false,
+  rateLimit: {
+    level: 'level2',
+  },
+  isEnabled: true,
+  isActivated: true,
+  isAgentEnabled: true,
+  reasoning: false,
+  reasoningEffort: 'none', // Creates unique variant key: glm-5-none (same id, different from Thinking)
+  // Metrics from https://artificialanalysis.ai/models/glm-5-non-reasoning (Fireworks 기준; AA providers에 Fireworks 미등재 시 model median 사용)
+  contextWindow: 200000, // 200k tokens
+  intelligenceIndex: 40, // Artificial Analysis Intelligence Index 40
   maxOutputTokens: 128000, // 128K
 },
 // 📅 GPT-OSS-120B High
