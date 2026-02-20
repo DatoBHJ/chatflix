@@ -222,14 +222,8 @@ const pick = (modelId: string) => resolveDefaultModelVariantId(modelId);
         return pickGemini3Variant('gemini-3-pro-preview', analysis.complexity); // gemini 3 pro
         }
       } else {
-        // 비멀티모달 + 코딩
-        if (analysis.complexity === 'simple') {
-        return pick('grok-code-fast-1'); // grok code fast for simple coding
-        } else if (analysis.complexity === 'medium') {
-        return pick('accounts/fireworks/models/kimi-k2p5');
-        } else { // complex
-        return pick('accounts/fireworks/models/kimi-k2p5');
-        }
+        // 비멀티모달 + 코딩: 복잡도 관계없이 GLM-5
+        return pick('accounts/fireworks/models/glm-5');
       }
     } else {
       // 일반 버전 코딩 로직
@@ -241,12 +235,8 @@ const pick = (modelId: string) => resolveDefaultModelVariantId(modelId);
         return pickGemini3Variant('gemini-3-flash-preview', analysis.complexity); // gemini 3 flash
         }
       } else {
-        // 비멀티모달 + 코딩: 복잡도에 따라 모델 선택
-        if (analysis.complexity === 'simple') {
-        return pick('grok-code-fast-1'); // grok code fast for simple coding tasks
-        } else {
-        return pickGemini3Variant('gemini-3-flash-preview', analysis.complexity); // gemini 3 flash for medium/complex
-        }
+        // 비멀티모달 + 코딩: 복잡도 관계없이 kimi-k2p5
+        return pick('accounts/fireworks/models/kimi-k2p5');
       }
     }
   }
@@ -301,22 +291,12 @@ const pick = (modelId: string) => resolveDefaultModelVariantId(modelId);
   // 3단계: 텍스트만 있는 경우 (비멀티모달)
   else {
     if (analysis.category === 'math') {
-      // 수학 카테고리 - 비멀티모달: Ultimate는 openai/gpt-oss-120b-high, Pro는 gpt-5.2 사용
-    return modelType === 'chatflix-ultimate-pro' ? pickGPT52Variant(analysis.complexity) : pick('openai/gpt-oss-120b-high');
+      // 수학 카테고리 - 비멀티모달: Ultimate는 kimi-k2p5, Pro는 glm-5
+    return modelType === 'chatflix-ultimate-pro' ? pick('accounts/fireworks/models/glm-5') : pick('accounts/fireworks/models/kimi-k2p5');
     }
     else if (analysis.category === 'technical') {
-      // 기술 카테고리
-      if (modelType === 'chatflix-ultimate-pro') {
-        // Pro 버전: 단순 gemini-3-flash, 중간/복잡 claude-sonnet-4-6
-        if (analysis.complexity === 'simple') {
-        return pickGemini3Variant('gemini-3-flash-preview', analysis.complexity);
-        } else { // medium/complex
-        return pick('accounts/fireworks/models/kimi-k2p5');
-        }
-      } else {
-        // 일반 버전: 모든 복잡도 gemini-3-flash
-      return pickGemini3Variant('gemini-3-flash-preview', analysis.complexity);
-      }
+      // 기술 카테고리 - 비멀티모달: Math와 동일, Ultimate는 kimi-k2p5, Pro는 glm-5
+      return modelType === 'chatflix-ultimate-pro' ? pick('accounts/fireworks/models/glm-5') : pick('accounts/fireworks/models/kimi-k2p5');
     }
     else {
       // 기타 카테고리
@@ -324,10 +304,8 @@ const pick = (modelId: string) => resolveDefaultModelVariantId(modelId);
         // Pro 버전: 복잡도에 따라 모델 선택
         if (analysis.complexity === 'simple') {
         return pick('accounts/fireworks/models/kimi-k2p5');
-        } else if (analysis.complexity === 'medium') {
-        return pick('accounts/fireworks/models/kimi-k2p5');
-        } else { // complex
-        return pickGPT52Variant(analysis.complexity);
+        } else { // medium/complex
+        return pick('accounts/fireworks/models/glm-5');
         }
       } else {
         // 일반 버전: 복잡도에 따라 모델 선택
@@ -1145,31 +1123,6 @@ const MODEL_CONFIG_DATA: ModelConfig[] = [
   latency: 0.74, // artificialanalysis.ai: xAI 0.74s time to first token
   intelligenceIndex: 24, // artificialanalysis.ai Intelligence Index (non-reasoning)
   maxOutputTokens: 16000, // Reported 8k–30k by source; 16k per Oracle/playground
-},
-// 📅 Grok Code Fast 1
-{
-  id: 'grok-code-fast-1',
-  name: 'Grok Code Fast 1',
-  cutoff: 'Aug 2025',
-  abbreviation: 'GCF1',
-  country: 'US',
-  provider: 'xai',
-  creator: 'xai',
-  supportsVision: false,
-  rateLimit: {
-    level: 'level2',
-  },
-  supportsPDFs: false,
-  isEnabled: true,
-  isActivated: true,
-  isAgentEnabled: false,
-  reasoning: true,
-  // Metrics from https://artificialanalysis.ai/models/grok-code-fast-1/providers (xAI)
-  contextWindow: 256000, // ✓ Found: 256k (matches)
-  tps: 227.9, // Updated from artificialanalysis.ai (xAI: 227.9 tokens/s)
-  intelligenceIndex: 29, // Updated from artificialanalysis.ai (Intelligence Index: 29, ranks #26/136)
-  latency: 6.10, // Updated from artificialanalysis.ai (xAI: 6.10s, time to first answer token including thinking)
-  maxOutputTokens: 16000, // From config (verify at official xAI documentation)
 },
 // 📅 현재 OpenAI의 가장 최신 모델은 GPT-5.2입니다.
 // 📅 GPT-5.2 (High)
